@@ -14,7 +14,30 @@ Kirigami.ApplicationWindow {
     title: imageView.windowTitleFileName.length > 0 ? imageView.windowTitleFileName + " — KiriView" : "KiriView"
     visible: true
 
+    property bool helpDialogOpen: false
     property url initialSourceUrl
+    property int visibilityBeforeFullscreen: Window.Windowed
+
+    function restoredVisibility(visibility) {
+        switch (visibility) {
+        case Window.Windowed:
+        case Window.Maximized:
+        case Window.Minimized:
+            return visibility;
+        default:
+            return Window.Windowed;
+        }
+    }
+
+    function toggleFullScreen() {
+        if (visibility === Window.FullScreen) {
+            visibility = restoredVisibility(visibilityBeforeFullscreen);
+            return;
+        }
+
+        visibilityBeforeFullscreen = restoredVisibility(visibility);
+        visibility = Window.FullScreen;
+    }
 
     minimumWidth: Kirigami.Units.gridUnit * 28
     minimumHeight: Kirigami.Units.gridUnit * 20
@@ -25,7 +48,14 @@ Kirigami.ApplicationWindow {
         context: Qt.WindowShortcut
         sequence: "Esc"
 
-        onActivated: root.close()
+        onActivated: {
+            if (root.helpDialogOpen) {
+                shortcutHelpDialog.close();
+                return;
+            }
+
+            root.close();
+        }
     }
 
     pageStack.initialPage: Kirigami.Page {
@@ -39,14 +69,81 @@ Kirigami.ApplicationWindow {
         globalToolBarStyle: Kirigami.ApplicationHeaderStyle.None
 
         readonly property bool imageReady: imageView.status === KiriImageView.Ready
+        readonly property real dragZoomPercentPerPixel: zoomStepPercent / Math.max(1, Kirigami.Units.gridUnit * 2)
+        readonly property bool imagePannable: imageFlickable.contentWidth > imageFlickable.width || imageFlickable.contentHeight > imageFlickable.height
+        readonly property int keyboardPanDistance: 64
+        readonly property int maximumManualZoomPercent: 800
+        readonly property int minimumManualZoomPercent: 10
+        readonly property int zoomStepPercent: 10
+
+        function clampValue(value, minimum, maximum) {
+            return Math.max(minimum, Math.min(maximum, value));
+        }
+
+        function maximumContentX() {
+            return Math.max(0, Math.max(imageFlickable.width, imageView.x + imageView.width) - imageFlickable.width);
+        }
+
+        function maximumContentY() {
+            return Math.max(0, Math.max(imageFlickable.height, imageView.y + imageView.height) - imageFlickable.height);
+        }
+
+        function panBy(deltaX, deltaY) {
+            if (!imagePannable) {
+                return false;
+            }
+
+            const nextContentX = clampValue(imageFlickable.contentX + deltaX, 0, maximumContentX());
+            const nextContentY = clampValue(imageFlickable.contentY + deltaY, 0, maximumContentY());
+            const moved = nextContentX !== imageFlickable.contentX || nextContentY !== imageFlickable.contentY;
+            imageFlickable.contentX = nextContentX;
+            imageFlickable.contentY = nextContentY;
+            return moved;
+        }
 
         function pageNumberText() {
             return imageView.currentPageNumber > 0 ? imageView.currentPageNumber.toString() : "0";
         }
 
+        function textInputFocused() {
+            return pageNumberField.activeFocus || zoomSpinBox.activeFocus || (zoomSpinBox.contentItem !== null && zoomSpinBox.contentItem.activeFocus);
+        }
+
+        function viewportPointInsideImage(viewportX, viewportY) {
+            if (!imageReady || imageView.width <= 0 || imageView.height <= 0) {
+                return false;
+            }
+
+            const contentPointX = imageFlickable.contentX + viewportX;
+            const contentPointY = imageFlickable.contentY + viewportY;
+            return contentPointX >= imageView.x && contentPointX <= imageView.x + imageView.width && contentPointY >= imageView.y && contentPointY <= imageView.y + imageView.height;
+        }
+
+        function zoomBy(deltaPercent, viewportX, viewportY) {
+            if (!imageReady) {
+                return false;
+            }
+
+            const nextZoomPercent = clampValue(imageView.zoomPercent + deltaPercent, minimumManualZoomPercent, maximumManualZoomPercent);
+            if (Math.abs(nextZoomPercent - imageView.zoomPercent) < 0.001) {
+                return false;
+            }
+
+            const anchorViewportX = Number.isFinite(viewportX) ? clampValue(viewportX, 0, imageFlickable.width) : imageFlickable.width / 2;
+            const anchorViewportY = Number.isFinite(viewportY) ? clampValue(viewportY, 0, imageFlickable.height) : imageFlickable.height / 2;
+            const anchorRatioX = imageView.width > 0 ? clampValue((imageFlickable.contentX + anchorViewportX - imageView.x) / imageView.width, 0, 1) : 0.5;
+            const anchorRatioY = imageView.height > 0 ? clampValue((imageFlickable.contentY + anchorViewportY - imageView.y) / imageView.height, 0, 1) : 0.5;
+
+            imageView.zoomPercent = nextZoomPercent;
+            imageFlickable.contentX = clampValue(imageView.x + anchorRatioX * imageView.width - anchorViewportX, 0, maximumContentX());
+            imageFlickable.contentY = clampValue(imageView.y + anchorRatioY * imageView.height - anchorViewportY, 0, maximumContentY());
+            return true;
+        }
+
         Controls.Action {
             id: openAction
 
+            enabled: !root.helpDialogOpen
             icon.name: "document-open-symbolic"
             shortcut: StandardKey.Open
             text: "Open"
@@ -57,7 +154,7 @@ Kirigami.ApplicationWindow {
         Controls.Action {
             id: previousImageAction
 
-            enabled: page.imageReady
+            enabled: page.imageReady && !root.helpDialogOpen
             icon.name: "go-up-symbolic"
             text: "Previous"
 
@@ -67,7 +164,7 @@ Kirigami.ApplicationWindow {
         Controls.Action {
             id: nextImageAction
 
-            enabled: page.imageReady
+            enabled: page.imageReady && !root.helpDialogOpen
             icon.name: "go-down-symbolic"
             text: "Next"
 
@@ -77,7 +174,7 @@ Kirigami.ApplicationWindow {
         Controls.Action {
             id: previousContainerAction
 
-            enabled: imageView.containerNavigationAvailable
+            enabled: imageView.containerNavigationAvailable && !root.helpDialogOpen
             icon.name: "go-previous-symbolic"
             text: "Previous Container"
 
@@ -87,7 +184,7 @@ Kirigami.ApplicationWindow {
         Controls.Action {
             id: nextContainerAction
 
-            enabled: imageView.containerNavigationAvailable
+            enabled: imageView.containerNavigationAvailable && !root.helpDialogOpen
             icon.name: "go-next-symbolic"
             text: "Next Container"
 
@@ -97,7 +194,7 @@ Kirigami.ApplicationWindow {
         Controls.Action {
             id: fitAction
 
-            enabled: page.imageReady
+            enabled: page.imageReady && !root.helpDialogOpen
             icon.name: "zoom-fit-best-symbolic"
             text: "Fit"
 
@@ -313,8 +410,106 @@ Kirigami.ApplicationWindow {
             }
         }
 
+        MouseArea {
+            id: zoomDragArea
+
+            anchors.fill: imageFlickable
+            acceptedButtons: Qt.LeftButton
+            enabled: page.imageReady
+
+            property real lastY: 0
+            property bool zoomDragActive: false
+
+            onCanceled: zoomDragActive = false
+            onPositionChanged: mouse => {
+                if (!zoomDragActive) {
+                    mouse.accepted = false;
+                    return;
+                }
+
+                const deltaY = mouse.y - lastY;
+                if (deltaY !== 0) {
+                    page.zoomBy(-deltaY * page.dragZoomPercentPerPixel, mouse.x, mouse.y);
+                    lastY = mouse.y;
+                }
+                mouse.accepted = true;
+            }
+            onPressed: mouse => {
+                if ((mouse.modifiers & Qt.ControlModifier) && page.viewportPointInsideImage(mouse.x, mouse.y)) {
+                    zoomDragActive = true;
+                    lastY = mouse.y;
+                    mouse.accepted = true;
+                    return;
+                }
+
+                zoomDragActive = false;
+                mouse.accepted = false;
+            }
+            onReleased: mouse => {
+                zoomDragActive = false;
+                mouse.accepted = true;
+            }
+        }
+
         Shortcut {
             context: Qt.WindowShortcut
+            enabled: page.imageReady && !root.helpDialogOpen
+            sequence: "Ctrl+="
+
+            onActivated: page.zoomBy(page.zoomStepPercent, imageFlickable.width / 2, imageFlickable.height / 2)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imageReady && !root.helpDialogOpen
+            sequence: "Ctrl++"
+
+            onActivated: page.zoomBy(page.zoomStepPercent, imageFlickable.width / 2, imageFlickable.height / 2)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imageReady && !root.helpDialogOpen
+            sequence: "Ctrl+-"
+
+            onActivated: page.zoomBy(-page.zoomStepPercent, imageFlickable.width / 2, imageFlickable.height / 2)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imagePannable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "Left"
+
+            onActivated: page.panBy(-page.keyboardPanDistance, 0)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imagePannable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "Right"
+
+            onActivated: page.panBy(page.keyboardPanDistance, 0)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imagePannable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "Up"
+
+            onActivated: page.panBy(0, -page.keyboardPanDistance)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imagePannable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "Down"
+
+            onActivated: page.panBy(0, page.keyboardPanDistance)
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: page.imageReady && !root.helpDialogOpen
             sequence: StandardKey.MoveToPreviousPage
 
             onActivated: imageView.openPreviousImage()
@@ -322,9 +517,58 @@ Kirigami.ApplicationWindow {
 
         Shortcut {
             context: Qt.WindowShortcut
+            enabled: page.imageReady && !root.helpDialogOpen
             sequence: StandardKey.MoveToNextPage
 
             onActivated: imageView.openNextImage()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: imageView.containerNavigationAvailable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "["
+
+            onActivated: imageView.openPreviousContainer()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: imageView.containerNavigationAvailable && !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "]"
+
+            onActivated: imageView.openNextContainer()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "F"
+
+            onActivated: root.toggleFullScreen()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: !root.helpDialogOpen
+            sequence: "F11"
+
+            onActivated: root.toggleFullScreen()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: !page.textInputFocused() && !root.helpDialogOpen
+            sequence: "?"
+
+            onActivated: shortcutHelpDialog.open()
+        }
+
+        Shortcut {
+            context: Qt.WindowShortcut
+            enabled: !root.helpDialogOpen
+            sequence: "F1"
+
+            onActivated: shortcutHelpDialog.open()
         }
 
         Controls.BusyIndicator {
@@ -427,6 +671,90 @@ Kirigami.ApplicationWindow {
                 text: "Open"
 
                 onClicked: fileDialog.open()
+            }
+        }
+    }
+
+    Controls.Dialog {
+        id: shortcutHelpDialog
+
+        closePolicy: Controls.Popup.NoAutoClose
+        modal: true
+        standardButtons: Controls.Dialog.Close
+        title: "Keyboard Shortcuts"
+        width: Math.min(root.width - Kirigami.Units.largeSpacing * 2, Kirigami.Units.gridUnit * 28)
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+
+        onClosed: root.helpDialogOpen = false
+        onOpened: root.helpDialogOpen = true
+
+        contentItem: ColumnLayout {
+            spacing: Kirigami.Units.smallSpacing
+
+            Repeater {
+                model: ListModel {
+                    ListElement {
+                        description: "Open an image or comic book"
+                        keys: "Ctrl+O"
+                    }
+                    ListElement {
+                        description: "Close dialog or KiriView"
+                        keys: "Esc"
+                    }
+                    ListElement {
+                        description: "Previous or next image"
+                        keys: "Page Up / Page Down"
+                    }
+                    ListElement {
+                        description: "Zoom in"
+                        keys: "Ctrl+= / Ctrl++"
+                    }
+                    ListElement {
+                        description: "Zoom out"
+                        keys: "Ctrl+-"
+                    }
+                    ListElement {
+                        description: "Zoom around the cursor"
+                        keys: "Ctrl+drag up/down"
+                    }
+                    ListElement {
+                        description: "Pan the zoomed image"
+                        keys: "Arrow keys"
+                    }
+                    ListElement {
+                        description: "Previous or next container"
+                        keys: "[ / ]"
+                    }
+                    ListElement {
+                        description: "Toggle fullscreen"
+                        keys: "F / F11"
+                    }
+                    ListElement {
+                        description: "Show this shortcut help"
+                        keys: "? / F1"
+                    }
+                }
+
+                delegate: RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Kirigami.Units.largeSpacing
+
+                    Controls.Label {
+                        Layout.preferredWidth: Kirigami.Units.gridUnit * 9
+                        font.family: "monospace"
+                        text: keys
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                    }
+
+                    Controls.Label {
+                        Layout.fillWidth: true
+                        text: description
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                    }
+                }
             }
         }
     }
