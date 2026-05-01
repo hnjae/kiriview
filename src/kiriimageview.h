@@ -4,15 +4,17 @@
 #ifndef KIRIVIEW_KIRIIMAGEVIEW_H
 #define KIRIVIEW_KIRIIMAGEVIEW_H
 
+#include "asyncobjectslot.h"
+
 #include <QByteArray>
 #include <QImage>
 #include <QQuickItem>
 #include <QSize>
 #include <QSizeF>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -21,6 +23,7 @@ class KCoreDirLister;
 
 namespace KiriView {
 class ImageAnimationPlayer;
+enum class NavigationDirection : int;
 }
 
 class KiriImageView : public QQuickItem
@@ -40,6 +43,7 @@ class KiriImageView : public QQuickItem
     Q_PROPERTY(QSizeF displaySize READ displaySize NOTIFY displaySizeChanged)
     Q_PROPERTY(qreal zoomPercent READ zoomPercent WRITE setZoomPercent NOTIFY zoomPercentChanged)
     Q_PROPERTY(ZoomMode zoomMode READ zoomMode NOTIFY zoomModeChanged)
+    Q_PROPERTY(QStringList openDialogNameFilters READ openDialogNameFilters CONSTANT)
     Q_PROPERTY(int currentPageNumber READ currentPageNumber NOTIFY pageNavigationChanged)
     Q_PROPERTY(int imageCount READ imageCount NOTIFY pageNavigationChanged)
     Q_PROPERTY(bool containerNavigationAvailable READ containerNavigationAvailable NOTIFY
@@ -79,6 +83,7 @@ public:
     qreal zoomPercent() const;
     void setZoomPercent(qreal zoomPercent);
     ZoomMode zoomMode() const;
+    QStringList openDialogNameFilters() const;
     int currentPageNumber() const;
     int imageCount() const;
     bool containerNavigationAvailable() const;
@@ -109,28 +114,6 @@ Q_SIGNALS:
     void containerNavigationChanged();
 
 private:
-    enum class NavigationDirection {
-        Previous,
-        Next,
-    };
-
-    class AsyncObjectSlot
-    {
-    public:
-        using CancelCallback = std::function<void(QObject *)>;
-
-        quint64 start(QObject *object, CancelCallback cancelCallback);
-        bool accepts(quint64 token, const QObject *object) const;
-        bool claim(quint64 token, QObject *object);
-        void clear(QObject *object);
-        void cancel();
-
-    private:
-        QObject *m_object = nullptr;
-        CancelCallback m_cancelCallback;
-        quint64 m_token = 0;
-    };
-
     struct LoadSession {
         quint64 id = 0;
         QUrl requestedSourceUrl;
@@ -150,16 +133,16 @@ private:
     bool isCurrentLoadSession(const LoadSession &session) const;
     void clearLoadSession(const LoadSession &session);
     void setSourceUrlFromResolvedLoad(const QUrl &sourceUrl);
-    void openAdjacentImage(NavigationDirection direction);
-    void openAdjacentComicBookImage(NavigationDirection direction);
+    void openAdjacentImage(KiriView::NavigationDirection direction);
+    void openAdjacentComicBookImage(KiriView::NavigationDirection direction);
     void cancelNavigation();
-    void finishNavigation(KCoreDirLister *lister, quint64 generation, NavigationDirection direction,
-        const QUrl &currentUrl);
+    void finishNavigation(KCoreDirLister *lister, quint64 generation,
+        KiriView::NavigationDirection direction, const QUrl &currentUrl);
     void finishNavigationWithError(KCoreDirLister *lister, quint64 generation);
-    void openAdjacentContainer(NavigationDirection direction);
+    void openAdjacentContainer(KiriView::NavigationDirection direction);
     void cancelContainerNavigation();
     void finishContainerNavigation(KCoreDirLister *lister, quint64 generation,
-        NavigationDirection direction, const QUrl &currentContainerUrl);
+        KiriView::NavigationDirection direction, const QUrl &currentContainerUrl);
     void finishContainerNavigationWithError(KCoreDirLister *lister, quint64 generation);
     void openDirectoryContainer(const QUrl &containerUrl);
     void finishDirectoryContainerNavigation(
@@ -237,14 +220,14 @@ private:
     QSize m_svgRasterSize;
     quint64 m_imageRevision = 0;
     std::unique_ptr<KiriView::ImageAnimationPlayer> m_animationPlayer;
-    AsyncObjectSlot m_imageLoadSlot;
-    AsyncObjectSlot m_archiveListSlot;
-    AsyncObjectSlot m_navigationListerSlot;
-    AsyncObjectSlot m_navigationListSlot;
-    AsyncObjectSlot m_containerNavigationListerSlot;
-    AsyncObjectSlot m_containerNavigationListSlot;
-    AsyncObjectSlot m_pageNavigationListerSlot;
-    AsyncObjectSlot m_pageNavigationListSlot;
+    KiriView::AsyncObjectSlot m_imageLoadSlot;
+    KiriView::AsyncObjectSlot m_archiveListSlot;
+    KiriView::AsyncObjectSlot m_navigationListerSlot;
+    KiriView::AsyncObjectSlot m_navigationListSlot;
+    KiriView::AsyncObjectSlot m_containerNavigationListerSlot;
+    KiriView::AsyncObjectSlot m_containerNavigationListSlot;
+    KiriView::AsyncObjectSlot m_pageNavigationListerSlot;
+    KiriView::AsyncObjectSlot m_pageNavigationListSlot;
     std::vector<QUrl> m_pageNavigationUrls;
     std::unique_ptr<PredecodeCoordinator> m_predecodeCoordinator;
     int m_currentPageIndex = -1;
