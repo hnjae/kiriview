@@ -16,18 +16,23 @@
 #include <QBuffer>
 #include <QByteArray>
 #include <QCollator>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QIODevice>
 #include <QImageReader>
 #include <QLocale>
 #include <QMatrix4x4>
+#include <QMetaObject>
 #include <QMimeDatabase>
 #include <QMimeType>
+#include <QPointer>
 #include <QQuickWindow>
 #include <QRectF>
+#include <QRunnable>
 #include <QSGRenderNode>
 #include <QStringList>
+#include <QThreadPool>
 #include <QVector4D>
 #include <Qt>
 #include <algorithm>
@@ -49,6 +54,8 @@ constexpr qreal minimumManualZoomPercent = 10.0;
 constexpr qreal maximumManualZoomPercent = 800.0;
 constexpr const char *documentPortalHostPathAttribute = "user.document-portal.host-path";
 constexpr quint32 uniformBufferSize = 96;
+constexpr qsizetype predecodeCacheImageLimit = 2;
+constexpr qsizetype predecodeCacheByteBudget = 128 * 1024 * 1024;
 
 struct ImageNavigationCandidate {
     QUrl url;
@@ -58,6 +65,18 @@ struct ImageNavigationCandidate {
 struct Vertex {
     float position[2];
     float texCoord[2];
+};
+
+struct DecodedImageResult {
+    bool success = false;
+    QString errorString;
+    QImage image;
+    std::vector<KiriView::AnimationFrame> decodedAnimationFrames;
+    QByteArray animationData;
+    QByteArray animationFormat;
+    int animationLoopCount = 0;
+    int firstFrameDelay = 0;
+    bool hasAnimationReaderFrames = false;
 };
 
 constexpr std::array<Vertex, 6> quadVertices = { {
@@ -84,6 +103,122 @@ bool approximatelyEqual(const QSizeF &left, const QSizeF &right)
 {
     return approximatelyEqual(left.width(), right.width())
         && approximatelyEqual(left.height(), right.height());
+}
+
+QImage displayReadyImage(const QImage &image)
+{
+    if (image.format() == QImage::Format_RGBA8888_Premultiplied) {
+        return image;
+    }
+    return image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+}
+
+DecodedImageResult decodedImageFailure(const QString &errorString)
+{
+    DecodedImageResult result;
+    result.errorString = errorString;
+    return result;
+}
+
+DecodedImageResult decodeImageData(const QByteArray &data)
+{
+    KiriView::ApngDecodeResult apngResult = KiriView::decodeApngAnimation(data);
+    if (apngResult.status == KiriView::ApngDecodeStatus::Success) {
+        if (apngResult.animation.frames.empty()) {
+            return decodedImageFailure(QCoreApplication::translate(
+                "KiriImageView", "Could not decode the selected APNG animation."));
+        }
+
+        for (KiriView::AnimationFrame &frame : apngResult.animation.frames) {
+            frame.image = displayReadyImage(frame.image);
+        }
+
+        DecodedImageResult result;
+        result.success = true;
+        result.image = apngResult.animation.frames.front().image;
+        result.decodedAnimationFrames = std::move(apngResult.animation.frames);
+        result.animationLoopCount = apngResult.animation.loopCount;
+        return result;
+    }
+    if (apngResult.status == KiriView::ApngDecodeStatus::Error) {
+        return decodedImageFailure(apngResult.errorString);
+    }
+
+    const QByteArray imageData = KiriView::avifDataWithCompatibilityFixes(data);
+
+    QBuffer buffer;
+    buffer.setData(imageData);
+
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        return decodedImageFailure(QCoreApplication::translate(
+            "KiriImageView", "Could not read the selected image data."));
+    }
+
+    QImageReader reader(&buffer);
+    reader.setAutoTransform(true);
+    const bool supportsAnimation = reader.supportsAnimation();
+
+    QImage image = reader.read();
+    if (image.isNull()) {
+        return decodedImageFailure(reader.errorString());
+    }
+
+    const QByteArray format = reader.format();
+    const int firstFrameDelay = reader.nextImageDelay();
+    const int loopCount = reader.loopCount();
+    const bool hasMoreFrames = reader.canRead();
+
+    DecodedImageResult result;
+    result.success = true;
+    result.image = displayReadyImage(image);
+    if (supportsAnimation && hasMoreFrames) {
+        result.animationData = imageData;
+        result.animationFormat = format;
+        result.animationLoopCount = loopCount;
+        result.firstFrameDelay = firstFrameDelay;
+        result.hasAnimationReaderFrames = true;
+    }
+    return result;
+}
+
+QUrl normalizedImageUrl(const QUrl &url) { return url.adjusted(QUrl::NormalizePathSegments); }
+
+qsizetype imageByteCost(const QImage &image)
+{
+    if (image.isNull()) {
+        return 0;
+    }
+    return image.sizeInBytes();
+}
+
+bool decodedImageResultIsPredecodeCacheable(const DecodedImageResult &result)
+{
+    return result.success && !result.image.isNull() && result.decodedAnimationFrames.empty()
+        && !result.hasAnimationReaderFrames
+        && imageByteCost(result.image) <= predecodeCacheByteBudget;
+}
+
+std::vector<QUrl> adjacentImageUrls(
+    const std::vector<ImageNavigationCandidate> &candidates, const QUrl &currentUrl)
+{
+    std::vector<QUrl> urls;
+    const auto current = std::find_if(candidates.cbegin(), candidates.cend(),
+        [&currentUrl](const ImageNavigationCandidate &candidate) {
+            return candidate.url.matches(currentUrl, QUrl::NormalizePathSegments);
+        });
+    if (current == candidates.cend()) {
+        return urls;
+    }
+
+    if (current != candidates.cbegin()) {
+        urls.push_back(std::prev(current)->url);
+    }
+
+    const auto next = std::next(current);
+    if (next != candidates.cend()) {
+        urls.push_back(next->url);
+    }
+    return urls;
 }
 
 bool isSupportedImageFileName(const QString &name)
@@ -760,6 +895,7 @@ KiriImageView::KiriImageView(QQuickItem *parent)
 KiriImageView::~KiriImageView()
 {
     stopAnimation();
+    cancelPredecode();
     cancelNavigation();
     cancelLoad();
 }
@@ -779,6 +915,8 @@ void KiriImageView::setSourceUrl(const QUrl &sourceUrl)
 }
 
 KiriImageView::Status KiriImageView::status() const { return m_status; }
+
+bool KiriImageView::loading() const { return m_loading; }
 
 QString KiriImageView::errorString() const { return m_errorString; }
 
@@ -880,19 +1018,30 @@ void KiriImageView::itemChange(ItemChange change, const ItemChangeData &value)
 void KiriImageView::startLoad()
 {
     cancelLoad();
-    clearImage();
+    cancelPredecode();
+    const quint64 generation = ++m_loadGeneration;
     setErrorString(QString());
-    setZoomMode(ZoomMode::LogicalScaleFit);
-    updateZoomState();
 
     if (m_sourceUrl.isEmpty()) {
+        clearImage();
+        setZoomMode(ZoomMode::LogicalScaleFit);
+        updateZoomState();
+        setLoading(false);
+        m_comicBookRootUrl = QUrl();
         setStatus(Status::Null);
         return;
     }
 
-    setStatus(Status::Loading);
+    setLoading(true);
+    if (!hasDisplayedImage()) {
+        clearImage();
+        setZoomMode(ZoomMode::LogicalScaleFit);
+        updateZoomState();
+        setStatus(Status::Loading);
+    } else {
+        setStatus(Status::Ready);
+    }
 
-    const quint64 generation = ++m_loadGeneration;
     const std::optional<QUrl> selectedArchiveRootUrl = comicBookArchiveRootUrl(m_sourceUrl);
     if (selectedArchiveRootUrl.has_value()) {
         m_comicBookRootUrl = selectedArchiveRootUrl.value();
@@ -907,6 +1056,10 @@ void KiriImageView::startLoad()
                 && isUrlInsideArchiveRoot(m_sourceUrl, containingArchiveRootUrl.value())
             ? containingArchiveRootUrl.value()
             : QUrl();
+    }
+
+    if (tryDisplayPredecodedImage(m_sourceUrl)) {
+        return;
     }
 
     startImageLoad(m_sourceUrl, generation);
@@ -925,13 +1078,11 @@ void KiriImageView::startImageLoad(const QUrl &url, quint64 generation)
         m_job = nullptr;
 
         if (finishedJob->error() != KJob::NoError) {
-            clearImage();
-            setErrorString(finishedJob->errorString());
-            setStatus(Status::Error);
+            finishLoadWithError(finishedJob->errorString());
             return;
         }
 
-        finishWithImageData(job->data());
+        startImageDecode(job->data(), generation);
     });
 
     connect(job, &QObject::destroyed, this, [this, job]() {
@@ -965,20 +1116,16 @@ void KiriImageView::startComicBookLoad(const QUrl &archiveRootUrl, quint64 gener
             m_archiveListJob = nullptr;
 
             if (finishedJob->error() != KJob::NoError) {
-                clearImage();
                 m_comicBookRootUrl = QUrl();
-                setErrorString(finishedJob->errorString());
-                setStatus(Status::Error);
+                finishLoadWithError(finishedJob->errorString());
                 return;
             }
 
             sortImageNavigationCandidates(candidates.get());
             if (candidates->empty()) {
-                clearImage();
                 m_comicBookRootUrl = QUrl();
-                setErrorString(
+                finishLoadWithError(
                     tr("The selected comic book archive does not contain any supported images."));
-                setStatus(Status::Error);
                 return;
             }
 
@@ -1193,62 +1340,339 @@ void KiriImageView::finishNavigationWithError(KCoreDirLister *lister, quint64 ge
     lister->deleteLater();
 }
 
-void KiriImageView::finishWithImageData(const QByteArray &data)
+void KiriImageView::scheduleAdjacentImagePredecode()
+{
+    cancelPredecode();
+    if (!hasDisplayedImage() || m_displayedUrl.isEmpty()) {
+        return;
+    }
+
+    const quint64 generation = m_predecodeGeneration;
+    if (isUrlInsideArchiveRoot(m_displayedUrl, m_displayedComicBookRootUrl)) {
+        scheduleComicBookAdjacentImagePredecode(generation);
+        return;
+    }
+
+    scheduleFileAdjacentImagePredecode(generation);
+}
+
+void KiriImageView::scheduleFileAdjacentImagePredecode(quint64 generation)
+{
+    const QUrl currentUrl = navigationSourceUrl(m_displayedUrl);
+    const QUrl parentUrl = currentUrl.adjusted(QUrl::RemoveFilename | QUrl::NormalizePathSegments);
+    if (!parentUrl.isValid() || parentUrl.isEmpty()) {
+        return;
+    }
+
+    auto *lister = new KCoreDirLister(this);
+    lister->setAutoErrorHandlingEnabled(false);
+    lister->setAutoUpdate(false);
+    lister->setDelayedMimeTypes(true);
+    lister->setShowHiddenFiles(true);
+    m_predecodeLister = lister;
+
+    connect(lister, &KCoreDirLister::completed, this, [this, lister, generation, currentUrl]() {
+        if (generation != m_predecodeGeneration || lister != m_predecodeLister) {
+            return;
+        }
+
+        const std::vector<ImageNavigationCandidate> candidates
+            = imageNavigationCandidates(lister->items(KCoreDirLister::AllItems));
+        m_predecodeLister = nullptr;
+        lister->deleteLater();
+
+        startPredecodeImageLoads(adjacentImageUrls(candidates, currentUrl), QUrl(), generation);
+    });
+    connect(lister, &KCoreDirLister::jobError, this, [this, lister, generation](KIO::Job *) {
+        if (generation != m_predecodeGeneration || lister != m_predecodeLister) {
+            return;
+        }
+
+        m_predecodeLister = nullptr;
+        lister->deleteLater();
+    });
+
+    if (!lister->openUrl(parentUrl, KCoreDirLister::Reload)) {
+        m_predecodeLister = nullptr;
+        lister->deleteLater();
+    }
+}
+
+void KiriImageView::scheduleComicBookAdjacentImagePredecode(quint64 generation)
+{
+    const QUrl currentUrl = m_displayedUrl.adjusted(QUrl::NormalizePathSegments);
+    const QUrl archiveRootUrl = m_displayedComicBookRootUrl;
+    if (!currentUrl.isValid() || archiveRootUrl.isEmpty()) {
+        return;
+    }
+
+    auto *job = KIO::listRecursive(archiveRootUrl, KIO::HideProgressInfo,
+        KIO::ListJob::ListFlags(KIO::ListJob::ListFlag::IncludeHidden));
+    auto candidates = std::make_shared<std::vector<ImageNavigationCandidate>>();
+    m_predecodeListJob = job;
+
+    connect(job, &KIO::ListJob::entries, this,
+        [archiveRootUrl, candidates](KIO::Job *entriesJob, const KIO::UDSEntryList &entries) {
+            auto *listJob = qobject_cast<KIO::ListJob *>(entriesJob);
+            const QUrl directoryUrl = listJob == nullptr ? archiveRootUrl : listJob->url();
+            appendArchiveImageNavigationCandidates(
+                candidates.get(), entries, directoryUrl, archiveRootUrl);
+        });
+
+    connect(job, &KJob::result, this,
+        [this, job, generation, currentUrl, archiveRootUrl, candidates](KJob *finishedJob) {
+            if (generation != m_predecodeGeneration || job != m_predecodeListJob) {
+                return;
+            }
+
+            m_predecodeListJob = nullptr;
+            if (finishedJob->error() != KJob::NoError) {
+                return;
+            }
+
+            sortImageNavigationCandidates(candidates.get());
+            startPredecodeImageLoads(
+                adjacentImageUrls(*candidates, currentUrl), archiveRootUrl, generation);
+        });
+
+    connect(job, &QObject::destroyed, this, [this, job]() {
+        if (job == m_predecodeListJob) {
+            m_predecodeListJob = nullptr;
+        }
+    });
+}
+
+void KiriImageView::startPredecodeImageLoads(
+    const std::vector<QUrl> &urls, const QUrl &comicBookRootUrl, quint64 generation)
+{
+    for (const QUrl &url : urls) {
+        startPredecodeImageLoad(url, comicBookRootUrl, generation);
+    }
+}
+
+void KiriImageView::startPredecodeImageLoad(
+    const QUrl &url, const QUrl &comicBookRootUrl, quint64 generation)
+{
+    if (!url.isValid() || url.isEmpty() || hasPredecodedImage(url) || isPredecodeInFlight(url)) {
+        return;
+    }
+
+    auto *job = KIO::storedGet(url, KIO::NoReload, KIO::HideProgressInfo);
+    m_predecodeJobs.push_back(PredecodeJob { normalizedImageUrl(url), job });
+
+    connect(job, &KJob::result, this,
+        [this, job, generation, url, comicBookRootUrl](KJob *finishedJob) {
+            removePredecodeJob(job);
+            if (generation != m_predecodeGeneration || finishedJob->error() != KJob::NoError) {
+                return;
+            }
+
+            startPredecodeImageDecode(job->data(), url, comicBookRootUrl, generation);
+        });
+
+    connect(job, &QObject::destroyed, this, [this, job]() { removePredecodeJob(job); });
+}
+
+void KiriImageView::startPredecodeImageDecode(
+    QByteArray data, const QUrl &url, const QUrl &comicBookRootUrl, quint64 generation)
+{
+    const QPointer<KiriImageView> view(this);
+    QThreadPool::globalInstance()->start(QRunnable::create(
+        [view, data = std::move(data), url, comicBookRootUrl, generation]() mutable {
+            auto result = std::make_shared<DecodedImageResult>(decodeImageData(data));
+            if (view == nullptr) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(
+                view.data(),
+                [view, generation, url, comicBookRootUrl, result]() {
+                    if (view == nullptr || generation != view->m_predecodeGeneration
+                        || !decodedImageResultIsPredecodeCacheable(*result)) {
+                        return;
+                    }
+
+                    view->cachePredecodedImage(url, comicBookRootUrl, result->image);
+                },
+                Qt::QueuedConnection);
+        }));
+}
+
+void KiriImageView::removePredecodeJob(KIO::StoredTransferJob *job)
+{
+    m_predecodeJobs.erase(
+        std::remove_if(m_predecodeJobs.begin(), m_predecodeJobs.end(),
+            [job](const PredecodeJob &predecodeJob) { return predecodeJob.job == job; }),
+        m_predecodeJobs.end());
+}
+
+void KiriImageView::cancelPredecode()
+{
+    ++m_predecodeGeneration;
+
+    if (m_predecodeLister != nullptr) {
+        auto *lister = m_predecodeLister;
+        m_predecodeLister = nullptr;
+        lister->stop();
+        lister->deleteLater();
+    }
+
+    if (m_predecodeListJob != nullptr) {
+        auto *job = m_predecodeListJob;
+        m_predecodeListJob = nullptr;
+        job->kill(KJob::Quietly);
+    }
+
+    std::vector<PredecodeJob> jobs = std::move(m_predecodeJobs);
+    m_predecodeJobs.clear();
+    for (const PredecodeJob &predecodeJob : jobs) {
+        if (predecodeJob.job != nullptr) {
+            predecodeJob.job->kill(KJob::Quietly);
+        }
+    }
+}
+
+bool KiriImageView::tryDisplayPredecodedImage(const QUrl &url)
+{
+    QImage image;
+    QUrl comicBookRootUrl;
+    if (!takePredecodedImage(url, &image, &comicBookRootUrl)) {
+        return false;
+    }
+
+    m_comicBookRootUrl = comicBookRootUrl;
+    finishLoadSuccessfully(image);
+    scheduleAdjacentImagePredecode();
+    return true;
+}
+
+bool KiriImageView::takePredecodedImage(const QUrl &url, QImage *image, QUrl *comicBookRootUrl)
+{
+    const QUrl normalizedUrl = normalizedImageUrl(url);
+    const auto cached = std::find_if(m_predecodedImages.begin(), m_predecodedImages.end(),
+        [&normalizedUrl](const PredecodedImage &entry) { return entry.url == normalizedUrl; });
+    if (cached == m_predecodedImages.end()) {
+        return false;
+    }
+
+    *image = std::move(cached->image);
+    *comicBookRootUrl = cached->comicBookRootUrl;
+    m_predecodedImages.erase(cached);
+    return true;
+}
+
+void KiriImageView::cachePredecodedImage(
+    const QUrl &url, const QUrl &comicBookRootUrl, const QImage &image)
+{
+    const qsizetype byteCost = imageByteCost(image);
+    if (byteCost <= 0 || byteCost > predecodeCacheByteBudget) {
+        return;
+    }
+
+    const QUrl normalizedUrl = normalizedImageUrl(url);
+    m_predecodedImages.erase(
+        std::remove_if(m_predecodedImages.begin(), m_predecodedImages.end(),
+            [&normalizedUrl](const PredecodedImage &entry) { return entry.url == normalizedUrl; }),
+        m_predecodedImages.end());
+    m_predecodedImages.insert(m_predecodedImages.begin(),
+        PredecodedImage { normalizedUrl, comicBookRootUrl, image, byteCost });
+
+    auto totalByteCost = [this]() {
+        qsizetype total = 0;
+        for (const PredecodedImage &entry : m_predecodedImages) {
+            total += entry.byteCost;
+        }
+        return total;
+    };
+
+    while (static_cast<qsizetype>(m_predecodedImages.size()) > predecodeCacheImageLimit
+        || totalByteCost() > predecodeCacheByteBudget) {
+        m_predecodedImages.pop_back();
+    }
+}
+
+bool KiriImageView::hasPredecodedImage(const QUrl &url) const
+{
+    const QUrl normalizedUrl = normalizedImageUrl(url);
+    return std::any_of(m_predecodedImages.cbegin(), m_predecodedImages.cend(),
+        [&normalizedUrl](const PredecodedImage &entry) { return entry.url == normalizedUrl; });
+}
+
+bool KiriImageView::isPredecodeInFlight(const QUrl &url) const
+{
+    const QUrl normalizedUrl = normalizedImageUrl(url);
+    return std::any_of(m_predecodeJobs.cbegin(), m_predecodeJobs.cend(),
+        [&normalizedUrl](const PredecodeJob &job) { return job.url == normalizedUrl; });
+}
+
+void KiriImageView::startImageDecode(QByteArray data, quint64 generation)
+{
+    const QPointer<KiriImageView> view(this);
+    QThreadPool::globalInstance()->start(
+        QRunnable::create([view, data = std::move(data), generation]() mutable {
+            auto result = std::make_shared<DecodedImageResult>(decodeImageData(data));
+            if (view == nullptr) {
+                return;
+            }
+
+            QMetaObject::invokeMethod(
+                view.data(),
+                [view, generation, result]() mutable {
+                    if (view == nullptr || generation != view->m_loadGeneration) {
+                        return;
+                    }
+
+                    if (!result->success) {
+                        view->finishLoadWithError(result->errorString);
+                        return;
+                    }
+
+                    view->finishLoadSuccessfully(result->image);
+                    if (!result->decodedAnimationFrames.empty()) {
+                        view->startDecodedAnimation(
+                            std::move(result->decodedAnimationFrames), result->animationLoopCount);
+                    } else if (result->hasAnimationReaderFrames) {
+                        view->startAnimation(result->animationData, result->animationFormat,
+                            result->animationLoopCount, result->firstFrameDelay);
+                    }
+                    view->scheduleAdjacentImagePredecode();
+                },
+                Qt::QueuedConnection);
+        }));
+}
+
+void KiriImageView::finishLoadWithError(const QString &errorString)
+{
+    setLoading(false);
+
+    if (hasDisplayedImage()) {
+        setErrorString(errorString);
+        setStatus(Status::Ready);
+
+        if (!m_displayedUrl.isEmpty() && m_sourceUrl != m_displayedUrl) {
+            m_sourceUrl = m_displayedUrl;
+            Q_EMIT sourceUrlChanged();
+        }
+        m_comicBookRootUrl = m_displayedComicBookRootUrl;
+        scheduleAdjacentImagePredecode();
+        return;
+    }
+
+    clearImage();
+    setErrorString(errorString);
+    setStatus(Status::Error);
+}
+
+void KiriImageView::finishLoadSuccessfully(const QImage &image)
 {
     stopAnimation();
-
-    KiriView::ApngDecodeResult apngResult = KiriView::decodeApngAnimation(data);
-    if (apngResult.status == KiriView::ApngDecodeStatus::Success) {
-        setDisplayedImage(apngResult.animation.frames.front().image);
-        setErrorString(QString());
-        setStatus(Status::Ready);
-        startDecodedAnimation(
-            std::move(apngResult.animation.frames), apngResult.animation.loopCount);
-        return;
-    }
-    if (apngResult.status == KiriView::ApngDecodeStatus::Error) {
-        clearImage();
-        setErrorString(apngResult.errorString);
-        setStatus(Status::Error);
-        return;
-    }
-
-    const QByteArray imageData = KiriView::avifDataWithCompatibilityFixes(data);
-
-    QBuffer buffer;
-    buffer.setData(imageData);
-
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        clearImage();
-        setErrorString(tr("Could not read the selected image data."));
-        setStatus(Status::Error);
-        return;
-    }
-
-    QImageReader reader(&buffer);
-    reader.setAutoTransform(true);
-    const bool supportsAnimation = reader.supportsAnimation();
-
-    QImage image = reader.read();
-    if (image.isNull()) {
-        clearImage();
-        setErrorString(reader.errorString());
-        setStatus(Status::Error);
-        return;
-    }
-
-    const QByteArray format = reader.format();
-    const int firstFrameDelay = reader.nextImageDelay();
-    const int loopCount = reader.loopCount();
-    const bool hasMoreFrames = reader.canRead();
-
+    setZoomMode(ZoomMode::LogicalScaleFit);
     setDisplayedImage(image);
+    m_displayedUrl = m_sourceUrl;
+    m_displayedComicBookRootUrl = m_comicBookRootUrl;
     setErrorString(QString());
+    setLoading(false);
     setStatus(Status::Ready);
-
-    if (supportsAnimation && hasMoreFrames) {
-        startAnimation(imageData, format, loopCount, firstFrameDelay);
-    }
 }
 
 void KiriImageView::startAnimation(
@@ -1393,6 +1817,8 @@ bool KiriImageView::hasRemainingAnimationLoops() const
     return m_animationLoopCount < 0 || m_completedAnimationLoops < m_animationLoopCount;
 }
 
+bool KiriImageView::hasDisplayedImage() const { return !m_image.isNull(); }
+
 void KiriImageView::stopAnimation()
 {
     m_animationTimer.stop();
@@ -1408,6 +1834,7 @@ void KiriImageView::stopAnimation()
 
 void KiriImageView::finishWithAnimationError(const QString &errorString)
 {
+    setLoading(false);
     clearImage();
     const QString message = errorString.isEmpty()
         ? tr("Could not decode the selected image animation.")
@@ -1418,10 +1845,20 @@ void KiriImageView::finishWithAnimationError(const QString &errorString)
 
 void KiriImageView::setDisplayedImage(const QImage &image)
 {
-    m_image = image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+    m_image = displayReadyImage(image);
     ++m_imageRevision;
     setImageSize(m_image.size());
     update();
+}
+
+void KiriImageView::setLoading(bool loading)
+{
+    if (m_loading == loading) {
+        return;
+    }
+
+    m_loading = loading;
+    Q_EMIT loadingChanged();
 }
 
 void KiriImageView::setStatus(Status status)
@@ -1535,7 +1972,11 @@ QSizeF KiriImageView::displaySizeForZoomPercent(qreal zoomPercent) const
 
 void KiriImageView::clearImage()
 {
+    cancelPredecode();
+    m_predecodedImages.clear();
     stopAnimation();
+    m_displayedUrl = QUrl();
+    m_displayedComicBookRootUrl = QUrl();
 
     if (!m_image.isNull()) {
         m_image = QImage();
