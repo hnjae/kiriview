@@ -3,14 +3,19 @@
 
 #include "predecodecache.h"
 
-#include "kiriimagedecoder.h"
-#include "kiriimagenavigation.h"
+#include "imagebytecost.h"
+#include "imageurl.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
 
 namespace KiriView {
+PredecodeCache::PredecodeCache(qsizetype byteBudget)
+    : m_byteBudget(byteBudget > 0 ? byteBudget : defaultByteBudget())
+{
+}
+
 void PredecodeCache::clear()
 {
     m_windowUrls.clear();
@@ -116,7 +121,7 @@ bool PredecodeCache::findImage(const QUrl &url, QImage *image, QUrl *comicBookRo
 void PredecodeCache::cacheImage(const QUrl &url, const QUrl &comicBookRootUrl, const QImage &image)
 {
     const qsizetype byteCost = imageByteCost(image);
-    if (byteCost <= 0 || byteCost > byteBudget()) {
+    if (byteCost <= 0 || byteCost > m_byteBudget) {
         return;
     }
 
@@ -169,7 +174,7 @@ void PredecodeCache::trimImagesToWindow()
         totalByteCost += entry.byteCost;
     }
 
-    while (totalByteCost > byteBudget() && !m_images.empty()) {
+    while (totalByteCost > m_byteBudget && !m_images.empty()) {
         totalByteCost -= m_images.back().byteCost;
         m_images.pop_back();
     }
