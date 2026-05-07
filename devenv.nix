@@ -60,9 +60,6 @@ let
   cxxCompiler = pkgs.stdenv.cc.cc;
   cxxStandardLibraryVersion = lib.getVersion cxxCompiler;
   cxxTarget = pkgs.stdenv.hostPlatform.config;
-  cargoVendorDir = "${config.devenv.root}/.cargo-vendor/vendor";
-  cargoVendorSourceConfig = "source.vendored-sources.directory=\"${cargoVendorDir}\"";
-  cargoCratesIoReplaceConfig = "source.crates-io.replace-with=\"vendored-sources\"";
   karchiveDev = pkgs.kdePackages.karchive.dev or pkgs.kdePackages.karchive;
   kconfigDev = pkgs.kdePackages.kconfig.dev or pkgs.kdePackages.kconfig;
   kcoreaddonsDev = pkgs.kdePackages.kcoreaddons.dev or pkgs.kdePackages.kcoreaddons;
@@ -157,6 +154,7 @@ let
     ++ [ source ];
   }) cppSources;
   cppSourcesShellArgs = lib.escapeShellArgs cppSources;
+  clazyIgnoreDirsRegex = "(^|/)(\\.devenv|target)(/|$)|^/nix/store/";
   qmlLintImportArgs = lib.escapeShellArgs (
     lib.concatMap (path: [
       "-I"
@@ -263,23 +261,65 @@ in
   };
 
   scripts = {
-    "lint-clippy" = {
-      description = "Run Rust clippy with vendored dependencies";
+    "test-rust-host" = {
+      description = "Run host Rust library tests";
       exec = ''
         set -euo pipefail
 
         cd ${lib.escapeShellArg config.devenv.root}
 
-        if [[ ! -d ${lib.escapeShellArg cargoVendorDir} ]]; then
-            echo ".cargo-vendor/vendor was not found; run 'just lint' to vendor dependencies" >&2
-            exit 1
-        fi
+        CARGO_TARGET_DIR=${lib.escapeShellArg "${config.devenv.root}/target"} \
+            cargo test --locked --lib --all-features
+      '';
+    };
+    "test-cpp-host" = {
+      description = "Run host C++ tests against host Rust artifacts";
+      exec = ''
+        set -euo pipefail
 
-        cargo \
-            --config ${lib.escapeShellArg cargoVendorSourceConfig} \
-            --config ${lib.escapeShellArg cargoCratesIoReplaceConfig} \
-            --offline \
-            clippy --all-targets --all-features -- -D warnings
+        cd ${lib.escapeShellArg config.devenv.root}
+
+        cmake \
+            -S tests/cpp \
+            -B target/devenv/cpp-tests \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DKIRIVIEW_CARGO_TARGET_DIR=${lib.escapeShellArg "${config.devenv.root}/target/debug"}
+        cmake --build target/devenv/cpp-tests
+        # GNU gettext ignores LANGUAGE under C/POSIX locales; devenv defaults to C.UTF-8.
+        LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+            ctest \
+                --test-dir target/devenv/cpp-tests \
+                --output-on-failure \
+                -E '^test_kiriimagedecoder$'
+      '';
+    };
+    "test-host" = {
+      description = "Run host Rust and C++ tests";
+      exec = ''
+        set -euo pipefail
+
+        test-rust-host
+        test-cpp-host
+      '';
+    };
+    "lint" = {
+      description = "Run linters";
+      exec = ''
+        set -euo pipefail
+
+        lint-clippy
+        lint-qmllint
+        lint-cpp
+      '';
+    };
+    "lint-clippy" = {
+      description = "Run Rust clippy";
+      exec = ''
+        set -euo pipefail
+
+        cd ${lib.escapeShellArg config.devenv.root}
+
+        cargo clippy --locked --all-targets --all-features -- -D warnings
       '';
     };
     "lint-qmllint" = {
@@ -291,18 +331,12 @@ in
         ${lib.getExe' pkgs.kdePackages.qtdeclarative "qmllint"} ${qmlLintImportArgs} --ignore-settings --max-warnings 0 src/qml/*.qml
       '';
     };
-    "lint-clang-tidy" = {
-      description = "Run clang-tidy against C++ sources";
+    "lint-cpp" = {
+      description = "Run C++ linters";
       exec = ''
         ${cppLintPrelude}
         ${lib.getExe' pkgs.clang-tools "clang-tidy"} --quiet -p . ${cppSourcesShellArgs}
-      '';
-    };
-    "lint-clazy" = {
-      description = "Run clazy against C++ sources";
-      exec = ''
-        ${cppLintPrelude}
-        ${lib.getExe' pkgs.clazy "clazy-standalone"} --checks="''${CLAZY_CHECKS:-level0}" -p . ${cppSourcesShellArgs}
+        ${lib.getExe' pkgs.clazy "clazy-standalone"} --checks="''${CLAZY_CHECKS:-level0}" --ignore-dirs=${lib.escapeShellArg clazyIgnoreDirsRegex} -p . ${cppSourcesShellArgs}
       '';
     };
   };
