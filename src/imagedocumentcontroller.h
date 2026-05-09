@@ -156,9 +156,7 @@ private:
     bool rightToLeftReadingActive() const;
     bool shouldResetRightToLeftReadingForLoad(
         const QUrl &sourceUrl, const QUrl &containerNavigationUrl) const;
-    bool currentPageIsCover() const;
     bool primaryPageIsWide() const;
-    static bool pageIsWide(const QSize &imageSize);
     void cacheWidePage(const QUrl &url, const QSize &imageSize);
     std::optional<bool> cachedPageIsWide(const QUrl &url) const;
     static QString pageCacheKey(const QUrl &url);

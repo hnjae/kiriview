@@ -13,12 +13,12 @@
 #include "imagepredecodecoordinator.h"
 #include "imagepresentationcontroller.h"
 #include "imagerendering.h"
+#include "imagespreadgeometry.h"
 #include "imageviewtext.h"
 #include "predecodecache.h"
 
 #include <QRectF>
 #include <QString>
-#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <optional>
@@ -210,13 +210,8 @@ QSizeF ImageDocumentController::primaryDisplaySize() const
         return m_presentationController->displaySize();
     }
 
-    const QSize imageSize = m_presentationController->imageSize();
-    if (imageSize.isEmpty() || spreadImageSize().isEmpty()) {
-        return {};
-    }
-
-    const qreal scale = displaySize().width() / spreadImageSize().width();
-    return QSizeF(imageSize.width() * scale, imageSize.height() * scale);
+    return imageSpreadScaledPageDisplaySize(
+        m_presentationController->imageSize(), spreadImageSize(), displaySize());
 }
 
 QSizeF ImageDocumentController::secondaryDisplaySize() const
@@ -225,13 +220,8 @@ QSizeF ImageDocumentController::secondaryDisplaySize() const
         return {};
     }
 
-    const QSize imageSize = m_secondaryPresentationController->imageSize();
-    if (imageSize.isEmpty() || spreadImageSize().isEmpty()) {
-        return {};
-    }
-
-    const qreal scale = displaySize().width() / spreadImageSize().width();
-    return QSizeF(imageSize.width() * scale, imageSize.height() * scale);
+    return imageSpreadScaledPageDisplaySize(
+        m_secondaryPresentationController->imageSize(), spreadImageSize(), displaySize());
 }
 
 qreal ImageDocumentController::zoomPercent() const
@@ -428,20 +418,16 @@ void ImageDocumentController::openPreviousImage()
         return;
     }
 
-    if (currentPageNumber() <= 2) {
-        openImageAtPage(1);
-        return;
-    }
-
-    int offset = secondaryPageVisible() ? -2 : -1;
-    if (secondaryPageVisible()) {
+    bool previousPageIsWide = false;
+    if (secondaryPageVisible() && currentPageNumber() > 2) {
         const std::optional<QUrl> previousUrl
             = m_navigationController->urlAtPage(currentPageNumber() - 1);
-        if (previousUrl.has_value() && cachedPageIsWide(*previousUrl).value_or(false)) {
-            offset = -1;
+        if (previousUrl.has_value()) {
+            previousPageIsWide = cachedPageIsWide(*previousUrl).value_or(false);
         }
     }
-    openImageAtRelativePageOffset(offset);
+    openImageAtPage(imageSpreadPreviousPageTarget(
+        currentPageNumber(), secondaryPageVisible(), previousPageIsWide));
 }
 
 void ImageDocumentController::openNextImage()
@@ -451,8 +437,8 @@ void ImageDocumentController::openNextImage()
         return;
     }
 
-    const int nextPage = currentLastPageNumber() + 1;
-    if (nextPage > imageCount()) {
+    const int nextPage = imageSpreadNextPageTarget(currentLastPageNumber(), imageCount());
+    if (nextPage <= 0) {
         return;
     }
 
@@ -738,29 +724,19 @@ void ImageDocumentController::refreshSecondaryPage()
         finishTwoPageSpreadTransition();
     };
 
-    if (!twoPageModeActive() || currentPageIsCover() || primaryPageIsWide()) {
-        finishWithPrimaryPage();
-        return;
-    }
-
     const int nextPageNumber = currentPageNumber() + 1;
-    if (nextPageNumber <= 1 || nextPageNumber > imageCount()) {
-        finishWithPrimaryPage();
-        return;
-    }
-
     const std::optional<QUrl> nextUrl = m_navigationController->urlAtPage(nextPageNumber);
-    if (!nextUrl.has_value()) {
+    const bool nextPageIsWide = nextUrl.has_value() && cachedPageIsWide(*nextUrl).value_or(false);
+    const bool currentSecondaryMatchesNext = nextUrl.has_value() && secondaryPageVisible()
+        && m_secondaryDisplayedImageLocation.imageUrl() == *nextUrl;
+    const ImageSpreadSecondaryPageDecision decision
+        = imageSpreadSecondaryPageDecision(twoPageModeActive(), currentPageNumber(), imageCount(),
+            primaryPageIsWide(), nextUrl.has_value(), nextPageIsWide, currentSecondaryMatchesNext);
+    if (decision == ImageSpreadSecondaryPageDecision::PrimaryOnly) {
         finishWithPrimaryPage();
         return;
     }
-
-    if (cachedPageIsWide(*nextUrl).value_or(false)) {
-        finishWithPrimaryPage();
-        return;
-    }
-
-    if (secondaryPageVisible() && m_secondaryDisplayedImageLocation.imageUrl() == *nextUrl) {
+    if (decision == ImageSpreadSecondaryPageDecision::KeepCurrentSecondary) {
         return;
     }
 
@@ -834,7 +810,7 @@ void ImageDocumentController::finishSecondaryImageLoad(
     m_secondaryPresentationController->setImage(image);
     m_secondaryDisplayedImageLocation = session.location;
     cacheWidePage(session.location.imageUrl(), m_secondaryPresentationController->imageSize());
-    m_secondaryPageVisible = !pageIsWide(m_secondaryPresentationController->imageSize());
+    m_secondaryPageVisible = !imageSpreadPageIsWide(m_secondaryPresentationController->imageSize());
     if (!m_secondaryPageVisible) {
         clearSecondaryPage();
         applyStoredSpreadZoomToPrimaryPage();
@@ -857,7 +833,7 @@ void ImageDocumentController::finishSecondaryStaticImageLoad(
     m_secondaryPresentationController->setStaticImage(std::move(staticImage));
     m_secondaryDisplayedImageLocation = session.location;
     cacheWidePage(session.location.imageUrl(), m_secondaryPresentationController->imageSize());
-    m_secondaryPageVisible = !pageIsWide(m_secondaryPresentationController->imageSize());
+    m_secondaryPageVisible = !imageSpreadPageIsWide(m_secondaryPresentationController->imageSize());
     if (!m_secondaryPageVisible) {
         clearSecondaryPage();
         applyStoredSpreadZoomToPrimaryPage();
@@ -881,8 +857,8 @@ void ImageDocumentController::finishSecondaryLoadWithError(const ImageLoadSessio
 
 bool ImageDocumentController::shouldBeginTwoPageSpreadTransition(int targetPageNumber) const
 {
-    return twoPageModeActive() && currentPageNumber() > 0 && targetPageNumber > 0
-        && targetPageNumber <= imageCount() && targetPageNumber != currentPageNumber();
+    return imageSpreadShouldBeginTransition(
+        twoPageModeActive(), currentPageNumber(), targetPageNumber, imageCount());
 }
 
 void ImageDocumentController::beginTwoPageSpreadTransition()
@@ -973,34 +949,20 @@ void ImageDocumentController::applySpreadVisibleItemRects()
 
 QRectF ImageDocumentController::primarySpreadPageRect() const
 {
-    const QSizeF secondarySize = secondaryDisplaySize();
-    const QSizeF pageSize = primaryDisplaySize();
-    const QSizeF spreadSize = displaySize();
-    const qreal x = rightToLeftReadingActive() ? secondarySize.width() : 0.0;
-    return QRectF(x, std::max<qreal>(0.0, (spreadSize.height() - pageSize.height()) / 2.0),
-        pageSize.width(), pageSize.height());
+    return imageSpreadPrimaryPageRect(
+        primaryDisplaySize(), secondaryDisplaySize(), displaySize(), rightToLeftReadingActive());
 }
 
 QRectF ImageDocumentController::secondarySpreadPageRect() const
 {
-    const QSizeF primarySize = primaryDisplaySize();
-    const QSizeF secondarySize = secondaryDisplaySize();
-    const QSizeF spreadSize = displaySize();
-    const qreal x = rightToLeftReadingActive() ? 0.0 : primarySize.width();
-    return QRectF(x, std::max<qreal>(0.0, (spreadSize.height() - secondarySize.height()) / 2.0),
-        secondarySize.width(), secondarySize.height());
+    return imageSpreadSecondaryPageRect(
+        primaryDisplaySize(), secondaryDisplaySize(), displaySize(), rightToLeftReadingActive());
 }
 
 QSize ImageDocumentController::spreadImageSize() const
 {
-    const QSize primarySize = m_presentationController->imageSize();
-    const QSize secondarySize = m_secondaryPresentationController->imageSize();
-    if (primarySize.isEmpty() || secondarySize.isEmpty()) {
-        return primarySize;
-    }
-
-    return QSize(primarySize.width() + secondarySize.width(),
-        std::max(primarySize.height(), secondarySize.height()));
+    return imageSpreadImageSize(
+        m_presentationController->imageSize(), m_secondaryPresentationController->imageSize());
 }
 
 bool ImageDocumentController::twoPageModeActive() const
@@ -1025,16 +987,9 @@ bool ImageDocumentController::shouldResetRightToLeftReadingForLoad(
         || !archiveDocumentContainsUrl(archiveDocument, sourceUrl);
 }
 
-bool ImageDocumentController::currentPageIsCover() const { return currentPageNumber() == 1; }
-
 bool ImageDocumentController::primaryPageIsWide() const
 {
-    return pageIsWide(m_presentationController->imageSize());
-}
-
-bool ImageDocumentController::pageIsWide(const QSize &imageSize)
-{
-    return !imageSize.isEmpty() && imageSize.width() > imageSize.height();
+    return imageSpreadPageIsWide(m_presentationController->imageSize());
 }
 
 void ImageDocumentController::cacheWidePage(const QUrl &url, const QSize &imageSize)
@@ -1044,7 +999,7 @@ void ImageDocumentController::cacheWidePage(const QUrl &url, const QSize &imageS
         return;
     }
 
-    m_widePageByUrl[key] = pageIsWide(imageSize);
+    m_widePageByUrl[key] = imageSpreadPageIsWide(imageSize);
 }
 
 std::optional<bool> ImageDocumentController::cachedPageIsWide(const QUrl &url) const
