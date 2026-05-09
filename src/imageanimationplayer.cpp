@@ -7,9 +7,9 @@
 #include "heifdecoder.h"
 #include "imagecallback.h"
 #include "imageviewtext.h"
+#include "kiriview/src/imageanimationpolicy.cxx.h"
 
 #include <QObject>
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -17,16 +17,9 @@
 #include <variant>
 
 namespace {
-constexpr int defaultAnimationFrameDelay = 100;
-constexpr int minimumAnimationFrameDelay = 10;
-
-int normalizedAnimationFrameDelay(int delay)
+KiriView::RustAnimationLoopState rustAnimationLoopState(int loopCount, int completedLoops)
 {
-    if (delay < 0) {
-        return defaultAnimationFrameDelay;
-    }
-
-    return std::max(delay, minimumAnimationFrameDelay);
+    return KiriView::RustAnimationLoopState { loopCount, completedLoops };
 }
 }
 
@@ -130,7 +123,11 @@ void ImageAnimationPlayer::advanceReaderFrame(ReaderPlayback &playback)
     }
 
     if (!playback.reader->canRead()) {
-        if (!advanceLoopOrStop()) {
+        const RustAnimationLoopAdvance loopAdvance
+            = rustAnimationAdvanceLoop(rustAnimationLoopState(m_loopCount, m_completedLoops));
+        m_completedLoops = loopAdvance.completed_loops;
+        if (!loopAdvance.should_continue) {
+            stop();
             return;
         }
 
@@ -150,30 +147,28 @@ void ImageAnimationPlayer::advanceReaderFrame(ReaderPlayback &playback)
     const int delay = playback.reader->nextImageDelay();
     invokeIfSet(m_frameReady, frame);
 
-    scheduleNextFrameOrStop(playback.reader->canRead() || hasRemainingLoops(), delay);
+    scheduleNextFrameOrStop(playback.reader->canRead()
+            || rustAnimationHasRemainingLoops(
+                rustAnimationLoopState(m_loopCount, m_completedLoops)),
+        delay);
 }
 
 void ImageAnimationPlayer::advanceDecodedFrame(DecodedPlayback &playback)
 {
-    if (playback.frames.empty()) {
+    const RustDecodedAnimationAdvance advance = rustDecodedAnimationAdvance(playback.frames.size(),
+        playback.frameIndex, rustAnimationLoopState(m_loopCount, m_completedLoops));
+    m_completedLoops = advance.completed_loops;
+    if (!advance.frame_available) {
+        stop();
         return;
     }
 
-    if (playback.frameIndex + 1 >= playback.frames.size()) {
-        if (!advanceLoopOrStop()) {
-            return;
-        }
-
-        playback.frameIndex = 0;
-    } else {
-        ++playback.frameIndex;
-    }
+    playback.frameIndex = advance.frame_index;
 
     const AnimationFrame &frame = playback.frames.at(playback.frameIndex);
     invokeIfSet(m_frameReady, frame.image);
 
-    scheduleNextFrameOrStop(
-        playback.frameIndex + 1 < playback.frames.size() || hasRemainingLoops(), frame.delay);
+    scheduleNextFrameOrStop(advance.schedule_next_frame, frame.delay);
 }
 
 void ImageAnimationPlayer::advanceHeifSequenceFrame(HeifSequencePlayback &playback)
@@ -241,25 +236,9 @@ bool ImageAnimationPlayer::resetHeifSequence(
     return true;
 }
 
-bool ImageAnimationPlayer::advanceLoopOrStop()
-{
-    if (!hasRemainingLoops()) {
-        stop();
-        return false;
-    }
-
-    ++m_completedLoops;
-    return true;
-}
-
-bool ImageAnimationPlayer::hasRemainingLoops() const
-{
-    return m_loopCount < 0 || m_completedLoops < m_loopCount;
-}
-
 void ImageAnimationPlayer::scheduleNextFrame(int delay)
 {
-    m_timer.start(normalizedAnimationFrameDelay(delay));
+    m_timer.start(rustNormalizedAnimationFrameDelay(delay));
 }
 
 void ImageAnimationPlayer::scheduleNextFrameOrStop(bool shouldContinue, int delay)
