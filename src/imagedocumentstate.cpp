@@ -5,6 +5,7 @@
 
 #include "imagecallback.h"
 #include "imagecontainer.h"
+#include "imagezoomstate.h"
 #include "kiriview/src/imagedocumentstate.cxx.h"
 
 #include <algorithm>
@@ -63,6 +64,8 @@ KiriView::ImageDocumentChange imageDocumentChange(
         return KiriView::ImageDocumentChange::Loading;
     case KiriView::RustImageDocumentNotificationChange::ImageSize:
         return KiriView::ImageDocumentChange::ImageSize;
+    case KiriView::RustImageDocumentNotificationChange::ViewportSize:
+        return KiriView::ImageDocumentChange::ViewportSize;
     case KiriView::RustImageDocumentNotificationChange::DisplaySize:
         return KiriView::ImageDocumentChange::DisplaySize;
     case KiriView::RustImageDocumentNotificationChange::ZoomPercent:
@@ -77,6 +80,10 @@ KiriView::ImageDocumentChange imageDocumentChange(
         return KiriView::ImageDocumentChange::RightToLeftReading;
     case KiriView::RustImageDocumentNotificationChange::Repaint:
         return KiriView::ImageDocumentChange::Repaint;
+    case KiriView::RustImageDocumentNotificationChange::DisplayedUrl:
+        return KiriView::ImageDocumentChange::DisplayedUrl;
+    case KiriView::RustImageDocumentNotificationChange::WindowTitleFileName:
+        return KiriView::ImageDocumentChange::WindowTitleFileName;
     }
 
     return KiriView::ImageDocumentChange::Repaint;
@@ -91,6 +98,14 @@ std::vector<KiriView::ImageDocumentChange> imageDocumentChanges(
         changes.push_back(imageDocumentChange(change));
     }
     return changes;
+}
+
+KiriView::RustImageDocumentZoomChangeSet rustImageDocumentZoomChangeSet(
+    const KiriView::ImageZoomChangeSet &changes)
+{
+    return KiriView::RustImageDocumentZoomChangeSet { changes.imageSizeChanged,
+        changes.viewportSizeChanged, changes.zoomModeChanged, changes.zoomPercentChanged,
+        changes.displaySizeChanged, changes.maximumManualZoomPercentChanged };
 }
 }
 
@@ -183,11 +198,10 @@ void ImageDocumentState::replaceDisplayedImageLocation(DisplayedImageLocation lo
     const QString previousWindowTitle = windowTitleFileName();
     const QUrl previousDisplayedUrl = displayedUrl();
     m_displayedImageLocation = std::move(location);
-    if (previousDisplayedUrl != displayedUrl()) {
-        notify(ImageDocumentChange::DisplayedUrl);
-    }
-    if (previousWindowTitle != windowTitleFileName()) {
-        notify(ImageDocumentChange::WindowTitleFileName);
+    for (ImageDocumentChange change :
+        imageDocumentDisplayedLocationNotifications(
+            previousDisplayedUrl != displayedUrl(), previousWindowTitle != windowTitleFileName())) {
+        notify(change);
     }
 }
 
@@ -285,6 +299,13 @@ std::vector<ImageDocumentChange> imageDocumentSpreadTransitionNotifications()
     return imageDocumentChanges(rustImageDocumentSpreadTransitionNotifications());
 }
 
+std::vector<ImageDocumentChange> imageDocumentDisplayedLocationNotifications(
+    bool displayedUrlChanged, bool windowTitleFileNameChanged)
+{
+    return imageDocumentChanges(rustImageDocumentDisplayedLocationNotifications(
+        displayedUrlChanged, windowTitleFileNameChanged));
+}
+
 std::vector<ImageDocumentChange> imageDocumentTwoPageModeNotifications()
 {
     return imageDocumentChanges(rustImageDocumentTwoPageModeNotifications());
@@ -300,5 +321,12 @@ std::vector<ImageDocumentChange> imageDocumentRightToLeftReadingNotifications(
 {
     return imageDocumentChanges(
         rustImageDocumentRightToLeftReadingNotifications(secondaryPageVisible));
+}
+
+std::vector<ImageDocumentChange> imageDocumentPresentationZoomNotifications(
+    const ImageZoomChangeSet &changes)
+{
+    return imageDocumentChanges(
+        rustImageDocumentPresentationZoomNotifications(rustImageDocumentZoomChangeSet(changes)));
 }
 }
