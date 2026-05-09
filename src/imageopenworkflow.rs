@@ -44,6 +44,19 @@ mod ffi {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum RustImageOpenSourceTarget {
+        EmptySource = 0,
+        LoadSource = 1,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum RustImageOpenFailureTarget {
+        ContainerNavigation = 0,
+        Replacement = 1,
+        Initial = 2,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct RustImageOpenEffects {
         clear_image: bool,
         reset_zoom: bool,
@@ -65,6 +78,9 @@ mod ffi {
     }
 
     extern "Rust" {
+        #[cxx_name = "rustImageOpenSourceTarget"]
+        fn rust_image_open_source_target(source_url_empty: bool) -> RustImageOpenSourceTarget;
+
         #[cxx_name = "rustImageOpenBeginSourceLoad"]
         fn rust_image_open_begin_source_load(
             has_image: bool,
@@ -92,14 +108,28 @@ mod ffi {
 
         #[cxx_name = "rustImageOpenFinishAnimationLoadWithError"]
         fn rust_image_open_finish_animation_load_with_error() -> RustImageOpenTransition;
+
+        #[cxx_name = "rustImageOpenFailureTarget"]
+        fn rust_image_open_failure_target(
+            container_navigation_url_empty: bool,
+            has_image: bool,
+        ) -> RustImageOpenFailureTarget;
     }
 }
 
 use ffi::{
     RustImageOpenBoolTarget, RustImageOpenDisplayedLocationTarget, RustImageOpenEffects,
-    RustImageOpenErrorStringTarget, RustImageOpenStatusTarget, RustImageOpenTransition,
-    RustImageOpenUrlTarget,
+    RustImageOpenErrorStringTarget, RustImageOpenFailureTarget, RustImageOpenSourceTarget,
+    RustImageOpenStatusTarget, RustImageOpenTransition, RustImageOpenUrlTarget,
 };
+
+fn rust_image_open_source_target(source_url_empty: bool) -> RustImageOpenSourceTarget {
+    if source_url_empty {
+        RustImageOpenSourceTarget::EmptySource
+    } else {
+        RustImageOpenSourceTarget::LoadSource
+    }
+}
 
 fn rust_image_open_begin_source_load(
     has_image: bool,
@@ -179,6 +209,20 @@ fn rust_image_open_finish_animation_load_with_error() -> RustImageOpenTransition
     cleared_load_error_transition(true)
 }
 
+fn rust_image_open_failure_target(
+    container_navigation_url_empty: bool,
+    has_image: bool,
+) -> RustImageOpenFailureTarget {
+    if !container_navigation_url_empty {
+        return RustImageOpenFailureTarget::ContainerNavigation;
+    }
+    if has_image {
+        return RustImageOpenFailureTarget::Replacement;
+    }
+
+    RustImageOpenFailureTarget::Initial
+}
+
 fn cleared_load_error_transition(reset_zoom: bool) -> RustImageOpenTransition {
     let mut transition = tracked_load_error_transition();
     transition.effects.clear_image = true;
@@ -236,6 +280,18 @@ mod tests {
         assert_eq!(transition.status, RustImageOpenStatusTarget::Loading);
         assert!(transition.effects.clear_image);
         assert!(transition.effects.reset_zoom);
+    }
+
+    #[test]
+    fn source_target_distinguishes_empty_source_from_loadable_source() {
+        assert_eq!(
+            rust_image_open_source_target(true),
+            RustImageOpenSourceTarget::EmptySource
+        );
+        assert_eq!(
+            rust_image_open_source_target(false),
+            RustImageOpenSourceTarget::LoadSource
+        );
     }
 
     #[test]
@@ -310,5 +366,25 @@ mod tests {
             RustImageOpenUrlTarget::Empty
         );
         assert_eq!(animation.status, RustImageOpenStatusTarget::Error);
+    }
+
+    #[test]
+    fn load_failure_target_prefers_container_navigation_then_replacement_then_initial() {
+        assert_eq!(
+            rust_image_open_failure_target(false, true),
+            RustImageOpenFailureTarget::ContainerNavigation
+        );
+        assert_eq!(
+            rust_image_open_failure_target(false, false),
+            RustImageOpenFailureTarget::ContainerNavigation
+        );
+        assert_eq!(
+            rust_image_open_failure_target(true, true),
+            RustImageOpenFailureTarget::Replacement
+        );
+        assert_eq!(
+            rust_image_open_failure_target(true, false),
+            RustImageOpenFailureTarget::Initial
+        );
     }
 }

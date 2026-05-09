@@ -52,13 +52,26 @@ class TestImageOpenWorkflow : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void sourceTargetRoutesEmptyAndLoadableSources();
     void firstImageLoadSuccessTransitionsToReady();
     void directArchiveImageLoadSuccessDisablesContainerNavigation();
     void replacementLoadFailureKeepsDisplayedImage();
     void emptyContainerFailureSelectsFailedContainer();
     void animationFailureClearsImageAndResetsZoom();
+    void loadFailureTargetRoutesContainerNavigationReplacementAndInitialLoads();
     void trackedLoadCompletionsClearLoadingContainerNavigationUrl();
 };
+
+void TestImageOpenWorkflow::sourceTargetRoutesEmptyAndLoadableSources()
+{
+    KiriView::ImageDocumentState state;
+    QCOMPARE(static_cast<int>(KiriView::ImageOpenWorkflow::sourceTargetForOpen(state)),
+        static_cast<int>(KiriView::ImageOpenSourceTarget::EmptySource));
+
+    state.setSourceUrl(localUrl(QStringLiteral("/images/page.png")));
+    QCOMPARE(static_cast<int>(KiriView::ImageOpenWorkflow::sourceTargetForOpen(state)),
+        static_cast<int>(KiriView::ImageOpenSourceTarget::LoadSource));
+}
 
 void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
 {
@@ -173,6 +186,28 @@ void TestImageOpenWorkflow::animationFailureClearsImageAndResetsZoom()
     QCOMPARE(state.errorString(), QStringLiteral("animation failed"));
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), KiriView::ImageDocumentStatus::Error);
+}
+
+void TestImageOpenWorkflow::loadFailureTargetRoutesContainerNavigationReplacementAndInitialLoads()
+{
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
+    const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const KiriView::ImageLoadSession containerNavigationSession = loadSession(
+        containerUrl, imageUrl, KiriView::ArchiveDocumentLocation::none(), containerUrl);
+    const KiriView::ImageLoadSession imageSession = loadSession(imageUrl, imageUrl);
+
+    QCOMPARE(static_cast<int>(KiriView::ImageOpenWorkflow::failureTargetForLoadError(
+                 containerNavigationSession, true)),
+        static_cast<int>(KiriView::ImageOpenFailureTarget::ContainerNavigation));
+    QCOMPARE(static_cast<int>(KiriView::ImageOpenWorkflow::failureTargetForLoadError(
+                 containerNavigationSession, false)),
+        static_cast<int>(KiriView::ImageOpenFailureTarget::ContainerNavigation));
+    QCOMPARE(static_cast<int>(
+                 KiriView::ImageOpenWorkflow::failureTargetForLoadError(imageSession, true)),
+        static_cast<int>(KiriView::ImageOpenFailureTarget::Replacement));
+    QCOMPARE(static_cast<int>(
+                 KiriView::ImageOpenWorkflow::failureTargetForLoadError(imageSession, false)),
+        static_cast<int>(KiriView::ImageOpenFailureTarget::Initial));
 }
 
 void TestImageOpenWorkflow::trackedLoadCompletionsClearLoadingContainerNavigationUrl()
