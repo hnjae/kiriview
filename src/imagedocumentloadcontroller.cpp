@@ -9,6 +9,7 @@
 #include "imagedocumentstate.h"
 #include "imageopencontroller.h"
 #include "imageopenworkflow.h"
+#include "imagepresentationcontroller.h"
 #include "imagespreadpresentationcontroller.h"
 
 #include <QString>
@@ -18,12 +19,14 @@ ImageDocumentLoadController::ImageDocumentLoadController(ImageDocumentState &sta
     ImageDocumentDeletionController &deletionController,
     ImageDocumentNavigationController &navigationController,
     ImageDocumentPredecodeController &predecodeController, ImageOpenController &openController,
+    ImagePresentationController &presentationController,
     ImageSpreadPresentationController &spreadController)
     : m_state(state)
     , m_deletionController(deletionController)
     , m_navigationController(navigationController)
     , m_predecodeController(predecodeController)
     , m_openController(openController)
+    , m_presentationController(presentationController)
     , m_spreadController(spreadController)
 {
 }
@@ -76,6 +79,18 @@ void ImageDocumentLoadController::loadSource(const ImageDocumentSourceLoadReques
     }
 }
 
+void ImageDocumentLoadController::clearImage()
+{
+    m_predecodeController.clear();
+    m_spreadController.finishTransition();
+    m_spreadController.clearSecondaryPage();
+    m_navigationController.cancelPageNavigationUpdate();
+    m_state.clearDisplayedImageUrls();
+    m_presentationController.clearImage();
+    m_navigationController.clearPageNavigation();
+    m_spreadController.notifyRightToLeftReadingChanged();
+}
+
 ImageDocumentEffects ImageDocumentLoadController::clearAfterSuccessfulFileDeletion()
 {
     cancelNavigationAndPredecode();
@@ -85,6 +100,18 @@ ImageDocumentEffects ImageDocumentLoadController::clearAfterSuccessfulFileDeleti
     m_state.setSourceUrl(QUrl());
     m_state.setErrorString(QString());
     return ImageOpenWorkflow::finishEmptySourceLoad(m_state);
+}
+
+void ImageDocumentLoadController::shutdown()
+{
+    m_deletionController.cancel();
+    m_presentationController.stopAnimation();
+    m_spreadController.shutdown();
+    m_predecodeController.cancel();
+    m_navigationController.cancelPageNavigationUpdate();
+    m_navigationController.cancelContainerNavigation();
+    m_navigationController.cancelNavigation();
+    m_openController.cancel();
 }
 
 void ImageDocumentLoadController::cancelNavigationAndPredecode()
