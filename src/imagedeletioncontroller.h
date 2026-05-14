@@ -7,13 +7,12 @@
 #include "filedeletion.h"
 #include "filedeletionfallback.h"
 #include "imagecandidaterepository.h"
+#include "imagedeletioneffects.h"
 #include "imageiojob.h"
 #include "imagelocation.h"
 #include "imagenavigationtypes.h"
 
 #include <QObject>
-#include <QString>
-#include <QUrl>
 #include <functional>
 #include <optional>
 
@@ -22,17 +21,11 @@ class ImageDeletionController final : public QObject
 {
 public:
     using InProgressChangedCallback = std::function<void()>;
-    using ClearDeletedImageCallback = std::function<void()>;
-    using OpenUrlCallback = std::function<void(const QUrl &)>;
-    using OpenContainerImageCallback = std::function<void(const QUrl &, const QUrl &)>;
-    using FailedCallback = std::function<void(const QString &)>;
+    using EffectCallback = std::function<void(ImageDeletionEffect)>;
 
     struct Callbacks {
         InProgressChangedCallback inProgressChanged;
-        ClearDeletedImageCallback clearDeletedImage;
-        OpenUrlCallback openUrl;
-        OpenContainerImageCallback openContainerImage;
-        FailedCallback failed;
+        EffectCallback effect;
     };
 
     ImageDeletionController(QObject *parent, ImageNavigationCandidateProvider candidateProvider,
@@ -56,6 +49,7 @@ private:
     void setInProgress(bool inProgress);
     void cancelFileDeletion();
     void cancelFallback();
+    void report(ImageDeletionEffect effect);
     void reportFailure(const QString &errorString);
 
     Callbacks m_callbacks;
