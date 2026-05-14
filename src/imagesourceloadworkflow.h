@@ -4,34 +4,9 @@
 #ifndef KIRIVIEW_IMAGESOURCELOADWORKFLOW_H
 #define KIRIVIEW_IMAGESOURCELOADWORKFLOW_H
 
-#include <vector>
+#include "kiriview/src/imagesourceloadworkflow.cxx.h"
 
 namespace KiriView {
-enum class ImageSourceLoadAction {
-    CancelNavigationAndPredecode,
-    FinishSpreadTransition,
-    ResetRightToLeftReading,
-    NotifyRightToLeftReading,
-    ClearSecondaryPage,
-    ClearLoadingContainerNavigationUrl,
-    UpdateContainerNavigationUrl,
-    SetLoadingContainerNavigationUrl,
-    SetSourceUrl,
-    BeginOpen,
-};
-
-struct ImageSourceLoadPlan {
-    std::vector<ImageSourceLoadAction> actions;
-};
-
-struct ImageSourceLoadRequest {
-    bool sourceUrlChanged = false;
-    bool preserveTwoPageSpreadTransition = false;
-    bool resetRightToLeftReading = false;
-    bool rightToLeftReadingEnabled = false;
-    bool containerNavigationUrlEmpty = false;
-};
-
 namespace ImageSourceLoadWorkflow {
     ImageSourceLoadPlan plan(const ImageSourceLoadRequest &request);
 }

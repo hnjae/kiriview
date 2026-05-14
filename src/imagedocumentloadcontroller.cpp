@@ -10,7 +10,6 @@
 #include "imageopencontroller.h"
 #include "imageopenworkflow.h"
 #include "imagepresentationcontroller.h"
-#include "imagesourceloadworkflow.h"
 #include "imagespreadpresentationcontroller.h"
 
 #include <QString>
@@ -45,15 +44,15 @@ ImageSourceLoadRequest ImageDocumentLoadController::sourceLoadWorkflowRequest(
     const ImageDocumentSourceLoadRequest &request) const
 {
     const bool sourceUrlChanged = m_state.sourceUrl() != request.sourceUrl;
-    const bool resetRightToLeftReading = m_spreadController.shouldResetRightToLeftReadingForLoad(
-        m_state.displayedArchiveDocument(), request.sourceUrl, request.containerNavigationUrl);
-
     ImageSourceLoadRequest sourceLoadRequest;
-    sourceLoadRequest.sourceUrlChanged = sourceUrlChanged;
-    sourceLoadRequest.preserveTwoPageSpreadTransition = request.preserveTwoPageSpreadTransition;
-    sourceLoadRequest.resetRightToLeftReading = resetRightToLeftReading;
-    sourceLoadRequest.rightToLeftReadingEnabled = m_spreadController.rightToLeftReadingEnabled();
-    sourceLoadRequest.containerNavigationUrlEmpty = request.containerNavigationUrl.isEmpty();
+    sourceLoadRequest.source_url_changed = sourceUrlChanged;
+    sourceLoadRequest.preserve_two_page_spread_transition = request.preserveTwoPageSpreadTransition;
+    sourceLoadRequest.reset_right_to_left_reading
+        = m_spreadController.shouldResetRightToLeftReadingForLoad(
+            m_state.displayedArchiveDocument(), request.sourceUrl, request.containerNavigationUrl);
+    sourceLoadRequest.right_to_left_reading_enabled
+        = m_spreadController.rightToLeftReadingEnabled();
+    sourceLoadRequest.container_navigation_url_empty = request.containerNavigationUrl.isEmpty();
     return sourceLoadRequest;
 }
 
