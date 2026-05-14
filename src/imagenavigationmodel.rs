@@ -177,11 +177,7 @@ fn rust_page_navigation_preview_state(
         );
     }
 
-    if current_url_valid && known_url_count == 0 {
-        return page_navigation_preview_state(RustPageNavigationUrlsTarget::Current, 0);
-    }
-
-    if current_url_valid {
+    if current_url_valid && known_url_count > 0 {
         return page_navigation_preview_state(RustPageNavigationUrlsTarget::Known, -1);
     }
 
@@ -324,10 +320,10 @@ mod tests {
     }
 
     #[test]
-    fn page_navigation_preview_state_uses_current_url_singleton_only_for_empty_known_list() {
+    fn page_navigation_preview_state_keeps_pending_empty_known_list_unknown() {
         assert_eq!(
             rust_page_navigation_preview_state(missing_index(), true, 0),
-            page_navigation_preview_state(RustPageNavigationUrlsTarget::Current, 0)
+            page_navigation_preview_state(RustPageNavigationUrlsTarget::Empty, -1)
         );
         assert_eq!(
             rust_page_navigation_preview_state(missing_index(), false, 3),
