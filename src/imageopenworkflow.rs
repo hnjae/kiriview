@@ -38,13 +38,6 @@ mod ffi {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum ImageOpenLoadErrorKind {
-        SourceLoad = 0,
-        ContainerNavigation = 1,
-        Animation = 2,
-    }
-
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     enum ImageOpenEffect {
         ClearImage = 0,
         ResetZoom = 1,
@@ -54,7 +47,7 @@ mod ffi {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum ImageSourceLoadAction {
+    enum RustImageSourceLoadAction {
         CancelNavigationAndPredecode = 0,
         FinishSpreadTransition = 1,
         ResetRightToLeftReading = 2,
@@ -79,15 +72,14 @@ mod ffi {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    struct ImageOpenLoadErrorRequest {
-        kind: ImageOpenLoadErrorKind,
+    struct ImageOpenSourceLoadErrorRequest {
         container_navigation_url_empty: bool,
         has_image: bool,
         displayed_url_empty: bool,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    struct ImageSourceLoadPolicyInput {
+    struct RustImageSourceLoadPolicyInput {
         source_url_changed: bool,
         preserve_two_page_spread_transition: bool,
         reset_right_to_left_reading: bool,
@@ -108,13 +100,15 @@ mod ffi {
     }
 
     #[derive(Debug, PartialEq, Eq)]
-    struct ImageSourceLoadPlan {
-        actions: Vec<ImageSourceLoadAction>,
+    struct RustImageSourceLoadPlan {
+        actions: Vec<RustImageSourceLoadAction>,
     }
 
     extern "Rust" {
         #[cxx_name = "rustImageSourceLoadPlan"]
-        fn rust_image_source_load_plan(input: ImageSourceLoadPolicyInput) -> ImageSourceLoadPlan;
+        fn rust_image_source_load_plan(
+            input: RustImageSourceLoadPolicyInput,
+        ) -> RustImageSourceLoadPlan;
 
         #[cxx_name = "rustImageOpenBeginSourceLoad"]
         fn rust_image_open_begin_source_load(
@@ -129,22 +123,28 @@ mod ffi {
             request: ImageOpenSuccessfulImageLoadRequest,
         ) -> ImageOpenTransition;
 
-        #[cxx_name = "rustImageOpenFinishLoadWithError"]
-        fn rust_image_open_finish_load_with_error(
-            request: ImageOpenLoadErrorRequest,
+        #[cxx_name = "rustImageOpenFinishSourceLoadWithError"]
+        fn rust_image_open_finish_source_load_with_error(
+            request: ImageOpenSourceLoadErrorRequest,
         ) -> ImageOpenTransition;
+
+        #[cxx_name = "rustImageOpenFinishContainerNavigationLoadWithError"]
+        fn rust_image_open_finish_container_navigation_load_with_error() -> ImageOpenTransition;
+
+        #[cxx_name = "rustImageOpenFinishAnimationLoadWithError"]
+        fn rust_image_open_finish_animation_load_with_error() -> ImageOpenTransition;
     }
 }
 
 use ffi::{
     ImageOpenBeginSourceLoadRequest, ImageOpenBoolTarget, ImageOpenEffect,
-    ImageOpenErrorStringTarget, ImageOpenLoadErrorKind, ImageOpenLoadErrorRequest,
-    ImageOpenStatusTarget, ImageOpenSuccessfulImageLoadRequest, ImageOpenTransition,
-    ImageOpenUrlTarget, ImageSourceLoadAction, ImageSourceLoadPlan, ImageSourceLoadPolicyInput,
+    ImageOpenErrorStringTarget, ImageOpenSourceLoadErrorRequest, ImageOpenStatusTarget,
+    ImageOpenSuccessfulImageLoadRequest, ImageOpenTransition, ImageOpenUrlTarget,
+    RustImageSourceLoadAction, RustImageSourceLoadPlan, RustImageSourceLoadPolicyInput,
 };
 
-fn rust_image_source_load_plan(input: ImageSourceLoadPolicyInput) -> ImageSourceLoadPlan {
-    let mut plan = ImageSourceLoadPlan {
+fn rust_image_source_load_plan(input: RustImageSourceLoadPolicyInput) -> RustImageSourceLoadPlan {
+    let mut plan = RustImageSourceLoadPlan {
         actions: Vec::new(),
     };
 
@@ -158,60 +158,61 @@ fn rust_image_source_load_plan(input: ImageSourceLoadPolicyInput) -> ImageSource
     plan
 }
 
-fn resets_right_to_left_reading(input: ImageSourceLoadPolicyInput) -> bool {
+fn resets_right_to_left_reading(input: RustImageSourceLoadPolicyInput) -> bool {
     input.reset_right_to_left_reading
 }
 
-fn notifies_right_to_left_reading(input: ImageSourceLoadPolicyInput) -> bool {
+fn notifies_right_to_left_reading(input: RustImageSourceLoadPolicyInput) -> bool {
     input.reset_right_to_left_reading && input.right_to_left_reading_enabled
 }
 
 fn append_initial_source_load_actions(
-    plan: &mut ImageSourceLoadPlan,
-    input: ImageSourceLoadPolicyInput,
+    plan: &mut RustImageSourceLoadPlan,
+    input: RustImageSourceLoadPolicyInput,
 ) {
     if input.source_url_changed {
         plan.actions
-            .push(ImageSourceLoadAction::CancelNavigationAndPredecode);
+            .push(RustImageSourceLoadAction::CancelNavigationAndPredecode);
     }
     if !input.preserve_two_page_spread_transition {
         plan.actions
-            .push(ImageSourceLoadAction::FinishSpreadTransition);
+            .push(RustImageSourceLoadAction::FinishSpreadTransition);
     }
     if resets_right_to_left_reading(input) {
         plan.actions
-            .push(ImageSourceLoadAction::ResetRightToLeftReading);
+            .push(RustImageSourceLoadAction::ResetRightToLeftReading);
     }
 }
 
 fn append_unchanged_source_load_actions(
-    plan: &mut ImageSourceLoadPlan,
-    input: ImageSourceLoadPolicyInput,
+    plan: &mut RustImageSourceLoadPlan,
+    input: RustImageSourceLoadPolicyInput,
 ) {
     if notifies_right_to_left_reading(input) {
         plan.actions
-            .push(ImageSourceLoadAction::NotifyRightToLeftReading);
+            .push(RustImageSourceLoadAction::NotifyRightToLeftReading);
     }
     plan.actions
-        .push(ImageSourceLoadAction::ClearLoadingContainerNavigationUrl);
+        .push(RustImageSourceLoadAction::ClearLoadingContainerNavigationUrl);
     if !input.container_navigation_url_empty {
         plan.actions
-            .push(ImageSourceLoadAction::UpdateContainerNavigationUrl);
+            .push(RustImageSourceLoadAction::UpdateContainerNavigationUrl);
     }
 }
 
 fn append_changed_source_load_actions(
-    plan: &mut ImageSourceLoadPlan,
-    input: ImageSourceLoadPolicyInput,
+    plan: &mut RustImageSourceLoadPlan,
+    input: RustImageSourceLoadPolicyInput,
 ) {
-    plan.actions.push(ImageSourceLoadAction::ClearSecondaryPage);
     plan.actions
-        .push(ImageSourceLoadAction::SetLoadingContainerNavigationUrl);
-    plan.actions.push(ImageSourceLoadAction::SetSourceUrl);
-    plan.actions.push(ImageSourceLoadAction::BeginOpen);
+        .push(RustImageSourceLoadAction::ClearSecondaryPage);
+    plan.actions
+        .push(RustImageSourceLoadAction::SetLoadingContainerNavigationUrl);
+    plan.actions.push(RustImageSourceLoadAction::SetSourceUrl);
+    plan.actions.push(RustImageSourceLoadAction::BeginOpen);
     if notifies_right_to_left_reading(input) {
         plan.actions
-            .push(ImageSourceLoadAction::NotifyRightToLeftReading);
+            .push(RustImageSourceLoadAction::NotifyRightToLeftReading);
     }
 }
 
@@ -301,20 +302,9 @@ fn animation_load_error_transition() -> ImageOpenTransition {
     cleared_load_error_transition(true)
 }
 
-fn rust_image_open_finish_load_with_error(
-    request: ImageOpenLoadErrorRequest,
+fn rust_image_open_finish_source_load_with_error(
+    request: ImageOpenSourceLoadErrorRequest,
 ) -> ImageOpenTransition {
-    match request.kind {
-        ImageOpenLoadErrorKind::ContainerNavigation => {
-            return container_navigation_load_error_transition();
-        }
-        ImageOpenLoadErrorKind::Animation => {
-            return animation_load_error_transition();
-        }
-        ImageOpenLoadErrorKind::SourceLoad => {}
-        _ => {}
-    }
-
     if !request.container_navigation_url_empty {
         return container_navigation_load_error_transition();
     }
@@ -323,6 +313,14 @@ fn rust_image_open_finish_load_with_error(
     }
 
     initial_load_error_transition()
+}
+
+fn rust_image_open_finish_container_navigation_load_with_error() -> ImageOpenTransition {
+    container_navigation_load_error_transition()
+}
+
+fn rust_image_open_finish_animation_load_with_error() -> ImageOpenTransition {
+    animation_load_error_transition()
 }
 
 fn cleared_load_error_transition(reset_zoom: bool) -> ImageOpenTransition {
@@ -388,25 +386,15 @@ mod tests {
         }
     }
 
-    fn load_error_request(
+    fn source_load_error_request(
         container_navigation_url_empty: bool,
         has_image: bool,
         displayed_url_empty: bool,
-    ) -> ImageOpenLoadErrorRequest {
-        ImageOpenLoadErrorRequest {
-            kind: ImageOpenLoadErrorKind::SourceLoad,
+    ) -> ImageOpenSourceLoadErrorRequest {
+        ImageOpenSourceLoadErrorRequest {
             container_navigation_url_empty,
             has_image,
             displayed_url_empty,
-        }
-    }
-
-    fn load_error_kind_request(kind: ImageOpenLoadErrorKind) -> ImageOpenLoadErrorRequest {
-        ImageOpenLoadErrorRequest {
-            kind,
-            container_navigation_url_empty: true,
-            has_image: false,
-            displayed_url_empty: true,
         }
     }
 
@@ -416,8 +404,8 @@ mod tests {
         reset_right_to_left_reading: bool,
         right_to_left_reading_enabled: bool,
         container_navigation_url_empty: bool,
-    ) -> ImageSourceLoadPolicyInput {
-        ImageSourceLoadPolicyInput {
+    ) -> RustImageSourceLoadPolicyInput {
+        RustImageSourceLoadPolicyInput {
             source_url_changed,
             preserve_two_page_spread_transition,
             reset_right_to_left_reading,
@@ -433,11 +421,11 @@ mod tests {
         assert_eq!(
             unchanged.actions,
             vec![
-                ImageSourceLoadAction::FinishSpreadTransition,
-                ImageSourceLoadAction::ResetRightToLeftReading,
-                ImageSourceLoadAction::NotifyRightToLeftReading,
-                ImageSourceLoadAction::ClearLoadingContainerNavigationUrl,
-                ImageSourceLoadAction::UpdateContainerNavigationUrl,
+                RustImageSourceLoadAction::FinishSpreadTransition,
+                RustImageSourceLoadAction::ResetRightToLeftReading,
+                RustImageSourceLoadAction::NotifyRightToLeftReading,
+                RustImageSourceLoadAction::ClearLoadingContainerNavigationUrl,
+                RustImageSourceLoadAction::UpdateContainerNavigationUrl,
             ]
         );
 
@@ -446,11 +434,11 @@ mod tests {
         assert_eq!(
             replacement.actions,
             vec![
-                ImageSourceLoadAction::CancelNavigationAndPredecode,
-                ImageSourceLoadAction::ClearSecondaryPage,
-                ImageSourceLoadAction::SetLoadingContainerNavigationUrl,
-                ImageSourceLoadAction::SetSourceUrl,
-                ImageSourceLoadAction::BeginOpen,
+                RustImageSourceLoadAction::CancelNavigationAndPredecode,
+                RustImageSourceLoadAction::ClearSecondaryPage,
+                RustImageSourceLoadAction::SetLoadingContainerNavigationUrl,
+                RustImageSourceLoadAction::SetSourceUrl,
+                RustImageSourceLoadAction::BeginOpen,
             ]
         );
 
@@ -459,12 +447,12 @@ mod tests {
         assert_eq!(
             inactive_reset_replacement.actions,
             vec![
-                ImageSourceLoadAction::CancelNavigationAndPredecode,
-                ImageSourceLoadAction::ResetRightToLeftReading,
-                ImageSourceLoadAction::ClearSecondaryPage,
-                ImageSourceLoadAction::SetLoadingContainerNavigationUrl,
-                ImageSourceLoadAction::SetSourceUrl,
-                ImageSourceLoadAction::BeginOpen,
+                RustImageSourceLoadAction::CancelNavigationAndPredecode,
+                RustImageSourceLoadAction::ResetRightToLeftReading,
+                RustImageSourceLoadAction::ClearSecondaryPage,
+                RustImageSourceLoadAction::SetLoadingContainerNavigationUrl,
+                RustImageSourceLoadAction::SetSourceUrl,
+                RustImageSourceLoadAction::BeginOpen,
             ]
         );
 
@@ -473,13 +461,13 @@ mod tests {
         assert_eq!(
             resetting_replacement.actions,
             vec![
-                ImageSourceLoadAction::CancelNavigationAndPredecode,
-                ImageSourceLoadAction::ResetRightToLeftReading,
-                ImageSourceLoadAction::ClearSecondaryPage,
-                ImageSourceLoadAction::SetLoadingContainerNavigationUrl,
-                ImageSourceLoadAction::SetSourceUrl,
-                ImageSourceLoadAction::BeginOpen,
-                ImageSourceLoadAction::NotifyRightToLeftReading,
+                RustImageSourceLoadAction::CancelNavigationAndPredecode,
+                RustImageSourceLoadAction::ResetRightToLeftReading,
+                RustImageSourceLoadAction::ClearSecondaryPage,
+                RustImageSourceLoadAction::SetLoadingContainerNavigationUrl,
+                RustImageSourceLoadAction::SetSourceUrl,
+                RustImageSourceLoadAction::BeginOpen,
+                RustImageSourceLoadAction::NotifyRightToLeftReading,
             ]
         );
     }
@@ -561,10 +549,10 @@ mod tests {
 
     #[test]
     fn initial_and_animation_errors_share_clear_policy_but_only_animation_resets_zoom() {
-        let initial = rust_image_open_finish_load_with_error(load_error_request(true, false, true));
-        let animation = rust_image_open_finish_load_with_error(load_error_kind_request(
-            ImageOpenLoadErrorKind::Animation,
+        let initial = rust_image_open_finish_source_load_with_error(source_load_error_request(
+            true, false, true,
         ));
+        let animation = rust_image_open_finish_animation_load_with_error();
 
         assert!(has_effect(&initial, ImageOpenEffect::ClearImage));
         assert!(!has_effect(&initial, ImageOpenEffect::ResetZoom));
@@ -584,8 +572,9 @@ mod tests {
 
     #[test]
     fn routed_load_failure_returns_the_selected_error_transition() {
-        let container =
-            rust_image_open_finish_load_with_error(load_error_request(false, true, false));
+        let container = rust_image_open_finish_source_load_with_error(source_load_error_request(
+            false, true, false,
+        ));
         assert_eq!(container.source_url, ImageOpenUrlTarget::Container);
         assert!(has_effect(&container, ImageOpenEffect::ClearImage));
         assert!(has_effect(
@@ -594,8 +583,9 @@ mod tests {
         ));
         assert_eq!(container.status, ImageOpenStatusTarget::Error);
 
-        let replacement =
-            rust_image_open_finish_load_with_error(load_error_request(true, true, false));
+        let replacement = rust_image_open_finish_source_load_with_error(source_load_error_request(
+            true, true, false,
+        ));
         assert_eq!(replacement.source_url, ImageOpenUrlTarget::Displayed);
         assert!(has_effect(
             &replacement,
@@ -607,15 +597,15 @@ mod tests {
         ));
         assert_eq!(replacement.status, ImageOpenStatusTarget::Ready);
 
-        let initial = rust_image_open_finish_load_with_error(load_error_request(true, false, true));
+        let initial = rust_image_open_finish_source_load_with_error(source_load_error_request(
+            true, false, true,
+        ));
         assert_eq!(initial.source_url, ImageOpenUrlTarget::Unchanged);
         assert!(has_effect(&initial, ImageOpenEffect::ClearImage));
         assert_eq!(initial.container_navigation_url, ImageOpenUrlTarget::Empty);
         assert_eq!(initial.status, ImageOpenStatusTarget::Error);
 
-        let explicit_container = rust_image_open_finish_load_with_error(load_error_kind_request(
-            ImageOpenLoadErrorKind::ContainerNavigation,
-        ));
+        let explicit_container = rust_image_open_finish_container_navigation_load_with_error();
         assert_eq!(explicit_container.source_url, ImageOpenUrlTarget::Container);
         assert!(has_effect(
             &explicit_container,
