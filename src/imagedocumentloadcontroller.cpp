@@ -16,19 +16,28 @@
 #include <QString>
 
 namespace {
+KiriView::ImageDocumentSourceLoadKind sourceLoadKind(const KiriView::ImageDocumentState &state,
+    const KiriView::ImageDocumentSourceLoadRequest &request)
+{
+    if (state.sourceUrl() == request.sourceUrl) {
+        return KiriView::ImageDocumentSourceLoadKind::CurrentSource;
+    }
+
+    return KiriView::ImageDocumentSourceLoadKind::ReplacementSource;
+}
+
 KiriView::ImageDocumentSourceLoadPolicyInput sourceLoadPolicyInput(
     const KiriView::ImageDocumentState &state,
     const KiriView::ImageSpreadPresentationController &spreadController,
     const KiriView::ImageDocumentSourceLoadRequest &request)
 {
-    const bool sourceUrlChanged = state.sourceUrl() != request.sourceUrl;
     KiriView::ImageDocumentSourceLoadPolicyInput input;
-    input.sourceUrlChanged = sourceUrlChanged;
+    input.loadKind = sourceLoadKind(state, request);
     input.preserveTwoPageSpreadTransition = request.preserveTwoPageSpreadTransition;
     input.resetRightToLeftReading = spreadController.shouldResetRightToLeftReadingForLoad(
         state.displayedArchiveDocument(), request.sourceUrl, request.containerNavigationUrl);
     input.rightToLeftReadingWasEnabled = spreadController.rightToLeftReadingEnabled();
-    input.requestedContainerNavigationUrlEmpty = request.containerNavigationUrl.isEmpty();
+    input.hasRequestedContainerNavigationUrl = !request.containerNavigationUrl.isEmpty();
     return input;
 }
 

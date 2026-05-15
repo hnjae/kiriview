@@ -20,12 +20,17 @@ enum class ImageDocumentSourceLoadAction {
     BeginOpen,
 };
 
+enum class ImageDocumentSourceLoadKind {
+    CurrentSource,
+    ReplacementSource,
+};
+
 struct ImageDocumentSourceLoadPolicyInput {
-    bool sourceUrlChanged = false;
+    ImageDocumentSourceLoadKind loadKind = ImageDocumentSourceLoadKind::CurrentSource;
     bool preserveTwoPageSpreadTransition = false;
     bool resetRightToLeftReading = false;
     bool rightToLeftReadingWasEnabled = false;
-    bool requestedContainerNavigationUrlEmpty = false;
+    bool hasRequestedContainerNavigationUrl = false;
 };
 
 struct ImageDocumentSourceLoadPlan {

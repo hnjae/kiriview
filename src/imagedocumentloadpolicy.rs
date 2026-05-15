@@ -18,12 +18,18 @@ mod ffi {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum RustImageDocumentSourceLoadKind {
+        CurrentSource = 0,
+        ReplacementSource = 1,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     struct RustImageDocumentSourceLoadPolicyInput {
-        source_url_changed: bool,
+        load_kind: RustImageDocumentSourceLoadKind,
         preserve_two_page_spread_transition: bool,
         reset_right_to_left_reading: bool,
         right_to_left_reading_was_enabled: bool,
-        requested_container_navigation_url_empty: bool,
+        has_requested_container_navigation_url: bool,
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -40,8 +46,8 @@ mod ffi {
 }
 
 use ffi::{
-    RustImageDocumentSourceLoadAction, RustImageDocumentSourceLoadPlan,
-    RustImageDocumentSourceLoadPolicyInput,
+    RustImageDocumentSourceLoadAction, RustImageDocumentSourceLoadKind,
+    RustImageDocumentSourceLoadPlan, RustImageDocumentSourceLoadPolicyInput,
 };
 
 fn rust_image_document_source_load_plan(
@@ -52,13 +58,17 @@ fn rust_image_document_source_load_plan(
     };
 
     append_initial_source_load_actions(&mut plan, input);
-    if input.source_url_changed {
+    if replaces_source(input) {
         append_changed_source_load_actions(&mut plan, input);
     } else {
         append_unchanged_source_load_actions(&mut plan, input);
     }
 
     plan
+}
+
+fn replaces_source(input: RustImageDocumentSourceLoadPolicyInput) -> bool {
+    input.load_kind == RustImageDocumentSourceLoadKind::ReplacementSource
 }
 
 fn resets_right_to_left_reading(input: RustImageDocumentSourceLoadPolicyInput) -> bool {
@@ -73,7 +83,7 @@ fn append_initial_source_load_actions(
     plan: &mut RustImageDocumentSourceLoadPlan,
     input: RustImageDocumentSourceLoadPolicyInput,
 ) {
-    if input.source_url_changed {
+    if replaces_source(input) {
         plan.actions
             .push(RustImageDocumentSourceLoadAction::CancelNavigationAndPredecode);
     }
@@ -97,7 +107,7 @@ fn append_unchanged_source_load_actions(
     }
     plan.actions
         .push(RustImageDocumentSourceLoadAction::ClearLoadingContainerNavigationUrl);
-    if !input.requested_container_navigation_url_empty {
+    if input.has_requested_container_navigation_url {
         plan.actions
             .push(RustImageDocumentSourceLoadAction::UpdateContainerNavigationUrl);
     }
@@ -126,25 +136,29 @@ mod tests {
     use super::*;
 
     fn source_load_input(
-        source_url_changed: bool,
+        load_kind: RustImageDocumentSourceLoadKind,
         preserve_two_page_spread_transition: bool,
         reset_right_to_left_reading: bool,
         right_to_left_reading_was_enabled: bool,
-        requested_container_navigation_url_empty: bool,
+        has_requested_container_navigation_url: bool,
     ) -> RustImageDocumentSourceLoadPolicyInput {
         RustImageDocumentSourceLoadPolicyInput {
-            source_url_changed,
+            load_kind,
             preserve_two_page_spread_transition,
             reset_right_to_left_reading,
             right_to_left_reading_was_enabled,
-            requested_container_navigation_url_empty,
+            has_requested_container_navigation_url,
         }
     }
 
     #[test]
     fn source_load_plan_routes_unchanged_and_replacement_loads() {
         let unchanged = rust_image_document_source_load_plan(source_load_input(
-            false, false, true, true, false,
+            RustImageDocumentSourceLoadKind::CurrentSource,
+            false,
+            true,
+            true,
+            true,
         ));
         assert_eq!(
             unchanged.actions,
@@ -157,8 +171,13 @@ mod tests {
             ]
         );
 
-        let replacement =
-            rust_image_document_source_load_plan(source_load_input(true, true, false, true, true));
+        let replacement = rust_image_document_source_load_plan(source_load_input(
+            RustImageDocumentSourceLoadKind::ReplacementSource,
+            true,
+            false,
+            true,
+            false,
+        ));
         assert_eq!(
             replacement.actions,
             vec![
@@ -170,8 +189,13 @@ mod tests {
             ]
         );
 
-        let inactive_reset_replacement =
-            rust_image_document_source_load_plan(source_load_input(true, true, true, false, true));
+        let inactive_reset_replacement = rust_image_document_source_load_plan(source_load_input(
+            RustImageDocumentSourceLoadKind::ReplacementSource,
+            true,
+            true,
+            false,
+            false,
+        ));
         assert_eq!(
             inactive_reset_replacement.actions,
             vec![
@@ -184,8 +208,13 @@ mod tests {
             ]
         );
 
-        let resetting_replacement =
-            rust_image_document_source_load_plan(source_load_input(true, true, true, true, true));
+        let resetting_replacement = rust_image_document_source_load_plan(source_load_input(
+            RustImageDocumentSourceLoadKind::ReplacementSource,
+            true,
+            true,
+            true,
+            false,
+        ));
         assert_eq!(
             resetting_replacement.actions,
             vec![
