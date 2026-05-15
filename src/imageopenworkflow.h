@@ -31,8 +31,8 @@ struct ImageSourceLoadPolicyInput {
     bool sourceUrlChanged = false;
     bool preserveTwoPageSpreadTransition = false;
     bool resetRightToLeftReading = false;
-    bool rightToLeftReadingEnabled = false;
-    bool containerNavigationUrlEmpty = false;
+    bool rightToLeftReadingWasEnabled = false;
+    bool requestedContainerNavigationUrlEmpty = false;
 };
 
 struct ImageSourceLoadPlan {
@@ -41,6 +41,7 @@ struct ImageSourceLoadPlan {
 
 namespace ImageOpenWorkflow {
     ImageSourceLoadPlan sourceLoadPlan(const ImageSourceLoadPolicyInput &input);
+
     ImageDocumentEffects beginSourceLoad(ImageDocumentState &state, bool hasImage);
     ImageDocumentEffects finishEmptySourceLoad(ImageDocumentState &state);
     ImageDocumentEffects finishSuccessfulImageLoad(

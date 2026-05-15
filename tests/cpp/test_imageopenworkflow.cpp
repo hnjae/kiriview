@@ -73,8 +73,8 @@ class TestImageOpenWorkflow : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void derivesSourceLoadRightToLeftReadingActionsFromRuntimeSnapshot();
-    void routesUnchangedAndReplacementSourceLoads();
+    void sourceLoadPlanDerivesRightToLeftReadingActionsFromRuntimeSnapshot();
+    void sourceLoadPlanRoutesUnchangedAndReplacementSourceLoads();
     void firstImageLoadSuccessTransitionsToReady();
     void directArchiveImageLoadSuccessDisablesContainerNavigation();
     void replacementLoadFailureKeepsDisplayedImage();
@@ -84,31 +84,31 @@ private Q_SLOTS:
     void trackedLoadCompletionsClearLoadingContainerNavigationUrl();
 };
 
-void TestImageOpenWorkflow::derivesSourceLoadRightToLeftReadingActionsFromRuntimeSnapshot()
+void TestImageOpenWorkflow::sourceLoadPlanDerivesRightToLeftReadingActionsFromRuntimeSnapshot()
 {
     using Action = KiriView::ImageSourceLoadAction;
 
     KiriView::ImageSourceLoadPolicyInput input;
     input.sourceUrlChanged = false;
     input.preserveTwoPageSpreadTransition = true;
-    input.containerNavigationUrlEmpty = true;
+    input.requestedContainerNavigationUrlEmpty = true;
 
     input.resetRightToLeftReading = false;
-    input.rightToLeftReadingEnabled = false;
+    input.rightToLeftReadingWasEnabled = false;
     compareSourceLoadActions(KiriView::ImageOpenWorkflow::sourceLoadPlan(input).actions,
         {
             Action::ClearLoadingContainerNavigationUrl,
         });
 
     input.resetRightToLeftReading = false;
-    input.rightToLeftReadingEnabled = true;
+    input.rightToLeftReadingWasEnabled = true;
     compareSourceLoadActions(KiriView::ImageOpenWorkflow::sourceLoadPlan(input).actions,
         {
             Action::ClearLoadingContainerNavigationUrl,
         });
 
     input.resetRightToLeftReading = true;
-    input.rightToLeftReadingEnabled = false;
+    input.rightToLeftReadingWasEnabled = false;
     compareSourceLoadActions(KiriView::ImageOpenWorkflow::sourceLoadPlan(input).actions,
         {
             Action::ResetRightToLeftReading,
@@ -116,7 +116,7 @@ void TestImageOpenWorkflow::derivesSourceLoadRightToLeftReadingActionsFromRuntim
         });
 
     input.resetRightToLeftReading = true;
-    input.rightToLeftReadingEnabled = true;
+    input.rightToLeftReadingWasEnabled = true;
     compareSourceLoadActions(KiriView::ImageOpenWorkflow::sourceLoadPlan(input).actions,
         {
             Action::ResetRightToLeftReading,
@@ -125,7 +125,7 @@ void TestImageOpenWorkflow::derivesSourceLoadRightToLeftReadingActionsFromRuntim
         });
 }
 
-void TestImageOpenWorkflow::routesUnchangedAndReplacementSourceLoads()
+void TestImageOpenWorkflow::sourceLoadPlanRoutesUnchangedAndReplacementSourceLoads()
 {
     using Action = KiriView::ImageSourceLoadAction;
 
@@ -133,8 +133,8 @@ void TestImageOpenWorkflow::routesUnchangedAndReplacementSourceLoads()
     unchangedInput.sourceUrlChanged = false;
     unchangedInput.preserveTwoPageSpreadTransition = false;
     unchangedInput.resetRightToLeftReading = true;
-    unchangedInput.rightToLeftReadingEnabled = true;
-    unchangedInput.containerNavigationUrlEmpty = false;
+    unchangedInput.rightToLeftReadingWasEnabled = true;
+    unchangedInput.requestedContainerNavigationUrlEmpty = false;
     const KiriView::ImageSourceLoadPlan unchanged
         = KiriView::ImageOpenWorkflow::sourceLoadPlan(unchangedInput);
     const std::vector<Action> unchangedActions {
@@ -150,8 +150,8 @@ void TestImageOpenWorkflow::routesUnchangedAndReplacementSourceLoads()
     replacementInput.sourceUrlChanged = true;
     replacementInput.preserveTwoPageSpreadTransition = true;
     replacementInput.resetRightToLeftReading = false;
-    replacementInput.rightToLeftReadingEnabled = true;
-    replacementInput.containerNavigationUrlEmpty = true;
+    replacementInput.rightToLeftReadingWasEnabled = true;
+    replacementInput.requestedContainerNavigationUrlEmpty = true;
     const KiriView::ImageSourceLoadPlan replacement
         = KiriView::ImageOpenWorkflow::sourceLoadPlan(replacementInput);
     const std::vector<Action> replacementActions {
@@ -164,7 +164,7 @@ void TestImageOpenWorkflow::routesUnchangedAndReplacementSourceLoads()
     compareSourceLoadActions(replacement.actions, replacementActions);
 
     replacementInput.resetRightToLeftReading = true;
-    replacementInput.rightToLeftReadingEnabled = false;
+    replacementInput.rightToLeftReadingWasEnabled = false;
     const KiriView::ImageSourceLoadPlan inactiveResetReplacement
         = KiriView::ImageOpenWorkflow::sourceLoadPlan(replacementInput);
     const std::vector<Action> inactiveResetReplacementActions {
@@ -178,7 +178,7 @@ void TestImageOpenWorkflow::routesUnchangedAndReplacementSourceLoads()
     compareSourceLoadActions(inactiveResetReplacement.actions, inactiveResetReplacementActions);
 
     replacementInput.resetRightToLeftReading = true;
-    replacementInput.rightToLeftReadingEnabled = true;
+    replacementInput.rightToLeftReadingWasEnabled = true;
     const KiriView::ImageSourceLoadPlan resettingReplacement
         = KiriView::ImageOpenWorkflow::sourceLoadPlan(replacementInput);
     const std::vector<Action> resettingReplacementActions {
