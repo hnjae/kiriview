@@ -109,9 +109,7 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject *documentObject,
         ImageSpreadPresentationController::Callbacks {
             [this](ImageDocumentChange change) { notify(change); },
             [this](const QUrl &url) { return predecodeController->tryTake(url); },
-            [this]() { return navigationService->currentPageNumber(); },
-            [this]() { return navigationService->imageCount(); },
-            [this](int pageNumber) { return navigationService->urlAtPage(pageNumber); },
+            [this]() { return navigationService->pageNavigationSnapshot(); },
             [this]() { dispatchEffect(ImageDocumentEffect::scheduleAdjacentImagePredecode()); },
         },
         dependencies.candidateProvider, dependencies.imageDecode);
@@ -261,18 +259,12 @@ bool ImageDocumentRuntime::secondaryPageVisible() const
     return spreadController->secondaryPageVisible();
 }
 
-std::shared_ptr<DisplayedImageSurface> ImageDocumentRuntime::imageSurface(
-    DisplayedPageRole role) const
+DisplayedImageRenderSnapshot ImageDocumentRuntime::renderSnapshot(DisplayedPageRole role) const
 {
-    return spreadController->imageSurface(role);
+    return spreadController->renderSnapshot(role);
 }
 
 const QImage &ImageDocumentRuntime::image() const { return presentationController->image(); }
-
-quint64 ImageDocumentRuntime::imageRevision(DisplayedPageRole role) const
-{
-    return spreadController->imageRevision(role);
-}
 
 void ImageDocumentRuntime::dispatchEffect(ImageDocumentEffect effect)
 {
