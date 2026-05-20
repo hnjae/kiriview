@@ -24,7 +24,7 @@ const DEFAULT_INCLUDE_ROOTS: &[&str] = &["/usr/include"];
 const DEFAULT_LIBRARY_DIRS: &[&str] = &["/usr/lib/x86_64-linux-gnu", "/usr/lib"];
 const CXX_QT_HEADER_SOURCES: &[&str] = &[
     "src/application/menuaccesskeyrouter.h",
-    "src/imageactionavailability.h",
+    "src/application/imageactionavailability.h",
     "src/kiriimagedocument.h",
     "src/kiriimageview.h",
     "src/navigation/imageshortcutnavigationpolicy.h",
@@ -38,6 +38,7 @@ const RUST_BRIDGE_SOURCES: &[&str] = &[
     "src/policy/avifcompat.rs",
     "src/policy/cachebudget.rs",
     "src/policy/heifcontainer.rs",
+    "src/policy/imageactionavailability.rs",
     "src/policy/imageformatregistry.rs",
     "src/policy/imageinputclassification.rs",
     "src/policy/imagedocumentsourceloadpolicy.rs",
