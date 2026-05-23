@@ -63,14 +63,6 @@ mod ffi {
             bounds_size: RustImageRenderSize,
         ) -> RustImageRenderSize;
 
-        #[cxx_name = "rustSvgRasterSize"]
-        fn rust_svg_raster_size(
-            display_size: RustImageRenderSizeF,
-            device_pixel_ratio: f64,
-            maximum_texture_size: i32,
-            fallback_texture_size_max: i32,
-        ) -> RustImageRenderSize;
-
         #[cxx_name = "rustNormalizedImageDocumentRenderContext"]
         fn rust_normalized_image_document_render_context(
             context: RustImageDocumentRenderContext,
@@ -98,6 +90,13 @@ mod ffi {
         #[cxx_name = "rustImageTileTargetRect"]
         fn rust_image_tile_target_rect(
             source_rect: RustImageRenderRect,
+            image_size: RustImageRenderSize,
+            target_rect: RustImageRenderRectF,
+        ) -> RustImageRenderRectF;
+
+        #[cxx_name = "rustImageTileTargetRectF"]
+        fn rust_image_tile_target_rect_f(
+            source_rect: RustImageRenderRectF,
             image_size: RustImageRenderSize,
             target_rect: RustImageRenderRectF,
         ) -> RustImageRenderRectF;
@@ -223,33 +222,6 @@ fn rust_scaled_image_size_to_fit(
     }
 }
 
-fn rust_svg_raster_size(
-    display_size: RustImageRenderSizeF,
-    device_pixel_ratio: f64,
-    maximum_texture_size: i32,
-    fallback_texture_size_max: i32,
-) -> RustImageRenderSize {
-    if size_f_empty(display_size) || !device_pixel_ratio.is_finite() || device_pixel_ratio <= 0.0 {
-        return empty_size();
-    }
-
-    let maximum_size = if maximum_texture_size > 0 {
-        maximum_texture_size
-    } else {
-        fallback_texture_size_max
-    };
-    rust_scaled_image_size_to_fit(
-        RustImageRenderSizeF {
-            width: display_size.width * device_pixel_ratio,
-            height: display_size.height * device_pixel_ratio,
-        },
-        RustImageRenderSize {
-            width: maximum_size,
-            height: maximum_size,
-        },
-    )
-}
-
 fn rust_normalized_image_document_render_context(
     context: RustImageDocumentRenderContext,
     fallback_texture_size_max: i32,
@@ -334,17 +306,34 @@ fn rust_image_tile_target_rect(
     image_size: RustImageRenderSize,
     target_rect: RustImageRenderRectF,
 ) -> RustImageRenderRectF {
-    if rect_empty(source_rect) || size_empty(image_size) || rect_f_empty(target_rect) {
+    rust_image_tile_target_rect_f(
+        RustImageRenderRectF {
+            x: f64::from(source_rect.x),
+            y: f64::from(source_rect.y),
+            width: f64::from(source_rect.width),
+            height: f64::from(source_rect.height),
+        },
+        image_size,
+        target_rect,
+    )
+}
+
+fn rust_image_tile_target_rect_f(
+    source_rect: RustImageRenderRectF,
+    image_size: RustImageRenderSize,
+    target_rect: RustImageRenderRectF,
+) -> RustImageRenderRectF {
+    if rect_f_empty(source_rect) || size_empty(image_size) || rect_f_empty(target_rect) {
         return empty_rect_f();
     }
 
     let image_width = f64::from(image_size.width);
     let image_height = f64::from(image_size.height);
     RustImageRenderRectF {
-        x: target_rect.x + (f64::from(source_rect.x) / image_width) * target_rect.width,
-        y: target_rect.y + (f64::from(source_rect.y) / image_height) * target_rect.height,
-        width: (f64::from(source_rect.width) / image_width) * target_rect.width,
-        height: (f64::from(source_rect.height) / image_height) * target_rect.height,
+        x: target_rect.x + (source_rect.x / image_width) * target_rect.width,
+        y: target_rect.y + (source_rect.y / image_height) * target_rect.height,
+        width: (source_rect.width / image_width) * target_rect.width,
+        height: (source_rect.height / image_height) * target_rect.height,
     }
 }
 
@@ -675,22 +664,6 @@ mod tests {
         );
         assert_eq!(
             rust_scaled_image_size_to_fit(size_f(100.0, 100.0), size(0, 100)),
-            empty_size()
-        );
-    }
-
-    #[test]
-    fn svg_raster_size_applies_device_scale_and_texture_limit() {
-        assert_eq!(
-            rust_svg_raster_size(size_f(500.0, 250.0), 2.0, 512, 1024),
-            size(512, 256)
-        );
-        assert_eq!(
-            rust_svg_raster_size(size_f(10.0, 20.0), 2.0, 0, 64),
-            size(20, 40)
-        );
-        assert_eq!(
-            rust_svg_raster_size(size_f(10.0, 20.0), 0.0, 64, 64),
             empty_size()
         );
     }
