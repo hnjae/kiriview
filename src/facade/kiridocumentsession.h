@@ -37,21 +37,6 @@ class KiriDocumentSession : public QObject
         bool activeZoomPercentKnown READ activeZoomPercentKnown NOTIFY activeZoomReadoutChanged)
     Q_PROPERTY(double activeZoomPercent READ activeZoomPercent NOTIFY activeZoomReadoutChanged)
     Q_PROPERTY(bool activeZoomEditable READ activeZoomEditable NOTIFY activeZoomReadoutChanged)
-    Q_PROPERTY(bool mediaNavigationActive READ mediaNavigationActive NOTIFY
-            mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(bool mediaNavigationKnown READ mediaNavigationKnown NOTIFY
-            mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(
-        int currentMediaNumber READ currentMediaNumber NOTIFY mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(int mediaCount READ mediaCount NOTIFY mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(bool canOpenPreviousMedia READ canOpenPreviousMedia NOTIFY
-            mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(
-        bool canOpenNextMedia READ canOpenNextMedia NOTIFY mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(
-        bool atKnownFirstMedia READ atKnownFirstMedia NOTIFY mediaNavigationAvailabilityChanged)
-    Q_PROPERTY(
-        bool atKnownLastMedia READ atKnownLastMedia NOTIFY mediaNavigationAvailabilityChanged)
     Q_PROPERTY(bool activeNavigationAvailable READ activeNavigationAvailable NOTIFY
             activeNavigationChanged)
     Q_PROPERTY(bool activeNavigationKnown READ activeNavigationKnown NOTIFY activeNavigationChanged)
@@ -68,6 +53,8 @@ class KiriDocumentSession : public QObject
             activeNavigationChanged)
     Q_PROPERTY(bool atKnownLastActiveNavigation READ atKnownLastActiveNavigation NOTIFY
             activeNavigationChanged)
+    Q_PROPERTY(ActiveNavigationBoundaryScope activeNavigationBoundaryScope READ
+            activeNavigationBoundaryScope NOTIFY activeNavigationChanged)
     Q_PROPERTY(KiriImageDocument *imageDocument READ imageDocument CONSTANT)
     Q_PROPERTY(KiriVideoDocument *videoDocument READ videoDocument CONSTANT)
 
@@ -84,6 +71,13 @@ public:
         DeletePermanently,
     };
     Q_ENUM(DeletionMode)
+
+    enum class ActiveNavigationBoundaryScope {
+        NoNavigationBoundary,
+        MediaNavigationBoundary,
+        ImageNavigationBoundary,
+    };
+    Q_ENUM(ActiveNavigationBoundaryScope)
 
     explicit KiriDocumentSession(QObject *parent = nullptr);
     explicit KiriDocumentSession(
@@ -102,14 +96,6 @@ public:
     bool activeZoomPercentKnown() const;
     double activeZoomPercent() const;
     bool activeZoomEditable() const;
-    bool mediaNavigationActive() const;
-    bool mediaNavigationKnown() const;
-    int currentMediaNumber() const;
-    int mediaCount() const;
-    bool canOpenPreviousMedia() const;
-    bool canOpenNextMedia() const;
-    bool atKnownFirstMedia() const;
-    bool atKnownLastMedia() const;
     bool activeNavigationAvailable() const;
     bool activeNavigationKnown() const;
     bool activeNavigationEditable() const;
@@ -119,12 +105,10 @@ public:
     bool canOpenNextActiveNavigation() const;
     bool atKnownFirstActiveNavigation() const;
     bool atKnownLastActiveNavigation() const;
+    ActiveNavigationBoundaryScope activeNavigationBoundaryScope() const;
     KiriImageDocument *imageDocument() const;
     KiriVideoDocument *videoDocument() const;
 
-    Q_INVOKABLE void openPreviousMedia();
-    Q_INVOKABLE void openNextMedia();
-    Q_INVOKABLE void openMediaAtNumber(int mediaNumber);
     Q_INVOKABLE void openPreviousActiveNavigation();
     Q_INVOKABLE void openNextActiveNavigation();
     Q_INVOKABLE void openFirstActiveNavigation();
@@ -140,7 +124,6 @@ Q_SIGNALS:
     void displayedFileDeletionAvailabilityChanged();
     void fileDeletionInProgressChanged();
     void activeZoomReadoutChanged();
-    void mediaNavigationAvailabilityChanged();
     void activeNavigationChanged();
 
 private:

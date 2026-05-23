@@ -298,6 +298,20 @@ bool DocumentSessionRuntime::atKnownLastActiveNavigation() const
     return activeNavigationSnapshot().atKnownLast;
 }
 
+ActiveNavigationBoundaryScope DocumentSessionRuntime::activeNavigationBoundaryScope() const
+{
+    switch (activeNavigationSourceKind()) {
+    case ActiveNavigationSourceKind::OrdinaryDirectMedia:
+        return ActiveNavigationBoundaryScope::Media;
+    case ActiveNavigationSourceKind::ImageDocumentPages:
+        return ActiveNavigationBoundaryScope::ImageDocument;
+    case ActiveNavigationSourceKind::None:
+        return ActiveNavigationBoundaryScope::None;
+    }
+
+    return ActiveNavigationBoundaryScope::None;
+}
+
 std::optional<PredecodedImage> DocumentSessionRuntime::findPredecodedImage(const QUrl &url) const
 {
     return m_mediaPredecodeCoordinator != nullptr
@@ -450,8 +464,7 @@ void DocumentSessionRuntime::connectDocuments()
         }
 
         refreshMediaNavigation();
-        m_state.publish({ DocumentSessionChange::MediaNavigationAvailability,
-            DocumentSessionChange::FileDeletionAvailability,
+        m_state.publish({ DocumentSessionChange::FileDeletionAvailability,
             DocumentSessionChange::ActiveNavigation });
     });
     QObject::connect(&m_imageDocument, &KiriImageDocument::fileDeletionInProgressChanged, m_owner,
@@ -576,10 +589,8 @@ void DocumentSessionRuntime::syncFromImageDocument()
 
     syncDirectImageCursorFromDocument();
     m_state.setSourceIdentity(m_imageDocument.sourceUrl());
-    m_state.publish(
-        { DocumentSessionChange::ErrorString, DocumentSessionChange::FileDeletionAvailability,
-            DocumentSessionChange::MediaNavigationAvailability,
-            DocumentSessionChange::ActiveNavigation });
+    m_state.publish({ DocumentSessionChange::ErrorString,
+        DocumentSessionChange::FileDeletionAvailability, DocumentSessionChange::ActiveNavigation });
     refreshMediaNavigation();
 }
 
@@ -600,10 +611,8 @@ void DocumentSessionRuntime::syncFromVideoDocument()
         refreshMediaNavigation();
     }
 
-    m_state.publish(
-        { DocumentSessionChange::ErrorString, DocumentSessionChange::FileDeletionAvailability,
-            DocumentSessionChange::MediaNavigationAvailability,
-            DocumentSessionChange::ActiveNavigation });
+    m_state.publish({ DocumentSessionChange::ErrorString,
+        DocumentSessionChange::FileDeletionAvailability, DocumentSessionChange::ActiveNavigation });
 }
 
 void DocumentSessionRuntime::refreshMediaNavigation()
