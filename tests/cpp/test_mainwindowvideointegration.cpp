@@ -16,6 +16,7 @@ private Q_SLOTS:
     void mainWindowRoutesExternalInputsThroughDocumentSession();
     void imageViewportUsesExternallyOwnedImageDocument();
     void mainWindowUsesSessionModeAndMediaDispatch();
+    void mediaViewportDelegatesImplementSharedContract();
     void videoModeExposesReadOnlyZoomReadout();
     void toolbarPageNavigationUsesSessionActiveProjection();
     void activeNavigationActionsUseSessionSnapshotAndBoundaryScope();
@@ -71,10 +72,15 @@ void TestMainWindowVideoIntegration::imageViewportUsesExternallyOwnedImageDocume
     const QString imageViewportQml = readSource(QStringLiteral("src/qml/ImageViewport.qml"));
     QVERIFY2(!imageViewportQml.isEmpty(), "ImageViewport.qml should be readable");
 
+    QVERIFY(imageViewportQml.contains(QStringLiteral("MediaViewportDelegate {")));
     QVERIFY(imageViewportQml.contains(
-        QStringLiteral("required property KiriImageDocument imageDocument")));
+        QStringLiteral("readonly property var imageDocument: root.documentSession.imageDocument")));
+    QVERIFY(imageViewportQml.contains(
+        QStringLiteral("imageInteractionSurface: ImageViewportInteractionSurface")));
     QVERIFY(!imageViewportQml.contains(QStringLiteral("property url initialSourceUrl")));
     QVERIFY(!imageViewportQml.contains(QStringLiteral("KiriImageDocument {")));
+    QVERIFY(!imageViewportQml.contains(
+        QStringLiteral("required property KiriImageDocument imageDocument")));
     QVERIFY(!imageViewportQml.contains(QStringLiteral("sourceUrl = root.initialSourceUrl")));
 }
 
@@ -94,7 +100,9 @@ void TestMainWindowVideoIntegration::mainWindowUsesSessionModeAndMediaDispatch()
         QStringLiteral("documentSession.documentKind === KiriDocumentSession.Video")));
     QVERIFY(mainQml.contains(QStringLiteral("MediaViewportHost {")));
     QVERIFY(mainQml.contains(QStringLiteral("mediaViewportHost.forceActiveViewportFocus()")));
-    QVERIFY(mainQml.contains(QStringLiteral("mediaViewportHost: mediaViewportHost")));
+    QVERIFY(mainQml.contains(
+        QStringLiteral("imageInteractionSurface: mediaViewportHost.imageInteractionSurface")));
+    QVERIFY(!mainQml.contains(QStringLiteral("mediaViewportHost: mediaViewportHost")));
     QVERIFY(!mainQml.contains(QStringLiteral("mediaViewportHost.imageViewport")));
     QVERIFY(!mainQml.contains(QStringLiteral("setSource(Qt.resolvedUrl(\"VideoViewport.qml\")")));
     QVERIFY(!mainQml.contains(QStringLiteral("id: videoViewportLoader")));
@@ -103,19 +111,24 @@ void TestMainWindowVideoIntegration::mainWindowUsesSessionModeAndMediaDispatch()
         QStringLiteral("documentSession.documentKind === KiriDocumentSession.Image")));
     QVERIFY(mediaViewportHostQml.contains(
         QStringLiteral("documentSession.documentKind === KiriDocumentSession.Video")));
-    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("id: imageViewportLoader")));
-    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("active: root.imageMode")));
-    QVERIFY(mediaViewportHostQml.contains(
-        QStringLiteral("setSource(Qt.resolvedUrl(\"ImageViewport.qml\")")));
-    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("active: root.videoMode")));
-    QVERIFY(mediaViewportHostQml.contains(
-        QStringLiteral("setSource(Qt.resolvedUrl(\"VideoViewport.qml\")")));
+    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("id: mediaViewportDelegateLoader")));
+    QVERIFY(
+        mediaViewportHostQml.contains(QStringLiteral("active: root.imageMode || root.videoMode")));
+    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("activeDelegateSource")));
+    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("setSource(root.activeDelegateSource")));
+    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("imageInteractionSurface")));
+    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("inactiveImageInteractionSurface")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("activeInteractionSurface")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("id: imageViewportLoader")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("id: videoViewportLoader")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("callImageViewport")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("imageViewportProperty")));
     QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("sourceComponent: VideoViewport")));
     QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("property VideoViewport")));
     QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("ImageViewport {")));
     QVERIFY(mediaViewportHostQml.contains(QStringLiteral("\"presentationActive\": true")));
-    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("function panBy")));
-    QVERIFY(mediaViewportHostQml.contains(QStringLiteral("function zoomByStepAtCenter")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("function panBy")));
+    QVERIFY(!mediaViewportHostQml.contains(QStringLiteral("function zoomByStepAtCenter")));
     QVERIFY(mediaViewportHostQml.contains(QStringLiteral("ImageStateOverlay {")));
     QVERIFY(mediaViewportHostQml.contains(QStringLiteral("viewerContextMenuRequested")));
     QVERIFY(mainQml.contains(QStringLiteral("sourceComponent: ImageShortcuts")));
@@ -146,6 +159,42 @@ void TestMainWindowVideoIntegration::mainWindowUsesSessionModeAndMediaDispatch()
     QVERIFY(!mainQml.contains(QStringLiteral("videoApplicationMenuHost")));
     QVERIFY(!mainQml.contains(QStringLiteral("ordinaryDirectMediaScopeActive")));
     QVERIFY(!imageActionsQml.contains(QStringLiteral("ordinaryDirectMediaScopeActive")));
+}
+
+void TestMainWindowVideoIntegration::mediaViewportDelegatesImplementSharedContract()
+{
+    const QString mediaDelegateQml
+        = readSource(QStringLiteral("src/qml/MediaViewportDelegate.qml"));
+    const QString interactionSurfaceQml
+        = readSource(QStringLiteral("src/qml/ImageViewportInteractionSurface.qml"));
+    const QString imageViewportQml = readSource(QStringLiteral("src/qml/ImageViewport.qml"));
+    const QString videoViewportQml = readSource(QStringLiteral("src/qml/VideoViewport.qml"));
+    QVERIFY2(!mediaDelegateQml.isEmpty(), "MediaViewportDelegate.qml should be readable");
+    QVERIFY2(
+        !interactionSurfaceQml.isEmpty(), "ImageViewportInteractionSurface.qml should be readable");
+    QVERIFY2(!imageViewportQml.isEmpty(), "ImageViewport.qml should be readable");
+    QVERIFY2(!videoViewportQml.isEmpty(), "VideoViewport.qml should be readable");
+
+    QVERIFY(mediaDelegateQml.contains(QStringLiteral("required property var documentSession")));
+    QVERIFY(mediaDelegateQml.contains(
+        QStringLiteral("property ImageViewportInteractionSurface imageInteractionSurface")));
+    QVERIFY(mediaDelegateQml.contains(QStringLiteral("signal viewerClicked")));
+    QVERIFY(mediaDelegateQml.contains(QStringLiteral("signal viewerContextMenuRequested")));
+    QVERIFY(mediaDelegateQml.contains(QStringLiteral("function requestViewportFocus()")));
+    QVERIFY(mediaDelegateQml.contains(QStringLiteral("acceptedButtons: Qt.RightButton")));
+
+    QVERIFY(interactionSurfaceQml.contains(QStringLiteral("function panBy")));
+    QVERIFY(interactionSurfaceQml.contains(QStringLiteral("function scanForward")));
+    QVERIFY(interactionSurfaceQml.contains(QStringLiteral("function zoomByStepAtCenter")));
+
+    QVERIFY(imageViewportQml.contains(QStringLiteral("MediaViewportDelegate {")));
+    QVERIFY(imageViewportQml.contains(
+        QStringLiteral("imageInteractionSurface: ImageViewportInteractionSurface")));
+    QVERIFY(videoViewportQml.contains(QStringLiteral("MediaViewportDelegate {")));
+    QVERIFY(videoViewportQml.contains(
+        QStringLiteral("readonly property var videoDocument: root.documentSession.videoDocument")));
+    QVERIFY(!videoViewportQml.contains(QStringLiteral("property bool active: true")));
+    QVERIFY(videoViewportQml.contains(QStringLiteral("root.presentationActive && root.visible")));
 }
 
 void TestMainWindowVideoIntegration::toolbarPageNavigationUsesSessionActiveProjection()
