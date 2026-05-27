@@ -17,8 +17,8 @@ struct VideoDocumentStatusSnapshot {
 
 struct VideoDocumentStatusPlan {
     VideoDocumentStatus status = VideoDocumentStatus::Null;
-    bool ended = false;
-    bool stopPublicPlayback = false;
+    bool mediaEnded = false;
+    bool clearPlaying = false;
 };
 
 VideoDocumentStatusPlan videoDocumentStatusPlan(VideoDocumentStatusSnapshot snapshot);
