@@ -32,9 +32,13 @@ ApplicationActionRuntime::ApplicationActionRuntime(ApplicationActionHost &host, 
     : m_host(host)
     , m_actionRegistry(host)
     , m_menuPresentationRuntime(host, std::move(callbacks.menuPresentationChanged))
-    , m_shortcutRuntime(std::make_unique<ApplicationShortcutRuntime>(
-          m_host, m_actionRegistry, std::move(callbacks.shortcutRevisionChanged)))
+    , m_shortcutRuntime(std::make_unique<ApplicationShortcutRuntime>(m_host, m_actionRegistry,
+          std::move(callbacks.shortcutRevisionChanged),
+          ApplicationShortcutRuntime::TriggerCallbacks {
+              std::move(callbacks.unsupportedVideoActionTriggered),
+          }))
     , m_actionStateChanged(std::move(callbacks.actionStateChanged))
+    , m_actionTriggered(std::move(callbacks.actionTriggered))
 {
 }
 
@@ -99,6 +103,21 @@ bool ApplicationActionRuntime::actionPlacementEnabled(ActionId actionId) const
     return applicationActionState(actionId, m_actionStateInput).placementEnabled;
 }
 
+QString ApplicationActionRuntime::actionMenuText(ActionId actionId) const
+{
+    return applicationActionMenuText(actionId, m_actionStateInput);
+}
+
+QString ApplicationActionRuntime::actionToolbarText(ActionId actionId) const
+{
+    return applicationActionToolbarText(actionId);
+}
+
+QString ApplicationActionRuntime::actionToolbarTooltipText(ActionId actionId) const
+{
+    return applicationActionToolbarTooltipText(actionId);
+}
+
 bool ApplicationActionRuntime::videoActionUnsupported(ActionId actionId) const
 {
     return ApplicationActions::videoActionUnsupported(actionId);
@@ -118,10 +137,16 @@ void ApplicationActionRuntime::setActionStateInput(const ApplicationActionStateI
 {
     m_actionStateInput = input;
     applyActionState();
+    m_shortcutRuntime->setActionStateInput(m_actionStateInput);
     ++m_actionStateRevision;
     if (m_actionStateChanged) {
         m_actionStateChanged();
     }
+}
+
+void ApplicationActionRuntime::setShortcutHost(QObject *host)
+{
+    m_shortcutRuntime->setShortcutHost(host);
 }
 
 void ApplicationActionRuntime::setupActions()
@@ -164,6 +189,12 @@ void ApplicationActionRuntime::setupActions()
             KirigamiActionCollection::setShortcutsConfigurable(registeredAction, false);
         }
         m_actionRegistry.registerAction(definition, registeredAction);
+        if (registeredAction != nullptr) {
+            QObject::connect(registeredAction, &QAction::triggered, m_host.actionContext(),
+                [this, actionId = definition.actionId, registeredAction]() {
+                    handleActionTriggered(actionId, registeredAction);
+                });
+        }
     };
 
     for (const Actions::ActionDefinition &definition : Actions::definitions()) {
@@ -174,6 +205,7 @@ void ApplicationActionRuntime::setupActions()
     m_menuPresentationRuntime.syncFromSettings();
     m_shortcutRuntime->setup();
     applyActionState();
+    m_shortcutRuntime->setActionStateInput(m_actionStateInput);
 }
 
 QAction *ApplicationActionRuntime::addRegisteredAction(const QString &name, const QString &text,
@@ -217,6 +249,16 @@ void ApplicationActionRuntime::handleActionChanged(QAction *changedAction)
         return;
     }
     m_shortcutRuntime->handleActionChanged(changedAction);
+}
+
+void ApplicationActionRuntime::handleActionTriggered(ActionId actionId, QAction *triggeredAction)
+{
+    if (triggeredAction == nullptr || !triggeredAction->isEnabled()) {
+        return;
+    }
+    if (m_actionTriggered) {
+        m_actionTriggered(actionId);
+    }
 }
 
 void ApplicationActionRuntime::applyActionState()

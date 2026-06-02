@@ -14,6 +14,7 @@
 #include <QAbstractListModel>
 #include <QAction>
 #include <QList>
+#include <QObject>
 #include <QString>
 #include <functional>
 #include <memory>
@@ -29,6 +30,8 @@ public:
         std::function<void()> menuPresentationChanged;
         std::function<void()> shortcutRevisionChanged;
         std::function<void()> actionStateChanged;
+        std::function<void(ActionId)> actionTriggered;
+        std::function<void(ActionId)> unsupportedVideoActionTriggered;
     };
 
     explicit ApplicationActionRuntime(ApplicationActionHost &host, Callbacks callbacks = {});
@@ -47,11 +50,15 @@ public:
     ApplicationShortcutProjection shortcutProjectionForId(ActionId actionId) const;
     int actionStateRevision() const;
     bool actionPlacementEnabled(ActionId actionId) const;
+    QString actionMenuText(ActionId actionId) const;
+    QString actionToolbarText(ActionId actionId) const;
+    QString actionToolbarTooltipText(ActionId actionId) const;
     bool videoActionUnsupported(ActionId actionId) const;
     bool mediaHorizontalArrowShortcutsEnabled(bool videoMode, bool imageReadyViewerShortcutsEnabled,
         bool videoViewerShortcutsEnabled, bool videoDirectMediaNavigationActive,
         bool videoFileDeletionInProgress) const;
     void setActionStateInput(const ApplicationActionStateInput &input);
+    void setShortcutHost(QObject *host);
 
     void setupActions();
 
@@ -64,6 +71,7 @@ private:
         const QList<QKeySequence> &defaultShortcuts);
     void applyActionState();
     void handleActionChanged(QAction *changedAction);
+    void handleActionTriggered(ActionId actionId, QAction *triggeredAction);
 
     ApplicationActionHost &m_host;
     ApplicationActionRegistry m_actionRegistry;
@@ -73,6 +81,7 @@ private:
     int m_actionStateRevision = 0;
     bool m_applyingActionState = false;
     std::function<void()> m_actionStateChanged;
+    std::function<void(ActionId)> m_actionTriggered;
 };
 }
 

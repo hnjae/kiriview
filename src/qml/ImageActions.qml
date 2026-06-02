@@ -18,6 +18,8 @@ Item {
     property bool infoPanelVisible: false
     property bool showMenubarActionEnabled: true
     property bool thumbnailPanelVisible: false
+    property bool videoFileDeletionInProgress: false
+    property bool videoMode: false
 
     readonly property var openAction: openManagedAction.proxy
     readonly property var openWithAction: openWithManagedAction.proxy
@@ -76,7 +78,8 @@ Item {
     readonly property var showMenubarMenuAction: showMenubarManagedAction.menuProxy
     readonly property var quitMenuAction: quitManagedAction.menuProxy
     readonly property bool imageMode: root.documentSession.documentKind === KiriDocumentSession.Image
-    readonly property bool videoMode: root.documentSession.documentKind === KiriDocumentSession.Video
+    readonly property bool activeNavigationActionsAvailable: root.documentSession.activeNavigationAvailable && root.documentSession.activeNavigationKnown && !root.documentSession.fileDeletionInProgress && root.actionAvailability.helpShortcutsEnabled
+    readonly property bool mediaMode: root.imageMode || root.videoMode
     readonly property bool rightToLeftReadingActive: root.actionAvailability.rightToLeftReadingActive
     readonly property var applicationMenuNavigationActions: root.rightToLeftReadingActive ? [nextContainerManagedAction.menuProxy, previousContainerManagedAction.menuProxy] : [previousContainerManagedAction.menuProxy, nextContainerManagedAction.menuProxy]
     readonly property var applicationMenuDocumentActions: root.imageMode || root.videoMode ? [applicationMenuNavigationSeparator, previousImageManagedAction.menuProxy, nextImageManagedAction.menuProxy, firstImageManagedAction.menuProxy, lastImageManagedAction.menuProxy] : []
@@ -93,15 +96,7 @@ Item {
 
     function publishActionState() {
         const zoomMode = root.imageDocument !== null && root.imageDocument !== undefined ? root.imageDocument.zoomMode : -1;
-        root.application.updateActionState(root.actionAvailability.helpShortcutsEnabled, root.actionAvailability.canUseReadyActions, root.actionAvailability.canUseRotateActions, root.actionAvailability.canUseTwoPageModeActions, root.actionAvailability.canUseRightToLeftReadingActions, root.actionAvailability.containerShortcutsEnabled, root.documentSession.displayedMediaOpenWithAvailable, root.documentSession.displayedFileDeletionAvailable, root.documentSession.fileDeletionInProgress, root.documentSession.activeNavigationAvailable, root.documentSession.activeNavigationKnown, root.documentSession.activeNavigationCount > 0, root.documentSession.canOpenPreviousActiveNavigation, root.documentSession.canOpenNextActiveNavigation, root.imageMode && zoomMode === KiriImageDocument.Fit, root.imageMode && zoomMode === KiriImageDocument.FitHeight, root.imageMode && zoomMode === KiriImageDocument.FitWidth, root.actionAvailability.twoPageModeActive, root.actionAvailability.rightToLeftReadingActive, root.infoPanelVisible, root.thumbnailPanelVisible, root.fullscreen, root.applicationMenuShortcutEnabled, root.showMenubarActionEnabled);
-    }
-
-    function activeFirstMenuText() {
-        return root.documentSession.activeNavigationBoundaryScope === KiriDocumentSession.DirectMediaNavigationBoundary ? KI18n.i18nc("@action:inmenu", "&First Media Item") : "";
-    }
-
-    function activeLastMenuText() {
-        return root.documentSession.activeNavigationBoundaryScope === KiriDocumentSession.DirectMediaNavigationBoundary ? KI18n.i18nc("@action:inmenu", "&Last Media Item") : "";
+        root.application.updateActionState(root.actionAvailability.helpShortcutsEnabled, root.actionAvailability.canUseReadyActions, root.actionAvailability.canUseRotateActions, root.actionAvailability.canUseTwoPageModeActions, root.actionAvailability.canUseRightToLeftReadingActions, root.actionAvailability.containerShortcutsEnabled, root.documentSession.displayedMediaOpenWithAvailable, root.documentSession.displayedFileDeletionAvailable, root.documentSession.fileDeletionInProgress, root.documentSession.activeNavigationAvailable, root.documentSession.activeNavigationKnown, root.documentSession.activeNavigationCount > 0, root.documentSession.canOpenPreviousActiveNavigation, root.documentSession.canOpenNextActiveNavigation, root.imageMode && zoomMode === KiriImageDocument.Fit, root.imageMode && zoomMode === KiriImageDocument.FitHeight, root.imageMode && zoomMode === KiriImageDocument.FitWidth, root.actionAvailability.twoPageModeActive, root.actionAvailability.rightToLeftReadingActive, root.infoPanelVisible, root.thumbnailPanelVisible, root.fullscreen, root.applicationMenuShortcutEnabled, root.showMenubarActionEnabled, root.documentSession.activeNavigationBoundaryScope === KiriDocumentSession.DirectMediaNavigationBoundary, root.actionAvailability.viewerShortcutsEnabled, root.actionAvailability.readyShortcutsEnabled, root.actionAvailability.readyViewerShortcutsEnabled, root.actionAvailability.twoPageViewerShortcutsEnabled, root.actionAvailability.rightToLeftReadingShortcutsEnabled, root.actionAvailability.rightToLeftReadingViewerShortcutsEnabled, root.actionAvailability.rotateShortcutsEnabled, root.actionAvailability.rotateViewerShortcutsEnabled, root.actionAvailability.pannableShortcutsEnabled, root.actionAvailability.pannableViewerShortcutsEnabled, root.actionAvailability.containerViewerShortcutsEnabled, root.activeNavigationActionsAvailable, root.videoMode, root.videoFileDeletionInProgress);
     }
 
     function openFirstImage() {
@@ -126,6 +121,77 @@ Item {
         }
     }
 
+    function dispatchAction(actionId) {
+        switch (actionId) {
+        case KiriViewApplication.FileOpenAction:
+            root.openDialogRequested();
+            return;
+        case KiriViewApplication.FileOpenWithAction:
+            root.documentSession.openCurrentMediaWith();
+            return;
+        case KiriViewApplication.FileMoveToTrashAction:
+            root.documentSession.deleteDisplayedFile(KiriDocumentSession.MoveToTrash);
+            return;
+        case KiriViewApplication.FileDeleteAction:
+            root.documentSession.deleteDisplayedFile(KiriDocumentSession.DeletePermanently);
+            return;
+        case KiriViewApplication.GoPreviousArchiveAction:
+            root.imageDocument.openPreviousContainer();
+            return;
+        case KiriViewApplication.GoNextArchiveAction:
+            root.imageDocument.openNextContainer();
+            return;
+        case KiriViewApplication.GoPreviousImageAction:
+            root.openPreviousPage();
+            return;
+        case KiriViewApplication.GoNextImageAction:
+            root.openNextPage();
+            return;
+        case KiriViewApplication.GoFirstImageAction:
+            root.openFirstImage();
+            return;
+        case KiriViewApplication.GoLastImageAction:
+            root.openLastImage();
+            return;
+        case KiriViewApplication.ViewFitAction:
+            root.imageDocument.resetZoom();
+            return;
+        case KiriViewApplication.ViewFitHeightAction:
+            root.imageDocument.setFitMode(KiriImageDocument.FitHeight);
+            return;
+        case KiriViewApplication.ViewFitWidthAction:
+            root.imageDocument.setFitMode(KiriImageDocument.FitWidth);
+            return;
+        case KiriViewApplication.ViewActualSizeAction:
+            root.imageDocument.zoomPercent = 100;
+            return;
+        case KiriViewApplication.ViewRotateClockwiseAction:
+            root.imageDocument.rotateClockwise();
+            return;
+        case KiriViewApplication.ViewRotateCounterclockwiseAction:
+            root.imageDocument.rotateCounterclockwise();
+            return;
+        case KiriViewApplication.ViewToggleTwoPageModeAction:
+            root.imageDocument.twoPageModeEnabled = !root.imageDocument.twoPageModeEnabled;
+            return;
+        case KiriViewApplication.ViewToggleRightToLeftReadingAction:
+            root.imageDocument.rightToLeftReadingEnabled = !root.imageDocument.rightToLeftReadingEnabled;
+            return;
+        case KiriViewApplication.ViewToggleInfoPanelAction:
+            root.toggleInfoPanelRequested();
+            return;
+        case KiriViewApplication.ViewToggleThumbnailPanelAction:
+            root.toggleThumbnailPanelRequested();
+            return;
+        case KiriViewApplication.WindowFullscreenAction:
+            root.toggleFullScreenRequested();
+            return;
+        case KiriViewApplication.HelpShortcutsAction:
+            root.shortcutHelpRequested();
+            return;
+        }
+    }
+
     Component.onCompleted: root.publishActionState()
 
     onApplicationMenuShortcutEnabledChanged: root.publishActionState()
@@ -133,6 +199,8 @@ Item {
     onInfoPanelVisibleChanged: root.publishActionState()
     onShowMenubarActionEnabledChanged: root.publishActionState()
     onThumbnailPanelVisibleChanged: root.publishActionState()
+    onVideoFileDeletionInProgressChanged: root.publishActionState()
+    onVideoModeChanged: root.publishActionState()
 
     Connections {
         target: root.actionAvailability
@@ -171,6 +239,14 @@ Item {
 
         function onZoomModeChanged() {
             root.publishActionState();
+        }
+    }
+
+    Connections {
+        target: root.application
+
+        function onActionTriggered(actionId) {
+            root.dispatchAction(actionId);
         }
     }
 
@@ -225,9 +301,6 @@ Item {
         actionId: KiriViewApplication.FileOpenAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Open")
-
-        onTriggered: root.openDialogRequested()
     }
 
     ManagedAction {
@@ -236,9 +309,6 @@ Item {
         actionId: KiriViewApplication.FileOpenWithAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "Open &With...")
-
-        onTriggered: root.documentSession.openCurrentMediaWith()
     }
 
     ManagedAction {
@@ -247,9 +317,6 @@ Item {
         actionId: KiriViewApplication.FileMoveToTrashAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "Move to &Trash")
-
-        onTriggered: root.documentSession.deleteDisplayedFile(KiriDocumentSession.MoveToTrash)
     }
 
     ManagedAction {
@@ -258,9 +325,6 @@ Item {
         actionId: KiriViewApplication.FileDeleteAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Delete Permanently")
-
-        onTriggered: root.documentSession.deleteDisplayedFile(KiriDocumentSession.DeletePermanently)
     }
 
     ManagedAction {
@@ -269,9 +333,6 @@ Item {
         actionId: KiriViewApplication.GoPreviousArchiveAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Previous Archive")
-
-        onTriggered: root.imageDocument.openPreviousContainer()
     }
 
     ManagedAction {
@@ -280,9 +341,6 @@ Item {
         actionId: KiriViewApplication.GoNextArchiveAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Next Archive")
-
-        onTriggered: root.imageDocument.openNextContainer()
     }
 
     ManagedAction {
@@ -290,8 +348,6 @@ Item {
 
         actionId: KiriViewApplication.GoPreviousImageAction
         application: root.application
-
-        onTriggered: root.openPreviousPage()
     }
 
     ManagedAction {
@@ -299,8 +355,6 @@ Item {
 
         actionId: KiriViewApplication.GoNextImageAction
         application: root.application
-
-        onTriggered: root.openNextPage()
     }
 
     ManagedAction {
@@ -308,9 +362,6 @@ Item {
 
         actionId: KiriViewApplication.GoFirstImageAction
         application: root.application
-        menuText: root.activeFirstMenuText()
-
-        onTriggered: root.openFirstImage()
     }
 
     ManagedAction {
@@ -318,9 +369,6 @@ Item {
 
         actionId: KiriViewApplication.GoLastImageAction
         application: root.application
-        menuText: root.activeLastMenuText()
-
-        onTriggered: root.openLastImage()
     }
 
     ManagedAction {
@@ -328,8 +376,6 @@ Item {
 
         actionId: KiriViewApplication.ViewFitAction
         application: root.application
-
-        onTriggered: root.imageDocument.resetZoom()
     }
 
     ManagedAction {
@@ -337,8 +383,6 @@ Item {
 
         actionId: KiriViewApplication.ViewFitHeightAction
         application: root.application
-
-        onTriggered: root.imageDocument.setFitMode(KiriImageDocument.FitHeight)
     }
 
     ManagedAction {
@@ -346,8 +390,6 @@ Item {
 
         actionId: KiriViewApplication.ViewFitWidthAction
         application: root.application
-
-        onTriggered: root.imageDocument.setFitMode(KiriImageDocument.FitWidth)
     }
 
     ManagedAction {
@@ -355,8 +397,6 @@ Item {
 
         actionId: KiriViewApplication.ViewActualSizeAction
         application: root.application
-
-        onTriggered: root.imageDocument.zoomPercent = 100
     }
 
     ManagedAction {
@@ -365,9 +405,6 @@ Item {
         actionId: KiriViewApplication.ViewRotateClockwiseAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "Rotate &Clockwise")
-
-        onTriggered: root.imageDocument.rotateClockwise()
     }
 
     ManagedAction {
@@ -376,9 +413,6 @@ Item {
         actionId: KiriViewApplication.ViewRotateCounterclockwiseAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "Rotate C&ounterclockwise")
-
-        onTriggered: root.imageDocument.rotateCounterclockwise()
     }
 
     ManagedAction {
@@ -387,10 +421,6 @@ Item {
         actionId: KiriViewApplication.ViewToggleTwoPageModeAction
         application: root.application
         displayHint: Kirigami.DisplayHint.KeepVisible
-        menuText: KI18n.i18nc("@action:inmenu", "Two-Page &Spread")
-        toolbarText: KI18n.i18nc("@action:button", "Two-Page &Spread")
-
-        onTriggered: root.imageDocument.twoPageModeEnabled = !root.imageDocument.twoPageModeEnabled
     }
 
     ManagedAction {
@@ -399,10 +429,6 @@ Item {
         actionId: KiriViewApplication.ViewToggleRightToLeftReadingAction
         application: root.application
         displayHint: Kirigami.DisplayHint.KeepVisible
-        menuText: KI18n.i18nc("@action:inmenu", "&Right-to-Left Reading")
-        toolbarText: KI18n.i18nc("@action:button", "&Right-to-Left")
-
-        onTriggered: root.imageDocument.rightToLeftReadingEnabled = !root.imageDocument.rightToLeftReadingEnabled
     }
 
     ManagedAction {
@@ -410,9 +436,6 @@ Item {
 
         actionId: KiriViewApplication.ViewToggleInfoPanelAction
         application: root.application
-        menuText: KI18n.i18nc("@action:inmenu", "Show &Info Panel")
-
-        onTriggered: root.toggleInfoPanelRequested()
     }
 
     ManagedAction {
@@ -420,9 +443,6 @@ Item {
 
         actionId: KiriViewApplication.ViewToggleThumbnailPanelAction
         application: root.application
-        menuText: KI18n.i18nc("@action:inmenu", "Show &Thumbnail Panel")
-
-        onTriggered: root.toggleThumbnailPanelRequested()
     }
 
     ManagedAction {
@@ -459,9 +479,6 @@ Item {
         actionId: KiriViewApplication.WindowFullscreenAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Fullscreen")
-
-        onTriggered: root.toggleFullScreenRequested()
     }
 
     ManagedAction {
@@ -470,9 +487,6 @@ Item {
         actionId: KiriViewApplication.HelpShortcutsAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Keyboard Shortcuts")
-
-        onTriggered: root.shortcutHelpRequested()
     }
 
     ManagedAction {
@@ -481,7 +495,6 @@ Item {
         actionId: KiriViewApplication.OptionsConfigureKeybindingAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Configure Shortcuts...")
     }
 
     ManagedAction {
@@ -490,7 +503,6 @@ Item {
         actionId: KiriViewApplication.OptionsShowMenubarAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Show Menubar")
     }
 
     ManagedAction {
@@ -499,6 +511,5 @@ Item {
         actionId: KiriViewApplication.FileQuitAction
         application: root.application
         displayHint: Kirigami.DisplayHint.AlwaysHide
-        menuText: KI18n.i18nc("@action:inmenu", "&Quit")
     }
 }

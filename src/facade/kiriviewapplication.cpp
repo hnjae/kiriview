@@ -50,6 +50,11 @@ KiriViewApplication::KiriViewApplication(QObject *parent)
               [this]() { Q_EMIT menuPresentationChanged(); },
               [this]() { Q_EMIT shortcutRevisionChanged(); },
               [this]() { Q_EMIT actionStateRevisionChanged(); },
+              [this](
+                  Actions::ActionId actionId) { Q_EMIT actionTriggered(facadeActionId(actionId)); },
+              [this](Actions::ActionId actionId) {
+                  Q_EMIT unsupportedVideoActionTriggered(facadeActionId(actionId));
+              },
           }))
 {
     KiriViewApplication::setupActions();
@@ -208,6 +213,21 @@ bool KiriViewApplication::actionPlacementEnabled(ActionId actionId) const
     return m_actionRuntime->actionPlacementEnabled(domainActionId(actionId));
 }
 
+QString KiriViewApplication::actionMenuTextForId(ActionId actionId) const
+{
+    return m_actionRuntime->actionMenuText(domainActionId(actionId));
+}
+
+QString KiriViewApplication::actionToolbarTextForId(ActionId actionId) const
+{
+    return m_actionRuntime->actionToolbarText(domainActionId(actionId));
+}
+
+QString KiriViewApplication::actionToolbarTooltipTextForId(ActionId actionId) const
+{
+    return m_actionRuntime->actionToolbarTooltipText(domainActionId(actionId));
+}
+
 void KiriViewApplication::updateActionState(bool helpActionsEnabled, bool readyActionsEnabled,
     bool rotateActionsEnabled, bool twoPageModeActionsEnabled,
     bool rightToLeftReadingActionsEnabled, bool containerNavigationActionsEnabled,
@@ -217,7 +237,14 @@ void KiriViewApplication::updateActionState(bool helpActionsEnabled, bool readyA
     bool canOpenNextActiveNavigation, bool fitModeSelected, bool fitHeightModeSelected,
     bool fitWidthModeSelected, bool twoPageModeActive, bool rightToLeftReadingActive,
     bool infoPanelVisible, bool thumbnailPanelVisible, bool fullscreen,
-    bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled)
+    bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled,
+    bool directMediaNavigationBoundaryActive, bool viewerShortcutsEnabled,
+    bool readyShortcutsEnabled, bool readyViewerShortcutsEnabled,
+    bool twoPageViewerShortcutsEnabled, bool rightToLeftReadingShortcutsEnabled,
+    bool rightToLeftReadingViewerShortcutsEnabled, bool rotateShortcutsEnabled,
+    bool rotateViewerShortcutsEnabled, bool pannableShortcutsEnabled,
+    bool pannableViewerShortcutsEnabled, bool containerViewerShortcutsEnabled,
+    bool activeNavigationActionsAvailable, bool videoMode, bool videoFileDeletionInProgress)
 {
     Actions::ApplicationActionStateInput input;
     input.helpActionsEnabled = helpActionsEnabled;
@@ -244,8 +271,25 @@ void KiriViewApplication::updateActionState(bool helpActionsEnabled, bool readyA
     input.fullscreen = fullscreen;
     input.applicationMenuShortcutEnabled = applicationMenuShortcutEnabled;
     input.showMenubarActionEnabled = showMenubarActionEnabled;
+    input.directMediaNavigationBoundaryActive = directMediaNavigationBoundaryActive;
+    input.viewerShortcutsEnabled = viewerShortcutsEnabled;
+    input.readyShortcutsEnabled = readyShortcutsEnabled;
+    input.readyViewerShortcutsEnabled = readyViewerShortcutsEnabled;
+    input.twoPageViewerShortcutsEnabled = twoPageViewerShortcutsEnabled;
+    input.rightToLeftReadingShortcutsEnabled = rightToLeftReadingShortcutsEnabled;
+    input.rightToLeftReadingViewerShortcutsEnabled = rightToLeftReadingViewerShortcutsEnabled;
+    input.rotateShortcutsEnabled = rotateShortcutsEnabled;
+    input.rotateViewerShortcutsEnabled = rotateViewerShortcutsEnabled;
+    input.pannableShortcutsEnabled = pannableShortcutsEnabled;
+    input.pannableViewerShortcutsEnabled = pannableViewerShortcutsEnabled;
+    input.containerViewerShortcutsEnabled = containerViewerShortcutsEnabled;
+    input.activeNavigationActionsAvailable = activeNavigationActionsAvailable;
+    input.videoMode = videoMode;
+    input.videoFileDeletionInProgress = videoFileDeletionInProgress;
     m_actionRuntime->setActionStateInput(input);
 }
+
+void KiriViewApplication::setShortcutHost(QObject *host) { m_actionRuntime->setShortcutHost(host); }
 
 bool KiriViewApplication::videoActionUnsupported(ActionId actionId) const
 {
