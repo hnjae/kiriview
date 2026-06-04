@@ -139,6 +139,7 @@ private Q_SLOTS:
     void shortcutRouteModelExposesApplicationPolicy();
     void mediaShortcutPolicyApiExposesApplicationPolicy();
     void shortcutsApiReturnsCurrentShortcuts();
+    void zoomPresetActionsUseNewDefaultShortcutMap();
     void shortcutModifierPartitionsTextInputShortcuts();
     void shortcutAliasesDeriveFromCtrlShortcuts();
     void menuShortcutTextReturnsFirstDisplaySafeShortcut();
@@ -304,6 +305,9 @@ void TestKiriViewApplication::mediaShortcutPolicyApiExposesApplicationPolicy()
     KiriViewApplication application;
 
     QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoomInAction));
+    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom50PercentAction));
+    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom100PercentAction));
+    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom200PercentAction));
     QVERIFY(!application.videoActionUnsupported(KiriViewApplication::WindowFullscreenAction));
 
     QVERIFY(application.mediaHorizontalArrowShortcutsEnabled(false, true, false, false, false));
@@ -359,6 +363,25 @@ void TestKiriViewApplication::shortcutsApiReturnsCurrentShortcuts()
 
     openAction->setShortcuts({ shortcut(QStringLiteral("O")) });
     QCOMPARE(application.shortcuts(QStringLiteral("file_open")), QList<QKeySequence>());
+}
+
+void TestKiriViewApplication::zoomPresetActionsUseNewDefaultShortcutMap()
+{
+    KiriViewApplication application;
+
+    expectDefaultShortcuts(application, QStringLiteral("view_zoom_50_percent"),
+        { shortcut(QStringLiteral("Ctrl+`")) });
+    expectDefaultShortcuts(application, QStringLiteral("view_zoom_100_percent"),
+        { shortcut(QStringLiteral("Ctrl+1")) });
+    expectDefaultShortcuts(application, QStringLiteral("view_zoom_200_percent"),
+        { shortcut(QStringLiteral("Ctrl+2")) });
+    expectDefaultShortcuts(
+        application, QStringLiteral("view_fit_height"), { shortcut(QStringLiteral("Ctrl+8")) });
+    expectDefaultShortcuts(
+        application, QStringLiteral("view_fit_width"), { shortcut(QStringLiteral("Ctrl+9")) });
+    expectDefaultShortcuts(
+        application, QStringLiteral("view_fit"), { shortcut(QStringLiteral("Ctrl+0")) });
+    QVERIFY(application.action(QStringLiteral("view_actual_size")) == nullptr);
 }
 
 void TestKiriViewApplication::shortcutModifierPartitionsTextInputShortcuts()
@@ -580,6 +603,16 @@ void TestKiriViewApplication::shortcutHelpModelListsConfigurableActions()
     QCOMPARE(
         model->data(viewIndex, shortcutHelpCategoryKeyRole).toString(), QStringLiteral("view"));
     QVERIFY(model->data(viewIndex, shortcutHelpCategoryFirstRole).toBool());
+
+    const QModelIndex zoomPresetIndex
+        = shortcutHelpIndexForAction(model, QStringLiteral("view_zoom_100_percent"));
+    QVERIFY(zoomPresetIndex.isValid());
+    QCOMPARE(model->data(zoomPresetIndex, shortcutHelpActionTextRole).toString(),
+        QStringLiteral("Zoom to 100%"));
+    QCOMPARE(model->data(zoomPresetIndex, shortcutHelpShortcutKeyTextsRole).toStringList(),
+        QStringList({ nativeText(shortcut(QStringLiteral("Ctrl+1"))) }));
+    QCOMPARE(model->data(zoomPresetIndex, shortcutHelpCategoryKeyRole).toString(),
+        QStringLiteral("view"));
 
     const QModelIndex panelsIndex
         = shortcutHelpIndexForAction(model, QStringLiteral("view_toggle_info_panel"));
