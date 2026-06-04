@@ -109,9 +109,34 @@ inline StaticImagePayload staticTestImagePayload(
     return staticTestImagePayload(image, image, displayHints);
 }
 
+inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage &sourceImage,
+    const QImage &displayImage, StaticImageDisplayHints displayHints = {},
+    DisplayImageQuality quality = DisplayImageQuality::Exact)
+{
+    const qreal displayPixelsPerSourcePixel = displayHints.firstDisplayPixelsPerSourcePixel > 0.0
+        ? displayHints.firstDisplayPixelsPerSourcePixel
+        : (sourceImage.size() == displayImage.size() ? 1.0 : 0.0);
+    return StaticDisplayImagePayload {
+        QStringLiteral("test-image"),
+        {},
+        sourceImage.size(),
+        displayImage,
+        quality,
+        displayPixelsPerSourcePixel,
+        {},
+        std::make_shared<TestImageTileSource>(sourceImage),
+    };
+}
+
+inline StaticDisplayImagePayload staticDisplayTestImagePayload(
+    const QImage &image = testImage(), DisplayImageQuality quality = DisplayImageQuality::Exact)
+{
+    return staticDisplayTestImagePayload(image, image, {}, quality);
+}
+
 inline StaticDecodedImage staticDecodedTestImage(const QImage &image = testImage())
 {
-    return StaticDecodedImage { staticTestImagePayload(image) };
+    return StaticDecodedImage { staticDisplayTestImagePayload(image) };
 }
 
 inline QString testImageDecodeFailureString() { return QStringLiteral("decode failed"); }
