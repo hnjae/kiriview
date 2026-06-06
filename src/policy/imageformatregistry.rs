@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::archiveformat::supported_comic_book_archive_extensions;
-use crate::imageinputclassification::{RAW_IMAGE_EXTENSIONS, extension_for_file_name};
+use crate::fileextension::extension_for_file_name;
+use crate::imageinputclassification::RAW_IMAGE_EXTENSIONS;
 
 struct ImageFormat {
     extensions: &'static [&'static str],
@@ -197,5 +198,30 @@ mod tests {
         assert!(extensions.contains(&"cbz".to_owned()));
         assert!(!extensions.contains(&"zip".to_owned()));
         assert!(!extensions.contains(&"rar".to_owned()));
+    }
+
+    #[test]
+    fn matches_supported_image_file_names_case_insensitively() {
+        assert!(is_supported_image_file_name("photo.png"));
+        assert!(is_supported_image_file_name("photo.JPG"));
+        assert!(is_supported_image_file_name("scan.DnG"));
+        assert!(is_supported_image_file_name(
+            "zip:///path/archive.cbz!/page.SVG"
+        ));
+    }
+
+    #[test]
+    fn excludes_hidden_trailing_dot_and_non_image_file_names() {
+        for name in [
+            ".png",
+            "photo.",
+            "photo",
+            "clip.mp4",
+            "book.cbz",
+            "archive.zip",
+            "zip:///path/archive.cbz!/chapter/",
+        ] {
+            assert!(!is_supported_image_file_name(name), "{name}");
+        }
     }
 }
