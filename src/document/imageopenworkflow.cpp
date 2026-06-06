@@ -136,6 +136,13 @@ ImageOpenApplicationPlan resolveSourceImagePlan(const ImageLoadSession &session)
         resolveSourceImageTransition(), ImageOpenTransitionContext::sourceResolved(session));
 }
 
+ImageOpenApplicationPlan finishUnsupportedOpenedCollectionVideoLoadPlan(
+    const ImageLoadSession &session)
+{
+    return imageOpenApplicationPlan(finishUnsupportedOpenedCollectionVideoLoadTransition(),
+        ImageOpenTransitionContext::successfulImageLoad(session));
+}
+
 ImageOpenApplicationPlan finishSuccessfulImageLoadPlan(
     ImageOpenSuccessfulImageLoadSnapshot snapshot, const ImageLoadSession &session)
 {
@@ -179,6 +186,12 @@ ImageOpenTransition resolveSourceImageTransition()
 {
     return imageOpenTransitionFromBridge(rustImageOpenTransition(
         rustImageOpenWorkflowEvent(RustImageOpenWorkflowEventKind::ResolveSourceImage)));
+}
+
+ImageOpenTransition finishUnsupportedOpenedCollectionVideoLoadTransition()
+{
+    return imageOpenTransitionFromBridge(rustImageOpenTransition(rustImageOpenWorkflowEvent(
+        RustImageOpenWorkflowEventKind::FinishUnsupportedOpenedCollectionVideoLoad)));
 }
 
 ImageOpenTransition finishSuccessfulImageLoadTransition(
