@@ -47,7 +47,8 @@ private Q_SLOTS:
     void toolbarReadingControlMnemonicsTriggerActions();
     void trailingToolbarControlsShareSpacingAndVerticalAlignment();
     void fitMenuButtonClickOnlyOpensMenu();
-    void fitMenuButtonMenuSelectionUpdatesSelectedMode();
+    void fitMenuButtonMenuSelectionUpdatesRuntimeSelection();
+    void fitMenuButtonRejectedSelectionKeepsRuntimeSelection();
     void fitMenuButtonKeepsLastFitSelectionAfterManualZoom();
     void fitMenuButtonCollapsesLabelWhenConstrained();
     void toolbarActionOrderKeepsReadingDirectionBesideSpread();
@@ -392,12 +393,12 @@ Item {
         return toolbarButtonStateForAction(toolbar.fitMenuAction);
     }
 
-    function selectedFitMode() {
-        return toolbar.selectedFitMode;
+    function fitModeSelection() {
+        return sessionImageDocument.fitModeSelection;
     }
 
-    function setSelectedFitModeToFitWidth() {
-        toolbar.selectedFitMode = KiriImageDocument.FitWidth;
+    function triggerToolbarFitWidth() {
+        toolbar.triggerFitMode(KiriImageDocument.FitWidth);
     }
 
     function setImageFitWidth() {
@@ -474,7 +475,10 @@ Item {
         icon.name: "zoom-fit-best-symbolic"
         text: "Fit"
 
-        onTriggered: root.fitTriggerCount += 1
+        onTriggered: {
+            root.fitTriggerCount += 1;
+            root.sessionImageDocument.requestFitMode(KiriImageDocument.Fit);
+        }
     }
 
     Kirigami.Action {
@@ -483,7 +487,10 @@ Item {
         enabled: !root.videoMode
         text: "Fit Height"
 
-        onTriggered: root.fitHeightTriggerCount += 1
+        onTriggered: {
+            root.fitHeightTriggerCount += 1;
+            root.sessionImageDocument.requestFitMode(KiriImageDocument.FitHeight);
+        }
     }
 
     Kirigami.Action {
@@ -492,7 +499,10 @@ Item {
         enabled: !root.videoMode
         text: "Fit Width"
 
-        onTriggered: root.fitWidthTriggerCount += 1
+        onTriggered: {
+            root.fitWidthTriggerCount += 1;
+            root.sessionImageDocument.requestFitMode(KiriImageDocument.FitWidth);
+        }
     }
 
     Kirigami.Action {
@@ -1175,10 +1185,18 @@ void TestToolBarApplicationMenu::fitMenuButtonClickOnlyOpensMenu()
     QTRY_VERIFY(fitWidthMenuItem->isVisible());
 }
 
-void TestToolBarApplicationMenu::fitMenuButtonMenuSelectionUpdatesSelectedMode()
+void TestToolBarApplicationMenu::fitMenuButtonMenuSelectionUpdatesRuntimeSelection()
 {
-    ToolBarMenuFixture fixture = createFixture();
+    QString sourcePath;
+    QString errorString;
+    std::unique_ptr<QTemporaryDir> imageDirectory = createImageDirectory(&sourcePath, &errorString);
+    QVERIFY2(imageDirectory != nullptr, qPrintable(errorString));
+
+    ToolBarMenuFixture fixture
+        = createOpenedCollectionScopeFixture(QUrl::fromLocalFile(sourcePath).toString());
+    fixture.temporaryDirectory = std::move(imageDirectory);
     QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QTRY_VERIFY(invokeBool(fixture.root, "documentReady"));
 
     QQuickItem *fitButton = findQuickItem(fixture.root, QStringLiteral("fitModeMenuButton"));
     QVERIFY2(fitButton != nullptr, "fit menu button was not created");
@@ -1191,7 +1209,7 @@ void TestToolBarApplicationMenu::fitMenuButtonMenuSelectionUpdatesSelectedMode()
 
     clickItem(fixture, fitWidthMenuItem);
     QTRY_COMPARE(fixture.root->property("fitWidthTriggerCount").toInt(), 1);
-    QCOMPARE(invokeInt(fixture.root, "selectedFitMode"),
+    QTRY_COMPARE(invokeInt(fixture.root, "fitModeSelection"),
         static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
 
     bool ok = false;
@@ -1200,6 +1218,20 @@ void TestToolBarApplicationMenu::fitMenuButtonMenuSelectionUpdatesSelectedMode()
     QCOMPARE(fitState.value(QStringLiteral("label")).toString(), QStringLiteral("Fit Width"));
     QCOMPARE(
         fitState.value(QStringLiteral("iconName")).toString(), QStringLiteral("zoom-fit-width"));
+}
+
+void TestToolBarApplicationMenu::fitMenuButtonRejectedSelectionKeepsRuntimeSelection()
+{
+    ToolBarMenuFixture fixture = createOpenedCollectionScopeFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+    QVERIFY(fixture.root->setProperty("videoMode", true));
+    QCoreApplication::processEvents();
+
+    invokeVoid(fixture.root, "triggerToolbarFitWidth");
+
+    QCOMPARE(fixture.root->property("fitWidthTriggerCount").toInt(), 0);
+    QCOMPARE(invokeInt(fixture.root, "fitModeSelection"),
+        static_cast<int>(KiriImageDocument::ZoomMode::Fit));
 }
 
 void TestToolBarApplicationMenu::fitMenuButtonKeepsLastFitSelectionAfterManualZoom()
@@ -1216,13 +1248,13 @@ void TestToolBarApplicationMenu::fitMenuButtonKeepsLastFitSelectionAfterManualZo
     QTRY_VERIFY(invokeBool(fixture.root, "documentReady"));
 
     invokeVoid(fixture.root, "setImageFitWidth");
-    QTRY_COMPARE(invokeInt(fixture.root, "selectedFitMode"),
+    QTRY_COMPARE(invokeInt(fixture.root, "fitModeSelection"),
         static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
 
     invokeVoid(fixture.root, "setImageManualZoom");
     QCoreApplication::processEvents();
 
-    QCOMPARE(invokeInt(fixture.root, "selectedFitMode"),
+    QCOMPARE(invokeInt(fixture.root, "fitModeSelection"),
         static_cast<int>(KiriImageDocument::ZoomMode::FitWidth));
     bool ok = false;
     const QVariantMap fitState = invokeVariantMap(fixture.root, "fitToolbarButtonState", &ok);
