@@ -4,7 +4,7 @@
 #include "document/imagedocumentruntimedependencies.h"
 
 #include "cache/imagecachepolicy.h"
-#include "rendering/staticimage.h"
+#include "rendering/displayimagestore.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -36,6 +36,7 @@ class TestImageDocumentRuntimeDependencies : public QObject
 
 private Q_SLOTS:
     void defaultDependenciesUseMediaEntrySourceStore();
+    void sharedDisplayStoreDefaultBudgetMatchesImageDocumentBudget();
     void partialNonSourceOverridesStillUseMediaEntrySourceStore();
     void customMediaEntrySourceFactoryWrapsOpenedCollectionProviders();
     void explicitOpenedCollectionProvidersAvoidMediaEntrySourceStore();
@@ -60,7 +61,18 @@ void TestImageDocumentRuntimeDependencies::defaultDependenciesUseMediaEntrySourc
         <= KiriView::predecodeCachePreferredByteBudget());
     QVERIFY(resolved.cacheBudgets.displayImageCacheByteBudget > 0);
     QVERIFY(resolved.cacheBudgets.displayImageCacheByteBudget
-        <= KiriView::imageFullDecodeFallbackByteLimit);
+        <= KiriView::displayImageCachePreferredByteBudget());
+}
+
+void TestImageDocumentRuntimeDependencies::
+    sharedDisplayStoreDefaultBudgetMatchesImageDocumentBudget()
+{
+    const KiriView::ImageCacheBudgets documentBudgets
+        = KiriView::resolveImageDocumentCacheBudgets({});
+    const std::shared_ptr<KiriView::DisplayImageStore> sharedStore
+        = KiriView::sharedDisplayImageStore();
+
+    QCOMPARE(sharedStore->byteBudget(), documentBudgets.displayImageCacheByteBudget);
 }
 
 void TestImageDocumentRuntimeDependencies::partialNonSourceOverridesStillUseMediaEntrySourceStore()
