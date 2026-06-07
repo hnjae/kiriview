@@ -105,9 +105,85 @@ class TestImageDocumentDeletionController : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void loadingDocumentWithRetainedImageDoesNotStartFileOperation();
+    void erroredDocumentWithRetainedImageDoesNotStartFileOperation();
     void canceledFileDeletionCompletionIsIgnored();
     void canceledFallbackCandidateCompletionIsIgnored();
 };
+
+void TestImageDocumentDeletionController::
+    loadingDocumentWithRetainedImageDoesNotStartFileOperation()
+{
+    QObject parent;
+    KiriView::ImageDocumentState state;
+    KiriView::ImagePageSurfaceController pageSurface(&parent, {}, testCacheBudgets());
+    KiriView::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    ManualDeletionCandidateProvider candidateProvider;
+    std::vector<KiriView::ImageDocumentRuntimePlan> runtimePlans;
+    std::vector<QString> failures;
+    int inProgressChangeCount = 0;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
+    state.setStatus(KiriView::ImageDocumentStatus::Loading);
+    state.setLoading(true);
+    state.setDisplayedImageLocation(KiriView::DisplayedImageLocation::fromUrl(imageUrl));
+    pageSurface.setImage(testImage(2, 1), false);
+
+    KiriView::ImageDocumentDeletionController controller(&parent, state, pageSurface,
+        candidateProvider.provider(),
+        KiriView::TestSupport::fileDeletionProviderFor(fileDeletionProvider),
+        KiriView::ImageDocumentDeletionController::Callbacks {
+            [&inProgressChangeCount]() { ++inProgressChangeCount; },
+            [&runtimePlans](KiriView::ImageDocumentRuntimePlan plan) {
+                runtimePlans.push_back(std::move(plan));
+            },
+            [&failures](const QString &errorString) { failures.push_back(errorString); },
+        });
+
+    controller.deleteDisplayedFile(KiriView::FileDeletionMode::MoveToTrash);
+
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
+    QVERIFY(!controller.inProgress());
+    QCOMPARE(inProgressChangeCount, 0);
+    QVERIFY(runtimePlans.empty());
+    QVERIFY(failures.empty());
+}
+
+void TestImageDocumentDeletionController::
+    erroredDocumentWithRetainedImageDoesNotStartFileOperation()
+{
+    QObject parent;
+    KiriView::ImageDocumentState state;
+    KiriView::ImagePageSurfaceController pageSurface(&parent, {}, testCacheBudgets());
+    KiriView::TestSupport::ManualFileDeletionProvider fileDeletionProvider;
+    ManualDeletionCandidateProvider candidateProvider;
+    std::vector<KiriView::ImageDocumentRuntimePlan> runtimePlans;
+    std::vector<QString> failures;
+    int inProgressChangeCount = 0;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
+    state.setStatus(KiriView::ImageDocumentStatus::Error);
+    state.setErrorString(QStringLiteral("decode failed"));
+    state.setDisplayedImageLocation(KiriView::DisplayedImageLocation::fromUrl(imageUrl));
+    pageSurface.setImage(testImage(2, 1), false);
+
+    KiriView::ImageDocumentDeletionController controller(&parent, state, pageSurface,
+        candidateProvider.provider(),
+        KiriView::TestSupport::fileDeletionProviderFor(fileDeletionProvider),
+        KiriView::ImageDocumentDeletionController::Callbacks {
+            [&inProgressChangeCount]() { ++inProgressChangeCount; },
+            [&runtimePlans](KiriView::ImageDocumentRuntimePlan plan) {
+                runtimePlans.push_back(std::move(plan));
+            },
+            [&failures](const QString &errorString) { failures.push_back(errorString); },
+        });
+
+    controller.deleteDisplayedFile(KiriView::FileDeletionMode::DeletePermanently);
+
+    QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(0));
+    QVERIFY(!controller.inProgress());
+    QCOMPARE(inProgressChangeCount, 0);
+    QVERIFY(runtimePlans.empty());
+    QVERIFY(failures.empty());
+}
 
 void TestImageDocumentDeletionController::canceledFileDeletionCompletionIsIgnored()
 {
@@ -120,6 +196,7 @@ void TestImageDocumentDeletionController::canceledFileDeletionCompletionIsIgnore
     std::vector<QString> failures;
     int inProgressChangeCount = 0;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
+    state.setStatus(KiriView::ImageDocumentStatus::Ready);
     state.setDisplayedImageLocation(KiriView::DisplayedImageLocation::fromUrl(imageUrl));
     pageSurface.setImage(testImage(2, 1), false);
 
@@ -161,6 +238,7 @@ void TestImageDocumentDeletionController::canceledFallbackCandidateCompletionIsI
     std::vector<QString> failures;
     const QUrl currentUrl = localUrl(QStringLiteral("/images/01.png"));
     const QUrl nextUrl = localUrl(QStringLiteral("/images/02.png"));
+    state.setStatus(KiriView::ImageDocumentStatus::Ready);
     state.setDisplayedImageLocation(KiriView::DisplayedImageLocation::fromUrl(currentUrl));
     pageSurface.setImage(testImage(2, 1), false);
 
