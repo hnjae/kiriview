@@ -21,6 +21,7 @@ mod ffi {
         PannableViewerShortcutScope = 13,
         ContainerShortcutScope = 14,
         ContainerViewerShortcutScope = 15,
+        MediaStartEndViewerShortcutScope = 16,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -215,7 +216,8 @@ fn image_shortcuts_enabled_for_scope(
             projection.rotate_viewer_shortcuts_enabled
         }
         RustImageShortcutScope::PannableShortcutScope => projection.pannable_shortcuts_enabled,
-        RustImageShortcutScope::PannableViewerShortcutScope => {
+        RustImageShortcutScope::PannableViewerShortcutScope
+        | RustImageShortcutScope::MediaStartEndViewerShortcutScope => {
             projection.pannable_viewer_shortcuts_enabled
         }
         RustImageShortcutScope::ContainerShortcutScope => projection.container_shortcuts_enabled,
@@ -275,6 +277,7 @@ fn rust_video_shortcuts_enabled_for_scope(
         RustImageShortcutScope::ReadyViewerShortcutScope
         | RustImageShortcutScope::RotateViewerShortcutScope
         | RustImageShortcutScope::PannableViewerShortcutScope
+        | RustImageShortcutScope::MediaStartEndViewerShortcutScope
         | RustImageShortcutScope::ContainerViewerShortcutScope
         | RustImageShortcutScope::RightToLeftReadingViewerShortcutScope => {
             ready_viewer_shortcuts_enabled
@@ -424,6 +427,10 @@ mod tests {
             input,
             RustImageShortcutScope::ImageSelectionViewerShortcutScope
         ));
+        assert!(rust_video_shortcuts_enabled_for_scope(
+            input,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope
+        ));
 
         input.viewer_shortcuts_enabled = false;
         assert!(rust_video_shortcuts_enabled_for_scope(
@@ -438,9 +445,17 @@ mod tests {
             input,
             RustImageShortcutScope::ImageSelectionViewerShortcutScope
         ));
+        assert!(!rust_video_shortcuts_enabled_for_scope(
+            input,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope
+        ));
 
         input.viewer_shortcuts_enabled = true;
         input.media_navigation_active = false;
+        assert!(rust_video_shortcuts_enabled_for_scope(
+            input,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope
+        ));
         assert!(!rust_video_shortcuts_enabled_for_scope(
             input,
             RustImageShortcutScope::ImageSelectionShortcutScope
@@ -493,6 +508,10 @@ mod tests {
         ));
         assert!(image_shortcuts_enabled_for_scope(
             projection,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope
+        ));
+        assert!(image_shortcuts_enabled_for_scope(
+            projection,
             RustImageShortcutScope::ContainerShortcutScope
         ));
         assert!(!image_shortcuts_enabled_for_scope(
@@ -509,6 +528,7 @@ mod tests {
     fn active_media_shortcuts_own_navigation_scopes_for_image_and_video() {
         let mut input = image_action_availability_input();
         input.image_ready = true;
+        input.image_pannable = true;
         let projection = rust_image_action_availability_projection(input);
 
         assert!(active_media_shortcuts_enabled_for_scope(
@@ -531,6 +551,27 @@ mod tests {
             true,
             false,
             false
+        ));
+        assert!(active_media_shortcuts_enabled_for_scope(
+            projection,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope,
+            false,
+            true,
+            false
+        ));
+        assert!(active_media_shortcuts_enabled_for_scope(
+            projection,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope,
+            true,
+            false,
+            false
+        ));
+        assert!(!active_media_shortcuts_enabled_for_scope(
+            projection,
+            RustImageShortcutScope::MediaStartEndViewerShortcutScope,
+            true,
+            true,
+            true
         ));
     }
 
