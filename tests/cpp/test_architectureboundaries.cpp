@@ -75,6 +75,7 @@ private Q_SLOTS:
     void documentSessionDirectMediaActivityUsesNamedPort();
     void documentSessionMediaPredecodeInputUsesNamedPort();
     void documentSessionDirectMediaNavigationInputUsesNamedPort();
+    void documentSessionRouteRuntimePortsAreGrouped();
     void documentSessionDirectMediaNavigationUsesCoordinator();
     void documentSessionImageDocumentSyncUsesRuntime();
     void documentSessionVideoDocumentSyncUsesRuntime();
@@ -1629,6 +1630,41 @@ void TestArchitectureBoundaries::documentSessionDirectMediaNavigationInputUsesNa
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaActiveNavigationInput")));
     QVERIFY(!runtimeSource.contains(
         QStringLiteral("DocumentSessionRuntime::directMediaActiveNavigationInput")));
+}
+
+void TestArchitectureBoundaries::documentSessionRouteRuntimePortsAreGrouped()
+{
+    const QString routeRuntimeHeader
+        = readProjectFile(QStringLiteral("src/session/documentsessionrouteruntime.h"));
+
+    QVERIFY(routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteSessionPorts")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteDirectMediaPorts")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteDocumentPorts")));
+    QVERIFY(routeRuntimeHeader.contains(
+        QStringLiteral("struct DocumentSessionRouteSourceIdentityPorts")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteFollowUpPorts")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteSessionPorts session")));
+    QVERIFY(routeRuntimeHeader.contains(
+        QStringLiteral("DocumentSessionRouteDirectMediaPorts directMedia")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteDocumentPorts documents")));
+    QVERIFY(routeRuntimeHeader.contains(
+        QStringLiteral("DocumentSessionRouteSourceIdentityPorts sourceIdentity")));
+    QVERIFY(
+        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteFollowUpPorts followUp")));
+    const qsizetype runtimePortsIndex
+        = routeRuntimeHeader.indexOf(QStringLiteral("struct DocumentSessionRouteRuntimePorts"));
+    QVERIFY(runtimePortsIndex >= 0);
+    const qsizetype runtimePortsEnd
+        = routeRuntimeHeader.indexOf(QStringLiteral("};"), runtimePortsIndex);
+    QVERIFY(runtimePortsEnd > runtimePortsIndex);
+    const QString runtimePortsBlock
+        = routeRuntimeHeader.mid(runtimePortsIndex, runtimePortsEnd - runtimePortsIndex);
+    QVERIFY(!runtimePortsBlock.contains(QStringLiteral("std::function<")));
 }
 
 void TestArchitectureBoundaries::documentSessionDirectMediaNavigationUsesCoordinator()
