@@ -117,6 +117,40 @@ int ImageSequence::totalDuration() const
     return total;
 }
 
+int ImageSequence::frameStartPosition(int frame) const
+{
+    if (!isTimedList() || frame < 0 || frame >= m_frameDurations.size()) {
+        return -1;
+    }
+
+    int position = 0;
+    for (int index = 0; index < frame; ++index) {
+        position += m_frameDurations.at(index);
+    }
+    return position;
+}
+
+int ImageSequence::frameIndexForPosition(int position) const
+{
+    if (!isTimedList() || position < 0 || position > totalDuration()) {
+        return -1;
+    }
+    if (position == totalDuration()) {
+        return m_frameDurations.size() - 1;
+    }
+
+    int frameStart = 0;
+    for (int index = 0; index < m_frameDurations.size(); ++index) {
+        const int frameEnd = frameStart + m_frameDurations.at(index);
+        if (position >= frameStart && position < frameEnd) {
+            return index;
+        }
+        frameStart = frameEnd;
+    }
+
+    return -1;
+}
+
 ImageFrame::ImageFrame(QObject *parent)
     : QObject(parent)
 {
@@ -491,12 +525,16 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_playbackPhase = PlaybackPhase::Stopped;
 
     if (hasDisplayableSequence()) {
+        m_currentFrame = 0;
+        m_requestedPosition = hasTimedSequence() ? 0 : -1;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {
             publishRenderWaitingState();
         }
     } else {
+        m_currentFrame = -1;
+        m_requestedPosition = -1;
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
@@ -543,7 +581,7 @@ ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const
 int ImageViewport::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return 0;
+        return m_currentFrame;
     }
 
     return -1;
@@ -552,7 +590,7 @@ int ImageViewport::displayedFrame() const
 int ImageViewport::requestedFrame() const
 {
     if (hasDisplayableSequence()) {
-        return 0;
+        return m_currentFrame;
     }
 
     return -1;
@@ -561,7 +599,7 @@ int ImageViewport::requestedFrame() const
 int ImageViewport::displayedPosition() const
 {
     if (hasReadyDisplay() && hasTimedSequence()) {
-        return 0;
+        return m_sequence->frameStartPosition(m_currentFrame);
     }
 
     return -1;
@@ -570,7 +608,7 @@ int ImageViewport::displayedPosition() const
 int ImageViewport::requestedPosition() const
 {
     if (hasTimedSequence()) {
-        return 0;
+        return m_requestedPosition;
     }
 
     return -1;
@@ -897,6 +935,8 @@ void ImageViewport::setLooping(bool looping)
 ImageViewport::RequestOutcome ImageViewport::clear()
 {
     m_sequence = nullptr;
+    m_currentFrame = -1;
+    m_requestedPosition = -1;
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
@@ -961,12 +1001,14 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
     }
 
     if (hasDisplayableSequence()) {
-        if (frame != 0) {
+        if (frame < 0 || frame >= m_sequence->frameCount()) {
             setCommandDiagnostic(CommandReason::InvalidRequest);
             return RequestOutcome::Invalid;
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        m_currentFrame = frame;
+        m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
         publishSequenceReadyState();
         incrementRequestRevision();
         incrementDisplayRevision();
@@ -990,6 +1032,26 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
     if (milliseconds < 0) {
         setCommandDiagnostic(CommandReason::InvalidRequest);
         return RequestOutcome::Invalid;
+    }
+
+    if (hasTimedSequence()) {
+        const int frame = m_sequence->frameIndexForPosition(milliseconds);
+        if (frame < 0) {
+            setCommandDiagnostic(CommandReason::InvalidRequest);
+            return RequestOutcome::Invalid;
+        }
+
+        clearCommandDiagnosticForAcceptedCommand();
+        m_currentFrame = frame;
+        m_requestedPosition = milliseconds;
+        publishSequenceReadyState();
+        incrementRequestRevision();
+        incrementDisplayRevision();
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit geometryStateChanged();
+        update();
+        return RequestOutcome::Accepted;
     }
 
     setCommandDiagnostic(CommandReason::UnsupportedRequest);

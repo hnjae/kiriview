@@ -31,6 +31,7 @@ private slots:
     void stillImageFactoryRejectsPublishedLimitViolations();
     void timedFrameListBuilderValidatesEntries();
     void timedFrameListAssignmentPublishesInitialTimedState();
+    void timedFrameListSeekCommandsSelectDocumentedTargets();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -620,6 +621,61 @@ void ImageViewportTest::timedFrameListAssignmentPublishesInitialTimedState()
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+}
+
+void ImageViewportTest::timedFrameListSeekCommandsSelectDocumentedTargets()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    const uint initialRequestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(1), ImageViewport::RequestOutcome::Accepted);
+    QVERIFY(item.property("requestRevision").toUInt() > initialRequestRevision);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    const uint acceptedFrameSeekRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(2), ImageViewport::RequestOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestRevision").toUInt(), acceptedFrameSeekRevision);
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+
+    QCOMPARE(item.seekToPosition(349), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 349);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    QCOMPARE(item.seekToPosition(350), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    const uint acceptedPositionSeekRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seekToPosition(351), ImageViewport::RequestOutcome::Invalid);
+    QCOMPARE(item.property("requestRevision").toUInt(), acceptedPositionSeekRevision);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

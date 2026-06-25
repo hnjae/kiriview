@@ -35,6 +35,8 @@ private:
     QSizeF logicalSize() const;
     int frameCount() const;
     int totalDuration() const;
+    int frameStartPosition(int frame) const;
+    int frameIndexForPosition(int position) const;
 
     TimingModel m_timingModel = TimingModel::None;
     QSizeF m_logicalSize;
@@ -456,6 +458,8 @@ private:
     bool m_mirrorHorizontally = false;
     bool m_mirrorVertically = false;
     bool m_looping = false;
+    int m_currentFrame = -1;
+    int m_requestedPosition = -1;
     uint m_displayRevision = 0;
     uint m_requestRevision = 0;
     uint m_commandRevision = 0;
