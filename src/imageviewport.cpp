@@ -1982,7 +1982,11 @@ void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldG
         return;
     }
 
-    if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
+    if (hasDisplayableSequence()
+        && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::RenderWaiting
+        && newGeometry.width() > 0.0
+        && newGeometry.height() > 0.0) {
         publishSequenceReadyState();
         if (m_playbackPhase == PlaybackPhase::Waiting) {
             setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
