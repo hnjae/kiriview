@@ -97,6 +97,7 @@ private slots:
     void timedFrameListStopAfterPauseWhileRenderWaitingRestoresPreviousDisplay();
     void timedFrameListLoopingPlaybackWrapsToFirstFrame();
     void replacementRetainsPreviousDisplayWhileWaitingForGeometry();
+    void replacementClearsRetainedDisplayDiagnostics();
     void providerPublicValueTypesValidateTiming();
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
@@ -3428,6 +3429,75 @@ void ImageViewportTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(8.0, 8.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
+}
+
+void ImageViewportTest::replacementClearsRetainedDisplayDiagnostics()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromTimedFrameList(&list));
+    QVERIFY(firstResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromProvider(&adapter));
+    QVERIFY(replacementResult->sequence());
+
+    PaintProbeViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(firstResult->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+
+    item.setSize(QSizeF(0.0, 100.0));
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    item.setSize(QSizeF(100.0, 100.0));
+    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
+    QVERIFY(!failedRoot);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
+
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    item.setSequence(replacementResult->sequence());
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.sequence(), replacementResult->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(diagnosticsSpy.count(), 1);
 }
 
 void ImageViewportTest::providerPublicValueTypesValidateTiming()
