@@ -1,4 +1,5 @@
 #include "imageviewporthelpers_p.h"
+#include "framepreparation_p.h"
 
 #include <utility>
 
@@ -21,8 +22,8 @@ ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
     : QObject(parent)
     , m_sequence(sequence)
     , m_outcome(outcome)
-    , m_errorString(std::move(errorString))
-    , m_warningString(std::move(warningString))
+    , m_errorString(FramePreparation::boundedDiagnostic(std::move(errorString), {}))
+    , m_warningString(FramePreparation::boundedDiagnostic(std::move(warningString), {}))
 {
 }
 

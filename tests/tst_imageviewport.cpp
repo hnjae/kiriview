@@ -35,6 +35,7 @@ private slots:
     void imageSequenceIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
+    void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
     void imageFrameRetainsImmutablePayload();
     void stillImageSequenceRetainsFactoryPayload();
@@ -784,6 +785,33 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
     QCOMPARE(result->property("sequence").value<QObject *>(), nullptr);
     QCOMPARE(result->property("outcome").toInt(), enumValue(result->metaObject(), "FactoryOutcome", "Invalid"));
     QVERIFY(!result->property("errorString").toString().isEmpty());
+}
+
+void ImageViewportTest::factoryResultDiagnosticsArePublicSafe()
+{
+    const int limit = ImageSequenceLimits::maximumDiagnosticStringLength();
+    QString diagnostic = QStringLiteral("failed for https://user:secret@example.test/image.png token=abc123 path /home/ops/private/image.png ");
+    diagnostic += QString(limit + 100, QLatin1Char('x'));
+
+    ImageSequenceFactoryResult result(nullptr,
+        ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+        diagnostic,
+        diagnostic);
+
+    const QString errorString = result.errorString();
+    const QString warningString = result.warningString();
+    QCOMPARE(errorString.toUcs4().size(), limit);
+    QCOMPARE(warningString.toUcs4().size(), limit);
+    QVERIFY(!errorString.contains(QStringLiteral("https://")));
+    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(errorString.contains(QStringLiteral("[redacted")));
+    QVERIFY(!warningString.contains(QStringLiteral("https://")));
+    QVERIFY(!warningString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!warningString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!warningString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(warningString.contains(QStringLiteral("[redacted")));
 }
 
 void ImageViewportTest::exposesImageSequenceLimits()
