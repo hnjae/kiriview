@@ -35,6 +35,19 @@ inline bool isFinitePoint(const QPointF &point)
     return std::isfinite(point.x()) && std::isfinite(point.y());
 }
 
+inline bool rectsExactlyEqual(const QRectF &left, const QRectF &right)
+{
+    return left.x() == right.x()
+        && left.y() == right.y()
+        && left.width() == right.width()
+        && left.height() == right.height();
+}
+
+inline bool rectsDifferExactly(const QRectF &left, const QRectF &right)
+{
+    return !rectsExactlyEqual(left, right);
+}
+
 inline QString frameLimitViolation(const ImageFrame &frame)
 {
     const QSizeF size = frame.logicalSize();

@@ -61,7 +61,7 @@ QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
             if (m_displayStatus != oldDisplayStatus) {
                 emit q->displayStateChanged();
             }
-            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
                 emit q->geometryStateChanged();
             }
         }
@@ -107,7 +107,7 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
         incrementDisplayRevision();
     }
 
-    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     update();
@@ -148,7 +148,7 @@ void ImageViewportPrivate::reportRenderFailure()
     if (m_displayStatus != oldDisplayStatus) {
         emit q->displayStateChanged();
     }
-    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     emit q->diagnosticsChanged();

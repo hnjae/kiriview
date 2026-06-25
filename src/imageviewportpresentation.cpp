@@ -23,6 +23,13 @@ PresentationGeometry::State geometryState(const ImageViewportPrivate &viewport)
     };
 }
 
+PresentationGeometry::State geometryStateForItemBounds(const ImageViewportPrivate &viewport, const QRectF &bounds)
+{
+    PresentationGeometry::State state = geometryState(viewport);
+    state.itemBounds = bounds;
+    return state;
+}
+
 }
 
 QRectF ImageViewportPrivate::contentRect() const
@@ -266,6 +273,16 @@ QRectF ImageViewportPrivate::itemBounds() const
     }
 
     return QRectF(0.0, 0.0, width(), height());
+}
+
+QRectF ImageViewportPrivate::contentRectForItemBounds(const QRectF &bounds) const
+{
+    return PresentationGeometry::contentRect(geometryStateForItemBounds(*this, bounds));
+}
+
+QRectF ImageViewportPrivate::visibleImageRectForItemBounds(const QRectF &bounds) const
+{
+    return PresentationGeometry::visibleImageRect(geometryStateForItemBounds(*this, bounds));
 }
 
 QSizeF ImageViewportPrivate::currentImageSize() const

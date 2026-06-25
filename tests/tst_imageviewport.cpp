@@ -1957,6 +1957,17 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
 
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+    const double changedWidth = 100.0 + 5.0e-13;
+    QVERIFY(changedWidth != 100.0);
+    item.setSize(QSizeF(changedWidth, 100.0));
+    QCOMPARE(item.property("displayRevision").toUInt(), readyDisplayRevision + 1U);
+    QCOMPARE(displayRevisionSpy.count(), 1);
+    QCOMPARE(geometrySpy.count(), 1);
+    item.setSize(QSizeF(100.0, 100.0));
+
     const QVariantMap centerImage = item.itemToImage(50.0, 50.0);
     QCOMPARE(centerImage.value("valid").toBool(), true);
     QCOMPARE(centerImage.value("x").toDouble(), 8.0);

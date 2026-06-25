@@ -107,8 +107,8 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     if (displayValueChanged) {
         emit q->displayStateChanged();
     }
-    if (contentRect() != oldContentRect
-        || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect)
+        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     if (m_playbackPhase != oldPlaybackPhase) {

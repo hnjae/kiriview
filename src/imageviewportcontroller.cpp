@@ -74,7 +74,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     if (displayChanged) {
         emit q->displayStateChanged();
     }
-    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     if (playbackChanged) {
@@ -184,7 +184,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
             if (displayValueChanged) {
                 emit q->displayStateChanged();
             }
-            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
                 emit q->geometryStateChanged();
             }
             if (diagnosticsValueChanged) {
@@ -441,7 +441,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
         incrementDisplayRevision();
         emit q->requestStateChanged();
         emit q->displayStateChanged();
-        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
             emit q->geometryStateChanged();
         }
         if (diagnosticsValueChanged) {
@@ -571,7 +571,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         incrementDisplayRevision();
         emit q->requestStateChanged();
         emit q->displayStateChanged();
-        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
             emit q->geometryStateChanged();
         }
         if (diagnosticsValueChanged) {
@@ -699,7 +699,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             }
             emit q->requestStateChanged();
             emit q->displayStateChanged();
-            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
                 emit q->geometryStateChanged();
             }
             update();
@@ -721,7 +721,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         }
         emit q->requestStateChanged();
         emit q->displayStateChanged();
-        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
             emit q->geometryStateChanged();
         }
         update();
@@ -748,7 +748,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     incrementDisplayRevision();
     emit q->requestStateChanged();
     emit q->displayStateChanged();
-    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     update();

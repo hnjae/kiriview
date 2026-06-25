@@ -228,7 +228,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSeque
     incrementDisplayRevision();
     emit q->requestStateChanged();
     emit q->displayStateChanged();
-    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     if (diagnosticsValueChanged) {

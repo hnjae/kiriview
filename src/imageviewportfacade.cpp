@@ -86,8 +86,11 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 
 void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
-    const QRectF oldContentRect = d->contentRect();
-    const QRectF oldVisibleImageRect = d->visibleImageRect();
+    const QRectF oldItemBounds = oldGeometry.width() > 0.0 && oldGeometry.height() > 0.0
+        ? QRectF(0.0, 0.0, oldGeometry.width(), oldGeometry.height())
+        : QRectF();
+    const QRectF oldContentRect = d->contentRectForItemBounds(oldItemBounds);
+    const QRectF oldVisibleImageRect = d->visibleImageRectForItemBounds(oldItemBounds);
     QQuickItem::geometryChange(newGeometry, oldGeometry);
     d->geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
 }

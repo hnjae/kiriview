@@ -109,6 +109,8 @@ public:
     void notifyPresentationChanged(bool affectsGeometry);
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
+    QRectF contentRectForItemBounds(const QRectF &bounds) const;
+    QRectF visibleImageRectForItemBounds(const QRectF &bounds) const;
     QSizeF currentImageSize() const;
 
     QSGNode *updatePaintNode(QSGNode *oldNode);
