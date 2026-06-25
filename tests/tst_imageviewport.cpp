@@ -6228,6 +6228,9 @@ void ImageViewportTest::providerPositiveResizeWhileMetadataWaitingKeepsProviderW
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
+    const uint metadataWaitingRequestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     item.setSize(QSizeF(100.0, 100.0));
 
@@ -6239,6 +6242,9 @@ void ImageViewportTest::providerPositiveResizeWhileMetadataWaitingKeepsProviderW
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(item.property("requestRevision").toUInt(), metadataWaitingRequestRevision);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(requestRevisionSpy.count(), 0);
 }
 
 void ImageViewportTest::providerRequestTokensAreUniqueWithinSession()
