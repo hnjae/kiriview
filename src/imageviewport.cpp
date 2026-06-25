@@ -2681,6 +2681,8 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     m_errorString.clear();
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState(frame->imagePayload());
     if (m_playbackPhase == PlaybackPhase::Waiting) {
         setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
@@ -2690,7 +2692,9 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     incrementDisplayRevision();
     emit requestStateChanged();
     emit displayStateChanged();
-    emit geometryStateChanged();
+    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        emit geometryStateChanged();
+    }
     emit diagnosticsChanged();
     update();
 }

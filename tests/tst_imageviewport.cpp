@@ -83,6 +83,7 @@ private slots:
     void providerTimedFrameEnvelopeMismatchRejectsPayload();
     void providerTimedFramePayloadLimitReportsUnsupportedPayload();
     void providerTimedFrameSeekRequestsSelectedFrame();
+    void providerTimedFrameCommitWithUnchangedGeometryDoesNotNotifyGeometryState();
     void providerTimedFrameSeekCancelsSupersededRequest();
     void providerTimedPositionSeekRequestsResolvedFrame();
     void providerTimedPlaybackCommandsUpdatePhase();
@@ -2596,6 +2597,55 @@ void ImageViewportTest::providerTimedFrameSeekRequestsSelectedFrame()
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+}
+
+void ImageViewportTest::providerTimedFrameCommitWithUnchangedGeometryDoesNotNotifyGeometryState()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(geometrySpy.count(), 0);
+
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame secondFrame(secondImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondFrame, 1, 100);
+
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::providerTimedFrameSeekCancelsSupersededRequest()
