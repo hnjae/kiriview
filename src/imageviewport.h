@@ -429,6 +429,7 @@ private:
     void notifyPresentationChanged(bool affectsGeometry);
     void incrementDisplayRevision();
     void incrementRequestRevision();
+    void setPlaybackPhase(PlaybackPhase phase);
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     RequestOutcome ignoredNoRequest();
@@ -440,6 +441,7 @@ private:
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
     QSizeF currentImageSize() const;
+    void publishAcceptedTargetState();
     void publishSequenceReadyState();
     void publishRenderWaitingState();
 
@@ -461,6 +463,7 @@ private:
     bool m_mirrorHorizontally = false;
     bool m_mirrorVertically = false;
     bool m_looping = false;
+    bool m_stopPlaybackWhenRequestReady = false;
     int m_currentFrame = -1;
     int m_requestedPosition = -1;
     int m_playbackPosition = -1;

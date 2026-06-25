@@ -523,6 +523,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_errorString.clear();
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
+    m_stopPlaybackWhenRequestReady = false;
 
     if (hasDisplayableSequence()) {
         m_currentFrame = 0;
@@ -947,6 +948,7 @@ ImageViewport::RequestOutcome ImageViewport::clear()
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
     m_playbackPhase = PlaybackPhase::Stopped;
+    m_stopPlaybackWhenRequestReady = false;
     m_errorString.clear();
     m_warningString.clear();
     clearCommandDiagnosticForAcceptedCommand();
@@ -970,11 +972,9 @@ ImageViewport::RequestOutcome ImageViewport::play()
 
     if (hasTimedSequence()) {
         clearCommandDiagnosticForAcceptedCommand();
+        m_stopPlaybackWhenRequestReady = false;
         m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
-        if (m_playbackPhase != PlaybackPhase::Playing) {
-            m_playbackPhase = PlaybackPhase::Playing;
-            emit playbackPhaseChanged();
-        }
+        setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
         return RequestOutcome::Accepted;
     }
 
@@ -990,8 +990,7 @@ ImageViewport::RequestOutcome ImageViewport::pause()
 
     clearCommandDiagnosticForAcceptedCommand();
     if (m_playbackPhase == PlaybackPhase::Playing || m_playbackPhase == PlaybackPhase::Waiting) {
-        m_playbackPhase = PlaybackPhase::Paused;
-        emit playbackPhaseChanged();
+        setPlaybackPhase(PlaybackPhase::Paused);
     }
     return RequestOutcome::Accepted;
 }
@@ -1003,10 +1002,8 @@ ImageViewport::RequestOutcome ImageViewport::stop()
     }
 
     clearCommandDiagnosticForAcceptedCommand();
-    if (m_playbackPhase != PlaybackPhase::Stopped) {
-        m_playbackPhase = PlaybackPhase::Stopped;
-        emit playbackPhaseChanged();
-    }
+    m_stopPlaybackWhenRequestReady = false;
+    setPlaybackPhase(PlaybackPhase::Stopped);
     return RequestOutcome::Accepted;
 }
 
@@ -1026,11 +1023,7 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
         m_playbackPosition = m_requestedPosition;
-        if (itemBounds().isEmpty()) {
-            publishRenderWaitingState();
-        } else {
-            publishSequenceReadyState();
-        }
+        publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -1066,11 +1059,7 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
-        if (itemBounds().isEmpty()) {
-            publishRenderWaitingState();
-        } else {
-            publishSequenceReadyState();
-        }
+        publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -1200,7 +1189,8 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
             m_currentFrame = wrappedFrame;
             m_requestedPosition = m_sequence->frameStartPosition(wrappedFrame);
             m_playbackPosition = wrappedPosition;
-            publishSequenceReadyState();
+            publishAcceptedTargetState();
+            setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
             incrementRequestRevision();
             if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
                 incrementDisplayRevision();
@@ -1216,15 +1206,15 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_currentFrame = finalFrame;
         m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
         m_playbackPosition = totalDuration;
-        publishSequenceReadyState();
-        m_playbackPhase = PlaybackPhase::Stopped;
+        publishAcceptedTargetState();
+        m_stopPlaybackWhenRequestReady = m_requestStatus == RequestStatus::Loading;
+        setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Waiting : PlaybackPhase::Stopped);
         incrementRequestRevision();
         if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
             incrementDisplayRevision();
         }
         emit requestStateChanged();
         emit displayStateChanged();
-        emit playbackPhaseChanged();
         emit geometryStateChanged();
         update();
         return;
@@ -1242,7 +1232,8 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
 
     m_currentFrame = nextFrame;
     m_requestedPosition = m_sequence->frameStartPosition(nextFrame);
-    publishSequenceReadyState();
+    publishAcceptedTargetState();
+    setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
     incrementRequestRevision();
     incrementDisplayRevision();
     emit requestStateChanged();
@@ -1268,6 +1259,10 @@ void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldG
 
     if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
         publishSequenceReadyState();
+        if (m_playbackPhase == PlaybackPhase::Waiting) {
+            setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+            m_stopPlaybackWhenRequestReady = false;
+        }
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -1317,6 +1312,16 @@ void ImageViewport::incrementRequestRevision()
 {
     ++m_requestRevision;
     emit requestRevisionChanged();
+}
+
+void ImageViewport::setPlaybackPhase(PlaybackPhase phase)
+{
+    if (m_playbackPhase == phase) {
+        return;
+    }
+
+    m_playbackPhase = phase;
+    emit playbackPhaseChanged();
 }
 
 void ImageViewport::setCommandDiagnostic(CommandReason reason)
@@ -1440,6 +1445,15 @@ QSizeF ImageViewport::currentImageSize() const
     }
 
     return m_displayedImageSize;
+}
+
+void ImageViewport::publishAcceptedTargetState()
+{
+    if (itemBounds().isEmpty()) {
+        publishRenderWaitingState();
+    } else {
+        publishSequenceReadyState();
+    }
 }
 
 void ImageViewport::publishSequenceReadyState()
