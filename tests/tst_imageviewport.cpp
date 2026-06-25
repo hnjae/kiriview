@@ -103,6 +103,7 @@ private slots:
     void providerResultsAreQueuedFromSessionEntryPoint();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
     void providerTerminalResultsAreQueuedFromSessionEntryPoint();
+    void providerUnsupportedResultsAreQueuedFromSessionEntryPoint();
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerFixedDurationConstructionMetadataSelectsInitialFrameRequest();
     void providerKnownConstructionMetadataSelectsInitialFrameWithoutDeclaredCapabilities();
@@ -750,6 +751,43 @@ public:
     ImageSequenceProviderSession *createSession(QObject *parent) override
     {
         return new SynchronousFailureProviderSession(m_metadataRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousUnsupportedProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousUnsupportedProviderSession(const std::shared_ptr<int> &metadataRequestCount,
+        QObject *parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    void requestMetadata(const ImageSequenceProviderRequestToken &token) override
+    {
+        ++*m_metadataRequestCount;
+        emit providerUnsupported(token, QStringLiteral("metadata unsupported synchronously"));
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousUnsupportedProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousUnsupportedProviderSessionFactory(const std::shared_ptr<int> &metadataRequestCount)
+        : m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession *createSession(QObject *parent) override
+    {
+        return new SynchronousUnsupportedProviderSession(m_metadataRequestCount, parent);
     }
 
 private:
@@ -3738,6 +3776,36 @@ void ImageViewportTest::providerTerminalResultsAreQueuedFromSessionEntryPoint()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata failed synchronously")));
+}
+
+void ImageViewportTest::providerUnsupportedResultsAreQueuedFromSessionEntryPoint()
+{
+    ImageSequenceFactory factory;
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<SynchronousUnsupportedProviderSessionFactory>(metadataRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("errorString").toString(), QString());
+
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    verifyRequestStatusReasonPair(item);
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata unsupported synchronously")));
 }
 
 void ImageViewportTest::providerConstructionMetadataSelectsInitialFrameRequest()
