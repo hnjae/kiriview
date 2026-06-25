@@ -579,6 +579,7 @@ private:
     quint64 m_nextProviderRequestToken = 0;
     ImageSequenceProviderRequestToken m_activeProviderMetadataToken;
     ImageSequenceProviderRequestToken m_activeProviderFrameToken;
+    bool m_activeProviderFrameFromPlayback = false;
     bool m_providerMetadataReady = false;
     bool m_providerTimedMetadata = false;
     QSizeF m_providerLogicalSize;

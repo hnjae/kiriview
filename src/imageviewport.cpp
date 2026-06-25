@@ -646,6 +646,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_providerFrameDurations.clear();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
 
     if (hasProviderSequence()) {
         m_currentFrame = -1;
@@ -1128,6 +1129,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_providerFrameDurations.clear();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
     m_errorString.clear();
     m_warningString.clear();
     clearCommandDiagnosticForAcceptedCommand();
@@ -1198,6 +1200,26 @@ ImageViewport::CommandOutcome ImageViewport::stop()
 
     clearCommandDiagnosticForAcceptedCommand();
     m_stopPlaybackWhenRequestReady = false;
+    if (hasProviderSequence() && m_providerTimedMetadata && m_activeProviderFrameFromPlayback) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
+        if (hasReadyDisplay()) {
+            m_currentFrame = m_displayedFrame;
+            m_requestedPosition = m_displayedPosition;
+            m_playbackPosition = m_requestedPosition;
+            m_requestStatus = RequestStatus::Ready;
+            m_requestReason = RequestReason::Ready;
+            m_displayStatus = DisplayStatus::Ready;
+            m_errorString.clear();
+            setPlaybackPhase(PlaybackPhase::Stopped);
+            incrementRequestRevision();
+            incrementDisplayRevision();
+            emit requestStateChanged();
+            emit displayStateChanged();
+            emit diagnosticsChanged();
+            return CommandOutcome::Accepted;
+        }
+    }
     setPlaybackPhase(PlaybackPhase::Stopped);
     return CommandOutcome::Accepted;
 }
@@ -1225,6 +1247,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             m_errorString.clear();
             m_activeProviderFrameToken = nextProviderRequestToken();
+            m_activeProviderFrameFromPlayback = false;
             if (m_providerSession) {
                 m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
             }
@@ -1287,6 +1310,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_errorString.clear();
         m_activeProviderFrameToken = nextProviderRequestToken();
+        m_activeProviderFrameFromPlayback = false;
         if (m_providerSession) {
             m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
         }
@@ -1471,6 +1495,7 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_errorString.clear();
         m_activeProviderFrameToken = nextProviderRequestToken();
+        m_activeProviderFrameFromPlayback = true;
         if (m_providerSession) {
             m_providerSession->requestFrame(m_activeProviderFrameToken, nextFrame);
         }
@@ -1855,6 +1880,7 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
 
     m_activeProviderFrameToken = nextProviderRequestToken();
+    m_activeProviderFrameFromPlayback = false;
     m_providerSession->requestFrame(m_activeProviderFrameToken, 0);
     incrementRequestRevision();
     emit requestStateChanged();
@@ -1877,6 +1903,8 @@ void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestT
     }
 
     m_errorString.clear();
+    m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
     publishAcceptedTargetState();
     if (m_playbackPhase == PlaybackPhase::Waiting) {
         setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
