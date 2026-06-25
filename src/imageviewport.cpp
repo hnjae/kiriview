@@ -1817,6 +1817,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         m_latestNonPlaybackPosition = m_requestedPosition;
         const QRectF oldContentRect = contentRect();
         const QRectF oldVisibleImageRect = visibleImageRect();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         publishAcceptedTargetState();
         if (m_playbackPhase == PlaybackPhase::Playing && m_requestStatus == RequestStatus::Loading) {
             setPlaybackPhase(PlaybackPhase::Waiting);
@@ -1827,6 +1828,9 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         emit displayStateChanged();
         if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
             emit geometryStateChanged();
+        }
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
         }
         update();
         return CommandOutcome::Accepted;
@@ -1933,6 +1937,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_latestNonPlaybackPosition = m_requestedPosition;
         const QRectF oldContentRect = contentRect();
         const QRectF oldVisibleImageRect = visibleImageRect();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         publishAcceptedTargetState();
         if (m_playbackPhase == PlaybackPhase::Playing && m_requestStatus == RequestStatus::Loading) {
             setPlaybackPhase(PlaybackPhase::Waiting);
@@ -1943,6 +1948,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         emit displayStateChanged();
         if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
             emit geometryStateChanged();
+        }
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
         }
         update();
         return CommandOutcome::Accepted;

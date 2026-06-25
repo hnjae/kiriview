@@ -4401,6 +4401,12 @@ void ImageViewportTest::stillImagePaintFailureReportsRenderFailure()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
+
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::coverImageTextureNodeUsesVisibleSourceRect()
