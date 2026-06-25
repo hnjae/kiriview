@@ -2307,9 +2307,17 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         }
     }
 
+    const bool resumePlaybackAfterCommit = !image.isNull()
+        && m_renderCommitPending
+        && m_playbackPhase == PlaybackPhase::Waiting
+        && m_requestStatus == RequestStatus::Ready;
     if (!image.isNull()) {
         m_renderCommitPending = false;
         clearRenderFailureRetainedDisplay();
+        if (resumePlaybackAfterCommit) {
+            setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+            m_stopPlaybackWhenRequestReady = false;
+        }
     }
     return root;
 }
@@ -2808,7 +2816,9 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState(frame->imagePayload());
-    if (m_playbackPhase == PlaybackPhase::Waiting) {
+    if (m_playbackPhase == PlaybackPhase::Waiting
+        && m_requestStatus == RequestStatus::Ready
+        && !m_renderCommitPending) {
         setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
         m_stopPlaybackWhenRequestReady = false;
     }
