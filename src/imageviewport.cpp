@@ -1748,7 +1748,21 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
 
 void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+    if (!hasProviderSequence() || !m_providerSession) {
+        return;
+    }
+
+    if (token == m_activeProviderFrameToken) {
+        m_requestStatus = RequestStatus::Unsupported;
+        m_requestReason = RequestReason::UnsupportedRequest;
+        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
+
+    if (token != m_activeProviderMetadataToken) {
         return;
     }
 
