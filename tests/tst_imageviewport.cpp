@@ -1009,6 +1009,10 @@ ImageViewport {
     property int unsupported: ImageViewport.CommandOutcome.Unsupported
     property int invalid: ImageViewport.CommandOutcome.Invalid
     property int ignoredNoRequest: ImageViewport.CommandOutcome.IgnoredNoRequest
+    property int factoryCreated: ImageSequenceFactoryResult.FactoryOutcome.Created
+    property int factoryInvalid: ImageSequenceFactoryResult.FactoryOutcome.Invalid
+    property int factoryUnsupported: ImageSequenceFactoryResult.FactoryOutcome.Unsupported
+    property int factoryError: ImageSequenceFactoryResult.FactoryOutcome.Error
     property int cover: ImageViewport.FillMode.Cover
     property int center: ImageViewport.FillMode.Center
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
@@ -1039,6 +1043,12 @@ ImageViewport {
     QCOMPARE(object->property("unsupported").toInt(), enumValue(metaObject, "CommandOutcome", "Unsupported"));
     QCOMPARE(object->property("invalid").toInt(), enumValue(metaObject, "CommandOutcome", "Invalid"));
     QCOMPARE(object->property("ignoredNoRequest").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    ImageSequenceFactoryResult result(nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    const QMetaObject *resultMetaObject = result.metaObject();
+    QCOMPARE(object->property("factoryCreated").toInt(), enumValue(resultMetaObject, "FactoryOutcome", "Created"));
+    QCOMPARE(object->property("factoryInvalid").toInt(), enumValue(resultMetaObject, "FactoryOutcome", "Invalid"));
+    QCOMPARE(object->property("factoryUnsupported").toInt(), enumValue(resultMetaObject, "FactoryOutcome", "Unsupported"));
+    QCOMPARE(object->property("factoryError").toInt(), enumValue(resultMetaObject, "FactoryOutcome", "Error"));
     QCOMPARE(object->property("cover").toInt(), enumValue(metaObject, "FillMode", "Cover"));
     QCOMPARE(object->property("center").toInt(), enumValue(metaObject, "FillMode", "Center"));
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
