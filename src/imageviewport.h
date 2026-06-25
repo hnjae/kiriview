@@ -12,6 +12,7 @@
 #include <QtQml/qqmlregistration.h>
 #include <QtQuick/QQuickItem>
 
+#include <functional>
 #include <memory>
 
 class ImageSequenceProviderSessionFactory;
@@ -123,6 +124,28 @@ private:
     friend class TimedImageFrameList;
     friend class ImageViewport;
     friend class ImageViewportPrivate;
+};
+
+class ImageSequenceProviderFrameHandle : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("ImageSequenceProviderFrameHandle objects are created by provider adapters")
+
+public:
+    using ReleaseCallback = std::function<void(ImageFrame *)>;
+
+    explicit ImageSequenceProviderFrameHandle(std::unique_ptr<ImageFrame> frame, QObject *parent = nullptr);
+    ImageSequenceProviderFrameHandle(ImageFrame *frame, ReleaseCallback releaseFrame, QObject *parent = nullptr);
+    ~ImageSequenceProviderFrameHandle() override;
+
+    ImageFrame *frame() const;
+    void release();
+
+private:
+    ImageFrame *m_frame = nullptr;
+    ReleaseCallback m_releaseFrame;
+    bool m_released = false;
 };
 
 class TimedImageFrameList : public QObject
@@ -277,6 +300,8 @@ signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void frameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame);
+    void frameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata);
     void providerWaiting(const ImageSequenceProviderRequestToken &token);
     void providerProgress(const ImageSequenceProviderRequestToken &token, double progress);
     void endOfSequence(const ImageSequenceProviderRequestToken &token);

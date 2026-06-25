@@ -28,8 +28,10 @@ public:
     {
         QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
-        m_frame = std::make_unique<ImageFrame>(image);
-        emit frameReady(token, m_frame.get(), ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
+        auto payload = std::make_unique<ImageFrame>(image);
+        emit frameReady(token,
+            new ImageSequenceProviderFrameHandle(std::move(payload)),
+            ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
     }
 
     void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position) override
@@ -72,7 +74,6 @@ public:
     }
 
 private:
-    std::unique_ptr<ImageFrame> m_frame;
     int m_lastPlaybackFrame = -1;
     int m_lastPlaybackPosition = -1;
     ImageSequenceProviderRequestToken m_lastCancelledToken;

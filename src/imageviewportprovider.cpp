@@ -1,6 +1,8 @@
 #include "imageviewport_p.h"
 #include "framepreparation_p.h"
 
+#include <memory>
+
 using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::closeProviderSession()
@@ -215,6 +217,17 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
 void ImageViewportPrivate::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame)
 {
     handleProviderFrameReadyWithMetadata(token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
+}
+
+void ImageViewportPrivate::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame)
+{
+    handleProviderFrameReadyWithMetadata(token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
+}
+
+void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata)
+{
+    std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(frame);
+    handleProviderFrameReadyWithMetadata(token, ownedFrame ? ownedFrame->frame() : nullptr, metadata);
 }
 
 void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata)

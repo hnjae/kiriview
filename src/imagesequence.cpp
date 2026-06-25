@@ -207,6 +207,46 @@ const QImage &ImageFrame::imagePayload() const
     return m_image;
 }
 
+ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(std::unique_ptr<ImageFrame> frame, QObject *parent)
+    : QObject(parent)
+    , m_frame(frame.release())
+    , m_releaseFrame([](ImageFrame *releasedFrame) {
+        delete releasedFrame;
+    })
+{
+}
+
+ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(ImageFrame *frame, ReleaseCallback releaseFrame, QObject *parent)
+    : QObject(parent)
+    , m_frame(frame)
+    , m_releaseFrame(std::move(releaseFrame))
+{
+}
+
+ImageSequenceProviderFrameHandle::~ImageSequenceProviderFrameHandle()
+{
+    release();
+}
+
+ImageFrame *ImageSequenceProviderFrameHandle::frame() const
+{
+    return m_frame;
+}
+
+void ImageSequenceProviderFrameHandle::release()
+{
+    if (m_released) {
+        return;
+    }
+
+    m_released = true;
+    ImageFrame *releasedFrame = m_frame;
+    m_frame = nullptr;
+    if (m_releaseFrame) {
+        m_releaseFrame(releasedFrame);
+    }
+}
+
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 QImage ImageFrame::imageForTest() const
 {

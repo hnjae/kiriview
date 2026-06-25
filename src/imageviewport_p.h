@@ -132,6 +132,8 @@ public:
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame);
+    void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata);
     void handleProviderWaiting(const ImageSequenceProviderRequestToken &token);
     void handleProviderProgress(const ImageSequenceProviderRequestToken &token, double progress);
     void handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token);

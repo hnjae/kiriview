@@ -6,6 +6,7 @@
 #include <QtCore/QThread>
 
 #include <limits>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -114,6 +115,30 @@ bool ViewportProviderBridge::openSession()
         viewport.q,
         [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) {
             if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
+            viewport.handleProviderFrameReadyWithMetadata(token, frame, metadata);
+        },
+        Qt::QueuedConnection);
+    QObject::connect(viewport.m_providerSession,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageSequenceProviderFrameHandle *>(&ImageSequenceProviderSession::frameReady),
+        viewport.q,
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame) {
+            std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                staleFrame.reset(frame);
+                return;
+            }
+            viewport.handleProviderFrameReady(token, frame);
+        },
+        Qt::QueuedConnection);
+    QObject::connect(viewport.m_providerSession,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageSequenceProviderFrameHandle *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
+        viewport.q,
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata) {
+            std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                staleFrame.reset(frame);
                 return;
             }
             viewport.handleProviderFrameReadyWithMetadata(token, frame, metadata);
