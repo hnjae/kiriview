@@ -287,12 +287,42 @@ int main(int argc, char **argv)
     if (!metadata.isSpecified() || !metadata.isValid() || metadata.isStill() || !metadata.isTimedFrameList()) {
         return 1;
     }
-    if (metadata.logicalSize() != QSizeF(2.0, 2.0) || metadata.frameDurations().size() != 2) {
+    if (metadata.logicalSize() != QSizeF(2.0, 2.0) || metadata.frameDurations() != QVector<int>({100, 200})) {
+        return 1;
+    }
+
+    const ImageSequenceProviderMetadata fixedMetadata = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 3, 50);
+    if (!fixedMetadata.isSpecified() || !fixedMetadata.isValid() || fixedMetadata.isStill() || !fixedMetadata.isTimedFrameList()) {
+        return 1;
+    }
+    if (fixedMetadata.logicalSize() != QSizeF(2.0, 2.0) || fixedMetadata.frameDurations() != QVector<int>({50, 50, 50})) {
+        return 1;
+    }
+
+    const ImageSequenceProviderMetadata stillMetadata = ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0));
+    if (!stillMetadata.isSpecified() || !stillMetadata.isValid() || !stillMetadata.isStill() || stillMetadata.isTimedFrameList()) {
+        return 1;
+    }
+    if (stillMetadata.logicalSize() != QSizeF(2.0, 2.0) || !stillMetadata.frameDurations().isEmpty()) {
         return 1;
     }
 
     const ImageSequenceProviderFrameMetadata frameMetadata = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 200);
-    if (!frameMetadata.isValid() || !frameMetadata.isTimedFrame() || frameMetadata.frame() != 1 || frameMetadata.frameStartPosition() != 100) {
+    if (!frameMetadata.isValid()
+        || !frameMetadata.isTimedFrame()
+        || frameMetadata.frame() != 1
+        || frameMetadata.frameStartPosition() != 100
+        || frameMetadata.frameDuration() != 200) {
+        return 1;
+    }
+
+    const ImageSequenceProviderFrameMetadata stillFrameMetadata = ImageSequenceProviderFrameMetadata::stillFrame();
+    if (!stillFrameMetadata.isValid()
+        || !stillFrameMetadata.isStillFrame()
+        || stillFrameMetadata.isTimedFrame()
+        || stillFrameMetadata.frame() != 0
+        || stillFrameMetadata.frameStartPosition() != -1
+        || stillFrameMetadata.frameDuration() != -1) {
         return 1;
     }
 
