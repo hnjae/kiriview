@@ -178,3 +178,10 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
     m_renderFailureRetainedImageSize = {};
     m_renderFailureRetainedImage = {};
 }
+
+void ImageViewportPrivate::discardPendingRenderCommit()
+{
+    m_pendingDisplayImage = {};
+    m_renderCommitPending = false;
+    clearRenderFailureRetainedDisplay();
+}

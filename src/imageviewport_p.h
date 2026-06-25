@@ -64,6 +64,7 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
+    bool hasPendingRenderCommitForTest() const;
 #endif
     CommandOutcome clearCommandImpl();
     CommandOutcome playCommandImpl();
@@ -75,6 +76,7 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTestImpl(quint64 token);
+    bool hasPendingRenderCommitForTestImpl() const;
 #endif
 
     QRectF contentRect() const;
@@ -120,6 +122,7 @@ public:
     void reportRenderFailure();
     void captureRenderFailureRetainedDisplay();
     void clearRenderFailureRetainedDisplay();
+    void discardPendingRenderCommit();
 
     void closeProviderSession();
     bool openProviderSession();

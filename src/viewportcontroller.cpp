@@ -52,6 +52,11 @@ void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
     viewport.setNextProviderRequestTokenForTestImpl(token);
 }
+
+bool ViewportController::hasPendingRenderCommitForTest() const
+{
+    return viewport.hasPendingRenderCommitForTestImpl();
+}
 #endif
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
@@ -116,5 +121,10 @@ void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
 {
     controller.setNextProviderRequestTokenForTest(token);
+}
+
+bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
+{
+    return controller.hasPendingRenderCommitForTest();
 }
 #endif

@@ -19,6 +19,7 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
+    bool hasPendingRenderCommitForTest() const;
 #endif
 
 private:

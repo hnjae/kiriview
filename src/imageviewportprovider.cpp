@@ -193,7 +193,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    m_pendingDisplayImage = {};
+    discardPendingRenderCommit();
 
     m_activeProviderFrameToken = nextProviderRequestToken();
     if (!m_activeProviderFrameToken.isValid()) {
@@ -405,7 +405,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    m_pendingDisplayImage = {};
+    discardPendingRenderCommit();
     m_activeProviderFrameToken = nextProviderRequestToken();
     if (!m_activeProviderFrameToken.isValid()) {
         publishProviderTokenExhaustion();

@@ -262,6 +262,7 @@ private slots:
     void providerTimedFramePaintFailureRetainsPreviousDisplay();
     void providerTimedPlaybackPaintFailureStopsPlayback();
     void providerTimedPlayAfterPaintFailureRestartsPlaybackRequest();
+    void providerSupersededRenderWaitingClearsPendingRenderCommit();
     void invalidPresentationEnumValuesAreIgnored();
     void invalidPresentationTransformsAreIgnored();
     void presentationZoomUsesExactValueChanges();
@@ -12374,6 +12375,63 @@ void ImageViewportTest::providerTimedPlayAfterPaintFailureRestartsPlaybackReques
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
     QCOMPARE(item.property("errorString").toString(), QString());
+}
+
+void ImageViewportTest::providerSupersededRenderWaitingClearsPendingRenderCommit()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(commitPaintNode(item));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(!item.hasPendingRenderCommitForTest());
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QVERIFY(item.hasPendingRenderCommitForTest());
+
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QVERIFY(!item.hasPendingRenderCommitForTest());
 }
 
 void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()

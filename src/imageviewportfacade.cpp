@@ -82,6 +82,11 @@ void ImageViewport::setNextProviderRequestTokenForTest(quint64 token)
 {
     d->setNextProviderRequestTokenForTest(token);
 }
+
+bool ImageViewport::hasPendingRenderCommitForTest() const
+{
+    return d->hasPendingRenderCommitForTest();
+}
 #endif
 
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)

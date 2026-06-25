@@ -207,7 +207,7 @@ bool ViewportProviderBridge::openSession()
         Qt::QueuedConnection);
 
     if (viewport.m_providerMetadataReady) {
-        viewport.m_pendingDisplayImage = {};
+        viewport.discardPendingRenderCommit();
         viewport.m_activeProviderFrameToken = nextRequestToken();
         if (!viewport.m_activeProviderFrameToken.isValid()) {
             viewport.publishProviderTokenExhaustion();

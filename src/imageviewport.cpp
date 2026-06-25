@@ -37,7 +37,7 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
     m_providerFrameDurations.clear();
-    m_pendingDisplayImage = {};
+    discardPendingRenderCommit();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;

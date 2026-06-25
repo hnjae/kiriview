@@ -117,7 +117,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-            m_pendingDisplayImage = {};
+            discardPendingRenderCommit();
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
                 cancelProviderRequest(m_activeProviderFrameToken);
             }
@@ -292,7 +292,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        m_pendingDisplayImage = {};
+        discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_currentFrame >= 0) {
             m_activeProviderFrameToken = nextProviderRequestToken();
@@ -376,7 +376,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-            m_pendingDisplayImage = {};
+            discardPendingRenderCommit();
             const bool diagnosticsValueChanged = clearDiagnostics();
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
                 cancelProviderRequest(m_activeProviderFrameToken);
@@ -432,7 +432,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
             m_latestNonPlaybackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
-            m_pendingDisplayImage = {};
+            discardPendingRenderCommit();
             const bool diagnosticsValueChanged = clearDiagnostics();
             incrementRequestRevision();
             emit q->requestStateChanged();
@@ -519,7 +519,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         m_latestNonPlaybackPosition = m_requestedPosition;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
-        m_pendingDisplayImage = {};
+        discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         incrementRequestRevision();
         emit q->requestStateChanged();
@@ -546,7 +546,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        m_pendingDisplayImage = {};
+        discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_activeProviderFrameToken.isValid()) {
             cancelProviderRequest(m_activeProviderFrameToken);
@@ -682,7 +682,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        m_pendingDisplayImage = {};
+        discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         m_activeProviderFrameToken = nextProviderRequestToken();
         if (!m_activeProviderFrameToken.isValid()) {
@@ -810,6 +810,11 @@ void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
 void ImageViewportPrivate::setNextProviderRequestTokenForTestImpl(quint64 token)
 {
     m_nextProviderRequestToken = token;
+}
+
+bool ImageViewportPrivate::hasPendingRenderCommitForTestImpl() const
+{
+    return m_renderCommitPending;
 }
 #endif
 
