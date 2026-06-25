@@ -13,6 +13,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick Test)
 qt_standard_project_setup(REQUIRES 6.5)
 
 option(IMAGEVIEWPORT_BUILD_EXAMPLES "Build ImageViewport examples" ON)
+option(IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES "Enable private ImageViewport test probes" OFF)
 
 enable_testing()
 

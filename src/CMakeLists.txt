@@ -20,3 +20,8 @@ target_link_libraries(ImageViewport
         Qt6::Qml
         Qt6::Quick
 )
+
+target_compile_definitions(ImageViewport
+    PRIVATE
+        $<$<BOOL:${IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES}>:IMAGE_VIEWPORT_PRIVATE_TEST_PROBES=1>
+)

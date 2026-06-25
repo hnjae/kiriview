@@ -19,3 +19,7 @@ target_compile_definitions(tst_imageviewport
 qt_import_qml_plugins(tst_imageviewport)
 
 add_test(NAME imageviewport COMMAND tst_imageviewport)
+set_tests_properties(imageviewport
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

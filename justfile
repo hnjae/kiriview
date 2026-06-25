@@ -2,7 +2,7 @@
 
 set shell := ["sh", "-eu", "-c"]
 
-build_dir := "build"
+build_dir := "build-ninja"
 
 default:
     @just --list
