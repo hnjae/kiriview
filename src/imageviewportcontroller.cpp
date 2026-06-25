@@ -6,6 +6,16 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+bool shouldPreservePlaybackPositionOnPlay(ImageViewport::PlaybackPhase phase, bool stopWhenRequestReady)
+{
+    return !stopWhenRequestReady
+        && (phase == ImageViewport::PlaybackPhase::Playing
+            || phase == ImageViewport::PlaybackPhase::Paused
+            || phase == ImageViewport::PlaybackPhase::Waiting);
+}
+}
+
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
 {
     const bool sequenceValueChanged = m_sequence != nullptr;
@@ -87,6 +97,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     }
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        const bool preservePlaybackPosition =
+            shouldPreservePlaybackPositionOnPlay(m_playbackPhase, m_stopPlaybackWhenRequestReady)
+            && m_playbackPosition >= 0;
         m_stopPlaybackWhenRequestReady = false;
         if (m_requestStatus == RequestStatus::Unsupported || m_requestStatus == RequestStatus::Error) {
             int selectedFrame = m_currentFrame;
@@ -122,7 +135,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
         }
 
         clearCommandDiagnosticForAcceptedCommand();
-        m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : providerFrameStartPosition(m_currentFrame);
+        if (!preservePlaybackPosition) {
+            m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : providerFrameStartPosition(m_currentFrame);
+        }
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
         return CommandOutcome::Accepted;
     }
@@ -146,6 +161,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     }
 
     if (hasTimedSequence()) {
+        const bool preservePlaybackPosition =
+            shouldPreservePlaybackPositionOnPlay(m_playbackPhase, m_stopPlaybackWhenRequestReady)
+            && m_playbackPosition >= 0;
         clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
         if (m_requestStatus == RequestStatus::Unsupported || m_requestStatus == RequestStatus::Error) {
@@ -174,7 +192,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
             update();
             return CommandOutcome::Accepted;
         }
-        m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
+        if (!preservePlaybackPosition) {
+            m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
+        }
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
         return CommandOutcome::Accepted;
     }

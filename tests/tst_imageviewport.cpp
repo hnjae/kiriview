@@ -70,6 +70,7 @@ private slots:
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
     void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
+    void timedFrameListPlayCommandPreservesElapsedPosition();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
     void timedFrameListPlaybackAdvancesFromRuntimeTimer();
@@ -135,6 +136,7 @@ private slots:
     void providerTimedFrameSeekCancelsSupersededRequest();
     void providerTimedPositionSeekRequestsResolvedFrame();
     void providerTimedPlaybackCommandsUpdatePhase();
+    void providerTimedPlayCommandPreservesElapsedPosition();
     void providerTimedPlaybackAdvancesDeterministically();
     void providerTimedPlaybackAdvancesFromRuntimeTimer();
     void providerTimedPlaybackFrameReadyWaitsForRenderCommit();
@@ -2244,6 +2246,52 @@ void ImageViewportTest::timedFrameListPlaybackCommandsUpdatePhase()
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTest::timedFrameListPlayCommandPreservesElapsedPosition()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport playingItem;
+    playingItem.setSize(QSizeF(100.0, 100.0));
+    playingItem.setSequence(result->sequence());
+    const QMetaObject *metaObject = playingItem.metaObject();
+
+    QCOMPARE(playingItem.play(), ImageViewport::CommandOutcome::Accepted);
+    playingItem.advancePlaybackForTest(80);
+    QCOMPARE(playingItem.play(), ImageViewport::CommandOutcome::Accepted);
+    playingItem.advancePlaybackForTest(20);
+    QCOMPARE(playingItem.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(playingItem.property("requestedFrame").toInt(), 1);
+    QCOMPARE(playingItem.property("displayedFrame").toInt(), 1);
+    QCOMPARE(playingItem.property("requestedPosition").toInt(), 100);
+    QCOMPARE(playingItem.property("displayedPosition").toInt(), 100);
+
+    ImageViewport pausedItem;
+    pausedItem.setSize(QSizeF(100.0, 100.0));
+    pausedItem.setSequence(result->sequence());
+
+    QCOMPARE(pausedItem.play(), ImageViewport::CommandOutcome::Accepted);
+    pausedItem.advancePlaybackForTest(80);
+    QCOMPARE(pausedItem.pause(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(pausedItem.play(), ImageViewport::CommandOutcome::Accepted);
+    pausedItem.advancePlaybackForTest(20);
+    QCOMPARE(pausedItem.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(pausedItem.property("requestedFrame").toInt(), 1);
+    QCOMPARE(pausedItem.property("displayedFrame").toInt(), 1);
+    QCOMPARE(pausedItem.property("requestedPosition").toInt(), 100);
+    QCOMPARE(pausedItem.property("displayedPosition").toInt(), 100);
 }
 
 void ImageViewportTest::timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback()
@@ -5206,6 +5254,66 @@ void ImageViewportTest::providerTimedPlaybackCommandsUpdatePhase()
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTest::providerTimedPlayCommandPreservesElapsedPosition()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        playbackRequestCount,
+        lastPlaybackFrame,
+        lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(80);
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(20);
+
+    QCOMPARE(*playbackRequestCount, 1);
+    QCOMPARE(*lastPlaybackFrame, 1);
+    QCOMPARE(*lastPlaybackPosition, 100);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
 }
 
 void ImageViewportTest::providerTimedPlaybackAdvancesDeterministically()
