@@ -467,6 +467,10 @@ void ImageSequenceProviderSession::requestPlayback(const ImageSequenceProviderRe
     requestFrame(token, frame);
 }
 
+void ImageSequenceProviderSession::cancelRequest(const ImageSequenceProviderRequestToken &)
+{
+}
+
 void ImageSequenceProviderSession::close()
 {
 }
@@ -1265,6 +1269,9 @@ ImageViewport::CommandOutcome ImageViewport::stop()
     clearCommandDiagnosticForAcceptedCommand();
     m_stopPlaybackWhenRequestReady = false;
     if (hasProviderSequence() && m_providerTimedMetadata && m_activeProviderFrameFromPlayback) {
+        if (m_providerSession) {
+            m_providerSession->cancelRequest(m_activeProviderFrameToken);
+        }
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         if (hasReadyDisplay()) {

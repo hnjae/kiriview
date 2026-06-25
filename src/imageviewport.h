@@ -208,6 +208,7 @@ public:
     virtual void requestMetadata(const ImageSequenceProviderRequestToken &token) = 0;
     virtual void requestFrame(const ImageSequenceProviderRequestToken &token, int frame);
     virtual void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position);
+    virtual void cancelRequest(const ImageSequenceProviderRequestToken &token);
     virtual void close();
 
 signals:
