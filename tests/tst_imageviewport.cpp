@@ -1290,6 +1290,7 @@ void ImageViewportTest::providerTimedFrameSeekRequestsSelectedFrame()
     ImageFrame frame(image);
     emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
@@ -1303,6 +1304,7 @@ void ImageViewportTest::providerTimedFrameSeekRequestsSelectedFrame()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
 }
 
 void ImageViewportTest::providerTimedPositionSeekRequestsResolvedFrame()

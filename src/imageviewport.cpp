@@ -1221,6 +1221,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
                 m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
             }
             incrementRequestRevision();
+            incrementDisplayRevision();
             emit requestStateChanged();
             emit displayStateChanged();
             emit diagnosticsChanged();
@@ -1282,6 +1283,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
             m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
         }
         incrementRequestRevision();
+        incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
         emit diagnosticsChanged();
