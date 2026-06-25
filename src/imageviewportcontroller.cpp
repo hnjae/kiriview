@@ -145,6 +145,32 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     if (hasTimedSequence()) {
         clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
+        if (m_requestStatus == RequestStatus::Unsupported || m_requestStatus == RequestStatus::Error) {
+            const QRectF oldContentRect = contentRect();
+            const QRectF oldVisibleImageRect = visibleImageRect();
+            const DisplayStatus oldDisplayStatus = m_displayStatus;
+            const bool diagnosticsValueChanged = clearDiagnostics();
+            publishAcceptedTargetState();
+            m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
+            setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
+            incrementRequestRevision();
+            const bool displayValueChanged = m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready;
+            if (displayValueChanged) {
+                incrementDisplayRevision();
+            }
+            emit q->requestStateChanged();
+            if (displayValueChanged) {
+                emit q->displayStateChanged();
+            }
+            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+                emit q->geometryStateChanged();
+            }
+            if (diagnosticsValueChanged) {
+                emit q->diagnosticsChanged();
+            }
+            update();
+            return CommandOutcome::Accepted;
+        }
         m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
         return CommandOutcome::Accepted;

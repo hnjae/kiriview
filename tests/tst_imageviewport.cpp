@@ -155,6 +155,7 @@ private slots:
     void stillImageCreatesTexturePaintNode();
     void stillImagePaintFailureReportsRenderFailure();
     void timedFrameListPaintFailureRetainsPreviousDisplay();
+    void timedFrameListPlayAfterPaintFailureRestartsDisplayRequest();
     void successfulPaintClearsRenderFailureInterest();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
@@ -6377,6 +6378,51 @@ void ImageViewportTest::timedFrameListPaintFailureRetainsPreviousDisplay()
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
+}
+
+void ImageViewportTest::timedFrameListPlayAfterPaintFailureRestartsDisplayRequest()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(QColor(255, 0, 0, 255));
+    QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    PaintProbeViewport item;
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    item.setSize(QSizeF(0.0, 20.0));
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    item.setSize(QSizeF(40.0, 20.0));
+    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
+    QVERIFY(!failedRoot);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::successfulPaintClearsRenderFailureInterest()
