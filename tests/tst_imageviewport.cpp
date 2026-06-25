@@ -30,6 +30,7 @@ private slots:
     void doesNotExposeSourceProperty();
     void unsupportedSequencePropertyWritesPreserveState();
     void qmlUnsupportedSequenceAssignmentsPreserveState();
+    void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void exposesDocumentedQmlSurface();
     void hasDocumentedDefaultState();
     void emptyGeometryChangeIncrementsDisplayRevision();
@@ -880,6 +881,88 @@ ImageViewport {
 
     QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
     QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
+}
+
+void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveReadyState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    id: viewport
+    width: 100
+    height: 100
+
+    property ImageSequence suppliedSequence
+    QtObject { id: rawObject }
+
+    property bool stringAssignmentPreserved: false
+    property bool urlAssignmentPreserved: false
+    property bool jsObjectAssignmentPreserved: false
+    property bool objectAssignmentPreserved: false
+
+    function readyStatePreserved(requestRevisionBefore, displayRevisionBefore) {
+        return sequence === suppliedSequence
+            && requestStatus === ImageViewport.RequestStatus.Ready
+            && requestReason === ImageViewport.RequestReason.Ready
+            && displayStatus === ImageViewport.DisplayStatus.Ready
+            && requestedFrame === 0
+            && displayedFrame === 0
+            && requestRevision === requestRevisionBefore
+            && displayRevision === displayRevisionBefore
+            && errorString === ""
+    }
+
+    Component.onCompleted: {
+        sequence = suppliedSequence
+        const requestRevisionBefore = requestRevision
+        const displayRevisionBefore = displayRevision
+        try {
+            sequence = "image.png"
+        } catch (error) {
+        }
+        stringAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+        try {
+            sequence = Qt.resolvedUrl("image.png")
+        } catch (error) {
+        }
+        urlAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+        try {
+            sequence = ({ url: "image.png" })
+        } catch (error) {
+        }
+        jsObjectAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+        try {
+            sequence = rawObject
+        } catch (error) {
+        }
+        objectAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject *>(result->sequence()));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
     QVERIFY2(object, qPrintable(componentErrors(component)));
     QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
