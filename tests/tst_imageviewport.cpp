@@ -580,10 +580,16 @@ class AffinityProviderSession final : public ImageSequenceProviderSession
 {
 public:
     explicit AffinityProviderSession(const std::shared_ptr<QThread *> &metadataRequestThread,
+        const std::shared_ptr<QThread *> &frameRequestThread,
+        const std::shared_ptr<QThread *> &playbackRequestThread,
+        const std::shared_ptr<QThread *> &cancelRequestThread,
         const std::shared_ptr<QThread *> &closeThread,
         QObject *parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestThread(metadataRequestThread)
+        , m_frameRequestThread(frameRequestThread)
+        , m_playbackRequestThread(playbackRequestThread)
+        , m_cancelRequestThread(cancelRequestThread)
         , m_closeThread(closeThread)
     {
     }
@@ -592,6 +598,23 @@ public:
     {
         *m_metadataRequestThread = QThread::currentThread();
         m_lastMetadataToken = token;
+    }
+
+    void requestFrame(const ImageSequenceProviderRequestToken &token, int) override
+    {
+        *m_frameRequestThread = QThread::currentThread();
+        m_lastFrameToken = token;
+    }
+
+    void requestPlayback(const ImageSequenceProviderRequestToken &token, int, int) override
+    {
+        *m_playbackRequestThread = QThread::currentThread();
+        m_lastPlaybackToken = token;
+    }
+
+    void cancelRequest(const ImageSequenceProviderRequestToken &) override
+    {
+        *m_cancelRequestThread = QThread::currentThread();
     }
 
     void close() override
@@ -604,10 +627,25 @@ public:
         return m_lastMetadataToken;
     }
 
+    ImageSequenceProviderRequestToken lastFrameToken() const
+    {
+        return m_lastFrameToken;
+    }
+
+    ImageSequenceProviderRequestToken lastPlaybackToken() const
+    {
+        return m_lastPlaybackToken;
+    }
+
 private:
     std::shared_ptr<QThread *> m_metadataRequestThread;
+    std::shared_ptr<QThread *> m_frameRequestThread;
+    std::shared_ptr<QThread *> m_playbackRequestThread;
+    std::shared_ptr<QThread *> m_cancelRequestThread;
     std::shared_ptr<QThread *> m_closeThread;
     ImageSequenceProviderRequestToken m_lastMetadataToken;
+    ImageSequenceProviderRequestToken m_lastFrameToken;
+    ImageSequenceProviderRequestToken m_lastPlaybackToken;
 };
 
 class AffinityProviderSessionFactory final : public ImageSequenceProviderSessionFactory
@@ -615,16 +653,26 @@ class AffinityProviderSessionFactory final : public ImageSequenceProviderSession
 public:
     explicit AffinityProviderSessionFactory(QThread *thread,
         const std::shared_ptr<QThread *> &metadataRequestThread,
+        const std::shared_ptr<QThread *> &frameRequestThread,
+        const std::shared_ptr<QThread *> &playbackRequestThread,
+        const std::shared_ptr<QThread *> &cancelRequestThread,
         const std::shared_ptr<QThread *> &closeThread)
         : m_thread(thread)
         , m_metadataRequestThread(metadataRequestThread)
+        , m_frameRequestThread(frameRequestThread)
+        , m_playbackRequestThread(playbackRequestThread)
+        , m_cancelRequestThread(cancelRequestThread)
         , m_closeThread(closeThread)
     {
     }
 
     ImageSequenceProviderSession *createSession(QObject *) override
     {
-        auto *session = new AffinityProviderSession(m_metadataRequestThread, m_closeThread);
+        auto *session = new AffinityProviderSession(m_metadataRequestThread,
+            m_frameRequestThread,
+            m_playbackRequestThread,
+            m_cancelRequestThread,
+            m_closeThread);
         session->moveToThread(m_thread);
         m_lastSession = session;
         return session;
@@ -638,6 +686,9 @@ public:
 private:
     QThread *m_thread = nullptr;
     std::shared_ptr<QThread *> m_metadataRequestThread;
+    std::shared_ptr<QThread *> m_frameRequestThread;
+    std::shared_ptr<QThread *> m_playbackRequestThread;
+    std::shared_ptr<QThread *> m_cancelRequestThread;
     std::shared_ptr<QThread *> m_closeThread;
     QPointer<AffinityProviderSession> m_lastSession;
 };
@@ -4128,9 +4179,15 @@ void ImageViewportTest::providerSessionEntryPointsUseSessionAffinity()
     });
 
     const auto metadataRequestThread = std::make_shared<QThread *>(nullptr);
+    const auto frameRequestThread = std::make_shared<QThread *>(nullptr);
+    const auto playbackRequestThread = std::make_shared<QThread *>(nullptr);
+    const auto cancelRequestThread = std::make_shared<QThread *>(nullptr);
     const auto closeThread = std::make_shared<QThread *>(nullptr);
     auto sessionFactory = std::make_shared<AffinityProviderSessionFactory>(&workerThread,
         metadataRequestThread,
+        frameRequestThread,
+        playbackRequestThread,
+        cancelRequestThread,
         closeThread);
     CountingProviderAdapter adapter(sessionFactory);
     ImageSequenceFactory factory;
@@ -4138,11 +4195,38 @@ void ImageViewportTest::providerSessionEntryPointsUseSessionAffinity()
     QVERIFY(result->sequence());
 
     {
-        ImageViewport item;
+        QQuickWindow window;
+        window.resize(100, 100);
+        PaintProbeViewport item;
+        item.setParentItem(window.contentItem());
+        item.setSize(QSizeF(100.0, 100.0));
         item.setSequence(result->sequence());
 
-        QVERIFY(sessionFactory->lastSession());
+        AffinityProviderSession *session = sessionFactory->lastSession();
+        QVERIFY(session);
         QCOMPARE(*metadataRequestThread, &workerThread);
+
+        emit session->metadataReady(session->lastMetadataToken(),
+            ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+        drainQueuedProviderResults();
+        QCOMPARE(*frameRequestThread, &workerThread);
+
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        ImageFrame frame(image);
+        emit session->frameReady(session->lastFrameToken(),
+            &frame,
+            ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
+        drainQueuedProviderResults();
+        QVERIFY(commitPaintNode(item));
+
+        QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+        item.advancePlaybackForTest(100);
+        QCOMPARE(*playbackRequestThread, &workerThread);
+        QVERIFY(session->lastPlaybackToken().isValid());
+
+        QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(*cancelRequestThread, &workerThread);
     }
 
     QCOMPARE(*closeThread, &workerThread);
