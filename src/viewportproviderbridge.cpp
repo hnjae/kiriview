@@ -75,6 +75,7 @@ void ViewportProviderBridge::closeSession()
         session->close();
     });
     releaseSession(session);
+    viewport.m_nextProviderRequestToken = 0;
 }
 
 bool ViewportProviderBridge::openSession()

@@ -114,6 +114,7 @@ private slots:
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerTokenOverflowClosesSessionWithoutInvalidRequest();
     void providerKnownMetadataTokenOverflowClosesSessionWithoutFrameRequest();
+    void providerTokenOverflowDoesNotPoisonReplacementSession();
     void providerTokenOverflowDuringSeekFailsAcceptedRequest();
     void providerSharedSequenceUsesIndependentViewportSessions();
     void providerSessionOpenFailureKeepsReplacementObservable();
@@ -4280,6 +4281,62 @@ void ImageViewportTest::providerKnownMetadataTokenOverflowClosesSessionWithoutFr
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider request token")));
+}
+
+void ImageViewportTest::providerTokenOverflowDoesNotPoisonReplacementSession()
+{
+    ImageSequenceFactory factory;
+    const auto firstSessionCount = std::make_shared<int>(0);
+    const auto firstMetadataRequestCount = std::make_shared<int>(0);
+    const auto firstFrameRequestCount = std::make_shared<int>(0);
+    const auto firstLastRequestedFrame = std::make_shared<int>(-1);
+    const auto firstCloseCount = std::make_shared<int>(0);
+    auto firstSessionFactory = std::make_shared<CountingProviderSessionFactory>(firstSessionCount,
+        firstMetadataRequestCount,
+        firstFrameRequestCount,
+        firstLastRequestedFrame,
+        firstCloseCount);
+    CountingProviderAdapter firstAdapter(firstSessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromProvider(&firstAdapter));
+    QVERIFY(firstResult->sequence());
+
+    ImageViewport item;
+    item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
+    item.setSequence(firstResult->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*firstSessionCount, 1);
+    QCOMPARE(*firstMetadataRequestCount, 0);
+    QCOMPARE(*firstCloseCount, 1);
+    QCOMPARE(firstSessionFactory->lastSession(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+
+    const auto replacementSessionCount = std::make_shared<int>(0);
+    const auto replacementMetadataRequestCount = std::make_shared<int>(0);
+    const auto replacementFrameRequestCount = std::make_shared<int>(0);
+    const auto replacementLastRequestedFrame = std::make_shared<int>(-1);
+    const auto replacementCloseCount = std::make_shared<int>(0);
+    auto replacementSessionFactory = std::make_shared<CountingProviderSessionFactory>(replacementSessionCount,
+        replacementMetadataRequestCount,
+        replacementFrameRequestCount,
+        replacementLastRequestedFrame,
+        replacementCloseCount);
+    CountingProviderAdapter replacementAdapter(replacementSessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromProvider(&replacementAdapter));
+    QVERIFY(replacementResult->sequence());
+
+    item.setSequence(replacementResult->sequence());
+
+    QCOMPARE(*replacementSessionCount, 1);
+    QCOMPARE(*replacementMetadataRequestCount, 1);
+    QCOMPARE(*replacementFrameRequestCount, 0);
+    QCOMPARE(*replacementCloseCount, 0);
+    QVERIFY(replacementSessionFactory->lastSession());
+    QCOMPARE(replacementSessionFactory->lastSession()->lastMetadataToken().id(), quint64(1));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QVERIFY(!item.property("errorString").toString().contains(QStringLiteral("provider request token")));
 }
 
 void ImageViewportTest::providerTokenOverflowDuringSeekFailsAcceptedRequest()
