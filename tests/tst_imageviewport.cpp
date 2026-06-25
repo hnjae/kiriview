@@ -10217,6 +10217,22 @@ void ImageViewportTest::providerGenerationTerminalFailureRejectsDisplayCommands(
     drainQueuedProviderResults();
 
     const uint requestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+
+    QCOMPARE(item.seekToPosition(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
