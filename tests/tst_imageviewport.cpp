@@ -143,6 +143,7 @@ private slots:
     void providerStillFrameReadyCommitsDisplay();
     void providerTimedFrameReadyCommitsTimedDisplay();
     void providerTimedFrameEnvelopeMismatchRejectsPayload();
+    void providerTotalDurationSeekRejectsPublicPositionEnvelope();
     void providerFrameEnvelopeMismatchKeepsGenerationPositionSeekable();
     void providerStillFrameEnvelopeMismatchRejectsPayload();
     void providerTimedFrameRejectsStillEnvelope();
@@ -5542,6 +5543,70 @@ void ImageViewportTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider frame payload is invalid")));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 0, 0);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+}
+
+void ImageViewportTest::providerTotalDurationSeekRejectsPublicPositionEnvelope()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
+    emit sessionFactory->lastSession()->frameReady(frameToken,
+        &frame,
+        ImageSequenceProviderFrameMetadata::timedFrame(1, 350));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider frame payload is invalid")));
+
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 1, 100);
+    drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
