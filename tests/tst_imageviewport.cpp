@@ -217,6 +217,7 @@ private slots:
     void providerTimedStopSupersedesPlaybackRequest();
     void providerTimedSeekWhilePlayingWaitsForFrame();
     void providerMetadataFailureReportsProviderFailure();
+    void providerInvalidTerminalTokenBeforeMetadataIsIgnored();
     void providerInvalidTerminalTokenAfterMetadataIsIgnored();
     void providerDiagnosticsUseUnicodeScalarLimit();
     void providerDiagnosticsRedactPrivateDetails();
@@ -9959,6 +9960,58 @@ void ImageViewportTest::providerMetadataFailureReportsProviderFailure()
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata service unavailable")));
+}
+
+void ImageViewportTest::providerInvalidTerminalTokenBeforeMetadataIsIgnored()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
+    emit sessionFactory->lastSession()->providerFailed(ImageSequenceProviderRequestToken(),
+        QStringLiteral("invalid token failure"));
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerUnsupported(ImageSequenceProviderRequestToken(),
+        QStringLiteral("invalid token unsupported"));
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerCancelled(ImageSequenceProviderRequestToken(),
+        QStringLiteral("invalid token cancellation"));
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->endOfSequence(ImageSequenceProviderRequestToken());
+    drainQueuedProviderResults();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
 void ImageViewportTest::providerInvalidTerminalTokenAfterMetadataIsIgnored()
