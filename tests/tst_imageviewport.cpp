@@ -5555,38 +5555,61 @@ void ImageViewportTest::providerKnownCapabilityProjectsBeforeMetadata()
 
 void ImageViewportTest::providerDeclaredCapabilityContradictionRejectsMetadata()
 {
-    ImageSequenceFactory factory;
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount,
-        frameRequestCount,
-        lastRequestedFrame,
-        closeCount);
-    CountingProviderAdapter adapter(sessionFactory,
-        {},
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
-    QVERIFY(result->sequence());
+    const auto verifyRejectedMetadata = [](const ImageSequenceProviderMetadata &metadata,
+                                           ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport,
+                                           ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport,
+                                           ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport,
+                                           const char *projectedProperty) {
+        ImageSequenceFactory factory;
+        const auto sessionCount = std::make_shared<int>(0);
+        const auto metadataRequestCount = std::make_shared<int>(0);
+        const auto frameRequestCount = std::make_shared<int>(0);
+        const auto lastRequestedFrame = std::make_shared<int>(-1);
+        const auto closeCount = std::make_shared<int>(0);
+        auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+            metadataRequestCount,
+            frameRequestCount,
+            lastRequestedFrame,
+            closeCount);
+        CountingProviderAdapter adapter(sessionFactory,
+            {},
+            timedPlaybackSupport,
+            frameSeekSupport,
+            positionSeekSupport);
+        QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+        QVERIFY(result->sequence());
 
-    ImageViewport item;
-    item.setSequence(result->sequence());
-    const QMetaObject *metaObject = item.metaObject();
+        ImageViewport item;
+        item.setSequence(result->sequence());
+        const QMetaObject *metaObject = item.metaObject();
 
-    QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
-        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
-    drainQueuedProviderResults();
+        QVERIFY(sessionFactory->lastSession());
+        emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(), metadata);
+        drainQueuedProviderResults();
 
-    QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(*closeCount, 1);
-    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider metadata")));
-    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        QCOMPARE(*frameRequestCount, 0);
+        QCOMPARE(*closeCount, 1);
+        QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+        QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+        QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider metadata")));
+        QCOMPARE(item.property(projectedProperty).toInt(), enumValue(metaObject, "TriState", "False"));
+    };
+
+    verifyRejectedMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}),
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        "timedPlaybackSupport");
+    verifyRejectedMetadata(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        "frameSeekSupport");
+    verifyRejectedMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        "positionSeekSupport");
 }
 
 void ImageViewportTest::providerDeclaredTrueCapabilityContradictionRejectsMetadata()
