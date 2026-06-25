@@ -346,8 +346,38 @@ bool ImageSequenceProviderRequestToken::isValid() const
     return m_id != 0;
 }
 
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF &logicalSize)
+{
+    ImageSequenceProviderMetadata metadata;
+    metadata.m_timingModel = TimingModel::Still;
+    metadata.m_logicalSize = logicalSize;
+    return metadata;
+}
+
+bool ImageSequenceProviderMetadata::isValid() const
+{
+    return isStill()
+        && m_logicalSize.isValid()
+        && m_logicalSize.width() > 0.0
+        && m_logicalSize.height() > 0.0;
+}
+
+bool ImageSequenceProviderMetadata::isStill() const
+{
+    return m_timingModel == TimingModel::Still;
+}
+
+QSizeF ImageSequenceProviderMetadata::logicalSize() const
+{
+    return m_logicalSize;
+}
+
 ImageSequenceProviderSession::ImageSequenceProviderSession(QObject *parent)
     : QObject(parent)
+{
+}
+
+void ImageSequenceProviderSession::requestFrame(const ImageSequenceProviderRequestToken &, int)
 {
 }
 
@@ -584,6 +614,9 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
     m_stopPlaybackWhenRequestReady = false;
+    m_providerMetadataReady = false;
+    m_providerLogicalSize = {};
+    m_activeProviderMetadataToken = {};
 
     if (hasProviderSequence()) {
         m_currentFrame = -1;
@@ -691,6 +724,9 @@ int ImageViewport::requestedPosition() const
 
 int ImageViewport::frameCount() const
 {
+    if (hasProviderSequence() && m_providerMetadataReady) {
+        return 1;
+    }
     if (hasDisplayableSequence()) {
         return m_sequence->frameCount();
     }
@@ -709,6 +745,12 @@ int ImageViewport::totalDuration() const
 
 QVariantMap ImageViewport::frameSeekBounds() const
 {
+    if (hasProviderSequence() && m_providerMetadataReady) {
+        return {
+            {QStringLiteral("minimum"), 0},
+            {QStringLiteral("maximum"), 0},
+        };
+    }
     if (hasStillSequence() || hasTimedSequence()) {
         return {
             {QStringLiteral("minimum"), 0},
@@ -733,6 +775,9 @@ QVariantMap ImageViewport::positionSeekBounds() const
 
 ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 {
+    if (hasProviderSequence() && m_providerMetadataReady) {
+        return TriState::False;
+    }
     if (hasTimedSequence()) {
         return TriState::True;
     }
@@ -745,6 +790,9 @@ ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 
 ImageViewport::TriState ImageViewport::frameSeekSupport() const
 {
+    if (hasProviderSequence() && m_providerMetadataReady) {
+        return TriState::True;
+    }
     if (hasStillSequence() || hasTimedSequence()) {
         return TriState::True;
     }
@@ -754,6 +802,9 @@ ImageViewport::TriState ImageViewport::frameSeekSupport() const
 
 ImageViewport::TriState ImageViewport::positionSeekSupport() const
 {
+    if (hasProviderSequence() && m_providerMetadataReady) {
+        return TriState::False;
+    }
     if (hasTimedSequence()) {
         return TriState::True;
     }
@@ -1022,6 +1073,9 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayStatus = DisplayStatus::Empty;
     m_playbackPhase = PlaybackPhase::Stopped;
     m_stopPlaybackWhenRequestReady = false;
+    m_providerMetadataReady = false;
+    m_providerLogicalSize = {};
+    m_activeProviderMetadataToken = {};
     m_errorString.clear();
     m_warningString.clear();
     clearCommandDiagnosticForAcceptedCommand();
@@ -1548,7 +1602,13 @@ bool ImageViewport::openProviderSession()
         return false;
     }
 
-    m_providerSession->requestMetadata(nextProviderRequestToken());
+    connect(m_providerSession,
+        &ImageSequenceProviderSession::metadataReady,
+        this,
+        &ImageViewport::handleProviderMetadataReady);
+
+    m_activeProviderMetadataToken = nextProviderRequestToken();
+    m_providerSession->requestMetadata(m_activeProviderMetadataToken);
     return true;
 }
 
@@ -1556,6 +1616,52 @@ ImageSequenceProviderRequestToken ImageViewport::nextProviderRequestToken()
 {
     ++m_nextProviderRequestToken;
     return ImageSequenceProviderRequestToken(m_nextProviderRequestToken);
+}
+
+void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata)
+{
+    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+        return;
+    }
+
+    if (!validateProviderStillMetadata(metadata)) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider metadata is invalid");
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        closeProviderSession();
+        return;
+    }
+
+    m_providerMetadataReady = true;
+    m_providerLogicalSize = metadata.logicalSize();
+    m_currentFrame = 0;
+    m_requestedPosition = -1;
+    m_playbackPosition = -1;
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::ProviderWaiting;
+    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+
+    ImageSequenceProviderRequestToken frameToken = nextProviderRequestToken();
+    m_providerSession->requestFrame(frameToken, 0);
+    incrementRequestRevision();
+    emit requestStateChanged();
+}
+
+bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
+{
+    if (!metadata.isStill() || !metadata.isValid()) {
+        return false;
+    }
+
+    const QSizeF size = metadata.logicalSize();
+    const qint64 width = static_cast<qint64>(size.width());
+    const qint64 height = static_cast<qint64>(size.height());
+    return width <= ImageSequenceLimits::maximumLogicalWidth()
+        && height <= ImageSequenceLimits::maximumLogicalHeight()
+        && width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
 }
 
 void ImageViewport::publishAcceptedTargetState()

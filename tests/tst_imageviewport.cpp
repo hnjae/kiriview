@@ -41,6 +41,7 @@ private slots:
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerSessionClosesWhenViewportIsDestroyed();
+    void providerStillMetadataSelectsInitialFrameRequest();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -67,9 +68,15 @@ int enumValue(const QMetaObject *metaObject, const char *enumName, const char *k
 class CountingProviderSession final : public ImageSequenceProviderSession
 {
 public:
-    explicit CountingProviderSession(const std::shared_ptr<int> &metadataRequestCount, const std::shared_ptr<int> &closeCount, QObject *parent = nullptr)
+    explicit CountingProviderSession(const std::shared_ptr<int> &metadataRequestCount,
+        const std::shared_ptr<int> &frameRequestCount,
+        const std::shared_ptr<int> &lastRequestedFrame,
+        const std::shared_ptr<int> &closeCount,
+        QObject *parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_lastRequestedFrame(lastRequestedFrame)
         , m_closeCount(closeCount)
     {
     }
@@ -78,6 +85,13 @@ public:
     {
         m_lastMetadataToken = token;
         ++*m_metadataRequestCount;
+    }
+
+    void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+    {
+        m_lastFrameToken = token;
+        *m_lastRequestedFrame = frame;
+        ++*m_frameRequestCount;
     }
 
     void close() override
@@ -92,8 +106,11 @@ public:
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_lastRequestedFrame;
     std::shared_ptr<int> m_closeCount;
     ImageSequenceProviderRequestToken m_lastMetadataToken;
+    ImageSequenceProviderRequestToken m_lastFrameToken;
 };
 
 class CountingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
@@ -101,9 +118,13 @@ class CountingProviderSessionFactory final : public ImageSequenceProviderSession
 public:
     explicit CountingProviderSessionFactory(const std::shared_ptr<int> &sessionCount,
         const std::shared_ptr<int> &metadataRequestCount,
+        const std::shared_ptr<int> &frameRequestCount,
+        const std::shared_ptr<int> &lastRequestedFrame,
         const std::shared_ptr<int> &closeCount)
         : m_sessionCount(sessionCount)
         , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_lastRequestedFrame(lastRequestedFrame)
         , m_closeCount(closeCount)
     {
     }
@@ -111,13 +132,27 @@ public:
     ImageSequenceProviderSession *createSession(QObject *parent) override
     {
         ++*m_sessionCount;
-        return new CountingProviderSession(m_metadataRequestCount, m_closeCount, parent);
+        CountingProviderSession *session = new CountingProviderSession(m_metadataRequestCount,
+            m_frameRequestCount,
+            m_lastRequestedFrame,
+            m_closeCount,
+            parent);
+        m_lastSession = session;
+        return session;
+    }
+
+    CountingProviderSession *lastSession() const
+    {
+        return m_lastSession;
     }
 
 private:
     std::shared_ptr<int> m_sessionCount;
     std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_lastRequestedFrame;
     std::shared_ptr<int> m_closeCount;
+    QPointer<CountingProviderSession> m_lastSession;
 };
 
 class CountingProviderAdapter final : public ImageSequenceProviderAdapter
@@ -960,8 +995,14 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
     const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
     const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount, closeCount);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
 
     QScopedPointer<ImageSequenceFactoryResult> result;
     {
@@ -981,6 +1022,8 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*lastRequestedFrame, -1);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -999,8 +1042,14 @@ void ImageViewportTest::providerSessionClosesWhenViewportIsDestroyed()
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
     const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
     const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount, closeCount);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -1014,6 +1063,52 @@ void ImageViewportTest::providerSessionClosesWhenViewportIsDestroyed()
     }
 
     QCOMPARE(*closeCount, 1);
+}
+
+void ImageViewportTest::providerStillMetadataSelectsInitialFrameRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    QCOMPARE(*frameRequestCount, 0);
+
+    const ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(), metadata);
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("frameCount").toInt(), 1);
+    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

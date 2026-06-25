@@ -145,6 +145,26 @@ private:
     quint64 m_id = 0;
 };
 
+class ImageSequenceProviderMetadata
+{
+public:
+    enum class TimingModel {
+        Invalid,
+        Still,
+    };
+
+    ImageSequenceProviderMetadata() = default;
+    static ImageSequenceProviderMetadata still(const QSizeF &logicalSize);
+
+    bool isValid() const;
+    bool isStill() const;
+    QSizeF logicalSize() const;
+
+private:
+    TimingModel m_timingModel = TimingModel::Invalid;
+    QSizeF m_logicalSize;
+};
+
 class ImageSequenceProviderSession : public QObject
 {
     Q_OBJECT
@@ -154,7 +174,11 @@ public:
     ~ImageSequenceProviderSession() override = default;
 
     virtual void requestMetadata(const ImageSequenceProviderRequestToken &token) = 0;
+    virtual void requestFrame(const ImageSequenceProviderRequestToken &token, int frame);
     virtual void close();
+
+signals:
+    void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
 };
 
 class ImageSequenceProviderSessionFactory
@@ -497,6 +521,8 @@ private:
     void closeProviderSession();
     bool openProviderSession();
     ImageSequenceProviderRequestToken nextProviderRequestToken();
+    void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
+    bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
     void publishAcceptedTargetState();
     void publishSequenceReadyState();
     void publishRenderWaitingState();
@@ -533,4 +559,10 @@ private:
     QString m_warningString;
     QPointer<ImageSequenceProviderSession> m_providerSession;
     quint64 m_nextProviderRequestToken = 0;
+    ImageSequenceProviderRequestToken m_activeProviderMetadataToken;
+    bool m_providerMetadataReady = false;
+    QSizeF m_providerLogicalSize;
 };
+
+Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
+Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
