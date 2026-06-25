@@ -23,6 +23,22 @@ if(NOT install_result EQUAL 0)
     message(FATAL_ERROR "ImageViewport install failed:\n${install_output}\n${install_error}")
 endif()
 
+file(GLOB qml_module_dirs
+    "${prefix}/qml/ImageViewport"
+    "${prefix}/lib/qml/ImageViewport"
+    "${prefix}/lib64/qml/ImageViewport"
+)
+list(LENGTH qml_module_dirs qml_module_dir_count)
+if(qml_module_dir_count EQUAL 0)
+    message(FATAL_ERROR "Installed ImageViewport package did not include a QML module directory")
+endif()
+list(GET qml_module_dirs 0 qml_module_dir)
+foreach(required_qml_file IN ITEMS qmldir ImageViewport.qmltypes libImageViewportplugin.a)
+    if(NOT EXISTS "${qml_module_dir}/${required_qml_file}")
+        message(FATAL_ERROR "Installed ImageViewport QML module is missing ${required_qml_file}")
+    endif()
+endforeach()
+
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
         -S "${IMAGEVIEWPORT_CONSUMER_SOURCE_DIR}"

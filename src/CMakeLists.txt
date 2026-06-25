@@ -75,6 +75,17 @@ install(FILES imageviewport.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport
 )
 
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/qmldir
+    ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/ImageViewport.qmltypes
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/qml/ImageViewport
+)
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/${CMAKE_STATIC_LIBRARY_PREFIX}ImageViewportplugin${CMAKE_STATIC_LIBRARY_SUFFIX}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/qml/ImageViewport
+)
+
 configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/ImageViewportConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/ImageViewportConfig.cmake
