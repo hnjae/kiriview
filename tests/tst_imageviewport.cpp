@@ -3482,30 +3482,44 @@ void ImageViewportTest::providerFactoryRejectsContradictoryConstructionFacts()
 
 void ImageViewportTest::providerFactoryRejectsPublishedKnownMetadataLimits()
 {
-    ImageSequenceFactory factory;
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount,
-        frameRequestCount,
-        lastRequestedFrame,
-        closeCount);
-    CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
-            {ImageSequenceLimits::maximumFrameDuration() + 1}));
+    auto verifyRejectedKnownMetadata = [](const ImageSequenceProviderMetadata &metadata, const QString &expectedDiagnostic) {
+        ImageSequenceFactory factory;
+        const auto sessionCount = std::make_shared<int>(0);
+        const auto metadataRequestCount = std::make_shared<int>(0);
+        const auto frameRequestCount = std::make_shared<int>(0);
+        const auto lastRequestedFrame = std::make_shared<int>(-1);
+        const auto closeCount = std::make_shared<int>(0);
+        auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+            metadataRequestCount,
+            frameRequestCount,
+            lastRequestedFrame,
+            closeCount);
+        CountingProviderAdapter adapter(sessionFactory, metadata);
 
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+        QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
 
-    QVERIFY(result);
-    QCOMPARE(result->sequence(), nullptr);
-    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
-    QVERIFY(result->errorString().contains(QStringLiteral("maximumFrameDuration")));
-    QCOMPARE(*sessionCount, 0);
-    QCOMPARE(*metadataRequestCount, 0);
-    QCOMPARE(*frameRequestCount, 0);
+        QVERIFY(result);
+        QCOMPARE(result->sequence(), nullptr);
+        QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+        QVERIFY(result->errorString().contains(expectedDiagnostic));
+        QCOMPARE(*sessionCount, 0);
+        QCOMPARE(*metadataRequestCount, 0);
+        QCOMPARE(*frameRequestCount, 0);
+    };
+
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(ImageSequenceLimits::maximumLogicalWidth() + 1, 8.0)),
+        QStringLiteral("maximumLogicalWidth"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(16.0, ImageSequenceLimits::maximumLogicalHeight() + 1)),
+        QStringLiteral("maximumLogicalHeight"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
+                                    QVector<int>(ImageSequenceLimits::maximumTimedListFrameCount() + 1, 1)),
+        QStringLiteral("maximumTimedListFrameCount"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
+                                    {ImageSequenceLimits::maximumFrameDuration() + 1}),
+        QStringLiteral("maximumFrameDuration"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0),
+                                    {ImageSequenceLimits::maximumTotalSequenceDuration(), 1}),
+        QStringLiteral("maximumTotalSequenceDuration"));
 }
 
 void ImageViewportTest::providerSessionEntryPointsUseSessionAffinity()
