@@ -32,7 +32,7 @@ class ImageViewportTest : public QObject
 
 private slots:
     void defaultConstructsAsQuickItem();
-    void doesNotExposeSourceProperty();
+    void doesNotExposeOutOfScopePublicState();
     void unsupportedSequencePropertyWritesPreserveState();
     void sequenceAssignmentPreservesCommandDiagnostic();
     void qmlUnsupportedSequenceAssignmentsPreserveState();
@@ -945,11 +945,28 @@ void ImageViewportTest::defaultConstructsAsQuickItem()
     QVERIFY(item.flags().testFlag(QQuickItem::ItemHasContents));
 }
 
-void ImageViewportTest::doesNotExposeSourceProperty()
+void ImageViewportTest::doesNotExposeOutOfScopePublicState()
 {
     ImageViewport item;
+    const QMetaObject *metaObject = item.metaObject();
 
-    QCOMPARE(item.metaObject()->indexOfProperty("source"), -1);
+    const QList<QByteArray> absentProperties = {
+        "source",
+        "url",
+        "sourceUrl",
+        "file",
+        "filePath",
+        "path",
+        "progress",
+        "providerProgress",
+        "acceptedSequence",
+        "displayedSequence",
+        "loopProgress",
+    };
+
+    for (const QByteArray &property : absentProperties) {
+        QVERIFY2(metaObject->indexOfProperty(property.constData()) < 0, property.constData());
+    }
 }
 
 void ImageViewportTest::unsupportedSequencePropertyWritesPreserveState()
