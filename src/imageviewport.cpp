@@ -3091,6 +3091,7 @@ bool ImageViewport::validateProviderFrame(ImageFrame *frame, const ImageSequence
         || !frame->isValid()
         || !m_providerMetadataReady
         || frame->logicalSize() != m_providerLogicalSize
+        || frame->payloadByteSize() <= 0
         || frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()
         || !metadata.isValid()) {
         return false;
