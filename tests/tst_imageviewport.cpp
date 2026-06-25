@@ -66,6 +66,7 @@ private slots:
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
     void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
+    void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
     void timedFrameListPlaybackWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay();
@@ -2085,6 +2086,65 @@ void ImageViewportTest::timedFrameListPlaybackCommandsUpdatePhase()
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTest::timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    const int requestStatus = item.property("requestStatus").toInt();
+    const int requestReason = item.property("requestReason").toInt();
+    const int displayStatus = item.property("displayStatus").toInt();
+    const int playbackPhase = item.property("playbackPhase").toInt();
+    const int requestedFrame = item.property("requestedFrame").toInt();
+    const int displayedFrame = item.property("displayedFrame").toInt();
+    const int requestedPosition = item.property("requestedPosition").toInt();
+    const int displayedPosition = item.property("displayedPosition").toInt();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint commandRevision = item.property("commandRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
+    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    item.setBackgroundColor(QColor(20, 40, 60, 255));
+
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QVERIFY(item.property("displayRevision").toUInt() > displayRevision);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(item.property("requestStatus").toInt(), requestStatus);
+    QCOMPARE(item.property("requestReason").toInt(), requestReason);
+    QCOMPARE(item.property("displayStatus").toInt(), displayStatus);
+    QCOMPARE(item.property("playbackPhase").toInt(), playbackPhase);
+    QCOMPARE(item.property("requestedFrame").toInt(), requestedFrame);
+    QCOMPARE(item.property("displayedFrame").toInt(), displayedFrame);
+    QCOMPARE(item.property("requestedPosition").toInt(), requestedPosition);
+    QCOMPARE(item.property("displayedPosition").toInt(), displayedPosition);
+    QCOMPARE(requestRevisionSpy.count(), 0);
+    QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::timedFrameListPlaybackAdvancesDeterministically()
