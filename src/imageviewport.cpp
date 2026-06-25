@@ -1387,6 +1387,10 @@ ImageViewport::CommandOutcome ImageViewport::play()
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
     }
+    if (hasGenerationTerminalProviderFailure()) {
+        setCommandDiagnostic(CommandReason::UnsupportedRequest);
+        return CommandOutcome::Unsupported;
+    }
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
         clearCommandDiagnosticForAcceptedCommand();
@@ -1478,11 +1482,19 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
     }
+    if (frame < 0) {
+        setCommandDiagnostic(CommandReason::InvalidRequest);
+        return CommandOutcome::Invalid;
+    }
+    if (hasGenerationTerminalProviderFailure()) {
+        setCommandDiagnostic(CommandReason::UnsupportedRequest);
+        return CommandOutcome::Unsupported;
+    }
 
     if (hasDisplayableSequence()) {
         if (hasProviderSequence() && m_providerMetadataReady) {
             const int maximumFrame = m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0;
-            if (frame < 0 || frame > maximumFrame) {
+            if (frame > maximumFrame) {
                 setCommandDiagnostic(CommandReason::InvalidRequest);
                 return CommandOutcome::Invalid;
             }
@@ -1516,10 +1528,6 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         }
 
         if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
-            if (frame < 0) {
-                setCommandDiagnostic(CommandReason::InvalidRequest);
-                return CommandOutcome::Invalid;
-            }
             if (m_sequence->m_providerFrameSeekCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
                 setCommandDiagnostic(CommandReason::UnsupportedRequest);
                 return CommandOutcome::Unsupported;
@@ -1570,6 +1578,10 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
     if (milliseconds < 0) {
         setCommandDiagnostic(CommandReason::InvalidRequest);
         return CommandOutcome::Invalid;
+    }
+    if (hasGenerationTerminalProviderFailure()) {
+        setCommandDiagnostic(CommandReason::UnsupportedRequest);
+        return CommandOutcome::Unsupported;
     }
 
     if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
@@ -2024,6 +2036,13 @@ bool ImageViewport::hasTimedSequence() const
 bool ImageViewport::hasProviderSequence() const
 {
     return m_sequence && m_sequence->isProvider();
+}
+
+bool ImageViewport::hasGenerationTerminalProviderFailure() const
+{
+    return hasProviderSequence()
+        && !m_providerSession
+        && (m_requestStatus == RequestStatus::Unsupported || m_requestStatus == RequestStatus::Error);
 }
 
 QRectF ImageViewport::currentContentRect() const

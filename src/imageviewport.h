@@ -586,6 +586,7 @@ private:
     bool hasStillSequence() const;
     bool hasTimedSequence() const;
     bool hasProviderSequence() const;
+    bool hasGenerationTerminalProviderFailure() const;
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
     QSizeF currentImageSize() const;
