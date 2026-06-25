@@ -5950,6 +5950,9 @@ void ImageViewportTest::providerStillMetadataSelectsInitialFrameRequest()
 
     QVERIFY(sessionFactory->lastSession());
     QCOMPARE(*frameRequestCount, 0);
+    const uint metadataWaitingRequestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     const ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
     emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(), metadata);
@@ -5972,6 +5975,9 @@ void ImageViewportTest::providerStillMetadataSelectsInitialFrameRequest()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QVERIFY(item.property("requestRevision").toUInt() > metadataWaitingRequestRevision);
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
 void ImageViewportTest::providerTimedMetadataSelectsInitialFrameRequest()
@@ -5996,6 +6002,10 @@ void ImageViewportTest::providerTimedMetadataSelectsInitialFrameRequest()
     const QMetaObject *metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
+    const uint metadataWaitingRequestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
+
     const ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250});
     emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(), metadata);
     drainQueuedProviderResults();
@@ -6017,6 +6027,9 @@ void ImageViewportTest::providerTimedMetadataSelectsInitialFrameRequest()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QVERIFY(item.property("requestRevision").toUInt() > metadataWaitingRequestRevision);
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
 void ImageViewportTest::providerFixedDurationMetadataSelectsInitialFrameRequest()
