@@ -2549,6 +2549,16 @@ void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 0U);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     const uint afterAcceptedSeekRequestRevision = item.property("requestRevision").toUInt();
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Invalid);
