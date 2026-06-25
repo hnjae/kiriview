@@ -11,7 +11,8 @@ QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
         && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::RenderWaiting
         && m_renderCommitPending
-        && !m_pendingDisplayImage.isNull();
+        && !m_pendingDisplayImage.isNull()
+        && !itemBounds().isEmpty();
     const QImage image = hasPendingProviderCommit ? m_pendingDisplayImage : (hasReadyDisplay() ? m_displayedImage : QImage());
 
     const QRectF oldContentRect = contentRect();
