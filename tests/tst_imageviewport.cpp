@@ -4579,12 +4579,38 @@ void ImageViewportTest::providerTimedPlaybackAdvancesDeterministically()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
+    item.advancePlaybackForTest(1000);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
     QVERIFY(commitPaintNode(item));
 
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    item.advancePlaybackForTest(249);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    item.advancePlaybackForTest(1);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
 }
