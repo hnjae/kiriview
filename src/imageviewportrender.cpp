@@ -77,6 +77,7 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
         return;
     }
 
+    bool displayRevisionChanged = false;
     if (hasDisplayableSequence()
         && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::RenderWaiting
@@ -93,9 +94,15 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
         }
         incrementRequestRevision();
         incrementDisplayRevision();
+        displayRevisionChanged = true;
         emit q->requestStateChanged();
         emit q->displayStateChanged();
     } else if (hasReadyDisplay()) {
+        incrementDisplayRevision();
+        displayRevisionChanged = true;
+    }
+
+    if (!displayRevisionChanged) {
         incrementDisplayRevision();
     }
 

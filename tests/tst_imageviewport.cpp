@@ -32,6 +32,7 @@ private slots:
     void qmlUnsupportedSequenceAssignmentsPreserveState();
     void exposesDocumentedQmlSurface();
     void hasDocumentedDefaultState();
+    void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
     void imageSequenceIsNotQmlCreatable();
     void imageFrameIsNotQmlCreatable();
@@ -1021,6 +1022,29 @@ void ImageViewportTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("backgroundMode").toInt(), enumValue(metaObject, "BackgroundMode", "Transparent"));
     QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
     QCOMPARE(item.property("looping").toBool(), false);
+}
+
+void ImageViewportTest::emptyGeometryChangeIncrementsDisplayRevision()
+{
+    ImageViewport item;
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    item.setSize(QSizeF(100.0, 50.0));
+
+    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QCOMPARE(displayRevisionSpy.count(), 1);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(geometrySpy.count(), 0);
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+
+    item.setSize(QSizeF(100.0, 50.0));
+
+    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QCOMPARE(displayRevisionSpy.count(), 1);
 }
 
 void ImageViewportTest::qmlImportsDocumentedSurface()
