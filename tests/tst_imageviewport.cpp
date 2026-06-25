@@ -104,6 +104,7 @@ private slots:
     void providerTimedPlaybackAdvancesDeterministically();
     void providerTimedPlaybackFrameReadyWaitsForRenderCommit();
     void providerTimedPlaybackEndOfSequenceRequestsFinalFrame();
+    void providerTimedPlaybackEndOfSequenceDoesNotPromoteRetainedPreviousGeneration();
     void providerTimedPlaybackEndOfSequenceFinalUsesPlaybackEntryPoint();
     void providerMetadataEndOfSequenceReportsProtocolViolation();
     void providerFrameEndOfSequenceReportsProtocolViolation();
@@ -3541,6 +3542,83 @@ void ImageViewportTest::providerTimedPlaybackEndOfSequenceRequestsFinalFrame()
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::providerTimedPlaybackEndOfSequenceDoesNotPromoteRetainedPreviousGeneration()
+{
+    ImageSequenceFactory factory;
+
+    QImage previousImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    previousImage.fill(Qt::transparent);
+    ImageFrame previousFrame(previousImage);
+    TimedImageFrameList previousList;
+    QVERIFY(previousList.appendFrame(&previousFrame, 100));
+    QVERIFY(previousList.appendFrame(&previousFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> previousResult(factory.fromTimedFrameList(&previousList));
+    QVERIFY(previousResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        playbackRequestCount,
+        lastPlaybackFrame,
+        lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    PaintProbeViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(previousResult->sequence());
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject *metaObject = item.metaObject();
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+
+    item.setSequence(providerResult->sequence());
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*playbackRequestCount, 1);
+    QCOMPARE(*lastPlaybackFrame, 0);
+    QCOMPARE(*lastPlaybackPosition, 0);
+    const ImageSequenceProviderRequestToken playbackToken = sessionFactory->lastSession()->lastFrameToken();
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+
+    emit sessionFactory->lastSession()->endOfSequence(playbackToken);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*playbackRequestCount, 2);
+    QCOMPARE(*lastPlaybackFrame, 1);
+    QCOMPARE(*lastPlaybackPosition, 100);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
