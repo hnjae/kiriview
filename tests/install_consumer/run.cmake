@@ -50,3 +50,13 @@ execute_process(
 if(NOT build_result EQUAL 0)
     message(FATAL_ERROR "Install consumer build failed:\n${build_output}\n${build_error}")
 endif()
+
+execute_process(
+    COMMAND "${consumer_build_dir}/imageviewport_install_consumer"
+    RESULT_VARIABLE run_result
+    OUTPUT_VARIABLE run_output
+    ERROR_VARIABLE run_error
+)
+if(NOT run_result EQUAL 0)
+    message(FATAL_ERROR "Install consumer run failed:\n${run_output}\n${run_error}")
+endif()

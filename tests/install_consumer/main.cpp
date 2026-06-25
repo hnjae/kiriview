@@ -9,9 +9,21 @@ class ConsumerSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(const ImageSequenceProviderRequestToken &) override
+    void requestMetadata(const ImageSequenceProviderRequestToken &token) override
     {
+        emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
     }
+
+    void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+    {
+        QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        m_frame = std::make_unique<ImageFrame>(image);
+        emit frameReady(token, m_frame.get(), ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
+    }
+
+private:
+    std::unique_ptr<ImageFrame> m_frame;
 };
 
 class ConsumerSessionFactory final : public ImageSequenceProviderSessionFactory
@@ -30,12 +42,49 @@ public:
     {
         return std::make_shared<ConsumerSessionFactory>();
     }
+
+    ImageSequenceProviderMetadata knownMetadata() const override
+    {
+        return ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 2, 100);
+    }
+
+    CapabilitySupport timedPlaybackCapability() const override
+    {
+        return CapabilitySupport::KnownTrue;
+    }
+
+    CapabilitySupport frameSeekCapability() const override
+    {
+        return CapabilitySupport::KnownTrue;
+    }
+
+    CapabilitySupport positionSeekCapability() const override
+    {
+        return CapabilitySupport::KnownTrue;
+    }
 };
 
 int main()
 {
     [[maybe_unused]] const auto knownTrue = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
     [[maybe_unused]] const auto knownFalse = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
+    ImageSequenceProviderRequestToken token(1);
+    if (!token.isValid() || token.id() != 1 || token != ImageSequenceProviderRequestToken(1)) {
+        return 1;
+    }
+
+    const ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(QSizeF(2.0, 2.0), {100, 200});
+    if (!metadata.isSpecified() || !metadata.isValid() || metadata.isStill() || !metadata.isTimedFrameList()) {
+        return 1;
+    }
+    if (metadata.logicalSize() != QSizeF(2.0, 2.0) || metadata.frameDurations().size() != 2) {
+        return 1;
+    }
+
+    const ImageSequenceProviderFrameMetadata frameMetadata = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 200);
+    if (!frameMetadata.isValid() || !frameMetadata.isTimedFrame() || frameMetadata.frame() != 1 || frameMetadata.frameStartPosition() != 100) {
+        return 1;
+    }
 
     ImageSequenceFactory factory;
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
