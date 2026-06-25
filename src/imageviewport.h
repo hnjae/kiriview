@@ -298,13 +298,13 @@ public:
     };
     Q_ENUM(TriState)
 
-    enum class RequestOutcome {
+    enum class CommandOutcome {
         Accepted,
         Invalid,
         Unsupported,
         IgnoredNoRequest,
     };
-    Q_ENUM(RequestOutcome)
+    Q_ENUM(CommandOutcome)
 
     enum class FillMode {
         Contain,
@@ -390,13 +390,13 @@ public:
     bool looping() const;
     void setLooping(bool looping);
 
-    Q_INVOKABLE RequestOutcome clear();
-    Q_INVOKABLE RequestOutcome play();
-    Q_INVOKABLE RequestOutcome pause();
-    Q_INVOKABLE RequestOutcome stop();
-    Q_INVOKABLE RequestOutcome seek(int frame);
-    Q_INVOKABLE RequestOutcome seekToPosition(int milliseconds);
-    Q_INVOKABLE RequestOutcome resetView();
+    Q_INVOKABLE CommandOutcome clear();
+    Q_INVOKABLE CommandOutcome play();
+    Q_INVOKABLE CommandOutcome pause();
+    Q_INVOKABLE CommandOutcome stop();
+    Q_INVOKABLE CommandOutcome seek(int frame);
+    Q_INVOKABLE CommandOutcome seekToPosition(int milliseconds);
+    Q_INVOKABLE CommandOutcome resetView();
     Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
     Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
@@ -432,7 +432,7 @@ private:
     void setPlaybackPhase(PlaybackPhase phase);
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
-    RequestOutcome ignoredNoRequest();
+    CommandOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;
     bool hasDisplayableSequence() const;

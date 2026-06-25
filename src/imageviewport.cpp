@@ -935,7 +935,7 @@ void ImageViewport::setLooping(bool looping)
     emit loopingChanged();
 }
 
-ImageViewport::RequestOutcome ImageViewport::clear()
+ImageViewport::CommandOutcome ImageViewport::clear()
 {
     m_sequence = nullptr;
     m_currentFrame = -1;
@@ -961,10 +961,10 @@ ImageViewport::RequestOutcome ImageViewport::clear()
     emit playbackPhaseChanged();
     emit diagnosticsChanged();
     update();
-    return RequestOutcome::Accepted;
+    return CommandOutcome::Accepted;
 }
 
-ImageViewport::RequestOutcome ImageViewport::play()
+ImageViewport::CommandOutcome ImageViewport::play()
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
@@ -975,14 +975,14 @@ ImageViewport::RequestOutcome ImageViewport::play()
         m_stopPlaybackWhenRequestReady = false;
         m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
-        return RequestOutcome::Accepted;
+        return CommandOutcome::Accepted;
     }
 
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
-    return RequestOutcome::Unsupported;
+    return CommandOutcome::Unsupported;
 }
 
-ImageViewport::RequestOutcome ImageViewport::pause()
+ImageViewport::CommandOutcome ImageViewport::pause()
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
@@ -992,10 +992,10 @@ ImageViewport::RequestOutcome ImageViewport::pause()
     if (m_playbackPhase == PlaybackPhase::Playing || m_playbackPhase == PlaybackPhase::Waiting) {
         setPlaybackPhase(PlaybackPhase::Paused);
     }
-    return RequestOutcome::Accepted;
+    return CommandOutcome::Accepted;
 }
 
-ImageViewport::RequestOutcome ImageViewport::stop()
+ImageViewport::CommandOutcome ImageViewport::stop()
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
@@ -1004,10 +1004,10 @@ ImageViewport::RequestOutcome ImageViewport::stop()
     clearCommandDiagnosticForAcceptedCommand();
     m_stopPlaybackWhenRequestReady = false;
     setPlaybackPhase(PlaybackPhase::Stopped);
-    return RequestOutcome::Accepted;
+    return CommandOutcome::Accepted;
 }
 
-ImageViewport::RequestOutcome ImageViewport::seek(int frame)
+ImageViewport::CommandOutcome ImageViewport::seek(int frame)
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
@@ -1016,7 +1016,7 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
     if (hasDisplayableSequence()) {
         if (frame < 0 || frame >= m_sequence->frameCount()) {
             setCommandDiagnostic(CommandReason::InvalidRequest);
-            return RequestOutcome::Invalid;
+            return CommandOutcome::Invalid;
         }
 
         clearCommandDiagnosticForAcceptedCommand();
@@ -1030,14 +1030,14 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
         emit displayStateChanged();
         emit geometryStateChanged();
         update();
-        return RequestOutcome::Accepted;
+        return CommandOutcome::Accepted;
     }
 
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
-    return RequestOutcome::Unsupported;
+    return CommandOutcome::Unsupported;
 }
 
-ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
+ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
@@ -1045,14 +1045,14 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
 
     if (milliseconds < 0) {
         setCommandDiagnostic(CommandReason::InvalidRequest);
-        return RequestOutcome::Invalid;
+        return CommandOutcome::Invalid;
     }
 
     if (hasTimedSequence()) {
         const int frame = m_sequence->frameIndexForPosition(milliseconds);
         if (frame < 0) {
             setCommandDiagnostic(CommandReason::InvalidRequest);
-            return RequestOutcome::Invalid;
+            return CommandOutcome::Invalid;
         }
 
         clearCommandDiagnosticForAcceptedCommand();
@@ -1066,14 +1066,14 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
         emit displayStateChanged();
         emit geometryStateChanged();
         update();
-        return RequestOutcome::Accepted;
+        return CommandOutcome::Accepted;
     }
 
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
-    return RequestOutcome::Unsupported;
+    return CommandOutcome::Unsupported;
 }
 
-ImageViewport::RequestOutcome ImageViewport::resetView()
+ImageViewport::CommandOutcome ImageViewport::resetView()
 {
     const bool changed = !qFuzzyCompare(m_zoom, 1.0) || m_pan != QPointF();
     m_zoom = 1.0;
@@ -1082,7 +1082,7 @@ ImageViewport::RequestOutcome ImageViewport::resetView()
         notifyPresentationChanged(true);
     }
     clearCommandDiagnosticForAcceptedCommand();
-    return RequestOutcome::Accepted;
+    return CommandOutcome::Accepted;
 }
 
 QVariantMap ImageViewport::itemToImage(double x, double y) const
@@ -1341,10 +1341,10 @@ void ImageViewport::clearCommandDiagnosticForAcceptedCommand()
     setCommandDiagnostic(CommandReason::NoCommand);
 }
 
-ImageViewport::RequestOutcome ImageViewport::ignoredNoRequest()
+ImageViewport::CommandOutcome ImageViewport::ignoredNoRequest()
 {
     setCommandDiagnostic(CommandReason::IgnoredNoRequest);
-    return RequestOutcome::IgnoredNoRequest;
+    return CommandOutcome::IgnoredNoRequest;
 }
 
 bool ImageViewport::hasActiveRequest() const
