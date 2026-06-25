@@ -115,8 +115,10 @@ inline ImageViewport::TriState capabilitySupportToTriState(ImageSequenceProvider
 {
     switch (support) {
     case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
+    case ImageSequenceProviderCapabilitySupport::KnownFalse:
         return ImageViewport::TriState::False;
     case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
+    case ImageSequenceProviderCapabilitySupport::KnownTrue:
         return ImageViewport::TriState::True;
     case ImageSequenceProviderCapabilitySupport::Unavailable:
         return ImageViewport::TriState::Unavailable;
@@ -129,14 +131,22 @@ inline bool providerCapabilityContradictsMetadata(ImageSequenceProviderCapabilit
 {
     switch (support) {
     case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
+    case ImageSequenceProviderCapabilitySupport::KnownFalse:
         return metadataCapability;
     case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
+    case ImageSequenceProviderCapabilitySupport::KnownTrue:
         return !metadataCapability;
     case ImageSequenceProviderCapabilitySupport::Unavailable:
         return false;
     }
 
     return false;
+}
+
+inline bool providerCapabilityKnownFalse(ImageSequenceProviderCapabilitySupport support)
+{
+    return support == ImageSequenceProviderCapabilitySupport::DeclaredFalse
+        || support == ImageSequenceProviderCapabilitySupport::KnownFalse;
 }
 
 inline bool isValidFillMode(ImageViewport::FillMode mode)

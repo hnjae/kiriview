@@ -23,6 +23,8 @@ enum class ImageSequenceProviderCapabilitySupport {
     Unavailable,
     DeclaredFalse,
     DeclaredTrue,
+    KnownFalse,
+    KnownTrue,
 };
 
 class ImageSequence : public QObject

@@ -90,7 +90,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     }
 
     if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
-        if (m_sequence->m_providerTimedPlaybackCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+        if (providerCapabilityKnownFalse(m_sequence->m_providerTimedPlaybackCapability)) {
             setCommandDiagnostic(CommandReason::UnsupportedRequest);
             return CommandOutcome::Unsupported;
         }
@@ -284,7 +284,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
         }
 
         if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
-            if (m_sequence->m_providerFrameSeekCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+            if (providerCapabilityKnownFalse(m_sequence->m_providerFrameSeekCapability)) {
                 setCommandDiagnostic(CommandReason::UnsupportedRequest);
                 return CommandOutcome::Unsupported;
             }
@@ -361,7 +361,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
     }
 
     if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
-        if (m_sequence->m_providerPositionSeekCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+        if (providerCapabilityKnownFalse(m_sequence->m_providerPositionSeekCapability)) {
             setCommandDiagnostic(CommandReason::UnsupportedRequest);
             return CommandOutcome::Unsupported;
         }
