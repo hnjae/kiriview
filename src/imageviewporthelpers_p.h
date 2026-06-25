@@ -214,4 +214,27 @@ inline QString redactDiagnosticDetails(QString diagnostic)
     return diagnostic;
 }
 
+inline QString plainTextDiagnostic(QString diagnostic)
+{
+    static const QRegularExpression markupPattern(QStringLiteral("<[^>]*>"));
+    diagnostic.replace(markupPattern, QStringLiteral(" "));
+
+    QString plain;
+    plain.reserve(diagnostic.size());
+    bool pendingSpace = false;
+    for (QChar character : diagnostic) {
+        const ushort codeUnit = character.unicode();
+        if (character.isSpace() || codeUnit < 0x20 || codeUnit == 0x7f) {
+            pendingSpace = true;
+            continue;
+        }
+        if (pendingSpace && !plain.isEmpty()) {
+            plain += QLatin1Char(' ');
+        }
+        plain += character;
+        pendingSpace = false;
+    }
+    return plain.trimmed();
+}
+
 }

@@ -137,7 +137,7 @@ int FramePreparation::totalDuration(const QVector<int> &frameDurations)
 
 QString FramePreparation::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
 {
-    const QString selected = redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic);
+    const QString selected = plainTextDiagnostic(redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic));
     const auto scalars = selected.toUcs4();
     const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
     if (scalars.size() <= maximumLength) {
