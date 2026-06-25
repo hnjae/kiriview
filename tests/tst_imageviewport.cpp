@@ -3644,6 +3644,29 @@ void ImageViewportTest::providerTimedPositionSeekRequestsResolvedFrame()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*frameRequestCount, 3);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
 }
 
 void ImageViewportTest::providerTimedPlaybackCommandsUpdatePhase()
