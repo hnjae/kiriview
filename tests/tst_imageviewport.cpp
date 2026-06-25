@@ -27,6 +27,8 @@ private slots:
     void stillImageSequenceAssignmentPublishesReadyState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
+    void stillImageAssignmentWaitsForPositiveGeometry();
+    void stillImageFactoryRejectsPublishedLimitViolations();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -483,6 +485,62 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(mirroredItem.value("valid").toBool(), true);
     QCOMPARE(mirroredItem.value("x").toDouble(), 42.001);
     QCOMPARE(mirroredItem.value("y").toDouble(), 46.001);
+}
+
+void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(0.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.itemToImage(0.0, 0.0).value("valid").toBool(), false);
+
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    item.setSize(QSizeF(0.0, 100.0));
+    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), false);
+}
+
+void ImageViewportTest::stillImageFactoryRejectsPublishedLimitViolations()
+{
+    ImageSequenceFactory factory;
+    QImage oversized(ImageSequenceLimits::maximumLogicalWidth() + 1,
+        1,
+        QImage::Format_ARGB32_Premultiplied);
+    oversized.fill(Qt::transparent);
+    ImageFrame frame(oversized);
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("maximumLogicalWidth")));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

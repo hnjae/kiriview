@@ -25,6 +25,27 @@ bool isFinitePoint(const QPointF &point)
     return std::isfinite(point.x()) && std::isfinite(point.y());
 }
 
+QString frameLimitViolation(const ImageFrame &frame)
+{
+    const QSizeF size = frame.logicalSize();
+    const qint64 width = static_cast<qint64>(size.width());
+    const qint64 height = static_cast<qint64>(size.height());
+    if (width > ImageSequenceLimits::maximumLogicalWidth()) {
+        return QStringLiteral("ImageFrame exceeds maximumLogicalWidth");
+    }
+    if (height > ImageSequenceLimits::maximumLogicalHeight()) {
+        return QStringLiteral("ImageFrame exceeds maximumLogicalHeight");
+    }
+    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+        return QStringLiteral("ImageFrame exceeds maximumPixelsPerFrame");
+    }
+    if (frame.payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+        return QStringLiteral("ImageFrame exceeds maximumPayloadBytesPerFrame");
+    }
+
+    return {};
+}
+
 }
 
 ImageSequence::ImageSequence(QObject *parent)
@@ -58,6 +79,7 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
 {
     if (!image.isNull() && image.width() > 0 && image.height() > 0) {
         m_logicalSize = QSizeF(image.width(), image.height());
+        m_payloadByteSize = image.sizeInBytes();
     }
 }
 
@@ -69,6 +91,11 @@ bool ImageFrame::isValid() const
 QSizeF ImageFrame::logicalSize() const
 {
     return m_logicalSize;
+}
+
+qsizetype ImageFrame::payloadByteSize() const
+{
+    return m_payloadByteSize;
 }
 
 TimedImageFrameList::TimedImageFrameList(QObject *parent)
@@ -142,6 +169,15 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("ImageFrame must have a positive logical size"),
+            {},
+            this);
+    }
+
+    const QString limitViolation = frameLimitViolation(*frame);
+    if (!limitViolation.isEmpty()) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            limitViolation,
             {},
             this);
     }

@@ -42,9 +42,11 @@ public:
 
     bool isValid() const;
     QSizeF logicalSize() const;
+    qsizetype payloadByteSize() const;
 
 private:
     QSizeF m_logicalSize;
+    qsizetype m_payloadByteSize = 0;
 };
 
 class TimedImageFrameList : public QObject
