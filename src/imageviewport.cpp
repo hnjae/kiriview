@@ -2795,7 +2795,18 @@ int ImageViewport::providerFrameIndexForPosition(int position) const
 QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
 {
     const QString selected = diagnostic.isEmpty() ? fallback : diagnostic;
-    return selected.left(ImageSequenceLimits::maximumDiagnosticStringLength());
+    const auto scalars = selected.toUcs4();
+    const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
+    if (scalars.size() <= maximumLength) {
+        return selected;
+    }
+    QString bounded;
+    bounded.reserve(selected.size());
+    for (int i = 0; i < maximumLength; ++i) {
+        const char32_t scalar = static_cast<char32_t>(scalars.at(i));
+        bounded += QString::fromUcs4(&scalar, 1);
+    }
+    return bounded;
 }
 
 void ImageViewport::publishAcceptedTargetState()

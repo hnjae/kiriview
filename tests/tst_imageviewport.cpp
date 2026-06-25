@@ -84,6 +84,7 @@ private slots:
     void providerTimedStopSupersedesPlaybackRequest();
     void providerTimedSeekWhilePlayingWaitsForFrame();
     void providerMetadataFailureReportsProviderFailure();
+    void providerDiagnosticsUseUnicodeScalarLimit();
     void providerMetadataFailureStopsPendingPlayback();
     void providerGenerationTerminalFailureRejectsDisplayCommands();
     void providerFrameFailureKeepsGenerationSeekable();
@@ -3221,6 +3222,49 @@ void ImageViewportTest::providerMetadataFailureReportsProviderFailure()
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata service unavailable")));
+}
+
+void ImageViewportTest::providerDiagnosticsUseUnicodeScalarLimit()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    const int limit = ImageSequenceLimits::maximumDiagnosticStringLength();
+    const char32_t codePoint[] = {0x1F642};
+    const QString scalar = QString::fromUcs4(codePoint, 1);
+    QString diagnostic;
+    QString expected;
+    diagnostic.reserve((limit + 1) * scalar.size());
+    expected.reserve(limit * scalar.size());
+    for (int i = 0; i < limit; ++i) {
+        diagnostic += scalar;
+        expected += scalar;
+    }
+    diagnostic += scalar;
+    diagnostic += QStringLiteral("tail");
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerFailed(sessionFactory->lastSession()->lastMetadataToken(),
+        diagnostic);
+
+    const QString errorString = item.property("errorString").toString();
+    QCOMPARE(errorString.toUcs4().size(), limit);
+    QCOMPARE(errorString, expected);
 }
 
 void ImageViewportTest::providerMetadataFailureStopsPendingPlayback()
