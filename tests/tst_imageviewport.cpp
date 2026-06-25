@@ -41,6 +41,7 @@ private slots:
     void hasDocumentedDefaultState();
     void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
+    void qmlReadyValuesExposeDocumentedFields();
     void qmlCommandsReturnDocumentedOutcomes();
     void qmlFactoryFailuresReturnDocumentedDiagnostics();
     void imageSequenceIsNotQmlCreatable();
@@ -1520,6 +1521,62 @@ ImageViewport {
     QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);
     QCOMPARE(object->property("unavailableValuesHaveDocumentedFields").toBool(), true);
     QCOMPARE(object->property("limitsAvailable").toBool(), true);
+}
+
+void ImageViewportTest::qmlReadyValuesExposeDocumentedFields()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+    QVERIFY(result->sequence());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    id: viewport
+    width: 100
+    height: 100
+
+    property ImageSequence suppliedSequence
+    property bool readyValuesHaveDocumentedFields: false
+
+    Component.onCompleted: {
+        sequence = suppliedSequence
+        readyValuesHaveDocumentedFields = displayedImageSize.width === 16
+            && displayedImageSize.height === 8
+            && contentRect.x === 0
+            && contentRect.y === 25
+            && contentRect.width === 100
+            && contentRect.height === 50
+            && visibleImageRect.x === 0
+            && visibleImageRect.y === 0
+            && visibleImageRect.width === 16
+            && visibleImageRect.height === 8
+            && frameSeekBounds.minimum === 0
+            && frameSeekBounds.maximum === 0
+            && positionSeekBounds.minimum === -1
+            && positionSeekBounds.maximum === -1
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject *>(result->sequence()));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("readyValuesHaveDocumentedFields").toBool(), true);
 }
 
 void ImageViewportTest::qmlCommandsReturnDocumentedOutcomes()
