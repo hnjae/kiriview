@@ -236,6 +236,69 @@ QtObject {
     return object->property("factorySurfaceAvailable").toBool();
 }
 
+bool canUseInstalledQmlTypedFactorySurface()
+{
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+Item {
+    property ImageFrame suppliedFrame
+    property bool typedFactorySurfaceAvailable: false
+
+    ImageViewport {
+        id: viewport
+        width: 40
+        height: 20
+    }
+
+    TimedImageFrameList {
+        id: list
+    }
+
+    Component.onCompleted: {
+        const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
+        const appendAccepted = list.appendFrame(suppliedFrame, 100)
+        const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
+        viewport.sequence = timedResult.sequence
+        typedFactorySurfaceAvailable = frameResult.sequence !== null
+            && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && appendAccepted === true
+            && list.count === 1
+            && timedResult.sequence !== null
+            && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && viewport.requestStatus === ImageViewport.RequestStatus.Ready
+            && viewport.displayStatus === ImageViewport.DisplayStatus.Ready
+            && viewport.frameCount === 1
+            && viewport.totalDuration === 100
+    }
+}
+)",
+                      QUrl());
+    if (!component.isReady()) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("suppliedFrame"), QVariant::fromValue<QObject *>(&frame));
+    const std::unique_ptr<QObject> object(component.createWithInitialProperties(initialProperties));
+    if (!object) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    return object->property("typedFactorySurfaceAvailable").toBool();
+}
+
 bool installedQmlSingletonTypesAreNotCreatable()
 {
     QQmlEngine engine;
@@ -513,6 +576,7 @@ int main(int argc, char **argv)
     return canCreateInstalledQmlViewport()
             && canReadInstalledQmlLimits()
             && canUseInstalledQmlFactorySurface()
+            && canUseInstalledQmlTypedFactorySurface()
             && installedQmlSingletonTypesAreNotCreatable()
             && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()

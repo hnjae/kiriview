@@ -55,6 +55,7 @@ private slots:
     void factoryRejectsNullTypedInputs();
     void timedFrameListNativeFactoryRejectsMismatchedCounts();
     void qmlTimedFrameListExposesBuilderState();
+    void qmlFactoryCreatesSequencesFromSuppliedTypedHelpers();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
     void factoryResultSequenceSurvivesFactoryDestruction();
@@ -1971,6 +1972,79 @@ Item {
     QCOMPARE(object->property("appendSetDiagnostic").toBool(), true);
     QCOMPARE(object->property("factoryRejectsEmptyList").toBool(), true);
     QCOMPARE(object->property("clearResetsDiagnostic").toBool(), true);
+}
+
+void ImageViewportTest::qmlFactoryCreatesSequencesFromSuppliedTypedHelpers()
+{
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+Item {
+    property ImageFrame suppliedFrame
+    property bool frameFactoryCreated: false
+    property bool timedListAcceptedFrame: false
+    property bool timedFactoryCreated: false
+    property bool viewportReady: false
+
+    ImageViewport {
+        id: viewport
+        width: 40
+        height: 20
+    }
+
+    TimedImageFrameList {
+        id: list
+    }
+
+    Component.onCompleted: {
+        const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
+        frameFactoryCreated = frameResult.sequence !== null
+            && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && frameResult.errorString === ""
+            && frameResult.warningString === ""
+
+        timedListAcceptedFrame = list.appendFrame(suppliedFrame, 100) === true
+            && list.count === 1
+            && list.errorString === ""
+            && list.warningString === ""
+
+        const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
+        timedFactoryCreated = timedResult.sequence !== null
+            && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && timedResult.errorString === ""
+            && timedResult.warningString === ""
+
+        viewport.sequence = timedResult.sequence
+        viewportReady = viewport.requestStatus === ImageViewport.RequestStatus.Ready
+            && viewport.requestReason === ImageViewport.RequestReason.Ready
+            && viewport.displayStatus === ImageViewport.DisplayStatus.Ready
+            && viewport.frameCount === 1
+            && viewport.totalDuration === 100
+            && viewport.displayedImageSize.width === 4
+            && viewport.displayedImageSize.height === 2
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QVariantMap initialProperties;
+    initialProperties.insert(QStringLiteral("suppliedFrame"), QVariant::fromValue<QObject *>(&frame));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("frameFactoryCreated").toBool(), true);
+    QCOMPARE(object->property("timedListAcceptedFrame").toBool(), true);
+    QCOMPARE(object->property("timedFactoryCreated").toBool(), true);
+    QCOMPARE(object->property("viewportReady").toBool(), true);
 }
 
 void ImageViewportTest::factoryResultDiagnosticsArePublicSafe()
