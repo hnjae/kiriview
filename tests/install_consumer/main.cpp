@@ -32,8 +32,51 @@ public:
         emit frameReady(token, m_frame.get(), ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
     }
 
+    void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position) override
+    {
+        m_lastPlaybackFrame = frame;
+        m_lastPlaybackPosition = position;
+        emit providerProgress(token, 0.5);
+        emit endOfSequence(token);
+    }
+
+    void cancelRequest(const ImageSequenceProviderRequestToken &token) override
+    {
+        m_lastCancelledToken = token;
+        emit providerCancelled(token, QStringLiteral("cancelled"));
+    }
+
+    void close() override
+    {
+        m_closed = true;
+    }
+
+    int lastPlaybackFrame() const
+    {
+        return m_lastPlaybackFrame;
+    }
+
+    int lastPlaybackPosition() const
+    {
+        return m_lastPlaybackPosition;
+    }
+
+    ImageSequenceProviderRequestToken lastCancelledToken() const
+    {
+        return m_lastCancelledToken;
+    }
+
+    bool closed() const
+    {
+        return m_closed;
+    }
+
 private:
     std::unique_ptr<ImageFrame> m_frame;
+    int m_lastPlaybackFrame = -1;
+    int m_lastPlaybackPosition = -1;
+    ImageSequenceProviderRequestToken m_lastCancelledToken;
+    bool m_closed = false;
 };
 
 class ConsumerSessionFactory final : public ImageSequenceProviderSessionFactory
@@ -191,6 +234,42 @@ QtObject {
 
     return object->property("factorySurfaceAvailable").toBool();
 }
+
+bool canUseInstalledProviderSessionSurface()
+{
+    ConsumerSession session;
+    const ImageSequenceProviderRequestToken token(7);
+    bool progressReceived = false;
+    bool endReceived = false;
+    bool cancellationReceived = false;
+    QObject::connect(&session,
+        &ImageSequenceProviderSession::providerProgress,
+        [&progressReceived, &token](const ImageSequenceProviderRequestToken &receivedToken, double progress) {
+            progressReceived = receivedToken == token && progress == 0.5;
+        });
+    QObject::connect(&session,
+        &ImageSequenceProviderSession::endOfSequence,
+        [&endReceived, &token](const ImageSequenceProviderRequestToken &receivedToken) {
+            endReceived = receivedToken == token;
+        });
+    QObject::connect(&session,
+        &ImageSequenceProviderSession::providerCancelled,
+        [&cancellationReceived, &token](const ImageSequenceProviderRequestToken &receivedToken, const QString &diagnostic) {
+            cancellationReceived = receivedToken == token && diagnostic == QStringLiteral("cancelled");
+        });
+
+    session.requestPlayback(token, 1, 100);
+    session.cancelRequest(token);
+    session.close();
+
+    return progressReceived
+        && endReceived
+        && cancellationReceived
+        && session.lastPlaybackFrame() == 1
+        && session.lastPlaybackPosition() == 100
+        && session.lastCancelledToken() == token
+        && session.closed();
+}
 }
 
 int main(int argc, char **argv)
@@ -276,5 +355,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits() && canUseInstalledQmlFactorySurface() ? 0 : 1;
+    return canCreateInstalledQmlViewport()
+            && canReadInstalledQmlLimits()
+            && canUseInstalledQmlFactorySurface()
+            && canUseInstalledProviderSessionSurface()
+        ? 0
+        : 1;
 }
