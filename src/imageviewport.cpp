@@ -855,6 +855,9 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     const PlaybackPhase oldPlaybackPhase = m_playbackPhase;
     const QString oldErrorString = m_errorString;
     const QString oldWarningString = m_warningString;
+    const QSizeF oldDisplayedImageSize = displayedImageSize();
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
     closeProviderSession();
     m_sequence = sequence;
     m_errorString.clear();
@@ -931,7 +934,11 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     if (displayValueChanged) {
         emit displayStateChanged();
     }
-    emit geometryStateChanged();
+    if (displayedImageSize() != oldDisplayedImageSize
+        || contentRect() != oldContentRect
+        || visibleImageRect() != oldVisibleImageRect) {
+        emit geometryStateChanged();
+    }
     if (m_playbackPhase != oldPlaybackPhase) {
         emit playbackPhaseChanged();
     }
