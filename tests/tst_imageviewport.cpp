@@ -34,7 +34,9 @@ private slots:
     void hasDocumentedDefaultState();
     void qmlImportsDocumentedSurface();
     void imageSequenceIsNotQmlCreatable();
+    void imageFrameIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
+    void imageSequenceFactoryResultIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
     void qmlTimedFrameListExposesBuilderState();
     void factoryResultDiagnosticsArePublicSafe();
@@ -1060,6 +1062,22 @@ ImageSequence {}
     QVERIFY(component.isError());
 }
 
+void ImageViewportTest::imageFrameIsNotQmlCreatable()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import ImageViewport 1.0
+
+ImageFrame {}
+)",
+        QUrl());
+
+    QVERIFY(component.isError());
+}
+
 void ImageViewportTest::imageSequenceProviderAdapterIsNotQmlCreatable()
 {
     QQmlEngine engine;
@@ -1070,6 +1088,22 @@ void ImageViewportTest::imageSequenceProviderAdapterIsNotQmlCreatable()
 import ImageViewport 1.0
 
 ImageSequenceProviderAdapter {}
+)",
+        QUrl());
+
+    QVERIFY(component.isError());
+}
+
+void ImageViewportTest::imageSequenceFactoryResultIsNotQmlCreatable()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import ImageViewport 1.0
+
+ImageSequenceFactoryResult {}
 )",
         QUrl());
 
