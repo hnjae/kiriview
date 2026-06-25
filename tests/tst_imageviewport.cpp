@@ -45,6 +45,7 @@ private slots:
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
+    void stillImageMirroredCoverUsesMirroredVisibleImageRect();
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
     void timedFrameListBuilderValidatesEntries();
@@ -1105,6 +1106,38 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(mirroredItem.value("valid").toBool(), true);
     QCOMPARE(mirroredItem.value("x").toDouble(), 42.001);
     QCOMPARE(mirroredItem.value("y").toDouble(), 46.001);
+}
+
+void ImageViewportTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    item.setFillMode(ImageViewport::FillMode::Cover);
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
+    item.setMirrorHorizontally(true);
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
+    QCOMPARE(item.containsVisibleImagePoint(7.999, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), true);
+    QCOMPARE(item.containsVisibleImagePoint(15.999, 4.0), true);
+
+    const QVariantMap leftItem = item.itemToImage(0.001, 50.0);
+    QCOMPARE(leftItem.value("valid").toBool(), true);
+    QCOMPARE(leftItem.value("x").toDouble(), 15.99992);
+
+    const QVariantMap rightHalfImage = item.imageToItem(12.0, 4.0);
+    QCOMPARE(rightHalfImage.value("valid").toBool(), true);
+    QCOMPARE(rightHalfImage.value("x").toDouble(), 50.0);
+    QCOMPARE(item.imageToItem(4.0, 4.0).value("valid").toBool(), false);
 }
 
 void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()

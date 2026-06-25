@@ -1284,7 +1284,14 @@ QRectF ImageViewport::visibleImageRect() const
     const double y = (visibleItemRect.y() - content.y()) / content.height() * imageSize.height();
     const double width = visibleItemRect.width() / content.width() * imageSize.width();
     const double height = visibleItemRect.height() / content.height() * imageSize.height();
-    return QRectF(x, y, width, height);
+    QRectF visibleImageRect(x, y, width, height);
+    if (m_mirrorHorizontally) {
+        visibleImageRect.moveLeft(imageSize.width() - visibleImageRect.right());
+    }
+    if (m_mirrorVertically) {
+        visibleImageRect.moveTop(imageSize.height() - visibleImageRect.bottom());
+    }
+    return visibleImageRect;
 }
 
 uint ImageViewport::displayRevision() const
