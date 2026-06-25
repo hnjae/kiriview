@@ -87,6 +87,7 @@ private slots:
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
     void providerTerminalResultsAreQueuedFromSessionEntryPoint();
     void providerConstructionMetadataSelectsInitialFrameRequest();
+    void providerFixedDurationConstructionMetadataSelectsInitialFrameRequest();
     void providerPartialConstructionMetadataWaitsForRuntimeMetadata();
     void providerPartialConstructionMetadataBindsAcceptedSeekAfterRuntimeMetadata();
     void providerPartialStillConstructionMetadataConstrainsCommands();
@@ -2968,6 +2969,51 @@ void ImageViewportTest::providerConstructionMetadataSelectsInitialFrameRequest()
     QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
     QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
     QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+}
+
+void ImageViewportTest::providerFixedDurationConstructionMetadataSelectsInitialFrameRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 3, 100),
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("frameCount").toInt(), 3);
+    QCOMPARE(item.property("totalDuration").toInt(), 300);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 2);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 300);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
