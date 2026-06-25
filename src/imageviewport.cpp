@@ -108,6 +108,20 @@ ImageViewport::TriState capabilitySupportToTriState(ImageSequenceProviderCapabil
     return ImageViewport::TriState::Unavailable;
 }
 
+bool providerCapabilityContradictsMetadata(ImageSequenceProviderCapabilitySupport support, bool metadataCapability)
+{
+    switch (support) {
+    case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
+        return metadataCapability;
+    case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
+        return !metadataCapability;
+    case ImageSequenceProviderCapabilitySupport::Unavailable:
+        return false;
+    }
+
+    return false;
+}
+
 }
 
 ImageSequence::ImageSequence(QObject *parent)
@@ -2160,6 +2174,19 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider metadata is invalid");
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        closeProviderSession();
+        return;
+    }
+
+    if (providerCapabilityContradictsMetadata(m_sequence->m_providerTimedPlaybackCapability, isTimedMetadata)
+        || providerCapabilityContradictsMetadata(m_sequence->m_providerFrameSeekCapability, true)
+        || providerCapabilityContradictsMetadata(m_sequence->m_providerPositionSeekCapability, isTimedMetadata)) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider metadata contradicts construction-time capabilities");
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
