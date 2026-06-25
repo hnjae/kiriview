@@ -4,6 +4,7 @@
 #include <QtCore/QEvent>
 #include <QtCore/QList>
 #include <QtCore/QMetaEnum>
+#include <QtCore/QMetaProperty>
 #include <QtCore/QPointF>
 #include <QtCore/QScopeGuard>
 #include <QtCore/QThread>
@@ -1736,16 +1737,34 @@ void ImageViewportTest::factoryResultDiagnosticsArePublicSafe()
 void ImageViewportTest::exposesImageSequenceLimits()
 {
     ImageSequenceLimits limits;
+    const QMetaObject *metaObject = limits.metaObject();
 
-    QCOMPARE(limits.property("maximumLogicalWidth").toInt(), ImageSequenceLimits::maximumLogicalWidth());
-    QVERIFY(limits.property("maximumLogicalWidth").toInt() >= 8192);
-    QVERIFY(limits.property("maximumLogicalHeight").toInt() >= 8192);
-    QVERIFY(limits.property("maximumPixelsPerFrame").toLongLong() >= 67108864LL);
-    QVERIFY(limits.property("maximumPayloadBytesPerFrame").toLongLong() >= 268435456LL);
-    QVERIFY(limits.property("maximumTimedListFrameCount").toInt() >= 10000);
-    QVERIFY(limits.property("maximumFrameDuration").toInt() >= 86400000);
-    QVERIFY(limits.property("maximumTotalSequenceDuration").toInt() >= 86400000);
-    QVERIFY(limits.property("maximumDiagnosticStringLength").toInt() >= 4096);
+    struct LimitExpectation {
+        const char *name;
+        qint64 cppValue;
+        qint64 minimum;
+    };
+
+    const LimitExpectation expectations[] = {
+        {"maximumLogicalWidth", ImageSequenceLimits::maximumLogicalWidth(), 8192},
+        {"maximumLogicalHeight", ImageSequenceLimits::maximumLogicalHeight(), 8192},
+        {"maximumPixelsPerFrame", ImageSequenceLimits::maximumPixelsPerFrame(), 67108864LL},
+        {"maximumPayloadBytesPerFrame", ImageSequenceLimits::maximumPayloadBytesPerFrame(), 268435456LL},
+        {"maximumTimedListFrameCount", ImageSequenceLimits::maximumTimedListFrameCount(), 10000},
+        {"maximumFrameDuration", ImageSequenceLimits::maximumFrameDuration(), 86400000},
+        {"maximumTotalSequenceDuration", ImageSequenceLimits::maximumTotalSequenceDuration(), 86400000},
+        {"maximumDiagnosticStringLength", ImageSequenceLimits::maximumDiagnosticStringLength(), 4096},
+    };
+
+    for (const LimitExpectation &expectation : expectations) {
+        const int propertyIndex = metaObject->indexOfProperty(expectation.name);
+        QVERIFY2(propertyIndex >= 0, expectation.name);
+        const QMetaProperty property = metaObject->property(propertyIndex);
+        QCOMPARE(property.isWritable(), false);
+        QCOMPARE(property.isConstant(), true);
+        QCOMPARE(limits.property(expectation.name).toLongLong(), expectation.cppValue);
+        QVERIFY2(expectation.cppValue >= expectation.minimum, expectation.name);
+    }
 }
 
 void ImageViewportTest::factoryResultSequenceSurvivesFactoryDestruction()
