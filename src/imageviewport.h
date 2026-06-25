@@ -7,6 +7,7 @@
 #include <QtCore/QSizeF>
 #include <QtCore/QVariantMap>
 #include <QtGui/QColor>
+#include <QtGui/QImage>
 #include <QtQml/qqmlregistration.h>
 #include <QtQuick/QQuickItem>
 
@@ -18,7 +19,15 @@ class ImageSequence : public QObject
 
 private:
     explicit ImageSequence(QObject *parent = nullptr);
+    explicit ImageSequence(const QSizeF &logicalSize, QObject *parent = nullptr);
+
+    bool isValid() const;
+    QSizeF logicalSize() const;
+
+    QSizeF m_logicalSize;
+
     friend class ImageSequenceFactory;
+    friend class ImageViewport;
 };
 
 class ImageFrame : public QObject
@@ -29,6 +38,13 @@ class ImageFrame : public QObject
 
 public:
     explicit ImageFrame(QObject *parent = nullptr);
+    explicit ImageFrame(const QImage &image, QObject *parent = nullptr);
+
+    bool isValid() const;
+    QSizeF logicalSize() const;
+
+private:
+    QSizeF m_logicalSize;
 };
 
 class TimedImageFrameList : public QObject
@@ -361,6 +377,7 @@ signals:
 
 protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
+    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
     static QVariantMap invalidRange();
@@ -373,6 +390,13 @@ private:
     void clearCommandDiagnosticForAcceptedCommand();
     RequestOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
+    bool hasReadyStillDisplay() const;
+    bool hasStillSequence() const;
+    QRectF currentContentRect() const;
+    QRectF itemBounds() const;
+    QSizeF currentImageSize() const;
+    void publishStillSequenceState();
+    void publishRenderWaitingStillState();
 
     QPointer<ImageSequence> m_sequence;
     RequestStatus m_requestStatus = RequestStatus::NoRequest;

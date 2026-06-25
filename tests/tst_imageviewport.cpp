@@ -2,6 +2,7 @@
 
 #include <QtCore/QMetaEnum>
 #include <QtCore/QPointF>
+#include <QtGui/QImage>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickItem>
@@ -23,6 +24,7 @@ private slots:
     void exposesTypedSequenceFactorySurface();
     void exposesImageSequenceLimits();
     void commandsWithoutRequestAreIgnoredDiagnostics();
+    void stillImageSequenceAssignmentPublishesReadyState();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -319,6 +321,59 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
 
     QCOMPARE(item.seek(-1), ImageViewport::RequestOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+}
+
+void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QCOMPARE(item.property("frameCount").toInt(), 1);
+    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+
+    const QVariantMap centerImage = item.itemToImage(50.0, 50.0);
+    QCOMPARE(centerImage.value("valid").toBool(), true);
+    QCOMPARE(centerImage.value("x").toDouble(), 8.0);
+    QCOMPARE(centerImage.value("y").toDouble(), 4.0);
+
+    const QVariantMap rightEdgeImage = item.itemToImage(100.0, 50.0);
+    QCOMPARE(rightEdgeImage.value("valid").toBool(), false);
+    QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), true);
+    QCOMPARE(item.containsVisibleImagePoint(16.0, 4.0), false);
+
+    const QVariantMap centerItem = item.imageToItem(8.0, 4.0);
+    QCOMPARE(centerItem.value("valid").toBool(), true);
+    QCOMPARE(centerItem.value("x").toDouble(), 50.0);
+    QCOMPARE(centerItem.value("y").toDouble(), 50.0);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

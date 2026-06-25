@@ -2,6 +2,7 @@
 
 #include <QtQuick/QSGNode>
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -31,9 +32,43 @@ ImageSequence::ImageSequence(QObject *parent)
 {
 }
 
+ImageSequence::ImageSequence(const QSizeF &logicalSize, QObject *parent)
+    : QObject(parent)
+    , m_logicalSize(logicalSize)
+{
+}
+
+bool ImageSequence::isValid() const
+{
+    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
+}
+
+QSizeF ImageSequence::logicalSize() const
+{
+    return m_logicalSize;
+}
+
 ImageFrame::ImageFrame(QObject *parent)
     : QObject(parent)
 {
+}
+
+ImageFrame::ImageFrame(const QImage &image, QObject *parent)
+    : QObject(parent)
+{
+    if (!image.isNull() && image.width() > 0 && image.height() > 0) {
+        m_logicalSize = QSizeF(image.width(), image.height());
+    }
+}
+
+bool ImageFrame::isValid() const
+{
+    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
+}
+
+QSizeF ImageFrame::logicalSize() const
+{
+    return m_logicalSize;
 }
 
 TimedImageFrameList::TimedImageFrameList(QObject *parent)
@@ -103,7 +138,15 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(this),
+    if (!frame->isValid()) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("ImageFrame must have a positive logical size"),
+            {},
+            this);
+    }
+
+    return new ImageSequenceFactoryResult(new ImageSequence(frame->logicalSize(), this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {},
@@ -251,9 +294,12 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
 
-    if (m_sequence) {
-        m_requestStatus = RequestStatus::Loading;
-        m_requestReason = RequestReason::ProviderWaiting;
+    if (hasStillSequence()) {
+        if (width() > 0.0 && height() > 0.0) {
+            publishStillSequenceState();
+        } else {
+            publishRenderWaitingStillState();
+        }
     } else {
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
@@ -264,6 +310,8 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     incrementRequestRevision();
     emit sequenceChanged();
     emit requestStateChanged();
+    emit displayStateChanged();
+    emit geometryStateChanged();
     emit playbackPhaseChanged();
     emit diagnosticsChanged();
     update();
@@ -296,11 +344,19 @@ ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const
 
 int ImageViewport::displayedFrame() const
 {
+    if (hasReadyStillDisplay()) {
+        return 0;
+    }
+
     return -1;
 }
 
 int ImageViewport::requestedFrame() const
 {
+    if (hasStillSequence()) {
+        return 0;
+    }
+
     return -1;
 }
 
@@ -316,6 +372,10 @@ int ImageViewport::requestedPosition() const
 
 int ImageViewport::frameCount() const
 {
+    if (hasStillSequence()) {
+        return 1;
+    }
+
     return -1;
 }
 
@@ -326,6 +386,13 @@ int ImageViewport::totalDuration() const
 
 QVariantMap ImageViewport::frameSeekBounds() const
 {
+    if (hasStillSequence()) {
+        return {
+            {QStringLiteral("minimum"), 0},
+            {QStringLiteral("maximum"), 0},
+        };
+    }
+
     return invalidRange();
 }
 
@@ -336,32 +403,67 @@ QVariantMap ImageViewport::positionSeekBounds() const
 
 ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 {
+    if (hasStillSequence()) {
+        return TriState::False;
+    }
+
     return TriState::Unavailable;
 }
 
 ImageViewport::TriState ImageViewport::frameSeekSupport() const
 {
+    if (hasStillSequence()) {
+        return TriState::True;
+    }
+
     return TriState::Unavailable;
 }
 
 ImageViewport::TriState ImageViewport::positionSeekSupport() const
 {
+    if (hasStillSequence()) {
+        return TriState::False;
+    }
+
     return TriState::Unavailable;
 }
 
 QSizeF ImageViewport::displayedImageSize() const
 {
+    if (hasReadyStillDisplay()) {
+        return currentImageSize();
+    }
+
     return QSizeF(0.0, 0.0);
 }
 
 QRectF ImageViewport::contentRect() const
 {
-    return {};
+    return currentContentRect();
 }
 
 QRectF ImageViewport::visibleImageRect() const
 {
-    return {};
+    if (!hasReadyStillDisplay() || itemBounds().isEmpty()) {
+        return {};
+    }
+
+    const QRectF content = currentContentRect();
+    if (content.isEmpty()) {
+        return {};
+    }
+
+    const QRectF visibleItemRect = content.intersected(itemBounds());
+    if (visibleItemRect.isEmpty()) {
+        return {};
+    }
+
+    const QSizeF imageSize = currentImageSize();
+    const double x = (visibleItemRect.x() - content.x()) / content.width() * imageSize.width();
+    const double y = (visibleItemRect.y() - content.y()) / content.height() * imageSize.height();
+    const double width = visibleItemRect.width() / content.width() * imageSize.width();
+    const double height = visibleItemRect.height() / content.height() * imageSize.height();
+    return QRectF(x, y, width, height);
 }
 
 uint ImageViewport::displayRevision() const
@@ -597,10 +699,8 @@ ImageViewport::RequestOutcome ImageViewport::play()
         return ignoredNoRequest();
     }
 
-    clearCommandDiagnosticForAcceptedCommand();
-    m_playbackPhase = PlaybackPhase::Waiting;
-    emit playbackPhaseChanged();
-    return RequestOutcome::Accepted;
+    setCommandDiagnostic(CommandReason::UnsupportedRequest);
+    return RequestOutcome::Unsupported;
 }
 
 ImageViewport::RequestOutcome ImageViewport::pause()
@@ -631,24 +731,42 @@ ImageViewport::RequestOutcome ImageViewport::stop()
     return RequestOutcome::Accepted;
 }
 
-ImageViewport::RequestOutcome ImageViewport::seek(int)
+ImageViewport::RequestOutcome ImageViewport::seek(int frame)
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
     }
 
-    clearCommandDiagnosticForAcceptedCommand();
+    if (hasStillSequence()) {
+        if (frame != 0) {
+            setCommandDiagnostic(CommandReason::InvalidRequest);
+            return RequestOutcome::Invalid;
+        }
+
+        clearCommandDiagnosticForAcceptedCommand();
+        publishStillSequenceState();
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit geometryStateChanged();
+        update();
+        return RequestOutcome::Accepted;
+    }
+
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
     return RequestOutcome::Unsupported;
 }
 
-ImageViewport::RequestOutcome ImageViewport::seekToPosition(int)
+ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
 {
     if (!hasActiveRequest()) {
         return ignoredNoRequest();
     }
 
-    clearCommandDiagnosticForAcceptedCommand();
+    if (milliseconds < 0) {
+        setCommandDiagnostic(CommandReason::InvalidRequest);
+        return RequestOutcome::Invalid;
+    }
+
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
     return RequestOutcome::Unsupported;
 }
@@ -665,25 +783,109 @@ ImageViewport::RequestOutcome ImageViewport::resetView()
     return RequestOutcome::Accepted;
 }
 
-QVariantMap ImageViewport::itemToImage(double, double) const
+QVariantMap ImageViewport::itemToImage(double x, double y) const
 {
-    return invalidCoordinateResult();
+    if (!hasReadyStillDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
+        return invalidCoordinateResult();
+    }
+
+    const QRectF bounds = itemBounds();
+    const QRectF content = currentContentRect();
+    const QSizeF imageSize = currentImageSize();
+    if (bounds.isEmpty() || content.isEmpty() || x < bounds.left() || y < bounds.top() || x >= bounds.right() || y >= bounds.bottom()) {
+        return invalidCoordinateResult();
+    }
+
+    double imageX = (x - content.x()) / content.width() * imageSize.width();
+    double imageY = (y - content.y()) / content.height() * imageSize.height();
+    if (m_mirrorHorizontally) {
+        imageX = imageSize.width() - imageX;
+    }
+    if (m_mirrorVertically) {
+        imageY = imageSize.height() - imageY;
+    }
+
+    if (!containsVisibleImagePoint(imageX, imageY)) {
+        return invalidCoordinateResult();
+    }
+
+    return {
+        {QStringLiteral("valid"), true},
+        {QStringLiteral("x"), imageX},
+        {QStringLiteral("y"), imageY},
+    };
 }
 
-QVariantMap ImageViewport::imageToItem(double, double) const
+QVariantMap ImageViewport::imageToItem(double x, double y) const
 {
-    return invalidCoordinateResult();
+    if (!containsVisibleImagePoint(x, y)) {
+        return invalidCoordinateResult();
+    }
+
+    const QRectF content = currentContentRect();
+    const QSizeF imageSize = currentImageSize();
+    double normalizedX = x;
+    double normalizedY = y;
+    if (m_mirrorHorizontally) {
+        normalizedX = imageSize.width() - x;
+    }
+    if (m_mirrorVertically) {
+        normalizedY = imageSize.height() - y;
+    }
+
+    const double itemX = content.x() + normalizedX / imageSize.width() * content.width();
+    const double itemY = content.y() + normalizedY / imageSize.height() * content.height();
+    if (!itemBounds().contains(QPointF(itemX, itemY))) {
+        return invalidCoordinateResult();
+    }
+
+    return {
+        {QStringLiteral("valid"), true},
+        {QStringLiteral("x"), itemX},
+        {QStringLiteral("y"), itemY},
+    };
 }
 
-bool ImageViewport::containsVisibleImagePoint(double, double) const
+bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 {
-    return false;
+    if (!hasReadyStillDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
+        return false;
+    }
+
+    const QSizeF imageSize = currentImageSize();
+    if (x < 0.0 || y < 0.0 || x >= imageSize.width() || y >= imageSize.height()) {
+        return false;
+    }
+
+    return visibleImageRect().contains(QPointF(x, y));
 }
 
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     delete oldNode;
     return nullptr;
+}
+
+void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
+{
+    QQuickItem::geometryChange(newGeometry, oldGeometry);
+
+    if (newGeometry.size() == oldGeometry.size()) {
+        return;
+    }
+
+    if (hasStillSequence() && m_requestStatus == RequestStatus::Loading && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
+        publishStillSequenceState();
+        incrementRequestRevision();
+        incrementDisplayRevision();
+        emit requestStateChanged();
+        emit displayStateChanged();
+    } else if (hasReadyStillDisplay()) {
+        incrementDisplayRevision();
+    }
+
+    emit geometryStateChanged();
+    update();
 }
 
 QVariantMap ImageViewport::invalidRange()
@@ -751,4 +953,99 @@ ImageViewport::RequestOutcome ImageViewport::ignoredNoRequest()
 bool ImageViewport::hasActiveRequest() const
 {
     return m_requestStatus != RequestStatus::NoRequest;
+}
+
+bool ImageViewport::hasReadyStillDisplay() const
+{
+    return hasStillSequence() && m_displayStatus == DisplayStatus::Ready;
+}
+
+bool ImageViewport::hasStillSequence() const
+{
+    return m_sequence && m_sequence->isValid();
+}
+
+QRectF ImageViewport::currentContentRect() const
+{
+    if (!hasReadyStillDisplay()) {
+        return {};
+    }
+
+    const QRectF bounds = itemBounds();
+    const QSizeF imageSize = currentImageSize();
+    if (bounds.isEmpty() || imageSize.isEmpty()) {
+        return {};
+    }
+
+    QSizeF placedSize;
+    switch (m_fillMode) {
+    case FillMode::Contain: {
+        const double scale = std::min(bounds.width() / imageSize.width(), bounds.height() / imageSize.height());
+        placedSize = imageSize * scale;
+        break;
+    }
+    case FillMode::Cover: {
+        const double scale = std::max(bounds.width() / imageSize.width(), bounds.height() / imageSize.height());
+        placedSize = imageSize * scale;
+        break;
+    }
+    case FillMode::Stretch:
+        placedSize = bounds.size();
+        break;
+    case FillMode::Center:
+        placedSize = imageSize;
+        break;
+    }
+
+    double x = 0.0;
+    if (m_horizontalAlignment == HorizontalAlignment::AlignHCenter) {
+        x = (bounds.width() - placedSize.width()) / 2.0;
+    } else if (m_horizontalAlignment == HorizontalAlignment::AlignRight) {
+        x = bounds.width() - placedSize.width();
+    }
+
+    double y = 0.0;
+    if (m_verticalAlignment == VerticalAlignment::AlignVCenter) {
+        y = (bounds.height() - placedSize.height()) / 2.0;
+    } else if (m_verticalAlignment == VerticalAlignment::AlignBottom) {
+        y = bounds.height() - placedSize.height();
+    }
+
+    QRectF rect(x, y, placedSize.width(), placedSize.height());
+    const QPointF center = rect.center();
+    rect.setSize(rect.size() * m_zoom);
+    rect.moveCenter(center + m_pan);
+    return rect;
+}
+
+QRectF ImageViewport::itemBounds() const
+{
+    if (width() <= 0.0 || height() <= 0.0) {
+        return {};
+    }
+
+    return QRectF(0.0, 0.0, width(), height());
+}
+
+QSizeF ImageViewport::currentImageSize() const
+{
+    if (!hasStillSequence()) {
+        return {};
+    }
+
+    return m_sequence->logicalSize();
+}
+
+void ImageViewport::publishStillSequenceState()
+{
+    m_requestStatus = RequestStatus::Ready;
+    m_requestReason = RequestReason::Ready;
+    m_displayStatus = DisplayStatus::Ready;
+}
+
+void ImageViewport::publishRenderWaitingStillState()
+{
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::RenderWaiting;
+    m_displayStatus = DisplayStatus::Empty;
 }
