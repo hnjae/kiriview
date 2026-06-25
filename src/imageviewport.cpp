@@ -2385,6 +2385,19 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
         return;
     }
 
+    if (frame && m_providerMetadataReady && frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
+        m_requestStatus = RequestStatus::Unsupported;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame");
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
+
     if (!validateProviderFrame(frame, metadata)) {
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
