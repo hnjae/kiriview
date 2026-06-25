@@ -40,6 +40,7 @@ private slots:
     void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
     void qmlCommandsReturnDocumentedOutcomes();
+    void qmlFactoryFailuresReturnDocumentedDiagnostics();
     void imageSequenceIsNotQmlCreatable();
     void imageFrameIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
@@ -1461,6 +1462,45 @@ ImageViewport {
     QCOMPARE(object->property("positionSeekOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
     QCOMPARE(object->property("clearOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "Accepted"));
     QCOMPARE(object->property("resetViewOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "Accepted"));
+}
+
+void ImageViewportTest::qmlFactoryFailuresReturnDocumentedDiagnostics()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQml
+import ImageViewport 1.0
+
+QtObject {
+    readonly property var frameResult: ImageSequenceFactory.fromFrame(null)
+    readonly property var listResult: ImageSequenceFactory.fromTimedFrameList(null)
+    readonly property var providerResult: ImageSequenceFactory.fromProvider(null)
+    property bool frameRejected: frameResult.sequence === null
+        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && frameResult.errorString.length > 0
+        && frameResult.warningString === ""
+    property bool listRejected: listResult.sequence === null
+        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && listResult.errorString.length > 0
+        && listResult.warningString === ""
+    property bool providerRejected: providerResult.sequence === null
+        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && providerResult.errorString.length > 0
+        && providerResult.warningString === ""
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+
+    QCOMPARE(object->property("frameRejected").toBool(), true);
+    QCOMPARE(object->property("listRejected").toBool(), true);
+    QCOMPARE(object->property("providerRejected").toBool(), true);
 }
 
 void ImageViewportTest::imageSequenceIsNotQmlCreatable()
