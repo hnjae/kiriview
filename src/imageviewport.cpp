@@ -1520,6 +1520,10 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
                 setCommandDiagnostic(CommandReason::InvalidRequest);
                 return CommandOutcome::Invalid;
             }
+            if (m_sequence->m_providerFrameSeekCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+                setCommandDiagnostic(CommandReason::UnsupportedRequest);
+                return CommandOutcome::Unsupported;
+            }
 
             clearCommandDiagnosticForAcceptedCommand();
             m_currentFrame = frame;
@@ -1569,6 +1573,11 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
     }
 
     if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
+        if (m_sequence->m_providerPositionSeekCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+            setCommandDiagnostic(CommandReason::UnsupportedRequest);
+            return CommandOutcome::Unsupported;
+        }
+
         clearCommandDiagnosticForAcceptedCommand();
         m_currentFrame = -1;
         m_requestedPosition = milliseconds;
