@@ -195,6 +195,7 @@ private slots:
     void providerTimedLoopingPlaybackWrapsToFirstFrame();
     void providerMetadataEndOfSequenceReportsProtocolViolation();
     void providerFrameEndOfSequenceReportsProtocolViolation();
+    void providerTotalDurationSeekEndOfSequenceReportsProtocolViolation();
     void providerTimedPlaybackAdvancementUsesPlaybackEntryPoint();
     void providerTimedPlaybackStopsOnFrameFailure();
     void providerTimedPlaybackUnsupportedReportsUnsupportedRequest();
@@ -8468,6 +8469,75 @@ void ImageViewportTest::providerFrameEndOfSequenceReportsProtocolViolation()
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*cancelRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+}
+
+void ImageViewportTest::providerTotalDurationSeekEndOfSequenceReportsProtocolViolation()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        std::shared_ptr<int>(),
+        std::shared_ptr<int>(),
+        std::shared_ptr<int>(),
+        cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
+    const ImageSequenceProviderRequestToken totalDurationToken = sessionFactory->lastSession()->lastFrameToken();
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+
+    emit sessionFactory->lastSession()->endOfSequence(totalDurationToken);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 350);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider protocol violation")));
+
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Unsupported);
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
