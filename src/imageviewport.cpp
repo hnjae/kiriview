@@ -1450,6 +1450,18 @@ ImageViewport::CommandOutcome ImageViewport::stop()
 
     clearCommandDiagnosticForAcceptedCommand();
     m_stopPlaybackWhenRequestReady = false;
+    if (hasProviderSequence()
+        && !m_providerMetadataReady
+        && m_requestStatus == RequestStatus::Loading
+        && m_playbackPhase == PlaybackPhase::Waiting
+        && m_currentFrame < 0
+        && m_requestedPosition < 0) {
+        m_playbackPosition = -1;
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit requestStateChanged();
+        return CommandOutcome::Accepted;
+    }
     if (hasProviderSequence() && m_providerTimedMetadata && m_activeProviderFrameFromPlayback) {
         if (m_providerSession) {
             m_providerSession->cancelRequest(m_activeProviderFrameToken);
