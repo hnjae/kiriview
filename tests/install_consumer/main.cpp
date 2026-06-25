@@ -45,6 +45,18 @@ int main()
         return 1;
     }
 
+    QVector<QImage> timedImages;
+    timedImages.append(image);
+    timedImages.append(image);
+    QVector<int> timedDurations{100, 200};
+    std::unique_ptr<ImageSequenceFactoryResult> timedResult(factory.fromTimedFrameList(timedImages, timedDurations));
+    if (!timedResult || !timedResult->sequence()) {
+        return 1;
+    }
+    if (timedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
     ConsumerAdapter adapter;
     std::unique_ptr<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     if (!result || !result->sequence()) {

@@ -48,6 +48,31 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(const QImage &image)
     return fromFrame(&frame);
 }
 
+ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(const QVector<QImage> &images, const QVector<int> &durationsMilliseconds)
+{
+    if (images.size() != durationsMilliseconds.size()) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("timed frame images and durations must have the same count"),
+            {},
+            this);
+    }
+
+    TimedImageFrameList list;
+    for (qsizetype index = 0; index < images.size(); ++index) {
+        ImageFrame frame(images.at(index));
+        if (!list.appendFrame(&frame, durationsMilliseconds.at(index))) {
+            return new ImageSequenceFactoryResult(nullptr,
+                ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+                list.errorString(),
+                list.warningString(),
+                this);
+        }
+    }
+
+    return fromTimedFrameList(&list);
+}
+
 ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
 {
     if (!frame) {

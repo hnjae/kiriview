@@ -334,6 +334,7 @@ public:
     explicit ImageSequenceFactory(QObject *parent = nullptr);
 
     ImageSequenceFactoryResult *fromFrame(const QImage &image);
+    ImageSequenceFactoryResult *fromTimedFrameList(const QVector<QImage> &images, const QVector<int> &durationsMilliseconds);
     Q_INVOKABLE ImageSequenceFactoryResult *fromFrame(ImageFrame *frame);
     Q_INVOKABLE ImageSequenceFactoryResult *fromTimedFrameList(TimedImageFrameList *list);
     Q_INVOKABLE ImageSequenceFactoryResult *fromProvider(ImageSequenceProviderAdapter *adapter);
