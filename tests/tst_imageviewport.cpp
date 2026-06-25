@@ -8577,6 +8577,20 @@ void ImageViewportTest::providerTimedPlaybackStopsOnFrameFailure()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("playback frame failed")));
+
+    QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(*frameRequestCount, 3);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::providerTimedPlaybackUnsupportedReportsUnsupportedRequest()
