@@ -25,6 +25,7 @@ private slots:
     void exposesImageSequenceLimits();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
+    void stillImageCommandsPreserveOrReplaceDocumentedState();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -374,6 +375,59 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(centerItem.value("valid").toBool(), true);
     QCOMPARE(centerItem.value("x").toDouble(), 50.0);
     QCOMPARE(centerItem.value("y").toDouble(), 50.0);
+}
+
+void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    const uint readyRequestRevision = item.property("requestRevision").toUInt();
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    QCOMPARE(item.seek(0), ImageViewport::RequestOutcome::Accepted);
+    QVERIFY(item.property("requestRevision").toUInt() > readyRequestRevision);
+    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    const uint afterAcceptedSeekRequestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(1), ImageViewport::RequestOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 1U);
+    QCOMPARE(item.property("requestRevision").toUInt(), afterAcceptedSeekRequestRevision);
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+
+    QCOMPARE(item.play(), ImageViewport::RequestOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+    QCOMPARE(item.property("requestRevision").toUInt(), afterAcceptedSeekRequestRevision);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+
+    QCOMPARE(item.seekToPosition(0), ImageViewport::RequestOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+
+    item.setZoom(2.0);
+    item.setPan(QPointF(4.0, 8.0));
+    QCOMPARE(item.resetView(), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("zoom").toDouble(), 1.0);
+    QCOMPARE(item.property("pan").toPointF(), QPointF(0.0, 0.0));
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

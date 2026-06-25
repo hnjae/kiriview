@@ -289,6 +289,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         return;
     }
 
+    const DisplayStatus oldDisplayStatus = m_displayStatus;
     m_sequence = sequence;
     m_errorString.clear();
     m_warningString.clear();
@@ -304,10 +305,12 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
-        incrementDisplayRevision();
     }
 
     incrementRequestRevision();
+    if (m_displayStatus != oldDisplayStatus) {
+        incrementDisplayRevision();
+    }
     emit sequenceChanged();
     emit requestStateChanged();
     emit displayStateChanged();
@@ -745,6 +748,8 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
 
         clearCommandDiagnosticForAcceptedCommand();
         publishStillSequenceState();
+        incrementRequestRevision();
+        incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
         emit geometryStateChanged();
