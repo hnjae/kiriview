@@ -412,10 +412,11 @@ void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProvider
     }
 
     if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+        const bool unsupportedPlaybackRequest = m_activeProviderFrameFromPlayback;
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason = RequestReason::PayloadRejection;
+        m_requestReason = unsupportedPlaybackRequest ? RequestReason::UnsupportedRequest : RequestReason::PayloadRejection;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
