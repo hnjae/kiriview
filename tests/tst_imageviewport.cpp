@@ -1154,9 +1154,16 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
 
     QObject *result = factory.fromFrame(nullptr);
     QVERIFY(result);
+    const QMetaObject *resultMetaObject = result->metaObject();
+    QVERIFY(resultMetaObject->indexOfProperty("sequence") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("outcome") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("errorString") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("warningString") >= 0);
+    verifyEnumValues(resultMetaObject, "FactoryOutcome", {"Created", "Invalid", "Unsupported", "Error"});
     QCOMPARE(result->property("sequence").value<QObject *>(), nullptr);
-    QCOMPARE(result->property("outcome").toInt(), enumValue(result->metaObject(), "FactoryOutcome", "Invalid"));
+    QCOMPARE(result->property("outcome").toInt(), enumValue(resultMetaObject, "FactoryOutcome", "Invalid"));
     QVERIFY(!result->property("errorString").toString().isEmpty());
+    QCOMPARE(result->property("warningString").toString(), QString());
 }
 
 void ImageViewportTest::factoryRejectsNullTypedInputs()
@@ -1927,6 +1934,7 @@ void ImageViewportTest::timedFrameListBuilderValidatesEntries()
     const QMetaObject *metaObject = list.metaObject();
     QVERIFY(metaObject->indexOfProperty("count") >= 0);
     QVERIFY(metaObject->indexOfProperty("errorString") >= 0);
+    QVERIFY(metaObject->indexOfProperty("warningString") >= 0);
     QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("appendFrame(ImageFrame*,int)")) >= 0);
     QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("clear()")) >= 0);
 
