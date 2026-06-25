@@ -205,6 +205,16 @@ int enumValue(const QMetaObject *metaObject, const char *enumName, const char *k
     return metaObject->enumerator(index).keyToValue(key);
 }
 
+void verifyEnumValues(const QMetaObject *metaObject, const char *enumName, const QList<QByteArray> &keys)
+{
+    const int index = metaObject->indexOfEnumerator(enumName);
+    QVERIFY2(index >= 0, enumName);
+    const QMetaEnum enumerator = metaObject->enumerator(index);
+    for (const QByteArray &key : keys) {
+        QVERIFY2(enumerator.keyToValue(key.constData()) >= 0, key.constData());
+    }
+}
+
 class PaintProbeViewport final : public ImageViewport
 {
 public:
@@ -925,6 +935,18 @@ void ImageViewportTest::exposesDocumentedQmlSurface()
     for (const QByteArray &enumerator : enumerators) {
         QVERIFY2(metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
     }
+
+    verifyEnumValues(metaObject, "RequestStatus", {"NoRequest", "Loading", "Ready", "Unsupported", "Error"});
+    verifyEnumValues(metaObject, "RequestReason", {"NoRequest", "ProviderWaiting", "RequestQueued", "UploadPending", "RenderWaiting", "Ready", "UnsupportedRequest", "InvalidRequest", "ProviderFailure", "PayloadRejection", "RenderFailure"});
+    verifyEnumValues(metaObject, "CommandReason", {"NoCommand", "IgnoredNoRequest", "InvalidRequest", "UnsupportedRequest"});
+    verifyEnumValues(metaObject, "DisplayStatus", {"Empty", "Ready", "Retained"});
+    verifyEnumValues(metaObject, "PlaybackPhase", {"Stopped", "Playing", "Waiting", "Paused"});
+    verifyEnumValues(metaObject, "TriState", {"Unavailable", "False", "True"});
+    verifyEnumValues(metaObject, "CommandOutcome", {"Accepted", "Invalid", "Unsupported", "IgnoredNoRequest"});
+    verifyEnumValues(metaObject, "FillMode", {"Contain", "Cover", "Stretch", "Center"});
+    verifyEnumValues(metaObject, "HorizontalAlignment", {"AlignLeft", "AlignHCenter", "AlignRight"});
+    verifyEnumValues(metaObject, "VerticalAlignment", {"AlignTop", "AlignVCenter", "AlignBottom"});
+    verifyEnumValues(metaObject, "BackgroundMode", {"Transparent", "SolidColor", "Checkerboard"});
 
     const QList<QByteArray> methods = {
         "play()",
