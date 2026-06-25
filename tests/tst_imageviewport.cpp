@@ -10,6 +10,7 @@
 #include <QtCore/QThread>
 #include <QtGui/QImage>
 #include <QtQml/QQmlComponent>
+#include <QtQml/QQmlContext>
 #include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QSGSimpleRectNode>
@@ -1039,6 +1040,18 @@ void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveState()
 {
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    engine.rootContext()->setContextProperty(QStringLiteral("rawProvider"), &adapter);
 
     QQmlComponent component(&engine);
     component.setData(R"(
@@ -1053,6 +1066,7 @@ ImageViewport {
     property bool byteBufferAssignmentPreserved: false
     property bool jsObjectAssignmentPreserved: false
     property bool objectAssignmentPreserved: false
+    property bool providerAssignmentPreserved: false
 
     Component.onCompleted: {
         try {
@@ -1105,6 +1119,16 @@ ImageViewport {
             && requestRevision === 0
             && displayRevision === 0
             && errorString === ""
+        try {
+            sequence = rawProvider
+        } catch (error) {
+        }
+        providerAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
     }
 }
 )",
@@ -1118,6 +1142,8 @@ ImageViewport {
     QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("providerAssignmentPreserved").toBool(), true);
+    QCOMPARE(*sessionCount, 0);
 }
 
 void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveReadyState()
@@ -1131,6 +1157,18 @@ void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveReadyState()
 
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    engine.rootContext()->setContextProperty(QStringLiteral("rawProvider"), &adapter);
 
     QQmlComponent component(&engine);
     component.setData(R"(
@@ -1150,6 +1188,7 @@ ImageViewport {
     property bool byteBufferAssignmentPreserved: false
     property bool jsObjectAssignmentPreserved: false
     property bool objectAssignmentPreserved: false
+    property bool providerAssignmentPreserved: false
 
     function readyStatePreserved(requestRevisionBefore, displayRevisionBefore) {
         return sequence === suppliedSequence
@@ -1192,6 +1231,11 @@ ImageViewport {
         } catch (error) {
         }
         objectAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+        try {
+            sequence = rawProvider
+        } catch (error) {
+        }
+        providerAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
     }
 }
 )",
@@ -1207,6 +1251,8 @@ ImageViewport {
     QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("providerAssignmentPreserved").toBool(), true);
+    QCOMPARE(*sessionCount, 0);
 }
 
 void ImageViewportTest::exposesDocumentedQmlSurface()
