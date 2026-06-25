@@ -2513,7 +2513,10 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
         return;
     }
 
-    if (activeMetadataToken) {
+    if (activeMetadataToken
+        || !m_providerMetadataReady
+        || !m_providerTimedMetadata
+        || !m_activeProviderFrameFromPlayback) {
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider protocol violation");
@@ -2524,12 +2527,6 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
         emit requestStateChanged();
         emit diagnosticsChanged();
         closeProviderSession();
-        return;
-    }
-
-    if (!m_providerMetadataReady
-        || !m_providerTimedMetadata
-        || !m_activeProviderFrameFromPlayback) {
         return;
     }
 
