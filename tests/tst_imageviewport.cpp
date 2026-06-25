@@ -8329,6 +8329,33 @@ void ImageViewportTest::providerMetadataUnsupportedReportsUnsupportedRequest()
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
+
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+
+    QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(*frameRequestCount, 0);
 }
 
 void ImageViewportTest::providerFrameUnsupportedKeepsGenerationSeekable()
