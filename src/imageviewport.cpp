@@ -54,6 +54,9 @@ QString frameLimitViolation(const ImageFrame &frame)
     if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
         return QStringLiteral("ImageFrame exceeds maximumPixelsPerFrame");
     }
+    if (frame.payloadByteSize() <= 0) {
+        return QStringLiteral("ImageFrame payload byte size is invalid");
+    }
     if (frame.payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
         return QStringLiteral("ImageFrame exceeds maximumPayloadBytesPerFrame");
     }

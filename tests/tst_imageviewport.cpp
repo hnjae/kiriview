@@ -49,6 +49,7 @@ private slots:
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
+    void stillImageFactoryRejectsInvalidPayloadByteSize();
     void timedFrameListBuilderValidatesEntries();
     void timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit();
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
@@ -1207,6 +1208,21 @@ void ImageViewportTest::stillImageFactoryRejectsPublishedLimitViolations()
     QCOMPARE(result->sequence(), nullptr);
     QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(result->errorString().contains(QStringLiteral("maximumLogicalWidth")));
+}
+
+void ImageViewportTest::stillImageFactoryRejectsInvalidPayloadByteSize()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image, -1);
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("payload byte size")));
 }
 
 void ImageViewportTest::timedFrameListBuilderValidatesEntries()
