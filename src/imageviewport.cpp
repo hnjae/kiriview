@@ -1659,7 +1659,7 @@ ImageViewport::CommandOutcome ImageViewport::stop()
     if (hasProviderSequence()
         && !m_providerMetadataReady
         && m_requestStatus == RequestStatus::Loading
-        && m_playbackPhase == PlaybackPhase::Waiting
+        && (m_playbackPhase == PlaybackPhase::Waiting || m_playbackPhase == PlaybackPhase::Paused)
         && m_currentFrame < 0
         && m_requestedPosition < 0) {
         m_currentFrame = m_latestNonPlaybackFrame;
