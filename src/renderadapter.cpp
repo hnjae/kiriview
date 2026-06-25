@@ -59,7 +59,12 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode *oldNode, const Input &i
     imageNode->setTexture(texture);
     imageNode->setOwnsTexture(true);
     imageNode->setRect(input.targetRect);
-    imageNode->setSourceRect(input.sourceRect);
+    const qreal devicePixelRatio = input.image.devicePixelRatio();
+    const QRectF physicalSourceRect(input.sourceRect.x() * devicePixelRatio,
+        input.sourceRect.y() * devicePixelRatio,
+        input.sourceRect.width() * devicePixelRatio,
+        input.sourceRect.height() * devicePixelRatio);
+    imageNode->setSourceRect(physicalSourceRect);
     imageNode->setFiltering(input.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
     imageNode->setMipmapFiltering(input.mipmap ? QSGTexture::Linear : QSGTexture::None);
     QSGImageNode::TextureCoordinatesTransformMode transform = {};

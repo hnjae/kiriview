@@ -255,6 +255,7 @@ private slots:
     void solidBackgroundCreatesPaintNode();
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
+    void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void solidBackgroundRendersBehindImageNode();
     void stillImagePaintFailureReportsRenderFailure();
     void timedFrameListPaintFailureRetainsPreviousDisplay();
@@ -12020,6 +12021,33 @@ void ImageViewportTest::stillImageCreatesTexturePaintNode()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportTest::deviceIndependentStillImageUsesPhysicalTextureSourceRect()
+{
+    ImageSequenceFactory factory;
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(2.0);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(20, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(20.0, 20.0));
+    item.setSequence(result->sequence());
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto *imageNode = dynamic_cast<QSGImageNode *>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 2.0, 1.0));
+    QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 4.0, 2.0));
 }
 
 void ImageViewportTest::solidBackgroundRendersBehindImageNode()
