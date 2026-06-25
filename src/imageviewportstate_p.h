@@ -41,6 +41,7 @@ struct DisplayState {
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     int displayedFrame = -1;
     int displayedPosition = -1;
+    quint64 displayedGeneration = 0;
     QSizeF displayedImageSize;
     QImage displayedImage;
     QImage pendingDisplayImage;
@@ -48,6 +49,7 @@ struct DisplayState {
     bool renderFailureRetainedDisplayValid = false;
     int renderFailureRetainedFrame = -1;
     int renderFailureRetainedPosition = -1;
+    quint64 renderFailureRetainedGeneration = 0;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;
     uint revision = 0;
@@ -67,6 +69,7 @@ struct RequestState {
     int playbackPosition = -1;
     int latestNonPlaybackFrame = -1;
     int latestNonPlaybackPosition = -1;
+    quint64 sequenceGeneration = 0;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

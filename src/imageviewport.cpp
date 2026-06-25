@@ -22,6 +22,7 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     const QRectF oldVisibleImageRect = visibleImageRect();
     closeProviderSession();
     m_sequence = sequence;
+    ++m_sequenceGeneration;
     m_errorString.clear();
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
@@ -81,6 +82,7 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
         m_latestNonPlaybackPosition = -1;
         m_displayedFrame = -1;
         m_displayedPosition = -1;
+        m_displayedGeneration = 0;
         m_displayedImageSize = {};
         m_displayedImage = {};
         m_requestStatus = RequestStatus::NoRequest;

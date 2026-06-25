@@ -191,8 +191,10 @@ public:
     int &m_playbackPosition = request.playbackPosition;
     int &m_latestNonPlaybackFrame = request.latestNonPlaybackFrame;
     int &m_latestNonPlaybackPosition = request.latestNonPlaybackPosition;
+    quint64 &m_sequenceGeneration = request.sequenceGeneration;
     int &m_displayedFrame = display.displayedFrame;
     int &m_displayedPosition = display.displayedPosition;
+    quint64 &m_displayedGeneration = display.displayedGeneration;
     QSizeF &m_displayedImageSize = display.displayedImageSize;
     QImage &m_displayedImage = display.displayedImage;
     QImage &m_pendingDisplayImage = display.pendingDisplayImage;
@@ -200,6 +202,7 @@ public:
     bool &m_renderFailureRetainedDisplayValid = display.renderFailureRetainedDisplayValid;
     int &m_renderFailureRetainedFrame = display.renderFailureRetainedFrame;
     int &m_renderFailureRetainedPosition = display.renderFailureRetainedPosition;
+    quint64 &m_renderFailureRetainedGeneration = display.renderFailureRetainedGeneration;
     QSizeF &m_renderFailureRetainedImageSize = display.renderFailureRetainedImageSize;
     QImage &m_renderFailureRetainedImage = display.renderFailureRetainedImage;
     uint &m_displayRevision = display.revision;

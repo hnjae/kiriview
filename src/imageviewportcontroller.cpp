@@ -14,6 +14,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     const QRectF oldVisibleImageRect = visibleImageRect();
     closeProviderSession();
     m_sequence = nullptr;
+    ++m_sequenceGeneration;
     m_currentFrame = -1;
     m_requestedPosition = -1;
     m_playbackPosition = -1;
@@ -21,6 +22,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_latestNonPlaybackPosition = -1;
     m_displayedFrame = -1;
     m_displayedPosition = -1;
+    m_displayedGeneration = 0;
     m_displayedImageSize = {};
     m_displayedImage = {};
     m_pendingDisplayImage = {};
@@ -161,9 +163,27 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         }
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
-        if (hasReadyDisplay()) {
-            m_currentFrame = m_displayedFrame;
-            m_requestedPosition = m_displayedPosition;
+
+        int restoredFrame = m_latestNonPlaybackFrame;
+        int restoredPosition = m_latestNonPlaybackPosition;
+        if (restoredFrame < 0 && restoredPosition >= 0) {
+            restoredFrame = providerFrameIndexForPosition(restoredPosition);
+        }
+        if (restoredFrame < 0 && restoredPosition < 0 && m_currentFrame >= 0) {
+            restoredFrame = m_currentFrame;
+            restoredPosition = providerFrameStartPosition(restoredFrame);
+        }
+        if (restoredPosition < 0 && restoredFrame >= 0) {
+            restoredPosition = providerFrameStartPosition(restoredFrame);
+        }
+
+        m_currentFrame = restoredFrame;
+        m_requestedPosition = restoredPosition;
+        m_playbackPosition = m_requestedPosition;
+        if (hasReadyDisplay()
+            && m_displayedGeneration == m_sequenceGeneration
+            && m_displayedFrame == m_currentFrame
+            && m_displayedPosition == m_requestedPosition) {
             m_playbackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Ready;
             m_requestReason = RequestReason::Ready;
@@ -184,8 +204,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_pendingDisplayImage = {};
         const bool diagnosticsValueChanged = clearDiagnostics();
-        m_activeProviderFrameToken = nextProviderRequestToken();
         if (m_providerSession && m_currentFrame >= 0) {
+            m_activeProviderFrameToken = nextProviderRequestToken();
             m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
         }
         setPlaybackPhase(PlaybackPhase::Stopped);
@@ -761,6 +781,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage &providerImage
     m_displayStatus = DisplayStatus::Ready;
     m_renderCommitPending = true;
     m_displayedFrame = m_currentFrame;
+    m_displayedGeneration = m_sequenceGeneration;
     if (hasProviderSequence()) {
         m_displayedPosition = providerFrameStartPosition(m_currentFrame);
     } else {

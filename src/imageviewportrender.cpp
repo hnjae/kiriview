@@ -118,12 +118,14 @@ void ImageViewportPrivate::reportRenderFailure()
         m_displayStatus = DisplayStatus::Retained;
         m_displayedFrame = m_renderFailureRetainedFrame;
         m_displayedPosition = m_renderFailureRetainedPosition;
+        m_displayedGeneration = m_renderFailureRetainedGeneration;
         m_displayedImageSize = m_renderFailureRetainedImageSize;
         m_displayedImage = m_renderFailureRetainedImage;
     } else {
         m_displayStatus = DisplayStatus::Empty;
         m_displayedFrame = -1;
         m_displayedPosition = -1;
+        m_displayedGeneration = 0;
         m_displayedImageSize = {};
         m_displayedImage = {};
     }
@@ -154,6 +156,7 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
     m_renderFailureRetainedDisplayValid = true;
     m_renderFailureRetainedFrame = m_displayedFrame;
     m_renderFailureRetainedPosition = m_displayedPosition;
+    m_renderFailureRetainedGeneration = m_displayedGeneration;
     m_renderFailureRetainedImageSize = m_displayedImageSize;
     m_renderFailureRetainedImage = m_displayedImage;
 }
@@ -163,6 +166,7 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
     m_renderFailureRetainedDisplayValid = false;
     m_renderFailureRetainedFrame = -1;
     m_renderFailureRetainedPosition = -1;
+    m_renderFailureRetainedGeneration = 0;
     m_renderFailureRetainedImageSize = {};
     m_renderFailureRetainedImage = {};
 }
