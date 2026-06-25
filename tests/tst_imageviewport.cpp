@@ -2309,13 +2309,17 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
 
     const QVariantMap rightEdgeImage = item.itemToImage(100.0, 50.0);
     verifyInvalidCoordinateResult(rightEdgeImage);
+    const QVariantMap bottomEdgeImage = item.itemToImage(50.0, 75.0);
+    verifyInvalidCoordinateResult(bottomEdgeImage);
     QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), true);
     QCOMPARE(item.containsVisibleImagePoint(16.0, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(8.0, 8.0), false);
 
     const QVariantMap centerItem = item.imageToItem(8.0, 4.0);
     QCOMPARE(centerItem.value("valid").toBool(), true);
     QCOMPARE(centerItem.value("x").toDouble(), 50.0);
     QCOMPARE(centerItem.value("y").toDouble(), 50.0);
+    verifyInvalidCoordinateResult(item.imageToItem(8.0, 8.0));
 }
 
 void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
