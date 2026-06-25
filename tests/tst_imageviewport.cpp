@@ -5829,11 +5829,15 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
 
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(diagnosticsSpy.count(), 1);
 }
 
 void ImageViewportTest::providerMetadataUnsupportedReportsUnsupportedRequest()
