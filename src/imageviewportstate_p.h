@@ -81,6 +81,7 @@ struct RequestState {
 
 struct ProviderGenerationState {
     QPointer<ImageSequenceProviderSession> session;
+    quint64 sessionSerial = 0;
     quint64 nextRequestToken = 0;
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;

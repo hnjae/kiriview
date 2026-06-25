@@ -232,6 +232,7 @@ public:
     QString &m_errorString = request.errorString;
     QString &m_warningString = request.warningString;
     QPointer<ImageSequenceProviderSession> &m_providerSession = provider.session;
+    quint64 &m_providerSessionSerial = provider.sessionSerial;
     quint64 &m_nextProviderRequestToken = provider.nextRequestToken;
     ImageSequenceProviderRequestToken &m_activeProviderMetadataToken = provider.activeMetadataToken;
     ImageSequenceProviderRequestToken &m_activeProviderFrameToken = provider.activeFrameToken;

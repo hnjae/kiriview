@@ -35,6 +35,11 @@ void releaseSession(ImageSequenceProviderSession *session)
         delete session;
     }, Qt::BlockingQueuedConnection);
 }
+
+bool acceptsSessionResult(const ImageViewportPrivate &viewport, quint64 sessionSerial)
+{
+    return viewport.m_providerSession && viewport.m_providerSessionSerial == sessionSerial;
+}
 }
 
 ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate &viewport)
@@ -81,67 +86,96 @@ bool ViewportProviderBridge::openSession()
     if (!viewport.m_providerSession) {
         return false;
     }
+    ++viewport.m_providerSessionSerial;
+    const quint64 sessionSerial = viewport.m_providerSessionSerial;
 
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::metadataReady,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderMetadataReady(token, metadata);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, ImageFrame *frame) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageFrame *frame) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderFrameReady(token, frame);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderFrameReadyWithMetadata(token, frame, metadata);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::providerWaiting,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderWaiting(token);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::providerProgress,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, double progress) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, double progress) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderProgress(token, progress);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::endOfSequence,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderEndOfSequence(token);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::providerFailed,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderFailure(token, diagnostic);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::providerUnsupported,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderUnsupported(token, diagnostic);
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
         &ImageSequenceProviderSession::providerCancelled,
         viewport.q,
-        [this](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+        [this, sessionSerial](const ImageSequenceProviderRequestToken &token, const QString &diagnostic) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
             viewport.handleProviderCancellation(token, diagnostic);
         },
         Qt::QueuedConnection);
