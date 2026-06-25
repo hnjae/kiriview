@@ -2039,6 +2039,7 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider frame payload is invalid");
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
@@ -2074,6 +2075,7 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
@@ -2105,6 +2107,7 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
@@ -2136,6 +2139,7 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
