@@ -98,6 +98,7 @@ private slots:
     void providerPublicValueTypesValidateTiming();
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
+    void providerFactoryRejectsInvalidKnownMetadata();
     void providerFactoryRejectsPublishedKnownMetadataLimits();
     void providerSessionEntryPointsUseSessionAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
@@ -3478,6 +3479,48 @@ void ImageViewportTest::providerFactoryRejectsContradictoryConstructionFacts()
     QCOMPARE(*sessionCount, 0);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
+}
+
+void ImageViewportTest::providerFactoryRejectsInvalidKnownMetadata()
+{
+    auto verifyRejectedKnownMetadata = [](const ImageSequenceProviderMetadata &metadata, const QString &expectedDiagnostic) {
+        ImageSequenceFactory factory;
+        const auto sessionCount = std::make_shared<int>(0);
+        const auto metadataRequestCount = std::make_shared<int>(0);
+        const auto frameRequestCount = std::make_shared<int>(0);
+        const auto lastRequestedFrame = std::make_shared<int>(-1);
+        const auto closeCount = std::make_shared<int>(0);
+        auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+            metadataRequestCount,
+            frameRequestCount,
+            lastRequestedFrame,
+            closeCount);
+        CountingProviderAdapter adapter(sessionFactory, metadata);
+
+        QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+
+        QVERIFY(result);
+        QCOMPARE(result->sequence(), nullptr);
+        QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+        QVERIFY(result->errorString().contains(expectedDiagnostic));
+        QCOMPARE(*sessionCount, 0);
+        QCOMPARE(*metadataRequestCount, 0);
+        QCOMPARE(*frameRequestCount, 0);
+    };
+
+    verifyRejectedKnownMetadata(
+        ImageSequenceProviderMetadata::still(QSizeF(std::numeric_limits<double>::infinity(), 8.0)),
+        QStringLiteral("provider metadata is invalid"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::still(QSizeF(16.5, 8.0)),
+        QStringLiteral("provider metadata is invalid"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 0, 100),
+        QStringLiteral("provider metadata is invalid"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {}),
+        QStringLiteral("provider metadata is invalid"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 0}),
+        QStringLiteral("positive"));
+    verifyRejectedKnownMetadata(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, -1}),
+        QStringLiteral("positive"));
 }
 
 void ImageViewportTest::providerFactoryRejectsPublishedKnownMetadataLimits()
