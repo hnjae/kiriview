@@ -41,6 +41,7 @@ private slots:
     void imageSequenceFactoryResultIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
     void factoryRejectsNullTypedInputs();
+    void timedFrameListNativeFactoryRejectsMismatchedCounts();
     void qmlTimedFrameListExposesBuilderState();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
@@ -1387,6 +1388,25 @@ void ImageViewportTest::factoryRejectsNullTypedInputs()
     QCOMPARE(providerResult->sequence(), nullptr);
     QCOMPARE(providerResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(!providerResult->errorString().isEmpty());
+}
+
+void ImageViewportTest::timedFrameListNativeFactoryRejectsMismatchedCounts()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+
+    QScopedPointer<ImageSequenceFactoryResult> missingDurationResult(factory.fromTimedFrameList({image}, {}));
+    QVERIFY(missingDurationResult);
+    QCOMPARE(missingDurationResult->sequence(), nullptr);
+    QCOMPARE(missingDurationResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(missingDurationResult->errorString().contains(QStringLiteral("same count")));
+
+    QScopedPointer<ImageSequenceFactoryResult> missingImageResult(factory.fromTimedFrameList({}, {100}));
+    QVERIFY(missingImageResult);
+    QCOMPARE(missingImageResult->sequence(), nullptr);
+    QCOMPARE(missingImageResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(missingImageResult->errorString().contains(QStringLiteral("same count")));
 }
 
 void ImageViewportTest::qmlTimedFrameListExposesBuilderState()
