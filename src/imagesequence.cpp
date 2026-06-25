@@ -169,6 +169,7 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
     if (!image.isNull() && image.width() > 0 && image.height() > 0) {
         m_logicalSize = QSizeF(image.width(), image.height());
         m_payloadByteSize = image.sizeInBytes();
+        m_hasAlphaChannel = image.hasAlphaChannel();
         if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
             m_image = image.copy();
         }
@@ -182,6 +183,7 @@ ImageFrame::ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QO
     if (!image.isNull() && image.width() > 0 && image.height() > 0) {
         m_logicalSize = QSizeF(image.width(), image.height());
         m_payloadByteSize = payloadByteSizeForTest;
+        m_hasAlphaChannel = image.hasAlphaChannel();
         m_image = image.copy();
     }
 }
@@ -197,9 +199,19 @@ QSizeF ImageFrame::logicalSize() const
     return m_logicalSize;
 }
 
-qsizetype ImageFrame::payloadByteSize() const
+qint64 ImageFrame::payloadByteSize() const
 {
     return m_payloadByteSize;
+}
+
+bool ImageFrame::hasAlphaChannel() const
+{
+    return m_hasAlphaChannel;
+}
+
+ImageFrame::OrientationPolicy ImageFrame::orientationPolicy() const
+{
+    return m_orientationPolicy;
 }
 
 const QImage &ImageFrame::imagePayload() const

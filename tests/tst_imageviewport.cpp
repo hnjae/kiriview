@@ -60,6 +60,7 @@ private slots:
     void sharedFactorySequenceSurvivesFirstViewportDestruction();
     void clearReleasesAssignedFactorySequenceOwner();
     void imageFrameRetainsImmutablePayload();
+    void imageFrameExposesPayloadMetadata();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
     void commandsWithoutRequestAreIgnoredDiagnostics();
@@ -2051,6 +2052,40 @@ void ImageViewportTest::imageFrameRetainsImmutablePayload()
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageViewportTest::imageFrameExposesPayloadMetadata()
+{
+    QImage transparentImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+    transparentImage.fill(Qt::transparent);
+    const ImageFrame transparentFrame(transparentImage);
+    const QMetaObject *metaObject = transparentFrame.metaObject();
+
+    QVERIFY(metaObject->indexOfProperty("valid") >= 0);
+    QVERIFY(metaObject->indexOfProperty("logicalSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("payloadByteSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("hasAlphaChannel") >= 0);
+    QVERIFY(metaObject->indexOfProperty("orientationPolicy") >= 0);
+    verifyEnumValues(metaObject, "OrientationPolicy", {"Identity"});
+
+    QCOMPARE(transparentFrame.property("valid").toBool(), true);
+    QCOMPARE(transparentFrame.property("logicalSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(transparentFrame.property("payloadByteSize").toLongLong(), transparentFrame.payloadByteSize());
+    QCOMPARE(transparentFrame.property("hasAlphaChannel").toBool(), true);
+    QCOMPARE(transparentFrame.property("orientationPolicy").toInt(), enumValue(metaObject, "OrientationPolicy", "Identity"));
+
+    QImage opaqueImage(2, 1, QImage::Format_RGB32);
+    opaqueImage.fill(Qt::black);
+    const ImageFrame opaqueFrame(opaqueImage);
+    QCOMPARE(opaqueFrame.property("valid").toBool(), true);
+    QCOMPARE(opaqueFrame.property("hasAlphaChannel").toBool(), false);
+
+    const ImageFrame emptyFrame;
+    QCOMPARE(emptyFrame.property("valid").toBool(), false);
+    QCOMPARE(emptyFrame.property("logicalSize").toSizeF(), QSizeF());
+    QCOMPARE(emptyFrame.property("payloadByteSize").toLongLong(), 0);
+    QCOMPARE(emptyFrame.property("hasAlphaChannel").toBool(), false);
+    QCOMPARE(emptyFrame.property("orientationPolicy").toInt(), enumValue(metaObject, "OrientationPolicy", "Identity"));
 }
 
 void ImageViewportTest::stillImageSequenceRetainsFactoryPayload()

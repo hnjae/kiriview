@@ -394,14 +394,22 @@ int main(int argc, char **argv)
 
     ImageSequenceFactory factory;
     const ImageFrame emptyFrame;
-    if (emptyFrame.isValid() || emptyFrame.logicalSize() != QSizeF() || emptyFrame.payloadByteSize() != 0) {
+    if (emptyFrame.isValid()
+        || emptyFrame.logicalSize() != QSizeF()
+        || emptyFrame.payloadByteSize() != 0
+        || emptyFrame.hasAlphaChannel()
+        || emptyFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
 
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     const ImageFrame imageFrame(image);
-    if (!imageFrame.isValid() || imageFrame.logicalSize() != QSizeF(2.0, 2.0) || imageFrame.payloadByteSize() <= 0) {
+    if (!imageFrame.isValid()
+        || imageFrame.logicalSize() != QSizeF(2.0, 2.0)
+        || imageFrame.payloadByteSize() <= 0
+        || !imageFrame.hasAlphaChannel()
+        || imageFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
 

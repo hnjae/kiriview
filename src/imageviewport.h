@@ -97,8 +97,18 @@ class ImageFrame : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_UNCREATABLE("ImageFrame objects are created by C++ helpers or provider adapters")
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+    Q_PROPERTY(QSizeF logicalSize READ logicalSize CONSTANT)
+    Q_PROPERTY(qint64 payloadByteSize READ payloadByteSize CONSTANT)
+    Q_PROPERTY(bool hasAlphaChannel READ hasAlphaChannel CONSTANT)
+    Q_PROPERTY(OrientationPolicy orientationPolicy READ orientationPolicy CONSTANT)
 
 public:
+    enum class OrientationPolicy {
+        Identity,
+    };
+    Q_ENUM(OrientationPolicy)
+
     explicit ImageFrame(QObject *parent = nullptr);
     explicit ImageFrame(const QImage &image, QObject *parent = nullptr);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -107,7 +117,9 @@ public:
 
     bool isValid() const;
     QSizeF logicalSize() const;
-    qsizetype payloadByteSize() const;
+    qint64 payloadByteSize() const;
+    bool hasAlphaChannel() const;
+    OrientationPolicy orientationPolicy() const;
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     QImage imageForTest() const;
@@ -118,7 +130,9 @@ private:
 
     QImage m_image;
     QSizeF m_logicalSize;
-    qsizetype m_payloadByteSize = 0;
+    qint64 m_payloadByteSize = 0;
+    bool m_hasAlphaChannel = false;
+    OrientationPolicy m_orientationPolicy = OrientationPolicy::Identity;
 
     friend class ImageSequenceFactory;
     friend class TimedImageFrameList;
