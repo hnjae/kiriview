@@ -58,6 +58,7 @@ private slots:
     void stillImageFactoryRejectsInvalidPayloadByteSize();
     void timedFrameListBuilderValidatesEntries();
     void timedFrameListRejectsPublishedDurationLimits();
+    void timedFrameListRejectsPublishedFrameCountLimit();
     void timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit();
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
@@ -1705,6 +1706,23 @@ void ImageViewportTest::timedFrameListRejectsPublishedDurationLimits()
     QCOMPARE(totalDurationList.appendFrame(&frame, 1), false);
     QCOMPARE(totalDurationList.count(), 1);
     QVERIFY(totalDurationList.errorString().contains(QStringLiteral("maximumTotalSequenceDuration")));
+}
+
+void ImageViewportTest::timedFrameListRejectsPublishedFrameCountLimit()
+{
+    QImage image(1, 1, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+
+    TimedImageFrameList list;
+    for (int index = 0; index < ImageSequenceLimits::maximumTimedListFrameCount(); ++index) {
+        QCOMPARE(list.appendFrame(&frame, 1), true);
+    }
+
+    QCOMPARE(list.count(), ImageSequenceLimits::maximumTimedListFrameCount());
+    QCOMPARE(list.appendFrame(&frame, 1), false);
+    QCOMPARE(list.count(), ImageSequenceLimits::maximumTimedListFrameCount());
+    QVERIFY(list.errorString().contains(QStringLiteral("maximumTimedListFrameCount")));
 }
 
 void ImageViewportTest::timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit()
