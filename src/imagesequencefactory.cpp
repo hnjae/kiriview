@@ -42,6 +42,12 @@ ImageSequenceFactory::ImageSequenceFactory(QObject *parent)
 {
 }
 
+ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(const QImage &image)
+{
+    ImageFrame frame(image);
+    return fromFrame(&frame);
+}
+
 ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
 {
     if (!frame) {
@@ -232,4 +238,3 @@ int ImageSequenceLimits::maximumDiagnosticStringLength()
 {
     return minimumMaximumDiagnosticStringLength;
 }
-

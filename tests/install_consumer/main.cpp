@@ -1,5 +1,7 @@
 #include <imageviewport.h>
 
+#include <QImage>
+
 #include <memory>
 
 class ConsumerSession final : public ImageSequenceProviderSession
@@ -33,6 +35,16 @@ public:
 int main()
 {
     ImageSequenceFactory factory;
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    std::unique_ptr<ImageSequenceFactoryResult> stillResult(factory.fromFrame(image));
+    if (!stillResult || !stillResult->sequence()) {
+        return 1;
+    }
+    if (stillResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
     ConsumerAdapter adapter;
     std::unique_ptr<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     if (!result || !result->sequence()) {

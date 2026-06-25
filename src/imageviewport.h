@@ -333,6 +333,7 @@ class ImageSequenceFactory : public QObject
 public:
     explicit ImageSequenceFactory(QObject *parent = nullptr);
 
+    ImageSequenceFactoryResult *fromFrame(const QImage &image);
     Q_INVOKABLE ImageSequenceFactoryResult *fromFrame(ImageFrame *frame);
     Q_INVOKABLE ImageSequenceFactoryResult *fromTimedFrameList(TimedImageFrameList *list);
     Q_INVOKABLE ImageSequenceFactoryResult *fromProvider(ImageSequenceProviderAdapter *adapter);
