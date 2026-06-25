@@ -213,6 +213,7 @@ signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void endOfSequence(const ImageSequenceProviderRequestToken &token);
     void providerFailed(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void providerUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void providerCancelled(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
@@ -561,6 +562,7 @@ private:
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token);
     void handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);

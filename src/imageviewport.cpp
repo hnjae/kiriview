@@ -1928,6 +1928,10 @@ bool ImageViewport::openProviderSession()
         this,
         &ImageViewport::handleProviderFrameReadyWithMetadata);
     connect(m_providerSession,
+        &ImageSequenceProviderSession::endOfSequence,
+        this,
+        &ImageViewport::handleProviderEndOfSequence);
+    connect(m_providerSession,
         &ImageSequenceProviderSession::providerFailed,
         this,
         &ImageViewport::handleProviderFailure);
@@ -2059,6 +2063,68 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     emit requestStateChanged();
     emit displayStateChanged();
     emit geometryStateChanged();
+    emit diagnosticsChanged();
+    update();
+}
+
+void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token)
+{
+    if (!hasProviderSequence()
+        || !m_providerSession
+        || !m_providerMetadataReady
+        || !m_providerTimedMetadata
+        || token != m_activeProviderFrameToken
+        || !m_activeProviderFrameFromPlayback) {
+        return;
+    }
+
+    m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
+    m_errorString.clear();
+
+    int selectedFrame = 0;
+    int selectedPosition = 0;
+    if (m_looping) {
+        m_stopPlaybackWhenRequestReady = false;
+        m_playbackPosition = 0;
+    } else {
+        selectedFrame = frameCount() - 1;
+        selectedPosition = providerFrameStartPosition(selectedFrame);
+        m_playbackPosition = totalDuration();
+        m_stopPlaybackWhenRequestReady = true;
+    }
+
+    m_currentFrame = selectedFrame;
+    m_requestedPosition = selectedPosition;
+
+    if (!m_looping && hasReadyDisplay() && m_displayedFrame == selectedFrame) {
+        m_requestStatus = RequestStatus::Ready;
+        m_requestReason = RequestReason::Ready;
+        m_displayStatus = DisplayStatus::Ready;
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        m_stopPlaybackWhenRequestReady = false;
+        incrementRequestRevision();
+        incrementDisplayRevision();
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit diagnosticsChanged();
+        update();
+        return;
+    }
+
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::ProviderWaiting;
+    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_activeProviderFrameToken = nextProviderRequestToken();
+    m_activeProviderFrameFromPlayback = true;
+    if (m_providerSession) {
+        m_providerSession->requestFrame(m_activeProviderFrameToken, selectedFrame);
+    }
+    setPlaybackPhase(PlaybackPhase::Waiting);
+    incrementRequestRevision();
+    incrementDisplayRevision();
+    emit requestStateChanged();
+    emit displayStateChanged();
     emit diagnosticsChanged();
     update();
 }
