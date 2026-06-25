@@ -42,6 +42,7 @@ private slots:
     void qmlTimedFrameListExposesBuilderState();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
+    void factoryResultSequenceSurvivesFactoryDestruction();
     void imageFrameRetainsImmutablePayload();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
@@ -1160,7 +1161,7 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
     QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromTimedFrameList(TimedImageFrameList*)")) >= 0);
     QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromProvider(ImageSequenceProviderAdapter*)")) >= 0);
 
-    QObject *result = factory.fromFrame(nullptr);
+    QScopedPointer<QObject> result(factory.fromFrame(nullptr));
     QVERIFY(result);
     const QMetaObject *resultMetaObject = result->metaObject();
     QVERIFY(resultMetaObject->indexOfProperty("sequence") >= 0);
@@ -1282,6 +1283,39 @@ void ImageViewportTest::exposesImageSequenceLimits()
     QVERIFY(limits.property("maximumFrameDuration").toInt() >= 86400000);
     QVERIFY(limits.property("maximumTotalSequenceDuration").toInt() >= 86400000);
     QVERIFY(limits.property("maximumDiagnosticStringLength").toInt() >= 4096);
+}
+
+void ImageViewportTest::factoryResultSequenceSurvivesFactoryDestruction()
+{
+    ImageSequenceFactoryResult *rawResult = nullptr;
+    QPointer<ImageSequenceFactoryResult> observedResult;
+    QPointer<ImageSequence> observedSequence;
+    {
+        ImageSequenceFactory factory;
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        ImageFrame frame(image);
+        rawResult = factory.fromFrame(&frame);
+        observedResult = rawResult;
+        QVERIFY(rawResult);
+        observedSequence = rawResult->sequence();
+        QVERIFY(observedSequence);
+    }
+
+    QVERIFY(observedResult);
+    QVERIFY(observedSequence);
+    QScopedPointer<ImageSequenceFactoryResult> result(rawResult);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.sequence(), result->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
 }
 
 void ImageViewportTest::imageFrameRetainsImmutablePayload()
