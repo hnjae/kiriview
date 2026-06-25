@@ -5,6 +5,7 @@
 #include <QtQuick/QSGSimpleRectNode>
 #include <QtQuick/QSGTexture>
 #include <QtQuick/QQuickWindow>
+#include <QtCore/QRegularExpression>
 
 #include <algorithm>
 #include <cmath>
@@ -173,6 +174,22 @@ bool isValidBackgroundMode(ImageViewport::BackgroundMode mode)
     }
 
     return false;
+}
+
+QString redactDiagnosticDetails(QString diagnostic)
+{
+    static const QRegularExpression credentialPattern(
+        QStringLiteral("\\b(?:password|passwd|pwd|token|api[_-]?key|secret)\\s*[:=]\\s*\\S+"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression urlPattern(QStringLiteral("\\b[A-Za-z][A-Za-z0-9+.-]*://\\S+"));
+    static const QRegularExpression windowsPathPattern(QStringLiteral("\\b[A-Za-z]:[\\\\/][^\\s]+"));
+    static const QRegularExpression unixPathPattern(QStringLiteral("(?<!\\w)/(?:[^\\s/]+/)+[^\\s]+"));
+
+    diagnostic.replace(credentialPattern, QStringLiteral("[redacted-credential]"));
+    diagnostic.replace(urlPattern, QStringLiteral("[redacted-url]"));
+    diagnostic.replace(windowsPathPattern, QStringLiteral("[redacted-path]"));
+    diagnostic.replace(unixPathPattern, QStringLiteral("[redacted-path]"));
+    return diagnostic;
 }
 
 }
@@ -2980,7 +2997,7 @@ int ImageViewport::providerFrameIndexForPosition(int position) const
 
 QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
 {
-    const QString selected = diagnostic.isEmpty() ? fallback : diagnostic;
+    const QString selected = redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic);
     const auto scalars = selected.toUcs4();
     const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
     if (scalars.size() <= maximumLength) {

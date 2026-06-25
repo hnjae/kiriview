@@ -101,6 +101,7 @@ private slots:
     void providerTimedSeekWhilePlayingWaitsForFrame();
     void providerMetadataFailureReportsProviderFailure();
     void providerDiagnosticsUseUnicodeScalarLimit();
+    void providerDiagnosticsRedactPrivateDetails();
     void providerMetadataFailureStopsPendingPlayback();
     void providerGenerationTerminalFailureRejectsDisplayCommands();
     void providerFrameFailureKeepsGenerationSeekable();
@@ -3593,6 +3594,43 @@ void ImageViewportTest::providerDiagnosticsUseUnicodeScalarLimit()
     const QString errorString = item.property("errorString").toString();
     QCOMPARE(errorString.toUcs4().size(), limit);
     QCOMPARE(errorString, expected);
+}
+
+void ImageViewportTest::providerDiagnosticsRedactPrivateDetails()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerFailed(sessionFactory->lastSession()->lastMetadataToken(),
+        QStringLiteral("decoder failed for https://user:secret@example.test/image.png token=abc123 path /home/ops/private/image.png and C:\\Users\\ops\\secret.png"));
+    drainQueuedProviderResults();
+
+    const QString errorString = item.property("errorString").toString();
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(!errorString.contains(QStringLiteral("https://")));
+    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(!errorString.contains(QStringLiteral("C:\\Users\\ops")));
+    QVERIFY(errorString.contains(QStringLiteral("[redacted")));
 }
 
 void ImageViewportTest::providerMetadataFailureStopsPendingPlayback()
