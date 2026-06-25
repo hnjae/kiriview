@@ -1,8 +1,16 @@
 #include <imageviewport.h>
 
+#include <QDebug>
+#include <QGuiApplication>
 #include <QImage>
+#include <QQmlComponent>
+#include <QQmlEngine>
+#include <QtPlugin>
+#include <QUrl>
 
 #include <memory>
+
+Q_IMPORT_PLUGIN(ImageViewportPlugin)
 
 class ConsumerSession final : public ImageSequenceProviderSession
 {
@@ -64,8 +72,32 @@ public:
     }
 };
 
-int main()
+namespace {
+bool canCreateInstalledQmlViewport()
 {
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent component(&engine);
+    component.setData("import QtQuick\nimport ImageViewport 1.0\nImageViewport { width: 10; height: 10 }\n", QUrl());
+    if (!component.isReady()) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    const std::unique_ptr<QObject> object(component.create());
+    if (!object) {
+        qWarning() << component.errors();
+        return false;
+    }
+    return qobject_cast<ImageViewport *>(object.get()) != nullptr;
+}
+}
+
+int main(int argc, char **argv)
+{
+    QGuiApplication app(argc, argv);
+
     [[maybe_unused]] const auto knownTrue = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
     [[maybe_unused]] const auto knownFalse = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
     ImageSequenceProviderRequestToken token(1);
@@ -122,5 +154,8 @@ int main()
     if (!result || !result->sequence()) {
         return 1;
     }
-    return result->outcome() == ImageSequenceFactoryResult::FactoryOutcome::Created ? 0 : 1;
+    if (result->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+    return canCreateInstalledQmlViewport() ? 0 : 1;
 }

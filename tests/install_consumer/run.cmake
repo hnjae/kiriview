@@ -33,6 +33,7 @@ if(qml_module_dir_count EQUAL 0)
     message(FATAL_ERROR "Installed ImageViewport package did not include a QML module directory")
 endif()
 list(GET qml_module_dirs 0 qml_module_dir)
+get_filename_component(qml_import_root "${qml_module_dir}" DIRECTORY)
 foreach(required_qml_file IN ITEMS qmldir ImageViewport.qmltypes libImageViewportplugin.a)
     if(NOT EXISTS "${qml_module_dir}/${required_qml_file}")
         message(FATAL_ERROR "Installed ImageViewport QML module is missing ${required_qml_file}")
@@ -49,6 +50,7 @@ execute_process(
         -DOPENGL_glx_LIBRARY=${IMAGEVIEWPORT_OPENGL_GLX_LIBRARY}
         -DOPENGL_gl_LIBRARY=${opengl_gl_library}
         -DOpenGL_GL_PREFERENCE=LEGACY
+        -DIMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT=${qml_import_root}
     RESULT_VARIABLE configure_result
     OUTPUT_VARIABLE configure_output
     ERROR_VARIABLE configure_error
@@ -68,7 +70,9 @@ if(NOT build_result EQUAL 0)
 endif()
 
 execute_process(
-    COMMAND "${consumer_build_dir}/imageviewport_install_consumer"
+    COMMAND "${CMAKE_COMMAND}" -E env
+        QT_QPA_PLATFORM=offscreen
+        "${consumer_build_dir}/imageviewport_install_consumer"
     RESULT_VARIABLE run_result
     OUTPUT_VARIABLE run_output
     ERROR_VARIABLE run_error

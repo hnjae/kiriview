@@ -13,3 +13,12 @@ if(NOT TARGET ImageViewport::ImageViewport)
             INTERFACE_LINK_LIBRARIES "OpenGL::GL;Qt6::Qml;Qt6::Quick"
     )
 endif()
+
+if(NOT TARGET ImageViewport::ImageViewportplugin)
+    add_library(ImageViewport::ImageViewportplugin STATIC IMPORTED)
+    set_target_properties(ImageViewport::ImageViewportplugin
+        PROPERTIES
+            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/qml/ImageViewport/@CMAKE_STATIC_LIBRARY_PREFIX@ImageViewportplugin@CMAKE_STATIC_LIBRARY_SUFFIX@"
+            INTERFACE_LINK_LIBRARIES "ImageViewport::ImageViewport;Qt6::Qml;Qt6::Quick"
+    )
+endif()
