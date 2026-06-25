@@ -94,6 +94,20 @@ QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata &meta
     return {};
 }
 
+ImageViewport::TriState capabilitySupportToTriState(ImageSequenceProviderCapabilitySupport support)
+{
+    switch (support) {
+    case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
+        return ImageViewport::TriState::False;
+    case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
+        return ImageViewport::TriState::True;
+    case ImageSequenceProviderCapabilitySupport::Unavailable:
+        return ImageViewport::TriState::Unavailable;
+    }
+
+    return ImageViewport::TriState::Unavailable;
+}
+
 }
 
 ImageSequence::ImageSequence(QObject *parent)
@@ -120,6 +134,9 @@ ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory
     bool hasProviderKnownMetadata,
     const QSizeF &providerKnownLogicalSize,
     QVector<int> providerKnownFrameDurations,
+    ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+    ImageSequenceProviderCapabilitySupport frameSeekCapability,
+    ImageSequenceProviderCapabilitySupport positionSeekCapability,
     QObject *parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Provider)
@@ -127,6 +144,9 @@ ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory
     , m_hasProviderKnownMetadata(hasProviderKnownMetadata)
     , m_providerKnownLogicalSize(providerKnownLogicalSize)
     , m_providerKnownFrameDurations(std::move(providerKnownFrameDurations))
+    , m_providerTimedPlaybackCapability(timedPlaybackCapability)
+    , m_providerFrameSeekCapability(frameSeekCapability)
+    , m_providerPositionSeekCapability(positionSeekCapability)
 {
 }
 
@@ -389,6 +409,21 @@ std::shared_ptr<ImageSequenceProviderSessionFactory> ImageSequenceProviderAdapte
 ImageSequenceProviderMetadata ImageSequenceProviderAdapter::knownMetadata() const
 {
     return {};
+}
+
+ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::timedPlaybackCapability() const
+{
+    return CapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::frameSeekCapability() const
+{
+    return CapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::positionSeekCapability() const
+{
+    return CapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
@@ -674,6 +709,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
                                            hasKnownMetadata,
                                            hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
                                            hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
+                                           adapter->timedPlaybackCapability(),
+                                           adapter->frameSeekCapability(),
+                                           adapter->positionSeekCapability(),
                                            this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
@@ -993,6 +1031,9 @@ ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
     if (hasProviderSequence() && m_providerMetadataReady) {
         return m_providerTimedMetadata ? TriState::True : TriState::False;
     }
+    if (hasProviderSequence()) {
+        return capabilitySupportToTriState(m_sequence->m_providerTimedPlaybackCapability);
+    }
     if (hasTimedSequence()) {
         return TriState::True;
     }
@@ -1008,6 +1049,9 @@ ImageViewport::TriState ImageViewport::frameSeekSupport() const
     if (hasProviderSequence() && m_providerMetadataReady) {
         return TriState::True;
     }
+    if (hasProviderSequence()) {
+        return capabilitySupportToTriState(m_sequence->m_providerFrameSeekCapability);
+    }
     if (hasStillSequence() || hasTimedSequence()) {
         return TriState::True;
     }
@@ -1019,6 +1063,9 @@ ImageViewport::TriState ImageViewport::positionSeekSupport() const
 {
     if (hasProviderSequence() && m_providerMetadataReady) {
         return m_providerTimedMetadata ? TriState::True : TriState::False;
+    }
+    if (hasProviderSequence()) {
+        return capabilitySupportToTriState(m_sequence->m_providerPositionSeekCapability);
     }
     if (hasTimedSequence()) {
         return TriState::True;

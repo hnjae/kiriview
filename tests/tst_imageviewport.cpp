@@ -43,6 +43,7 @@ private slots:
     void providerSessionClosesWhenViewportIsDestroyed();
     void providerClearCancelsActiveFrameRequestBeforeClose();
     void providerConstructionMetadataSelectsInitialFrameRequest();
+    void providerDeclaredCapabilityProjectsBeforeMetadata();
     void providerStillMetadataSelectsInitialFrameRequest();
     void providerTimedMetadataSelectsInitialFrameRequest();
     void providerFixedDurationMetadataSelectsInitialFrameRequest();
@@ -260,10 +261,16 @@ class CountingProviderAdapter final : public ImageSequenceProviderAdapter
 public:
     explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
         ImageSequenceProviderMetadata knownMetadata = {},
+        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
         QObject *parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
         , m_factory(std::move(factory))
         , m_knownMetadata(std::move(knownMetadata))
+        , m_timedPlaybackSupport(timedPlaybackSupport)
+        , m_frameSeekSupport(frameSeekSupport)
+        , m_positionSeekSupport(positionSeekSupport)
     {
     }
 
@@ -277,9 +284,27 @@ public:
         return m_knownMetadata;
     }
 
+    CapabilitySupport timedPlaybackCapability() const override
+    {
+        return m_timedPlaybackSupport;
+    }
+
+    CapabilitySupport frameSeekCapability() const override
+    {
+        return m_frameSeekSupport;
+    }
+
+    CapabilitySupport positionSeekCapability() const override
+    {
+        return m_positionSeekSupport;
+    }
+
 private:
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
     ImageSequenceProviderMetadata m_knownMetadata;
+    CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
+    CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
+    CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
 };
 
 void emitTimedProviderFrameReady(CountingProviderSession *session,
@@ -1275,6 +1300,41 @@ void ImageViewportTest::providerConstructionMetadataSelectsInitialFrameRequest()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+}
+
+void ImageViewportTest::providerDeclaredCapabilityProjectsBeforeMetadata()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        {},
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("frameCount").toInt(), -1);
+    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
 }
 
 void ImageViewportTest::providerStillMetadataSelectsInitialFrameRequest()

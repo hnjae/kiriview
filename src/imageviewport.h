@@ -17,6 +17,12 @@
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
 
+enum class ImageSequenceProviderCapabilitySupport {
+    Unavailable,
+    DeclaredFalse,
+    DeclaredTrue,
+};
+
 class ImageSequence : public QObject
 {
     Q_OBJECT
@@ -38,6 +44,9 @@ private:
         bool hasProviderKnownMetadata,
         const QSizeF &providerKnownLogicalSize,
         QVector<int> providerKnownFrameDurations,
+        ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+        ImageSequenceProviderCapabilitySupport frameSeekCapability,
+        ImageSequenceProviderCapabilitySupport positionSeekCapability,
         QObject *parent = nullptr);
 
     bool isValid() const;
@@ -57,6 +66,9 @@ private:
     bool m_hasProviderKnownMetadata = false;
     QSizeF m_providerKnownLogicalSize;
     QVector<int> m_providerKnownFrameDurations;
+    ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport m_providerFrameSeekCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport m_providerPositionSeekCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
@@ -126,9 +138,14 @@ class ImageSequenceProviderAdapter : public QObject
     QML_UNCREATABLE("Use a concrete provider adapter supplied by C++ or module helpers")
 
 public:
+    using CapabilitySupport = ImageSequenceProviderCapabilitySupport;
+
     explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
     virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const;
     virtual ImageSequenceProviderMetadata knownMetadata() const;
+    virtual CapabilitySupport timedPlaybackCapability() const;
+    virtual CapabilitySupport frameSeekCapability() const;
+    virtual CapabilitySupport positionSeekCapability() const;
 };
 
 class ImageSequenceProviderRequestToken
