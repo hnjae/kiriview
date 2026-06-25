@@ -178,10 +178,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
             this);
     }
 
-    const bool hasCompleteKnownMetadata = hasKnownMetadata
-        && providerCapabilityResolved(timedPlaybackCapability)
-        && providerCapabilityResolved(frameSeekCapability)
-        && providerCapabilityResolved(positionSeekCapability);
+    const bool hasCompleteKnownMetadata = hasKnownMetadata;
 
     return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory),
                                            hasKnownMetadata,
