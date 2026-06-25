@@ -86,7 +86,15 @@ bool ImageSequenceProviderMetadata::isValid() const
         return true;
     }
     if (isTimedFrameList()) {
-        return !m_frameDurations.isEmpty();
+        if (m_frameDurations.isEmpty()) {
+            return false;
+        }
+        for (int duration : m_frameDurations) {
+            if (duration <= 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     return false;
@@ -193,4 +201,3 @@ void ImageSequenceProviderSession::cancelRequest(const ImageSequenceProviderRequ
 void ImageSequenceProviderSession::close()
 {
 }
-

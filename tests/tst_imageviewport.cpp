@@ -77,6 +77,7 @@ private slots:
     void timedFrameListStopAfterPauseWhileRenderWaitingRestoresPreviousDisplay();
     void timedFrameListLoopingPlaybackWrapsToFirstFrame();
     void replacementRetainsPreviousDisplayWhileWaitingForGeometry();
+    void providerPublicValueTypesValidateTiming();
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
     void providerFactoryRejectsPublishedKnownMetadataLimits();
@@ -2564,6 +2565,87 @@ void ImageViewportTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(8.0, 8.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
+}
+
+void ImageViewportTest::providerPublicValueTypesValidateTiming()
+{
+    const ImageSequenceProviderRequestToken defaultToken;
+    QCOMPARE(defaultToken.id(), 0U);
+    QCOMPARE(defaultToken.isValid(), false);
+    QCOMPARE(defaultToken, ImageSequenceProviderRequestToken());
+
+    const ImageSequenceProviderRequestToken token(42);
+    QCOMPARE(token.id(), 42U);
+    QCOMPARE(token.isValid(), true);
+    QVERIFY(token != defaultToken);
+    QCOMPARE(token, ImageSequenceProviderRequestToken(42));
+
+    const ImageSequenceProviderMetadata emptyMetadata;
+    QCOMPARE(emptyMetadata.isSpecified(), false);
+    QCOMPARE(emptyMetadata.isValid(), false);
+    QCOMPARE(emptyMetadata.isStill(), false);
+    QCOMPARE(emptyMetadata.isTimedFrameList(), false);
+    QCOMPARE(emptyMetadata.frameDurations(), QVector<int>());
+
+    const ImageSequenceProviderMetadata stillMetadata = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
+    QCOMPARE(stillMetadata.isSpecified(), true);
+    QCOMPARE(stillMetadata.isValid(), true);
+    QCOMPARE(stillMetadata.isStill(), true);
+    QCOMPARE(stillMetadata.isTimedFrameList(), false);
+    QCOMPARE(stillMetadata.logicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(stillMetadata.frameDurations(), QVector<int>());
+
+    const ImageSequenceProviderMetadata fixedDurationMetadata =
+        ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 3, 100);
+    QCOMPARE(fixedDurationMetadata.isSpecified(), true);
+    QCOMPARE(fixedDurationMetadata.isValid(), true);
+    QCOMPARE(fixedDurationMetadata.isStill(), false);
+    QCOMPARE(fixedDurationMetadata.isTimedFrameList(), true);
+    QCOMPARE(fixedDurationMetadata.frameDurations(), QVector<int>({100, 100, 100}));
+
+    const ImageSequenceProviderMetadata zeroDurationMetadata =
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 0});
+    QCOMPARE(zeroDurationMetadata.isSpecified(), true);
+    QCOMPARE(zeroDurationMetadata.isValid(), false);
+
+    const ImageSequenceProviderMetadata negativeDurationMetadata =
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, -1});
+    QCOMPARE(negativeDurationMetadata.isSpecified(), true);
+    QCOMPARE(negativeDurationMetadata.isValid(), false);
+
+    const ImageSequenceProviderMetadata invalidFixedDurationMetadata =
+        ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 2, 0);
+    QCOMPARE(invalidFixedDurationMetadata.isSpecified(), true);
+    QCOMPARE(invalidFixedDurationMetadata.isValid(), false);
+
+    const ImageSequenceProviderFrameMetadata emptyFrameMetadata;
+    QCOMPARE(emptyFrameMetadata.isValid(), false);
+    QCOMPARE(emptyFrameMetadata.isStillFrame(), false);
+    QCOMPARE(emptyFrameMetadata.isTimedFrame(), false);
+    QCOMPARE(emptyFrameMetadata.frame(), -1);
+    QCOMPARE(emptyFrameMetadata.frameStartPosition(), -1);
+    QCOMPARE(emptyFrameMetadata.frameDuration(), -1);
+
+    const ImageSequenceProviderFrameMetadata stillFrameMetadata = ImageSequenceProviderFrameMetadata::stillFrame();
+    QCOMPARE(stillFrameMetadata.isValid(), true);
+    QCOMPARE(stillFrameMetadata.isStillFrame(), true);
+    QCOMPARE(stillFrameMetadata.isTimedFrame(), false);
+    QCOMPARE(stillFrameMetadata.frame(), 0);
+    QCOMPARE(stillFrameMetadata.frameStartPosition(), -1);
+    QCOMPARE(stillFrameMetadata.frameDuration(), -1);
+
+    const ImageSequenceProviderFrameMetadata timedFrameMetadata =
+        ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 250);
+    QCOMPARE(timedFrameMetadata.isValid(), true);
+    QCOMPARE(timedFrameMetadata.isStillFrame(), false);
+    QCOMPARE(timedFrameMetadata.isTimedFrame(), true);
+    QCOMPARE(timedFrameMetadata.frame(), 1);
+    QCOMPARE(timedFrameMetadata.frameStartPosition(), 100);
+    QCOMPARE(timedFrameMetadata.frameDuration(), 250);
+
+    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(-1, 100).isValid(), false);
+    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, -1).isValid(), false);
+    QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 0).isValid(), false);
 }
 
 void ImageViewportTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()
