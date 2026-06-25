@@ -2359,6 +2359,23 @@ void ImageViewportTest::imageFrameUsesDeviceIndependentLogicalSize()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
 
+    QScopedPointer<ImageSequenceFactoryResult> nativeFrameResult(factory.fromFrame(image));
+    QVERIFY(nativeFrameResult->sequence());
+    ImageViewport nativeFrameItem;
+    nativeFrameItem.setSize(QSizeF(20.0, 20.0));
+    nativeFrameItem.setSequence(nativeFrameResult->sequence());
+    QCOMPARE(nativeFrameItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(nativeFrameItem.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
+
+    QScopedPointer<ImageSequenceFactoryResult> nativeTimedResult(factory.fromTimedFrameList({image, image}, {100, 200}));
+    QVERIFY(nativeTimedResult->sequence());
+    ImageViewport nativeTimedItem;
+    nativeTimedItem.setSize(QSizeF(20.0, 20.0));
+    nativeTimedItem.setSequence(nativeTimedResult->sequence());
+    QCOMPARE(nativeTimedItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(nativeTimedItem.property("frameCount").toInt(), 2);
+    QCOMPARE(nativeTimedItem.property("totalDuration").toInt(), 300);
+
     QImage fractionalLogicalImage(3, 2, QImage::Format_ARGB32_Premultiplied);
     fractionalLogicalImage.setDevicePixelRatio(2.0);
     fractionalLogicalImage.fill(Qt::transparent);

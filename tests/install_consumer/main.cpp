@@ -492,11 +492,26 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    QImage deviceIndependentImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    deviceIndependentImage.setDevicePixelRatio(2.0);
+    deviceIndependentImage.fill(Qt::transparent);
+    const ImageFrame deviceIndependentFrame(deviceIndependentImage);
+    if (!deviceIndependentFrame.isValid()
+        || deviceIndependentFrame.logicalSize() != QSizeF(2.0, 1.0)
+        || deviceIndependentFrame.payloadByteSize() != deviceIndependentImage.sizeInBytes()) {
+        return 1;
+    }
+
     std::unique_ptr<ImageSequenceFactoryResult> stillResult(factory.fromFrame(image));
     if (!stillResult || !stillResult->sequence()) {
         return 1;
     }
     if (stillResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
+    std::unique_ptr<ImageSequenceFactoryResult> deviceIndependentStillResult(factory.fromFrame(deviceIndependentImage));
+    if (!deviceIndependentStillResult || !deviceIndependentStillResult->sequence()) {
         return 1;
     }
 
@@ -518,6 +533,15 @@ int main(int argc, char **argv)
         return 1;
     }
     if (timedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
+    QVector<QImage> deviceIndependentTimedImages;
+    deviceIndependentTimedImages.append(deviceIndependentImage);
+    deviceIndependentTimedImages.append(deviceIndependentImage);
+    std::unique_ptr<ImageSequenceFactoryResult> deviceIndependentTimedResult(
+        factory.fromTimedFrameList(deviceIndependentTimedImages, timedDurations));
+    if (!deviceIndependentTimedResult || !deviceIndependentTimedResult->sequence()) {
         return 1;
     }
 
