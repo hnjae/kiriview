@@ -77,6 +77,11 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
 {
     d->advancePlaybackForTest(elapsedMilliseconds);
 }
+
+void ImageViewport::setNextProviderRequestTokenForTest(quint64 token)
+{
+    d->setNextProviderRequestTokenForTest(token);
+}
 #endif
 
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)

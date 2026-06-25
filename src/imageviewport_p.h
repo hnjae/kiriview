@@ -63,6 +63,7 @@ public:
     CommandOutcome resetView();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
+    void setNextProviderRequestTokenForTest(quint64 token);
 #endif
     CommandOutcome clearCommandImpl();
     CommandOutcome playCommandImpl();
@@ -73,6 +74,7 @@ public:
     CommandOutcome resetViewCommandImpl();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
+    void setNextProviderRequestTokenForTestImpl(quint64 token);
 #endif
 
     QRectF contentRect() const;

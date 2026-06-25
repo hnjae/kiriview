@@ -593,6 +593,7 @@ public:
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
+    void setNextProviderRequestTokenForTest(quint64 token);
 #endif
 
 signals:

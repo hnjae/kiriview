@@ -760,6 +760,11 @@ void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
     advancePlayback(elapsedMilliseconds);
     syncPlaybackTimer();
 }
+
+void ImageViewportPrivate::setNextProviderRequestTokenForTestImpl(quint64 token)
+{
+    m_nextProviderRequestToken = token;
+}
 #endif
 
 void ImageViewportPrivate::incrementDisplayRevision()

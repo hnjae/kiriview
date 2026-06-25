@@ -101,6 +101,7 @@ private slots:
     void providerFactoryRejectsPublishedKnownMetadataLimits();
     void providerSessionEntryPointsUseSessionAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
+    void providerTokenOverflowClosesSessionWithoutInvalidRequest();
     void providerSharedSequenceUsesIndependentViewportSessions();
     void providerSessionOpenFailureKeepsReplacementObservable();
     void reassigningSameProviderSequenceStartsNewGeneration();
@@ -3599,6 +3600,38 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+}
+
+void ImageViewportTest::providerTokenOverflowClosesSessionWithoutInvalidRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider session")));
 }
 
 void ImageViewportTest::providerSharedSequenceUsesIndependentViewportSessions()

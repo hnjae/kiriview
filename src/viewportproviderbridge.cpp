@@ -5,6 +5,7 @@
 #include <QtCore/QMetaObject>
 #include <QtCore/QThread>
 
+#include <limits>
 #include <utility>
 
 namespace {
@@ -148,10 +149,18 @@ bool ViewportProviderBridge::openSession()
     if (viewport.m_providerMetadataReady) {
         viewport.m_pendingDisplayImage = {};
         viewport.m_activeProviderFrameToken = nextRequestToken();
+        if (!viewport.m_activeProviderFrameToken.isValid()) {
+            closeSession();
+            return false;
+        }
         viewport.m_activeProviderFrameFromPlayback = false;
         requestFrame(viewport.m_activeProviderFrameToken, viewport.m_currentFrame);
     } else {
         viewport.m_activeProviderMetadataToken = nextRequestToken();
+        if (!viewport.m_activeProviderMetadataToken.isValid()) {
+            closeSession();
+            return false;
+        }
         requestMetadata(viewport.m_activeProviderMetadataToken);
     }
     return true;
@@ -159,12 +168,19 @@ bool ViewportProviderBridge::openSession()
 
 ImageSequenceProviderRequestToken ViewportProviderBridge::nextRequestToken()
 {
+    if (viewport.m_nextProviderRequestToken == std::numeric_limits<quint64>::max()) {
+        closeSession();
+        return {};
+    }
     ++viewport.m_nextProviderRequestToken;
     return ImageSequenceProviderRequestToken(viewport.m_nextProviderRequestToken);
 }
 
 void ViewportProviderBridge::requestMetadata(const ImageSequenceProviderRequestToken &token)
 {
+    if (!token.isValid()) {
+        return;
+    }
     ImageSequenceProviderSession *session = viewport.m_providerSession;
     invokeSessionCommand(session, [session, token]() {
         session->requestMetadata(token);
@@ -173,6 +189,9 @@ void ViewportProviderBridge::requestMetadata(const ImageSequenceProviderRequestT
 
 void ViewportProviderBridge::requestFrame(const ImageSequenceProviderRequestToken &token, int frame)
 {
+    if (!token.isValid()) {
+        return;
+    }
     ImageSequenceProviderSession *session = viewport.m_providerSession;
     invokeSessionCommand(session, [session, token, frame]() {
         session->requestFrame(token, frame);
@@ -181,6 +200,9 @@ void ViewportProviderBridge::requestFrame(const ImageSequenceProviderRequestToke
 
 void ViewportProviderBridge::requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position)
 {
+    if (!token.isValid()) {
+        return;
+    }
     ImageSequenceProviderSession *session = viewport.m_providerSession;
     invokeSessionCommand(session, [session, token, frame, position]() {
         session->requestPlayback(token, frame, position);
@@ -189,6 +211,9 @@ void ViewportProviderBridge::requestPlayback(const ImageSequenceProviderRequestT
 
 void ViewportProviderBridge::cancelRequest(const ImageSequenceProviderRequestToken &token)
 {
+    if (!token.isValid()) {
+        return;
+    }
     ImageSequenceProviderSession *session = viewport.m_providerSession;
     invokeSessionCommand(session, [session, token]() {
         session->cancelRequest(token);

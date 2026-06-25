@@ -47,6 +47,11 @@ void ViewportController::advancePlaybackForTest(int elapsedMilliseconds)
 {
     viewport.advancePlaybackForTestImpl(elapsedMilliseconds);
 }
+
+void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
+{
+    viewport.setNextProviderRequestTokenForTestImpl(token);
+}
 #endif
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
@@ -106,5 +111,10 @@ ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 {
     controller.advancePlaybackForTest(elapsedMilliseconds);
+}
+
+void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
+{
+    controller.setNextProviderRequestTokenForTest(token);
 }
 #endif

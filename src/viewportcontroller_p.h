@@ -18,6 +18,7 @@ public:
     ImageViewport::CommandOutcome resetView();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
+    void setNextProviderRequestTokenForTest(quint64 token);
 #endif
 
 private:
