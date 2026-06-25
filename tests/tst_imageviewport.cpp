@@ -178,6 +178,7 @@ private slots:
     void providerGenerationTerminalFailureRejectsDisplayCommands();
     void providerGenerationTerminalFailureAcceptsControlCommands();
     void providerFrameFailureKeepsGenerationSeekable();
+    void providerFrameFailureRetainsDisplayAndClearsOnSeek();
     void providerMetadataUnsupportedReportsUnsupportedRequest();
     void providerFrameUnsupportedKeepsGenerationSeekable();
     void providerFrameUnsupportedRetainsDisplayAndClearsOnSeek();
@@ -7601,6 +7602,80 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(diagnosticsSpy.count(), 1);
+}
+
+void ImageViewportTest::providerFrameFailureRetainsDisplayAndClearsOnSeek()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    const ImageSequenceProviderRequestToken failedToken = sessionFactory->lastSession()->lastFrameToken();
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+
+    emit sessionFactory->lastSession()->providerFailed(failedToken,
+        QStringLiteral("frame decode failed"));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
+
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*frameRequestCount, 3);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::providerMetadataUnsupportedReportsUnsupportedRequest()
