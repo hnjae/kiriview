@@ -631,6 +631,7 @@ private:
     bool m_mirrorVertically = false;
     bool m_looping = false;
     bool m_stopPlaybackWhenRequestReady = false;
+    bool m_providerPlaybackStartPending = false;
     int m_currentFrame = -1;
     int m_requestedPosition = -1;
     int m_playbackPosition = -1;

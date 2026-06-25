@@ -858,6 +858,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
     m_stopPlaybackWhenRequestReady = false;
+    m_providerPlaybackStartPending = false;
     m_providerMetadataReady = false;
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
@@ -1370,6 +1371,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayStatus = DisplayStatus::Empty;
     m_playbackPhase = PlaybackPhase::Stopped;
     m_stopPlaybackWhenRequestReady = false;
+    m_providerPlaybackStartPending = false;
     m_providerMetadataReady = false;
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
@@ -1418,6 +1420,7 @@ ImageViewport::CommandOutcome ImageViewport::play()
 
         clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
+        m_providerPlaybackStartPending = true;
         m_currentFrame = -1;
         m_requestedPosition = -1;
         m_playbackPosition = -1;
@@ -1469,6 +1472,7 @@ ImageViewport::CommandOutcome ImageViewport::stop()
         m_currentFrame = m_latestNonPlaybackFrame;
         m_requestedPosition = m_latestNonPlaybackPosition;
         m_playbackPosition = m_requestedPosition;
+        m_providerPlaybackStartPending = false;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
@@ -1524,6 +1528,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             }
 
             clearCommandDiagnosticForAcceptedCommand();
+            m_providerPlaybackStartPending = false;
             m_currentFrame = frame;
             m_requestedPosition = providerFrameStartPosition(frame);
             m_playbackPosition = m_requestedPosition;
@@ -1560,6 +1565,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             }
 
             clearCommandDiagnosticForAcceptedCommand();
+            m_providerPlaybackStartPending = false;
             m_currentFrame = frame;
             m_requestedPosition = -1;
             m_playbackPosition = -1;
@@ -1580,6 +1586,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
         m_playbackPosition = m_requestedPosition;
@@ -1621,6 +1628,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        m_providerPlaybackStartPending = false;
         m_currentFrame = -1;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
@@ -1643,6 +1651,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
@@ -1680,6 +1689,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
@@ -2278,7 +2288,7 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_providerTimedMetadata = isTimedMetadata;
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
-    const bool selectedFromPlaybackStart = m_playbackPhase == PlaybackPhase::Waiting && m_currentFrame < 0 && m_requestedPosition < 0;
+    const bool selectedFromPlaybackStart = m_providerPlaybackStartPending && m_currentFrame < 0 && m_requestedPosition < 0;
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
     const bool selectedFromPosition = m_currentFrame < 0 && m_requestedPosition >= 0;
@@ -2286,6 +2296,7 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
         m_errorString.clear();
+        m_providerPlaybackStartPending = false;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
@@ -2336,6 +2347,7 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
 
     m_activeProviderFrameToken = nextProviderRequestToken();
     m_activeProviderFrameFromPlayback = selectedFromPlaybackStart;
+    m_providerPlaybackStartPending = false;
     if (selectedFromPlaybackStart) {
         m_providerSession->requestPlayback(m_activeProviderFrameToken, selectedFrame, m_requestedPosition);
     } else {
