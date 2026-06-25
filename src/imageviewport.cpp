@@ -3,6 +3,13 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+bool isFactoryResultOwnedSequence(ImageSequence *sequence)
+{
+    return sequence && qobject_cast<ImageSequenceFactoryResult *>(sequence->parent());
+}
+}
+
 ImageSequence *ImageViewportPrivate::sequence() const
 {
     return m_sequence;
@@ -20,8 +27,15 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     const QString oldWarningString = m_warningString;
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
+    ImageSequence *previousViewportOwnedSequence = m_sequence && m_sequence->parent() == q ? m_sequence.data() : nullptr;
     closeProviderSession();
+    if (isFactoryResultOwnedSequence(sequence)) {
+        sequence->setParent(q);
+    }
     m_sequence = sequence;
+    if (previousViewportOwnedSequence && previousViewportOwnedSequence != m_sequence) {
+        previousViewportOwnedSequence->deleteLater();
+    }
     ++m_sequenceGeneration;
     m_errorString.clear();
     m_warningString.clear();
