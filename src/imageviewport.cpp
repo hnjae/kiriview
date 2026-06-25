@@ -1251,6 +1251,9 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             if (m_providerSession) {
                 m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
             }
+            if (m_playbackPhase == PlaybackPhase::Playing) {
+                setPlaybackPhase(PlaybackPhase::Waiting);
+            }
             incrementRequestRevision();
             incrementDisplayRevision();
             emit requestStateChanged();
@@ -1313,6 +1316,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_activeProviderFrameFromPlayback = false;
         if (m_providerSession) {
             m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
+        }
+        if (m_playbackPhase == PlaybackPhase::Playing) {
+            setPlaybackPhase(PlaybackPhase::Waiting);
         }
         incrementRequestRevision();
         incrementDisplayRevision();
