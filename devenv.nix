@@ -126,6 +126,7 @@ in
     pkgs.cmake
     pkgs.git
     pkgs.just
+    pkgs.libglvnd
     pkgs.ninja
     pkgs.pkg-config
     qtBuildEnv

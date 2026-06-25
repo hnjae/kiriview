@@ -21,6 +21,7 @@ target_include_directories(ImageViewport
 
 target_link_libraries(ImageViewport
     PUBLIC
+        OpenGL::GL
         Qt6::Qml
         Qt6::Quick
 )

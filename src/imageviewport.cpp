@@ -1,7 +1,10 @@
 #include "imageviewport.h"
 
+#include <QtQuick/QSGImageNode>
 #include <QtQuick/QSGNode>
 #include <QtQuick/QSGSimpleRectNode>
+#include <QtQuick/QSGTexture>
+#include <QtQuick/QQuickWindow>
 
 #include <algorithm>
 #include <cmath>
@@ -259,13 +262,21 @@ int ImageSequence::frameIndexForPosition(int position) const
     return -1;
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageSequence::frameImageForTest(int frame) const
+QImage ImageSequence::frameImage(int frame) const
 {
+    if (isStill() && frame == 0) {
+        return m_stillImage;
+    }
     if (isTimedList() && frame >= 0 && frame < m_frameImages.size()) {
         return m_frameImages.at(frame);
     }
-    return m_stillImage;
+    return {};
+}
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+QImage ImageSequence::frameImageForTest(int frame) const
+{
+    return frameImage(frame);
 }
 #endif
 
@@ -2048,7 +2059,13 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     delete oldNode;
 
-    if (m_backgroundMode == BackgroundMode::Transparent || width() <= 0.0 || height() <= 0.0) {
+    if (width() <= 0.0 || height() <= 0.0) {
+        return nullptr;
+    }
+
+    const bool hasBackground = m_backgroundMode != BackgroundMode::Transparent;
+    const QImage image = (hasReadyDisplay() && m_sequence) ? m_sequence->frameImage(m_displayedFrame) : QImage();
+    if (!hasBackground && image.isNull()) {
         return nullptr;
     }
 
@@ -2056,24 +2073,49 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     if (m_backgroundMode == BackgroundMode::SolidColor) {
         auto *background = new QSGSimpleRectNode(QRectF(0.0, 0.0, width(), height()), m_backgroundColor);
         root->appendChildNode(background);
-        return root;
-    }
-
-    constexpr double checkerboardTileSize = 8.0;
-    const QColor lightSquare(238, 238, 238);
-    const QColor darkSquare(204, 204, 204);
-    for (double y = 0.0; y < height(); y += checkerboardTileSize) {
-        for (double x = 0.0; x < width(); x += checkerboardTileSize) {
-            const int column = static_cast<int>(x / checkerboardTileSize);
-            const int row = static_cast<int>(y / checkerboardTileSize);
-            const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
-            const QRectF tile(x,
-                y,
-                std::min(checkerboardTileSize, width() - x),
-                std::min(checkerboardTileSize, height() - y));
-            root->appendChildNode(new QSGSimpleRectNode(tile, color));
+    } else if (m_backgroundMode == BackgroundMode::Checkerboard) {
+        constexpr double checkerboardTileSize = 8.0;
+        const QColor lightSquare(238, 238, 238);
+        const QColor darkSquare(204, 204, 204);
+        for (double y = 0.0; y < height(); y += checkerboardTileSize) {
+            for (double x = 0.0; x < width(); x += checkerboardTileSize) {
+                const int column = static_cast<int>(x / checkerboardTileSize);
+                const int row = static_cast<int>(y / checkerboardTileSize);
+                const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
+                const QRectF tile(x,
+                    y,
+                    std::min(checkerboardTileSize, width() - x),
+                    std::min(checkerboardTileSize, height() - y));
+                root->appendChildNode(new QSGSimpleRectNode(tile, color));
+            }
         }
     }
+
+    if (!image.isNull() && window()) {
+        QSGTexture *texture = window()->createTextureFromImage(image);
+        QSGImageNode *imageNode = window()->createImageNode();
+        if (texture && imageNode) {
+            imageNode->setTexture(texture);
+            imageNode->setOwnsTexture(true);
+            imageNode->setRect(currentContentRect());
+            imageNode->setSourceRect(QRectF(QPointF(), image.size()));
+            imageNode->setFiltering(m_smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
+            imageNode->setMipmapFiltering(m_mipmap ? QSGTexture::Linear : QSGTexture::None);
+            QSGImageNode::TextureCoordinatesTransformMode transform = {};
+            if (m_mirrorHorizontally) {
+                transform |= QSGImageNode::MirrorHorizontally;
+            }
+            if (m_mirrorVertically) {
+                transform |= QSGImageNode::MirrorVertically;
+            }
+            imageNode->setTextureCoordinatesTransform(transform);
+            root->appendChildNode(imageNode);
+        } else {
+            delete texture;
+            delete imageNode;
+        }
+    }
+
     return root;
 }
 

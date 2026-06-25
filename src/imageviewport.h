@@ -58,6 +58,7 @@ private:
     int totalDuration() const;
     int frameStartPosition(int frame) const;
     int frameIndexForPosition(int position) const;
+    QImage frameImage(int frame) const;
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 public:

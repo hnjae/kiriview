@@ -9,6 +9,8 @@
 #include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QSGSimpleRectNode>
+#include <QtQuick/QSGImageNode>
+#include <QtQuick/QQuickWindow>
 #include <QtTest/QSignalSpy>
 #include <QtTest/QTest>
 
@@ -107,6 +109,7 @@ private slots:
     void providerFrameCancellationReportsProviderFailure();
     void solidBackgroundCreatesPaintNode();
     void checkerboardBackgroundCreatesPaintNode();
+    void stillImageCreatesTexturePaintNode();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -3884,6 +3887,31 @@ void ImageViewportTest::checkerboardBackgroundCreatesPaintNode()
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
     QVERIFY(root->childCount() > 0);
+}
+
+void ImageViewportTest::stillImageCreatesTexturePaintNode()
+{
+    ImageSequenceFactory factory;
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto *imageNode = dynamic_cast<QSGImageNode *>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
