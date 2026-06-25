@@ -116,6 +116,7 @@ private slots:
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
     void invalidPresentationEnumValuesAreIgnored();
+    void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -4145,9 +4146,33 @@ void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()
     QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision);
 }
 
-void ImageViewportTest::presentationChangesNotifyGeometryState()
+void ImageViewportTest::presentationChangesWithoutDisplayDoNotNotifyGeometryState()
 {
     ImageViewport item;
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    item.setZoom(2.0);
+    item.setPan(QPointF(4.0, 8.0));
+    item.setFillMode(ImageViewport::FillMode::Stretch);
+    item.setMirrorHorizontally(true);
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(geometrySpy.count(), 0);
+}
+
+void ImageViewportTest::presentationChangesNotifyGeometryState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
     item.setZoom(2.0);

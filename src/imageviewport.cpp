@@ -2246,7 +2246,7 @@ void ImageViewport::notifyPresentationChanged(bool affectsGeometry)
 {
     incrementDisplayRevision();
     emit presentationChanged();
-    if (affectsGeometry) {
+    if (affectsGeometry && hasReadyDisplay() && !itemBounds().isEmpty()) {
         emit geometryStateChanged();
     }
     update();
