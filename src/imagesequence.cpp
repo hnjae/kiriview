@@ -232,6 +232,12 @@ QString TimedImageFrameList::warningString() const
     return m_warningString;
 }
 
+bool TimedImageFrameList::appendFrame(const QImage &image, int durationMilliseconds)
+{
+    ImageFrame frame(image);
+    return appendFrame(&frame, durationMilliseconds);
+}
+
 bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMilliseconds)
 {
     if (!frame || !frame->isValid()) {
@@ -338,4 +344,3 @@ void TimedImageFrameList::setErrorString(const QString &errorString)
     m_errorString = errorString;
     emit diagnosticsChanged();
 }
-

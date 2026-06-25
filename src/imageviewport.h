@@ -137,6 +137,7 @@ public:
     int count() const;
     QString errorString() const;
     QString warningString() const;
+    bool appendFrame(const QImage &image, int durationMilliseconds);
     Q_INVOKABLE bool appendFrame(ImageFrame *frame, int durationMilliseconds);
     Q_INVOKABLE void clear();
 

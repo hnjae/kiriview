@@ -60,6 +60,14 @@ int main()
         return 1;
     }
 
+    TimedImageFrameList builder;
+    if (!builder.appendFrame(image, 100)) {
+        return 1;
+    }
+    if (builder.count() != 1) {
+        return 1;
+    }
+
     ConsumerAdapter adapter;
     std::unique_ptr<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     if (!result || !result->sequence()) {
