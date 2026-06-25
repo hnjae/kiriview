@@ -1933,6 +1933,14 @@ bool ImageViewport::openProviderSession()
         this,
         &ImageViewport::handleProviderFrameReadyWithMetadata);
     connect(m_providerSession,
+        &ImageSequenceProviderSession::providerWaiting,
+        this,
+        &ImageViewport::handleProviderWaiting);
+    connect(m_providerSession,
+        &ImageSequenceProviderSession::providerProgress,
+        this,
+        &ImageViewport::handleProviderProgress);
+    connect(m_providerSession,
         &ImageSequenceProviderSession::endOfSequence,
         this,
         &ImageViewport::handleProviderEndOfSequence);
@@ -2070,6 +2078,36 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     emit geometryStateChanged();
     emit diagnosticsChanged();
     update();
+}
+
+void ImageViewport::handleProviderWaiting(const ImageSequenceProviderRequestToken &token)
+{
+    if (!hasProviderSequence() || !m_providerSession) {
+        return;
+    }
+
+    const bool activeMetadataToken = !m_providerMetadataReady && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken = token == m_activeProviderFrameToken;
+    if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
+        return;
+    }
+
+    if (m_requestReason == RequestReason::ProviderWaiting) {
+        return;
+    }
+
+    m_requestReason = RequestReason::ProviderWaiting;
+    incrementRequestRevision();
+    emit requestStateChanged();
+}
+
+void ImageViewport::handleProviderProgress(const ImageSequenceProviderRequestToken &token, double progress)
+{
+    if (!std::isfinite(progress) || progress < 0.0 || progress > 1.0) {
+        return;
+    }
+
+    handleProviderWaiting(token);
 }
 
 void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token)
