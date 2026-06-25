@@ -148,6 +148,49 @@ QtObject {
         && ImageSequenceLimits::maximumTotalSequenceDuration() >= 86400000
         && ImageSequenceLimits::maximumDiagnosticStringLength() >= 4096;
 }
+
+bool canUseInstalledQmlFactorySurface()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQml
+import ImageViewport 1.0
+
+QtObject {
+    readonly property var frameResult: ImageSequenceFactory.fromFrame(null)
+    readonly property var listResult: ImageSequenceFactory.fromTimedFrameList(null)
+    readonly property var providerResult: ImageSequenceFactory.fromProvider(null)
+    property bool factorySurfaceAvailable: frameResult.sequence === null
+        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && frameResult.errorString.length > 0
+        && frameResult.warningString === ""
+        && listResult.sequence === null
+        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && listResult.errorString.length > 0
+        && listResult.warningString === ""
+        && providerResult.sequence === null
+        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && providerResult.errorString.length > 0
+        && providerResult.warningString === ""
+}
+)",
+                      QUrl());
+    if (!component.isReady()) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    const std::unique_ptr<QObject> object(component.create());
+    if (!object) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    return object->property("factorySurfaceAvailable").toBool();
+}
 }
 
 int main(int argc, char **argv)
@@ -233,5 +276,5 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits() ? 0 : 1;
+    return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits() && canUseInstalledQmlFactorySurface() ? 0 : 1;
 }
