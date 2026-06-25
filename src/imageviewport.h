@@ -323,7 +323,16 @@ public:
     QString warningString() const;
 
 private:
+    friend class ImageSequenceFactory;
+
+    explicit ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
+        FactoryOutcome outcome,
+        QString errorString = {},
+        QString warningString = {},
+        QObject *parent = nullptr);
+
     QPointer<ImageSequence> m_sequence;
+    std::shared_ptr<ImageSequence> m_sequenceOwner;
     FactoryOutcome m_outcome;
     QString m_errorString;
     QString m_warningString;

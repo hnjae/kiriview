@@ -178,6 +178,7 @@ public:
     QElapsedTimer playbackElapsedTimer;
 
     QPointer<ImageSequence> &m_sequence = request.sequence;
+    std::shared_ptr<ImageSequence> &m_sequenceOwner = request.sequenceOwner;
     RequestStatus &m_requestStatus = request.status;
     RequestReason &m_requestReason = request.reason;
     CommandReason &m_commandReason = request.commandReason;

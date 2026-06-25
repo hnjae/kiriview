@@ -1,5 +1,6 @@
 #include "imageviewporthelpers_p.h"
 #include "framepreparation_p.h"
+#include "imagesequenceownership_p.h"
 
 #include <utility>
 
@@ -16,9 +17,16 @@ ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
     , m_errorString(FramePreparation::boundedDiagnostic(std::move(errorString), {}))
     , m_warningString(FramePreparation::boundedDiagnostic(std::move(warningString), {}))
 {
-    if (m_sequence && !m_sequence->parent()) {
-        m_sequence->setParent(this);
-    }
+}
+
+ImageSequenceFactoryResult::ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
+    FactoryOutcome outcome,
+    QString errorString,
+    QString warningString,
+    QObject *parent)
+    : ImageSequenceFactoryResult(sequence.get(), outcome, std::move(errorString), std::move(warningString), parent)
+{
+    m_sequenceOwner = std::move(sequence);
 }
 
 ImageSequence *ImageSequenceFactoryResult::sequence() const
@@ -95,7 +103,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
             limitViolation);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(frame->logicalSize(), frame->imagePayload()),
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(frame->logicalSize(), frame->imagePayload()));
+    registerFactorySequenceOwner(sequence);
+    return new ImageSequenceFactoryResult(std::move(sequence),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {});
@@ -109,7 +119,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList must contain at least one frame"));
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages()),
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages()));
+    registerFactorySequenceOwner(sequence);
+    return new ImageSequenceFactoryResult(std::move(sequence),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {});
@@ -153,14 +165,16 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
 
     const bool hasCompleteKnownMetadata = hasKnownMetadata;
 
-    return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory),
-                                           hasKnownMetadata,
-                                           hasCompleteKnownMetadata,
-                                           hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
-                                           hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
-                                           timedPlaybackCapability,
-                                           frameSeekCapability,
-                                           positionSeekCapability),
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(std::move(sessionFactory),
+        hasKnownMetadata,
+        hasCompleteKnownMetadata,
+        hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
+        hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
+        timedPlaybackCapability,
+        frameSeekCapability,
+        positionSeekCapability));
+    registerFactorySequenceOwner(sequence);
+    return new ImageSequenceFactoryResult(std::move(sequence),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {});

@@ -11,6 +11,8 @@ qt_add_qml_module(ImageViewport
     SOURCES
         imagesequence.cpp
         imagesequencefactory.cpp
+        imagesequenceownership.cpp
+        imagesequenceownership_p.h
         imagesequenceprovider.cpp
         framepreparation.cpp
         framepreparation_p.h

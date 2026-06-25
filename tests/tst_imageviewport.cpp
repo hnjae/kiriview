@@ -44,6 +44,7 @@ private slots:
     void exposesImageSequenceLimits();
     void factoryResultSequenceSurvivesFactoryDestruction();
     void assignedFactorySequenceSurvivesResultDestruction();
+    void sharedFactorySequenceSurvivesFirstViewportDestruction();
     void imageFrameRetainsImmutablePayload();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
@@ -1344,6 +1345,39 @@ void ImageViewportTest::assignedFactorySequenceSurvivesResultDestruction()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+}
+
+void ImageViewportTest::sharedFactorySequenceSurvivesFirstViewportDestruction()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport second;
+    second.setSize(QSizeF(100.0, 50.0));
+    const QMetaObject *metaObject = second.metaObject();
+    {
+        ImageViewport first;
+        first.setSize(QSizeF(100.0, 50.0));
+        first.setSequence(result->sequence());
+        second.setSequence(result->sequence());
+
+        QCOMPARE(first.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    }
+
+    QCOMPARE(second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(second.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(second.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(second.property("requestedFrame").toInt(), 0);
+    QCOMPARE(second.property("displayedFrame").toInt(), 0);
+    QCOMPARE(second.property("frameCount").toInt(), 1);
+    QCOMPARE(second.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(second.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
 }
 
 void ImageViewportTest::imageFrameRetainsImmutablePayload()

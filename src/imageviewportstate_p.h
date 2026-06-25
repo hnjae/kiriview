@@ -6,6 +6,8 @@
 #include <QtCore/QVector>
 #include <QtGui/QImage>
 
+#include <memory>
+
 namespace ImageViewportInternal {
 
 struct ViewportChangeSet {
@@ -57,6 +59,7 @@ struct DisplayState {
 
 struct RequestState {
     QPointer<ImageSequence> sequence;
+    std::shared_ptr<ImageSequence> sequenceOwner;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;
