@@ -94,9 +94,11 @@ Adapter tests may use a fake texture factory or adapter seam instead of a real G
 
 ## QML Integration Smoke
 
-QML smoke tests should verify `import ImageViewport`, item construction, default property values, sequence assignment, status changes, and simple display readiness using a fake in-memory sequence.
+QML smoke tests should verify `import ImageViewport`, item construction, default property values, unique enum-key lookup, sequence assignment, status changes, and simple display readiness using a fake in-memory sequence.
 
-M0 QML smoke tests may stop at import, construction, default enum/property exposure, and no-op command stability. M1 QML smoke tests should include the public sequence construction recipes and a fake in-memory sequence becoming displayable at positive item bounds.
+M0 QML smoke tests may stop at import, item construction, failure to directly instantiate `ImageSequence {}`, failure to instantiate the base `ImageSequenceProviderAdapter {}`, default enum/property exposure, QML references to all public enum values, invokable return conversion, typed `fromFrames(...)` surface checks where practical, mapping result object shape, and no-op command stability. M1 QML smoke tests should include `ImageSequenceFactory` construction recipes and a fake in-memory sequence becoming displayable at positive item bounds.
+
+C++ scaffold tests should reject accidental empty-content routes. They should verify that ordinary code cannot default-construct an `ImageSequence` as content, that a null or invalid factory input returns null, that `fromFrames(...)` accepts typed `TimedImageFrame` entries rather than arbitrary JavaScript object payloads, and that facade destruction is routed through the same controller state transition as explicit sequence clearing once generation state exists.
 
 Property binding tests should cover playback phase, requested frame, displayed frame, frame count when known, request status, display status, error string, content rectangle, painted size, mirror flags, smooth, mipmap, zoom, pan, and retain behavior at a smoke level.
 

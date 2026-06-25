@@ -64,7 +64,7 @@ Timed playback should be display-driven by default. If the viewport cannot curre
 
 Manual frame inspection should be expressed by pausing playback and selecting the requested frame. The viewport should not require a separate frame-sink mode where the caller repeatedly pushes the display frame outside the sequence playback model.
 
-The viewport should provide an explicit clearing action. Clearing, or assigning a null sequence, should remove retained display content, reset request and display status to empty/null state, clear diagnostics, reset requested frame and position observations to invalid values, reset loop counters, leave playback stopped, and make coordinate conversion report no image content. Clearing previously committed content should advance the display revision so overlays can discard stale annotations.
+The viewport should provide an explicit clearing action. Clearing, or assigning a null sequence, should remove retained display content, reset request and display status to the empty/no-request state, clear diagnostics, reset requested frame and position observations to invalid values, reset loop counters, leave playback stopped, and make coordinate conversion report no image content. Clearing previously committed content should advance the display revision so overlays can discard stale annotations.
 
 Calling `clear()` should make the observable `sequence` property null and should have the same external meaning as an imperative `sequence = null` plus retained-display clearing. If application code bound the `sequence` property, `clear()` follows normal QML imperative-assignment behavior; declarative clearing should instead make the binding evaluate to null. A later non-null assignment starts a new sequence generation.
 
@@ -158,7 +158,7 @@ Coordinate conversion between image coordinates and local item coordinates shoul
 
 The state model should distinguish the content currently displayed from the most recent content request or replacement attempt. This allows QML code to reason about cases where a replacement is loading or has failed while the viewport still displays a previously valid frame.
 
-Request status semantics should remain recognizable to Qt Quick users: empty content, ready content, loading or waiting content, unsupported content, and error content should map cleanly to the mental model of `Null`, `Ready`, `Loading`, and `Error` while making unsupported requests distinguishable when useful.
+Request status semantics should remain recognizable to Qt Quick users: empty content, ready content, loading or waiting content, unsupported content, and error content should map cleanly to the API's `NoRequest`, `RequestReady`, `RequestLoading`, `RequestUnsupported`, and `RequestError` states while making unsupported requests distinguishable when useful.
 
 For public request status, ready content should mean the latest request is reflected in display-committed content or required no display change. Provider or CPU candidate readiness before the frame becomes display-committed should remain an internal implementation detail and should not be reported as public ready state.
 

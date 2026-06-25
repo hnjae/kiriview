@@ -26,11 +26,11 @@ The API should still provide a practical way to create sequence objects. `source
 
 The minimum caller recipe should be explicit: QML assigns an `ImageSequence`; C++ or companion helper code creates that sequence from an image, a list of timed frames, or a provider adapter; the viewport never owns storage lookup or decoder selection.
 
-The v0 module should include a first-class sequence construction surface with the three required recipes `ImageSequence.fromImage(...)`, `ImageSequence.fromFrames(...)`, and `ImageSequence.fromProvider(...)` or their direct C++ equivalents. The exact C++ spelling may adapt to Qt binding constraints, but these recipes are required caller-facing behavior rather than optional scaffolding. QML callers normally receive `ImageFrame` objects from C++ code, module helpers, or provider adapters rather than manufacturing pixel buffers in JavaScript. URL, archive, and file helpers should be additional provider factories that return `ImageSequence` objects, not alternate loading properties on `ImageViewport`.
+The v0 module should include a first-class sequence construction surface with the three required recipes `ImageSequenceFactory.fromImage(...)`, `ImageSequenceFactory.fromFrames(...)`, and `ImageSequenceFactory.fromProvider(...)` or their direct C++ equivalents. The exact C++ spelling may adapt to Qt binding constraints, but these recipes are required caller-facing behavior rather than optional scaffolding. QML callers normally receive `ImageFrame` objects from C++ code, module helpers, or provider adapters rather than manufacturing pixel buffers in JavaScript. URL, archive, and file helpers should be additional provider factories that return `ImageSequence` objects, not alternate loading properties on `ImageViewport`.
 
 The first public construction surface should be QML-callable when its inputs are QML-representable, and C++-callable when the input is not naturally a QML value. In-memory still images and explicit timed frame lists may be exposed through module-defined helper value/object types such as image frame references, timed frame entries, or a sequence builder. Application-owned decoders should enter through a QObject provider adapter or a C++ factory that returns an `ImageSequence`. QML code should not be expected to manufacture pixel buffers directly, and `ImageViewport` should not accept raw `QImage`, raw frame lists, or raw provider objects directly as its `sequence` value.
 
-The minimum construction boundary should be explicit. C++ callers should be able to construct a sequence from `QImage`-backed still frames, timed frame lists, or provider adapters. QML callers should construct only module-defined objects such as opaque frame references, timed frame entries, sequence builders, or provider adapter objects, then pass those objects to `ImageSequence` helpers. `ImageFrame` owns or shares an immutable display-ready frame payload, `TimedImageFrame` owns a frame reference plus duration metadata, and provider adapters own their provider bridge for the constructed sequence generation. A raw JavaScript object or list should not become an implicit pixel buffer or provider just because it has similarly named fields.
+The minimum construction boundary should be explicit. C++ callers should be able to construct a sequence from `QImage`-backed still frames, typed timed frame lists, or provider adapters. QML callers should pass only module-defined helper objects such as opaque frame references, timed frame entries, sequence builders, or concrete provider adapter objects into `ImageSequenceFactory`. `ImageFrame` owns or shares an immutable display-ready frame payload, `TimedImageFrame` owns a frame reference plus duration metadata, and provider adapters own their provider bridge for the constructed sequence generation. A raw JavaScript object or untyped list should not become an implicit pixel buffer or provider just because it has similarly named fields.
 
 An explicit timed frame list should contain display-ready full-frame entries plus per-frame duration metadata. The frame entry type may be a module-defined image frame object rather than a bare QML value, because QML has no native `QImage` value type.
 
@@ -46,9 +46,9 @@ ImageViewport {
 }
 
 // Created by a module helper, C++ factory, or application adapter.
-property ImageSequence stillSequence: ImageSequence.fromImage(stillFrame)
-property ImageSequence animatedSequence: ImageSequence.fromFrames(timedFrames)
-property ImageSequence providerSequence: ImageSequence.fromProvider(appProvider)
+property ImageSequence stillSequence: ImageSequenceFactory.fromImage(stillFrame)
+property ImageSequence animatedSequence: ImageSequenceFactory.fromFrames(timedFrames)
+property ImageSequence providerSequence: ImageSequenceFactory.fromProvider(appProvider)
 ```
 
 The example names are descriptive placeholders, but the shape is intentional: QML assigns only an `ImageSequence`; helper objects or C++ code adapt images, timed frame lists, byte sources, archive entries, URLs, or application decoders into that sequence.
@@ -59,18 +59,22 @@ The first caller-facing sequence helpers should be concrete enough that applicat
 
 `ImageSequence` should be the object assigned to `ImageViewport.sequence`. It should be a handle for an immutable sequence generation source, not a mutable image model owned by the viewport.
 
+`ImageSequence` should be registered as a QML property type but should not be directly creatable as `ImageSequence {}`. A non-null `ImageSequence` should represent a factory-created sequence handle with generation data behind it; empty content should be represented by `sequence: null`, and construction failures should return `null` or be reported by the factory/helper diagnostics rather than by assigning an invalid-looking sequence handle.
+
+`ImageSequenceFactory` should be the preferred QML construction entry point for the baseline module. It may be implemented as a singleton, factory object, or equivalent Qt helper, but the QML-facing shape should make it clear that `ImageSequence` is a generated handle rather than an editable object. C++ callers may use direct static helpers, constructors hidden from QML, or factory functions with the same semantics.
+
 `ImageFrame` should be an opaque module-defined frame reference for QML-visible construction paths. It may wrap a C++ `QImage` payload, a module-owned decoded frame, or another display-ready CPU frame representation. QML code should be able to pass an `ImageFrame` around but should not be expected to construct raw pixels directly.
 
-`TimedImageFrame` should pair an `ImageFrame` with a millisecond duration for explicit small animations. A timed frame list should be copied or frozen when `ImageSequence.fromFrames(...)` creates a sequence.
+`TimedImageFrame` should pair an `ImageFrame` with a millisecond duration for explicit small animations. `ImageSequenceFactory.fromFrames(...)` should accept only typed timed-frame entries or a dedicated builder that enforces the same typing, and the resulting timed frame list should be copied or frozen when the sequence is created.
 
-`ImageSequenceProviderAdapter` should be the QML/C++ bridge for application-owned decoders and storage systems. It should adapt provider callbacks or request methods into an `ImageSequence` rather than becoming a value accepted directly by `ImageViewport.sequence`.
+`ImageSequenceProviderAdapter` should be the QML/C++ bridge for application-owned decoders and storage systems. It should adapt provider callbacks or request methods into an `ImageSequence` rather than becoming a value accepted directly by `ImageViewport.sequence`. The base adapter type should not be directly useful as a QML object until a concrete provider contract exists; callers should use concrete adapters supplied by the module or by application C++ code.
 
 The minimum public construction recipes should therefore be:
 
 ```qml
-property ImageSequence stillSequence: ImageSequence.fromImage(imageFrame)
-property ImageSequence animatedSequence: ImageSequence.fromFrames(timedImageFrames)
-property ImageSequence providerSequence: ImageSequence.fromProvider(providerAdapter)
+property ImageSequence stillSequence: ImageSequenceFactory.fromImage(imageFrame)
+property ImageSequence animatedSequence: ImageSequenceFactory.fromFrames(timedImageFrames)
+property ImageSequence providerSequence: ImageSequenceFactory.fromProvider(providerAdapter)
 ```
 
 File, URL, archive, byte-buffer, and codec-specific helpers may exist as separate factories, but their output should still be an `ImageSequence`. The viewport should not add parallel loading properties for those sources.
@@ -172,8 +176,6 @@ function containsVisibleImagePoint(point)
 
 Concrete type names may change, but the observable concepts should remain stable unless later research invalidates them.
 
-The minimal public header should expose these concepts as Qt properties, enums, and invokable commands even before every backend behavior is implemented. Placeholder implementations may return empty or default state while the provider, playback, and render layers are built, but the QML surface should not remain an unrelated empty `QQuickItem` once this API is treated as v0 intent.
-
 ## Playback State
 
 `ImageViewport` should be a sequence consumer with its own playback state. Callers provide sequence content and frame timing metadata through `ImageSequence`; the viewport selects requested frame targets according to play, pause, stop, seek, `requestedFrame`, `speed`, `loopMode`, and `loopCount`.
@@ -188,9 +190,9 @@ Assigning a non-null `sequence` should request the initial display frame automat
 
 Assigning `requestedFrame` and calling `seek(frame)` should target the same frame-selection behavior when the active sequence supports stable display indexes. `seek(frame)` is the preferred command-style surface when QML code needs the immediate `RequestOutcome`; `requestedFrame` remains useful for declarative bindings and inspector controls.
 
-If assigning `requestedFrame` is invalid or unsupported, the assignment should not be reported as a successful target change merely because retained content remains visible. The setter should leave the last accepted requested frame observable, set `requestStatus` to `Unsupported` with `requestStatusReason` set to `InvalidRequest` or `UnsupportedRequest`, and keep display state unchanged unless a later accepted request commits a frame.
+If assigning `requestedFrame` is invalid or unsupported, the assignment should not be reported as a successful target change merely because retained content remains visible. The setter should leave the last accepted requested frame observable, set `requestStatus` to `RequestUnsupported` with `requestStatusReason` set to `InvalidRequest` or `UnsupportedRequest`, and keep display state unchanged unless a later accepted request commits a frame.
 
-`seek(frame)` should return a lightweight request outcome so QML can distinguish an admitted request from an immediately unsupported or invalid request. `Accepted` means the request entered the viewport request model; it may still be queued, waiting on the provider, waiting on render commit, or complete immediately. Waiting and queueing are long-lived request-state facts reported through `requestStatus` and `requestStatusReason`, not separate successful command outcomes. The authoritative long-lived state remains `requestStatus`, `requestStatusReason`, `requestedFrame`, and `displayedFrame`; the return value is only the immediate command outcome.
+`seek(frame)` should return a lightweight request outcome so QML can distinguish an admitted request from an immediately unsupported or invalid request. `OutcomeAccepted` means the request entered the viewport request model; it may still be queued, waiting on the provider, waiting on render commit, or complete immediately. Waiting and queueing are long-lived request-state facts reported through `requestStatus` and `requestStatusReason`, not separate successful command outcomes. The authoritative long-lived state remains `requestStatus`, `requestStatusReason`, `requestedFrame`, and `displayedFrame`; the return value is only the immediate command outcome.
 
 Index-based frame APIs should be capability-gated. `canSeekByFrame` is the primary QML condition for frame-number controls. When `canSeekByFrame` is false, `requestedFrame` and `displayedFrame` should use the defined invalid value `-1`, assigning `requestedFrame` should not pretend success, and `seek(frame)` should report an unsupported request outcome. Display can still be valid without a stable frame index; callers should use request and display status rather than frame numbers for those sequences.
 
@@ -242,13 +244,13 @@ An item with `width <= 0` or `height <= 0` has no presentable viewport area. A n
 
 The status model should distinguish the latest content request from the content currently display-committed.
 
-`requestStatus` should describe the most recent content request or replacement attempt in terms recognizable to Qt Quick users: null or empty, loading or waiting, ready, unsupported, and error. Public `Ready` should mean the requested content has become display-committed or that the latest request did not need to change the already display-committed content. Internal candidate-frame readiness before the frame becomes display-committed should not be exposed as public `Ready`.
+`requestStatus` should describe the most recent content request or replacement attempt in terms recognizable to Qt Quick users: no request, loading or waiting, ready, unsupported, and error. Public `RequestReady` should mean the requested content has become display-committed or that the latest request did not need to change the already display-committed content. Internal candidate-frame readiness before the frame becomes display-committed should not be exposed as public `RequestReady`.
 
-`requestStatusReason` should distinguish why a non-ready request is not yet display-committed. Expected reasons include provider waiting, render deferred because no scene graph context is available, upload pending, unsupported request, and failure. `Unsupported` should remain distinguishable from `Error`; it means the requested operation or policy is not supported, not that an expected operation failed.
+`requestStatusReason` should distinguish why a non-ready request is not yet display-committed. Expected reasons include provider waiting, render deferred because no scene graph context is available, upload pending, unsupported request, and failure. `RequestUnsupported` should remain distinguishable from `RequestError`; it means the requested operation or policy is not supported, not that an expected operation failed.
 
 `displayStatus` should describe whether the viewport currently has no display-committed content, has current renderable content for the active sequence, or is retaining renderable content from a previous sequence generation.
 
-`hasDisplayableFrame` should describe whether the viewport currently has retained display-committed content. This is intentionally separate from `requestStatus` because replacement failure may produce `requestStatus == Error` while the viewport still renders a previous valid frame.
+`hasDisplayableFrame` should describe whether the viewport currently has retained display-committed content. This is intentionally separate from `requestStatus` because replacement failure may produce `requestStatus == RequestError` while the viewport still renders a previous valid frame.
 
 `errorString` should describe the failed request or display problem without implying that retained content has been cleared.
 
@@ -265,16 +267,16 @@ The public status enums should be the canonical branching surface for QML code. 
 | Enum | Values |
 | --- | --- |
 | `PlaybackState` | `Stopped`, `Playing`, `Paused`, `Ended` |
-| `RequestStatus` | `Null`, `Loading`, `Ready`, `Unsupported`, `Error` |
+| `RequestStatus` | `NoRequest`, `RequestLoading`, `RequestReady`, `RequestUnsupported`, `RequestError` |
 | `RequestStatusReason` | `None`, `ProviderWaiting`, `RequestQueued`, `RenderDeferred`, `UploadPending`, `UnsupportedRequest`, `UnsupportedPolicy`, `InvalidRequest`, `CpuPreparationFailed`, `TextureUploadFailed`, `ProviderFailure` |
 | `DisplayStatus` | `Empty`, `Current`, `RetainedPrevious` |
 | `LoopMode` | `SourceLoop`, `FiniteLoop`, `InfiniteLoop` |
-| `RequestOutcome` | `Accepted`, `Unsupported`, `Invalid` |
+| `RequestOutcome` | `OutcomeAccepted`, `OutcomeUnsupported`, `OutcomeInvalid` |
 | `FillMode` | `Stretch`, `PreserveAspectFit`, `PreserveAspectCrop`, `Pad` |
 | `HorizontalAlignment` | `AlignLeft`, `AlignHCenter`, `AlignRight` |
 | `VerticalAlignment` | `AlignTop`, `AlignVCenter`, `AlignBottom` |
-| `OrientationPolicy` | `BestEffortApply`, `PreserveMetadata`, `StrictApply` |
-| `ColorPolicy` | `AssumeSrgb`, `PreserveMetadata` |
+| `OrientationPolicy` | `ApplyOrientationBestEffort`, `PreserveOrientationMetadata`, `RequireOrientationApplied` |
+| `ColorPolicy` | `AssumeSrgbColor`, `PreserveColorMetadata` |
 | `BackgroundMode` | `Transparent`, `SolidColor`, `Checkerboard` |
 | `RetentionPolicy` | `ClearOnReplacement`, `RetainUntilReady`, `RetainThroughFailure` |
 
@@ -282,14 +284,14 @@ Typical status combinations should be defined as observable behavior.
 
 | Scenario | `requestStatus` | `requestStatusReason` | `displayStatus` | `hasDisplayableFrame` | `displayedBelongsToCurrentSequence` |
 | --- | --- | --- | --- | --- | --- |
-| No sequence assigned | `Null` | `None` | `Empty` | false | false |
-| Initial frame waiting on provider | `Loading` | `ProviderWaiting` | `Empty` | false | false |
-| Candidate waiting for scene graph context | `Loading` | `RenderDeferred` | previous state or `Empty` | previous value | previous value |
-| Active sequence committed | `Ready` | `None` | `Current` | true | true |
-| Replacement loading while retained frame is visible | `Loading` | provider or render reason | `RetainedPrevious` | true | false |
-| Replacement unsupported while retained frame is visible | `Unsupported` | `UnsupportedRequest` or `UnsupportedPolicy` | `RetainedPrevious` | true | false |
-| Replacement failed while retained frame is visible | `Error` | failure reason | `RetainedPrevious` | true | false |
-| Active frame upload failed with no retained frame | `Error` | `TextureUploadFailed` | `Empty` | false | false |
+| No sequence assigned | `NoRequest` | `None` | `Empty` | false | false |
+| Initial frame waiting on provider | `RequestLoading` | `ProviderWaiting` | `Empty` | false | false |
+| Candidate waiting for scene graph context | `RequestLoading` | `RenderDeferred` | previous state or `Empty` | previous value | previous value |
+| Active sequence committed | `RequestReady` | `None` | `Current` | true | true |
+| Replacement loading while retained frame is visible | `RequestLoading` | provider or render reason | `RetainedPrevious` | true | false |
+| Replacement unsupported while retained frame is visible | `RequestUnsupported` | `UnsupportedRequest` or `UnsupportedPolicy` | `RetainedPrevious` | true | false |
+| Replacement failed while retained frame is visible | `RequestError` | failure reason | `RetainedPrevious` | true | false |
+| Active frame upload failed with no retained frame | `RequestError` | `TextureUploadFailed` | `Empty` | false | false |
 
 ## Presentation State
 
@@ -315,7 +317,7 @@ Alignment should apply when the displayed content does not exactly match the ite
 
 Coordinate conversion should include item-to-image and image-to-item mapping. Non-image areas should be distinguishable from valid image coordinates.
 
-`mapItemToImage(point)` and `mapImageToItem(point)` should return a QML-friendly object with `valid: bool` and `point: point` fields. The v0 C++ return type should be `QVariantMap` with keys `valid` and `point`, because it is simple for QML callers and does not require a separate result object lifetime. `mapItemToImage(point)` should report `valid == false` for padding, clipped-out item regions, empty content, unsupported mappings, and points outside the image. `mapImageToItem(point)` should report `valid == true` for points inside the current image coordinate bounds even when the mapped item point lies outside the visible viewport; this keeps annotation and crop overlays able to position offscreen handles. Points outside the image bounds, empty content, and unsupported mappings should report `valid == false`. Invalid mapping results should use the canonical point value `Qt.point(0, 0)` so QML bindings have stable fallback data while still branching on `valid`.
+`mapItemToImage(point)` and `mapImageToItem(point)` should return a QML-friendly object with `valid: bool` and `point: point` fields. `mapItemToImage(point)` should report `valid == false` for padding, clipped-out item regions, empty content, unsupported mappings, and points outside the image. `mapImageToItem(point)` should report `valid == true` for points inside the current image coordinate bounds even when the mapped item point lies outside the visible viewport; this keeps annotation and crop overlays able to position offscreen handles. Points outside the image bounds, empty content, and unsupported mappings should report `valid == false`. Invalid mapping results should use the canonical point value `Qt.point(0, 0)` so QML bindings have stable fallback data while still branching on `valid`.
 
 Common QML branching should follow the high-level state model. Frame sliders should require `canSeekByFrame && frameCountKnown`; timeline scrubbers should require `canSeekByPosition && durationKnown`; overlays should require `hasDisplayableFrame`, a valid coordinate conversion result, and, when they refer to the active sequence specifically, `displayedBelongsToCurrentSequence`. Error UI should inspect `requestStatus` and `errorString` without assuming that `hasDisplayableFrame` is false, because replacement failure may retain a valid previous frame.
 

@@ -36,7 +36,9 @@ The pure C++ provider core should not expose `QSG` objects, QML types, or render
 
 ## Candidate Type Roles
 
-`ImageSequence` is the QML-facing sequence handle. It owns or references a provider factory/session and lets `ImageViewport` open a generation-scoped provider session. From the viewport's perspective, an assigned sequence should be immutable; provider-affecting changes should normally be represented by constructing and assigning a new `ImageSequence` facade rather than mutating the active one in place.
+`ImageSequence` is the QML-facing sequence handle. It owns or references immutable sequence data and a provider factory, and it lets `ImageViewport` open a generation-scoped provider session. From the viewport's perspective, an assigned sequence should be immutable; provider-affecting changes should normally be represented by constructing and assigning a new `ImageSequence` facade rather than mutating the active one in place.
+
+`ImageSequence` should be QML-visible as a property type but should not be QML-creatable or directly default-constructible by ordinary C++ callers. Construction should go through `ImageSequenceFactory`, a direct C++ factory, or another explicit helper that attaches immutable sequence data and provider-session creation state. This prevents `ImageSequence {}` or an empty C++ facade from looking like valid displayable content while still allowing QML properties and bindings to carry sequence handles.
 
 `ImageFrameProvider` is the request receiver for sequence info, display frame requests, preparation hints, cancellation, and generation close.
 
@@ -68,7 +70,9 @@ The sink should be represented by a lifetime-safe handle rather than by an unown
 
 `TimedImageFrame` is the QML-visible helper value or object that pairs an `ImageFrame` with a millisecond duration for small explicit animations.
 
-`ImageSequenceProviderAdapter` is the QObject bridge that lets applications expose custom decoder or storage services as an `ImageSequence` source without assigning the provider object directly to `ImageViewport`.
+`ImageSequenceProviderAdapter` is the QObject bridge that lets applications expose custom decoder or storage services as an `ImageSequence` source without assigning the provider object directly to `ImageViewport`. The base type should be a non-creatable abstract handle in QML until a concrete adapter contract is designed; applications can expose C++ concrete subclasses or module-provided adapters that satisfy the provider protocol.
+
+`ImageSequenceFactory` is the QML-facing construction helper for baseline recipes. It should create sequences from module-owned frame objects, typed timed frame lists or builders, and concrete provider adapters. C++ may expose direct factory functions with the same semantics when the input is not QML-representable, such as raw `QImage`.
 
 `ImageProviderResult` is the generation-scoped result message returned by a provider.
 
@@ -89,18 +93,35 @@ The rough shape should look like this, with names and signatures expected to cha
 ```cpp
 class ImageSequence : public QObject {
     Q_OBJECT
-    Q_PROPERTY(bool valid READ isValid NOTIFY changed)
+    QML_UNCREATABLE("Use ImageSequenceFactory to create sequence handles")
+
+private:
+    explicit ImageSequence(std::shared_ptr<const ImageSequenceData> data, QObject *parent = nullptr);
+    friend class ImageSequenceFactory;
 
 public:
-    bool isValid() const;
-
-    // Implementation-facing, not QML API.
+    // Implementation-facing, not QML API. The returned session data is held
+    // strongly by the active generation even if the QObject facade later dies.
     std::shared_ptr<ImageFrameProvider> createProviderSession() const;
 
 signals:
     void changed();
 };
 ```
+
+```cpp
+class ImageSequenceFactory : public QObject {
+    Q_OBJECT
+    QML_SINGLETON
+
+public:
+    Q_INVOKABLE ImageSequence *fromImage(ImageFrame *frame);
+    Q_INVOKABLE ImageSequence *fromFrames(const QList<TimedImageFrame *> &frames);
+    Q_INVOKABLE ImageSequence *fromProvider(ImageSequenceProviderAdapter *adapter);
+};
+```
+
+Factory-returned QObjects should have explicit Qt ownership. QML-callable factory methods should return unparented objects with QML engine ownership or an equivalent documented ownership policy, while the active viewport generation should retain strong shared ownership of immutable sequence data independent of the facade QObject. Invalid inputs should return `nullptr` and set factory diagnostics once that diagnostics surface exists; valid inputs should not produce empty facades.
 
 ```cpp
 class ImageFrameProvider {
@@ -162,11 +183,11 @@ Durations and timestamps should use a monotonic duration type in C++ internals. 
 
 The public construction surface should make simple providers easy to build. A minimal sequence should be constructible from an already-owned still image, a small list of already-owned frames with durations, or an application provider object without requiring the caller to implement every advanced capability hook.
 
-The initial construction recipes should be documented as caller-facing helper paths rather than as `ImageViewport` loading properties: `ImageSequence::fromImage()` for an in-memory still image, `ImageSequence::fromFrames()` for a small explicit timed frame list, and an adapter or factory that wraps an application provider object. Names may change, but these three recipes should exist so callers can start without subclassing the whole sequence facade. QML should assign the resulting `ImageSequence` object; C++ may construct it directly, create module-owned `ImageFrame` objects, or register helper objects that return sequences to QML.
+The initial construction recipes should be documented as caller-facing helper paths rather than as `ImageViewport` loading properties: `ImageSequenceFactory::fromImage()` for an in-memory still image, `ImageSequenceFactory::fromFrames()` for a small typed timed frame list or builder, and `ImageSequenceFactory::fromProvider()` or an equivalent C++ helper that wraps an application provider object. Names may change, but these three recipes should exist so callers can start without subclassing the whole sequence facade. QML should assign the resulting `ImageSequence` object; C++ may use factory functions, create module-owned `ImageFrame` objects, or register helper objects that return sequences to QML, but it should not create empty facades as content.
 
-QML-callable construction should be limited to inputs that have module-defined QML types or values. Because QML has no native `QImage`, image and frame helpers may expose module-owned frame objects, provider adapter objects, or C++ factory-returned sequences rather than accepting bare pixel buffers as arbitrary JavaScript values.
+QML-callable construction should be limited to inputs that have module-defined QML types or values. Because QML has no native `QImage`, image and frame helpers may expose module-owned frame objects, typed timed-frame helper objects, provider adapter objects, or C++ factory-returned sequences rather than accepting bare pixel buffers or arbitrary JavaScript objects.
 
-`ImageSequence` should normally be constructed around a provider object, provider factory, or immutable frame list rather than subclassed by QML application code. This keeps sequence lifetime, generation creation, and provider result routing under the module's control while still allowing applications to supply custom decoder adapters.
+`ImageSequence` should normally be constructed around a provider object, provider factory, or immutable frame list rather than subclassed or directly instantiated by QML application code. This keeps sequence lifetime, generation creation, and provider result routing under the module's control while still allowing applications to supply custom decoder adapters.
 
 Explicit frame-list sequences should copy or freeze their frame descriptors at construction. Mutable QML helper objects should not remain live inputs to an active generation unless a future API explicitly adds editable sequence models.
 
@@ -182,7 +203,9 @@ The first implementation can choose a QObject-backed adapter internally if that 
 
 ## Ownership And Threading Direction
 
-`ImageViewport` should keep a strong reference to the active `ImageSequence` facade while it is assigned.
+`ImageViewport` should guard the active `ImageSequence` QObject facade according to normal Qt ownership rules, but correctness should not depend on the facade object being kept alive as the sole owner of active work. When a sequence is accepted, the active generation should retain strong shared ownership of the immutable sequence data, provider factory, provider session, sink channel, and snapshots it needs. If the QML-owned facade is later destroyed, the viewport should treat `sequence` as null for observable property purposes, close or supersede the active generation through the same stale-result filtering path, emit the same state notifications as an explicit null assignment where observable values change, and avoid dangling QObject access.
+
+The item should connect the active facade's `destroyed` signal to one controller entry point that closes or supersedes the active generation. `QPointer<ImageSequence>` is useful only as a weak facade observation; it is not sufficient generation state by itself. The controller should store an explicit generation id, active facade guard, strong sequence data/provider-session ownership, request ids, retained candidate/displayed snapshots, render availability state, and diagnostics state.
 
 The active generation should keep a provider session alive until the generation is closed, replaced, or the item is destroyed.
 
