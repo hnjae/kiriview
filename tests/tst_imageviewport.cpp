@@ -614,6 +614,11 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandRevision").toUInt(), 2U);
 
+    QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(item.property("commandRevision").toUInt(), 3U);
@@ -621,6 +626,11 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.property("displayRevision").toUInt(), 0U);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(sequenceSpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 1);
 }
 
 void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()

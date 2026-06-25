@@ -1359,8 +1359,10 @@ void ImageViewport::setLooping(bool looping)
 
 ImageViewport::CommandOutcome ImageViewport::clear()
 {
+    const bool sequenceValueChanged = m_sequence != nullptr;
     const bool requestChanged = hasActiveRequest() || m_sequence;
     const bool displayChanged = m_displayStatus != DisplayStatus::Empty || m_displayedImageSize.isValid();
+    const bool playbackChanged = m_playbackPhase != PlaybackPhase::Stopped;
     closeProviderSession();
     m_sequence = nullptr;
     m_currentFrame = -1;
@@ -1394,10 +1396,18 @@ ImageViewport::CommandOutcome ImageViewport::clear()
         incrementDisplayRevision();
     }
 
-    emit sequenceChanged();
-    emit requestStateChanged();
-    emit displayStateChanged();
-    emit playbackPhaseChanged();
+    if (sequenceValueChanged) {
+        emit sequenceChanged();
+    }
+    if (requestChanged) {
+        emit requestStateChanged();
+    }
+    if (displayChanged) {
+        emit displayStateChanged();
+    }
+    if (playbackChanged) {
+        emit playbackPhaseChanged();
+    }
     emit diagnosticsChanged();
     update();
     return CommandOutcome::Accepted;
