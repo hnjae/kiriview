@@ -180,6 +180,7 @@ public:
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
+    void providerFailed(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
 };
 
 class ImageSequenceProviderSessionFactory
@@ -524,8 +525,10 @@ private:
     ImageSequenceProviderRequestToken nextProviderRequestToken();
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
+    void handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
     bool validateProviderStillFrame(ImageFrame *frame) const;
+    static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
     void publishAcceptedTargetState();
     void publishSequenceReadyState();
     void publishRenderWaitingState();

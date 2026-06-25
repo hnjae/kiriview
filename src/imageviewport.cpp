@@ -1612,6 +1612,10 @@ bool ImageViewport::openProviderSession()
         &ImageSequenceProviderSession::frameReady,
         this,
         &ImageViewport::handleProviderFrameReady);
+    connect(m_providerSession,
+        &ImageSequenceProviderSession::providerFailed,
+        this,
+        &ImageViewport::handleProviderFailure);
 
     m_activeProviderMetadataToken = nextProviderRequestToken();
     m_providerSession->requestMetadata(m_activeProviderMetadataToken);
@@ -1683,6 +1687,21 @@ void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestT
     update();
 }
 
+void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
+{
+    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+        return;
+    }
+
+    m_requestStatus = RequestStatus::Error;
+    m_requestReason = RequestReason::ProviderFailure;
+    m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+    incrementRequestRevision();
+    emit requestStateChanged();
+    emit diagnosticsChanged();
+    closeProviderSession();
+}
+
 bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
 {
     if (!metadata.isStill() || !metadata.isValid()) {
@@ -1704,6 +1723,12 @@ bool ImageViewport::validateProviderStillFrame(ImageFrame *frame) const
         && m_providerMetadataReady
         && frame->logicalSize() == m_providerLogicalSize
         && frame->payloadByteSize() <= ImageSequenceLimits::maximumPayloadBytesPerFrame();
+}
+
+QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
+{
+    const QString selected = diagnostic.isEmpty() ? fallback : diagnostic;
+    return selected.left(ImageSequenceLimits::maximumDiagnosticStringLength());
 }
 
 void ImageViewport::publishAcceptedTargetState()
