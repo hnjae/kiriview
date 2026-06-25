@@ -151,18 +151,23 @@ public:
     enum class TimingModel {
         Invalid,
         Still,
+        TimedFrameList,
     };
 
     ImageSequenceProviderMetadata() = default;
     static ImageSequenceProviderMetadata still(const QSizeF &logicalSize);
+    static ImageSequenceProviderMetadata timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations);
 
     bool isValid() const;
     bool isStill() const;
+    bool isTimedFrameList() const;
     QSizeF logicalSize() const;
+    QVector<int> frameDurations() const;
 
 private:
     TimingModel m_timingModel = TimingModel::Invalid;
     QSizeF m_logicalSize;
+    QVector<int> m_frameDurations;
 };
 
 class ImageSequenceProviderSession : public QObject
@@ -531,6 +536,7 @@ private:
     void handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
+    bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata);
     bool validateProviderStillFrame(ImageFrame *frame) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
     void publishAcceptedTargetState();
@@ -572,7 +578,9 @@ private:
     ImageSequenceProviderRequestToken m_activeProviderMetadataToken;
     ImageSequenceProviderRequestToken m_activeProviderFrameToken;
     bool m_providerMetadataReady = false;
+    bool m_providerTimedMetadata = false;
     QSizeF m_providerLogicalSize;
+    QVector<int> m_providerFrameDurations;
 };
 
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
