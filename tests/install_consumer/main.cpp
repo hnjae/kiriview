@@ -392,13 +392,32 @@ int main(int argc, char **argv)
     }
 
     ImageSequenceFactory factory;
+    const ImageFrame emptyFrame;
+    if (emptyFrame.isValid() || emptyFrame.logicalSize() != QSizeF() || emptyFrame.payloadByteSize() != 0) {
+        return 1;
+    }
+
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
+    const ImageFrame imageFrame(image);
+    if (!imageFrame.isValid() || imageFrame.logicalSize() != QSizeF(2.0, 2.0) || imageFrame.payloadByteSize() <= 0) {
+        return 1;
+    }
+
     std::unique_ptr<ImageSequenceFactoryResult> stillResult(factory.fromFrame(image));
     if (!stillResult || !stillResult->sequence()) {
         return 1;
     }
     if (stillResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
+    std::unique_ptr<ImageSequenceFactoryResult> invalidFrameResult(factory.fromFrame(QImage()));
+    if (!invalidFrameResult
+        || invalidFrameResult->sequence()
+        || invalidFrameResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
+        || invalidFrameResult->errorString().isEmpty()
+        || !invalidFrameResult->warningString().isEmpty()) {
         return 1;
     }
 
@@ -414,11 +433,27 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    std::unique_ptr<ImageSequenceFactoryResult> mismatchedTimedResult(factory.fromTimedFrameList(timedImages, {100}));
+    if (!mismatchedTimedResult
+        || mismatchedTimedResult->sequence()
+        || mismatchedTimedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
+        || !mismatchedTimedResult->errorString().contains(QStringLiteral("same count"))
+        || !mismatchedTimedResult->warningString().isEmpty()) {
+        return 1;
+    }
+
     TimedImageFrameList builder;
     if (!builder.appendFrame(image, 100)) {
         return 1;
     }
     if (builder.count() != 1) {
+        return 1;
+    }
+    if (builder.appendFrame(image, 0) || builder.count() != 1 || !builder.errorString().contains(QStringLiteral("positive"))) {
+        return 1;
+    }
+    builder.clear();
+    if (builder.count() != 0 || !builder.errorString().isEmpty() || !builder.warningString().isEmpty()) {
         return 1;
     }
 
