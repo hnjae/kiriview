@@ -60,6 +60,7 @@ private slots:
     void resetViewPreservesNonTransformPresentationState();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
+    void nullSequenceAssignmentPreservesCommandDiagnostic();
     void clearActiveRequestClearsCommandDiagnostic();
     void clearPreservesPresentationState();
     void clearReadyDisplayEmitsGeometryStateChanged();
@@ -2005,6 +2006,36 @@ void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportTest::nullSequenceAssignmentPreservesCommandDiagnostic()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    const uint commandRevision = item.property("commandRevision").toUInt();
+
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    item.setSequence(nullptr);
+
+    QCOMPARE(item.sequence(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(commandSpy.count(), 0);
 }
 
 void ImageViewportTest::clearActiveRequestClearsCommandDiagnostic()
