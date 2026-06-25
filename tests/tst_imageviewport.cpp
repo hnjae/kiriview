@@ -231,6 +231,7 @@ private slots:
     void providerMetadataCancellationReportsProviderFailure();
     void providerFrameCancellationReportsProviderFailure();
     void providerFrameCancellationRetainsDisplayAndClearsOnSeek();
+    void transparentBackgroundDoesNotCreatePaintNode();
     void solidBackgroundCreatesPaintNode();
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
@@ -10520,6 +10521,16 @@ void ImageViewportTest::providerFrameCancellationRetainsDisplayAndClearsOnSeek()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("errorString").toString(), QString());
+}
+
+void ImageViewportTest::transparentBackgroundDoesNotCreatePaintNode()
+{
+    PaintProbeViewport item;
+    item.setSize(QSizeF(24.0, 12.0));
+    item.setBackgroundMode(ImageViewport::BackgroundMode::Transparent);
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(!root);
 }
 
 void ImageViewportTest::solidBackgroundCreatesPaintNode()
