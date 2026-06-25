@@ -53,6 +53,7 @@ private slots:
     void timedFrameListSequenceRetainsFactoryPayloads();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void resetViewWithoutRequestClearsTransformAndCommandDiagnostic();
+    void resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
     void clearPreservesPresentationState();
@@ -1648,6 +1649,39 @@ void ImageViewportTest::resetViewWithoutRequestClearsTransformAndCommandDiagnost
     QCOMPARE(displayRevisionSpy.count(), 1);
     QCOMPARE(geometrySpy.count(), 0);
     QCOMPARE(presentationSpy.count(), 1);
+    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(diagnosticsSpy.count(), 0);
+}
+
+void ImageViewportTest::resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic()
+{
+    ImageViewport item;
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 1U);
+    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
+    QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.zoom(), 1.0);
+    QCOMPARE(item.pan(), QPointF());
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
+    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(displayRevisionSpy.count(), 0);
+    QCOMPARE(geometrySpy.count(), 0);
+    QCOMPARE(presentationSpy.count(), 0);
     QCOMPARE(commandSpy.count(), 1);
     QCOMPARE(diagnosticsSpy.count(), 0);
 }
