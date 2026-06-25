@@ -852,6 +852,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     }
 
     const DisplayStatus oldDisplayStatus = m_displayStatus;
+    const PlaybackPhase oldPlaybackPhase = m_playbackPhase;
     closeProviderSession();
     m_sequence = sequence;
     m_errorString.clear();
@@ -926,7 +927,9 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     emit requestStateChanged();
     emit displayStateChanged();
     emit geometryStateChanged();
-    emit playbackPhaseChanged();
+    if (m_playbackPhase != oldPlaybackPhase) {
+        emit playbackPhaseChanged();
+    }
     emit diagnosticsChanged();
     update();
 }
