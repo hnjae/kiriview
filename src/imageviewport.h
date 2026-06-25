@@ -179,6 +179,7 @@ public:
 
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
+    void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
 };
 
 class ImageSequenceProviderSessionFactory
@@ -522,7 +523,9 @@ private:
     bool openProviderSession();
     ImageSequenceProviderRequestToken nextProviderRequestToken();
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
+    void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
+    bool validateProviderStillFrame(ImageFrame *frame) const;
     void publishAcceptedTargetState();
     void publishSequenceReadyState();
     void publishRenderWaitingState();
@@ -560,6 +563,7 @@ private:
     QPointer<ImageSequenceProviderSession> m_providerSession;
     quint64 m_nextProviderRequestToken = 0;
     ImageSequenceProviderRequestToken m_activeProviderMetadataToken;
+    ImageSequenceProviderRequestToken m_activeProviderFrameToken;
     bool m_providerMetadataReady = false;
     QSizeF m_providerLogicalSize;
 };

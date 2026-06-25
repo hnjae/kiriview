@@ -617,6 +617,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_providerMetadataReady = false;
     m_providerLogicalSize = {};
     m_activeProviderMetadataToken = {};
+    m_activeProviderFrameToken = {};
 
     if (hasProviderSequence()) {
         m_currentFrame = -1;
@@ -1076,6 +1077,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_providerMetadataReady = false;
     m_providerLogicalSize = {};
     m_activeProviderMetadataToken = {};
+    m_activeProviderFrameToken = {};
     m_errorString.clear();
     m_warningString.clear();
     clearCommandDiagnosticForAcceptedCommand();
@@ -1606,6 +1608,10 @@ bool ImageViewport::openProviderSession()
         &ImageSequenceProviderSession::metadataReady,
         this,
         &ImageViewport::handleProviderMetadataReady);
+    connect(m_providerSession,
+        &ImageSequenceProviderSession::frameReady,
+        this,
+        &ImageViewport::handleProviderFrameReady);
 
     m_activeProviderMetadataToken = nextProviderRequestToken();
     m_providerSession->requestMetadata(m_activeProviderMetadataToken);
@@ -1644,10 +1650,37 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
 
-    ImageSequenceProviderRequestToken frameToken = nextProviderRequestToken();
-    m_providerSession->requestFrame(frameToken, 0);
+    m_activeProviderFrameToken = nextProviderRequestToken();
+    m_providerSession->requestFrame(m_activeProviderFrameToken, 0);
     incrementRequestRevision();
     emit requestStateChanged();
+}
+
+void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame)
+{
+    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderFrameToken) {
+        return;
+    }
+
+    if (!validateProviderStillFrame(frame)) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider frame payload is invalid");
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
+
+    m_errorString.clear();
+    publishAcceptedTargetState();
+    incrementRequestRevision();
+    incrementDisplayRevision();
+    emit requestStateChanged();
+    emit displayStateChanged();
+    emit geometryStateChanged();
+    emit diagnosticsChanged();
+    update();
 }
 
 bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
@@ -1662,6 +1695,15 @@ bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMet
     return width <= ImageSequenceLimits::maximumLogicalWidth()
         && height <= ImageSequenceLimits::maximumLogicalHeight()
         && width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
+}
+
+bool ImageViewport::validateProviderStillFrame(ImageFrame *frame) const
+{
+    return frame
+        && frame->isValid()
+        && m_providerMetadataReady
+        && frame->logicalSize() == m_providerLogicalSize
+        && frame->payloadByteSize() <= ImageSequenceLimits::maximumPayloadBytesPerFrame();
 }
 
 void ImageViewport::publishAcceptedTargetState()
@@ -1680,7 +1722,7 @@ void ImageViewport::publishSequenceReadyState()
     m_displayStatus = DisplayStatus::Ready;
     m_displayedFrame = m_currentFrame;
     m_displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
-    m_displayedImageSize = m_sequence->logicalSize();
+    m_displayedImageSize = hasProviderSequence() ? m_providerLogicalSize : m_sequence->logicalSize();
 }
 
 void ImageViewport::publishRenderWaitingState()
