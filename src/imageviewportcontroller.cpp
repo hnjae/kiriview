@@ -587,7 +587,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::resetViewCommandImpl()
 {
-    const bool changed = m_zoom != 1.0 || m_pan != QPointF();
+    const bool changed = m_zoom != 1.0 || m_pan.x() != 0.0 || m_pan.y() != 0.0;
     m_zoom = 1.0;
     m_pan = {};
     if (changed) {

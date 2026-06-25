@@ -230,6 +230,7 @@ private slots:
     void invalidPresentationEnumValuesAreIgnored();
     void invalidPresentationTransformsAreIgnored();
     void presentationZoomUsesExactValueChanges();
+    void presentationPanUsesExactValueChanges();
     void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void backgroundPresentationDoesNotChangeRequestOrPlayback();
     void qualityPresentationDoesNotChangeRequestGeometryOrPlayback();
@@ -10302,6 +10303,26 @@ void ImageViewportTest::presentationZoomUsesExactValueChanges()
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.zoom(), 1.0);
+    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QCOMPARE(presentationSpy.count(), 2);
+}
+
+void ImageViewportTest::presentationPanUsesExactValueChanges()
+{
+    ImageViewport item;
+    const QPointF changedPan(5.0e-13, -5.0e-13);
+    QVERIFY(changedPan.x() != 0.0);
+    QVERIFY(changedPan.y() != 0.0);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
+
+    item.setPan(changedPan);
+
+    QCOMPARE(item.pan(), changedPan);
+    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QCOMPARE(presentationSpy.count(), 1);
+
+    QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pan(), QPointF());
     QCOMPARE(item.property("displayRevision").toUInt(), 2U);
     QCOMPARE(presentationSpy.count(), 2);
 }

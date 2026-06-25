@@ -192,7 +192,8 @@ QPointF ImageViewportPrivate::pan() const
 
 void ImageViewportPrivate::setPan(const QPointF &pan)
 {
-    if (!isFinitePoint(pan) || m_pan == pan) {
+    const bool unchanged = m_pan.x() == pan.x() && m_pan.y() == pan.y();
+    if (!isFinitePoint(pan) || unchanged) {
         return;
     }
 
