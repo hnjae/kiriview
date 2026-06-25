@@ -39,6 +39,7 @@ private slots:
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
     void timedFrameListBuilderValidatesEntries();
+    void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
     void timedFrameListPlaybackCommandsUpdatePhase();
@@ -1019,6 +1020,25 @@ void ImageViewportTest::timedFrameListBuilderValidatesEntries()
     list.clear();
     QCOMPARE(list.count(), 0);
     QCOMPARE(list.errorString(), QString());
+}
+
+void ImageViewportTest::timedFrameListClearDiagnosticOnlyPreservesCountNotification()
+{
+    TimedImageFrameList list;
+
+    QVERIFY(!list.appendFrame(nullptr, 100));
+    QCOMPARE(list.count(), 0);
+    QVERIFY(!list.errorString().isEmpty());
+
+    QSignalSpy countSpy(&list, &TimedImageFrameList::countChanged);
+    QSignalSpy diagnosticsSpy(&list, &TimedImageFrameList::diagnosticsChanged);
+
+    list.clear();
+
+    QCOMPARE(list.count(), 0);
+    QCOMPARE(list.errorString(), QString());
+    QCOMPARE(countSpy.count(), 0);
+    QCOMPARE(diagnosticsSpy.count(), 1);
 }
 
 void ImageViewportTest::timedFrameListAssignmentPublishesInitialTimedState()

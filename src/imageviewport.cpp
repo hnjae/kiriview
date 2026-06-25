@@ -362,13 +362,19 @@ void TimedImageFrameList::clear()
         return;
     }
 
+    const bool shouldEmitCountChanged = !m_frameDurations.isEmpty();
+    const bool shouldEmitDiagnosticsChanged = !m_errorString.isEmpty() || !m_warningString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
     m_payloadByteSize = 0;
     m_errorString.clear();
     m_warningString.clear();
-    emit countChanged();
-    emit diagnosticsChanged();
+    if (shouldEmitCountChanged) {
+        emit countChanged();
+    }
+    if (shouldEmitDiagnosticsChanged) {
+        emit diagnosticsChanged();
+    }
 }
 
 bool TimedImageFrameList::isValid() const
