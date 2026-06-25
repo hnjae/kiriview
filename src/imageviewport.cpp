@@ -126,6 +126,55 @@ bool providerCapabilityContradictsMetadata(ImageSequenceProviderCapabilitySuppor
     return false;
 }
 
+bool isValidFillMode(ImageViewport::FillMode mode)
+{
+    switch (mode) {
+    case ImageViewport::FillMode::Contain:
+    case ImageViewport::FillMode::Cover:
+    case ImageViewport::FillMode::Stretch:
+    case ImageViewport::FillMode::Center:
+        return true;
+    }
+
+    return false;
+}
+
+bool isValidHorizontalAlignment(ImageViewport::HorizontalAlignment alignment)
+{
+    switch (alignment) {
+    case ImageViewport::HorizontalAlignment::AlignLeft:
+    case ImageViewport::HorizontalAlignment::AlignHCenter:
+    case ImageViewport::HorizontalAlignment::AlignRight:
+        return true;
+    }
+
+    return false;
+}
+
+bool isValidVerticalAlignment(ImageViewport::VerticalAlignment alignment)
+{
+    switch (alignment) {
+    case ImageViewport::VerticalAlignment::AlignTop:
+    case ImageViewport::VerticalAlignment::AlignVCenter:
+    case ImageViewport::VerticalAlignment::AlignBottom:
+        return true;
+    }
+
+    return false;
+}
+
+bool isValidBackgroundMode(ImageViewport::BackgroundMode mode)
+{
+    switch (mode) {
+    case ImageViewport::BackgroundMode::Transparent:
+    case ImageViewport::BackgroundMode::SolidColor:
+    case ImageViewport::BackgroundMode::Checkerboard:
+        return true;
+    }
+
+    return false;
+}
+
 }
 
 ImageSequence::ImageSequence(QObject *parent)
@@ -1255,7 +1304,7 @@ ImageViewport::FillMode ImageViewport::fillMode() const
 
 void ImageViewport::setFillMode(FillMode mode)
 {
-    if (m_fillMode == mode) {
+    if (!isValidFillMode(mode) || m_fillMode == mode) {
         return;
     }
 
@@ -1270,7 +1319,7 @@ ImageViewport::HorizontalAlignment ImageViewport::horizontalAlignment() const
 
 void ImageViewport::setHorizontalAlignment(HorizontalAlignment alignment)
 {
-    if (m_horizontalAlignment == alignment) {
+    if (!isValidHorizontalAlignment(alignment) || m_horizontalAlignment == alignment) {
         return;
     }
 
@@ -1285,7 +1334,7 @@ ImageViewport::VerticalAlignment ImageViewport::verticalAlignment() const
 
 void ImageViewport::setVerticalAlignment(VerticalAlignment alignment)
 {
-    if (m_verticalAlignment == alignment) {
+    if (!isValidVerticalAlignment(alignment) || m_verticalAlignment == alignment) {
         return;
     }
 
@@ -1360,7 +1409,7 @@ ImageViewport::BackgroundMode ImageViewport::backgroundMode() const
 
 void ImageViewport::setBackgroundMode(BackgroundMode mode)
 {
-    if (m_backgroundMode == mode) {
+    if (!isValidBackgroundMode(mode) || m_backgroundMode == mode) {
         return;
     }
 

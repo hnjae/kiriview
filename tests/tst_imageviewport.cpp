@@ -113,6 +113,7 @@ private slots:
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
+    void invalidPresentationEnumValuesAreIgnored();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -4040,6 +4041,23 @@ void ImageViewportTest::providerStillFrameWaitingForGeometryCreatesTexturePaintN
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()
+{
+    ImageViewport item;
+    const uint initialDisplayRevision = item.property("displayRevision").toUInt();
+
+    item.setFillMode(static_cast<ImageViewport::FillMode>(999));
+    item.setHorizontalAlignment(static_cast<ImageViewport::HorizontalAlignment>(999));
+    item.setVerticalAlignment(static_cast<ImageViewport::VerticalAlignment>(999));
+    item.setBackgroundMode(static_cast<ImageViewport::BackgroundMode>(999));
+
+    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Contain);
+    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignHCenter);
+    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignVCenter);
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
+    QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
