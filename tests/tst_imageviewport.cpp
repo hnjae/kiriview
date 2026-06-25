@@ -15,12 +15,14 @@ class ImageViewportTest : public QObject
 private slots:
     void defaultConstructsAsQuickItem();
     void doesNotExposeSourceProperty();
-    void exposesMinimumQmlSurface();
+    void exposesDocumentedQmlSurface();
     void hasDocumentedDefaultState();
-    void qmlImportsWithUniqueEnumKeys();
+    void qmlImportsDocumentedSurface();
     void imageSequenceIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
+    void exposesImageSequenceLimits();
+    void commandsWithoutRequestAreIgnoredDiagnostics();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -60,35 +62,49 @@ void ImageViewportTest::doesNotExposeSourceProperty()
     QCOMPARE(item.metaObject()->indexOfProperty("source"), -1);
 }
 
-void ImageViewportTest::exposesMinimumQmlSurface()
+void ImageViewportTest::exposesDocumentedQmlSurface()
 {
     ImageViewport item;
     const QMetaObject *metaObject = item.metaObject();
 
     const QList<QByteArray> properties = {
         "sequence",
-        "playbackState",
-        "requestedFrame",
         "requestStatus",
+        "requestReason",
+        "commandReason",
         "displayStatus",
-        "retentionPolicy",
+        "playbackPhase",
+        "displayedFrame",
+        "requestedFrame",
+        "displayedPosition",
+        "requestedPosition",
+        "frameCount",
+        "totalDuration",
+        "frameSeekBounds",
+        "positionSeekBounds",
+        "timedPlaybackSupport",
+        "frameSeekSupport",
+        "positionSeekSupport",
+        "displayedImageSize",
         "fillMode",
         "horizontalAlignment",
         "verticalAlignment",
         "contentRect",
         "visibleImageRect",
-        "paintedWidth",
-        "paintedHeight",
+        "displayRevision",
+        "requestRevision",
+        "commandRevision",
+        "errorString",
+        "warningString",
         "zoom",
         "pan",
-        "smooth",
+        "smoothing",
         "mipmap",
-        "mirror",
+        "mirrorHorizontally",
         "mirrorVertically",
-        "orientationPolicy",
         "backgroundMode",
         "backgroundColor",
-        "colorPolicy",
+        "looping",
     };
 
     for (const QByteArray &property : properties) {
@@ -96,19 +112,17 @@ void ImageViewportTest::exposesMinimumQmlSurface()
     }
 
     const QList<QByteArray> enumerators = {
-        "PlaybackState",
         "RequestStatus",
-        "RequestStatusReason",
+        "RequestReason",
+        "CommandReason",
         "DisplayStatus",
-        "LoopMode",
+        "PlaybackPhase",
+        "TriState",
         "RequestOutcome",
         "FillMode",
         "HorizontalAlignment",
         "VerticalAlignment",
-        "OrientationPolicy",
-        "ColorPolicy",
         "BackgroundMode",
-        "RetentionPolicy",
     };
 
     for (const QByteArray &enumerator : enumerators) {
@@ -120,11 +134,12 @@ void ImageViewportTest::exposesMinimumQmlSurface()
         "pause()",
         "stop()",
         "seek(int)",
-        "seekToPosition(double)",
+        "seekToPosition(int)",
         "clear()",
-        "mapItemToImage(QPointF)",
-        "mapImageToItem(QPointF)",
-        "containsVisibleImagePoint(QPointF)",
+        "resetView()",
+        "itemToImage(double,double)",
+        "imageToItem(double,double)",
+        "containsVisibleImagePoint(double,double)",
     };
 
     for (const QByteArray &method : methods) {
@@ -137,33 +152,48 @@ void ImageViewportTest::hasDocumentedDefaultState()
     ImageViewport item;
     const QMetaObject *metaObject = item.metaObject();
 
-    QCOMPARE(item.property("playbackState").toInt(), enumValue(metaObject, "PlaybackState", "Stopped"));
+    QCOMPARE(item.property("sequence").value<QObject *>(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("requestedPosition").toDouble(), -1.0);
-    QCOMPARE(item.property("displayedPosition").toDouble(), -1.0);
-    QCOMPARE(item.property("speed").toDouble(), 1.0);
-    QCOMPARE(item.property("loopMode").toInt(), enumValue(metaObject, "LoopMode", "SourceLoop"));
-    QCOMPARE(item.property("loopCount").toInt(), 1);
-    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestStatusReason").toInt(), enumValue(metaObject, "RequestStatusReason", "None"));
-    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("retentionPolicy").toInt(), enumValue(metaObject, "RetentionPolicy", "RetainThroughFailure"));
-    QCOMPARE(item.property("fillMode").toInt(), enumValue(metaObject, "FillMode", "PreserveAspectFit"));
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QCOMPARE(item.property("frameCount").toInt(), -1);
+    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
+    QCOMPARE(item.property("commandRevision").toUInt(), 0U);
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(item.property("fillMode").toInt(), enumValue(metaObject, "FillMode", "Contain"));
     QCOMPARE(item.property("horizontalAlignment").toInt(), enumValue(metaObject, "HorizontalAlignment", "AlignHCenter"));
     QCOMPARE(item.property("verticalAlignment").toInt(), enumValue(metaObject, "VerticalAlignment", "AlignVCenter"));
     QCOMPARE(item.property("zoom").toDouble(), 1.0);
     QCOMPARE(item.property("pan").toPointF(), QPointF(0.0, 0.0));
-    QCOMPARE(item.property("smooth").toBool(), true);
+    QCOMPARE(item.property("smoothing").toBool(), true);
     QCOMPARE(item.property("mipmap").toBool(), false);
-    QCOMPARE(item.property("mirror").toBool(), false);
+    QCOMPARE(item.property("mirrorHorizontally").toBool(), false);
     QCOMPARE(item.property("mirrorVertically").toBool(), false);
-    QCOMPARE(item.property("orientationPolicy").toInt(), enumValue(metaObject, "OrientationPolicy", "ApplyOrientationBestEffort"));
     QCOMPARE(item.property("backgroundMode").toInt(), enumValue(metaObject, "BackgroundMode", "Transparent"));
-    QCOMPARE(item.property("colorPolicy").toInt(), enumValue(metaObject, "ColorPolicy", "AssumeSrgbColor"));
+    QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
+    QCOMPARE(item.property("looping").toBool(), false);
 }
 
-void ImageViewportTest::qmlImportsWithUniqueEnumKeys()
+void ImageViewportTest::qmlImportsDocumentedSurface()
 {
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
@@ -174,15 +204,20 @@ import QtQuick
 import ImageViewport 1.0
 
 ImageViewport {
-    property int noRequest: ImageViewport.NoRequest
-    property int requestUnsupported: ImageViewport.RequestUnsupported
-    property int outcomeAccepted: ImageViewport.OutcomeAccepted
-    property int outcomeUnsupported: ImageViewport.OutcomeUnsupported
-    property int outcomeInvalid: ImageViewport.OutcomeInvalid
-    property int preserveOrientation: ImageViewport.PreserveOrientationMetadata
-    property int preserveColor: ImageViewport.PreserveColorMetadata
-    property bool factoryReturnsNull: ImageSequenceFactory.fromImage(null) === null
-    property bool mappingInvalid: mapItemToImage(Qt.point(1, 1)).valid === false
+    property int noRequest: ImageViewport.RequestStatus.NoRequest
+    property int loading: ImageViewport.RequestStatus.Loading
+    property int retained: ImageViewport.DisplayStatus.Retained
+    property int waiting: ImageViewport.PlaybackPhase.Waiting
+    property int accepted: ImageViewport.RequestOutcome.Accepted
+    property int unsupported: ImageViewport.RequestOutcome.Unsupported
+    property int invalid: ImageViewport.RequestOutcome.Invalid
+    property int ignoredNoRequest: ImageViewport.RequestOutcome.IgnoredNoRequest
+    property int cover: ImageViewport.FillMode.Cover
+    property int center: ImageViewport.FillMode.Center
+    property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
+    property bool mappingInvalid: itemToImage(1, 1).valid === false
+    property bool mappingHasFlatFields: imageToItem(1, 1).x === 0 && imageToItem(1, 1).y === 0
+    property bool limitsAvailable: ImageSequenceLimits.maximumLogicalWidth >= 8192
 }
 )",
         QUrl());
@@ -193,14 +228,19 @@ ImageViewport {
     ImageViewport item;
     const QMetaObject *metaObject = item.metaObject();
     QCOMPARE(object->property("noRequest").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(object->property("requestUnsupported").toInt(), enumValue(metaObject, "RequestStatus", "RequestUnsupported"));
-    QCOMPARE(object->property("outcomeAccepted").toInt(), enumValue(metaObject, "RequestOutcome", "OutcomeAccepted"));
-    QCOMPARE(object->property("outcomeUnsupported").toInt(), enumValue(metaObject, "RequestOutcome", "OutcomeUnsupported"));
-    QCOMPARE(object->property("outcomeInvalid").toInt(), enumValue(metaObject, "RequestOutcome", "OutcomeInvalid"));
-    QCOMPARE(object->property("preserveOrientation").toInt(), enumValue(metaObject, "OrientationPolicy", "PreserveOrientationMetadata"));
-    QCOMPARE(object->property("preserveColor").toInt(), enumValue(metaObject, "ColorPolicy", "PreserveColorMetadata"));
+    QCOMPARE(object->property("loading").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(object->property("retained").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(object->property("waiting").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(object->property("accepted").toInt(), enumValue(metaObject, "RequestOutcome", "Accepted"));
+    QCOMPARE(object->property("unsupported").toInt(), enumValue(metaObject, "RequestOutcome", "Unsupported"));
+    QCOMPARE(object->property("invalid").toInt(), enumValue(metaObject, "RequestOutcome", "Invalid"));
+    QCOMPARE(object->property("ignoredNoRequest").toInt(), enumValue(metaObject, "RequestOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("cover").toInt(), enumValue(metaObject, "FillMode", "Cover"));
+    QCOMPARE(object->property("center").toInt(), enumValue(metaObject, "FillMode", "Center"));
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
+    QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);
+    QCOMPARE(object->property("limitsAvailable").toBool(), true);
 }
 
 void ImageViewportTest::imageSequenceIsNotQmlCreatable()
@@ -240,9 +280,45 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
     ImageSequenceFactory factory;
     const QMetaObject *metaObject = factory.metaObject();
 
-    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromImage(ImageFrame*)")) >= 0);
-    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromFrames(QList<TimedImageFrame*>)")) >= 0);
+    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromFrame(ImageFrame*)")) >= 0);
+    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromTimedFrameList(TimedImageFrameList*)")) >= 0);
     QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromProvider(ImageSequenceProviderAdapter*)")) >= 0);
+
+    QObject *result = factory.fromFrame(nullptr);
+    QVERIFY(result);
+    QCOMPARE(result->property("sequence").value<QObject *>(), nullptr);
+    QCOMPARE(result->property("outcome").toInt(), enumValue(result->metaObject(), "FactoryOutcome", "Invalid"));
+    QVERIFY(!result->property("errorString").toString().isEmpty());
+}
+
+void ImageViewportTest::exposesImageSequenceLimits()
+{
+    ImageSequenceLimits limits;
+
+    QCOMPARE(limits.property("maximumLogicalWidth").toInt(), ImageSequenceLimits::maximumLogicalWidth());
+    QVERIFY(limits.property("maximumLogicalWidth").toInt() >= 8192);
+    QVERIFY(limits.property("maximumLogicalHeight").toInt() >= 8192);
+    QVERIFY(limits.property("maximumPixelsPerFrame").toLongLong() >= 67108864LL);
+    QVERIFY(limits.property("maximumPayloadBytesPerFrame").toLongLong() >= 268435456LL);
+    QVERIFY(limits.property("maximumTimedListFrameCount").toInt() >= 10000);
+    QVERIFY(limits.property("maximumFrameDuration").toInt() >= 86400000);
+    QVERIFY(limits.property("maximumTotalSequenceDuration").toInt() >= 86400000);
+    QVERIFY(limits.property("maximumDiagnosticStringLength").toInt() >= 4096);
+}
+
+void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
+{
+    ImageViewport item;
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::RequestOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 1U);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+
+    QCOMPARE(item.seek(-1), ImageViewport::RequestOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
@@ -256,10 +332,10 @@ void ImageViewportTest::presentationChangesNotifyGeometryState()
     item.setPan(QPointF(4.0, 8.0));
     QCOMPARE(geometrySpy.count(), 2);
 
-    item.setFillMode(ImageViewport::Stretch);
+    item.setFillMode(ImageViewport::FillMode::Stretch);
     QCOMPARE(geometrySpy.count(), 3);
 
-    item.setMirror(true);
+    item.setMirrorHorizontally(true);
     QCOMPARE(geometrySpy.count(), 4);
 }
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <QtCore/QList>
 #include <QtCore/QObject>
-#include <QtCore/QPointF>
 #include <QtCore/QPointer>
+#include <QtCore/QPointF>
 #include <QtCore/QRectF>
+#include <QtCore/QSizeF>
 #include <QtCore/QVariantMap>
 #include <QtGui/QColor>
 #include <QtQml/qqmlregistration.h>
@@ -31,14 +31,20 @@ public:
     explicit ImageFrame(QObject *parent = nullptr);
 };
 
-class TimedImageFrame : public QObject
+class TimedImageFrameList : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
-    QML_UNCREATABLE("TimedImageFrame objects are created by C++ helpers or provider adapters")
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    explicit TimedImageFrame(QObject *parent = nullptr);
+    explicit TimedImageFrameList(QObject *parent = nullptr);
+
+    int count() const;
+    Q_INVOKABLE void clear();
+
+signals:
+    void countChanged();
 };
 
 class ImageSequenceProviderAdapter : public QObject
@@ -51,6 +57,43 @@ public:
     explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
 };
 
+class ImageSequenceFactoryResult : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("ImageSequenceFactoryResult objects are returned by ImageSequenceFactory")
+    Q_PROPERTY(ImageSequence *sequence READ sequence CONSTANT)
+    Q_PROPERTY(FactoryOutcome outcome READ outcome CONSTANT)
+    Q_PROPERTY(QString errorString READ errorString CONSTANT)
+    Q_PROPERTY(QString warningString READ warningString CONSTANT)
+
+public:
+    enum class FactoryOutcome {
+        Created,
+        Invalid,
+        Unsupported,
+        Error,
+    };
+    Q_ENUM(FactoryOutcome)
+
+    explicit ImageSequenceFactoryResult(ImageSequence *sequence,
+        FactoryOutcome outcome,
+        QString errorString = {},
+        QString warningString = {},
+        QObject *parent = nullptr);
+
+    ImageSequence *sequence() const;
+    FactoryOutcome outcome() const;
+    QString errorString() const;
+    QString warningString() const;
+
+private:
+    QPointer<ImageSequence> m_sequence;
+    FactoryOutcome m_outcome;
+    QString m_errorString;
+    QString m_warningString;
+};
+
 class ImageSequenceFactory : public QObject
 {
     Q_OBJECT
@@ -60,203 +103,211 @@ class ImageSequenceFactory : public QObject
 public:
     explicit ImageSequenceFactory(QObject *parent = nullptr);
 
-    Q_INVOKABLE ImageSequence *fromImage(ImageFrame *frame);
-    Q_INVOKABLE ImageSequence *fromFrames(const QList<TimedImageFrame *> &frames);
-    Q_INVOKABLE ImageSequence *fromProvider(ImageSequenceProviderAdapter *adapter);
+    Q_INVOKABLE ImageSequenceFactoryResult *fromFrame(ImageFrame *frame);
+    Q_INVOKABLE ImageSequenceFactoryResult *fromTimedFrameList(TimedImageFrameList *list);
+    Q_INVOKABLE ImageSequenceFactoryResult *fromProvider(ImageSequenceProviderAdapter *adapter);
+};
+
+class ImageSequenceLimits : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_SINGLETON
+    Q_PROPERTY(int maximumLogicalWidth READ getMaximumLogicalWidth CONSTANT)
+    Q_PROPERTY(int maximumLogicalHeight READ getMaximumLogicalHeight CONSTANT)
+    Q_PROPERTY(qint64 maximumPixelsPerFrame READ getMaximumPixelsPerFrame CONSTANT)
+    Q_PROPERTY(qint64 maximumPayloadBytesPerFrame READ getMaximumPayloadBytesPerFrame CONSTANT)
+    Q_PROPERTY(int maximumTimedListFrameCount READ getMaximumTimedListFrameCount CONSTANT)
+    Q_PROPERTY(int maximumFrameDuration READ getMaximumFrameDuration CONSTANT)
+    Q_PROPERTY(int maximumTotalSequenceDuration READ getMaximumTotalSequenceDuration CONSTANT)
+    Q_PROPERTY(int maximumDiagnosticStringLength READ getMaximumDiagnosticStringLength CONSTANT)
+
+public:
+    explicit ImageSequenceLimits(QObject *parent = nullptr);
+
+    int getMaximumLogicalWidth() const;
+    int getMaximumLogicalHeight() const;
+    qint64 getMaximumPixelsPerFrame() const;
+    qint64 getMaximumPayloadBytesPerFrame() const;
+    int getMaximumTimedListFrameCount() const;
+    int getMaximumFrameDuration() const;
+    int getMaximumTotalSequenceDuration() const;
+    int getMaximumDiagnosticStringLength() const;
+
+    static int maximumLogicalWidth();
+    static int maximumLogicalHeight();
+    static qint64 maximumPixelsPerFrame();
+    static qint64 maximumPayloadBytesPerFrame();
+    static int maximumTimedListFrameCount();
+    static int maximumFrameDuration();
+    static int maximumTotalSequenceDuration();
+    static int maximumDiagnosticStringLength();
 };
 
 class ImageViewport : public QQuickItem
 {
     Q_OBJECT
+    Q_CLASSINFO("RegisterEnumClassesUnscoped", "false")
     QML_ELEMENT
     Q_PROPERTY(ImageSequence *sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
-    Q_PROPERTY(bool frameCountKnown READ frameCountKnown NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(int frameCount READ frameCount NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(bool durationKnown READ durationKnown NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(double duration READ duration NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(bool canSeek READ canSeek NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(bool canSeekByFrame READ canSeekByFrame NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(bool canSeekByPosition READ canSeekByPosition NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(bool streaming READ streaming NOTIFY sequenceInfoChanged)
-    Q_PROPERTY(int requestedFrame READ requestedFrame WRITE setRequestedFrame NOTIFY requestedFrameChanged)
-    Q_PROPERTY(int displayedFrame READ displayedFrame NOTIFY displayedStateChanged)
-    Q_PROPERTY(double requestedPosition READ requestedPosition NOTIFY requestedPositionChanged)
-    Q_PROPERTY(double displayedPosition READ displayedPosition NOTIFY displayedStateChanged)
-    Q_PROPERTY(PlaybackState playbackState READ playbackState NOTIFY playbackStateChanged)
-    Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY speedChanged)
-    Q_PROPERTY(LoopMode loopMode READ loopMode WRITE setLoopMode NOTIFY loopModeChanged)
-    Q_PROPERTY(int loopCount READ loopCount WRITE setLoopCount NOTIFY loopCountChanged)
-    Q_PROPERTY(int completedLoops READ completedLoops NOTIFY completedLoopsChanged)
-    Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStatusChanged)
-    Q_PROPERTY(RequestStatusReason requestStatusReason READ requestStatusReason NOTIFY requestStatusChanged)
-    Q_PROPERTY(DisplayStatus displayStatus READ displayStatus NOTIFY displayedStateChanged)
-    Q_PROPERTY(bool hasDisplayableFrame READ hasDisplayableFrame NOTIFY displayedStateChanged)
-    Q_PROPERTY(bool displayedBelongsToCurrentSequence READ displayedBelongsToCurrentSequence NOTIFY displayedStateChanged)
-    Q_PROPERTY(int displayRevision READ displayRevision NOTIFY displayRevisionChanged)
-    Q_PROPERTY(QString displayedSnapshotToken READ displayedSnapshotToken NOTIFY displayedStateChanged)
+    Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
+    Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
+    Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
+    Q_PROPERTY(DisplayStatus displayStatus READ displayStatus NOTIFY displayStateChanged)
+    Q_PROPERTY(PlaybackPhase playbackPhase READ playbackPhase NOTIFY playbackPhaseChanged)
+    Q_PROPERTY(int displayedFrame READ displayedFrame NOTIFY displayStateChanged)
+    Q_PROPERTY(int requestedFrame READ requestedFrame NOTIFY requestStateChanged)
+    Q_PROPERTY(int displayedPosition READ displayedPosition NOTIFY displayStateChanged)
+    Q_PROPERTY(int requestedPosition READ requestedPosition NOTIFY requestStateChanged)
+    Q_PROPERTY(int frameCount READ frameCount NOTIFY requestStateChanged)
+    Q_PROPERTY(int totalDuration READ totalDuration NOTIFY requestStateChanged)
+    Q_PROPERTY(QVariantMap frameSeekBounds READ frameSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(QVariantMap positionSeekBounds READ positionSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(TriState timedPlaybackSupport READ timedPlaybackSupport NOTIFY requestStateChanged)
+    Q_PROPERTY(TriState frameSeekSupport READ frameSeekSupport NOTIFY requestStateChanged)
+    Q_PROPERTY(TriState positionSeekSupport READ positionSeekSupport NOTIFY requestStateChanged)
+    Q_PROPERTY(QSizeF displayedImageSize READ displayedImageSize NOTIFY displayStateChanged)
+    Q_PROPERTY(QRectF contentRect READ contentRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF visibleImageRect READ visibleImageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(uint displayRevision READ displayRevision NOTIFY displayRevisionChanged)
+    Q_PROPERTY(uint requestRevision READ requestRevision NOTIFY requestRevisionChanged)
+    Q_PROPERTY(uint commandRevision READ commandRevision NOTIFY commandRevisionChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
-    Q_PROPERTY(RetentionPolicy retentionPolicy READ retentionPolicy WRITE setRetentionPolicy NOTIFY retentionPolicyChanged)
     Q_PROPERTY(FillMode fillMode READ fillMode WRITE setFillMode NOTIFY presentationChanged)
     Q_PROPERTY(HorizontalAlignment horizontalAlignment READ horizontalAlignment WRITE setHorizontalAlignment NOTIFY presentationChanged)
     Q_PROPERTY(VerticalAlignment verticalAlignment READ verticalAlignment WRITE setVerticalAlignment NOTIFY presentationChanged)
-    Q_PROPERTY(QRectF contentRect READ contentRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF visibleImageRect READ visibleImageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(double paintedWidth READ paintedWidth NOTIFY geometryStateChanged)
-    Q_PROPERTY(double paintedHeight READ paintedHeight NOTIFY geometryStateChanged)
-    Q_PROPERTY(double zoom READ zoom WRITE setZoom NOTIFY presentationChanged)
-    Q_PROPERTY(QPointF pan READ pan WRITE setPan NOTIFY presentationChanged)
-    Q_PROPERTY(bool smooth READ smooth WRITE setSmooth NOTIFY presentationChanged)
+    Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing NOTIFY presentationChanged)
     Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap NOTIFY presentationChanged)
-    Q_PROPERTY(bool mirror READ mirror WRITE setMirror NOTIFY presentationChanged)
+    Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally NOTIFY presentationChanged)
     Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically NOTIFY presentationChanged)
-    Q_PROPERTY(OrientationPolicy orientationPolicy READ orientationPolicy WRITE setOrientationPolicy NOTIFY presentationChanged)
     Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode NOTIFY presentationChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY presentationChanged)
-    Q_PROPERTY(ColorPolicy colorPolicy READ colorPolicy WRITE setColorPolicy NOTIFY presentationChanged)
+    Q_PROPERTY(double zoom READ zoom WRITE setZoom NOTIFY presentationChanged)
+    Q_PROPERTY(QPointF pan READ pan WRITE setPan NOTIFY presentationChanged)
+    Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
 
 public:
-    enum PlaybackState {
-        Stopped,
-        Playing,
-        Paused,
-        Ended,
-    };
-    Q_ENUM(PlaybackState)
-
-    enum RequestStatus {
+    enum class RequestStatus {
         NoRequest,
-        RequestLoading,
-        RequestReady,
-        RequestUnsupported,
-        RequestError,
+        Loading,
+        Ready,
+        Unsupported,
+        Error,
     };
     Q_ENUM(RequestStatus)
 
-    enum RequestStatusReason {
-        None,
+    enum class RequestReason {
+        NoRequest,
         ProviderWaiting,
         RequestQueued,
-        RenderDeferred,
         UploadPending,
+        RenderWaiting,
+        Ready,
         UnsupportedRequest,
-        UnsupportedPolicy,
         InvalidRequest,
-        CpuPreparationFailed,
-        TextureUploadFailed,
         ProviderFailure,
+        PayloadRejection,
+        RenderFailure,
     };
-    Q_ENUM(RequestStatusReason)
+    Q_ENUM(RequestReason)
 
-    enum DisplayStatus {
+    enum class CommandReason {
+        NoCommand,
+        IgnoredNoRequest,
+        InvalidRequest,
+        UnsupportedRequest,
+    };
+    Q_ENUM(CommandReason)
+
+    enum class DisplayStatus {
         Empty,
-        Current,
-        RetainedPrevious,
+        Ready,
+        Retained,
     };
     Q_ENUM(DisplayStatus)
 
-    enum LoopMode {
-        SourceLoop,
-        FiniteLoop,
-        InfiniteLoop,
+    enum class PlaybackPhase {
+        Stopped,
+        Playing,
+        Waiting,
+        Paused,
     };
-    Q_ENUM(LoopMode)
+    Q_ENUM(PlaybackPhase)
+
+    enum class TriState {
+        Unavailable,
+        False,
+        True,
+    };
+    Q_ENUM(TriState)
 
     enum class RequestOutcome {
-        OutcomeAccepted,
-        OutcomeUnsupported,
-        OutcomeInvalid,
+        Accepted,
+        Invalid,
+        Unsupported,
+        IgnoredNoRequest,
     };
     Q_ENUM(RequestOutcome)
 
-    enum FillMode {
+    enum class FillMode {
+        Contain,
+        Cover,
         Stretch,
-        PreserveAspectFit,
-        PreserveAspectCrop,
-        Pad,
+        Center,
     };
     Q_ENUM(FillMode)
 
-    enum HorizontalAlignment {
+    enum class HorizontalAlignment {
         AlignLeft,
         AlignHCenter,
         AlignRight,
     };
     Q_ENUM(HorizontalAlignment)
 
-    enum VerticalAlignment {
+    enum class VerticalAlignment {
         AlignTop,
         AlignVCenter,
         AlignBottom,
     };
     Q_ENUM(VerticalAlignment)
 
-    enum OrientationPolicy {
-        ApplyOrientationBestEffort,
-        PreserveOrientationMetadata,
-        RequireOrientationApplied,
-    };
-    Q_ENUM(OrientationPolicy)
-
-    enum class ColorPolicy {
-        AssumeSrgbColor,
-        PreserveColorMetadata,
-    };
-    Q_ENUM(ColorPolicy)
-
-    enum BackgroundMode {
+    enum class BackgroundMode {
         Transparent,
         SolidColor,
         Checkerboard,
     };
     Q_ENUM(BackgroundMode)
 
-    enum RetentionPolicy {
-        ClearOnReplacement,
-        RetainUntilReady,
-        RetainThroughFailure,
-    };
-    Q_ENUM(RetentionPolicy)
-
     explicit ImageViewport(QQuickItem *parent = nullptr);
 
     ImageSequence *sequence() const;
     void setSequence(ImageSequence *sequence);
 
-    bool frameCountKnown() const;
-    int frameCount() const;
-    bool durationKnown() const;
-    double duration() const;
-    bool canSeek() const;
-    bool canSeekByFrame() const;
-    bool canSeekByPosition() const;
-    bool streaming() const;
-
-    int requestedFrame() const;
-    void setRequestedFrame(int frame);
-    int displayedFrame() const;
-    double requestedPosition() const;
-    double displayedPosition() const;
-    PlaybackState playbackState() const;
-    double speed() const;
-    void setSpeed(double speed);
-    LoopMode loopMode() const;
-    void setLoopMode(LoopMode mode);
-    int loopCount() const;
-    void setLoopCount(int count);
-    int completedLoops() const;
-
     RequestStatus requestStatus() const;
-    RequestStatusReason requestStatusReason() const;
+    RequestReason requestReason() const;
+    CommandReason commandReason() const;
     DisplayStatus displayStatus() const;
-    bool hasDisplayableFrame() const;
-    bool displayedBelongsToCurrentSequence() const;
-    int displayRevision() const;
-    QString displayedSnapshotToken() const;
+    PlaybackPhase playbackPhase() const;
+    int displayedFrame() const;
+    int requestedFrame() const;
+    int displayedPosition() const;
+    int requestedPosition() const;
+    int frameCount() const;
+    int totalDuration() const;
+    QVariantMap frameSeekBounds() const;
+    QVariantMap positionSeekBounds() const;
+    TriState timedPlaybackSupport() const;
+    TriState frameSeekSupport() const;
+    TriState positionSeekSupport() const;
+    QSizeF displayedImageSize() const;
+    QRectF contentRect() const;
+    QRectF visibleImageRect() const;
+    uint displayRevision() const;
+    uint requestRevision() const;
+    uint commandRevision() const;
     QString errorString() const;
     QString warningString() const;
-    RetentionPolicy retentionPolicy() const;
-    void setRetentionPolicy(RetentionPolicy policy);
 
     FillMode fillMode() const;
     void setFillMode(FillMode mode);
@@ -264,90 +315,86 @@ public:
     void setHorizontalAlignment(HorizontalAlignment alignment);
     VerticalAlignment verticalAlignment() const;
     void setVerticalAlignment(VerticalAlignment alignment);
-    QRectF contentRect() const;
-    QRectF visibleImageRect() const;
-    double paintedWidth() const;
-    double paintedHeight() const;
-
-    double zoom() const;
-    void setZoom(double zoom);
-    QPointF pan() const;
-    void setPan(const QPointF &pan);
-    bool smooth() const;
-    void setSmooth(bool smooth);
+    bool smoothing() const;
+    void setSmoothing(bool smoothing);
     bool mipmap() const;
     void setMipmap(bool mipmap);
-    bool mirror() const;
-    void setMirror(bool mirror);
+    bool mirrorHorizontally() const;
+    void setMirrorHorizontally(bool mirror);
     bool mirrorVertically() const;
     void setMirrorVertically(bool mirror);
-    OrientationPolicy orientationPolicy() const;
-    void setOrientationPolicy(OrientationPolicy policy);
     BackgroundMode backgroundMode() const;
     void setBackgroundMode(BackgroundMode mode);
     QColor backgroundColor() const;
     void setBackgroundColor(const QColor &color);
-    ColorPolicy colorPolicy() const;
-    void setColorPolicy(ColorPolicy policy);
+    double zoom() const;
+    void setZoom(double zoom);
+    QPointF pan() const;
+    void setPan(const QPointF &pan);
+    bool looping() const;
+    void setLooping(bool looping);
 
-    Q_INVOKABLE void play();
-    Q_INVOKABLE void pause();
-    Q_INVOKABLE void stop();
+    Q_INVOKABLE RequestOutcome clear();
+    Q_INVOKABLE RequestOutcome play();
+    Q_INVOKABLE RequestOutcome pause();
+    Q_INVOKABLE RequestOutcome stop();
     Q_INVOKABLE RequestOutcome seek(int frame);
-    Q_INVOKABLE RequestOutcome seekToPosition(double milliseconds);
-    Q_INVOKABLE void clear();
-
-    Q_INVOKABLE QVariantMap mapItemToImage(const QPointF &point) const;
-    Q_INVOKABLE QVariantMap mapImageToItem(const QPointF &point) const;
-    Q_INVOKABLE bool containsVisibleImagePoint(const QPointF &point) const;
+    Q_INVOKABLE RequestOutcome seekToPosition(int milliseconds);
+    Q_INVOKABLE RequestOutcome resetView();
+    Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
+    Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
+    Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
 
 signals:
     void sequenceChanged();
-    void sequenceInfoChanged();
-    void requestedFrameChanged();
-    void requestedPositionChanged();
-    void playbackStateChanged();
-    void speedChanged();
-    void loopModeChanged();
-    void loopCountChanged();
-    void completedLoopsChanged();
-    void requestStatusChanged();
-    void displayedStateChanged();
+    void requestStateChanged();
+    void commandStateChanged();
+    void displayStateChanged();
+    void playbackPhaseChanged();
     void displayRevisionChanged();
+    void requestRevisionChanged();
+    void commandRevisionChanged();
     void diagnosticsChanged();
-    void retentionPolicyChanged();
     void presentationChanged();
     void geometryStateChanged();
+    void loopingChanged();
 
 protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
 
 private:
+    static QVariantMap invalidRange();
+    static QVariantMap invalidCoordinateResult();
+
     void notifyPresentationChanged(bool affectsGeometry);
-    void setUnsupportedRequest(RequestStatusReason reason);
-    void setWarningString(const QString &warning);
+    void incrementDisplayRevision();
+    void incrementRequestRevision();
+    void setCommandDiagnostic(CommandReason reason);
+    void clearCommandDiagnosticForAcceptedCommand();
+    RequestOutcome ignoredNoRequest();
+    bool hasActiveRequest() const;
 
     QPointer<ImageSequence> m_sequence;
-    int m_requestedFrame = -1;
-    PlaybackState m_playbackState = Stopped;
-    double m_speed = 1.0;
-    LoopMode m_loopMode = SourceLoop;
-    int m_loopCount = 1;
-    RequestStatus m_requestStatus = NoRequest;
-    RequestStatusReason m_requestStatusReason = None;
-    RetentionPolicy m_retentionPolicy = RetainThroughFailure;
-    FillMode m_fillMode = PreserveAspectFit;
-    HorizontalAlignment m_horizontalAlignment = AlignHCenter;
-    VerticalAlignment m_verticalAlignment = AlignVCenter;
+    RequestStatus m_requestStatus = RequestStatus::NoRequest;
+    RequestReason m_requestReason = RequestReason::NoRequest;
+    CommandReason m_commandReason = CommandReason::NoCommand;
+    DisplayStatus m_displayStatus = DisplayStatus::Empty;
+    PlaybackPhase m_playbackPhase = PlaybackPhase::Stopped;
+    FillMode m_fillMode = FillMode::Contain;
+    HorizontalAlignment m_horizontalAlignment = HorizontalAlignment::AlignHCenter;
+    VerticalAlignment m_verticalAlignment = VerticalAlignment::AlignVCenter;
+    BackgroundMode m_backgroundMode = BackgroundMode::Transparent;
+    QColor m_backgroundColor = Qt::transparent;
     double m_zoom = 1.0;
     QPointF m_pan;
-    bool m_smooth = true;
+    bool m_smoothing = true;
     bool m_mipmap = false;
-    bool m_mirror = false;
+    bool m_mirrorHorizontally = false;
     bool m_mirrorVertically = false;
-    OrientationPolicy m_orientationPolicy = ApplyOrientationBestEffort;
-    BackgroundMode m_backgroundMode = Transparent;
-    QColor m_backgroundColor = Qt::transparent;
-    ColorPolicy m_colorPolicy = ColorPolicy::AssumeSrgbColor;
+    bool m_looping = false;
+    uint m_displayRevision = 0;
+    uint m_requestRevision = 0;
+    uint m_commandRevision = 0;
+    QString m_errorString;
     QString m_warningString;
 };

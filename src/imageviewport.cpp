@@ -3,8 +3,16 @@
 #include <QtQuick/QSGNode>
 
 #include <cmath>
+#include <utility>
 
 namespace {
+
+constexpr int minimumMaximumLogicalSide = 8192;
+constexpr qint64 minimumMaximumPixelsPerFrame = 67108864LL;
+constexpr qint64 minimumMaximumPayloadBytesPerFrame = 268435456LL;
+constexpr int minimumMaximumTimedListFrameCount = 10000;
+constexpr int minimumMaximumDuration = 86400000;
+constexpr int minimumMaximumDiagnosticStringLength = 4096;
 
 bool isFinitePositive(double value)
 {
@@ -14,14 +22,6 @@ bool isFinitePositive(double value)
 bool isFinitePoint(const QPointF &point)
 {
     return std::isfinite(point.x()) && std::isfinite(point.y());
-}
-
-QVariantMap invalidMappingResult()
-{
-    return {
-        {QStringLiteral("valid"), false},
-        {QStringLiteral("point"), QPointF(0.0, 0.0)},
-    };
 }
 
 }
@@ -36,8 +36,17 @@ ImageFrame::ImageFrame(QObject *parent)
 {
 }
 
-TimedImageFrame::TimedImageFrame(QObject *parent)
+TimedImageFrameList::TimedImageFrameList(QObject *parent)
     : QObject(parent)
+{
+}
+
+int TimedImageFrameList::count() const
+{
+    return 0;
+}
+
+void TimedImageFrameList::clear()
 {
 }
 
@@ -46,24 +55,178 @@ ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject *parent)
 {
 }
 
+ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
+    FactoryOutcome outcome,
+    QString errorString,
+    QString warningString,
+    QObject *parent)
+    : QObject(parent)
+    , m_sequence(sequence)
+    , m_outcome(outcome)
+    , m_errorString(std::move(errorString))
+    , m_warningString(std::move(warningString))
+{
+}
+
+ImageSequence *ImageSequenceFactoryResult::sequence() const
+{
+    return m_sequence;
+}
+
+ImageSequenceFactoryResult::FactoryOutcome ImageSequenceFactoryResult::outcome() const
+{
+    return m_outcome;
+}
+
+QString ImageSequenceFactoryResult::errorString() const
+{
+    return m_errorString;
+}
+
+QString ImageSequenceFactoryResult::warningString() const
+{
+    return m_warningString;
+}
+
 ImageSequenceFactory::ImageSequenceFactory(QObject *parent)
     : QObject(parent)
 {
 }
 
-ImageSequence *ImageSequenceFactory::fromImage(ImageFrame *)
+ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
 {
-    return nullptr;
+    if (!frame) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("ImageFrame is required"),
+            {},
+            this);
+    }
+
+    return new ImageSequenceFactoryResult(new ImageSequence(this),
+        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        {},
+        {},
+        this);
 }
 
-ImageSequence *ImageSequenceFactory::fromFrames(const QList<TimedImageFrame *> &)
+ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageFrameList *list)
 {
-    return nullptr;
+    if (!list || list->count() <= 0) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("TimedImageFrameList must contain at least one frame"),
+            {},
+            this);
+    }
+
+    return new ImageSequenceFactoryResult(new ImageSequence(this),
+        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        {},
+        {},
+        this);
 }
 
-ImageSequence *ImageSequenceFactory::fromProvider(ImageSequenceProviderAdapter *)
+ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProviderAdapter *adapter)
 {
-    return nullptr;
+    if (!adapter) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("ImageSequenceProviderAdapter is required"),
+            {},
+            this);
+    }
+
+    return new ImageSequenceFactoryResult(new ImageSequence(this),
+        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        {},
+        {},
+        this);
+}
+
+ImageSequenceLimits::ImageSequenceLimits(QObject *parent)
+    : QObject(parent)
+{
+}
+
+int ImageSequenceLimits::getMaximumLogicalWidth() const
+{
+    return maximumLogicalWidth();
+}
+
+int ImageSequenceLimits::getMaximumLogicalHeight() const
+{
+    return maximumLogicalHeight();
+}
+
+qint64 ImageSequenceLimits::getMaximumPixelsPerFrame() const
+{
+    return maximumPixelsPerFrame();
+}
+
+qint64 ImageSequenceLimits::getMaximumPayloadBytesPerFrame() const
+{
+    return maximumPayloadBytesPerFrame();
+}
+
+int ImageSequenceLimits::getMaximumTimedListFrameCount() const
+{
+    return maximumTimedListFrameCount();
+}
+
+int ImageSequenceLimits::getMaximumFrameDuration() const
+{
+    return maximumFrameDuration();
+}
+
+int ImageSequenceLimits::getMaximumTotalSequenceDuration() const
+{
+    return maximumTotalSequenceDuration();
+}
+
+int ImageSequenceLimits::getMaximumDiagnosticStringLength() const
+{
+    return maximumDiagnosticStringLength();
+}
+
+int ImageSequenceLimits::maximumLogicalWidth()
+{
+    return minimumMaximumLogicalSide;
+}
+
+int ImageSequenceLimits::maximumLogicalHeight()
+{
+    return minimumMaximumLogicalSide;
+}
+
+qint64 ImageSequenceLimits::maximumPixelsPerFrame()
+{
+    return minimumMaximumPixelsPerFrame;
+}
+
+qint64 ImageSequenceLimits::maximumPayloadBytesPerFrame()
+{
+    return minimumMaximumPayloadBytesPerFrame;
+}
+
+int ImageSequenceLimits::maximumTimedListFrameCount()
+{
+    return minimumMaximumTimedListFrameCount;
+}
+
+int ImageSequenceLimits::maximumFrameDuration()
+{
+    return minimumMaximumDuration;
+}
+
+int ImageSequenceLimits::maximumTotalSequenceDuration()
+{
+    return minimumMaximumDuration;
+}
+
+int ImageSequenceLimits::maximumDiagnosticStringLength()
+{
+    return minimumMaximumDiagnosticStringLength;
 }
 
 ImageViewport::ImageViewport(QQuickItem *parent)
@@ -84,142 +247,26 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     }
 
     m_sequence = sequence;
+    m_errorString.clear();
+    m_warningString.clear();
+    m_playbackPhase = PlaybackPhase::Stopped;
+
+    if (m_sequence) {
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+    } else {
+        m_requestStatus = RequestStatus::NoRequest;
+        m_requestReason = RequestReason::NoRequest;
+        m_displayStatus = DisplayStatus::Empty;
+        incrementDisplayRevision();
+    }
+
+    incrementRequestRevision();
     emit sequenceChanged();
-}
-
-bool ImageViewport::frameCountKnown() const
-{
-    return false;
-}
-
-int ImageViewport::frameCount() const
-{
-    return 0;
-}
-
-bool ImageViewport::durationKnown() const
-{
-    return false;
-}
-
-double ImageViewport::duration() const
-{
-    return 0.0;
-}
-
-bool ImageViewport::canSeek() const
-{
-    return false;
-}
-
-bool ImageViewport::canSeekByFrame() const
-{
-    return false;
-}
-
-bool ImageViewport::canSeekByPosition() const
-{
-    return false;
-}
-
-bool ImageViewport::streaming() const
-{
-    return false;
-}
-
-int ImageViewport::requestedFrame() const
-{
-    return m_requestedFrame;
-}
-
-void ImageViewport::setRequestedFrame(int frame)
-{
-    if (frame < 0) {
-        setUnsupportedRequest(InvalidRequest);
-        return;
-    }
-
-    setUnsupportedRequest(UnsupportedRequest);
-}
-
-int ImageViewport::displayedFrame() const
-{
-    return -1;
-}
-
-double ImageViewport::requestedPosition() const
-{
-    return -1.0;
-}
-
-double ImageViewport::displayedPosition() const
-{
-    return -1.0;
-}
-
-ImageViewport::PlaybackState ImageViewport::playbackState() const
-{
-    return m_playbackState;
-}
-
-double ImageViewport::speed() const
-{
-    return m_speed;
-}
-
-void ImageViewport::setSpeed(double speed)
-{
-    if (!isFinitePositive(speed)) {
-        setWarningString(QStringLiteral("speed must be finite and greater than zero"));
-        return;
-    }
-
-    if (qFuzzyCompare(m_speed, speed)) {
-        return;
-    }
-
-    m_speed = speed;
-    emit speedChanged();
-}
-
-ImageViewport::LoopMode ImageViewport::loopMode() const
-{
-    return m_loopMode;
-}
-
-void ImageViewport::setLoopMode(LoopMode mode)
-{
-    if (m_loopMode == mode) {
-        return;
-    }
-
-    m_loopMode = mode;
-    emit loopModeChanged();
-}
-
-int ImageViewport::loopCount() const
-{
-    return m_loopCount;
-}
-
-void ImageViewport::setLoopCount(int count)
-{
-    if (count <= 0) {
-        setWarningString(QStringLiteral("loopCount must be greater than zero"));
-        return;
-    }
-
-    if (m_loopCount == count) {
-        return;
-    }
-
-    m_loopCount = count;
-    emit loopCountChanged();
-}
-
-int ImageViewport::completedLoops() const
-{
-    return 0;
+    emit requestStateChanged();
+    emit playbackPhaseChanged();
+    emit diagnosticsChanged();
+    update();
 }
 
 ImageViewport::RequestStatus ImageViewport::requestStatus() const
@@ -227,59 +274,119 @@ ImageViewport::RequestStatus ImageViewport::requestStatus() const
     return m_requestStatus;
 }
 
-ImageViewport::RequestStatusReason ImageViewport::requestStatusReason() const
+ImageViewport::RequestReason ImageViewport::requestReason() const
 {
-    return m_requestStatusReason;
+    return m_requestReason;
+}
+
+ImageViewport::CommandReason ImageViewport::commandReason() const
+{
+    return m_commandReason;
 }
 
 ImageViewport::DisplayStatus ImageViewport::displayStatus() const
 {
-    return Empty;
+    return m_displayStatus;
 }
 
-bool ImageViewport::hasDisplayableFrame() const
+ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const
 {
-    return false;
+    return m_playbackPhase;
 }
 
-bool ImageViewport::displayedBelongsToCurrentSequence() const
+int ImageViewport::displayedFrame() const
 {
-    return false;
+    return -1;
 }
 
-int ImageViewport::displayRevision() const
+int ImageViewport::requestedFrame() const
 {
-    return 0;
+    return -1;
 }
 
-QString ImageViewport::displayedSnapshotToken() const
+int ImageViewport::displayedPosition() const
+{
+    return -1;
+}
+
+int ImageViewport::requestedPosition() const
+{
+    return -1;
+}
+
+int ImageViewport::frameCount() const
+{
+    return -1;
+}
+
+int ImageViewport::totalDuration() const
+{
+    return -1;
+}
+
+QVariantMap ImageViewport::frameSeekBounds() const
+{
+    return invalidRange();
+}
+
+QVariantMap ImageViewport::positionSeekBounds() const
+{
+    return invalidRange();
+}
+
+ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
+{
+    return TriState::Unavailable;
+}
+
+ImageViewport::TriState ImageViewport::frameSeekSupport() const
+{
+    return TriState::Unavailable;
+}
+
+ImageViewport::TriState ImageViewport::positionSeekSupport() const
+{
+    return TriState::Unavailable;
+}
+
+QSizeF ImageViewport::displayedImageSize() const
+{
+    return QSizeF(0.0, 0.0);
+}
+
+QRectF ImageViewport::contentRect() const
 {
     return {};
+}
+
+QRectF ImageViewport::visibleImageRect() const
+{
+    return {};
+}
+
+uint ImageViewport::displayRevision() const
+{
+    return m_displayRevision;
+}
+
+uint ImageViewport::requestRevision() const
+{
+    return m_requestRevision;
+}
+
+uint ImageViewport::commandRevision() const
+{
+    return m_commandRevision;
 }
 
 QString ImageViewport::errorString() const
 {
-    return {};
+    return m_errorString;
 }
 
 QString ImageViewport::warningString() const
 {
     return m_warningString;
-}
-
-ImageViewport::RetentionPolicy ImageViewport::retentionPolicy() const
-{
-    return m_retentionPolicy;
-}
-
-void ImageViewport::setRetentionPolicy(RetentionPolicy policy)
-{
-    if (m_retentionPolicy == policy) {
-        return;
-    }
-
-    m_retentionPolicy = policy;
-    emit retentionPolicyChanged();
 }
 
 ImageViewport::FillMode ImageViewport::fillMode() const
@@ -327,78 +434,18 @@ void ImageViewport::setVerticalAlignment(VerticalAlignment alignment)
     notifyPresentationChanged(true);
 }
 
-QRectF ImageViewport::contentRect() const
+bool ImageViewport::smoothing() const
 {
-    return {};
+    return m_smoothing;
 }
 
-QRectF ImageViewport::visibleImageRect() const
+void ImageViewport::setSmoothing(bool smoothing)
 {
-    return {};
-}
-
-double ImageViewport::paintedWidth() const
-{
-    return contentRect().width();
-}
-
-double ImageViewport::paintedHeight() const
-{
-    return contentRect().height();
-}
-
-double ImageViewport::zoom() const
-{
-    return m_zoom;
-}
-
-void ImageViewport::setZoom(double zoom)
-{
-    if (!isFinitePositive(zoom)) {
-        setWarningString(QStringLiteral("zoom must be finite and greater than zero"));
+    if (m_smoothing == smoothing) {
         return;
     }
 
-    if (qFuzzyCompare(m_zoom, zoom)) {
-        return;
-    }
-
-    m_zoom = zoom;
-    notifyPresentationChanged(true);
-}
-
-QPointF ImageViewport::pan() const
-{
-    return m_pan;
-}
-
-void ImageViewport::setPan(const QPointF &pan)
-{
-    if (!isFinitePoint(pan)) {
-        setWarningString(QStringLiteral("pan coordinates must be finite"));
-        return;
-    }
-
-    if (m_pan == pan) {
-        return;
-    }
-
-    m_pan = pan;
-    notifyPresentationChanged(true);
-}
-
-bool ImageViewport::smooth() const
-{
-    return m_smooth;
-}
-
-void ImageViewport::setSmooth(bool smooth)
-{
-    if (m_smooth == smooth) {
-        return;
-    }
-
-    m_smooth = smooth;
+    m_smoothing = smoothing;
     notifyPresentationChanged(false);
 }
 
@@ -417,18 +464,18 @@ void ImageViewport::setMipmap(bool mipmap)
     notifyPresentationChanged(false);
 }
 
-bool ImageViewport::mirror() const
+bool ImageViewport::mirrorHorizontally() const
 {
-    return m_mirror;
+    return m_mirrorHorizontally;
 }
 
-void ImageViewport::setMirror(bool mirror)
+void ImageViewport::setMirrorHorizontally(bool mirror)
 {
-    if (m_mirror == mirror) {
+    if (m_mirrorHorizontally == mirror) {
         return;
     }
 
-    m_mirror = mirror;
+    m_mirrorHorizontally = mirror;
     notifyPresentationChanged(true);
 }
 
@@ -437,28 +484,13 @@ bool ImageViewport::mirrorVertically() const
     return m_mirrorVertically;
 }
 
-void ImageViewport::setMirrorVertically(bool mirrorVertically)
+void ImageViewport::setMirrorVertically(bool mirror)
 {
-    if (m_mirrorVertically == mirrorVertically) {
+    if (m_mirrorVertically == mirror) {
         return;
     }
 
-    m_mirrorVertically = mirrorVertically;
-    notifyPresentationChanged(true);
-}
-
-ImageViewport::OrientationPolicy ImageViewport::orientationPolicy() const
-{
-    return m_orientationPolicy;
-}
-
-void ImageViewport::setOrientationPolicy(OrientationPolicy policy)
-{
-    if (m_orientationPolicy == policy) {
-        return;
-    }
-
-    m_orientationPolicy = policy;
+    m_mirrorVertically = mirror;
     notifyPresentationChanged(true);
 }
 
@@ -492,105 +524,158 @@ void ImageViewport::setBackgroundColor(const QColor &color)
     notifyPresentationChanged(false);
 }
 
-ImageViewport::ColorPolicy ImageViewport::colorPolicy() const
+double ImageViewport::zoom() const
 {
-    return m_colorPolicy;
+    return m_zoom;
 }
 
-void ImageViewport::setColorPolicy(ColorPolicy policy)
+void ImageViewport::setZoom(double zoom)
 {
-    if (m_colorPolicy == policy) {
+    if (!isFinitePositive(zoom) || qFuzzyCompare(m_zoom, zoom)) {
         return;
     }
 
-    m_colorPolicy = policy;
-    notifyPresentationChanged(false);
+    m_zoom = zoom;
+    notifyPresentationChanged(true);
 }
 
-void ImageViewport::play()
+QPointF ImageViewport::pan() const
 {
-    if (!m_sequence || m_playbackState == Playing) {
+    return m_pan;
+}
+
+void ImageViewport::setPan(const QPointF &pan)
+{
+    if (!isFinitePoint(pan) || m_pan == pan) {
         return;
     }
 
-    m_playbackState = Playing;
-    emit playbackStateChanged();
+    m_pan = pan;
+    notifyPresentationChanged(true);
 }
 
-void ImageViewport::pause()
+bool ImageViewport::looping() const
 {
-    if (m_playbackState != Playing) {
+    return m_looping;
+}
+
+void ImageViewport::setLooping(bool looping)
+{
+    if (m_looping == looping) {
         return;
     }
 
-    m_playbackState = Paused;
-    emit playbackStateChanged();
+    m_looping = looping;
+    emit loopingChanged();
 }
 
-void ImageViewport::stop()
+ImageViewport::RequestOutcome ImageViewport::clear()
 {
-    if (m_playbackState == Stopped) {
-        return;
-    }
-
-    m_playbackState = Stopped;
-    emit playbackStateChanged();
-}
-
-ImageViewport::RequestOutcome ImageViewport::seek(int frame)
-{
-    if (frame < 0) {
-        setUnsupportedRequest(InvalidRequest);
-        return RequestOutcome::OutcomeInvalid;
-    }
-
-    setUnsupportedRequest(UnsupportedRequest);
-    return RequestOutcome::OutcomeUnsupported;
-}
-
-ImageViewport::RequestOutcome ImageViewport::seekToPosition(double milliseconds)
-{
-    if (!std::isfinite(milliseconds) || milliseconds < 0.0) {
-        setUnsupportedRequest(InvalidRequest);
-        return RequestOutcome::OutcomeInvalid;
-    }
-
-    setUnsupportedRequest(UnsupportedRequest);
-    return RequestOutcome::OutcomeUnsupported;
-}
-
-void ImageViewport::clear()
-{
-    const bool hadSequence = m_sequence;
     m_sequence = nullptr;
-    m_requestedFrame = -1;
-    m_playbackState = Stopped;
-    m_requestStatus = NoRequest;
-    m_requestStatusReason = None;
+    m_requestStatus = RequestStatus::NoRequest;
+    m_requestReason = RequestReason::NoRequest;
+    m_displayStatus = DisplayStatus::Empty;
+    m_playbackPhase = PlaybackPhase::Stopped;
+    m_errorString.clear();
     m_warningString.clear();
+    clearCommandDiagnosticForAcceptedCommand();
+    incrementRequestRevision();
+    incrementDisplayRevision();
 
-    if (hadSequence) {
-        emit sequenceChanged();
-    }
-    emit requestedFrameChanged();
-    emit playbackStateChanged();
-    emit requestStatusChanged();
+    emit sequenceChanged();
+    emit requestStateChanged();
+    emit displayStateChanged();
+    emit playbackPhaseChanged();
     emit diagnosticsChanged();
-    emit geometryStateChanged();
     update();
+    return RequestOutcome::Accepted;
 }
 
-QVariantMap ImageViewport::mapItemToImage(const QPointF &) const
+ImageViewport::RequestOutcome ImageViewport::play()
 {
-    return invalidMappingResult();
+    if (!hasActiveRequest()) {
+        return ignoredNoRequest();
+    }
+
+    clearCommandDiagnosticForAcceptedCommand();
+    m_playbackPhase = PlaybackPhase::Waiting;
+    emit playbackPhaseChanged();
+    return RequestOutcome::Accepted;
 }
 
-QVariantMap ImageViewport::mapImageToItem(const QPointF &) const
+ImageViewport::RequestOutcome ImageViewport::pause()
 {
-    return invalidMappingResult();
+    if (!hasActiveRequest()) {
+        return ignoredNoRequest();
+    }
+
+    clearCommandDiagnosticForAcceptedCommand();
+    if (m_playbackPhase == PlaybackPhase::Playing || m_playbackPhase == PlaybackPhase::Waiting) {
+        m_playbackPhase = PlaybackPhase::Paused;
+        emit playbackPhaseChanged();
+    }
+    return RequestOutcome::Accepted;
 }
 
-bool ImageViewport::containsVisibleImagePoint(const QPointF &) const
+ImageViewport::RequestOutcome ImageViewport::stop()
+{
+    if (!hasActiveRequest()) {
+        return ignoredNoRequest();
+    }
+
+    clearCommandDiagnosticForAcceptedCommand();
+    if (m_playbackPhase != PlaybackPhase::Stopped) {
+        m_playbackPhase = PlaybackPhase::Stopped;
+        emit playbackPhaseChanged();
+    }
+    return RequestOutcome::Accepted;
+}
+
+ImageViewport::RequestOutcome ImageViewport::seek(int)
+{
+    if (!hasActiveRequest()) {
+        return ignoredNoRequest();
+    }
+
+    clearCommandDiagnosticForAcceptedCommand();
+    setCommandDiagnostic(CommandReason::UnsupportedRequest);
+    return RequestOutcome::Unsupported;
+}
+
+ImageViewport::RequestOutcome ImageViewport::seekToPosition(int)
+{
+    if (!hasActiveRequest()) {
+        return ignoredNoRequest();
+    }
+
+    clearCommandDiagnosticForAcceptedCommand();
+    setCommandDiagnostic(CommandReason::UnsupportedRequest);
+    return RequestOutcome::Unsupported;
+}
+
+ImageViewport::RequestOutcome ImageViewport::resetView()
+{
+    const bool changed = !qFuzzyCompare(m_zoom, 1.0) || m_pan != QPointF();
+    m_zoom = 1.0;
+    m_pan = {};
+    if (changed) {
+        notifyPresentationChanged(true);
+    }
+    clearCommandDiagnosticForAcceptedCommand();
+    return RequestOutcome::Accepted;
+}
+
+QVariantMap ImageViewport::itemToImage(double, double) const
+{
+    return invalidCoordinateResult();
+}
+
+QVariantMap ImageViewport::imageToItem(double, double) const
+{
+    return invalidCoordinateResult();
+}
+
+bool ImageViewport::containsVisibleImagePoint(double, double) const
 {
     return false;
 }
@@ -601,8 +686,26 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     return nullptr;
 }
 
+QVariantMap ImageViewport::invalidRange()
+{
+    return {
+        {QStringLiteral("minimum"), -1},
+        {QStringLiteral("maximum"), -1},
+    };
+}
+
+QVariantMap ImageViewport::invalidCoordinateResult()
+{
+    return {
+        {QStringLiteral("valid"), false},
+        {QStringLiteral("x"), 0.0},
+        {QStringLiteral("y"), 0.0},
+    };
+}
+
 void ImageViewport::notifyPresentationChanged(bool affectsGeometry)
 {
+    incrementDisplayRevision();
     emit presentationChanged();
     if (affectsGeometry) {
         emit geometryStateChanged();
@@ -610,23 +713,42 @@ void ImageViewport::notifyPresentationChanged(bool affectsGeometry)
     update();
 }
 
-void ImageViewport::setUnsupportedRequest(RequestStatusReason reason)
+void ImageViewport::incrementDisplayRevision()
 {
-    const bool statusChanged = m_requestStatus != RequestUnsupported || m_requestStatusReason != reason;
-    m_requestStatus = RequestUnsupported;
-    m_requestStatusReason = reason;
-
-    if (statusChanged) {
-        emit requestStatusChanged();
-    }
+    ++m_displayRevision;
+    emit displayRevisionChanged();
 }
 
-void ImageViewport::setWarningString(const QString &warning)
+void ImageViewport::incrementRequestRevision()
 {
-    if (m_warningString == warning) {
+    ++m_requestRevision;
+    emit requestRevisionChanged();
+}
+
+void ImageViewport::setCommandDiagnostic(CommandReason reason)
+{
+    m_commandReason = reason;
+    ++m_commandRevision;
+    emit commandRevisionChanged();
+    emit commandStateChanged();
+}
+
+void ImageViewport::clearCommandDiagnosticForAcceptedCommand()
+{
+    if (m_commandReason == CommandReason::NoCommand) {
         return;
     }
 
-    m_warningString = warning;
-    emit diagnosticsChanged();
+    setCommandDiagnostic(CommandReason::NoCommand);
+}
+
+ImageViewport::RequestOutcome ImageViewport::ignoredNoRequest()
+{
+    setCommandDiagnostic(CommandReason::IgnoredNoRequest);
+    return RequestOutcome::IgnoredNoRequest;
+}
+
+bool ImageViewport::hasActiveRequest() const
+{
+    return m_requestStatus != RequestStatus::NoRequest;
 }
