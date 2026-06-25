@@ -119,12 +119,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             m_pendingDisplayImage = {};
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
-                m_providerSession->cancelRequest(m_activeProviderFrameToken);
+                cancelProviderRequest(m_activeProviderFrameToken);
             }
             m_activeProviderFrameToken = nextProviderRequestToken();
             m_activeProviderFrameFromPlayback = true;
             if (m_providerSession) {
-                m_providerSession->requestPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
+                requestProviderPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
             }
             setPlaybackPhase(PlaybackPhase::Waiting);
             incrementRequestRevision();
@@ -242,7 +242,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
     }
     if (hasProviderSequence() && m_providerTimedMetadata && m_activeProviderFrameFromPlayback) {
         if (m_providerSession) {
-            m_providerSession->cancelRequest(m_activeProviderFrameToken);
+            cancelProviderRequest(m_activeProviderFrameToken);
         }
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
@@ -289,7 +289,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_currentFrame >= 0) {
             m_activeProviderFrameToken = nextProviderRequestToken();
-            m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
+            requestProviderFrame(m_activeProviderFrameToken, m_currentFrame);
         }
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
@@ -365,12 +365,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
             m_pendingDisplayImage = {};
             const bool diagnosticsValueChanged = clearDiagnostics();
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
-                m_providerSession->cancelRequest(m_activeProviderFrameToken);
+                cancelProviderRequest(m_activeProviderFrameToken);
             }
             m_activeProviderFrameToken = nextProviderRequestToken();
             m_activeProviderFrameFromPlayback = false;
             if (m_providerSession) {
-                m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
+                requestProviderFrame(m_activeProviderFrameToken, frame);
             }
             if (m_playbackPhase == PlaybackPhase::Playing) {
                 setPlaybackPhase(PlaybackPhase::Waiting);
@@ -525,12 +525,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         m_pendingDisplayImage = {};
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_activeProviderFrameToken.isValid()) {
-            m_providerSession->cancelRequest(m_activeProviderFrameToken);
+            cancelProviderRequest(m_activeProviderFrameToken);
         }
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = false;
         if (m_providerSession) {
-            m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
+            requestProviderFrame(m_activeProviderFrameToken, frame);
         }
         if (m_playbackPhase == PlaybackPhase::Playing) {
             setPlaybackPhase(PlaybackPhase::Waiting);
@@ -653,7 +653,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = true;
         if (m_providerSession) {
-            m_providerSession->requestPlayback(m_activeProviderFrameToken, nextFrame, nextRequestedPosition);
+            requestProviderPlayback(m_activeProviderFrameToken, nextFrame, nextRequestedPosition);
         }
         setPlaybackPhase(PlaybackPhase::Waiting);
         incrementRequestRevision();

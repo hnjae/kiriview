@@ -2,6 +2,40 @@
 
 #include "imageviewport_p.h"
 
+#include <QtCore/QMetaObject>
+#include <QtCore/QThread>
+
+#include <utility>
+
+namespace {
+template <typename Function>
+void invokeSessionCommand(ImageSequenceProviderSession *session, Function function)
+{
+    if (!session) {
+        return;
+    }
+    if (session->thread() == QThread::currentThread()) {
+        function();
+        return;
+    }
+    QMetaObject::invokeMethod(session, std::move(function), Qt::BlockingQueuedConnection);
+}
+
+void releaseSession(ImageSequenceProviderSession *session)
+{
+    if (!session) {
+        return;
+    }
+    if (session->thread() == QThread::currentThread()) {
+        delete session;
+        return;
+    }
+    QMetaObject::invokeMethod(session, [session]() {
+        delete session;
+    }, Qt::BlockingQueuedConnection);
+}
+}
+
 ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate &viewport)
     : viewport(viewport)
 {
@@ -21,13 +55,19 @@ void ViewportProviderBridge::closeSession()
     viewport.m_activeProviderFrameFromPlayback = false;
     viewport.m_providerSession.clear();
     if (metadataToken.isValid()) {
-        session->cancelRequest(metadataToken);
+        invokeSessionCommand(session, [session, metadataToken]() {
+            session->cancelRequest(metadataToken);
+        });
     }
     if (frameToken.isValid()) {
-        session->cancelRequest(frameToken);
+        invokeSessionCommand(session, [session, frameToken]() {
+            session->cancelRequest(frameToken);
+        });
     }
-    session->close();
-    delete session;
+    invokeSessionCommand(session, [session]() {
+        session->close();
+    });
+    releaseSession(session);
 }
 
 bool ViewportProviderBridge::openSession()
@@ -109,10 +149,10 @@ bool ViewportProviderBridge::openSession()
         viewport.m_pendingDisplayImage = {};
         viewport.m_activeProviderFrameToken = nextRequestToken();
         viewport.m_activeProviderFrameFromPlayback = false;
-        viewport.m_providerSession->requestFrame(viewport.m_activeProviderFrameToken, viewport.m_currentFrame);
+        requestFrame(viewport.m_activeProviderFrameToken, viewport.m_currentFrame);
     } else {
         viewport.m_activeProviderMetadataToken = nextRequestToken();
-        viewport.m_providerSession->requestMetadata(viewport.m_activeProviderMetadataToken);
+        requestMetadata(viewport.m_activeProviderMetadataToken);
     }
     return true;
 }
@@ -121,4 +161,36 @@ ImageSequenceProviderRequestToken ViewportProviderBridge::nextRequestToken()
 {
     ++viewport.m_nextProviderRequestToken;
     return ImageSequenceProviderRequestToken(viewport.m_nextProviderRequestToken);
+}
+
+void ViewportProviderBridge::requestMetadata(const ImageSequenceProviderRequestToken &token)
+{
+    ImageSequenceProviderSession *session = viewport.m_providerSession;
+    invokeSessionCommand(session, [session, token]() {
+        session->requestMetadata(token);
+    });
+}
+
+void ViewportProviderBridge::requestFrame(const ImageSequenceProviderRequestToken &token, int frame)
+{
+    ImageSequenceProviderSession *session = viewport.m_providerSession;
+    invokeSessionCommand(session, [session, token, frame]() {
+        session->requestFrame(token, frame);
+    });
+}
+
+void ViewportProviderBridge::requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position)
+{
+    ImageSequenceProviderSession *session = viewport.m_providerSession;
+    invokeSessionCommand(session, [session, token, frame, position]() {
+        session->requestPlayback(token, frame, position);
+    });
+}
+
+void ViewportProviderBridge::cancelRequest(const ImageSequenceProviderRequestToken &token)
+{
+    ImageSequenceProviderSession *session = viewport.m_providerSession;
+    invokeSessionCommand(session, [session, token]() {
+        session->cancelRequest(token);
+    });
 }

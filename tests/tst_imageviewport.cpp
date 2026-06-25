@@ -5,6 +5,8 @@
 #include <QtCore/QList>
 #include <QtCore/QMetaEnum>
 #include <QtCore/QPointF>
+#include <QtCore/QScopeGuard>
+#include <QtCore/QThread>
 #include <QtGui/QImage>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlEngine>
@@ -97,6 +99,7 @@ private slots:
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
     void providerFactoryRejectsPublishedKnownMetadataLimits();
+    void providerSessionEntryPointsUseSessionAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerSharedSequenceUsesIndependentViewportSessions();
     void providerSessionOpenFailureKeepsReplacementObservable();
@@ -536,6 +539,72 @@ private:
     CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+};
+
+class AffinityProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit AffinityProviderSession(const std::shared_ptr<QThread *> &metadataRequestThread,
+        const std::shared_ptr<QThread *> &closeThread,
+        QObject *parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestThread(metadataRequestThread)
+        , m_closeThread(closeThread)
+    {
+    }
+
+    void requestMetadata(const ImageSequenceProviderRequestToken &token) override
+    {
+        *m_metadataRequestThread = QThread::currentThread();
+        m_lastMetadataToken = token;
+    }
+
+    void close() override
+    {
+        *m_closeThread = QThread::currentThread();
+    }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const
+    {
+        return m_lastMetadataToken;
+    }
+
+private:
+    std::shared_ptr<QThread *> m_metadataRequestThread;
+    std::shared_ptr<QThread *> m_closeThread;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class AffinityProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit AffinityProviderSessionFactory(QThread *thread,
+        const std::shared_ptr<QThread *> &metadataRequestThread,
+        const std::shared_ptr<QThread *> &closeThread)
+        : m_thread(thread)
+        , m_metadataRequestThread(metadataRequestThread)
+        , m_closeThread(closeThread)
+    {
+    }
+
+    ImageSequenceProviderSession *createSession(QObject *) override
+    {
+        auto *session = new AffinityProviderSession(m_metadataRequestThread, m_closeThread);
+        session->moveToThread(m_thread);
+        m_lastSession = session;
+        return session;
+    }
+
+    AffinityProviderSession *lastSession() const
+    {
+        return m_lastSession;
+    }
+
+private:
+    QThread *m_thread = nullptr;
+    std::shared_ptr<QThread *> m_metadataRequestThread;
+    std::shared_ptr<QThread *> m_closeThread;
+    QPointer<AffinityProviderSession> m_lastSession;
 };
 
 class FailingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
@@ -3434,6 +3503,36 @@ void ImageViewportTest::providerFactoryRejectsPublishedKnownMetadataLimits()
     QCOMPARE(*sessionCount, 0);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
+}
+
+void ImageViewportTest::providerSessionEntryPointsUseSessionAffinity()
+{
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+
+    const auto metadataRequestThread = std::make_shared<QThread *>(nullptr);
+    const auto closeThread = std::make_shared<QThread *>(nullptr);
+    auto sessionFactory = std::make_shared<AffinityProviderSessionFactory>(&workerThread,
+        metadataRequestThread,
+        closeThread);
+    CountingProviderAdapter adapter(sessionFactory);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    {
+        ImageViewport item;
+        item.setSequence(result->sequence());
+
+        QVERIFY(sessionFactory->lastSession());
+        QCOMPARE(*metadataRequestThread, &workerThread);
+    }
+
+    QCOMPARE(*closeThread, &workerThread);
 }
 
 void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
