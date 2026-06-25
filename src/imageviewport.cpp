@@ -2014,13 +2014,32 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     delete oldNode;
 
-    if (m_backgroundMode != BackgroundMode::SolidColor || width() <= 0.0 || height() <= 0.0) {
+    if (m_backgroundMode == BackgroundMode::Transparent || width() <= 0.0 || height() <= 0.0) {
         return nullptr;
     }
 
     auto *root = new QSGNode;
-    auto *background = new QSGSimpleRectNode(QRectF(0.0, 0.0, width(), height()), m_backgroundColor);
-    root->appendChildNode(background);
+    if (m_backgroundMode == BackgroundMode::SolidColor) {
+        auto *background = new QSGSimpleRectNode(QRectF(0.0, 0.0, width(), height()), m_backgroundColor);
+        root->appendChildNode(background);
+        return root;
+    }
+
+    constexpr double checkerboardTileSize = 8.0;
+    const QColor lightSquare(238, 238, 238);
+    const QColor darkSquare(204, 204, 204);
+    for (double y = 0.0; y < height(); y += checkerboardTileSize) {
+        for (double x = 0.0; x < width(); x += checkerboardTileSize) {
+            const int column = static_cast<int>(x / checkerboardTileSize);
+            const int row = static_cast<int>(y / checkerboardTileSize);
+            const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
+            const QRectF tile(x,
+                y,
+                std::min(checkerboardTileSize, width() - x),
+                std::min(checkerboardTileSize, height() - y));
+            root->appendChildNode(new QSGSimpleRectNode(tile, color));
+        }
+    }
     return root;
 }
 

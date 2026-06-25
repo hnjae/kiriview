@@ -103,6 +103,7 @@ private slots:
     void providerMetadataCancellationReportsProviderFailure();
     void providerFrameCancellationReportsProviderFailure();
     void solidBackgroundCreatesPaintNode();
+    void checkerboardBackgroundCreatesPaintNode();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -3807,6 +3808,17 @@ void ImageViewportTest::solidBackgroundCreatesPaintNode()
     QVERIFY(background);
     QCOMPARE(background->rect(), QRectF(0.0, 0.0, 24.0, 12.0));
     QCOMPARE(background->color(), QColor(20, 40, 60, 255));
+}
+
+void ImageViewportTest::checkerboardBackgroundCreatesPaintNode()
+{
+    PaintProbeViewport item;
+    item.setSize(QSizeF(24.0, 12.0));
+    item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QVERIFY(root->childCount() > 0);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
