@@ -2479,7 +2479,7 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
     m_activeProviderFrameToken = nextProviderRequestToken();
     m_activeProviderFrameFromPlayback = true;
     if (m_providerSession) {
-        m_providerSession->requestFrame(m_activeProviderFrameToken, selectedFrame);
+        m_providerSession->requestPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
     }
     setPlaybackPhase(PlaybackPhase::Waiting);
     incrementRequestRevision();
