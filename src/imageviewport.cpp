@@ -1194,22 +1194,23 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
 
     if (hasDisplayableSequence()) {
         if (hasProviderSequence() && m_providerMetadataReady) {
-            if (frame != 0) {
+            const int maximumFrame = m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0;
+            if (frame < 0 || frame > maximumFrame) {
                 setCommandDiagnostic(CommandReason::InvalidRequest);
                 return CommandOutcome::Invalid;
             }
 
             clearCommandDiagnosticForAcceptedCommand();
-            m_currentFrame = 0;
-            m_requestedPosition = -1;
-            m_playbackPosition = -1;
+            m_currentFrame = frame;
+            m_requestedPosition = providerFrameStartPosition(frame);
+            m_playbackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             m_errorString.clear();
             m_activeProviderFrameToken = nextProviderRequestToken();
             if (m_providerSession) {
-                m_providerSession->requestFrame(m_activeProviderFrameToken, 0);
+                m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
             }
             incrementRequestRevision();
             emit requestStateChanged();
