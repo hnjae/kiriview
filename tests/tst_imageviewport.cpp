@@ -27,6 +27,7 @@ private slots:
     void exposesImageSequenceLimits();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
+    void nullSequenceAssignmentClearsDisplayObservations();
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
@@ -672,6 +673,59 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(centerItem.value("valid").toBool(), true);
     QCOMPARE(centerItem.value("x").toDouble(), 50.0);
     QCOMPARE(centerItem.value("y").toDouble(), 50.0);
+}
+
+void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    const uint readyRequestRevision = item.property("requestRevision").toUInt();
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+
+    item.setSequence(nullptr);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QVERIFY(item.property("requestRevision").toUInt() > readyRequestRevision);
+    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    item.setSequence(providerResult->sequence());
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
 }
 
 void ImageViewportTest::stillImageReadyReplacementIncrementsDisplayRevision()

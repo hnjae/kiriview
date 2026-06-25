@@ -910,6 +910,9 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_playbackPosition = -1;
         m_latestNonPlaybackFrame = -1;
         m_latestNonPlaybackPosition = -1;
+        m_displayedFrame = -1;
+        m_displayedPosition = -1;
+        m_displayedImageSize = {};
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
