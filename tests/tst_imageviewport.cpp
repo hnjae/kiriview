@@ -46,6 +46,7 @@ private slots:
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerDeclaredCapabilityProjectsBeforeMetadata();
     void providerDeclaredCapabilityContradictionRejectsMetadata();
+    void providerDeclaredNoPlaybackRejectsPlayBeforeMetadata();
     void providerStillMetadataSelectsInitialFrameRequest();
     void providerTimedMetadataSelectsInitialFrameRequest();
     void providerFixedDurationMetadataSelectsInitialFrameRequest();
@@ -1400,6 +1401,41 @@ void ImageViewportTest::providerDeclaredCapabilityContradictionRejectsMetadata()
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider metadata")));
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+}
+
+void ImageViewportTest::providerDeclaredNoPlaybackRejectsPlayBeforeMetadata()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        {},
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
+
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
 }
 
 void ImageViewportTest::providerStillMetadataSelectsInitialFrameRequest()

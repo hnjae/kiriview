@@ -1397,6 +1397,11 @@ ImageViewport::CommandOutcome ImageViewport::play()
     }
 
     if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
+        if (m_sequence->m_providerTimedPlaybackCapability == ImageSequenceProviderCapabilitySupport::DeclaredFalse) {
+            setCommandDiagnostic(CommandReason::UnsupportedRequest);
+            return CommandOutcome::Unsupported;
+        }
+
         clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
         m_currentFrame = -1;
