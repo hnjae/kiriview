@@ -83,6 +83,7 @@ private slots:
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
     void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
+    void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
     void timedFrameListPlayCommandPreservesElapsedPosition();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
@@ -2792,6 +2793,54 @@ void ImageViewportTest::timedFrameListPlaybackCommandsUpdatePhase()
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTest::timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(0.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+
+    QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
 }
 
 void ImageViewportTest::timedFrameListPlayCommandPreservesElapsedPosition()
