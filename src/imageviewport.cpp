@@ -527,6 +527,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     if (hasDisplayableSequence()) {
         m_currentFrame = 0;
         m_requestedPosition = hasTimedSequence() ? 0 : -1;
+        m_playbackPosition = hasTimedSequence() ? 0 : -1;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {
@@ -535,6 +536,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     } else {
         m_currentFrame = -1;
         m_requestedPosition = -1;
+        m_playbackPosition = -1;
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
@@ -937,6 +939,7 @@ ImageViewport::RequestOutcome ImageViewport::clear()
     m_sequence = nullptr;
     m_currentFrame = -1;
     m_requestedPosition = -1;
+    m_playbackPosition = -1;
     m_displayedFrame = -1;
     m_displayedPosition = -1;
     m_displayedImageSize = {};
@@ -967,6 +970,7 @@ ImageViewport::RequestOutcome ImageViewport::play()
 
     if (hasTimedSequence()) {
         clearCommandDiagnosticForAcceptedCommand();
+        m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : m_sequence->frameStartPosition(m_currentFrame);
         if (m_playbackPhase != PlaybackPhase::Playing) {
             m_playbackPhase = PlaybackPhase::Playing;
             emit playbackPhaseChanged();
@@ -1021,6 +1025,7 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
         clearCommandDiagnosticForAcceptedCommand();
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
+        m_playbackPosition = m_requestedPosition;
         publishSequenceReadyState();
         incrementRequestRevision();
         incrementDisplayRevision();
@@ -1056,6 +1061,7 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
         clearCommandDiagnosticForAcceptedCommand();
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
+        m_playbackPosition = milliseconds;
         publishSequenceReadyState();
         incrementRequestRevision();
         incrementDisplayRevision();
@@ -1162,6 +1168,59 @@ bool ImageViewport::containsVisibleImagePoint(double x, double y) const
         && x < visible.right()
         && y < visible.bottom();
 }
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
+{
+    if (!hasTimedSequence() || m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
+        return;
+    }
+
+    const int totalDuration = m_sequence->totalDuration();
+    const int previousFrame = m_currentFrame;
+    int nextPlaybackPosition = m_playbackPosition < 0 ? m_sequence->frameStartPosition(m_currentFrame) : m_playbackPosition;
+    nextPlaybackPosition += elapsedMilliseconds;
+
+    if (nextPlaybackPosition >= totalDuration) {
+        const int finalFrame = m_sequence->frameCount() - 1;
+        m_currentFrame = finalFrame;
+        m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
+        m_playbackPosition = totalDuration;
+        publishSequenceReadyState();
+        m_playbackPhase = PlaybackPhase::Stopped;
+        incrementRequestRevision();
+        if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
+            incrementDisplayRevision();
+        }
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit playbackPhaseChanged();
+        emit geometryStateChanged();
+        update();
+        return;
+    }
+
+    const int nextFrame = m_sequence->frameIndexForPosition(nextPlaybackPosition);
+    if (nextFrame < 0) {
+        return;
+    }
+
+    m_playbackPosition = nextPlaybackPosition;
+    if (nextFrame == m_currentFrame) {
+        return;
+    }
+
+    m_currentFrame = nextFrame;
+    m_requestedPosition = m_sequence->frameStartPosition(nextFrame);
+    publishSequenceReadyState();
+    incrementRequestRevision();
+    incrementDisplayRevision();
+    emit requestStateChanged();
+    emit displayStateChanged();
+    emit geometryStateChanged();
+    update();
+}
+#endif
 
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {

@@ -400,6 +400,9 @@ public:
     Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
     Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    void advancePlaybackForTest(int elapsedMilliseconds);
+#endif
 
 signals:
     void sequenceChanged();
@@ -460,6 +463,7 @@ private:
     bool m_looping = false;
     int m_currentFrame = -1;
     int m_requestedPosition = -1;
+    int m_playbackPosition = -1;
     int m_displayedFrame = -1;
     int m_displayedPosition = -1;
     QSizeF m_displayedImageSize;

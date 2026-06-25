@@ -13,7 +13,13 @@ target_link_libraries(tst_imageviewport
 
 target_compile_definitions(tst_imageviewport
     PRIVATE
+        IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src"
+)
+
+target_compile_definitions(ImageViewport
+    PRIVATE
+        IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
 )
 
 qt_import_qml_plugins(tst_imageviewport)
