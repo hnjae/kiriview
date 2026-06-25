@@ -1,6 +1,7 @@
 #include "imageviewport.h"
 
 #include <QtQuick/QSGNode>
+#include <QtQuick/QSGSimpleRectNode>
 
 #include <algorithm>
 #include <cmath>
@@ -2012,7 +2013,15 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     delete oldNode;
-    return nullptr;
+
+    if (m_backgroundMode != BackgroundMode::SolidColor || width() <= 0.0 || height() <= 0.0) {
+        return nullptr;
+    }
+
+    auto *root = new QSGNode;
+    auto *background = new QSGSimpleRectNode(QRectF(0.0, 0.0, width(), height()), m_backgroundColor);
+    root->appendChildNode(background);
+    return root;
 }
 
 void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)

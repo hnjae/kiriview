@@ -8,6 +8,7 @@
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickItem>
+#include <QtQuick/QSGSimpleRectNode>
 #include <QtTest/QSignalSpy>
 #include <QtTest/QTest>
 
@@ -101,6 +102,7 @@ private slots:
     void providerFrameUnsupportedKeepsGenerationSeekable();
     void providerMetadataCancellationReportsProviderFailure();
     void providerFrameCancellationReportsProviderFailure();
+    void solidBackgroundCreatesPaintNode();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -123,6 +125,17 @@ int enumValue(const QMetaObject *metaObject, const char *enumName, const char *k
     }
     return metaObject->enumerator(index).keyToValue(key);
 }
+
+class PaintProbeViewport final : public ImageViewport
+{
+public:
+    using ImageViewport::ImageViewport;
+
+    QSGNode *takePaintNode(QSGNode *oldNode = nullptr)
+    {
+        return updatePaintNode(oldNode, nullptr);
+    }
+};
 
 class CountingProviderSession final : public ImageSequenceProviderSession
 {
@@ -3777,6 +3790,23 @@ void ImageViewportTest::providerFrameCancellationReportsProviderFailure()
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
+}
+
+void ImageViewportTest::solidBackgroundCreatesPaintNode()
+{
+    PaintProbeViewport item;
+    item.setSize(QSizeF(24.0, 12.0));
+    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    item.setBackgroundColor(QColor(20, 40, 60, 255));
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(root->childCount(), 1);
+
+    auto *background = dynamic_cast<QSGSimpleRectNode *>(root->firstChild());
+    QVERIFY(background);
+    QCOMPARE(background->rect(), QRectF(0.0, 0.0, 24.0, 12.0));
+    QCOMPARE(background->color(), QColor(20, 40, 60, 255));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
