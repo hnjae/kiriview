@@ -1500,6 +1500,19 @@ ImageViewport::CommandOutcome ImageViewport::stop()
             emit diagnosticsChanged();
             return CommandOutcome::Accepted;
         }
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+        m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_errorString.clear();
+        m_activeProviderFrameToken = nextProviderRequestToken();
+        if (m_providerSession && m_currentFrame >= 0) {
+            m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
+        }
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return CommandOutcome::Accepted;
     }
     setPlaybackPhase(PlaybackPhase::Stopped);
     return CommandOutcome::Accepted;
