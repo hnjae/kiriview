@@ -1182,6 +1182,28 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
     nextPlaybackPosition += elapsedMilliseconds;
 
     if (nextPlaybackPosition >= totalDuration) {
+        if (m_looping) {
+            const int wrappedPosition = totalDuration > 0 ? nextPlaybackPosition % totalDuration : 0;
+            const int wrappedFrame = m_sequence->frameIndexForPosition(wrappedPosition);
+            if (wrappedFrame < 0) {
+                return;
+            }
+
+            m_currentFrame = wrappedFrame;
+            m_requestedPosition = m_sequence->frameStartPosition(wrappedFrame);
+            m_playbackPosition = wrappedPosition;
+            publishSequenceReadyState();
+            incrementRequestRevision();
+            if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
+                incrementDisplayRevision();
+            }
+            emit requestStateChanged();
+            emit displayStateChanged();
+            emit geometryStateChanged();
+            update();
+            return;
+        }
+
         const int finalFrame = m_sequence->frameCount() - 1;
         m_currentFrame = finalFrame;
         m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
