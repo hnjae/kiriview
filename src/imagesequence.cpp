@@ -166,8 +166,9 @@ ImageFrame::ImageFrame(QObject *parent)
 ImageFrame::ImageFrame(const QImage &image, QObject *parent)
     : QObject(parent)
 {
-    if (!image.isNull() && image.width() > 0 && image.height() > 0) {
-        m_logicalSize = QSizeF(image.width(), image.height());
+    const QSizeF logicalSize = image.deviceIndependentSize();
+    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width()) && isPositiveFiniteInteger(logicalSize.height())) {
+        m_logicalSize = logicalSize;
         m_payloadByteSize = image.sizeInBytes();
         m_hasAlphaChannel = image.hasAlphaChannel();
         if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
@@ -180,8 +181,9 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
 ImageFrame::ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QObject *parent)
     : QObject(parent)
 {
-    if (!image.isNull() && image.width() > 0 && image.height() > 0) {
-        m_logicalSize = QSizeF(image.width(), image.height());
+    const QSizeF logicalSize = image.deviceIndependentSize();
+    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width()) && isPositiveFiniteInteger(logicalSize.height())) {
+        m_logicalSize = logicalSize;
         m_payloadByteSize = payloadByteSizeForTest;
         m_hasAlphaChannel = image.hasAlphaChannel();
         m_image = image.copy();

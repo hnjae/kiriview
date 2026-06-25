@@ -64,6 +64,7 @@ private slots:
     void clearReleasesAssignedFactorySequenceOwner();
     void imageFrameRetainsImmutablePayload();
     void imageFrameExposesPayloadMetadata();
+    void imageFrameUsesDeviceIndependentLogicalSize();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
     void commandsWithoutRequestAreIgnoredDiagnostics();
@@ -2257,6 +2258,36 @@ void ImageViewportTest::imageFrameExposesPayloadMetadata()
     QCOMPARE(emptyFrame.property("payloadByteSize").toLongLong(), 0);
     QCOMPARE(emptyFrame.property("hasAlphaChannel").toBool(), false);
     QCOMPARE(emptyFrame.property("orientationPolicy").toInt(), enumValue(metaObject, "OrientationPolicy", "Identity"));
+}
+
+void ImageViewportTest::imageFrameUsesDeviceIndependentLogicalSize()
+{
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(2.0);
+    image.fill(Qt::transparent);
+
+    ImageFrame frame(image);
+
+    QCOMPARE(frame.isValid(), true);
+    QCOMPARE(frame.logicalSize(), QSizeF(2.0, 1.0));
+    QCOMPARE(frame.payloadByteSize(), static_cast<qint64>(image.sizeInBytes()));
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(20.0, 20.0));
+    item.setSequence(result->sequence());
+
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
+
+    QImage fractionalLogicalImage(3, 2, QImage::Format_ARGB32_Premultiplied);
+    fractionalLogicalImage.setDevicePixelRatio(2.0);
+    fractionalLogicalImage.fill(Qt::transparent);
+    ImageFrame fractionalLogicalFrame(fractionalLogicalImage);
+    QCOMPARE(fractionalLogicalFrame.isValid(), false);
 }
 
 void ImageViewportTest::stillImageSequenceRetainsFactoryPayload()
