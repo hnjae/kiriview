@@ -46,6 +46,7 @@ private slots:
     void factoryResultSequenceSurvivesFactoryDestruction();
     void assignedFactorySequenceSurvivesResultDestruction();
     void sharedFactorySequenceSurvivesFirstViewportDestruction();
+    void clearReleasesAssignedFactorySequenceOwner();
     void imageFrameRetainsImmutablePayload();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
@@ -1403,6 +1404,27 @@ void ImageViewportTest::sharedFactorySequenceSurvivesFirstViewportDestruction()
     QCOMPARE(second.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(second.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+}
+
+void ImageViewportTest::clearReleasesAssignedFactorySequenceOwner()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+    QPointer<ImageSequence> observedSequence = result->sequence();
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    result.reset();
+
+    QVERIFY(observedSequence);
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), nullptr);
+    QVERIFY(!observedSequence);
 }
 
 void ImageViewportTest::imageFrameRetainsImmutablePayload()

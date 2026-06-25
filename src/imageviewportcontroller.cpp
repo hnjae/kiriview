@@ -27,6 +27,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     const QRectF oldVisibleImageRect = visibleImageRect();
     closeProviderSession();
     m_sequence = nullptr;
+    m_sequenceOwner.reset();
     ++m_sequenceGeneration;
     m_currentFrame = -1;
     m_requestedPosition = -1;
