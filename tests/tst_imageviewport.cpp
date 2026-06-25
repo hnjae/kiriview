@@ -8416,15 +8416,28 @@ void ImageViewportTest::presentationZoomUsesExactValueChanges()
 void ImageViewportTest::presentationChangesWithoutDisplayDoNotNotifyGeometryState()
 {
     ImageViewport item;
+    const uint initialDisplayRevision = item.property("displayRevision").toUInt();
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
 
     item.setZoom(2.0);
     item.setPan(QPointF(4.0, 8.0));
     item.setFillMode(ImageViewport::FillMode::Stretch);
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
+    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignTop);
+    item.setSmoothing(false);
+    item.setMipmap(true);
     item.setMirrorHorizontally(true);
+    item.setMirrorVertically(true);
+    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    item.setBackgroundColor(Qt::red);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision + 11U);
+    QCOMPARE(displayRevisionSpy.count(), 11);
+    QCOMPARE(presentationSpy.count(), 11);
     QCOMPARE(geometrySpy.count(), 0);
 
     item.setSize(QSizeF(100.0, 100.0));
