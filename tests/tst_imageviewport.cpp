@@ -105,6 +105,7 @@ private slots:
     void providerReplacementCancelsActiveFrameRequestBeforeClose();
     void providerClearCancelsActiveFrameRequestBeforeClose();
     void providerNullSequenceCancelsActiveFrameRequestBeforeClose();
+    void providerReplacementIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledFrameAcknowledgement();
     void providerResultsAreQueuedFromSessionEntryPoint();
@@ -3839,6 +3840,63 @@ void ImageViewportTest::providerNullSequenceCancelsActiveFrameRequestBeforeClose
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
+}
+
+void ImageViewportTest::providerReplacementIgnoresCancelledMetadataAcknowledgement()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CancellingAcknowledgementProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        cancelRequestCount,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QImage replacementImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::transparent);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+
+    item.setSequence(replacementResult->sequence());
+    const uint replacementRequestRevision = item.property("requestRevision").toUInt();
+
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.sequence(), replacementResult->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("errorString").toString(), QString());
+
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestRevision").toUInt(), replacementRequestRevision);
+    QCOMPARE(item.sequence(), replacementResult->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::providerClearIgnoresCancelledMetadataAcknowledgement()
