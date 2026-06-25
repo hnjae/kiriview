@@ -581,7 +581,7 @@ ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const
 int ImageViewport::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return m_currentFrame;
+        return m_displayedFrame;
     }
 
     return -1;
@@ -598,8 +598,8 @@ int ImageViewport::requestedFrame() const
 
 int ImageViewport::displayedPosition() const
 {
-    if (hasReadyDisplay() && hasTimedSequence()) {
-        return m_sequence->frameStartPosition(m_currentFrame);
+    if (hasReadyDisplay()) {
+        return m_displayedPosition;
     }
 
     return -1;
@@ -692,7 +692,7 @@ ImageViewport::TriState ImageViewport::positionSeekSupport() const
 QSizeF ImageViewport::displayedImageSize() const
 {
     if (hasReadyDisplay()) {
-        return currentImageSize();
+        return m_displayedImageSize;
     }
 
     return QSizeF(0.0, 0.0);
@@ -937,6 +937,9 @@ ImageViewport::RequestOutcome ImageViewport::clear()
     m_sequence = nullptr;
     m_currentFrame = -1;
     m_requestedPosition = -1;
+    m_displayedFrame = -1;
+    m_displayedPosition = -1;
+    m_displayedImageSize = {};
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
@@ -1257,7 +1260,11 @@ bool ImageViewport::hasActiveRequest() const
 
 bool ImageViewport::hasReadyDisplay() const
 {
-    return hasDisplayableSequence() && m_displayStatus == DisplayStatus::Ready;
+    return hasDisplayableSequence()
+        && (m_displayStatus == DisplayStatus::Ready || m_displayStatus == DisplayStatus::Retained)
+        && m_displayedImageSize.isValid()
+        && m_displayedImageSize.width() > 0.0
+        && m_displayedImageSize.height() > 0.0;
 }
 
 bool ImageViewport::hasDisplayableSequence() const
@@ -1339,11 +1346,11 @@ QRectF ImageViewport::itemBounds() const
 
 QSizeF ImageViewport::currentImageSize() const
 {
-    if (!hasDisplayableSequence()) {
+    if (!hasReadyDisplay()) {
         return {};
     }
 
-    return m_sequence->logicalSize();
+    return m_displayedImageSize;
 }
 
 void ImageViewport::publishSequenceReadyState()
@@ -1351,11 +1358,14 @@ void ImageViewport::publishSequenceReadyState()
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
+    m_displayedFrame = m_currentFrame;
+    m_displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
+    m_displayedImageSize = m_sequence->logicalSize();
 }
 
 void ImageViewport::publishRenderWaitingState()
 {
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::RenderWaiting;
-    m_displayStatus = DisplayStatus::Empty;
+    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
 }

@@ -460,6 +460,9 @@ private:
     bool m_looping = false;
     int m_currentFrame = -1;
     int m_requestedPosition = -1;
+    int m_displayedFrame = -1;
+    int m_displayedPosition = -1;
+    QSizeF m_displayedImageSize;
     uint m_displayRevision = 0;
     uint m_requestRevision = 0;
     uint m_commandRevision = 0;
