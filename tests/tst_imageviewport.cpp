@@ -1666,6 +1666,11 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(mirroredItem.value("valid").toBool(), true);
     QCOMPARE(mirroredItem.value("x").toDouble(), 42.001);
     QCOMPARE(mirroredItem.value("y").toDouble(), 46.001);
+
+    const QVariantMap mirroredOriginItem = item.imageToItem(0.0, 0.0);
+    QCOMPARE(mirroredOriginItem.value("valid").toBool(), true);
+    QCOMPARE(mirroredOriginItem.value("x").toDouble(), 58.0);
+    QCOMPARE(mirroredOriginItem.value("y").toDouble(), 54.0);
 }
 
 void ImageViewportTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
