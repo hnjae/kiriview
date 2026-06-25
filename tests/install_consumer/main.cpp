@@ -8,6 +8,7 @@
 #include <QQmlEngine>
 #include <QtPlugin>
 #include <QUrl>
+#include <QVariant>
 
 #include <memory>
 
@@ -92,6 +93,60 @@ bool canCreateInstalledQmlViewport()
         return false;
     }
     return qobject_cast<ImageViewport *>(object.get()) != nullptr;
+}
+
+bool canReadInstalledQmlLimits()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQml
+import ImageViewport 1.0
+
+QtObject {
+    property var maximumLogicalWidth: ImageSequenceLimits.maximumLogicalWidth
+    property var maximumLogicalHeight: ImageSequenceLimits.maximumLogicalHeight
+    property var maximumPixelsPerFrame: ImageSequenceLimits.maximumPixelsPerFrame
+    property var maximumPayloadBytesPerFrame: ImageSequenceLimits.maximumPayloadBytesPerFrame
+    property var maximumTimedListFrameCount: ImageSequenceLimits.maximumTimedListFrameCount
+    property var maximumFrameDuration: ImageSequenceLimits.maximumFrameDuration
+    property var maximumTotalSequenceDuration: ImageSequenceLimits.maximumTotalSequenceDuration
+    property var maximumDiagnosticStringLength: ImageSequenceLimits.maximumDiagnosticStringLength
+}
+)",
+                      QUrl());
+    if (!component.isReady()) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    const std::unique_ptr<QObject> object(component.create());
+    if (!object) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    if (object->property("maximumLogicalWidth").toInt() != ImageSequenceLimits::maximumLogicalWidth()
+        || object->property("maximumLogicalHeight").toInt() != ImageSequenceLimits::maximumLogicalHeight()
+        || object->property("maximumPixelsPerFrame").toLongLong() != ImageSequenceLimits::maximumPixelsPerFrame()
+        || object->property("maximumPayloadBytesPerFrame").toLongLong() != ImageSequenceLimits::maximumPayloadBytesPerFrame()
+        || object->property("maximumTimedListFrameCount").toInt() != ImageSequenceLimits::maximumTimedListFrameCount()
+        || object->property("maximumFrameDuration").toInt() != ImageSequenceLimits::maximumFrameDuration()
+        || object->property("maximumTotalSequenceDuration").toInt() != ImageSequenceLimits::maximumTotalSequenceDuration()
+        || object->property("maximumDiagnosticStringLength").toInt() != ImageSequenceLimits::maximumDiagnosticStringLength()) {
+        return false;
+    }
+
+    return ImageSequenceLimits::maximumLogicalWidth() >= 8192
+        && ImageSequenceLimits::maximumLogicalHeight() >= 8192
+        && ImageSequenceLimits::maximumPixelsPerFrame() >= 67108864LL
+        && ImageSequenceLimits::maximumPayloadBytesPerFrame() >= 268435456LL
+        && ImageSequenceLimits::maximumTimedListFrameCount() >= 10000
+        && ImageSequenceLimits::maximumFrameDuration() >= 86400000
+        && ImageSequenceLimits::maximumTotalSequenceDuration() >= 86400000
+        && ImageSequenceLimits::maximumDiagnosticStringLength() >= 4096;
 }
 }
 
@@ -178,5 +233,5 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    return canCreateInstalledQmlViewport() ? 0 : 1;
+    return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits() ? 0 : 1;
 }
