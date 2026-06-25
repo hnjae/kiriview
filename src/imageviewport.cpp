@@ -1410,7 +1410,73 @@ bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
 {
-    if (!hasTimedSequence() || m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
+    if (m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
+        return;
+    }
+
+    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        const int duration = totalDuration();
+        const int previousFrame = m_currentFrame;
+        int nextPlaybackPosition = m_playbackPosition < 0 ? providerFrameStartPosition(m_currentFrame) : m_playbackPosition;
+        nextPlaybackPosition += elapsedMilliseconds;
+
+        int nextFrame = -1;
+        int nextRequestedPosition = -1;
+        if (nextPlaybackPosition >= duration) {
+            if (m_looping) {
+                const int wrappedPosition = duration > 0 ? nextPlaybackPosition % duration : 0;
+                nextFrame = providerFrameIndexForPosition(wrappedPosition);
+                if (nextFrame < 0) {
+                    return;
+                }
+                nextPlaybackPosition = wrappedPosition;
+                nextRequestedPosition = providerFrameStartPosition(nextFrame);
+            } else {
+                nextFrame = frameCount() - 1;
+                nextRequestedPosition = providerFrameStartPosition(nextFrame);
+                nextPlaybackPosition = duration;
+                m_stopPlaybackWhenRequestReady = true;
+            }
+        } else {
+            nextFrame = providerFrameIndexForPosition(nextPlaybackPosition);
+            if (nextFrame < 0) {
+                return;
+            }
+            nextRequestedPosition = providerFrameStartPosition(nextFrame);
+        }
+
+        m_playbackPosition = nextPlaybackPosition;
+        if (nextFrame == previousFrame && m_requestStatus == RequestStatus::Ready) {
+            if (m_stopPlaybackWhenRequestReady) {
+                setPlaybackPhase(PlaybackPhase::Stopped);
+                m_stopPlaybackWhenRequestReady = false;
+            }
+            return;
+        }
+
+        m_currentFrame = nextFrame;
+        m_requestedPosition = nextRequestedPosition;
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+        m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_errorString.clear();
+        m_activeProviderFrameToken = nextProviderRequestToken();
+        if (m_providerSession) {
+            m_providerSession->requestFrame(m_activeProviderFrameToken, nextFrame);
+        }
+        setPlaybackPhase(PlaybackPhase::Waiting);
+        incrementRequestRevision();
+        if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
+            incrementDisplayRevision();
+        }
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit diagnosticsChanged();
+        update();
+        return;
+    }
+
+    if (!hasTimedSequence()) {
         return;
     }
 
@@ -1802,6 +1868,10 @@ void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestT
 
     m_errorString.clear();
     publishAcceptedTargetState();
+    if (m_playbackPhase == PlaybackPhase::Waiting) {
+        setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+        m_stopPlaybackWhenRequestReady = false;
+    }
     incrementRequestRevision();
     incrementDisplayRevision();
     emit requestStateChanged();
