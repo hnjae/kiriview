@@ -64,7 +64,7 @@ inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadat
     if (!metadata.isSpecified()) {
         return {};
     }
-    if (!metadata.isValid()) {
+    if (!metadata.isStill() && !metadata.isTimedFrameList()) {
         return QStringLiteral("provider metadata is invalid");
     }
 
@@ -90,6 +90,9 @@ inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadat
     }
 
     const QVector<int> durations = metadata.frameDurations();
+    if (durations.isEmpty()) {
+        return QStringLiteral("provider metadata is invalid");
+    }
     if (durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
         return QStringLiteral("provider metadata frame count exceeds maximumTimedListFrameCount");
     }

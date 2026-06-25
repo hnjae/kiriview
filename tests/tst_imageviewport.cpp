@@ -3874,6 +3874,12 @@ void ImageViewportTest::providerMetadataRejectsPublishedDurationLimits()
         QVERIFY(item.property("errorString").toString().contains(expectedDiagnostic));
     };
 
+    verifyRejectedDurations({},
+        QStringLiteral("provider metadata is invalid"));
+    verifyRejectedDurations({0},
+        QStringLiteral("positive"));
+    verifyRejectedDurations({100, -1},
+        QStringLiteral("positive"));
     verifyRejectedDurations({ImageSequenceLimits::maximumFrameDuration() + 1},
         QStringLiteral("maximumFrameDuration"));
     verifyRejectedDurations({ImageSequenceLimits::maximumTotalSequenceDuration(), 1},
