@@ -632,6 +632,7 @@ private:
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
+    void reportRenderFailure();
     void publishAcceptedTargetState(const QImage &providerImage = {});
     void publishSequenceReadyState(const QImage &providerImage = {});
     void publishRenderWaitingState();

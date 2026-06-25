@@ -2240,6 +2240,14 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         }
     }
 
+    if (!image.isNull() && !window()) {
+        delete root;
+        if (m_displayStatus == DisplayStatus::Ready) {
+            reportRenderFailure();
+        }
+        return nullptr;
+    }
+
     if (!image.isNull() && window()) {
         QSGTexture *texture = window()->createTextureFromImage(image);
         QSGImageNode *imageNode = window()->createImageNode();
@@ -2262,6 +2270,11 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         } else {
             delete texture;
             delete imageNode;
+            delete root;
+            if (m_displayStatus == DisplayStatus::Ready) {
+                reportRenderFailure();
+            }
+            return nullptr;
         }
     }
 
@@ -3132,6 +3145,35 @@ QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QStrin
         bounded += QString::fromUcs4(&scalar, 1);
     }
     return bounded;
+}
+
+void ImageViewport::reportRenderFailure()
+{
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
+    const DisplayStatus oldDisplayStatus = m_displayStatus;
+
+    m_requestStatus = RequestStatus::Error;
+    m_requestReason = RequestReason::RenderFailure;
+    m_displayStatus = DisplayStatus::Empty;
+    m_displayedFrame = -1;
+    m_displayedPosition = -1;
+    m_displayedImageSize = {};
+    m_displayedImage = {};
+    m_pendingDisplayImage = {};
+    m_errorString = QStringLiteral("render commit failed");
+    setPlaybackPhase(PlaybackPhase::Stopped);
+
+    incrementRequestRevision();
+    incrementDisplayRevision();
+    emit requestStateChanged();
+    if (m_displayStatus != oldDisplayStatus) {
+        emit displayStateChanged();
+    }
+    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        emit geometryStateChanged();
+    }
+    emit diagnosticsChanged();
 }
 
 void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
