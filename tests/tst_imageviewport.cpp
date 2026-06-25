@@ -196,6 +196,7 @@ private slots:
     void providerTimedPlayAfterFrameFailureRestartsPlaybackRequest();
     void providerFrameFailureAcceptsControlCommands();
     void providerMetadataUnsupportedReportsUnsupportedRequest();
+    void providerGenerationTerminalUnsupportedAcceptsControlCommands();
     void providerMetadataUnsupportedRetainsReplacementDisplayOnlyAsFallback();
     void providerFrameUnsupportedKeepsGenerationSeekable();
     void providerFrameUnsupportedRetainsDisplayAndClearsOnSeek();
@@ -8681,6 +8682,68 @@ void ImageViewportTest::providerMetadataUnsupportedReportsUnsupportedRequest()
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(*frameRequestCount, 0);
+}
+
+void ImageViewportTest::providerGenerationTerminalUnsupportedAcceptsControlCommands()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerUnsupported(sessionFactory->lastSession()->lastMetadataToken(),
+        QStringLiteral("unsupported codec"));
+    drainQueuedProviderResults();
+
+    const uint unsupportedRequestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    const uint unsupportedCommandRevision = item.property("commandRevision").toUInt();
+
+    QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), unsupportedCommandRevision + 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), unsupportedRequestRevision);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
+
+    const uint clearedCommandRevision = item.property("commandRevision").toUInt();
+    QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), clearedCommandRevision);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), unsupportedRequestRevision);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
 }
 
 void ImageViewportTest::providerMetadataUnsupportedRetainsReplacementDisplayOnlyAsFallback()
