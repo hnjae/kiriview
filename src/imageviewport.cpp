@@ -1042,6 +1042,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
+        m_renderCommitPending = false;
         clearRenderFailureRetainedDisplay();
     }
 
@@ -1522,6 +1523,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayedImageSize = {};
     m_displayedImage = {};
     m_pendingDisplayImage = {};
+    m_renderCommitPending = false;
     clearRenderFailureRetainedDisplay();
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
@@ -2252,7 +2254,7 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 
     if (!image.isNull() && !window()) {
         delete root;
-        if (m_displayStatus == DisplayStatus::Ready) {
+        if (m_displayStatus == DisplayStatus::Ready && m_renderCommitPending) {
             reportRenderFailure();
         }
         return nullptr;
@@ -2281,7 +2283,7 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             delete texture;
             delete imageNode;
             delete root;
-            if (m_displayStatus == DisplayStatus::Ready) {
+            if (m_displayStatus == DisplayStatus::Ready && m_renderCommitPending) {
                 reportRenderFailure();
             }
             return nullptr;
@@ -2289,6 +2291,7 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     }
 
     if (!image.isNull()) {
+        m_renderCommitPending = false;
         clearRenderFailureRetainedDisplay();
     }
     return root;
@@ -3168,6 +3171,7 @@ void ImageViewport::reportRenderFailure()
 
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::RenderFailure;
+    m_renderCommitPending = false;
     if (m_renderFailureRetainedDisplayValid) {
         m_displayStatus = DisplayStatus::Retained;
         m_displayedFrame = m_renderFailureRetainedFrame;
@@ -3239,6 +3243,7 @@ void ImageViewport::publishSequenceReadyState(const QImage &providerImage)
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
+    m_renderCommitPending = true;
     m_displayedFrame = m_currentFrame;
     if (hasProviderSequence()) {
         m_displayedPosition = providerFrameStartPosition(m_currentFrame);
@@ -3264,4 +3269,5 @@ void ImageViewport::publishRenderWaitingState()
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::RenderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_renderCommitPending = false;
 }

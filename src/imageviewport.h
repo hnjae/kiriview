@@ -669,6 +669,7 @@ private:
     QSizeF m_displayedImageSize;
     QImage m_displayedImage;
     QImage m_pendingDisplayImage;
+    bool m_renderCommitPending = false;
     bool m_renderFailureRetainedDisplayValid = false;
     int m_renderFailureRetainedFrame = -1;
     int m_renderFailureRetainedPosition = -1;

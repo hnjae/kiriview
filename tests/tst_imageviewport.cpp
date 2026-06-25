@@ -124,6 +124,7 @@ private slots:
     void stillImageCreatesTexturePaintNode();
     void stillImagePaintFailureReportsRenderFailure();
     void timedFrameListPaintFailureRetainsPreviousDisplay();
+    void successfulPaintClearsRenderFailureInterest();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
@@ -4458,6 +4459,40 @@ void ImageViewportTest::timedFrameListPaintFailureRetainsPreviousDisplay()
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
+}
+
+void ImageViewportTest::successfulPaintClearsRenderFailureInterest()
+{
+    ImageSequenceFactory factory;
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    item.setParentItem(nullptr);
+    QScopedPointer<QSGNode> detachedRoot(item.takePaintNode());
+
+    QVERIFY(!detachedRoot);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::coverImageTextureNodeUsesVisibleSourceRect()
