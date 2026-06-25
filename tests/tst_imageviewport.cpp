@@ -10045,16 +10045,32 @@ void ImageViewportTest::providerInvalidTerminalTokenAfterMetadataIsIgnored()
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
 
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
     emit sessionFactory->lastSession()->providerFailed(ImageSequenceProviderRequestToken(),
         QStringLiteral("invalid token failure"));
     drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerUnsupported(ImageSequenceProviderRequestToken(),
+        QStringLiteral("invalid token unsupported"));
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerCancelled(ImageSequenceProviderRequestToken(),
+        QStringLiteral("invalid token cancellation"));
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->endOfSequence(ImageSequenceProviderRequestToken());
+    drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);
+    QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
 void ImageViewportTest::providerDiagnosticsUseUnicodeScalarLimit()
