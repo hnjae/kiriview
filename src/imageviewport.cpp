@@ -875,10 +875,14 @@ void ImageViewport::setSequence(ImageSequence *sequence)
             m_currentFrame = 0;
             m_requestedPosition = m_providerTimedMetadata ? 0 : -1;
             m_playbackPosition = m_requestedPosition;
+            m_latestNonPlaybackFrame = m_currentFrame;
+            m_latestNonPlaybackPosition = m_requestedPosition;
         } else {
             m_currentFrame = -1;
             m_requestedPosition = -1;
             m_playbackPosition = -1;
+            m_latestNonPlaybackFrame = -1;
+            m_latestNonPlaybackPosition = -1;
         }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
@@ -892,6 +896,8 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_currentFrame = 0;
         m_requestedPosition = hasTimedSequence() ? 0 : -1;
         m_playbackPosition = hasTimedSequence() ? 0 : -1;
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {
@@ -901,6 +907,8 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_currentFrame = -1;
         m_requestedPosition = -1;
         m_playbackPosition = -1;
+        m_latestNonPlaybackFrame = -1;
+        m_latestNonPlaybackPosition = -1;
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
@@ -1352,6 +1360,8 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_currentFrame = -1;
     m_requestedPosition = -1;
     m_playbackPosition = -1;
+    m_latestNonPlaybackFrame = -1;
+    m_latestNonPlaybackPosition = -1;
     m_displayedFrame = -1;
     m_displayedPosition = -1;
     m_displayedImageSize = {};
@@ -1456,7 +1466,9 @@ ImageViewport::CommandOutcome ImageViewport::stop()
         && m_playbackPhase == PlaybackPhase::Waiting
         && m_currentFrame < 0
         && m_requestedPosition < 0) {
-        m_playbackPosition = -1;
+        m_currentFrame = m_latestNonPlaybackFrame;
+        m_requestedPosition = m_latestNonPlaybackPosition;
+        m_playbackPosition = m_requestedPosition;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
@@ -1515,6 +1527,8 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_currentFrame = frame;
             m_requestedPosition = providerFrameStartPosition(frame);
             m_playbackPosition = m_requestedPosition;
+            m_latestNonPlaybackFrame = m_currentFrame;
+            m_latestNonPlaybackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
@@ -1549,6 +1563,8 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_currentFrame = frame;
             m_requestedPosition = -1;
             m_playbackPosition = -1;
+            m_latestNonPlaybackFrame = m_currentFrame;
+            m_latestNonPlaybackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_errorString.clear();
@@ -1567,6 +1583,8 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
         m_playbackPosition = m_requestedPosition;
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
         publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
@@ -1606,6 +1624,8 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_currentFrame = -1;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_errorString.clear();
@@ -1626,6 +1646,8 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
@@ -1661,6 +1683,8 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
         publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
@@ -2291,6 +2315,10 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_requestedPosition = isTimedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
     }
     m_playbackPosition = m_requestedPosition;
+    if (m_playbackPhase != PlaybackPhase::Waiting) {
+        m_latestNonPlaybackFrame = m_currentFrame;
+        m_latestNonPlaybackPosition = m_requestedPosition;
+    }
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;

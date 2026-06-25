@@ -634,6 +634,8 @@ private:
     int m_currentFrame = -1;
     int m_requestedPosition = -1;
     int m_playbackPosition = -1;
+    int m_latestNonPlaybackFrame = -1;
+    int m_latestNonPlaybackPosition = -1;
     int m_displayedFrame = -1;
     int m_displayedPosition = -1;
     QSizeF m_displayedImageSize;
