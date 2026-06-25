@@ -745,7 +745,7 @@ int ImageViewport::displayedPosition() const
 
 int ImageViewport::requestedPosition() const
 {
-    if (hasProviderSequence() && m_providerTimedMetadata) {
+    if (hasProviderSequence() && (m_providerTimedMetadata || m_requestedPosition >= 0)) {
         return m_requestedPosition;
     }
     if (hasTimedSequence()) {
@@ -1318,6 +1318,20 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
     if (milliseconds < 0) {
         setCommandDiagnostic(CommandReason::InvalidRequest);
         return CommandOutcome::Invalid;
+    }
+
+    if (hasProviderSequence() && !m_providerMetadataReady && m_requestStatus == RequestStatus::Loading) {
+        clearCommandDiagnosticForAcceptedCommand();
+        m_currentFrame = -1;
+        m_requestedPosition = milliseconds;
+        m_playbackPosition = milliseconds;
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+        m_errorString.clear();
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return CommandOutcome::Accepted;
     }
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
@@ -1901,11 +1915,27 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_providerTimedMetadata = isTimedMetadata;
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
-    const int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
+    int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
-    if (selectedFrame >= providerFrameCount) {
+    const bool selectedFromPosition = m_currentFrame < 0 && m_requestedPosition >= 0;
+    if (selectedFromPosition) {
+        if (!isTimedMetadata) {
+            m_requestStatus = RequestStatus::Unsupported;
+            m_requestReason = RequestReason::UnsupportedRequest;
+            m_errorString.clear();
+            setPlaybackPhase(PlaybackPhase::Stopped);
+            incrementRequestRevision();
+            emit requestStateChanged();
+            emit diagnosticsChanged();
+            return;
+        }
+        selectedFrame = providerFrameIndexForPosition(m_requestedPosition);
+    }
+    if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
         m_currentFrame = selectedFrame;
-        m_requestedPosition = -1;
+        if (!selectedFromPosition) {
+            m_requestedPosition = -1;
+        }
         m_playbackPosition = -1;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::InvalidRequest;
@@ -1918,7 +1948,9 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     }
 
     m_currentFrame = selectedFrame;
-    m_requestedPosition = isTimedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
+    if (!selectedFromPosition) {
+        m_requestedPosition = isTimedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
+    }
     m_playbackPosition = m_requestedPosition;
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
