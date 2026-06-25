@@ -34,6 +34,7 @@ private slots:
     void timedFrameListSeekCommandsSelectDocumentedTargets();
     void timedFrameListPlaybackCommandsUpdatePhase();
     void replacementRetainsPreviousDisplayWhileWaitingForGeometry();
+    void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -756,6 +757,18 @@ void ImageViewportTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(8.0, 8.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
+}
+
+void ImageViewportTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()
+{
+    ImageSequenceFactory factory;
+    ImageSequenceProviderAdapter adapter;
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("session")));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

@@ -409,9 +409,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(this),
-        ImageSequenceFactoryResult::FactoryOutcome::Created,
-        {},
+    return new ImageSequenceFactoryResult(nullptr,
+        ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+        QStringLiteral("ImageSequenceProviderAdapter must provide a bounded session factory"),
         {},
         this);
 }
