@@ -46,6 +46,7 @@ private slots:
     void qmlFactoryFailuresReturnDocumentedDiagnostics();
     void imageSequenceIsNotQmlCreatable();
     void imageFrameIsNotQmlCreatable();
+    void imageSequenceProviderFrameHandleIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void imageSequenceFactoryResultIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
@@ -1698,6 +1699,22 @@ void ImageViewportTest::imageFrameIsNotQmlCreatable()
 import ImageViewport 1.0
 
 ImageFrame {}
+)",
+        QUrl());
+
+    QVERIFY(component.isError());
+}
+
+void ImageViewportTest::imageSequenceProviderFrameHandleIsNotQmlCreatable()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import ImageViewport 1.0
+
+ImageSequenceProviderFrameHandle {}
 )",
         QUrl());
 
