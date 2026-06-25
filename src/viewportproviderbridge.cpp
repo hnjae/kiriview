@@ -150,16 +150,16 @@ bool ViewportProviderBridge::openSession()
         viewport.m_pendingDisplayImage = {};
         viewport.m_activeProviderFrameToken = nextRequestToken();
         if (!viewport.m_activeProviderFrameToken.isValid()) {
-            closeSession();
-            return false;
+            viewport.publishProviderTokenExhaustion();
+            return true;
         }
         viewport.m_activeProviderFrameFromPlayback = false;
         requestFrame(viewport.m_activeProviderFrameToken, viewport.m_currentFrame);
     } else {
         viewport.m_activeProviderMetadataToken = nextRequestToken();
         if (!viewport.m_activeProviderMetadataToken.isValid()) {
-            closeSession();
-            return false;
+            viewport.publishProviderTokenExhaustion();
+            return true;
         }
         requestMetadata(viewport.m_activeProviderMetadataToken);
     }
