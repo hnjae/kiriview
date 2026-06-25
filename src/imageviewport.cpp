@@ -1686,6 +1686,33 @@ ImageViewport::CommandOutcome ImageViewport::stop()
         emit diagnosticsChanged();
         return CommandOutcome::Accepted;
     }
+    if (hasTimedSequence()
+        && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::RenderWaiting
+        && m_playbackPhase == PlaybackPhase::Waiting
+        && m_latestNonPlaybackFrame >= 0
+        && m_currentFrame != m_latestNonPlaybackFrame) {
+        const DisplayStatus oldDisplayStatus = m_displayStatus;
+        m_currentFrame = m_latestNonPlaybackFrame;
+        m_requestedPosition = m_latestNonPlaybackPosition;
+        m_playbackPosition = m_requestedPosition;
+        if (hasReadyDisplay() && m_displayedFrame == m_currentFrame && m_displayedPosition == m_requestedPosition) {
+            m_requestStatus = RequestStatus::Ready;
+            m_requestReason = RequestReason::Ready;
+            m_displayStatus = DisplayStatus::Ready;
+        } else {
+            publishRenderWaitingState();
+        }
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        if (m_displayStatus != oldDisplayStatus) {
+            incrementDisplayRevision();
+            emit displayStateChanged();
+        }
+        emit requestStateChanged();
+        update();
+        return CommandOutcome::Accepted;
+    }
     setPlaybackPhase(PlaybackPhase::Stopped);
     return CommandOutcome::Accepted;
 }
