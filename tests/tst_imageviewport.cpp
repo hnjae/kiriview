@@ -3635,6 +3635,14 @@ void ImageViewportTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+
     item.advancePlaybackForTest(100);
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
