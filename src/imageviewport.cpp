@@ -68,8 +68,19 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurati
 {
 }
 
+ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory, QObject *parent)
+    : QObject(parent)
+    , m_timingModel(TimingModel::Provider)
+    , m_providerSessionFactory(std::move(providerSessionFactory))
+{
+}
+
 bool ImageSequence::isValid() const
 {
+    if (isProvider()) {
+        return m_providerSessionFactory != nullptr;
+    }
+
     return m_timingModel != TimingModel::None
         && m_logicalSize.isValid()
         && m_logicalSize.width() > 0.0
@@ -85,6 +96,11 @@ bool ImageSequence::isStill() const
 bool ImageSequence::isTimedList() const
 {
     return m_timingModel == TimingModel::TimedList;
+}
+
+bool ImageSequence::isProvider() const
+{
+    return m_timingModel == TimingModel::Provider;
 }
 
 QSizeF ImageSequence::logicalSize() const
@@ -310,6 +326,35 @@ ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject *parent)
 {
 }
 
+std::shared_ptr<ImageSequenceProviderSessionFactory> ImageSequenceProviderAdapter::sessionFactory() const
+{
+    return {};
+}
+
+ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
+    : m_id(id)
+{
+}
+
+quint64 ImageSequenceProviderRequestToken::id() const
+{
+    return m_id;
+}
+
+bool ImageSequenceProviderRequestToken::isValid() const
+{
+    return m_id != 0;
+}
+
+ImageSequenceProviderSession::ImageSequenceProviderSession(QObject *parent)
+    : QObject(parent)
+{
+}
+
+void ImageSequenceProviderSession::close()
+{
+}
+
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
     FactoryOutcome outcome,
     QString errorString,
@@ -409,9 +454,18 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
             this);
     }
 
-    return new ImageSequenceFactoryResult(nullptr,
-        ImageSequenceFactoryResult::FactoryOutcome::Invalid,
-        QStringLiteral("ImageSequenceProviderAdapter must provide a bounded session factory"),
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory = adapter->sessionFactory();
+    if (!sessionFactory) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("ImageSequenceProviderAdapter must provide a bounded session factory"),
+            {},
+            this);
+    }
+
+    return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory), this),
+        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        {},
         {},
         this);
 }
@@ -519,13 +573,26 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     }
 
     const DisplayStatus oldDisplayStatus = m_displayStatus;
+    closeProviderSession();
     m_sequence = sequence;
     m_errorString.clear();
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
     m_stopPlaybackWhenRequestReady = false;
 
-    if (hasDisplayableSequence()) {
+    if (hasProviderSequence()) {
+        m_currentFrame = -1;
+        m_requestedPosition = -1;
+        m_playbackPosition = -1;
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+        m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        if (!openProviderSession()) {
+            m_requestStatus = RequestStatus::Error;
+            m_requestReason = RequestReason::ProviderFailure;
+            m_errorString = QStringLiteral("provider session creation failed");
+        }
+    } else if (hasDisplayableSequence()) {
         m_currentFrame = 0;
         m_requestedPosition = hasTimedSequence() ? 0 : -1;
         m_playbackPosition = hasTimedSequence() ? 0 : -1;
@@ -637,7 +704,7 @@ int ImageViewport::totalDuration() const
 
 QVariantMap ImageViewport::frameSeekBounds() const
 {
-    if (hasDisplayableSequence()) {
+    if (hasStillSequence() || hasTimedSequence()) {
         return {
             {QStringLiteral("minimum"), 0},
             {QStringLiteral("maximum"), m_sequence->frameCount() - 1},
@@ -673,7 +740,7 @@ ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 
 ImageViewport::TriState ImageViewport::frameSeekSupport() const
 {
-    if (hasDisplayableSequence()) {
+    if (hasStillSequence() || hasTimedSequence()) {
         return TriState::True;
     }
 
@@ -937,6 +1004,7 @@ void ImageViewport::setLooping(bool looping)
 
 ImageViewport::CommandOutcome ImageViewport::clear()
 {
+    closeProviderSession();
     m_sequence = nullptr;
     m_currentFrame = -1;
     m_requestedPosition = -1;
@@ -1376,6 +1444,11 @@ bool ImageViewport::hasTimedSequence() const
     return m_sequence && m_sequence->isTimedList();
 }
 
+bool ImageViewport::hasProviderSequence() const
+{
+    return m_sequence && m_sequence->isProvider();
+}
+
 QRectF ImageViewport::currentContentRect() const
 {
     if (!hasReadyDisplay()) {
@@ -1445,6 +1518,39 @@ QSizeF ImageViewport::currentImageSize() const
     }
 
     return m_displayedImageSize;
+}
+
+void ImageViewport::closeProviderSession()
+{
+    if (!m_providerSession) {
+        return;
+    }
+
+    ImageSequenceProviderSession *session = m_providerSession;
+    m_providerSession.clear();
+    session->close();
+    delete session;
+}
+
+bool ImageViewport::openProviderSession()
+{
+    if (!hasProviderSequence() || !m_sequence->m_providerSessionFactory) {
+        return false;
+    }
+
+    m_providerSession = m_sequence->m_providerSessionFactory->createSession(this);
+    if (!m_providerSession) {
+        return false;
+    }
+
+    m_providerSession->requestMetadata(nextProviderRequestToken());
+    return true;
+}
+
+ImageSequenceProviderRequestToken ImageViewport::nextProviderRequestToken()
+{
+    ++m_nextProviderRequestToken;
+    return ImageSequenceProviderRequestToken(m_nextProviderRequestToken);
 }
 
 void ImageViewport::publishAcceptedTargetState()

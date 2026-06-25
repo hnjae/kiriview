@@ -12,6 +12,10 @@
 #include <QtQml/qqmlregistration.h>
 #include <QtQuick/QQuickItem>
 
+#include <memory>
+
+class ImageSequenceProviderSessionFactory;
+
 class ImageSequence : public QObject
 {
     Q_OBJECT
@@ -23,15 +27,18 @@ private:
         None,
         Still,
         TimedList,
+        Provider,
     };
 
     explicit ImageSequence(QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent = nullptr);
+    explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory, QObject *parent = nullptr);
 
     bool isValid() const;
     bool isStill() const;
     bool isTimedList() const;
+    bool isProvider() const;
     QSizeF logicalSize() const;
     int frameCount() const;
     int totalDuration() const;
@@ -41,6 +48,7 @@ private:
     TimingModel m_timingModel = TimingModel::None;
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
@@ -111,6 +119,49 @@ class ImageSequenceProviderAdapter : public QObject
 
 public:
     explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
+    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const;
+};
+
+class ImageSequenceProviderRequestToken
+{
+public:
+    ImageSequenceProviderRequestToken() = default;
+    explicit ImageSequenceProviderRequestToken(quint64 id);
+
+    quint64 id() const;
+    bool isValid() const;
+
+    friend bool operator==(const ImageSequenceProviderRequestToken &left, const ImageSequenceProviderRequestToken &right)
+    {
+        return left.m_id == right.m_id;
+    }
+
+    friend bool operator!=(const ImageSequenceProviderRequestToken &left, const ImageSequenceProviderRequestToken &right)
+    {
+        return !(left == right);
+    }
+
+private:
+    quint64 m_id = 0;
+};
+
+class ImageSequenceProviderSession : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit ImageSequenceProviderSession(QObject *parent = nullptr);
+    ~ImageSequenceProviderSession() override = default;
+
+    virtual void requestMetadata(const ImageSequenceProviderRequestToken &token) = 0;
+    virtual void close();
+};
+
+class ImageSequenceProviderSessionFactory
+{
+public:
+    virtual ~ImageSequenceProviderSessionFactory() = default;
+    virtual ImageSequenceProviderSession *createSession(QObject *parent) = 0;
 };
 
 class ImageSequenceFactoryResult : public QObject
@@ -438,9 +489,13 @@ private:
     bool hasDisplayableSequence() const;
     bool hasStillSequence() const;
     bool hasTimedSequence() const;
+    bool hasProviderSequence() const;
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
     QSizeF currentImageSize() const;
+    void closeProviderSession();
+    bool openProviderSession();
+    ImageSequenceProviderRequestToken nextProviderRequestToken();
     void publishAcceptedTargetState();
     void publishSequenceReadyState();
     void publishRenderWaitingState();
@@ -475,4 +530,6 @@ private:
     uint m_commandRevision = 0;
     QString m_errorString;
     QString m_warningString;
+    QPointer<ImageSequenceProviderSession> m_providerSession;
+    quint64 m_nextProviderRequestToken = 0;
 };
