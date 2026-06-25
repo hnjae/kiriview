@@ -853,6 +853,8 @@ void ImageViewport::setSequence(ImageSequence *sequence)
 
     const DisplayStatus oldDisplayStatus = m_displayStatus;
     const PlaybackPhase oldPlaybackPhase = m_playbackPhase;
+    const QString oldErrorString = m_errorString;
+    const QString oldWarningString = m_warningString;
     closeProviderSession();
     m_sequence = sequence;
     m_errorString.clear();
@@ -930,7 +932,9 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     if (m_playbackPhase != oldPlaybackPhase) {
         emit playbackPhaseChanged();
     }
-    emit diagnosticsChanged();
+    if (m_errorString != oldErrorString || m_warningString != oldWarningString) {
+        emit diagnosticsChanged();
+    }
     update();
 }
 

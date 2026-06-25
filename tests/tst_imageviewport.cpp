@@ -649,6 +649,7 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
     item.setSequence(result->sequence());
     const QMetaObject *metaObject = item.metaObject();
 
@@ -657,6 +658,7 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(diagnosticsSpy.count(), 0);
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
