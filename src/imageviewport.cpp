@@ -1462,7 +1462,7 @@ double ImageViewport::zoom() const
 
 void ImageViewport::setZoom(double zoom)
 {
-    if (!isFinitePositive(zoom) || qFuzzyCompare(m_zoom, zoom)) {
+    if (!isFinitePositive(zoom) || m_zoom == zoom) {
         return;
     }
 
@@ -1942,7 +1942,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
 
 ImageViewport::CommandOutcome ImageViewport::resetView()
 {
-    const bool changed = !qFuzzyCompare(m_zoom, 1.0) || m_pan != QPointF();
+    const bool changed = m_zoom != 1.0 || m_pan != QPointF();
     m_zoom = 1.0;
     m_pan = {};
     if (changed) {

@@ -124,6 +124,7 @@ private slots:
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
     void invalidPresentationEnumValuesAreIgnored();
+    void presentationZoomUsesExactValueChanges();
     void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void presentationChangesNotifyGeometryState();
 };
@@ -4432,6 +4433,25 @@ void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()
     QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignVCenter);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
     QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision);
+}
+
+void ImageViewportTest::presentationZoomUsesExactValueChanges()
+{
+    ImageViewport item;
+    const double changedZoom = 1.0 + 5.0e-13;
+    QVERIFY(changedZoom != 1.0);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
+
+    item.setZoom(changedZoom);
+
+    QCOMPARE(item.zoom(), changedZoom);
+    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QCOMPARE(presentationSpy.count(), 1);
+
+    QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.zoom(), 1.0);
+    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QCOMPARE(presentationSpy.count(), 2);
 }
 
 void ImageViewportTest::presentationChangesWithoutDisplayDoNotNotifyGeometryState()
