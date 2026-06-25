@@ -141,7 +141,7 @@ public:
     using CapabilitySupport = ImageSequenceProviderCapabilitySupport;
 
     explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
-    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const;
+    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const = 0;
     virtual ImageSequenceProviderMetadata knownMetadata() const;
     virtual CapabilitySupport timedPlaybackCapability() const;
     virtual CapabilitySupport frameSeekCapability() const;

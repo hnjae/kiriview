@@ -10,6 +10,10 @@
 #include <QtTest/QTest>
 
 #include <memory>
+#include <type_traits>
+
+static_assert(std::is_abstract_v<ImageSequenceProviderAdapter>,
+    "ImageSequenceProviderAdapter must remain an abstract public extension-point base");
 
 class ImageViewportTest : public QObject
 {
@@ -326,6 +330,20 @@ private:
     CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+};
+
+class NullSessionFactoryProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit NullSessionFactoryProviderAdapter(QObject *parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return {};
+    }
 };
 
 void emitTimedProviderFrameReady(CountingProviderSession *session,
@@ -1285,7 +1303,7 @@ void ImageViewportTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry
 void ImageViewportTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()
 {
     ImageSequenceFactory factory;
-    ImageSequenceProviderAdapter adapter;
+    NullSessionFactoryProviderAdapter adapter;
 
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result);
