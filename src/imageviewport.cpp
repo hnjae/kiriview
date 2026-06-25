@@ -2278,9 +2278,20 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_providerTimedMetadata = isTimedMetadata;
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
+    const bool selectedFromPlaybackStart = m_playbackPhase == PlaybackPhase::Waiting && m_currentFrame < 0 && m_requestedPosition < 0;
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
     const bool selectedFromPosition = m_currentFrame < 0 && m_requestedPosition >= 0;
+    if (selectedFromPlaybackStart && !isTimedMetadata) {
+        m_requestStatus = RequestStatus::Unsupported;
+        m_requestReason = RequestReason::UnsupportedRequest;
+        m_errorString.clear();
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
     if (selectedFromPosition) {
         if (!isTimedMetadata) {
             m_requestStatus = RequestStatus::Unsupported;
@@ -2324,8 +2335,12 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
 
     m_activeProviderFrameToken = nextProviderRequestToken();
-    m_activeProviderFrameFromPlayback = false;
-    m_providerSession->requestFrame(m_activeProviderFrameToken, selectedFrame);
+    m_activeProviderFrameFromPlayback = selectedFromPlaybackStart;
+    if (selectedFromPlaybackStart) {
+        m_providerSession->requestPlayback(m_activeProviderFrameToken, selectedFrame, m_requestedPosition);
+    } else {
+        m_providerSession->requestFrame(m_activeProviderFrameToken, selectedFrame);
+    }
     incrementRequestRevision();
     emit requestStateChanged();
 }
