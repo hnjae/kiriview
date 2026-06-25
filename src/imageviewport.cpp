@@ -1026,7 +1026,11 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
         m_playbackPosition = m_requestedPosition;
-        publishSequenceReadyState();
+        if (itemBounds().isEmpty()) {
+            publishRenderWaitingState();
+        } else {
+            publishSequenceReadyState();
+        }
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -1062,7 +1066,11 @@ ImageViewport::RequestOutcome ImageViewport::seekToPosition(int milliseconds)
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
         m_playbackPosition = milliseconds;
-        publishSequenceReadyState();
+        if (itemBounds().isEmpty()) {
+            publishRenderWaitingState();
+        } else {
+            publishSequenceReadyState();
+        }
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();

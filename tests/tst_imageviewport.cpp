@@ -837,6 +837,14 @@ void ImageViewportTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.itemToImage(1.0, 1.0).value("valid").toBool(), false);
 
+    const uint retainedRequestRevision = item.property("requestRevision").toUInt();
+    QCOMPARE(item.seek(0), ImageViewport::RequestOutcome::Accepted);
+    QVERIFY(item.property("requestRevision").toUInt() > retainedRequestRevision);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
