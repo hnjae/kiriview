@@ -1687,6 +1687,14 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandRevision").toUInt(), 2U);
 
+    QCOMPARE(item.pause(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+
+    QCOMPARE(item.stop(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
+
     QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
@@ -1695,7 +1703,7 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+    QCOMPARE(item.property("commandRevision").toUInt(), 5U);
     QCOMPARE(item.property("requestRevision").toUInt(), 0U);
     QCOMPARE(item.property("displayRevision").toUInt(), 0U);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
