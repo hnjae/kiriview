@@ -1642,6 +1642,10 @@ bool ImageViewport::openProviderSession()
         &ImageSequenceProviderSession::providerFailed,
         this,
         &ImageViewport::handleProviderFailure);
+    connect(m_providerSession,
+        &ImageSequenceProviderSession::providerUnsupported,
+        this,
+        &ImageViewport::handleProviderUnsupported);
 
     m_activeProviderMetadataToken = nextProviderRequestToken();
     m_providerSession->requestMetadata(m_activeProviderMetadataToken);
@@ -1736,6 +1740,21 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::ProviderFailure;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+    incrementRequestRevision();
+    emit requestStateChanged();
+    emit diagnosticsChanged();
+    closeProviderSession();
+}
+
+void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
+{
+    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+        return;
+    }
+
+    m_requestStatus = RequestStatus::Unsupported;
+    m_requestReason = RequestReason::UnsupportedRequest;
+    m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
     incrementRequestRevision();
     emit requestStateChanged();
     emit diagnosticsChanged();

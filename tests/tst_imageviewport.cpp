@@ -45,6 +45,7 @@ private slots:
     void providerStillFrameReadyCommitsDisplay();
     void providerMetadataFailureReportsProviderFailure();
     void providerFrameFailureKeepsGenerationSeekable();
+    void providerMetadataUnsupportedReportsUnsupportedRequest();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -1239,6 +1240,41 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+}
+
+void ImageViewportTest::providerMetadataUnsupportedReportsUnsupportedRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerUnsupported(sessionFactory->lastSession()->lastMetadataToken(),
+        QStringLiteral("unsupported codec"));
+
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
