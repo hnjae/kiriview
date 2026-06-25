@@ -40,6 +40,14 @@ foreach(required_qml_file IN ITEMS qmldir ImageViewport.qmltypes libImageViewpor
     endif()
 endforeach()
 
+if(NOT EXISTS "${prefix}/include/ImageViewport/imageviewport.h")
+    message(FATAL_ERROR "Installed ImageViewport package did not include the public imageviewport.h header")
+endif()
+file(GLOB installed_private_headers "${prefix}/include/ImageViewport/*_p.h")
+if(installed_private_headers)
+    message(FATAL_ERROR "Installed ImageViewport package exposed private headers: ${installed_private_headers}")
+endif()
+
 execute_process(
     COMMAND "${CMAKE_COMMAND}"
         -S "${IMAGEVIEWPORT_CONSUMER_SOURCE_DIR}"
