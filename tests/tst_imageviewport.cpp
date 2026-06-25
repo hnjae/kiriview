@@ -43,6 +43,7 @@ private slots:
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
+    void clearPreservesPresentationState();
     void clearReadyDisplayEmitsGeometryStateChanged();
     void clearNonPresentableDisplayDoesNotEmitGeometryStateChanged();
     void stillImageReadyReplacementIncrementsDisplayRevision();
@@ -1063,6 +1064,54 @@ void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportTest::clearPreservesPresentationState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    item.setFillMode(ImageViewport::FillMode::Cover);
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignRight);
+    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignBottom);
+    item.setSmoothing(false);
+    item.setMipmap(true);
+    item.setMirrorHorizontally(true);
+    item.setMirrorVertically(true);
+    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    item.setZoom(2.5);
+    item.setPan(QPointF(12.0, -6.0));
+    item.setLooping(true);
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.sequence(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Cover);
+    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignRight);
+    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignBottom);
+    QCOMPARE(item.smoothing(), false);
+    QCOMPARE(item.mipmap(), true);
+    QCOMPARE(item.mirrorHorizontally(), true);
+    QCOMPARE(item.mirrorVertically(), true);
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.zoom(), 2.5);
+    QCOMPARE(item.pan(), QPointF(12.0, -6.0));
+    QCOMPARE(item.looping(), true);
 }
 
 void ImageViewportTest::clearReadyDisplayEmitsGeometryStateChanged()
