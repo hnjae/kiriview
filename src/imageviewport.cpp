@@ -916,7 +916,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     }
 
     incrementRequestRevision();
-    if (m_displayStatus != oldDisplayStatus) {
+    if (m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready) {
         incrementDisplayRevision();
     }
     emit sequenceChanged();

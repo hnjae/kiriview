@@ -27,6 +27,7 @@ private slots:
     void exposesImageSequenceLimits();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
+    void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void stillImageAssignmentWaitsForPositiveGeometry();
@@ -663,6 +664,37 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(centerItem.value("valid").toBool(), true);
     QCOMPARE(centerItem.value("x").toDouble(), 50.0);
     QCOMPARE(centerItem.value("y").toDouble(), 50.0);
+}
+
+void ImageViewportTest::stillImageReadyReplacementIncrementsDisplayRevision()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
+    QVERIFY(firstResult->sequence());
+
+    QImage replacementImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::black);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(firstResult->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    const uint readyRequestRevision = item.property("requestRevision").toUInt();
+
+    item.setSequence(replacementResult->sequence());
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QVERIFY(item.property("requestRevision").toUInt() > readyRequestRevision);
+    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
 }
 
 void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
