@@ -84,8 +84,41 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     }
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
-        clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
+        if (m_requestStatus == RequestStatus::Unsupported || m_requestStatus == RequestStatus::Error) {
+            int selectedFrame = m_currentFrame;
+            if (selectedFrame < 0 || selectedFrame >= m_providerFrameDurations.size()) {
+                selectedFrame = 0;
+            }
+            const int selectedPosition = providerFrameStartPosition(selectedFrame);
+            clearCommandDiagnosticForAcceptedCommand();
+            const bool diagnosticsValueChanged = clearDiagnostics();
+            m_providerPlaybackStartPending = false;
+            m_currentFrame = selectedFrame;
+            m_requestedPosition = selectedPosition;
+            m_playbackPosition = selectedPosition;
+            m_requestStatus = RequestStatus::Loading;
+            m_requestReason = RequestReason::ProviderWaiting;
+            m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+            m_pendingDisplayImage = {};
+            if (m_providerSession && m_activeProviderFrameToken.isValid()) {
+                m_providerSession->cancelRequest(m_activeProviderFrameToken);
+            }
+            m_activeProviderFrameToken = nextProviderRequestToken();
+            m_activeProviderFrameFromPlayback = true;
+            if (m_providerSession) {
+                m_providerSession->requestPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
+            }
+            setPlaybackPhase(PlaybackPhase::Waiting);
+            incrementRequestRevision();
+            emit q->requestStateChanged();
+            if (diagnosticsValueChanged) {
+                emit q->diagnosticsChanged();
+            }
+            return CommandOutcome::Accepted;
+        }
+
+        clearCommandDiagnosticForAcceptedCommand();
         m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : providerFrameStartPosition(m_currentFrame);
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
         return CommandOutcome::Accepted;
