@@ -294,6 +294,13 @@ void verifyRequestStatusReasonPair(const ImageViewport &item)
     QVERIFY2(valid, qPrintable(message));
 }
 
+void verifyInvalidCoordinateResult(const QVariantMap &result)
+{
+    QCOMPARE(result.value("valid").toBool(), false);
+    QCOMPARE(result.value("x").toDouble(), 0.0);
+    QCOMPARE(result.value("y").toDouble(), 0.0);
+}
+
 class PaintProbeViewport final : public ImageViewport
 {
 public:
@@ -1948,7 +1955,7 @@ void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(centerImage.value("y").toDouble(), 4.0);
 
     const QVariantMap rightEdgeImage = item.itemToImage(100.0, 50.0);
-    QCOMPARE(rightEdgeImage.value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(rightEdgeImage);
     QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), true);
     QCOMPARE(item.containsVisibleImagePoint(16.0, 4.0), false);
 
@@ -2330,7 +2337,7 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(item.containsVisibleImagePoint(12.0, 4.0), false);
     QCOMPARE(item.containsVisibleImagePoint(11.999, 4.0), true);
     QCOMPARE(item.imageToItem(4.0, 4.0).value("x").toDouble(), 0.0);
-    QCOMPARE(item.imageToItem(12.0, 4.0).value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(item.imageToItem(12.0, 4.0));
 
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
@@ -2347,11 +2354,11 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(42.0, 46.0, 16.0, 8.0));
     QCOMPARE(item.itemToImage(42.0, 46.0).value("valid").toBool(), true);
-    QCOMPARE(item.itemToImage(58.0, 50.0).value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
 
     item.setMirrorHorizontally(true);
-    QCOMPARE(item.itemToImage(42.0, 50.0).value("valid").toBool(), false);
-    QCOMPARE(item.itemToImage(58.0, 50.0).value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(item.itemToImage(42.0, 50.0));
+    verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
     const QVariantMap horizontallyMirrored = item.itemToImage(57.999, 50.0);
     QCOMPARE(horizontallyMirrored.value("valid").toBool(), true);
     QVERIFY(qAbs(horizontallyMirrored.value("x").toDouble() - 0.001) < 0.000001);
@@ -2402,7 +2409,7 @@ void ImageViewportTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
     const QVariantMap rightHalfImage = item.imageToItem(12.0, 4.0);
     QCOMPARE(rightHalfImage.value("valid").toBool(), true);
     QCOMPARE(rightHalfImage.value("x").toDouble(), 50.0);
-    QCOMPARE(item.imageToItem(4.0, 4.0).value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(item.imageToItem(4.0, 4.0));
 }
 
 void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()
@@ -2426,7 +2433,7 @@ void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
-    QCOMPARE(item.itemToImage(0.0, 0.0).value("valid").toBool(), false);
+    verifyInvalidCoordinateResult(item.itemToImage(0.0, 0.0));
 
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
