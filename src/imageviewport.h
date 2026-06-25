@@ -182,6 +182,7 @@ signals:
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void providerFailed(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void providerUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
+    void providerCancelled(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
 };
 
 class ImageSequenceProviderSessionFactory
@@ -528,6 +529,7 @@ private:
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
+    void handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
     bool validateProviderStillFrame(ImageFrame *frame) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);

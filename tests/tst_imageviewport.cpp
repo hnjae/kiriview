@@ -47,6 +47,7 @@ private slots:
     void providerFrameFailureKeepsGenerationSeekable();
     void providerMetadataUnsupportedReportsUnsupportedRequest();
     void providerFrameUnsupportedKeepsGenerationSeekable();
+    void providerFrameCancellationReportsProviderFailure();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -1320,6 +1321,43 @@ void ImageViewportTest::providerFrameUnsupportedKeepsGenerationSeekable()
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+}
+
+void ImageViewportTest::providerFrameCancellationReportsProviderFailure()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QCOMPARE(*frameRequestCount, 1);
+
+    emit sessionFactory->lastSession()->providerCancelled(sessionFactory->lastSession()->lastFrameToken(),
+        QStringLiteral("cancelled by provider"));
+
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("cancelled by provider")));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
