@@ -134,6 +134,7 @@ private slots:
     void providerTimedMetadataSelectsInitialFrameRequest();
     void providerFixedDurationMetadataSelectsInitialFrameRequest();
     void providerProgressResultsAreAdvisory();
+    void providerInvalidProgressResultsAreIgnored();
     void providerTerminalResultDominatesProgress();
     void providerPositiveResizeWhileMetadataWaitingKeepsProviderWaiting();
     void providerMetadataReadySealsMetadataToken();
@@ -5050,6 +5051,53 @@ void ImageViewportTest::providerProgressResultsAreAdvisory()
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(*frameRequestCount, 1);
+}
+
+void ImageViewportTest::providerInvalidProgressResultsAreIgnored()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    const ImageSequenceProviderRequestToken metadataToken = sessionFactory->lastSession()->lastMetadataToken();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
+
+    emit sessionFactory->lastSession()->providerProgress(metadataToken, -0.1);
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerProgress(metadataToken, 1.1);
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerProgress(metadataToken, std::numeric_limits<double>::quiet_NaN());
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerProgress(ImageSequenceProviderRequestToken(), 0.5);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(requestRevisionSpy.count(), 0);
 }
 
 void ImageViewportTest::providerTerminalResultDominatesProgress()
