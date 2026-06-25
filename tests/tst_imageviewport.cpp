@@ -3000,6 +3000,7 @@ void ImageViewportTest::providerPartialConstructionMetadataBindsAcceptedSeekAfte
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    const uint acceptedSeekRevision = item.property("requestRevision").toUInt();
 
     QVERIFY(sessionFactory->lastSession());
     emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
@@ -3017,6 +3018,7 @@ void ImageViewportTest::providerPartialConstructionMetadataBindsAcceptedSeekAfte
     QCOMPARE(item.property("totalDuration").toInt(), 350);
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QVERIFY(item.property("requestRevision").toUInt() > acceptedSeekRevision);
 }
 
 void ImageViewportTest::providerPartialStillConstructionMetadataConstrainsCommands()
