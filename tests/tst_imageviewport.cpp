@@ -84,6 +84,7 @@ private slots:
     void providerClearIgnoresCancelledFrameAcknowledgement();
     void providerResultsAreQueuedFromSessionEntryPoint();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
+    void providerTerminalResultsAreQueuedFromSessionEntryPoint();
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerPartialConstructionMetadataWaitsForRuntimeMetadata();
     void providerPartialConstructionMetadataBindsAcceptedSeekAfterRuntimeMetadata();
@@ -642,6 +643,43 @@ public:
 
 private:
     std::shared_ptr<int> m_frameRequestCount;
+};
+
+class SynchronousFailureProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousFailureProviderSession(const std::shared_ptr<int> &metadataRequestCount,
+        QObject *parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    void requestMetadata(const ImageSequenceProviderRequestToken &token) override
+    {
+        ++*m_metadataRequestCount;
+        emit providerFailed(token, QStringLiteral("metadata failed synchronously"));
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousFailureProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousFailureProviderSessionFactory(const std::shared_ptr<int> &metadataRequestCount)
+        : m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession *createSession(QObject *parent) override
+    {
+        return new SynchronousFailureProviderSession(m_metadataRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
 };
 
 void drainQueuedProviderResults()
@@ -2799,6 +2837,35 @@ void ImageViewportTest::providerFrameResultsAreQueuedFromSessionEntryPoint()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportTest::providerTerminalResultsAreQueuedFromSessionEntryPoint()
+{
+    ImageSequenceFactory factory;
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<SynchronousFailureProviderSessionFactory>(metadataRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("errorString").toString(), QString());
+
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata failed synchronously")));
 }
 
 void ImageViewportTest::providerConstructionMetadataSelectsInitialFrameRequest()
