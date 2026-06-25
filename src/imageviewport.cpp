@@ -30,6 +30,11 @@ bool isPositiveFiniteInteger(double value)
     return std::isfinite(value) && value > 0.0 && std::trunc(value) == value;
 }
 
+bool isAdmittedLogicalSizeComponent(double value, int maximum)
+{
+    return isPositiveFiniteInteger(value) && value <= static_cast<double>(maximum);
+}
+
 bool isFinitePoint(const QPointF &point)
 {
     return std::isfinite(point.x()) && std::isfinite(point.y());
@@ -69,15 +74,15 @@ QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata &meta
     if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
         return QStringLiteral("provider metadata is invalid");
     }
+    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+        return QStringLiteral("provider metadata logical width exceeds maximumLogicalWidth");
+    }
+    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+        return QStringLiteral("provider metadata logical height exceeds maximumLogicalHeight");
+    }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width > ImageSequenceLimits::maximumLogicalWidth()) {
-        return QStringLiteral("provider metadata logical width exceeds maximumLogicalWidth");
-    }
-    if (height > ImageSequenceLimits::maximumLogicalHeight()) {
-        return QStringLiteral("provider metadata logical height exceeds maximumLogicalHeight");
-    }
     if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
         return QStringLiteral("provider metadata logical size exceeds maximumPixelsPerFrame");
     }
@@ -3053,15 +3058,14 @@ bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMet
     }
 
     const QSizeF size = metadata.logicalSize();
-    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+    if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
+        || !isAdmittedLogicalSizeComponent(size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
         return false;
     }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    return width <= ImageSequenceLimits::maximumLogicalWidth()
-        && height <= ImageSequenceLimits::maximumLogicalHeight()
-        && width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
+    return width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
 }
 
 bool ImageViewport::validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata)
@@ -3071,15 +3075,14 @@ bool ImageViewport::validateProviderTimedMetadata(const ImageSequenceProviderMet
     }
 
     const QSizeF size = metadata.logicalSize();
-    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+    if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
+        || !isAdmittedLogicalSizeComponent(size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
         return false;
     }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width > ImageSequenceLimits::maximumLogicalWidth()
-        || height > ImageSequenceLimits::maximumLogicalHeight()
-        || width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
         return false;
     }
 
