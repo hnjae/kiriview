@@ -602,6 +602,7 @@ private:
     void setPlaybackPhase(PlaybackPhase phase);
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
+    bool clearDiagnostics();
     CommandOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;

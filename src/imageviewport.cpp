@@ -1663,20 +1663,22 @@ ImageViewport::CommandOutcome ImageViewport::stop()
             m_requestStatus = RequestStatus::Ready;
             m_requestReason = RequestReason::Ready;
             m_displayStatus = DisplayStatus::Ready;
-            m_errorString.clear();
+            const bool diagnosticsValueChanged = clearDiagnostics();
             setPlaybackPhase(PlaybackPhase::Stopped);
             incrementRequestRevision();
             incrementDisplayRevision();
             emit requestStateChanged();
             emit displayStateChanged();
-            emit diagnosticsChanged();
+            if (diagnosticsValueChanged) {
+                emit diagnosticsChanged();
+            }
             return CommandOutcome::Accepted;
         }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_pendingDisplayImage = {};
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         m_activeProviderFrameToken = nextProviderRequestToken();
         if (m_providerSession && m_currentFrame >= 0) {
             m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
@@ -1684,7 +1686,9 @@ ImageViewport::CommandOutcome ImageViewport::stop()
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         return CommandOutcome::Accepted;
     }
     if (hasTimedSequence()
@@ -1751,7 +1755,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             m_pendingDisplayImage = {};
-            m_errorString.clear();
+            const bool diagnosticsValueChanged = clearDiagnostics();
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
                 m_providerSession->cancelRequest(m_activeProviderFrameToken);
             }
@@ -1767,7 +1771,9 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             incrementDisplayRevision();
             emit requestStateChanged();
             emit displayStateChanged();
-            emit diagnosticsChanged();
+            if (diagnosticsValueChanged) {
+                emit diagnosticsChanged();
+            }
             update();
             return CommandOutcome::Accepted;
         }
@@ -1788,10 +1794,12 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_pendingDisplayImage = {};
-            m_errorString.clear();
+            const bool diagnosticsValueChanged = clearDiagnostics();
             incrementRequestRevision();
             emit requestStateChanged();
-            emit diagnosticsChanged();
+            if (diagnosticsValueChanged) {
+                emit diagnosticsChanged();
+            }
             return CommandOutcome::Accepted;
         }
 
@@ -1859,10 +1867,12 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_pendingDisplayImage = {};
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         incrementRequestRevision();
         emit requestStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         return CommandOutcome::Accepted;
     }
 
@@ -1884,7 +1894,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_pendingDisplayImage = {};
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_activeProviderFrameToken.isValid()) {
             m_providerSession->cancelRequest(m_activeProviderFrameToken);
         }
@@ -1900,7 +1910,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         update();
         return CommandOutcome::Accepted;
     }
@@ -2086,7 +2098,7 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_pendingDisplayImage = {};
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = true;
         if (m_providerSession) {
@@ -2099,7 +2111,9 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         }
         emit requestStateChanged();
         emit displayStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         update();
         return;
     }
@@ -2352,6 +2366,17 @@ void ImageViewport::clearCommandDiagnosticForAcceptedCommand()
     }
 
     setCommandDiagnostic(CommandReason::NoCommand);
+}
+
+bool ImageViewport::clearDiagnostics()
+{
+    if (m_errorString.isEmpty() && m_warningString.isEmpty()) {
+        return false;
+    }
+
+    m_errorString.clear();
+    m_warningString.clear();
+    return true;
 }
 
 ImageViewport::CommandOutcome ImageViewport::ignoredNoRequest()
@@ -2619,23 +2644,27 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     if (selectedFromPlaybackStart && !isTimedMetadata) {
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         m_providerPlaybackStartPending = false;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         return;
     }
     if (selectedFromPosition) {
         if (!isTimedMetadata) {
             m_requestStatus = RequestStatus::Unsupported;
             m_requestReason = RequestReason::UnsupportedRequest;
-            m_errorString.clear();
+            const bool diagnosticsValueChanged = clearDiagnostics();
             setPlaybackPhase(PlaybackPhase::Stopped);
             incrementRequestRevision();
             emit requestStateChanged();
-            emit diagnosticsChanged();
+            if (diagnosticsValueChanged) {
+                emit diagnosticsChanged();
+            }
             return;
         }
         selectedFrame = providerFrameIndexForPosition(m_requestedPosition);
@@ -2648,11 +2677,13 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_playbackPosition = -1;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::InvalidRequest;
-        m_errorString.clear();
+        const bool diagnosticsValueChanged = clearDiagnostics();
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         return;
     }
 
@@ -2719,7 +2750,7 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
         return;
     }
 
-    m_errorString.clear();
+    const bool diagnosticsValueChanged = clearDiagnostics();
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
     const QRectF oldContentRect = contentRect();
@@ -2736,7 +2767,9 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
         emit geometryStateChanged();
     }
-    emit diagnosticsChanged();
+    if (diagnosticsValueChanged) {
+        emit diagnosticsChanged();
+    }
     update();
 }
 
@@ -2801,7 +2834,7 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
 
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
-    m_errorString.clear();
+    const bool diagnosticsValueChanged = clearDiagnostics();
 
     int selectedFrame = 0;
     int selectedPosition = 0;
@@ -2828,7 +2861,9 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
         incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
-        emit diagnosticsChanged();
+        if (diagnosticsValueChanged) {
+            emit diagnosticsChanged();
+        }
         update();
         return;
     }
@@ -2847,7 +2882,9 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
     incrementDisplayRevision();
     emit requestStateChanged();
     emit displayStateChanged();
-    emit diagnosticsChanged();
+    if (diagnosticsValueChanged) {
+        emit diagnosticsChanged();
+    }
     update();
 }
 
