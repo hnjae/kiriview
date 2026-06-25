@@ -38,6 +38,7 @@ private slots:
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void imageSequenceFactoryResultIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
+    void factoryRejectsNullTypedInputs();
     void qmlTimedFrameListExposesBuilderState();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
@@ -1124,6 +1125,29 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
     QCOMPARE(result->property("sequence").value<QObject *>(), nullptr);
     QCOMPARE(result->property("outcome").toInt(), enumValue(result->metaObject(), "FactoryOutcome", "Invalid"));
     QVERIFY(!result->property("errorString").toString().isEmpty());
+}
+
+void ImageViewportTest::factoryRejectsNullTypedInputs()
+{
+    ImageSequenceFactory factory;
+
+    QScopedPointer<ImageSequenceFactoryResult> frameResult(factory.fromFrame(nullptr));
+    QVERIFY(frameResult);
+    QCOMPARE(frameResult->sequence(), nullptr);
+    QCOMPARE(frameResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!frameResult->errorString().isEmpty());
+
+    QScopedPointer<ImageSequenceFactoryResult> listResult(factory.fromTimedFrameList(nullptr));
+    QVERIFY(listResult);
+    QCOMPARE(listResult->sequence(), nullptr);
+    QCOMPARE(listResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!listResult->errorString().isEmpty());
+
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(nullptr));
+    QVERIFY(providerResult);
+    QCOMPARE(providerResult->sequence(), nullptr);
+    QCOMPARE(providerResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!providerResult->errorString().isEmpty());
 }
 
 void ImageViewportTest::qmlTimedFrameListExposesBuilderState()
