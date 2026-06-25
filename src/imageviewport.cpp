@@ -2034,6 +2034,8 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     }
 
     if (!validateProviderFrame(frame, metadata)) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider frame payload is invalid");

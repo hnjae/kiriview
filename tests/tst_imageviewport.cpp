@@ -1396,13 +1396,21 @@ void ImageViewportTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
+    const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 1, 100);
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider frame payload is invalid")));
+
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 0, 0);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
 }
 
 void ImageViewportTest::providerTimedFrameSeekRequestsSelectedFrame()
