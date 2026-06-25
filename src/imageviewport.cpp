@@ -2241,10 +2241,22 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         return nullptr;
     }
 
+    const bool hasPendingProviderCommit = hasProviderSequence()
+        && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::RenderWaiting
+        && m_renderCommitPending
+        && !m_pendingDisplayImage.isNull();
     const bool hasBackground = m_backgroundMode != BackgroundMode::Transparent;
-    const QImage image = hasReadyDisplay() ? m_displayedImage : QImage();
+    const QImage image = hasPendingProviderCommit ? m_pendingDisplayImage : (hasReadyDisplay() ? m_displayedImage : QImage());
     if (!hasBackground && image.isNull()) {
         return nullptr;
+    }
+
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
+    const DisplayStatus oldDisplayStatus = m_displayStatus;
+    if (hasPendingProviderCommit) {
+        publishSequenceReadyState(m_pendingDisplayImage);
     }
 
     auto *root = new QSGNode;
@@ -2318,6 +2330,17 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
             m_stopPlaybackWhenRequestReady = false;
         }
+        if (hasPendingProviderCommit) {
+            incrementRequestRevision();
+            incrementDisplayRevision();
+            emit requestStateChanged();
+            if (m_displayStatus != oldDisplayStatus) {
+                emit displayStateChanged();
+            }
+            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+                emit geometryStateChanged();
+            }
+        }
     }
     return root;
 }
@@ -2337,6 +2360,10 @@ void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldG
         && m_requestReason == RequestReason::RenderWaiting
         && newGeometry.width() > 0.0
         && newGeometry.height() > 0.0) {
+        if (hasProviderSequence() && !m_pendingDisplayImage.isNull()) {
+            update();
+            return;
+        }
         publishSequenceReadyState();
         if (m_playbackPhase == PlaybackPhase::Waiting) {
             setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
@@ -3261,10 +3288,14 @@ void ImageViewport::clearRenderFailureRetainedDisplay()
 
 void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
 {
+    if (hasProviderSequence() && !providerImage.isNull()) {
+        captureRenderFailureRetainedDisplay();
+        m_pendingDisplayImage = providerImage;
+        publishRenderWaitingState();
+        m_renderCommitPending = true;
+        return;
+    }
     if (itemBounds().isEmpty()) {
-        if (hasProviderSequence() && !providerImage.isNull()) {
-            m_pendingDisplayImage = providerImage;
-        }
         publishRenderWaitingState();
     } else {
         publishSequenceReadyState(providerImage);
