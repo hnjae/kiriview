@@ -10139,12 +10139,39 @@ void ImageViewportTest::solidBackgroundCreatesPaintNode()
 void ImageViewportTest::checkerboardBackgroundCreatesPaintNode()
 {
     PaintProbeViewport item;
-    item.setSize(QSizeF(24.0, 12.0));
+    item.setSize(QSizeF(18.0, 10.0));
     item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
-    QVERIFY(root->childCount() > 0);
+    QCOMPARE(root->childCount(), 6);
+
+    const QList<QRectF> expectedRects = {
+        QRectF(0.0, 0.0, 8.0, 8.0),
+        QRectF(8.0, 0.0, 8.0, 8.0),
+        QRectF(16.0, 0.0, 2.0, 8.0),
+        QRectF(0.0, 8.0, 8.0, 2.0),
+        QRectF(8.0, 8.0, 8.0, 2.0),
+        QRectF(16.0, 8.0, 2.0, 2.0),
+    };
+    const QList<QColor> expectedColors = {
+        QColor(238, 238, 238),
+        QColor(204, 204, 204),
+        QColor(238, 238, 238),
+        QColor(204, 204, 204),
+        QColor(238, 238, 238),
+        QColor(204, 204, 204),
+    };
+
+    QSGNode *child = root->firstChild();
+    for (int index = 0; index < expectedRects.size(); ++index) {
+        auto *tile = dynamic_cast<QSGSimpleRectNode *>(child);
+        QVERIFY(tile);
+        QCOMPARE(tile->rect(), expectedRects.at(index));
+        QCOMPARE(tile->color(), expectedColors.at(index));
+        child = child->nextSibling();
+    }
+    QVERIFY(!child);
 }
 
 void ImageViewportTest::stillImageCreatesTexturePaintNode()
