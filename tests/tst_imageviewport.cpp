@@ -47,6 +47,7 @@ private slots:
     void clearReadyDisplayEmitsGeometryStateChanged();
     void clearNonPresentableDisplayDoesNotEmitGeometryStateChanged();
     void stillImageReadyReplacementIncrementsDisplayRevision();
+    void stillImageReplacementPreservesPresentationState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
@@ -1193,6 +1194,60 @@ void ImageViewportTest::stillImageReadyReplacementIncrementsDisplayRevision()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QVERIFY(item.property("requestRevision").toUInt() > readyRequestRevision);
     QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+}
+
+void ImageViewportTest::stillImageReplacementPreservesPresentationState()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
+    QVERIFY(firstResult->sequence());
+
+    QImage replacementImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::black);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(firstResult->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    item.setFillMode(ImageViewport::FillMode::Cover);
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
+    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignTop);
+    item.setSmoothing(false);
+    item.setMipmap(true);
+    item.setMirrorHorizontally(true);
+    item.setMirrorVertically(true);
+    item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
+    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    item.setZoom(1.5);
+    item.setPan(QPointF(-8.0, 6.0));
+    item.setLooping(true);
+
+    item.setSequence(replacementResult->sequence());
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Cover);
+    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignLeft);
+    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignTop);
+    QCOMPARE(item.smoothing(), false);
+    QCOMPARE(item.mipmap(), true);
+    QCOMPARE(item.mirrorHorizontally(), true);
+    QCOMPARE(item.mirrorVertically(), true);
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
+    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.zoom(), 1.5);
+    QCOMPARE(item.pan(), QPointF(-8.0, 6.0));
+    QCOMPARE(item.looping(), true);
 }
 
 void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
