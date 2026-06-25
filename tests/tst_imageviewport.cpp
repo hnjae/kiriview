@@ -175,6 +175,7 @@ private slots:
     void providerTimedFramePaintFailureRetainsPreviousDisplay();
     void providerTimedPlayAfterPaintFailureRestartsPlaybackRequest();
     void invalidPresentationEnumValuesAreIgnored();
+    void invalidPresentationTransformsAreIgnored();
     void presentationZoomUsesExactValueChanges();
     void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void presentationChangesNotifyGeometryState();
@@ -7426,6 +7427,32 @@ void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()
     QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignVCenter);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
     QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision);
+}
+
+void ImageViewportTest::invalidPresentationTransformsAreIgnored()
+{
+    ImageViewport item;
+    item.setZoom(2.0);
+    item.setPan(QPointF(3.0, 4.0));
+    const uint displayRevision = item.property("displayRevision").toUInt();
+
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    item.setZoom(0.0);
+    item.setZoom(-1.0);
+    item.setZoom(std::numeric_limits<double>::infinity());
+    item.setZoom(std::numeric_limits<double>::quiet_NaN());
+    item.setPan(QPointF(std::numeric_limits<double>::infinity(), 0.0));
+    item.setPan(QPointF(0.0, std::numeric_limits<double>::quiet_NaN()));
+
+    QCOMPARE(item.zoom(), 2.0);
+    QCOMPARE(item.pan(), QPointF(3.0, 4.0));
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(displayRevisionSpy.count(), 0);
+    QCOMPARE(presentationSpy.count(), 0);
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::presentationZoomUsesExactValueChanges()
