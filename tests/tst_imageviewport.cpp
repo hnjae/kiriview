@@ -51,6 +51,7 @@ private slots:
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
+    void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
     void timedFrameListPlaybackAdvancesDeterministically();
     void timedFrameListLoopingPlaybackWrapsToFirstFrame();
@@ -1309,6 +1310,40 @@ void ImageViewportTest::timedFrameListSeekCommandsSelectDocumentedTargets()
     QCOMPARE(item.property("requestRevision").toUInt(), acceptedPositionSeekRevision);
     QCOMPARE(item.property("requestedPosition").toInt(), 350);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(geometrySpy.count(), 0);
+
+    QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::timedFrameListPlaybackCommandsUpdatePhase()

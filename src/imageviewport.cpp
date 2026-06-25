@@ -1772,12 +1772,16 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         m_playbackPosition = m_requestedPosition;
         m_latestNonPlaybackFrame = m_currentFrame;
         m_latestNonPlaybackPosition = m_requestedPosition;
+        const QRectF oldContentRect = contentRect();
+        const QRectF oldVisibleImageRect = visibleImageRect();
         publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
-        emit geometryStateChanged();
+        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            emit geometryStateChanged();
+        }
         update();
         return CommandOutcome::Accepted;
     }
@@ -1877,12 +1881,16 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_playbackPosition = milliseconds;
         m_latestNonPlaybackFrame = m_currentFrame;
         m_latestNonPlaybackPosition = m_requestedPosition;
+        const QRectF oldContentRect = contentRect();
+        const QRectF oldVisibleImageRect = visibleImageRect();
         publishAcceptedTargetState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
-        emit geometryStateChanged();
+        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            emit geometryStateChanged();
+        }
         update();
         return CommandOutcome::Accepted;
     }
