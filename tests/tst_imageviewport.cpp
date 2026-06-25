@@ -9,14 +9,21 @@ class ImageViewportTest : public QObject
 
 private slots:
     void defaultConstructsAsQuickItem();
+    void doesNotExposeSourceProperty();
 };
 
 void ImageViewportTest::defaultConstructsAsQuickItem()
 {
     ImageViewport item;
 
-    QCOMPARE(item.source(), QUrl());
     QVERIFY(item.flags().testFlag(QQuickItem::ItemHasContents));
+}
+
+void ImageViewportTest::doesNotExposeSourceProperty()
+{
+    ImageViewport item;
+
+    QCOMPARE(item.metaObject()->indexOfProperty("source"), -1);
 }
 
 QTEST_MAIN(ImageViewportTest)
