@@ -122,6 +122,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
                 cancelProviderRequest(m_activeProviderFrameToken);
             }
             m_activeProviderFrameToken = nextProviderRequestToken();
+            if (!m_activeProviderFrameToken.isValid()) {
+                publishProviderTokenExhaustion();
+                incrementRequestRevision();
+                emit q->requestStateChanged();
+                emit q->diagnosticsChanged();
+                return CommandOutcome::Accepted;
+            }
             m_activeProviderFrameFromPlayback = true;
             if (m_providerSession) {
                 requestProviderPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
@@ -289,6 +296,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_currentFrame >= 0) {
             m_activeProviderFrameToken = nextProviderRequestToken();
+            if (!m_activeProviderFrameToken.isValid()) {
+                publishProviderTokenExhaustion();
+                incrementRequestRevision();
+                emit q->requestStateChanged();
+                emit q->diagnosticsChanged();
+                return CommandOutcome::Accepted;
+            }
             requestProviderFrame(m_activeProviderFrameToken, m_currentFrame);
         }
         setPlaybackPhase(PlaybackPhase::Stopped);
@@ -368,6 +382,16 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
                 cancelProviderRequest(m_activeProviderFrameToken);
             }
             m_activeProviderFrameToken = nextProviderRequestToken();
+            if (!m_activeProviderFrameToken.isValid()) {
+                publishProviderTokenExhaustion();
+                incrementRequestRevision();
+                incrementDisplayRevision();
+                emit q->requestStateChanged();
+                emit q->displayStateChanged();
+                emit q->diagnosticsChanged();
+                update();
+                return CommandOutcome::Accepted;
+            }
             m_activeProviderFrameFromPlayback = false;
             if (m_providerSession) {
                 requestProviderFrame(m_activeProviderFrameToken, frame);
@@ -528,6 +552,16 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
             cancelProviderRequest(m_activeProviderFrameToken);
         }
         m_activeProviderFrameToken = nextProviderRequestToken();
+        if (!m_activeProviderFrameToken.isValid()) {
+            publishProviderTokenExhaustion();
+            incrementRequestRevision();
+            incrementDisplayRevision();
+            emit q->requestStateChanged();
+            emit q->displayStateChanged();
+            emit q->diagnosticsChanged();
+            update();
+            return CommandOutcome::Accepted;
+        }
         m_activeProviderFrameFromPlayback = false;
         if (m_providerSession) {
             requestProviderFrame(m_activeProviderFrameToken, frame);
@@ -651,6 +685,18 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         m_pendingDisplayImage = {};
         const bool diagnosticsValueChanged = clearDiagnostics();
         m_activeProviderFrameToken = nextProviderRequestToken();
+        if (!m_activeProviderFrameToken.isValid()) {
+            publishProviderTokenExhaustion();
+            incrementRequestRevision();
+            if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
+                incrementDisplayRevision();
+            }
+            emit q->requestStateChanged();
+            emit q->displayStateChanged();
+            emit q->diagnosticsChanged();
+            update();
+            return;
+        }
         m_activeProviderFrameFromPlayback = true;
         if (m_providerSession) {
             requestProviderPlayback(m_activeProviderFrameToken, nextFrame, nextRequestedPosition);

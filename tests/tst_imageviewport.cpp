@@ -102,6 +102,7 @@ private slots:
     void providerSessionEntryPointsUseSessionAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerTokenOverflowClosesSessionWithoutInvalidRequest();
+    void providerTokenOverflowDuringSeekFailsAcceptedRequest();
     void providerSharedSequenceUsesIndependentViewportSessions();
     void providerSessionOpenFailureKeepsReplacementObservable();
     void reassigningSameProviderSequenceStartsNewGeneration();
@@ -3632,6 +3633,59 @@ void ImageViewportTest::providerTokenOverflowClosesSessionWithoutInvalidRequest(
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider session")));
+}
+
+void ImageViewportTest::providerTokenOverflowDuringSeekFailsAcceptedRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+    QVERIFY(commitPaintNode(item));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider request token")));
 }
 
 void ImageViewportTest::providerSharedSequenceUsesIndependentViewportSessions()

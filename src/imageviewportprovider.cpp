@@ -38,6 +38,19 @@ void ImageViewportPrivate::cancelProviderRequest(const ImageSequenceProviderRequ
     providerBridge.cancelRequest(token);
 }
 
+void ImageViewportPrivate::publishProviderTokenExhaustion()
+{
+    m_activeProviderMetadataToken = {};
+    m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
+    m_providerPlaybackStartPending = false;
+    m_stopPlaybackWhenRequestReady = false;
+    m_requestStatus = RequestStatus::Error;
+    m_requestReason = RequestReason::ProviderFailure;
+    m_errorString = QStringLiteral("provider request token exhausted");
+    setPlaybackPhase(PlaybackPhase::Stopped);
+}
+
 void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata)
 {
     if (!hasProviderSequence()
@@ -181,6 +194,13 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
     m_pendingDisplayImage = {};
 
     m_activeProviderFrameToken = nextProviderRequestToken();
+    if (!m_activeProviderFrameToken.isValid()) {
+        publishProviderTokenExhaustion();
+        incrementRequestRevision();
+        emit q->requestStateChanged();
+        emit q->diagnosticsChanged();
+        return;
+    }
     m_activeProviderFrameFromPlayback = selectedFromPlaybackStart;
     m_providerPlaybackStartPending = false;
     if (selectedFromPlaybackStart) {
@@ -373,6 +393,13 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     m_pendingDisplayImage = {};
     m_activeProviderFrameToken = nextProviderRequestToken();
+    if (!m_activeProviderFrameToken.isValid()) {
+        publishProviderTokenExhaustion();
+        incrementRequestRevision();
+        emit q->requestStateChanged();
+        emit q->diagnosticsChanged();
+        return;
+    }
     m_activeProviderFrameFromPlayback = true;
     if (m_providerSession) {
         requestProviderPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);

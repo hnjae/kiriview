@@ -128,6 +128,7 @@ public:
     void requestProviderFrame(const ImageSequenceProviderRequestToken &token, int frame);
     void requestProviderPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position);
     void cancelProviderRequest(const ImageSequenceProviderRequestToken &token);
+    void publishProviderTokenExhaustion();
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
     void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
