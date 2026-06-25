@@ -2512,15 +2512,23 @@ void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
+    QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+    QCOMPARE(item.property("requestRevision").toUInt(), afterAcceptedSeekRequestRevision);
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
     QCOMPARE(item.property("requestRevision").toUInt(), afterAcceptedSeekRequestRevision);
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
 
     item.setZoom(2.0);
     item.setPan(QPointF(4.0, 8.0));
@@ -2528,7 +2536,7 @@ void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
     QCOMPARE(item.property("zoom").toDouble(), 1.0);
     QCOMPARE(item.property("pan").toPointF(), QPointF(0.0, 0.0));
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
+    QCOMPARE(item.property("commandRevision").toUInt(), 5U);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
