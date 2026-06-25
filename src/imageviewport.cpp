@@ -1317,6 +1317,9 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             m_errorString.clear();
+            if (m_providerSession && m_activeProviderFrameToken.isValid()) {
+                m_providerSession->cancelRequest(m_activeProviderFrameToken);
+            }
             m_activeProviderFrameToken = nextProviderRequestToken();
             m_activeProviderFrameFromPlayback = false;
             if (m_providerSession) {
@@ -1416,6 +1419,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         m_errorString.clear();
+        if (m_providerSession && m_activeProviderFrameToken.isValid()) {
+            m_providerSession->cancelRequest(m_activeProviderFrameToken);
+        }
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = false;
         if (m_providerSession) {
