@@ -79,7 +79,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(cons
 
 bool ImageSequenceProviderMetadata::isValid() const
 {
-    if (!m_logicalSize.isValid() || m_logicalSize.width() <= 0.0 || m_logicalSize.height() <= 0.0) {
+    if (!isPositiveFiniteInteger(m_logicalSize.width()) || !isPositiveFiniteInteger(m_logicalSize.height())) {
         return false;
     }
     if (isStill()) {

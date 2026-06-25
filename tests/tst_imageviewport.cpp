@@ -2613,6 +2613,16 @@ void ImageViewportTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(negativeDurationMetadata.isSpecified(), true);
     QCOMPARE(negativeDurationMetadata.isValid(), false);
 
+    const ImageSequenceProviderMetadata infiniteSizeMetadata =
+        ImageSequenceProviderMetadata::still(QSizeF(std::numeric_limits<double>::infinity(), 8.0));
+    QCOMPARE(infiniteSizeMetadata.isSpecified(), true);
+    QCOMPARE(infiniteSizeMetadata.isValid(), false);
+
+    const ImageSequenceProviderMetadata fractionalSizeMetadata =
+        ImageSequenceProviderMetadata::still(QSizeF(16.5, 8.0));
+    QCOMPARE(fractionalSizeMetadata.isSpecified(), true);
+    QCOMPARE(fractionalSizeMetadata.isValid(), false);
+
     const ImageSequenceProviderMetadata invalidFixedDurationMetadata =
         ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 2, 0);
     QCOMPARE(invalidFixedDurationMetadata.isSpecified(), true);
