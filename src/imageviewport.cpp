@@ -2264,6 +2264,8 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider metadata is invalid");
+        m_providerPlaybackStartPending = false;
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
@@ -2277,6 +2279,8 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider metadata contradicts construction-time capabilities");
+        m_providerPlaybackStartPending = false;
+        setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit requestStateChanged();
         emit diagnosticsChanged();
@@ -2516,6 +2520,8 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::ProviderFailure;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+    m_providerPlaybackStartPending = false;
+    setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
     emit requestStateChanged();
     emit diagnosticsChanged();
@@ -2548,6 +2554,8 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
     m_requestStatus = RequestStatus::Unsupported;
     m_requestReason = RequestReason::UnsupportedRequest;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
+    m_providerPlaybackStartPending = false;
+    setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
     emit requestStateChanged();
     emit diagnosticsChanged();
@@ -2580,6 +2588,8 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::ProviderFailure;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
+    m_providerPlaybackStartPending = false;
+    setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
     emit requestStateChanged();
     emit diagnosticsChanged();

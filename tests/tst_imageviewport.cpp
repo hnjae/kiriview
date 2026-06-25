@@ -77,6 +77,7 @@ private slots:
     void providerTimedStopSupersedesPlaybackRequest();
     void providerTimedSeekWhilePlayingWaitsForFrame();
     void providerMetadataFailureReportsProviderFailure();
+    void providerMetadataFailureStopsPendingPlayback();
     void providerGenerationTerminalFailureRejectsDisplayCommands();
     void providerFrameFailureKeepsGenerationSeekable();
     void providerMetadataUnsupportedReportsUnsupportedRequest();
@@ -2851,6 +2852,43 @@ void ImageViewportTest::providerMetadataFailureReportsProviderFailure()
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata service unavailable")));
+}
+
+void ImageViewportTest::providerMetadataFailureStopsPendingPlayback()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerFailed(sessionFactory->lastSession()->lastMetadataToken(),
+        QStringLiteral("metadata service unavailable"));
+
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
 }
 
 void ImageViewportTest::providerGenerationTerminalFailureRejectsDisplayCommands()
