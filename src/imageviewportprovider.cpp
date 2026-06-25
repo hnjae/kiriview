@@ -29,6 +29,20 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
 
     m_activeProviderMetadataToken = {};
 
+    const QString metadataViolation = providerMetadataLimitViolation(metadata);
+    if (!metadataViolation.isEmpty()) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = metadataViolation;
+        m_providerPlaybackStartPending = false;
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit q->requestStateChanged();
+        emit q->diagnosticsChanged();
+        closeProviderSession();
+        return;
+    }
+
     const bool isStillMetadata = validateProviderStillMetadata(metadata);
     const bool isTimedMetadata = validateProviderTimedMetadata(metadata);
     if (!isStillMetadata && !isTimedMetadata) {
