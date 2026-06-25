@@ -33,6 +33,7 @@ private slots:
     void exposesTypedSequenceFactorySurface();
     void exposesImageSequenceLimits();
     void imageFrameRetainsImmutablePayload();
+    void stillImageSequenceRetainsFactoryPayload();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
@@ -706,6 +707,25 @@ void ImageViewportTest::imageFrameRetainsImmutablePayload()
     image.fill(QColor(0, 0, 255, 255));
 
     const QImage retained = frame.imageForTest();
+    QCOMPARE(retained.size(), QSize(2, 1));
+    QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+    QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageViewportTest::stillImageSequenceRetainsFactoryPayload()
+{
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+    {
+        QImage image(2, 1, QImage::Format_ARGB32_Premultiplied);
+        image.setPixelColor(0, 0, QColor(255, 0, 0, 255));
+        image.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+        ImageFrame frame(image);
+        result.reset(factory.fromFrame(&frame));
+        QVERIFY(result->sequence());
+    }
+
+    const QImage retained = result->sequence()->frameImageForTest(0);
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));

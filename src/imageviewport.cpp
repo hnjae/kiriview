@@ -130,10 +130,11 @@ ImageSequence::ImageSequence(QObject *parent)
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF &logicalSize, QObject *parent)
+ImageSequence::ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObject *parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Still)
     , m_logicalSize(logicalSize)
+    , m_stillImage(std::move(stillImage))
 {
 }
 
@@ -257,6 +258,13 @@ int ImageSequence::frameIndexForPosition(int position) const
     return -1;
 }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+QImage ImageSequence::frameImageForTest(int) const
+{
+    return m_stillImage;
+}
+#endif
+
 ImageFrame::ImageFrame(QObject *parent)
     : QObject(parent)
 {
@@ -287,6 +295,11 @@ QSizeF ImageFrame::logicalSize() const
 qsizetype ImageFrame::payloadByteSize() const
 {
     return m_payloadByteSize;
+}
+
+const QImage &ImageFrame::imagePayload() const
+{
+    return m_image;
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -682,7 +695,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(frame->logicalSize(), this),
+    return new ImageSequenceFactoryResult(new ImageSequence(frame->logicalSize(), frame->imagePayload(), this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {},

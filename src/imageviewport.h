@@ -38,7 +38,7 @@ private:
     };
 
     explicit ImageSequence(QObject *parent = nullptr);
-    explicit ImageSequence(const QSizeF &logicalSize, QObject *parent = nullptr);
+    explicit ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent = nullptr);
     explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         bool hasProviderKnownMetadata,
@@ -59,8 +59,15 @@ private:
     int frameStartPosition(int frame) const;
     int frameIndexForPosition(int position) const;
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+public:
+    QImage frameImageForTest(int frame) const;
+private:
+#endif
+
     TimingModel m_timingModel = TimingModel::None;
     QSizeF m_logicalSize;
+    QImage m_stillImage;
     QVector<int> m_frameDurations;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
     bool m_hasProviderKnownMetadata = false;
@@ -93,9 +100,13 @@ public:
 #endif
 
 private:
+    const QImage &imagePayload() const;
+
     QImage m_image;
     QSizeF m_logicalSize;
     qsizetype m_payloadByteSize = 0;
+
+    friend class ImageSequenceFactory;
 };
 
 class TimedImageFrameList : public QObject
