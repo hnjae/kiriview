@@ -24,7 +24,7 @@ flowchart TD
 
 The provider boundary should be defined around display frames, not URLs, files, archive entries, or codec-native frame fragments.
 
-The caller or provider owns source resolution. It may read from files, archives, memory, network caches, application storage, or custom container formats, but `ImageViewport` should only see a sequence provider object that can describe and deliver frames.
+The caller or provider owns source resolution. It may read from files, archives, memory, network caches, application storage, or custom container formats, but `ImageViewport` should only see an `ImageSequence` facade that can open a provider session able to describe and deliver frames.
 
 The provider owns codec-native composition. Blending, disposal, reference frames, palettes, alpha reconstruction, internal layers, progressive passes, and format-specific timing repair should be resolved before a frame is accepted as displayable by the viewport.
 
@@ -32,11 +32,11 @@ The delivered display frame should be a self-contained canvas-equivalent snapsho
 
 The provider may expose derived hints from codec internals when they are useful but not semantically required. Examples include dirty regions, independent-decode boundaries, key-frame-like seek points, dependency descriptions, frame coalescing state, and preparation cost.
 
-`ImageViewport` owns presentation and playback interpretation. It chooses the requested frame target, tracks the scene graph committed display frame, applies fill mode, alignment, mirroring, zoom, pan, sampling, viewport clipping, retain-on-replacement behavior, and QML-visible request and display status.
+`ImageViewport` owns presentation and playback interpretation. It chooses the requested display target, tracks the scene graph committed display frame, applies fill mode, alignment, mirroring, zoom, pan, sampling, viewport clipping, retain-on-replacement behavior, and QML-visible request and display status.
 
 The provider should be replaceable without changing `ImageViewport` behavior. A GIF provider, WebP provider, AVIF provider, HEIF sequence provider, JXL provider, QMovie compatibility provider, archive-backed provider, and application-generated provider should all map into the same display-frame contract.
 
-Provider capabilities should describe access constraints instead of forcing every provider into random access. Sequential and stateful sequential decoders remain valid providers when they can produce immutable display snapshots in their supported order and report unsupported or waiting behavior for requests they cannot satisfy directly.
+Provider capabilities should describe access constraints instead of forcing every provider into random access. Stable display indexes are a capability, not a minimum requirement. Sequential and stateful sequential decoders remain valid providers when they can produce immutable display snapshots in their supported order and report unsupported or waiting behavior for requests they cannot satisfy directly.
 
 ## Threading And Lifetime
 
@@ -66,7 +66,7 @@ The detailed CPU-image upload contract is defined in [QImage Texture Upload Cont
 
 The display frame should distinguish logical image coordinates from the stored pixel buffer. This allows descriptive content regions, provider-managed coalescing, dirty-region hints, and future large-image work without forcing codec fragments into the viewport API.
 
-The frame representation should record whether orientation, alpha premultiplication, and color policy have already been normalized, preserved, deferred, or approximated under a best-effort policy. The viewport should not guess whether a frame has already applied metadata transforms.
+The frame representation should record whether orientation, alpha premultiplication, and color metadata have already been normalized, preserved, deferred, or approximated under the policies supported by the initial pipeline. The viewport should not guess whether a frame has already applied metadata transforms.
 
 Texture-compatible payloads are a future extension, not the first contract. The initial design should not require callers to create `QSGTexture`, pass native texture handles, or understand scene graph threading.
 
@@ -78,7 +78,7 @@ The representation should allow preparation hints to flow backward from viewport
 
 The first implementation should prefer the simplest complete path: provider delivers immutable image snapshots, the item stores the candidate or retained display snapshot and presentation state, and `updatePaintNode()` updates a `QSGImageNode` backed by a `QSGTexture`.
 
-The public API should describe sequence content and preparation intent, not graphics resources. This keeps the API usable from QML and keeps the Qt Quick render-thread rules inside the implementation.
+The public API should describe sequence content and viewport behavior, not graphics resources. Internal preparation intent may flow from the controller to providers or caches, but it should not be required public API for correctness. This keeps the API usable from QML and keeps the Qt Quick render-thread rules inside the implementation.
 
 Native texture paths should be added only after the image snapshot path proves the provider boundary and playback model. When added, they should be parallel payload variants rather than a replacement for the baseline frame contract.
 

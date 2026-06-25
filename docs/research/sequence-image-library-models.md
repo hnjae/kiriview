@@ -73,10 +73,10 @@ The provider contract should be able to describe a sequence before decoding ever
 SequenceInfo
 - logicalSize
 - frameCount: known(count) | unknown
-- duration: known(duration) | unknown
-- loopCount: finite(count) | infinite | unknown
+- duration: known(milliseconds) | unknown
+- loopBehavior: finite(totalPlaythroughs) | infinite | none | unknown
 - kind: still | animation | progressive | track
-- capabilities: randomAccess | sequential | rewindable | streaming | prefetchable
+- capabilities: stableDisplayIndexes | randomAccess | sequential | rewindable | streaming | prefetchable
 - metadata: orientation, color, alpha, background, format-specific diagnostics
 - derivedHints: dependency model, key-frame-like boundaries, composition/coalescing state
 ```
@@ -87,12 +87,12 @@ Each decoded display frame should be self-contained from the viewport's perspect
 DisplayFrame
 - index
 - logicalRect or canvasSize
-- presentationTime: optional
-- duration: optional
+- presentationTime: optional milliseconds
+- duration: optional milliseconds
 - pixels or texture-compatible payload
 - normalization: orientation/color/alpha state
 - dirtyRegion: optional
-- dependency: independent | dependsOnPrevious | providerManaged
+- decodeDependencyHint: independent | providerManaged | keyFrameLike | deltaLike
 - sourceGeneration or sequence token
 ```
 

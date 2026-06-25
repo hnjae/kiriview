@@ -40,7 +40,7 @@ The baseline `QImage` to `QSGTexture` upload contract is defined in [QImage Text
 
 The initial test layering and verification strategy are defined in [Test Strategy](test-strategy.md).
 
-`QSGImageNode` is the preferred initial node abstraction because it already models a textured rectangle with a target rectangle, a source rectangle, texture-coordinate mirroring, texture filtering, and mipmap filtering. These concepts align with the viewport's required placement, clipping, mirroring, `smooth`, and `mipmap` behavior.
+`QSGImageNode` is the preferred initial node abstraction because it already models a textured rectangle with a target rectangle, a source rectangle, texture-coordinate mirroring, texture filtering, and mipmap filtering. These concepts align with the viewport's required placement, clipping, mirroring, `smooth`, and `mipmap` behavior. The first render path should obtain the node through `QQuickWindow::createImageNode()` rather than directly constructing backend-specific node classes.
 
 The render-thread adapter should own or safely hand off scene graph resources according to Qt Quick render-thread rules. `QSG` objects should not become part of the QML-facing state model, and QML-visible state should describe image content, playback, and viewport mapping rather than native graphics objects.
 
@@ -70,9 +70,9 @@ flowchart TD
     Texture --> Display
 ```
 
-Public-facing design should expose preparation intent rather than native texture ownership. Callers should be able to express that nearby frames, playback-direction frames, or a bounded frame window are likely to be needed soon, but they should not need to pass `QSGTexture` objects or manage render-thread lifetimes directly.
+Internal design should represent preparation intent rather than native texture ownership. The playback controller can derive that nearby frames, playback-direction frames, or a bounded frame window are likely to be needed soon, but callers should not need to pass `QSGTexture` objects, manage render-thread lifetimes directly, or rely on cache warmth for correctness.
 
-The viewport should remain responsible for deciding how far a preparation request can be carried. Depending on memory budget, scene graph state, window lifetime, frame size, and backend capability, the same caller intent may result in decoded-frame preparation only, uploaded texture preparation, or no retained cache beyond the displayed frame.
+The viewport should remain responsible for deciding how far a preparation request can be carried. Depending on memory budget, scene graph state, window lifetime, frame size, and backend capability, the same controller intent may result in decoded-frame preparation only, uploaded texture preparation, or no retained cache beyond the displayed frame.
 
 Prepared texture caching should be treated as an optimization, not as part of the semantic frame model. Playback, requested-frame reporting, displayed-frame reporting, coordinate conversion, replacement failure behavior, and retained-frame behavior should remain correct even when the texture cache is empty, discarded, or rebuilt after scene graph invalidation.
 
@@ -84,4 +84,4 @@ The module boundary is the QML import:
 import ImageViewport
 ```
 
-Applications should consume the item through QML first. C++ classes in the backing library exist to implement the QML module rather than to define the primary public API.
+QML is the primary visual item surface: applications should place, bind, and control `ImageViewport` as a Qt Quick item. C++ is a first-class construction and extension surface for `ImageSequence`, frame objects, provider adapters, and decoder integration; those C++ types should support the QML module rather than turn `ImageViewport` itself into a URL loader or decoder owner.
