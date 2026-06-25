@@ -921,6 +921,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
     m_providerFrameDurations.clear();
+    m_pendingDisplayImage = {};
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
@@ -1447,6 +1448,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayedPosition = -1;
     m_displayedImageSize = {};
     m_displayedImage = {};
+    m_pendingDisplayImage = {};
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
@@ -1601,6 +1603,7 @@ ImageViewport::CommandOutcome ImageViewport::stop()
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_pendingDisplayImage = {};
         m_errorString.clear();
         m_activeProviderFrameToken = nextProviderRequestToken();
         if (m_providerSession && m_currentFrame >= 0) {
@@ -1648,6 +1651,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
             m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+            m_pendingDisplayImage = {};
             m_errorString.clear();
             if (m_providerSession && m_activeProviderFrameToken.isValid()) {
                 m_providerSession->cancelRequest(m_activeProviderFrameToken);
@@ -1684,6 +1688,7 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
             m_latestNonPlaybackPosition = m_requestedPosition;
             m_requestStatus = RequestStatus::Loading;
             m_requestReason = RequestReason::ProviderWaiting;
+            m_pendingDisplayImage = {};
             m_errorString.clear();
             incrementRequestRevision();
             emit requestStateChanged();
@@ -1747,6 +1752,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_latestNonPlaybackPosition = m_requestedPosition;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
+        m_pendingDisplayImage = {};
         m_errorString.clear();
         incrementRequestRevision();
         emit requestStateChanged();
@@ -1771,6 +1777,7 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_pendingDisplayImage = {};
         m_errorString.clear();
         if (m_providerSession && m_activeProviderFrameToken.isValid()) {
             m_providerSession->cancelRequest(m_activeProviderFrameToken);
@@ -1965,6 +1972,7 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_pendingDisplayImage = {};
         m_errorString.clear();
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = true;
@@ -2416,6 +2424,7 @@ bool ImageViewport::openProviderSession()
         Qt::QueuedConnection);
 
     if (m_providerMetadataReady) {
+        m_pendingDisplayImage = {};
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = false;
         m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
@@ -2530,6 +2539,7 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_pendingDisplayImage = {};
 
     m_activeProviderFrameToken = nextProviderRequestToken();
     m_activeProviderFrameFromPlayback = selectedFromPlaybackStart;
@@ -2693,6 +2703,7 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_pendingDisplayImage = {};
     m_activeProviderFrameToken = nextProviderRequestToken();
     m_activeProviderFrameFromPlayback = true;
     if (m_providerSession) {
@@ -2938,6 +2949,9 @@ QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QStrin
 void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
 {
     if (itemBounds().isEmpty()) {
+        if (hasProviderSequence() && !providerImage.isNull()) {
+            m_pendingDisplayImage = providerImage;
+        }
         publishRenderWaitingState();
     } else {
         publishSequenceReadyState(providerImage);
@@ -2959,9 +2973,13 @@ void ImageViewport::publishSequenceReadyState(const QImage &providerImage)
     if (hasProviderSequence()) {
         if (!providerImage.isNull()) {
             m_displayedImage = providerImage;
+        } else if (!m_pendingDisplayImage.isNull()) {
+            m_displayedImage = m_pendingDisplayImage;
         }
+        m_pendingDisplayImage = {};
     } else {
         m_displayedImage = m_sequence ? m_sequence->frameImage(m_displayedFrame) : QImage();
+        m_pendingDisplayImage = {};
     }
 }
 

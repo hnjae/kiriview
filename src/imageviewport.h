@@ -663,6 +663,7 @@ private:
     int m_displayedPosition = -1;
     QSizeF m_displayedImageSize;
     QImage m_displayedImage;
+    QImage m_pendingDisplayImage;
     uint m_displayRevision = 0;
     uint m_requestRevision = 0;
     uint m_commandRevision = 0;

@@ -112,6 +112,7 @@ private slots:
     void stillImageCreatesTexturePaintNode();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
+    void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -3977,6 +3978,60 @@ void ImageViewportTest::providerStillFrameCreatesTexturePaintNode()
     ImageFrame frame(image);
     emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto *imageNode = dynamic_cast<QSGImageNode *>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportTest::providerStillFrameWaitingForGeometryCreatesTexturePaintNode()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(0.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(4.0, 2.0)));
+    drainQueuedProviderResults();
+
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+
+    item.setSize(QSizeF(40.0, 20.0));
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
