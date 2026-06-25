@@ -110,6 +110,7 @@ private:
 
     friend class ImageSequenceFactory;
     friend class TimedImageFrameList;
+    friend class ImageViewport;
 };
 
 class TimedImageFrameList : public QObject
@@ -629,8 +630,8 @@ private:
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
-    void publishAcceptedTargetState();
-    void publishSequenceReadyState();
+    void publishAcceptedTargetState(const QImage &providerImage = {});
+    void publishSequenceReadyState(const QImage &providerImage = {});
     void publishRenderWaitingState();
 
     QPointer<ImageSequence> m_sequence;
@@ -661,6 +662,7 @@ private:
     int m_displayedFrame = -1;
     int m_displayedPosition = -1;
     QSizeF m_displayedImageSize;
+    QImage m_displayedImage;
     uint m_displayRevision = 0;
     uint m_requestRevision = 0;
     uint m_commandRevision = 0;

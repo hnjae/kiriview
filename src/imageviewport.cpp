@@ -971,6 +971,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_displayedFrame = -1;
         m_displayedPosition = -1;
         m_displayedImageSize = {};
+        m_displayedImage = {};
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
@@ -1445,6 +1446,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayedFrame = -1;
     m_displayedPosition = -1;
     m_displayedImageSize = {};
+    m_displayedImage = {};
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
@@ -2064,7 +2066,7 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     }
 
     const bool hasBackground = m_backgroundMode != BackgroundMode::Transparent;
-    const QImage image = (hasReadyDisplay() && m_sequence) ? m_sequence->frameImage(m_displayedFrame) : QImage();
+    const QImage image = hasReadyDisplay() ? m_displayedImage : QImage();
     if (!hasBackground && image.isNull()) {
         return nullptr;
     }
@@ -2581,7 +2583,7 @@ void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProv
     m_errorString.clear();
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
-    publishAcceptedTargetState();
+    publishAcceptedTargetState(frame->imagePayload());
     if (m_playbackPhase == PlaybackPhase::Waiting) {
         setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
         m_stopPlaybackWhenRequestReady = false;
@@ -2933,16 +2935,16 @@ QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QStrin
     return bounded;
 }
 
-void ImageViewport::publishAcceptedTargetState()
+void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
 {
     if (itemBounds().isEmpty()) {
         publishRenderWaitingState();
     } else {
-        publishSequenceReadyState();
+        publishSequenceReadyState(providerImage);
     }
 }
 
-void ImageViewport::publishSequenceReadyState()
+void ImageViewport::publishSequenceReadyState(const QImage &providerImage)
 {
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
@@ -2954,6 +2956,13 @@ void ImageViewport::publishSequenceReadyState()
         m_displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
     }
     m_displayedImageSize = hasProviderSequence() ? m_providerLogicalSize : m_sequence->logicalSize();
+    if (hasProviderSequence()) {
+        if (!providerImage.isNull()) {
+            m_displayedImage = providerImage;
+        }
+    } else {
+        m_displayedImage = m_sequence ? m_sequence->frameImage(m_displayedFrame) : QImage();
+    }
 }
 
 void ImageViewport::publishRenderWaitingState()
