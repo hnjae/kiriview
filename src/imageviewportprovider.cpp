@@ -382,9 +382,10 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
     m_requestedPosition = selectedPosition;
 
     if (!m_looping
-        && m_displayStatus == DisplayStatus::Ready
         && hasReadyDisplay()
-        && m_displayedFrame == selectedFrame) {
+        && m_displayedGeneration == m_sequenceGeneration
+        && m_displayedFrame == selectedFrame
+        && m_displayedPosition == selectedPosition) {
         m_requestStatus = RequestStatus::Ready;
         m_requestReason = RequestReason::Ready;
         m_displayStatus = DisplayStatus::Ready;
