@@ -2083,6 +2083,8 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
             m_currentFrame = wrappedFrame;
             m_requestedPosition = m_sequence->frameStartPosition(wrappedFrame);
             m_playbackPosition = wrappedPosition;
+            const QRectF oldContentRect = contentRect();
+            const QRectF oldVisibleImageRect = visibleImageRect();
             publishAcceptedTargetState();
             setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
             incrementRequestRevision();
@@ -2091,7 +2093,9 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
             }
             emit requestStateChanged();
             emit displayStateChanged();
-            emit geometryStateChanged();
+            if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+                emit geometryStateChanged();
+            }
             update();
             return;
         }
@@ -2100,6 +2104,8 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_currentFrame = finalFrame;
         m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
         m_playbackPosition = totalDuration;
+        const QRectF oldContentRect = contentRect();
+        const QRectF oldVisibleImageRect = visibleImageRect();
         publishAcceptedTargetState();
         m_stopPlaybackWhenRequestReady = m_requestStatus == RequestStatus::Loading;
         setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Waiting : PlaybackPhase::Stopped);
@@ -2109,7 +2115,9 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         }
         emit requestStateChanged();
         emit displayStateChanged();
-        emit geometryStateChanged();
+        if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+            emit geometryStateChanged();
+        }
         update();
         return;
     }
@@ -2126,13 +2134,17 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
 
     m_currentFrame = nextFrame;
     m_requestedPosition = m_sequence->frameStartPosition(nextFrame);
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState();
     setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
     incrementRequestRevision();
     incrementDisplayRevision();
     emit requestStateChanged();
     emit displayStateChanged();
-    emit geometryStateChanged();
+    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        emit geometryStateChanged();
+    }
     update();
 }
 #endif
