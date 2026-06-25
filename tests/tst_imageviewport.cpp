@@ -236,6 +236,34 @@ void verifyEnumValues(const QMetaObject *metaObject, const char *enumName, const
     }
 }
 
+void verifyRequestStatusReasonPair(const ImageViewport &item)
+{
+    const QMetaObject *metaObject = item.metaObject();
+    const int status = item.property("requestStatus").toInt();
+    const int reason = item.property("requestReason").toInt();
+
+    const bool valid =
+        (status == enumValue(metaObject, "RequestStatus", "NoRequest")
+            && reason == enumValue(metaObject, "RequestReason", "NoRequest"))
+        || (status == enumValue(metaObject, "RequestStatus", "Loading")
+            && (reason == enumValue(metaObject, "RequestReason", "ProviderWaiting")
+                || reason == enumValue(metaObject, "RequestReason", "RequestQueued")
+                || reason == enumValue(metaObject, "RequestReason", "UploadPending")
+                || reason == enumValue(metaObject, "RequestReason", "RenderWaiting")))
+        || (status == enumValue(metaObject, "RequestStatus", "Ready")
+            && reason == enumValue(metaObject, "RequestReason", "Ready"))
+        || (status == enumValue(metaObject, "RequestStatus", "Unsupported")
+            && (reason == enumValue(metaObject, "RequestReason", "UnsupportedRequest")
+                || reason == enumValue(metaObject, "RequestReason", "InvalidRequest")
+                || reason == enumValue(metaObject, "RequestReason", "PayloadRejection")))
+        || (status == enumValue(metaObject, "RequestStatus", "Error")
+            && (reason == enumValue(metaObject, "RequestReason", "ProviderFailure")
+                || reason == enumValue(metaObject, "RequestReason", "PayloadRejection")
+                || reason == enumValue(metaObject, "RequestReason", "RenderFailure")));
+    const QString message = QStringLiteral("invalid request status/reason pair: %1/%2").arg(status).arg(reason);
+    QVERIFY2(valid, qPrintable(message));
+}
+
 class PaintProbeViewport final : public ImageViewport
 {
 public:
@@ -1077,6 +1105,7 @@ void ImageViewportTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("sequence").value<QObject *>(), nullptr);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
+    verifyRequestStatusReasonPair(item);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
@@ -1431,6 +1460,7 @@ void ImageViewportTest::factoryResultSequenceSurvivesFactoryDestruction()
     QCOMPARE(item.sequence(), result->sequence());
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    verifyRequestStatusReasonPair(item);
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
 }
@@ -1790,6 +1820,7 @@ void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    verifyRequestStatusReasonPair(item);
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
@@ -3642,6 +3673,7 @@ void ImageViewportTest::providerTerminalResultsAreQueuedFromSessionEntryPoint()
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    verifyRequestStatusReasonPair(item);
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("metadata failed synchronously")));
