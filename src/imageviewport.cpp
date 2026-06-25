@@ -55,18 +55,66 @@ ImageSequence::ImageSequence(QObject *parent)
 
 ImageSequence::ImageSequence(const QSizeF &logicalSize, QObject *parent)
     : QObject(parent)
+    , m_timingModel(TimingModel::Still)
     , m_logicalSize(logicalSize)
+{
+}
+
+ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent)
+    : QObject(parent)
+    , m_timingModel(TimingModel::TimedList)
+    , m_logicalSize(logicalSize)
+    , m_frameDurations(std::move(frameDurations))
 {
 }
 
 bool ImageSequence::isValid() const
 {
-    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
+    return m_timingModel != TimingModel::None
+        && m_logicalSize.isValid()
+        && m_logicalSize.width() > 0.0
+        && m_logicalSize.height() > 0.0
+        && (isStill() || !m_frameDurations.isEmpty());
+}
+
+bool ImageSequence::isStill() const
+{
+    return m_timingModel == TimingModel::Still;
+}
+
+bool ImageSequence::isTimedList() const
+{
+    return m_timingModel == TimingModel::TimedList;
 }
 
 QSizeF ImageSequence::logicalSize() const
 {
     return m_logicalSize;
+}
+
+int ImageSequence::frameCount() const
+{
+    if (isStill()) {
+        return 1;
+    }
+    if (isTimedList()) {
+        return m_frameDurations.size();
+    }
+
+    return -1;
+}
+
+int ImageSequence::totalDuration() const
+{
+    if (!isTimedList()) {
+        return -1;
+    }
+
+    int total = 0;
+    for (int duration : m_frameDurations) {
+        total += duration;
+    }
+    return total;
 }
 
 ImageFrame::ImageFrame(QObject *parent)
@@ -105,11 +153,122 @@ TimedImageFrameList::TimedImageFrameList(QObject *parent)
 
 int TimedImageFrameList::count() const
 {
-    return 0;
+    return m_frameDurations.size();
+}
+
+QString TimedImageFrameList::errorString() const
+{
+    return m_errorString;
+}
+
+QString TimedImageFrameList::warningString() const
+{
+    return m_warningString;
+}
+
+bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMilliseconds)
+{
+    if (!frame || !frame->isValid()) {
+        setErrorString(QStringLiteral("ImageFrame is required"));
+        return false;
+    }
+    if (durationMilliseconds <= 0) {
+        setErrorString(QStringLiteral("frame duration must be positive"));
+        return false;
+    }
+    if (durationMilliseconds > ImageSequenceLimits::maximumFrameDuration()) {
+        setErrorString(QStringLiteral("frame duration exceeds maximumFrameDuration"));
+        return false;
+    }
+    if (m_frameDurations.size() >= ImageSequenceLimits::maximumTimedListFrameCount()) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTimedListFrameCount"));
+        return false;
+    }
+
+    const QString limitViolation = frameLimitViolation(*frame);
+    if (!limitViolation.isEmpty()) {
+        setErrorString(limitViolation);
+        return false;
+    }
+
+    if (!m_logicalSize.isValid()) {
+        m_logicalSize = frame->logicalSize();
+    } else if (m_logicalSize != frame->logicalSize()) {
+        setErrorString(QStringLiteral("frame logical size must match the timed list logical size"));
+        return false;
+    }
+
+    if (static_cast<qint64>(m_payloadByteSize) + frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumPayloadBytesPerFrame"));
+        return false;
+    }
+    if (static_cast<qint64>(totalDuration()) + durationMilliseconds > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTotalSequenceDuration"));
+        return false;
+    }
+
+    m_frameDurations.append(durationMilliseconds);
+    m_payloadByteSize += frame->payloadByteSize();
+    if (!m_errorString.isEmpty()) {
+        m_errorString.clear();
+        emit diagnosticsChanged();
+    }
+    emit countChanged();
+    return true;
 }
 
 void TimedImageFrameList::clear()
 {
+    if (m_frameDurations.isEmpty() && m_errorString.isEmpty() && m_warningString.isEmpty()) {
+        return;
+    }
+
+    m_logicalSize = {};
+    m_frameDurations.clear();
+    m_payloadByteSize = 0;
+    m_errorString.clear();
+    m_warningString.clear();
+    emit countChanged();
+    emit diagnosticsChanged();
+}
+
+bool TimedImageFrameList::isValid() const
+{
+    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0 && !m_frameDurations.isEmpty();
+}
+
+QSizeF TimedImageFrameList::logicalSize() const
+{
+    return m_logicalSize;
+}
+
+QVector<int> TimedImageFrameList::frameDurations() const
+{
+    return m_frameDurations;
+}
+
+qsizetype TimedImageFrameList::payloadByteSize() const
+{
+    return m_payloadByteSize;
+}
+
+int TimedImageFrameList::totalDuration() const
+{
+    int total = 0;
+    for (int duration : m_frameDurations) {
+        total += duration;
+    }
+    return total;
+}
+
+void TimedImageFrameList::setErrorString(const QString &errorString)
+{
+    if (m_errorString == errorString) {
+        return;
+    }
+
+    m_errorString = errorString;
+    emit diagnosticsChanged();
 }
 
 ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject *parent)
@@ -191,7 +350,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
 
 ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageFrameList *list)
 {
-    if (!list || list->count() <= 0) {
+    if (!list || !list->isValid()) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("TimedImageFrameList must contain at least one frame"),
@@ -199,7 +358,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageF
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(this),
+    return new ImageSequenceFactoryResult(new ImageSequence(list->logicalSize(), list->frameDurations(), this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {},
@@ -331,11 +490,11 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
 
-    if (hasStillSequence()) {
+    if (hasDisplayableSequence()) {
         if (width() > 0.0 && height() > 0.0) {
-            publishStillSequenceState();
+            publishSequenceReadyState();
         } else {
-            publishRenderWaitingStillState();
+            publishRenderWaitingState();
         }
     } else {
         m_requestStatus = RequestStatus::NoRequest;
@@ -383,7 +542,7 @@ ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const
 
 int ImageViewport::displayedFrame() const
 {
-    if (hasReadyStillDisplay()) {
+    if (hasReadyDisplay()) {
         return 0;
     }
 
@@ -392,7 +551,7 @@ int ImageViewport::displayedFrame() const
 
 int ImageViewport::requestedFrame() const
 {
-    if (hasStillSequence()) {
+    if (hasDisplayableSequence()) {
         return 0;
     }
 
@@ -401,18 +560,26 @@ int ImageViewport::requestedFrame() const
 
 int ImageViewport::displayedPosition() const
 {
+    if (hasReadyDisplay() && hasTimedSequence()) {
+        return 0;
+    }
+
     return -1;
 }
 
 int ImageViewport::requestedPosition() const
 {
+    if (hasTimedSequence()) {
+        return 0;
+    }
+
     return -1;
 }
 
 int ImageViewport::frameCount() const
 {
-    if (hasStillSequence()) {
-        return 1;
+    if (hasDisplayableSequence()) {
+        return m_sequence->frameCount();
     }
 
     return -1;
@@ -420,15 +587,19 @@ int ImageViewport::frameCount() const
 
 int ImageViewport::totalDuration() const
 {
+    if (hasTimedSequence()) {
+        return m_sequence->totalDuration();
+    }
+
     return -1;
 }
 
 QVariantMap ImageViewport::frameSeekBounds() const
 {
-    if (hasStillSequence()) {
+    if (hasDisplayableSequence()) {
         return {
             {QStringLiteral("minimum"), 0},
-            {QStringLiteral("maximum"), 0},
+            {QStringLiteral("maximum"), m_sequence->frameCount() - 1},
         };
     }
 
@@ -437,11 +608,21 @@ QVariantMap ImageViewport::frameSeekBounds() const
 
 QVariantMap ImageViewport::positionSeekBounds() const
 {
+    if (hasTimedSequence()) {
+        return {
+            {QStringLiteral("minimum"), 0},
+            {QStringLiteral("maximum"), m_sequence->totalDuration()},
+        };
+    }
+
     return invalidRange();
 }
 
 ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 {
+    if (hasTimedSequence()) {
+        return TriState::True;
+    }
     if (hasStillSequence()) {
         return TriState::False;
     }
@@ -451,7 +632,7 @@ ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
 
 ImageViewport::TriState ImageViewport::frameSeekSupport() const
 {
-    if (hasStillSequence()) {
+    if (hasDisplayableSequence()) {
         return TriState::True;
     }
 
@@ -460,6 +641,9 @@ ImageViewport::TriState ImageViewport::frameSeekSupport() const
 
 ImageViewport::TriState ImageViewport::positionSeekSupport() const
 {
+    if (hasTimedSequence()) {
+        return TriState::True;
+    }
     if (hasStillSequence()) {
         return TriState::False;
     }
@@ -469,7 +653,7 @@ ImageViewport::TriState ImageViewport::positionSeekSupport() const
 
 QSizeF ImageViewport::displayedImageSize() const
 {
-    if (hasReadyStillDisplay()) {
+    if (hasReadyDisplay()) {
         return currentImageSize();
     }
 
@@ -483,7 +667,7 @@ QRectF ImageViewport::contentRect() const
 
 QRectF ImageViewport::visibleImageRect() const
 {
-    if (!hasReadyStillDisplay() || itemBounds().isEmpty()) {
+    if (!hasReadyDisplay() || itemBounds().isEmpty()) {
         return {};
     }
 
@@ -776,14 +960,14 @@ ImageViewport::RequestOutcome ImageViewport::seek(int frame)
         return ignoredNoRequest();
     }
 
-    if (hasStillSequence()) {
+    if (hasDisplayableSequence()) {
         if (frame != 0) {
             setCommandDiagnostic(CommandReason::InvalidRequest);
             return RequestOutcome::Invalid;
         }
 
         clearCommandDiagnosticForAcceptedCommand();
-        publishStillSequenceState();
+        publishSequenceReadyState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -826,7 +1010,7 @@ ImageViewport::RequestOutcome ImageViewport::resetView()
 
 QVariantMap ImageViewport::itemToImage(double x, double y) const
 {
-    if (!hasReadyStillDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
+    if (!hasReadyDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
         return invalidCoordinateResult();
     }
 
@@ -889,7 +1073,7 @@ QVariantMap ImageViewport::imageToItem(double x, double y) const
 
 bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 {
-    if (!hasReadyStillDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
+    if (!hasReadyDisplay() || !std::isfinite(x) || !std::isfinite(y)) {
         return false;
     }
 
@@ -919,13 +1103,13 @@ void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldG
         return;
     }
 
-    if (hasStillSequence() && m_requestStatus == RequestStatus::Loading && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
-        publishStillSequenceState();
+    if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
+        publishSequenceReadyState();
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
         emit displayStateChanged();
-    } else if (hasReadyStillDisplay()) {
+    } else if (hasReadyDisplay()) {
         incrementDisplayRevision();
     }
 
@@ -1000,19 +1184,29 @@ bool ImageViewport::hasActiveRequest() const
     return m_requestStatus != RequestStatus::NoRequest;
 }
 
-bool ImageViewport::hasReadyStillDisplay() const
+bool ImageViewport::hasReadyDisplay() const
 {
-    return hasStillSequence() && m_displayStatus == DisplayStatus::Ready;
+    return hasDisplayableSequence() && m_displayStatus == DisplayStatus::Ready;
 }
 
-bool ImageViewport::hasStillSequence() const
+bool ImageViewport::hasDisplayableSequence() const
 {
     return m_sequence && m_sequence->isValid();
 }
 
+bool ImageViewport::hasStillSequence() const
+{
+    return m_sequence && m_sequence->isStill();
+}
+
+bool ImageViewport::hasTimedSequence() const
+{
+    return m_sequence && m_sequence->isTimedList();
+}
+
 QRectF ImageViewport::currentContentRect() const
 {
-    if (!hasReadyStillDisplay()) {
+    if (!hasReadyDisplay()) {
         return {};
     }
 
@@ -1074,21 +1268,21 @@ QRectF ImageViewport::itemBounds() const
 
 QSizeF ImageViewport::currentImageSize() const
 {
-    if (!hasStillSequence()) {
+    if (!hasDisplayableSequence()) {
         return {};
     }
 
     return m_sequence->logicalSize();
 }
 
-void ImageViewport::publishStillSequenceState()
+void ImageViewport::publishSequenceReadyState()
 {
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
 }
 
-void ImageViewport::publishRenderWaitingStillState()
+void ImageViewport::publishRenderWaitingState()
 {
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::RenderWaiting;

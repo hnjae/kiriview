@@ -6,6 +6,7 @@
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QVariantMap>
+#include <QtCore/QVector>
 #include <QtGui/QColor>
 #include <QtGui/QImage>
 #include <QtQml/qqmlregistration.h>
@@ -18,13 +19,26 @@ class ImageSequence : public QObject
     QML_UNCREATABLE("Use ImageSequenceFactory to create sequence handles")
 
 private:
+    enum class TimingModel {
+        None,
+        Still,
+        TimedList,
+    };
+
     explicit ImageSequence(QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QObject *parent = nullptr);
+    explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent = nullptr);
 
     bool isValid() const;
+    bool isStill() const;
+    bool isTimedList() const;
     QSizeF logicalSize() const;
+    int frameCount() const;
+    int totalDuration() const;
 
+    TimingModel m_timingModel = TimingModel::None;
     QSizeF m_logicalSize;
+    QVector<int> m_frameDurations;
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
@@ -54,15 +68,37 @@ class TimedImageFrameList : public QObject
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
+    Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
 
 public:
     explicit TimedImageFrameList(QObject *parent = nullptr);
 
     int count() const;
+    QString errorString() const;
+    QString warningString() const;
+    Q_INVOKABLE bool appendFrame(ImageFrame *frame, int durationMilliseconds);
     Q_INVOKABLE void clear();
 
 signals:
     void countChanged();
+    void diagnosticsChanged();
+
+private:
+    bool isValid() const;
+    QSizeF logicalSize() const;
+    QVector<int> frameDurations() const;
+    qsizetype payloadByteSize() const;
+    int totalDuration() const;
+    void setErrorString(const QString &errorString);
+
+    QSizeF m_logicalSize;
+    QVector<int> m_frameDurations;
+    qsizetype m_payloadByteSize = 0;
+    QString m_errorString;
+    QString m_warningString;
+
+    friend class ImageSequenceFactory;
 };
 
 class ImageSequenceProviderAdapter : public QObject
@@ -392,13 +428,15 @@ private:
     void clearCommandDiagnosticForAcceptedCommand();
     RequestOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
-    bool hasReadyStillDisplay() const;
+    bool hasReadyDisplay() const;
+    bool hasDisplayableSequence() const;
     bool hasStillSequence() const;
+    bool hasTimedSequence() const;
     QRectF currentContentRect() const;
     QRectF itemBounds() const;
     QSizeF currentImageSize() const;
-    void publishStillSequenceState();
-    void publishRenderWaitingStillState();
+    void publishSequenceReadyState();
+    void publishRenderWaitingState();
 
     QPointer<ImageSequence> m_sequence;
     RequestStatus m_requestStatus = RequestStatus::NoRequest;

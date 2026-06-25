@@ -29,6 +29,8 @@ private slots:
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
+    void timedFrameListBuilderValidatesEntries();
+    void timedFrameListAssignmentPublishesInitialTimedState();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -541,6 +543,83 @@ void ImageViewportTest::stillImageFactoryRejectsPublishedLimitViolations()
     QCOMPARE(result->sequence(), nullptr);
     QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(result->errorString().contains(QStringLiteral("maximumLogicalWidth")));
+}
+
+void ImageViewportTest::timedFrameListBuilderValidatesEntries()
+{
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QImage differentSizeImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    differentSizeImage.fill(Qt::transparent);
+    ImageFrame differentSizeFrame(differentSizeImage);
+
+    TimedImageFrameList list;
+    const QMetaObject *metaObject = list.metaObject();
+    QVERIFY(metaObject->indexOfProperty("count") >= 0);
+    QVERIFY(metaObject->indexOfProperty("errorString") >= 0);
+    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("appendFrame(ImageFrame*,int)")) >= 0);
+    QVERIFY(metaObject->indexOfMethod(QMetaObject::normalizedSignature("clear()")) >= 0);
+
+    QCOMPARE(list.count(), 0);
+    QCOMPARE(list.appendFrame(nullptr, 100), false);
+    QCOMPARE(list.count(), 0);
+    QVERIFY(list.errorString().contains(QStringLiteral("ImageFrame")));
+
+    QCOMPARE(list.appendFrame(&frame, 0), false);
+    QCOMPARE(list.count(), 0);
+    QVERIFY(list.errorString().contains(QStringLiteral("duration")));
+
+    QCOMPARE(list.appendFrame(&frame, 100), true);
+    QCOMPARE(list.appendFrame(&differentSizeFrame, 100), false);
+    QCOMPARE(list.count(), 1);
+    QVERIFY(list.errorString().contains(QStringLiteral("logical size")));
+
+    list.clear();
+    QCOMPARE(list.count(), 0);
+    QCOMPARE(list.errorString(), QString());
+}
+
+void ImageViewportTest::timedFrameListAssignmentPublishesInitialTimedState()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QCOMPARE(item.property("frameCount").toInt(), 2);
+    QCOMPARE(item.property("totalDuration").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
