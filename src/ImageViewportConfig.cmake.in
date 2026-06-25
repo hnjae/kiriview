@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Qt6 COMPONENTS Qml Quick)
+
+if(NOT TARGET ImageViewport::ImageViewport)
+    add_library(ImageViewport::ImageViewport STATIC IMPORTED)
+    set_target_properties(ImageViewport::ImageViewport
+        PROPERTIES
+            IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/@CMAKE_STATIC_LIBRARY_PREFIX@ImageViewport@CMAKE_STATIC_LIBRARY_SUFFIX@"
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@/ImageViewport"
+            INTERFACE_LINK_LIBRARIES "Qt6::Qml;Qt6::Quick"
+    )
+endif()
