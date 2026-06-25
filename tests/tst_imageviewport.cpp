@@ -39,6 +39,7 @@ private slots:
     void hasDocumentedDefaultState();
     void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
+    void qmlCommandsReturnDocumentedOutcomes();
     void imageSequenceIsNotQmlCreatable();
     void imageFrameIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
@@ -1423,6 +1424,43 @@ ImageViewport {
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
     QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);
     QCOMPARE(object->property("limitsAvailable").toBool(), true);
+}
+
+void ImageViewportTest::qmlCommandsReturnDocumentedOutcomes()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    property int playOutcome: play()
+    property int pauseOutcome: pause()
+    property int stopOutcome: stop()
+    property int seekOutcome: seek(0)
+    property int positionSeekOutcome: seekToPosition(0)
+    property int clearOutcome: clear()
+    property int resetViewOutcome: resetView()
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+
+    ImageViewport item;
+    const QMetaObject *metaObject = item.metaObject();
+    QCOMPARE(object->property("playOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("pauseOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("stopOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("seekOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("positionSeekOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("clearOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "Accepted"));
+    QCOMPARE(object->property("resetViewOutcome").toInt(), enumValue(metaObject, "CommandOutcome", "Accepted"));
 }
 
 void ImageViewportTest::imageSequenceIsNotQmlCreatable()
