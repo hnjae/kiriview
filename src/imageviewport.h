@@ -633,6 +633,8 @@ private:
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
     void reportRenderFailure();
+    void captureRenderFailureRetainedDisplay();
+    void clearRenderFailureRetainedDisplay();
     void publishAcceptedTargetState(const QImage &providerImage = {});
     void publishSequenceReadyState(const QImage &providerImage = {});
     void publishRenderWaitingState();
@@ -667,6 +669,11 @@ private:
     QSizeF m_displayedImageSize;
     QImage m_displayedImage;
     QImage m_pendingDisplayImage;
+    bool m_renderFailureRetainedDisplayValid = false;
+    int m_renderFailureRetainedFrame = -1;
+    int m_renderFailureRetainedPosition = -1;
+    QSizeF m_renderFailureRetainedImageSize;
+    QImage m_renderFailureRetainedImage;
     uint m_displayRevision = 0;
     uint m_requestRevision = 0;
     uint m_commandRevision = 0;

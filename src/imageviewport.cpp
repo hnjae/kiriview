@@ -1042,6 +1042,7 @@ void ImageViewport::setSequence(ImageSequence *sequence)
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
+        clearRenderFailureRetainedDisplay();
     }
 
     incrementRequestRevision();
@@ -1521,6 +1522,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_displayedImageSize = {};
     m_displayedImage = {};
     m_pendingDisplayImage = {};
+    clearRenderFailureRetainedDisplay();
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
     m_displayStatus = DisplayStatus::Empty;
@@ -2286,6 +2288,9 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         }
     }
 
+    if (!image.isNull()) {
+        clearRenderFailureRetainedDisplay();
+    }
     return root;
 }
 
@@ -3163,12 +3168,21 @@ void ImageViewport::reportRenderFailure()
 
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::RenderFailure;
-    m_displayStatus = DisplayStatus::Empty;
-    m_displayedFrame = -1;
-    m_displayedPosition = -1;
-    m_displayedImageSize = {};
-    m_displayedImage = {};
+    if (m_renderFailureRetainedDisplayValid) {
+        m_displayStatus = DisplayStatus::Retained;
+        m_displayedFrame = m_renderFailureRetainedFrame;
+        m_displayedPosition = m_renderFailureRetainedPosition;
+        m_displayedImageSize = m_renderFailureRetainedImageSize;
+        m_displayedImage = m_renderFailureRetainedImage;
+    } else {
+        m_displayStatus = DisplayStatus::Empty;
+        m_displayedFrame = -1;
+        m_displayedPosition = -1;
+        m_displayedImageSize = {};
+        m_displayedImage = {};
+    }
     m_pendingDisplayImage = {};
+    clearRenderFailureRetainedDisplay();
     m_errorString = QStringLiteral("render commit failed");
     setPlaybackPhase(PlaybackPhase::Stopped);
 
@@ -3182,6 +3196,29 @@ void ImageViewport::reportRenderFailure()
         emit geometryStateChanged();
     }
     emit diagnosticsChanged();
+}
+
+void ImageViewport::captureRenderFailureRetainedDisplay()
+{
+    if (!hasReadyDisplay()) {
+        clearRenderFailureRetainedDisplay();
+        return;
+    }
+
+    m_renderFailureRetainedDisplayValid = true;
+    m_renderFailureRetainedFrame = m_displayedFrame;
+    m_renderFailureRetainedPosition = m_displayedPosition;
+    m_renderFailureRetainedImageSize = m_displayedImageSize;
+    m_renderFailureRetainedImage = m_displayedImage;
+}
+
+void ImageViewport::clearRenderFailureRetainedDisplay()
+{
+    m_renderFailureRetainedDisplayValid = false;
+    m_renderFailureRetainedFrame = -1;
+    m_renderFailureRetainedPosition = -1;
+    m_renderFailureRetainedImageSize = {};
+    m_renderFailureRetainedImage = {};
 }
 
 void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
@@ -3198,6 +3235,7 @@ void ImageViewport::publishAcceptedTargetState(const QImage &providerImage)
 
 void ImageViewport::publishSequenceReadyState(const QImage &providerImage)
 {
+    captureRenderFailureRetainedDisplay();
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
