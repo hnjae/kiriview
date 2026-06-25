@@ -49,6 +49,7 @@ private slots:
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
     void timedFrameListBuilderValidatesEntries();
+    void timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit();
     void timedFrameListClearDiagnosticOnlyPreservesCountNotification();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
@@ -1230,6 +1231,27 @@ void ImageViewportTest::timedFrameListBuilderValidatesEntries()
     list.clear();
     QCOMPARE(list.count(), 0);
     QCOMPARE(list.errorString(), QString());
+}
+
+void ImageViewportTest::timedFrameListAllowsCumulativePayloadsAbovePerFrameLimit()
+{
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    const qsizetype admittedPayloadSize = ImageSequenceLimits::maximumPayloadBytesPerFrame() / 2 + 1;
+    QVERIFY(admittedPayloadSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    ImageFrame firstFrame(image, admittedPayloadSize);
+    ImageFrame secondFrame(image, admittedPayloadSize);
+
+    TimedImageFrameList list;
+    QCOMPARE(list.appendFrame(&firstFrame, 100), true);
+    QCOMPARE(list.appendFrame(&secondFrame, 100), true);
+    QCOMPARE(list.count(), 2);
+    QCOMPARE(list.errorString(), QString());
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
 }
 
 void ImageViewportTest::timedFrameListClearDiagnosticOnlyPreservesCountNotification()

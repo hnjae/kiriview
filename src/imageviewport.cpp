@@ -363,6 +363,18 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
     }
 }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+ImageFrame::ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QObject *parent)
+    : QObject(parent)
+{
+    if (!image.isNull() && image.width() > 0 && image.height() > 0) {
+        m_logicalSize = QSizeF(image.width(), image.height());
+        m_payloadByteSize = payloadByteSizeForTest;
+        m_image = image.copy();
+    }
+}
+#endif
+
 bool ImageFrame::isValid() const
 {
     return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
@@ -442,10 +454,6 @@ bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMillisecond
         return false;
     }
 
-    if (static_cast<qint64>(m_payloadByteSize) + frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
-        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumPayloadBytesPerFrame"));
-        return false;
-    }
     if (static_cast<qint64>(totalDuration()) + durationMilliseconds > ImageSequenceLimits::maximumTotalSequenceDuration()) {
         setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTotalSequenceDuration"));
         return false;
@@ -453,7 +461,6 @@ bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMillisecond
 
     m_frameDurations.append(durationMilliseconds);
     m_frameImages.append(frame->imagePayload());
-    m_payloadByteSize += frame->payloadByteSize();
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
         emit diagnosticsChanged();
@@ -473,7 +480,6 @@ void TimedImageFrameList::clear()
     m_logicalSize = {};
     m_frameDurations.clear();
     m_frameImages.clear();
-    m_payloadByteSize = 0;
     m_errorString.clear();
     m_warningString.clear();
     if (shouldEmitCountChanged) {
@@ -502,11 +508,6 @@ QVector<int> TimedImageFrameList::frameDurations() const
 QVector<QImage> TimedImageFrameList::frameImages() const
 {
     return m_frameImages;
-}
-
-qsizetype TimedImageFrameList::payloadByteSize() const
-{
-    return m_payloadByteSize;
 }
 
 int TimedImageFrameList::totalDuration() const

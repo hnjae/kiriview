@@ -92,6 +92,9 @@ class ImageFrame : public QObject
 public:
     explicit ImageFrame(QObject *parent = nullptr);
     explicit ImageFrame(const QImage &image, QObject *parent = nullptr);
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QObject *parent = nullptr);
+#endif
 
     bool isValid() const;
     QSizeF logicalSize() const;
@@ -139,14 +142,12 @@ private:
     QSizeF logicalSize() const;
     QVector<int> frameDurations() const;
     QVector<QImage> frameImages() const;
-    qsizetype payloadByteSize() const;
     int totalDuration() const;
     void setErrorString(const QString &errorString);
 
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     QVector<QImage> m_frameImages;
-    qsizetype m_payloadByteSize = 0;
     QString m_errorString;
     QString m_warningString;
 
