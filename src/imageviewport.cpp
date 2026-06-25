@@ -1715,7 +1715,7 @@ ImageViewport::CommandOutcome ImageViewport::stop()
     if (hasTimedSequence()
         && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::RenderWaiting
-        && m_playbackPhase == PlaybackPhase::Waiting
+        && (m_playbackPhase == PlaybackPhase::Waiting || m_playbackPhase == PlaybackPhase::Paused)
         && m_latestNonPlaybackFrame >= 0
         && m_currentFrame != m_latestNonPlaybackFrame) {
         const DisplayStatus oldDisplayStatus = m_displayStatus;
