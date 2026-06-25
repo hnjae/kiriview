@@ -1254,6 +1254,33 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         return CommandOutcome::Invalid;
     }
 
+    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        const int frame = providerFrameIndexForPosition(milliseconds);
+        if (frame < 0) {
+            setCommandDiagnostic(CommandReason::InvalidRequest);
+            return CommandOutcome::Invalid;
+        }
+
+        clearCommandDiagnosticForAcceptedCommand();
+        m_currentFrame = frame;
+        m_requestedPosition = milliseconds;
+        m_playbackPosition = milliseconds;
+        m_requestStatus = RequestStatus::Loading;
+        m_requestReason = RequestReason::ProviderWaiting;
+        m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_errorString.clear();
+        m_activeProviderFrameToken = nextProviderRequestToken();
+        if (m_providerSession) {
+            m_providerSession->requestFrame(m_activeProviderFrameToken, frame);
+        }
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit displayStateChanged();
+        emit diagnosticsChanged();
+        update();
+        return CommandOutcome::Accepted;
+    }
+
     if (hasTimedSequence()) {
         const int frame = m_sequence->frameIndexForPosition(milliseconds);
         if (frame < 0) {
@@ -1931,6 +1958,27 @@ int ImageViewport::providerFrameStartPosition(int frame) const
         position += m_providerFrameDurations.at(index);
     }
     return position;
+}
+
+int ImageViewport::providerFrameIndexForPosition(int position) const
+{
+    if (!m_providerTimedMetadata || position < 0 || position > totalDuration()) {
+        return -1;
+    }
+    if (position == totalDuration()) {
+        return m_providerFrameDurations.size() - 1;
+    }
+
+    int frameStart = 0;
+    for (int index = 0; index < m_providerFrameDurations.size(); ++index) {
+        const int frameEnd = frameStart + m_providerFrameDurations.at(index);
+        if (position >= frameStart && position < frameEnd) {
+            return index;
+        }
+        frameStart = frameEnd;
+    }
+
+    return -1;
 }
 
 QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QString &fallback)

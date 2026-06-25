@@ -539,6 +539,7 @@ private:
     bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata);
     bool validateProviderStillFrame(ImageFrame *frame) const;
     int providerFrameStartPosition(int frame) const;
+    int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
     void publishAcceptedTargetState();
     void publishSequenceReadyState();
