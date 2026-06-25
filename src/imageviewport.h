@@ -15,6 +15,7 @@
 #include <memory>
 
 class ImageSequenceProviderSessionFactory;
+class ImageSequenceProviderMetadata;
 
 class ImageSequence : public QObject
 {
@@ -33,7 +34,11 @@ private:
     explicit ImageSequence(QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent = nullptr);
-    explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory, QObject *parent = nullptr);
+    explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
+        bool hasProviderKnownMetadata,
+        const QSizeF &providerKnownLogicalSize,
+        QVector<int> providerKnownFrameDurations,
+        QObject *parent = nullptr);
 
     bool isValid() const;
     bool isStill() const;
@@ -49,6 +54,9 @@ private:
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
+    bool m_hasProviderKnownMetadata = false;
+    QSizeF m_providerKnownLogicalSize;
+    QVector<int> m_providerKnownFrameDurations;
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
@@ -120,6 +128,7 @@ class ImageSequenceProviderAdapter : public QObject
 public:
     explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
     virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const;
+    virtual ImageSequenceProviderMetadata knownMetadata() const;
 };
 
 class ImageSequenceProviderRequestToken
@@ -160,6 +169,7 @@ public:
     static ImageSequenceProviderMetadata fixedDurationFrames(const QSizeF &logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderMetadata timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations);
 
+    bool isSpecified() const;
     bool isValid() const;
     bool isStill() const;
     bool isTimedFrameList() const;

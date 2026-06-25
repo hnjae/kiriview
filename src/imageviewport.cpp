@@ -46,6 +46,54 @@ QString frameLimitViolation(const ImageFrame &frame)
     return {};
 }
 
+QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata &metadata)
+{
+    if (!metadata.isSpecified()) {
+        return {};
+    }
+    if (!metadata.isValid()) {
+        return QStringLiteral("provider metadata is invalid");
+    }
+
+    const QSizeF size = metadata.logicalSize();
+    const qint64 width = static_cast<qint64>(size.width());
+    const qint64 height = static_cast<qint64>(size.height());
+    if (width > ImageSequenceLimits::maximumLogicalWidth()) {
+        return QStringLiteral("provider metadata logical width exceeds maximumLogicalWidth");
+    }
+    if (height > ImageSequenceLimits::maximumLogicalHeight()) {
+        return QStringLiteral("provider metadata logical height exceeds maximumLogicalHeight");
+    }
+    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+        return QStringLiteral("provider metadata logical size exceeds maximumPixelsPerFrame");
+    }
+
+    if (!metadata.isTimedFrameList()) {
+        return {};
+    }
+
+    const QVector<int> durations = metadata.frameDurations();
+    if (durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
+        return QStringLiteral("provider metadata frame count exceeds maximumTimedListFrameCount");
+    }
+
+    qint64 totalDuration = 0;
+    for (int duration : durations) {
+        if (duration <= 0) {
+            return QStringLiteral("provider metadata frame duration must be positive");
+        }
+        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+            return QStringLiteral("provider metadata frame duration exceeds maximumFrameDuration");
+        }
+        totalDuration += duration;
+        if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+            return QStringLiteral("provider metadata total duration exceeds maximumTotalSequenceDuration");
+        }
+    }
+
+    return {};
+}
+
 }
 
 ImageSequence::ImageSequence(QObject *parent)
@@ -68,10 +116,17 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurati
 {
 }
 
-ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory, QObject *parent)
+ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
+    bool hasProviderKnownMetadata,
+    const QSizeF &providerKnownLogicalSize,
+    QVector<int> providerKnownFrameDurations,
+    QObject *parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Provider)
     , m_providerSessionFactory(std::move(providerSessionFactory))
+    , m_hasProviderKnownMetadata(hasProviderKnownMetadata)
+    , m_providerKnownLogicalSize(providerKnownLogicalSize)
+    , m_providerKnownFrameDurations(std::move(providerKnownFrameDurations))
 {
 }
 
@@ -331,6 +386,11 @@ std::shared_ptr<ImageSequenceProviderSessionFactory> ImageSequenceProviderAdapte
     return {};
 }
 
+ImageSequenceProviderMetadata ImageSequenceProviderAdapter::knownMetadata() const
+{
+    return {};
+}
+
 ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
     : m_id(id)
 {
@@ -387,6 +447,11 @@ bool ImageSequenceProviderMetadata::isValid() const
     }
 
     return false;
+}
+
+bool ImageSequenceProviderMetadata::isSpecified() const
+{
+    return m_timingModel != TimingModel::Invalid;
 }
 
 bool ImageSequenceProviderMetadata::isStill() const
@@ -594,7 +659,22 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory), this),
+    const ImageSequenceProviderMetadata knownMetadata = adapter->knownMetadata();
+    const QString metadataViolation = providerMetadataLimitViolation(knownMetadata);
+    if (!metadataViolation.isEmpty()) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            metadataViolation,
+            {},
+            this);
+    }
+
+    const bool hasKnownMetadata = knownMetadata.isSpecified();
+    return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory),
+                                           hasKnownMetadata,
+                                           hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
+                                           hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
+                                           this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {},
@@ -724,9 +804,19 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     m_activeProviderFrameFromPlayback = false;
 
     if (hasProviderSequence()) {
-        m_currentFrame = -1;
-        m_requestedPosition = -1;
-        m_playbackPosition = -1;
+        if (m_sequence->m_hasProviderKnownMetadata) {
+            m_providerMetadataReady = true;
+            m_providerTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
+            m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
+            m_providerFrameDurations = m_sequence->m_providerKnownFrameDurations;
+            m_currentFrame = 0;
+            m_requestedPosition = m_providerTimedMetadata ? 0 : -1;
+            m_playbackPosition = m_requestedPosition;
+        } else {
+            m_currentFrame = -1;
+            m_requestedPosition = -1;
+            m_playbackPosition = -1;
+        }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
         m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
@@ -1992,8 +2082,14 @@ bool ImageViewport::openProviderSession()
         this,
         &ImageViewport::handleProviderCancellation);
 
-    m_activeProviderMetadataToken = nextProviderRequestToken();
-    m_providerSession->requestMetadata(m_activeProviderMetadataToken);
+    if (m_providerMetadataReady) {
+        m_activeProviderFrameToken = nextProviderRequestToken();
+        m_activeProviderFrameFromPlayback = false;
+        m_providerSession->requestFrame(m_activeProviderFrameToken, m_currentFrame);
+    } else {
+        m_activeProviderMetadataToken = nextProviderRequestToken();
+        m_providerSession->requestMetadata(m_activeProviderMetadataToken);
+    }
     return true;
 }
 
