@@ -2266,39 +2266,48 @@ bool ImageViewport::openProviderSession()
     connect(m_providerSession,
         &ImageSequenceProviderSession::metadataReady,
         this,
-        &ImageViewport::handleProviderMetadataReady);
+        &ImageViewport::handleProviderMetadataReady,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
         this,
-        &ImageViewport::handleProviderFrameReady);
+        &ImageViewport::handleProviderFrameReady,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
         this,
-        &ImageViewport::handleProviderFrameReadyWithMetadata);
+        &ImageViewport::handleProviderFrameReadyWithMetadata,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerWaiting,
         this,
-        &ImageViewport::handleProviderWaiting);
+        &ImageViewport::handleProviderWaiting,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerProgress,
         this,
-        &ImageViewport::handleProviderProgress);
+        &ImageViewport::handleProviderProgress,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::endOfSequence,
         this,
-        &ImageViewport::handleProviderEndOfSequence);
+        &ImageViewport::handleProviderEndOfSequence,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerFailed,
         this,
-        &ImageViewport::handleProviderFailure);
+        &ImageViewport::handleProviderFailure,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerUnsupported,
         this,
-        &ImageViewport::handleProviderUnsupported);
+        &ImageViewport::handleProviderUnsupported,
+        Qt::QueuedConnection);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerCancelled,
         this,
-        &ImageViewport::handleProviderCancellation);
+        &ImageViewport::handleProviderCancellation,
+        Qt::QueuedConnection);
 
     if (m_providerMetadataReady) {
         m_activeProviderFrameToken = nextProviderRequestToken();
