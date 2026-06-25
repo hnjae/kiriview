@@ -18,7 +18,6 @@
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
 class ImageViewportPrivate;
-class ViewportProviderBridge;
 
 enum class ImageSequenceProviderCapabilitySupport {
     Unavailable,
@@ -89,7 +88,6 @@ private:
     friend class ImageSequenceFactory;
     friend class ImageViewport;
     friend class ImageViewportPrivate;
-    friend class ViewportProviderBridge;
 };
 
 class ImageFrame : public QObject

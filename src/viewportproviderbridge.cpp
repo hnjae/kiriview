@@ -79,11 +79,12 @@ void ViewportProviderBridge::closeSession()
 
 bool ViewportProviderBridge::openSession()
 {
-    if (!viewport.hasProviderSequence() || !viewport.m_sequence->m_providerSessionFactory) {
+    const std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory = viewport.providerSessionFactory();
+    if (!sessionFactory) {
         return false;
     }
 
-    viewport.m_providerSession = viewport.m_sequence->m_providerSessionFactory->createSession(viewport.q);
+    viewport.m_providerSession = sessionFactory->createSession(viewport.q);
     if (!viewport.m_providerSession) {
         return false;
     }

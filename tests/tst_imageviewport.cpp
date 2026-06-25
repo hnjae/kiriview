@@ -987,6 +987,25 @@ void ImageViewportTest::doesNotExposeOutOfScopePublicState()
     for (const QByteArray &property : absentProperties) {
         QVERIFY2(metaObject->indexOfProperty(property.constData()) < 0, property.constData());
     }
+
+    const QList<QByteArray> absentMethods = {
+        "load(QString)",
+        "load(QUrl)",
+        "open(QString)",
+        "open(QUrl)",
+        "setSource(QString)",
+        "setSource(QUrl)",
+        "setProvider(QObject*)",
+        "setProgress(double)",
+        "setTexture(QVariant)",
+        "setTileProvider(QObject*)",
+        "setRegion(QRectF)",
+        "setColorManagementPolicy(QVariant)",
+    };
+
+    for (const QByteArray &method : absentMethods) {
+        QVERIFY2(metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) < 0, method.constData());
+    }
 }
 
 void ImageViewportTest::unsupportedSequencePropertyWritesPreserveState()

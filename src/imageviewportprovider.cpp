@@ -563,6 +563,11 @@ bool ImageViewportPrivate::validateProviderFrame(ImageFrame *frame, const ImageS
         });
 }
 
+std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::providerSessionFactory() const
+{
+    return hasProviderSequence() ? m_sequence->m_providerSessionFactory : nullptr;
+}
+
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
 {
     if (!m_providerTimedMetadata) {
