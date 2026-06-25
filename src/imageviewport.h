@@ -16,6 +16,8 @@
 
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
+class ImageViewportPrivate;
+class ViewportProviderBridge;
 
 enum class ImageSequenceProviderCapabilitySupport {
     Unavailable,
@@ -81,6 +83,8 @@ private:
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
+    friend class ImageViewportPrivate;
+    friend class ViewportProviderBridge;
 };
 
 class ImageFrame : public QObject
@@ -114,6 +118,7 @@ private:
     friend class ImageSequenceFactory;
     friend class TimedImageFrameList;
     friend class ImageViewport;
+    friend class ImageViewportPrivate;
 };
 
 class TimedImageFrameList : public QObject
@@ -593,102 +598,9 @@ protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
 
 private:
-    static QVariantMap invalidRange();
-    static QVariantMap invalidCoordinateResult();
+    friend class ImageViewportPrivate;
 
-    void notifyPresentationChanged(bool affectsGeometry);
-    void incrementDisplayRevision();
-    void incrementRequestRevision();
-    void setPlaybackPhase(PlaybackPhase phase);
-    void setCommandDiagnostic(CommandReason reason);
-    void clearCommandDiagnosticForAcceptedCommand();
-    bool clearDiagnostics();
-    CommandOutcome ignoredNoRequest();
-    bool hasActiveRequest() const;
-    bool hasReadyDisplay() const;
-    bool hasDisplayableSequence() const;
-    bool hasStillSequence() const;
-    bool hasTimedSequence() const;
-    bool hasProviderSequence() const;
-    bool hasGenerationTerminalProviderFailure() const;
-    QRectF currentContentRect() const;
-    QRectF itemBounds() const;
-    QSizeF currentImageSize() const;
-    void closeProviderSession();
-    bool openProviderSession();
-    ImageSequenceProviderRequestToken nextProviderRequestToken();
-    void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
-    void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
-    void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
-    void handleProviderWaiting(const ImageSequenceProviderRequestToken &token);
-    void handleProviderProgress(const ImageSequenceProviderRequestToken &token, double progress);
-    void handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token);
-    void handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
-    void handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
-    void handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
-    bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
-    bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata);
-    bool validateProviderFrame(ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) const;
-    int providerFrameStartPosition(int frame) const;
-    int providerFrameIndexForPosition(int position) const;
-    static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
-    void reportRenderFailure();
-    void captureRenderFailureRetainedDisplay();
-    void clearRenderFailureRetainedDisplay();
-    void publishAcceptedTargetState(const QImage &providerImage = {});
-    void publishSequenceReadyState(const QImage &providerImage = {});
-    void publishRenderWaitingState();
-
-    QPointer<ImageSequence> m_sequence;
-    RequestStatus m_requestStatus = RequestStatus::NoRequest;
-    RequestReason m_requestReason = RequestReason::NoRequest;
-    CommandReason m_commandReason = CommandReason::NoCommand;
-    DisplayStatus m_displayStatus = DisplayStatus::Empty;
-    PlaybackPhase m_playbackPhase = PlaybackPhase::Stopped;
-    FillMode m_fillMode = FillMode::Contain;
-    HorizontalAlignment m_horizontalAlignment = HorizontalAlignment::AlignHCenter;
-    VerticalAlignment m_verticalAlignment = VerticalAlignment::AlignVCenter;
-    BackgroundMode m_backgroundMode = BackgroundMode::Transparent;
-    QColor m_backgroundColor = Qt::transparent;
-    double m_zoom = 1.0;
-    QPointF m_pan;
-    bool m_smoothing = true;
-    bool m_mipmap = false;
-    bool m_mirrorHorizontally = false;
-    bool m_mirrorVertically = false;
-    bool m_looping = false;
-    bool m_stopPlaybackWhenRequestReady = false;
-    bool m_providerPlaybackStartPending = false;
-    int m_currentFrame = -1;
-    int m_requestedPosition = -1;
-    int m_playbackPosition = -1;
-    int m_latestNonPlaybackFrame = -1;
-    int m_latestNonPlaybackPosition = -1;
-    int m_displayedFrame = -1;
-    int m_displayedPosition = -1;
-    QSizeF m_displayedImageSize;
-    QImage m_displayedImage;
-    QImage m_pendingDisplayImage;
-    bool m_renderCommitPending = false;
-    bool m_renderFailureRetainedDisplayValid = false;
-    int m_renderFailureRetainedFrame = -1;
-    int m_renderFailureRetainedPosition = -1;
-    QSizeF m_renderFailureRetainedImageSize;
-    QImage m_renderFailureRetainedImage;
-    uint m_displayRevision = 0;
-    uint m_requestRevision = 0;
-    uint m_commandRevision = 0;
-    QString m_errorString;
-    QString m_warningString;
-    QPointer<ImageSequenceProviderSession> m_providerSession;
-    quint64 m_nextProviderRequestToken = 0;
-    ImageSequenceProviderRequestToken m_activeProviderMetadataToken;
-    ImageSequenceProviderRequestToken m_activeProviderFrameToken;
-    bool m_activeProviderFrameFromPlayback = false;
-    bool m_providerMetadataReady = false;
-    bool m_providerTimedMetadata = false;
-    QSizeF m_providerLogicalSize;
-    QVector<int> m_providerFrameDurations;
+    std::unique_ptr<ImageViewportPrivate> d;
 };
 
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)

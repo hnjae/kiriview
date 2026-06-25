@@ -9,14 +9,37 @@ qt_add_qml_module(ImageViewport
     OUTPUT_DIRECTORY
         "${CMAKE_CURRENT_BINARY_DIR}/ImageViewport"
     SOURCES
+        imagesequence.cpp
+        imagesequencefactory.cpp
+        imagesequenceprovider.cpp
+        framepreparation.cpp
+        framepreparation_p.h
+        imageviewport_p.cpp
+        imageviewportcontroller.cpp
+        imageviewportfacade.cpp
+        imageviewportpresentation.cpp
+        imageviewportprovider.cpp
+        imageviewportrender.cpp
         imageviewport.cpp
         imageviewport.h
+        imageviewport_p.h
+        imageviewportstate_p.h
+        presentationgeometry.cpp
+        presentationgeometry_p.h
+        renderadapter.cpp
+        renderadapter_p.h
+        viewportcontroller.cpp
+        viewportcontroller_p.h
+        viewportproviderbridge.cpp
+        viewportproviderbridge_p.h
 )
 
 target_include_directories(ImageViewport
     PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport>"
+        ${OPENGL_INCLUDE_DIR}
+    PRIVATE
 )
 
 target_link_libraries(ImageViewport
@@ -24,6 +47,11 @@ target_link_libraries(ImageViewport
         OpenGL::GL
         Qt6::Qml
         Qt6::Quick
+)
+
+target_compile_options(ImageViewport
+    PUBLIC
+        $<$<BOOL:${OPENGL_INCLUDE_DIR}>:-I${OPENGL_INCLUDE_DIR}>
 )
 
 target_compile_definitions(ImageViewport

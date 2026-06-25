@@ -11,6 +11,11 @@ target_link_libraries(tst_imageviewport
         Qt6::Test
 )
 
+target_include_directories(tst_imageviewport
+    PRIVATE
+        ${OPENGL_INCLUDE_DIR}
+)
+
 target_compile_definitions(tst_imageviewport
     PRIVATE
         IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
