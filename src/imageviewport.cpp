@@ -1810,6 +1810,9 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
         const QRectF oldContentRect = contentRect();
         const QRectF oldVisibleImageRect = visibleImageRect();
         publishAcceptedTargetState();
+        if (m_playbackPhase == PlaybackPhase::Playing && m_requestStatus == RequestStatus::Loading) {
+            setPlaybackPhase(PlaybackPhase::Waiting);
+        }
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
@@ -1919,6 +1922,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
         const QRectF oldContentRect = contentRect();
         const QRectF oldVisibleImageRect = visibleImageRect();
         publishAcceptedTargetState();
+        if (m_playbackPhase == PlaybackPhase::Playing && m_requestStatus == RequestStatus::Loading) {
+            setPlaybackPhase(PlaybackPhase::Waiting);
+        }
         incrementRequestRevision();
         incrementDisplayRevision();
         emit requestStateChanged();
