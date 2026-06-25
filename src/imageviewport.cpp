@@ -2597,7 +2597,10 @@ ImageSequenceProviderRequestToken ImageViewport::nextProviderRequestToken()
 
 void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata)
 {
-    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+    if (!hasProviderSequence()
+        || !m_providerSession
+        || !m_activeProviderMetadataToken.isValid()
+        || token != m_activeProviderMetadataToken) {
         return;
     }
 
@@ -2720,7 +2723,10 @@ void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestT
 
 void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata)
 {
-    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderFrameToken) {
+    if (!hasProviderSequence()
+        || !m_providerSession
+        || !m_activeProviderFrameToken.isValid()
+        || token != m_activeProviderFrameToken) {
         return;
     }
 
@@ -2779,8 +2785,11 @@ void ImageViewport::handleProviderWaiting(const ImageSequenceProviderRequestToke
         return;
     }
 
-    const bool activeMetadataToken = !m_providerMetadataReady && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = token == m_activeProviderFrameToken;
+    const bool activeMetadataToken = !m_providerMetadataReady
+        && m_activeProviderMetadataToken.isValid()
+        && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken = m_activeProviderFrameToken.isValid()
+        && token == m_activeProviderFrameToken;
     if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
         return;
     }
@@ -2809,8 +2818,11 @@ void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderReque
         return;
     }
 
-    const bool activeMetadataToken = !m_providerMetadataReady && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = token == m_activeProviderFrameToken;
+    const bool activeMetadataToken = !m_providerMetadataReady
+        && m_activeProviderMetadataToken.isValid()
+        && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken = m_activeProviderFrameToken.isValid()
+        && token == m_activeProviderFrameToken;
     if (!activeMetadataToken && !activeFrameToken) {
         return;
     }
@@ -2894,7 +2906,7 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
         return;
     }
 
-    if (token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
@@ -2907,7 +2919,9 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
         return;
     }
 
-    if (token != m_activeProviderMetadataToken) {
+    if (m_providerMetadataReady
+        || !m_activeProviderMetadataToken.isValid()
+        || token != m_activeProviderMetadataToken) {
         return;
     }
 
@@ -2928,7 +2942,7 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
         return;
     }
 
-    if (token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
@@ -2941,7 +2955,9 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
         return;
     }
 
-    if (token != m_activeProviderMetadataToken) {
+    if (m_providerMetadataReady
+        || !m_activeProviderMetadataToken.isValid()
+        || token != m_activeProviderMetadataToken) {
         return;
     }
 
@@ -2962,7 +2978,7 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
         return;
     }
 
-    if (token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
@@ -2975,7 +2991,9 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
         return;
     }
 
-    if (token != m_activeProviderMetadataToken) {
+    if (m_providerMetadataReady
+        || !m_activeProviderMetadataToken.isValid()
+        || token != m_activeProviderMetadataToken) {
         return;
     }
 
