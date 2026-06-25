@@ -2197,6 +2197,8 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 
 void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
+    const QRectF oldContentRect = contentRect();
+    const QRectF oldVisibleImageRect = visibleImageRect();
     QQuickItem::geometryChange(newGeometry, oldGeometry);
 
     if (newGeometry.size() == oldGeometry.size()) {
@@ -2221,7 +2223,9 @@ void ImageViewport::geometryChange(const QRectF &newGeometry, const QRectF &oldG
         incrementDisplayRevision();
     }
 
-    emit geometryStateChanged();
+    if (contentRect() != oldContentRect || visibleImageRect() != oldVisibleImageRect) {
+        emit geometryStateChanged();
+    }
     update();
 }
 

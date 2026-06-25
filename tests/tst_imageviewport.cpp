@@ -4159,6 +4159,12 @@ void ImageViewportTest::presentationChangesWithoutDisplayDoNotNotifyGeometryStat
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
     QCOMPARE(geometrySpy.count(), 0);
+
+    item.setSize(QSizeF(100.0, 100.0));
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
