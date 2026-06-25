@@ -1143,6 +1143,32 @@ ImageViewport::CommandOutcome ImageViewport::seek(int frame)
     }
 
     if (hasDisplayableSequence()) {
+        if (hasProviderSequence() && m_providerMetadataReady) {
+            if (frame != 0) {
+                setCommandDiagnostic(CommandReason::InvalidRequest);
+                return CommandOutcome::Invalid;
+            }
+
+            clearCommandDiagnosticForAcceptedCommand();
+            m_currentFrame = 0;
+            m_requestedPosition = -1;
+            m_playbackPosition = -1;
+            m_requestStatus = RequestStatus::Loading;
+            m_requestReason = RequestReason::ProviderWaiting;
+            m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+            m_errorString.clear();
+            m_activeProviderFrameToken = nextProviderRequestToken();
+            if (m_providerSession) {
+                m_providerSession->requestFrame(m_activeProviderFrameToken, 0);
+            }
+            incrementRequestRevision();
+            emit requestStateChanged();
+            emit displayStateChanged();
+            emit diagnosticsChanged();
+            update();
+            return CommandOutcome::Accepted;
+        }
+
         if (frame < 0 || frame >= m_sequence->frameCount()) {
             setCommandDiagnostic(CommandReason::InvalidRequest);
             return CommandOutcome::Invalid;
@@ -1689,7 +1715,21 @@ void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestT
 
 void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderMetadataToken) {
+    if (!hasProviderSequence() || !m_providerSession) {
+        return;
+    }
+
+    if (token == m_activeProviderFrameToken) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::ProviderFailure;
+        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
+
+    if (token != m_activeProviderMetadataToken) {
         return;
     }
 
