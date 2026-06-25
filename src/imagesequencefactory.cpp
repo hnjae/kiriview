@@ -4,6 +4,15 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+
+bool providerCapabilityResolved(ImageSequenceProviderCapabilitySupport support)
+{
+    return support != ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+}
+
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
     FactoryOutcome outcome,
     QString errorString,
@@ -144,6 +153,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
     }
 
     const ImageSequenceProviderMetadata knownMetadata = adapter->knownMetadata();
+    const ImageSequenceProviderCapabilitySupport timedPlaybackCapability = adapter->timedPlaybackCapability();
+    const ImageSequenceProviderCapabilitySupport frameSeekCapability = adapter->frameSeekCapability();
+    const ImageSequenceProviderCapabilitySupport positionSeekCapability = adapter->positionSeekCapability();
     const QString metadataViolation = providerMetadataLimitViolation(knownMetadata);
     if (!metadataViolation.isEmpty()) {
         return new ImageSequenceFactoryResult(nullptr,
@@ -155,9 +167,9 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();
     if (hasKnownMetadata
-        && (providerCapabilityContradictsMetadata(adapter->timedPlaybackCapability(), knownMetadata.isTimedFrameList())
-            || providerCapabilityContradictsMetadata(adapter->frameSeekCapability(), true)
-            || providerCapabilityContradictsMetadata(adapter->positionSeekCapability(), knownMetadata.isTimedFrameList()))) {
+        && (providerCapabilityContradictsMetadata(timedPlaybackCapability, knownMetadata.isTimedFrameList())
+            || providerCapabilityContradictsMetadata(frameSeekCapability, true)
+            || providerCapabilityContradictsMetadata(positionSeekCapability, knownMetadata.isTimedFrameList()))) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("provider metadata contradicts declared capabilities"),
@@ -165,13 +177,19 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
             this);
     }
 
+    const bool hasCompleteKnownMetadata = hasKnownMetadata
+        && providerCapabilityResolved(timedPlaybackCapability)
+        && providerCapabilityResolved(frameSeekCapability)
+        && providerCapabilityResolved(positionSeekCapability);
+
     return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory),
                                            hasKnownMetadata,
+                                           hasCompleteKnownMetadata,
                                            hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
                                            hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
-                                           adapter->timedPlaybackCapability(),
-                                           adapter->frameSeekCapability(),
-                                           adapter->positionSeekCapability(),
+                                           timedPlaybackCapability,
+                                           frameSeekCapability,
+                                           positionSeekCapability,
                                            this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},

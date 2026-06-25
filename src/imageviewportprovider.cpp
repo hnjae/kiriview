@@ -59,6 +59,25 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
         return;
     }
 
+    if (m_sequence->m_hasProviderKnownMetadata) {
+        const bool knownTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
+        const bool contradictsKnownMetadata = knownTimedMetadata != isTimedMetadata
+            || metadata.logicalSize() != m_sequence->m_providerKnownLogicalSize
+            || (knownTimedMetadata && metadata.frameDurations() != m_sequence->m_providerKnownFrameDurations);
+        if (contradictsKnownMetadata) {
+            m_requestStatus = RequestStatus::Error;
+            m_requestReason = RequestReason::PayloadRejection;
+            m_errorString = QStringLiteral("provider metadata contradicts construction-time metadata");
+            m_providerPlaybackStartPending = false;
+            setPlaybackPhase(PlaybackPhase::Stopped);
+            incrementRequestRevision();
+            emit q->requestStateChanged();
+            emit q->diagnosticsChanged();
+            closeProviderSession();
+            return;
+        }
+    }
+
     m_providerMetadataReady = true;
     m_providerTimedMetadata = isTimedMetadata;
     m_providerLogicalSize = metadata.logicalSize();

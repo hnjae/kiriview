@@ -39,12 +39,12 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
 
     if (hasProviderSequence()) {
         if (m_sequence->m_hasProviderKnownMetadata) {
-            m_providerMetadataReady = true;
+            m_providerMetadataReady = m_sequence->m_hasCompleteProviderKnownMetadata;
             m_providerTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
             m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
             m_providerFrameDurations = m_sequence->m_providerKnownFrameDurations;
-            m_currentFrame = 0;
-            m_requestedPosition = m_providerTimedMetadata ? 0 : -1;
+            m_currentFrame = m_providerMetadataReady ? 0 : -1;
+            m_requestedPosition = m_providerMetadataReady ? (m_providerTimedMetadata ? 0 : -1) : -1;
             m_playbackPosition = m_requestedPosition;
             m_latestNonPlaybackFrame = m_currentFrame;
             m_latestNonPlaybackPosition = m_requestedPosition;
@@ -181,7 +181,7 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
+    if (hasProviderSequence() && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
         return m_providerTimedMetadata ? m_providerFrameDurations.size() : 1;
     }
     if (hasDisplayableSequence()) {
@@ -209,7 +209,7 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
+    if (hasProviderSequence() && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
         return {
             {QStringLiteral("minimum"), 0},
             {QStringLiteral("maximum"), m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0},

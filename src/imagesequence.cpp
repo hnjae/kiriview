@@ -28,6 +28,7 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurati
 
 ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
     bool hasProviderKnownMetadata,
+    bool hasCompleteProviderKnownMetadata,
     const QSizeF &providerKnownLogicalSize,
     QVector<int> providerKnownFrameDurations,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
@@ -38,6 +39,7 @@ ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory
     , m_timingModel(TimingModel::Provider)
     , m_providerSessionFactory(std::move(providerSessionFactory))
     , m_hasProviderKnownMetadata(hasProviderKnownMetadata)
+    , m_hasCompleteProviderKnownMetadata(hasCompleteProviderKnownMetadata)
     , m_providerKnownLogicalSize(providerKnownLogicalSize)
     , m_providerKnownFrameDurations(std::move(providerKnownFrameDurations))
     , m_providerTimedPlaybackCapability(timedPlaybackCapability)

@@ -46,6 +46,7 @@ private:
     explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject *parent = nullptr);
     explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         bool hasProviderKnownMetadata,
+        bool hasCompleteProviderKnownMetadata,
         const QSizeF &providerKnownLogicalSize,
         QVector<int> providerKnownFrameDurations,
         ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
@@ -77,6 +78,7 @@ private:
     QVector<QImage> m_frameImages;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
     bool m_hasProviderKnownMetadata = false;
+    bool m_hasCompleteProviderKnownMetadata = false;
     QSizeF m_providerKnownLogicalSize;
     QVector<int> m_providerKnownFrameDurations;
     ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
