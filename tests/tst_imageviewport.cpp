@@ -735,6 +735,13 @@ ImageViewport {
     property bool mappingInvalid: itemToImage(1, 1).valid === false
     property bool mappingHasFlatFields: imageToItem(1, 1).x === 0 && imageToItem(1, 1).y === 0
     property bool limitsAvailable: ImageSequenceLimits.maximumLogicalWidth >= 8192
+        && ImageSequenceLimits.maximumLogicalHeight >= 8192
+        && ImageSequenceLimits.maximumPixelsPerFrame >= 67108864
+        && ImageSequenceLimits.maximumPayloadBytesPerFrame >= 268435456
+        && ImageSequenceLimits.maximumTimedListFrameCount >= 10000
+        && ImageSequenceLimits.maximumFrameDuration >= 86400000
+        && ImageSequenceLimits.maximumTotalSequenceDuration >= 86400000
+        && ImageSequenceLimits.maximumDiagnosticStringLength >= 4096
 }
 )",
         QUrl());
