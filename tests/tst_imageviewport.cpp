@@ -41,6 +41,7 @@ private slots:
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
     void clearReadyDisplayEmitsGeometryStateChanged();
+    void clearNonPresentableDisplayDoesNotEmitGeometryStateChanged();
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
@@ -878,7 +879,7 @@ void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
     const uint readyRequestRevision = item.property("requestRevision").toUInt();
     const uint readyDisplayRevision = item.property("displayRevision").toUInt();
 
-    item.setSequence(nullptr);
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "NoRequest"));
@@ -932,12 +933,37 @@ void ImageViewportTest::clearReadyDisplayEmitsGeometryStateChanged()
 
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
-    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    item.setSequence(nullptr);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(geometrySpy.count(), 1);
+}
+
+void ImageViewportTest::clearNonPresentableDisplayDoesNotEmitGeometryStateChanged()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    item.setSize(QSizeF(0.0, 100.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    item.setSequence(nullptr);
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTest::stillImageReadyReplacementIncrementsDisplayRevision()
