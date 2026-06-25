@@ -275,6 +275,13 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
         || !m_providerMetadataReady
         || !m_providerTimedMetadata
         || !m_activeProviderFrameFromPlayback) {
+        if (activeMetadataToken) {
+            m_activeProviderMetadataToken = {};
+        }
+        if (activeFrameToken) {
+            m_activeProviderFrameToken = {};
+            m_activeProviderFrameFromPlayback = false;
+        }
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider protocol violation");
@@ -375,6 +382,7 @@ void ImageViewportPrivate::handleProviderFailure(const ImageSequenceProviderRequ
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::ProviderFailure;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
+    m_activeProviderMetadataToken = {};
     m_providerPlaybackStartPending = false;
     setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
@@ -411,6 +419,7 @@ void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProvider
     m_requestStatus = RequestStatus::Unsupported;
     m_requestReason = RequestReason::UnsupportedRequest;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
+    m_activeProviderMetadataToken = {};
     m_providerPlaybackStartPending = false;
     setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
@@ -447,6 +456,7 @@ void ImageViewportPrivate::handleProviderCancellation(const ImageSequenceProvide
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::ProviderFailure;
     m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
+    m_activeProviderMetadataToken = {};
     m_providerPlaybackStartPending = false;
     setPlaybackPhase(PlaybackPhase::Stopped);
     incrementRequestRevision();
