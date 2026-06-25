@@ -611,6 +611,14 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
+    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
 }
 
 void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()

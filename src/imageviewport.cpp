@@ -1356,6 +1356,8 @@ void ImageViewport::setLooping(bool looping)
 
 ImageViewport::CommandOutcome ImageViewport::clear()
 {
+    const bool requestChanged = hasActiveRequest() || m_sequence;
+    const bool displayChanged = m_displayStatus != DisplayStatus::Empty || m_displayedImageSize.isValid();
     closeProviderSession();
     m_sequence = nullptr;
     m_currentFrame = -1;
@@ -1382,8 +1384,12 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     m_errorString.clear();
     m_warningString.clear();
     clearCommandDiagnosticForAcceptedCommand();
-    incrementRequestRevision();
-    incrementDisplayRevision();
+    if (requestChanged) {
+        incrementRequestRevision();
+    }
+    if (displayChanged) {
+        incrementDisplayRevision();
+    }
 
     emit sequenceChanged();
     emit requestStateChanged();
