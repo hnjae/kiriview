@@ -4294,6 +4294,16 @@ void ImageViewportTest::providerTimedFrameSeekCancelsSupersededRequest()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("errorString").toString(), QString());
+
+    emit sessionFactory->lastSession()->providerFailed(firstSeekToken,
+        QStringLiteral("superseded request failed late"));
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportTest::providerTimedPositionSeekRequestsResolvedFrame()
