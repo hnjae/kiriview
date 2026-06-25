@@ -110,6 +110,7 @@ private slots:
     void solidBackgroundCreatesPaintNode();
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
+    void coverImageTextureNodeUsesVisibleSourceRect();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -3912,6 +3913,33 @@ void ImageViewportTest::stillImageCreatesTexturePaintNode()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportTest::coverImageTextureNodeUsesVisibleSourceRect()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    item.setFillMode(ImageViewport::FillMode::Cover);
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto *imageNode = dynamic_cast<QSGImageNode *>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(imageNode->rect(), QRectF(0.0, 0.0, 100.0, 100.0));
+    QCOMPARE(imageNode->sourceRect(), item.property("visibleImageRect").toRectF());
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

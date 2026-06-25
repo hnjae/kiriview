@@ -2097,8 +2097,8 @@ QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         if (texture && imageNode) {
             imageNode->setTexture(texture);
             imageNode->setOwnsTexture(true);
-            imageNode->setRect(currentContentRect());
-            imageNode->setSourceRect(QRectF(QPointF(), image.size()));
+            imageNode->setRect(currentContentRect().intersected(itemBounds()));
+            imageNode->setSourceRect(visibleImageRect());
             imageNode->setFiltering(m_smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
             imageNode->setMipmapFiltering(m_mipmap ? QSGTexture::Linear : QSGTexture::None);
             QSGImageNode::TextureCoordinatesTransformMode transform = {};
