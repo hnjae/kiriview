@@ -308,6 +308,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
                 setCommandDiagnostic(CommandReason::UnsupportedRequest);
                 return CommandOutcome::Unsupported;
             }
+            if (m_sequence->m_hasProviderKnownMetadata) {
+                const int maximumFrame = m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0;
+                if (frame > maximumFrame) {
+                    setCommandDiagnostic(CommandReason::InvalidRequest);
+                    return CommandOutcome::Invalid;
+                }
+            }
 
             clearCommandDiagnosticForAcceptedCommand();
             m_providerPlaybackStartPending = false;
@@ -384,6 +391,16 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         if (providerCapabilityKnownFalse(m_sequence->m_providerPositionSeekCapability)) {
             setCommandDiagnostic(CommandReason::UnsupportedRequest);
             return CommandOutcome::Unsupported;
+        }
+        if (m_sequence->m_hasProviderKnownMetadata) {
+            if (!m_providerTimedMetadata) {
+                setCommandDiagnostic(CommandReason::UnsupportedRequest);
+                return CommandOutcome::Unsupported;
+            }
+            if (providerFrameIndexForPosition(milliseconds) < 0) {
+                setCommandDiagnostic(CommandReason::InvalidRequest);
+                return CommandOutcome::Invalid;
+            }
         }
 
         clearCommandDiagnosticForAcceptedCommand();

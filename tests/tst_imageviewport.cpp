@@ -74,6 +74,7 @@ private slots:
     void providerResultsAreQueuedFromSessionEntryPoint();
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerPartialConstructionMetadataWaitsForRuntimeMetadata();
+    void providerPartialConstructionMetadataRejectsSeeksPastKnownBounds();
     void providerDeclaredCapabilityProjectsBeforeMetadata();
     void providerKnownCapabilityProjectsBeforeMetadata();
     void providerDeclaredCapabilityContradictionRejectsMetadata();
@@ -2203,6 +2204,54 @@ void ImageViewportTest::providerPartialConstructionMetadataWaitsForRuntimeMetada
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+}
+
+void ImageViewportTest::providerPartialConstructionMetadataRejectsSeeksPastKnownBounds()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+
+    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
+    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+
+    QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(*frameRequestCount, 0);
+
+    QCOMPARE(item.seekToPosition(351), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
 }
 
 void ImageViewportTest::providerDeclaredCapabilityProjectsBeforeMetadata()
