@@ -1149,6 +1149,14 @@ ImageViewport::CommandOutcome ImageViewport::play()
         return ignoredNoRequest();
     }
 
+    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        clearCommandDiagnosticForAcceptedCommand();
+        m_stopPlaybackWhenRequestReady = false;
+        m_playbackPosition = m_requestedPosition >= 0 ? m_requestedPosition : providerFrameStartPosition(m_currentFrame);
+        setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting : PlaybackPhase::Playing);
+        return CommandOutcome::Accepted;
+    }
+
     if (hasTimedSequence()) {
         clearCommandDiagnosticForAcceptedCommand();
         m_stopPlaybackWhenRequestReady = false;
