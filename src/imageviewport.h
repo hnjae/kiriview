@@ -151,11 +151,13 @@ public:
     enum class TimingModel {
         Invalid,
         Still,
+        FixedDurationFrames,
         TimedFrameList,
     };
 
     ImageSequenceProviderMetadata() = default;
     static ImageSequenceProviderMetadata still(const QSizeF &logicalSize);
+    static ImageSequenceProviderMetadata fixedDurationFrames(const QSizeF &logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderMetadata timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations);
 
     bool isValid() const;

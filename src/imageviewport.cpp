@@ -354,6 +354,17 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF 
     return metadata;
 }
 
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames(const QSizeF &logicalSize, int frameCount, int frameDuration)
+{
+    ImageSequenceProviderMetadata metadata;
+    metadata.m_timingModel = TimingModel::FixedDurationFrames;
+    metadata.m_logicalSize = logicalSize;
+    if (frameCount > 0) {
+        metadata.m_frameDurations = QVector<int>(frameCount, frameDuration);
+    }
+    return metadata;
+}
+
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations)
 {
     ImageSequenceProviderMetadata metadata;
@@ -385,7 +396,7 @@ bool ImageSequenceProviderMetadata::isStill() const
 
 bool ImageSequenceProviderMetadata::isTimedFrameList() const
 {
-    return m_timingModel == TimingModel::TimedFrameList;
+    return m_timingModel == TimingModel::FixedDurationFrames || m_timingModel == TimingModel::TimedFrameList;
 }
 
 QSizeF ImageSequenceProviderMetadata::logicalSize() const
