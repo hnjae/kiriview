@@ -2503,11 +2503,32 @@ void ImageViewport::handleProviderProgress(const ImageSequenceProviderRequestTok
 
 void ImageViewport::handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token)
 {
-    if (!hasProviderSequence()
-        || !m_providerSession
-        || !m_providerMetadataReady
+    if (!hasProviderSequence() || !m_providerSession) {
+        return;
+    }
+
+    const bool activeMetadataToken = !m_providerMetadataReady && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken = token == m_activeProviderFrameToken;
+    if (!activeMetadataToken && !activeFrameToken) {
+        return;
+    }
+
+    if (activeMetadataToken) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider protocol violation");
+        m_providerPlaybackStartPending = false;
+        m_stopPlaybackWhenRequestReady = false;
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        closeProviderSession();
+        return;
+    }
+
+    if (!m_providerMetadataReady
         || !m_providerTimedMetadata
-        || token != m_activeProviderFrameToken
         || !m_activeProviderFrameFromPlayback) {
         return;
     }
