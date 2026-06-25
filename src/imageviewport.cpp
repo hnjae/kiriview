@@ -719,6 +719,17 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
     }
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();
+    if (hasKnownMetadata
+        && (providerCapabilityContradictsMetadata(adapter->timedPlaybackCapability(), knownMetadata.isTimedFrameList())
+            || providerCapabilityContradictsMetadata(adapter->frameSeekCapability(), true)
+            || providerCapabilityContradictsMetadata(adapter->positionSeekCapability(), knownMetadata.isTimedFrameList()))) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("provider metadata contradicts declared capabilities"),
+            {},
+            this);
+    }
+
     return new ImageSequenceFactoryResult(new ImageSequence(std::move(sessionFactory),
                                            hasKnownMetadata,
                                            hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
