@@ -962,6 +962,15 @@ ImageViewport::RequestOutcome ImageViewport::play()
         return ignoredNoRequest();
     }
 
+    if (hasTimedSequence()) {
+        clearCommandDiagnosticForAcceptedCommand();
+        if (m_playbackPhase != PlaybackPhase::Playing) {
+            m_playbackPhase = PlaybackPhase::Playing;
+            emit playbackPhaseChanged();
+        }
+        return RequestOutcome::Accepted;
+    }
+
     setCommandDiagnostic(CommandReason::UnsupportedRequest);
     return RequestOutcome::Unsupported;
 }

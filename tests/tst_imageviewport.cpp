@@ -32,6 +32,7 @@ private slots:
     void timedFrameListBuilderValidatesEntries();
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
+    void timedFrameListPlaybackCommandsUpdatePhase();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -676,6 +677,44 @@ void ImageViewportTest::timedFrameListSeekCommandsSelectDocumentedTargets()
     QCOMPARE(item.property("requestRevision").toUInt(), acceptedPositionSeekRevision);
     QCOMPARE(item.property("requestedPosition").toInt(), 350);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::timedFrameListPlaybackCommandsUpdatePhase()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::transparent);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+
+    QCOMPARE(item.pause(), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Paused"));
+
+    QCOMPARE(item.play(), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    QCOMPARE(item.stop(), ImageViewport::RequestOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
