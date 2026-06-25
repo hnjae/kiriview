@@ -1974,6 +1974,8 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
         return;
     }
 
+    m_activeProviderMetadataToken = {};
+
     const bool isStillMetadata = validateProviderStillMetadata(metadata);
     const bool isTimedMetadata = validateProviderTimedMetadata(metadata);
     if (!isStillMetadata && !isTimedMetadata) {
