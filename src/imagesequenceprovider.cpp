@@ -1,5 +1,6 @@
 #include "imageviewporthelpers_p.h"
 
+#include <algorithm>
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -63,7 +64,8 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames
     metadata.m_timingModel = TimingModel::FixedDurationFrames;
     metadata.m_logicalSize = logicalSize;
     if (frameCount > 0) {
-        metadata.m_frameDurations = QVector<int>(frameCount, frameDuration);
+        const int retainedFrameCount = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+        metadata.m_frameDurations = QVector<int>(retainedFrameCount, frameDuration);
     }
     return metadata;
 }

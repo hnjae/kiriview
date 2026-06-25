@@ -3901,6 +3901,14 @@ void ImageViewportTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(fixedDurationMetadata.isTimedFrameList(), true);
     QCOMPARE(fixedDurationMetadata.frameDurations(), QVector<int>({100, 100, 100}));
 
+    const ImageSequenceProviderMetadata overLimitFixedDurationMetadata =
+        ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0),
+            ImageSequenceLimits::maximumTimedListFrameCount() + 2,
+            100);
+    QCOMPARE(overLimitFixedDurationMetadata.isSpecified(), true);
+    QCOMPARE(overLimitFixedDurationMetadata.isTimedFrameList(), true);
+    QCOMPARE(overLimitFixedDurationMetadata.frameDurations().size(), ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+
     const ImageSequenceProviderMetadata zeroDurationMetadata =
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 0});
     QCOMPARE(zeroDurationMetadata.isSpecified(), true);
