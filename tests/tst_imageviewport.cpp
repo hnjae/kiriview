@@ -30,6 +30,7 @@ private slots:
     void defaultConstructsAsQuickItem();
     void doesNotExposeSourceProperty();
     void unsupportedSequencePropertyWritesPreserveState();
+    void sequenceAssignmentPreservesCommandDiagnostic();
     void qmlUnsupportedSequenceAssignmentsPreserveState();
     void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void exposesDocumentedQmlSurface();
@@ -908,6 +909,35 @@ void ImageViewportTest::unsupportedSequencePropertyWritesPreserveState()
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(*sessionCount, 0);
+}
+
+void ImageViewportTest::sequenceAssignmentPreservesCommandDiagnostic()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    const QMetaObject *metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    const uint commandRevision = item.property("commandRevision").toUInt();
+
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    item.setSequence(result->sequence());
+
+    QCOMPARE(item.sequence(), result->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(commandSpy.count(), 0);
 }
 
 void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveState()
