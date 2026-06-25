@@ -6747,6 +6747,7 @@ void ImageViewportTest::providerPlaybackBeforeStillMetadataKeepsGenerationSeekab
     QCOMPARE(item.property("totalDuration").toInt(), -1);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
 
