@@ -1475,6 +1475,7 @@ void ImageViewportTest::providerDeclaredCapabilityProjectsBeforeMetadata()
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
     item.setSequence(result->sequence());
     const QMetaObject *metaObject = item.metaObject();
 
@@ -1482,6 +1483,7 @@ void ImageViewportTest::providerDeclaredCapabilityProjectsBeforeMetadata()
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), -1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);

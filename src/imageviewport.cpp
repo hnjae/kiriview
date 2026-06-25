@@ -922,12 +922,15 @@ void ImageViewport::setSequence(ImageSequence *sequence)
     }
 
     incrementRequestRevision();
-    if (m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready) {
+    const bool displayValueChanged = m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready;
+    if (displayValueChanged) {
         incrementDisplayRevision();
     }
     emit sequenceChanged();
     emit requestStateChanged();
-    emit displayStateChanged();
+    if (displayValueChanged) {
+        emit displayStateChanged();
+    }
     emit geometryStateChanged();
     if (m_playbackPhase != oldPlaybackPhase) {
         emit playbackPhaseChanged();
