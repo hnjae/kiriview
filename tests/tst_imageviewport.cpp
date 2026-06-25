@@ -1276,6 +1276,13 @@ void ImageViewportTest::emptyGeometryChangeIncrementsDisplayRevision()
 
     QCOMPARE(item.property("displayRevision").toUInt(), 1U);
     QCOMPARE(displayRevisionSpy.count(), 1);
+
+    const double changedWidth = 100.0 + 5.0e-13;
+    QVERIFY(changedWidth != 100.0);
+    item.setSize(QSizeF(changedWidth, 50.0));
+
+    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QCOMPARE(displayRevisionSpy.count(), 2);
 }
 
 void ImageViewportTest::qmlImportsDocumentedSurface()

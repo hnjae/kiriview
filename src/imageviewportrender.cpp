@@ -74,7 +74,7 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
     const QRectF &oldContentRect,
     const QRectF &oldVisibleImageRect)
 {
-    if (newGeometry.size() == oldGeometry.size()) {
+    if (newGeometry.width() == oldGeometry.width() && newGeometry.height() == oldGeometry.height()) {
         return;
     }
 
