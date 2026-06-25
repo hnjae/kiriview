@@ -6000,6 +6000,10 @@ void ImageViewportTest::providerProgressResultsAreAdvisory()
 
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken = sessionFactory->lastSession()->lastMetadataToken();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
+
     emit sessionFactory->lastSession()->providerProgress(metadataToken, 0.5);
     drainQueuedProviderResults();
     emit sessionFactory->lastSession()->providerWaiting(metadataToken);
@@ -6007,21 +6011,29 @@ void ImageViewportTest::providerProgressResultsAreAdvisory()
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
     QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(requestRevisionSpy.count(), 0);
 
     emit sessionFactory->lastSession()->metadataReady(metadataToken,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestRevisionSpy.count(), 1);
+
     emit sessionFactory->lastSession()->providerProgress(metadataToken, 1.0);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(requestSpy.count(), 1);
+    QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
 void ImageViewportTest::providerInvalidProgressResultsAreIgnored()
