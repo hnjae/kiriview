@@ -862,7 +862,11 @@ bool ImageViewport::containsVisibleImagePoint(double x, double y) const
         return false;
     }
 
-    return visibleImageRect().contains(QPointF(x, y));
+    const QRectF visible = visibleImageRect();
+    return x >= visible.left()
+        && y >= visible.top()
+        && x < visible.right()
+        && y < visible.bottom();
 }
 
 QSGNode *ImageViewport::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)

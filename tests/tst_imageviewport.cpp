@@ -26,6 +26,7 @@ private slots:
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
+    void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -428,6 +429,60 @@ void ImageViewportTest::stillImageCommandsPreserveOrReplaceDocumentedState()
     QCOMPARE(item.property("commandRevision").toUInt(), 4U);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+
+    item.setFillMode(ImageViewport::FillMode::Cover);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-50.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(4.0, 0.0, 8.0, 8.0));
+    QCOMPARE(item.itemToImage(0.0, 50.0).value("x").toDouble(), 4.0);
+    QCOMPARE(item.itemToImage(99.0, 50.0).value("valid").toBool(), true);
+    QCOMPARE(item.containsVisibleImagePoint(3.999, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(12.0, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(11.999, 4.0), true);
+    QCOMPARE(item.imageToItem(4.0, 4.0).value("x").toDouble(), 0.0);
+    QCOMPARE(item.imageToItem(12.0, 4.0).value("valid").toBool(), false);
+
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
+    QCOMPARE(item.itemToImage(99.0, 50.0).value("x").toDouble(), 7.92);
+
+    item.setFillMode(ImageViewport::FillMode::Stretch);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(item.itemToImage(50.0, 50.0).value("x").toDouble(), 8.0);
+    QCOMPARE(item.itemToImage(50.0, 50.0).value("y").toDouble(), 4.0);
+
+    item.setFillMode(ImageViewport::FillMode::Center);
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(42.0, 46.0, 16.0, 8.0));
+    QCOMPARE(item.itemToImage(42.0, 46.0).value("valid").toBool(), true);
+    QCOMPARE(item.itemToImage(58.0, 50.0).value("valid").toBool(), false);
+
+    item.setMirrorHorizontally(true);
+    item.setMirrorVertically(true);
+    const QVariantMap mirrored = item.itemToImage(42.001, 46.001);
+    QCOMPARE(mirrored.value("valid").toBool(), true);
+    QCOMPARE(mirrored.value("x").toDouble(), 15.999);
+    QCOMPARE(mirrored.value("y").toDouble(), 7.999);
+
+    const QVariantMap mirroredItem = item.imageToItem(15.999, 7.999);
+    QCOMPARE(mirroredItem.value("valid").toBool(), true);
+    QCOMPARE(mirroredItem.value("x").toDouble(), 42.001);
+    QCOMPARE(mirroredItem.value("y").toDouble(), 46.001);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
