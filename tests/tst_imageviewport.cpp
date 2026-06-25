@@ -36,6 +36,7 @@ private slots:
     void imageSequenceIsNotQmlCreatable();
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
+    void qmlTimedFrameListExposesBuilderState();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
     void imageFrameRetainsImmutablePayload();
@@ -1089,6 +1090,51 @@ void ImageViewportTest::exposesTypedSequenceFactorySurface()
     QCOMPARE(result->property("sequence").value<QObject *>(), nullptr);
     QCOMPARE(result->property("outcome").toInt(), enumValue(result->metaObject(), "FactoryOutcome", "Invalid"));
     QVERIFY(!result->property("errorString").toString().isEmpty());
+}
+
+void ImageViewportTest::qmlTimedFrameListExposesBuilderState()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+Item {
+    TimedImageFrameList {
+        id: list
+    }
+
+    property bool initialCountIsZero: list.count === 0
+    property bool appendNullRejected: false
+    property bool appendPreservedCount: false
+    property bool appendSetDiagnostic: false
+    property bool factoryRejectsEmptyList: false
+    property bool clearResetsDiagnostic: false
+
+    Component.onCompleted: {
+        appendNullRejected = list.appendFrame(null, 100) === false
+        appendPreservedCount = list.count === 0
+        appendSetDiagnostic = list.errorString.indexOf("ImageFrame") >= 0
+        factoryRejectsEmptyList = ImageSequenceFactory.fromTimedFrameList(list).sequence === null
+        list.clear()
+        clearResetsDiagnostic = list.count === 0 && list.errorString === "" && list.warningString === ""
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("initialCountIsZero").toBool(), true);
+    QCOMPARE(object->property("appendNullRejected").toBool(), true);
+    QCOMPARE(object->property("appendPreservedCount").toBool(), true);
+    QCOMPARE(object->property("appendSetDiagnostic").toBool(), true);
+    QCOMPARE(object->property("factoryRejectsEmptyList").toBool(), true);
+    QCOMPARE(object->property("clearResetsDiagnostic").toBool(), true);
 }
 
 void ImageViewportTest::factoryResultDiagnosticsArePublicSafe()
