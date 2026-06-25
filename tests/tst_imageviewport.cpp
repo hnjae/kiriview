@@ -2833,6 +2833,7 @@ void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    verifyInvalidCoordinateResult(item.imageToItem(8.0, 4.0));
     QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), false);
 }
 
