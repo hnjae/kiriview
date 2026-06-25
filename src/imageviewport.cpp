@@ -1919,6 +1919,19 @@ bool ImageViewport::validateProviderStillFrame(ImageFrame *frame) const
         && frame->payloadByteSize() <= ImageSequenceLimits::maximumPayloadBytesPerFrame();
 }
 
+int ImageViewport::providerFrameStartPosition(int frame) const
+{
+    if (!m_providerTimedMetadata || frame < 0 || frame >= m_providerFrameDurations.size()) {
+        return -1;
+    }
+
+    int position = 0;
+    for (int index = 0; index < frame; ++index) {
+        position += m_providerFrameDurations.at(index);
+    }
+    return position;
+}
+
 QString ImageViewport::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
 {
     const QString selected = diagnostic.isEmpty() ? fallback : diagnostic;
@@ -1940,7 +1953,11 @@ void ImageViewport::publishSequenceReadyState()
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
     m_displayedFrame = m_currentFrame;
-    m_displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
+    if (hasProviderSequence()) {
+        m_displayedPosition = providerFrameStartPosition(m_currentFrame);
+    } else {
+        m_displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
+    }
     m_displayedImageSize = hasProviderSequence() ? m_providerLogicalSize : m_sequence->logicalSize();
 }
 
