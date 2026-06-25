@@ -75,6 +75,7 @@ private slots:
     void stillImageReplacementPreservesPresentationState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
+    void coordinateHelpersRejectNonFiniteInputs();
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
@@ -2650,6 +2651,30 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(mirroredOriginItem.value("valid").toBool(), true);
     QCOMPARE(mirroredOriginItem.value("x").toDouble(), 58.0);
     QCOMPARE(mirroredOriginItem.value("y").toDouble(), 54.0);
+}
+
+void ImageViewportTest::coordinateHelpersRejectNonFiniteInputs()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    verifyInvalidCoordinateResult(item.itemToImage(infinity, 50.0));
+    verifyInvalidCoordinateResult(item.itemToImage(50.0, nan));
+    verifyInvalidCoordinateResult(item.imageToItem(infinity, 4.0));
+    verifyInvalidCoordinateResult(item.imageToItem(8.0, nan));
+    QCOMPARE(item.containsVisibleImagePoint(infinity, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(8.0, nan), false);
 }
 
 void ImageViewportTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
