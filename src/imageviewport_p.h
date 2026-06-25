@@ -6,6 +6,8 @@
 #include "viewportcontroller_p.h"
 #include "viewportproviderbridge_p.h"
 
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QTimer>
 #include <QtQuick/QSGNode>
 
 class ImageViewportPrivate
@@ -140,6 +142,13 @@ public:
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void setPlaybackPhase(PlaybackPhase phase);
+    void syncPlaybackTimer();
+    void stopPlaybackTimer();
+    void handlePlaybackTimer();
+    int takePlaybackTimerElapsed();
+    void flushPlaybackTimerElapsed();
+    int playbackTimerInterval() const;
+    void advancePlayback(int elapsedMilliseconds);
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
@@ -165,6 +174,8 @@ public:
     ImageViewportInternal::DisplayState display;
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
+    QTimer playbackTimer;
+    QElapsedTimer playbackElapsedTimer;
 
     QPointer<ImageSequence> &m_sequence = request.sequence;
     RequestStatus &m_requestStatus = request.status;

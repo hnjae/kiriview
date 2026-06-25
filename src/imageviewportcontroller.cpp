@@ -1,6 +1,9 @@
 #include "imageviewport_p.h"
 #include "framepreparation_p.h"
 
+#include <algorithm>
+#include <limits>
+
 using namespace ImageViewportInternal;
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
@@ -573,8 +576,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::resetViewCommandImpl(
     return CommandOutcome::Accepted;
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
+void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     if (m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
         return;
@@ -730,6 +732,13 @@ void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
     }
     update();
 }
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
+{
+    advancePlayback(elapsedMilliseconds);
+    syncPlaybackTimer();
+}
 #endif
 
 void ImageViewportPrivate::incrementDisplayRevision()
@@ -752,6 +761,84 @@ void ImageViewportPrivate::setPlaybackPhase(PlaybackPhase phase)
 
     m_playbackPhase = phase;
     emit q->playbackPhaseChanged();
+    syncPlaybackTimer();
+}
+
+void ImageViewportPrivate::syncPlaybackTimer()
+{
+    const int interval = playbackTimerInterval();
+    if (interval <= 0) {
+        stopPlaybackTimer();
+        return;
+    }
+
+    playbackElapsedTimer.restart();
+    playbackTimer.start(interval);
+}
+
+void ImageViewportPrivate::stopPlaybackTimer()
+{
+    playbackTimer.stop();
+    playbackElapsedTimer.invalidate();
+}
+
+void ImageViewportPrivate::handlePlaybackTimer()
+{
+    advancePlayback(takePlaybackTimerElapsed());
+    syncPlaybackTimer();
+}
+
+int ImageViewportPrivate::takePlaybackTimerElapsed()
+{
+    const qint64 elapsedMilliseconds = playbackElapsedTimer.isValid() ? playbackElapsedTimer.elapsed() : 0;
+    playbackTimer.stop();
+    playbackElapsedTimer.invalidate();
+    return static_cast<int>(std::min<qint64>(elapsedMilliseconds, std::numeric_limits<int>::max()));
+}
+
+void ImageViewportPrivate::flushPlaybackTimerElapsed()
+{
+    if (!playbackElapsedTimer.isValid()) {
+        return;
+    }
+
+    advancePlayback(takePlaybackTimerElapsed());
+}
+
+int ImageViewportPrivate::playbackTimerInterval() const
+{
+    if (m_playbackPhase != PlaybackPhase::Playing || m_requestStatus != RequestStatus::Ready) {
+        return -1;
+    }
+
+    int frameStart = -1;
+    int frameDuration = -1;
+    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        if (m_currentFrame < 0 || m_currentFrame >= m_providerFrameDurations.size()) {
+            return -1;
+        }
+        frameStart = providerFrameStartPosition(m_currentFrame);
+        frameDuration = m_providerFrameDurations.at(m_currentFrame);
+    } else if (hasTimedSequence()) {
+        if (m_currentFrame < 0 || m_currentFrame >= m_sequence->frameCount()) {
+            return -1;
+        }
+        frameStart = m_sequence->frameStartPosition(m_currentFrame);
+        const int nextFrameStart = m_currentFrame + 1 < m_sequence->frameCount()
+            ? m_sequence->frameStartPosition(m_currentFrame + 1)
+            : m_sequence->totalDuration();
+        frameDuration = nextFrameStart - frameStart;
+    } else {
+        return -1;
+    }
+
+    if (frameStart < 0 || frameDuration <= 0) {
+        return -1;
+    }
+
+    const int playbackPosition = m_playbackPosition >= 0 ? m_playbackPosition : frameStart;
+    const int remaining = frameStart + frameDuration - playbackPosition;
+    return std::max(1, remaining);
 }
 
 void ImageViewportPrivate::setCommandDiagnostic(CommandReason reason)

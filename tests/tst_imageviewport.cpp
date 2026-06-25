@@ -72,6 +72,7 @@ private slots:
     void timedFrameListPlaybackCommandsUpdatePhase();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
+    void timedFrameListPlaybackAdvancesFromRuntimeTimer();
     void timedFrameListPlaybackWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay();
     void timedFrameListStopAfterPauseWhileRenderWaitingRestoresPreviousDisplay();
@@ -135,6 +136,7 @@ private slots:
     void providerTimedPositionSeekRequestsResolvedFrame();
     void providerTimedPlaybackCommandsUpdatePhase();
     void providerTimedPlaybackAdvancesDeterministically();
+    void providerTimedPlaybackAdvancesFromRuntimeTimer();
     void providerTimedPlaybackFrameReadyWaitsForRenderCommit();
     void providerTimedPlaybackEndOfSequenceRequestsFinalFrame();
     void providerTimedPlaybackEndOfSequenceDoesNotPromoteRetainedPreviousGeneration();
@@ -2360,6 +2362,42 @@ void ImageViewportTest::timedFrameListPlaybackAdvancesDeterministically()
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::timedFrameListPlaybackAdvancesFromRuntimeTimer()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 20));
+    QVERIFY(list.appendFrame(&secondFrame, 1000));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    QVERIFY(requestSpy.wait(1000));
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 20);
+    QCOMPARE(item.property("displayedPosition").toInt(), 20);
 }
 
 void ImageViewportTest::timedFrameListPlaybackWithUnchangedGeometryDoesNotNotifyGeometryState()
@@ -5259,6 +5297,69 @@ void ImageViewportTest::providerTimedPlaybackAdvancesDeterministically()
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::providerTimedPlaybackAdvancesFromRuntimeTimer()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        playbackRequestCount,
+        lastPlaybackFrame,
+        lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {20, 1000}));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+    QVERIFY(commitPaintNode(item));
+
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    QVERIFY(requestSpy.wait(1000));
+
+    QCOMPARE(*playbackRequestCount, 1);
+    QCOMPARE(*lastPlaybackFrame, 1);
+    QCOMPARE(*lastPlaybackPosition, 20);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 20);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
 }
 
 void ImageViewportTest::providerTimedPlaybackFrameReadyWaitsForRenderCommit()

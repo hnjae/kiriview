@@ -112,6 +112,7 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     if (m_errorString != oldErrorString || m_warningString != oldWarningString) {
         emit q->diagnosticsChanged();
     }
+    syncPlaybackTimer();
     update();
 }
 

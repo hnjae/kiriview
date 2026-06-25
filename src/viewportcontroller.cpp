@@ -51,32 +51,50 @@ void ViewportController::advancePlaybackForTest(int elapsedMilliseconds)
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
 {
-    return controller.clear();
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.clear();
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::play()
 {
-    return controller.play();
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.play();
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 {
-    return controller.pause();
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.pause();
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 {
-    return controller.stop();
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.stop();
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 {
-    return controller.seek(frame);
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.seek(frame);
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
 {
-    return controller.seekToPosition(milliseconds);
+    flushPlaybackTimerElapsed();
+    const ImageViewport::CommandOutcome outcome = controller.seekToPosition(milliseconds);
+    syncPlaybackTimer();
+    return outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
