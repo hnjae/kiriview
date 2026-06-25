@@ -96,7 +96,8 @@ QVariantMap PresentationGeometry::itemToImage(const State &state, double x, doub
     }
 
     const QRectF content = contentRectForReadyState(state);
-    if (state.itemBounds.isEmpty() || content.isEmpty() || x < state.itemBounds.left() || y < state.itemBounds.top() || x >= state.itemBounds.right() || y >= state.itemBounds.bottom()) {
+    const QRectF visibleItemRect = content.intersected(state.itemBounds);
+    if (visibleItemRect.isEmpty() || x < visibleItemRect.left() || y < visibleItemRect.top() || x >= visibleItemRect.right() || y >= visibleItemRect.bottom()) {
         return invalidCoordinateResult();
     }
 

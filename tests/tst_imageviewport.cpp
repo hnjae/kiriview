@@ -2039,6 +2039,12 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(item.itemToImage(58.0, 50.0).value("valid").toBool(), false);
 
     item.setMirrorHorizontally(true);
+    QCOMPARE(item.itemToImage(42.0, 50.0).value("valid").toBool(), false);
+    QCOMPARE(item.itemToImage(58.0, 50.0).value("valid").toBool(), false);
+    const QVariantMap horizontallyMirrored = item.itemToImage(57.999, 50.0);
+    QCOMPARE(horizontallyMirrored.value("valid").toBool(), true);
+    QVERIFY(qAbs(horizontallyMirrored.value("x").toDouble() - 0.001) < 0.000001);
+
     item.setMirrorVertically(true);
     const QVariantMap mirrored = item.itemToImage(42.001, 46.001);
     QCOMPARE(mirrored.value("valid").toBool(), true);
