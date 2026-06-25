@@ -1391,6 +1391,12 @@ ImageViewport {
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
     property bool mappingInvalid: itemToImage(1, 1).valid === false
     property bool mappingHasFlatFields: imageToItem(1, 1).x === 0 && imageToItem(1, 1).y === 0
+    property bool unavailableValuesHaveDocumentedFields: frameSeekBounds.minimum === -1
+        && frameSeekBounds.maximum === -1
+        && positionSeekBounds.minimum === -1
+        && positionSeekBounds.maximum === -1
+        && contentRect.width === 0
+        && visibleImageRect.height === 0
     property bool limitsAvailable: ImageSequenceLimits.maximumLogicalWidth >= 8192
         && ImageSequenceLimits.maximumLogicalHeight >= 8192
         && ImageSequenceLimits.maximumPixelsPerFrame >= 67108864
@@ -1427,6 +1433,7 @@ ImageViewport {
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
     QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);
+    QCOMPARE(object->property("unavailableValuesHaveDocumentedFields").toBool(), true);
     QCOMPARE(object->property("limitsAvailable").toBool(), true);
 }
 
