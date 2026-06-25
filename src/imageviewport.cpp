@@ -138,11 +138,12 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObje
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent)
+ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject *parent)
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
     , m_frameDurations(std::move(frameDurations))
+    , m_frameImages(std::move(frameImages))
 {
 }
 
@@ -259,8 +260,11 @@ int ImageSequence::frameIndexForPosition(int position) const
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageSequence::frameImageForTest(int) const
+QImage ImageSequence::frameImageForTest(int frame) const
 {
+    if (isTimedList() && frame >= 0 && frame < m_frameImages.size()) {
+        return m_frameImages.at(frame);
+    }
     return m_stillImage;
 }
 #endif
@@ -371,6 +375,7 @@ bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMillisecond
     }
 
     m_frameDurations.append(durationMilliseconds);
+    m_frameImages.append(frame->imagePayload());
     m_payloadByteSize += frame->payloadByteSize();
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
@@ -390,6 +395,7 @@ void TimedImageFrameList::clear()
     const bool shouldEmitDiagnosticsChanged = !m_errorString.isEmpty() || !m_warningString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
+    m_frameImages.clear();
     m_payloadByteSize = 0;
     m_errorString.clear();
     m_warningString.clear();
@@ -414,6 +420,11 @@ QSizeF TimedImageFrameList::logicalSize() const
 QVector<int> TimedImageFrameList::frameDurations() const
 {
     return m_frameDurations;
+}
+
+QVector<QImage> TimedImageFrameList::frameImages() const
+{
+    return m_frameImages;
 }
 
 qsizetype TimedImageFrameList::payloadByteSize() const
@@ -712,7 +723,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageF
             this);
     }
 
-    return new ImageSequenceFactoryResult(new ImageSequence(list->logicalSize(), list->frameDurations(), this),
+    return new ImageSequenceFactoryResult(new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages(), this),
         ImageSequenceFactoryResult::FactoryOutcome::Created,
         {},
         {},

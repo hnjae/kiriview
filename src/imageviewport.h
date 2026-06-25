@@ -39,7 +39,7 @@ private:
 
     explicit ImageSequence(QObject *parent = nullptr);
     explicit ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObject *parent = nullptr);
-    explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QObject *parent = nullptr);
+    explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject *parent = nullptr);
     explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         bool hasProviderKnownMetadata,
         const QSizeF &providerKnownLogicalSize,
@@ -69,6 +69,7 @@ private:
     QSizeF m_logicalSize;
     QImage m_stillImage;
     QVector<int> m_frameDurations;
+    QVector<QImage> m_frameImages;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
     bool m_hasProviderKnownMetadata = false;
     QSizeF m_providerKnownLogicalSize;
@@ -107,6 +108,7 @@ private:
     qsizetype m_payloadByteSize = 0;
 
     friend class ImageSequenceFactory;
+    friend class TimedImageFrameList;
 };
 
 class TimedImageFrameList : public QObject
@@ -134,12 +136,14 @@ private:
     bool isValid() const;
     QSizeF logicalSize() const;
     QVector<int> frameDurations() const;
+    QVector<QImage> frameImages() const;
     qsizetype payloadByteSize() const;
     int totalDuration() const;
     void setErrorString(const QString &errorString);
 
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
+    QVector<QImage> m_frameImages;
     qsizetype m_payloadByteSize = 0;
     QString m_errorString;
     QString m_warningString;

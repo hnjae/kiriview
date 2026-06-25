@@ -34,6 +34,7 @@ private slots:
     void exposesImageSequenceLimits();
     void imageFrameRetainsImmutablePayload();
     void stillImageSequenceRetainsFactoryPayload();
+    void timedFrameListSequenceRetainsFactoryPayloads();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
@@ -729,6 +730,34 @@ void ImageViewportTest::stillImageSequenceRetainsFactoryPayload()
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageViewportTest::timedFrameListSequenceRetainsFactoryPayloads()
+{
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+    {
+        QImage firstImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+        firstImage.fill(QColor(255, 0, 0, 255));
+        QImage secondImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+        secondImage.fill(QColor(0, 255, 0, 255));
+        ImageFrame firstFrame(firstImage);
+        ImageFrame secondFrame(secondImage);
+        TimedImageFrameList list;
+        QVERIFY(list.appendFrame(&firstFrame, 100));
+        QVERIFY(list.appendFrame(&secondFrame, 250));
+
+        result.reset(factory.fromTimedFrameList(&list));
+        QVERIFY(result->sequence());
+    }
+
+    const QImage firstRetained = result->sequence()->frameImageForTest(0);
+    QCOMPARE(firstRetained.size(), QSize(2, 1));
+    QCOMPARE(firstRetained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+
+    const QImage secondRetained = result->sequence()->frameImageForTest(1);
+    QCOMPARE(secondRetained.size(), QSize(2, 1));
+    QCOMPARE(secondRetained.pixelColor(0, 0), QColor(0, 255, 0, 255));
 }
 
 void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
