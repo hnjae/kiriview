@@ -1,5 +1,6 @@
 #include <imageviewport.h>
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QGuiApplication>
 #include <QImage>
@@ -157,5 +158,25 @@ int main(int argc, char **argv)
     if (result->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
         return 1;
     }
+
+    ImageViewport providerViewport;
+    providerViewport.setSequence(result->sequence());
+    if (providerViewport.requestStatus() != ImageViewport::RequestStatus::Loading
+        || providerViewport.requestReason() != ImageViewport::RequestReason::ProviderWaiting
+        || providerViewport.requestedFrame() != 0
+        || providerViewport.requestedPosition() != 0
+        || providerViewport.frameCount() != 2
+        || providerViewport.totalDuration() != 200) {
+        return 1;
+    }
+
+    QCoreApplication::processEvents();
+    if (providerViewport.requestStatus() != ImageViewport::RequestStatus::Loading
+        || providerViewport.requestReason() != ImageViewport::RequestReason::RenderWaiting
+        || providerViewport.displayStatus() != ImageViewport::DisplayStatus::Empty
+        || providerViewport.displayedFrame() != -1) {
+        return 1;
+    }
+
     return canCreateInstalledQmlViewport() ? 0 : 1;
 }
