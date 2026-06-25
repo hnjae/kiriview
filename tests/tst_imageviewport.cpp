@@ -619,6 +619,7 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(item.property("commandRevision").toUInt(), 3U);
@@ -631,6 +632,7 @@ void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(playbackSpy.count(), 0);
     QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
 void ImageViewportTest::stillImageSequenceAssignmentPublishesReadyState()

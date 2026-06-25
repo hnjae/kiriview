@@ -1363,6 +1363,7 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     const bool requestChanged = hasActiveRequest() || m_sequence;
     const bool displayChanged = m_displayStatus != DisplayStatus::Empty || m_displayedImageSize.isValid();
     const bool playbackChanged = m_playbackPhase != PlaybackPhase::Stopped;
+    const bool diagnosticsValueChanged = !m_errorString.isEmpty() || !m_warningString.isEmpty();
     closeProviderSession();
     m_sequence = nullptr;
     m_currentFrame = -1;
@@ -1408,7 +1409,9 @@ ImageViewport::CommandOutcome ImageViewport::clear()
     if (playbackChanged) {
         emit playbackPhaseChanged();
     }
-    emit diagnosticsChanged();
+    if (diagnosticsValueChanged) {
+        emit diagnosticsChanged();
+    }
     update();
     return CommandOutcome::Accepted;
 }
