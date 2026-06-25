@@ -28,6 +28,7 @@ class ImageViewportTest : public QObject
 private slots:
     void defaultConstructsAsQuickItem();
     void doesNotExposeSourceProperty();
+    void unsupportedSequencePropertyWritesPreserveState();
     void exposesDocumentedQmlSurface();
     void hasDocumentedDefaultState();
     void qmlImportsDocumentedSurface();
@@ -492,6 +493,63 @@ void ImageViewportTest::doesNotExposeSourceProperty()
     ImageViewport item;
 
     QCOMPARE(item.metaObject()->indexOfProperty("source"), -1);
+}
+
+void ImageViewportTest::unsupportedSequencePropertyWritesPreserveState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+
+    const QList<QVariant> unsupportedValues = {
+        QVariant(QStringLiteral("image.png")),
+        QVariant(QUrl(QStringLiteral("file:///tmp/image.png"))),
+        QVariant(QByteArray("not image data")),
+        QVariantMap{{QStringLiteral("url"), QStringLiteral("image.png")}},
+        QVariant::fromValue<QObject *>(&adapter),
+    };
+
+    for (const QVariant &value : unsupportedValues) {
+        QCOMPARE(item.setProperty("sequence", value), false);
+        QCOMPARE(item.sequence(), result->sequence());
+        QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        QCOMPARE(item.property("requestedFrame").toInt(), 0);
+        QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+        QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    }
+
+    QCOMPARE(sequenceSpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(*sessionCount, 0);
 }
 
 void ImageViewportTest::exposesDocumentedQmlSurface()
