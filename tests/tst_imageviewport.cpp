@@ -1049,6 +1049,7 @@ ImageViewport {
     QtObject { id: rawObject }
     property bool stringAssignmentPreserved: false
     property bool urlAssignmentPreserved: false
+    property bool byteBufferAssignmentPreserved: false
     property bool jsObjectAssignmentPreserved: false
     property bool objectAssignmentPreserved: false
 
@@ -1068,6 +1069,16 @@ ImageViewport {
         } catch (error) {
         }
         urlAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
+        try {
+            sequence = new ArrayBuffer(4)
+        } catch (error) {
+        }
+        byteBufferAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
             && requestRevision === 0
@@ -1103,6 +1114,7 @@ ImageViewport {
     QVERIFY2(object, qPrintable(componentErrors(component)));
     QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
 }
@@ -1134,6 +1146,7 @@ ImageViewport {
 
     property bool stringAssignmentPreserved: false
     property bool urlAssignmentPreserved: false
+    property bool byteBufferAssignmentPreserved: false
     property bool jsObjectAssignmentPreserved: false
     property bool objectAssignmentPreserved: false
 
@@ -1164,6 +1177,11 @@ ImageViewport {
         }
         urlAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
         try {
+            sequence = new ArrayBuffer(4)
+        } catch (error) {
+        }
+        byteBufferAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+        try {
             sequence = ({ url: "image.png" })
         } catch (error) {
         }
@@ -1185,6 +1203,7 @@ ImageViewport {
     QVERIFY2(object, qPrintable(componentErrors(component)));
     QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
 }
