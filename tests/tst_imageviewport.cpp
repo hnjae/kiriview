@@ -243,6 +243,7 @@ private slots:
     void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void backgroundPresentationDoesNotChangeRequestOrPlayback();
     void qualityPresentationDoesNotChangeRequestGeometryOrPlayback();
+    void loopingDoesNotChangeRequestDisplayOrGeometry();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -10851,6 +10852,69 @@ void ImageViewportTest::qualityPresentationDoesNotChangeRequestGeometryOrPlaybac
     QCOMPARE(geometrySpy.count(), 0);
     QCOMPARE(playbackSpy.count(), 0);
     QCOMPARE(presentationSpy.count(), 2);
+    QCOMPARE(diagnosticsSpy.count(), 0);
+}
+
+void ImageViewportTest::loopingDoesNotChangeRequestDisplayOrGeometry()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    const uint commandRevision = item.property("commandRevision").toUInt();
+    const QRectF contentRect = item.property("contentRect").toRectF();
+    const QRectF visibleImageRect = item.property("visibleImageRect").toRectF();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
+    QSignalSpy loopingSpy(&item, &ImageViewport::loopingChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
+    item.setLooping(true);
+
+    QCOMPARE(item.looping(), true);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(item.property("contentRect").toRectF(), contentRect);
+    QCOMPARE(item.property("visibleImageRect").toRectF(), visibleImageRect);
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displayStateSpy.count(), 0);
+    QCOMPARE(displayRevisionSpy.count(), 0);
+    QCOMPARE(geometrySpy.count(), 0);
+    QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(presentationSpy.count(), 0);
+    QCOMPARE(loopingSpy.count(), 1);
     QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
