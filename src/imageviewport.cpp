@@ -2069,6 +2069,8 @@ void ImageViewport::handleProviderFailure(const ImageSequenceProviderRequestToke
     }
 
     if (token == m_activeProviderFrameToken) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
@@ -2098,6 +2100,8 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
     }
 
     if (token == m_activeProviderFrameToken) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
@@ -2127,6 +2131,8 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
     }
 
     if (token == m_activeProviderFrameToken) {
+        m_activeProviderFrameToken = {};
+        m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));

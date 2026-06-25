@@ -1832,7 +1832,8 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QCOMPARE(*frameRequestCount, 1);
 
-    emit sessionFactory->lastSession()->providerFailed(sessionFactory->lastSession()->lastFrameToken(),
+    const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
+    emit sessionFactory->lastSession()->providerFailed(frameToken,
         QStringLiteral("frame decode failed"));
 
     QCOMPARE(*closeCount, 0);
@@ -1842,6 +1843,16 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 2);
@@ -1911,7 +1922,8 @@ void ImageViewportTest::providerFrameUnsupportedKeepsGenerationSeekable()
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QCOMPARE(*frameRequestCount, 1);
 
-    emit sessionFactory->lastSession()->providerUnsupported(sessionFactory->lastSession()->lastFrameToken(),
+    const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
+    emit sessionFactory->lastSession()->providerUnsupported(frameToken,
         QStringLiteral("unsupported frame shape"));
 
     QCOMPARE(*closeCount, 0);
@@ -1921,6 +1933,16 @@ void ImageViewportTest::providerFrameUnsupportedKeepsGenerationSeekable()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported frame shape")));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 2);
@@ -1990,7 +2012,8 @@ void ImageViewportTest::providerFrameCancellationReportsProviderFailure()
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QCOMPARE(*frameRequestCount, 1);
 
-    emit sessionFactory->lastSession()->providerCancelled(sessionFactory->lastSession()->lastFrameToken(),
+    const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
+    emit sessionFactory->lastSession()->providerCancelled(frameToken,
         QStringLiteral("cancelled by provider"));
 
     QCOMPARE(*closeCount, 0);
@@ -1999,6 +2022,16 @@ void ImageViewportTest::providerFrameCancellationReportsProviderFailure()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("cancelled by provider")));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()
