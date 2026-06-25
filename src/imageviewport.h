@@ -88,7 +88,12 @@ public:
     QSizeF logicalSize() const;
     qsizetype payloadByteSize() const;
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    QImage imageForTest() const;
+#endif
+
 private:
+    QImage m_image;
     QSizeF m_logicalSize;
     qsizetype m_payloadByteSize = 0;
 };

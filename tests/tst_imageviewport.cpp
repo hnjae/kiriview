@@ -32,6 +32,7 @@ private slots:
     void imageSequenceProviderAdapterIsNotQmlCreatable();
     void exposesTypedSequenceFactorySurface();
     void exposesImageSequenceLimits();
+    void imageFrameRetainsImmutablePayload();
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
@@ -693,6 +694,21 @@ void ImageViewportTest::exposesImageSequenceLimits()
     QVERIFY(limits.property("maximumFrameDuration").toInt() >= 86400000);
     QVERIFY(limits.property("maximumTotalSequenceDuration").toInt() >= 86400000);
     QVERIFY(limits.property("maximumDiagnosticStringLength").toInt() >= 4096);
+}
+
+void ImageViewportTest::imageFrameRetainsImmutablePayload()
+{
+    QImage image(2, 1, QImage::Format_ARGB32_Premultiplied);
+    image.setPixelColor(0, 0, QColor(255, 0, 0, 255));
+    image.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+
+    ImageFrame frame(image);
+    image.fill(QColor(0, 0, 255, 255));
+
+    const QImage retained = frame.imageForTest();
+    QCOMPARE(retained.size(), QSize(2, 1));
+    QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+    QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
 }
 
 void ImageViewportTest::commandsWithoutRequestAreIgnoredDiagnostics()

@@ -268,6 +268,9 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
     if (!image.isNull() && image.width() > 0 && image.height() > 0) {
         m_logicalSize = QSizeF(image.width(), image.height());
         m_payloadByteSize = image.sizeInBytes();
+        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+            m_image = image.copy();
+        }
     }
 }
 
@@ -285,6 +288,13 @@ qsizetype ImageFrame::payloadByteSize() const
 {
     return m_payloadByteSize;
 }
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+QImage ImageFrame::imageForTest() const
+{
+    return m_image;
+}
+#endif
 
 TimedImageFrameList::TimedImageFrameList(QObject *parent)
     : QObject(parent)
