@@ -1,30 +1,55 @@
 # Playback State Machine
 
-Playback state belongs to the controller, not the render adapter. The controller advances accepted timed sequences, issues frame requests, preserves request ordering, and projects public playback state.
+Playback state belongs to the controller, not the render adapter. The controller advances accepted timed sequences, issues frame requests, preserves request ordering, tracks loop progress, and projects public playback state.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Stopped
     Stopped --> Playing: play with playable sequence
+    Stopped --> Waiting: play accepted while metadata or display request is pending
     Playing --> Paused: pause
     Paused --> Playing: play
-    Playing --> Stopped: stop or clear
-    Paused --> Stopped: stop or clear
-    Stopped --> Stopped: clear
+    Paused --> Waiting: play accepted and target cannot advance yet
+    Playing --> Waiting: display request pending
+    Waiting --> Playing: non-terminal display request committed
+    Waiting --> Stopped: play-once terminal display request committed
+    Waiting --> Paused: pause
+    Waiting --> Stopped: stop, clear, replacement, unsupported, or terminal request failure
+    Playing --> Waiting: play-once end with final frame pending
+    Playing --> Stopped: stop, clear, replacement, terminal unsupported, terminal request failure, or play-once end with final frame committed/promotable
+    Paused --> Stopped: stop, clear, replacement, terminal unsupported, or terminal request failure
+    Stopped --> Stopped: clear, invalid command, or unsupported command
+    Stopped --> Stopped: pause accepted with active request and stopped playback
+    Playing --> Playing: invalid command or unsupported command
+    Waiting --> Waiting: invalid command or unsupported command
+    Paused --> Paused: invalid command or unsupported command
+    Playing --> Playing: loop end with looping enabled
 ```
 
 ## States
 
-`Stopped` means no playback clock is consuming frame duration. `Playing` means the controller is allowed to advance when the current display request is ready and presentation is not suspended. `Paused` preserves the current target without consuming additional playback time.
+`Stopped` means no playback clock is consuming frame duration. `Playing` means the controller is allowed to advance when the current display request is ready and presentation is not suspended. `Waiting` means playback has been accepted but is waiting for metadata to select a target, or has selected a target frame or position but cannot consume additional sequence time until the display request commits or fails. `Paused` preserves the current target without consuming additional playback time.
+
+The public playback phase is a direct projection of these states. Internal loop progress is controller state used to choose the next target; it is not a public sequencing primitive and must not be required for callers to interpret request or display status. Public behavior is expressed through requested frame, requested position, displayed frame, displayed position, playback phase, and request/display status.
+
+Clear and sequence replacement always leave playback stopped for the old generation. Replacement may start playback for the new generation only through an explicit play command or a caller-owned binding that issues one. `pause()` changes playback phase only from `Playing` or `Waiting` to `Paused`; when an active request is not playing or waiting for playback, an accepted `pause()` preserves the current playback phase and target.
+
+If a pending display request commits after the caller has paused, the display may update but playback remains paused and does not consume additional sequence time until `play()` is accepted again. `stop()` supersedes pending display requests created only by playback advancement; late results for those requests are stale and cannot commit display content or restart advancement. The controller restores the latest non-playback target when one exists by keeping the still-active non-playback request, creating a fresh accepted non-playback display request identity for the same target, or promoting already committed same-generation content for that target to the accepted display identity. If playback-start waiting on metadata had superseded the unknown-target initial request, `stop()` creates a fresh unknown-target non-playback initial request identity so validated metadata can later select the initial frame without reviving stale playback or initial identities. If no latest non-playback target exists, the public requested target remains unknown until metadata or an explicit command selects one. Explicit seek requests that remain active across `stop()` may commit display content, but they cannot restart playback. A request identity already superseded by an earlier accepted `play()` command is not revived by `stop()`; its late provider, preparation, or render results remain stale.
 
 ## Requests
 
-Playback frame advancement should use the same request path as explicit seeking so status, retention, provider waiting, render deferral, and errors remain consistent.
+Playback target advancement should use the same request path as explicit seeking so status, retention, provider waiting, render waiting, and errors remain consistent. The request path records request origin so `stop()` can cancel playback-generated requests without cancelling explicit seek requests.
 
-Seeking while playing should select the requested target and keep the playback phase unless the command is invalid or unsupported. Invalid or unsupported seeks should leave the previous accepted target and playback phase intact.
+Seeking while playing should select the requested target and preserve playback intent. If the selected target is unresolved because metadata, provider work, preparation, or render commit is pending, the public playback phase becomes `Waiting` and returns to `Playing` after a non-terminal display request commits. A provider `Frame ready` result alone does not resume playback; the payload must pass validation and reach the accepted display identity through the render commit path. Invalid or unsupported seeks should leave the previous accepted target and playback phase intact. If a target accepted while metadata bounds were unknown is rejected after metadata validation, the request follows the public invalid-target failure rule and playback stops when the target was playback-generated. If `play()` is accepted before metadata is available, it supersedes any current unknown-bounds explicit or initial display request for playback start and waits for metadata to select the first playable target.
+
+A request selected by playback is generation-scoped. If a provider or render result arrives for an older playback target after a newer seek, loop, clear, or replacement, the stale result cannot change playback state or displayed content.
 
 ## Timing
 
-Frame timing should come from sequence metadata. Tests and controller logic should use deterministic clocks where timing matters, avoiding wall-clock sleeps as correctness requirements.
+Frame timing should come from sequence metadata. Controller time advances through an injectable monotonic clock so timing behavior can be reproduced without making correctness depend on wall-clock sleeps.
 
-If timing metadata is temporarily unavailable, playback should wait without inventing loop progress. If the active sequence proves unplayable, playback should stop or report unsupported without treating the condition as an unexpected crash.
+If timing metadata is temporarily unavailable, playback should wait with unknown requested frame and position, without inventing loop progress or accumulating catch-up time. If the active sequence proves unplayable, playback stops and the request reports unsupported according to the public capability failure rule without treating the condition as an unexpected crash.
+
+Frame intervals are half-open over the sequence duration. A play-once sequence that reaches total duration selects the final frame as the terminal display target without publishing a beyond-final display request. If the same generation already displays that final frame from an earlier request, the controller may promote the visible payload to the accepted display identity, increment display revision when ownership or status changes, and project ready request, ready display, and stopped playback without changing pixels. If the final frame is not already visible for the same generation, the controller keeps the final-frame display request active and projects playback waiting until the request commits or fails. A looping sequence wraps from total duration to position zero without exposing a transient out-of-range position.
+
+Loop progress changes only after the frame request that crosses the loop boundary is accepted. Invalid seeks, unsupported seeks, provider failures, render failures, and stale results do not increment loop progress.
