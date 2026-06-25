@@ -462,6 +462,11 @@ void ImageSequenceProviderSession::requestFrame(const ImageSequenceProviderReque
 {
 }
 
+void ImageSequenceProviderSession::requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int)
+{
+    requestFrame(token, frame);
+}
+
 void ImageSequenceProviderSession::close()
 {
 }
@@ -1595,7 +1600,7 @@ void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
         m_activeProviderFrameToken = nextProviderRequestToken();
         m_activeProviderFrameFromPlayback = true;
         if (m_providerSession) {
-            m_providerSession->requestFrame(m_activeProviderFrameToken, nextFrame);
+            m_providerSession->requestPlayback(m_activeProviderFrameToken, nextFrame, nextRequestedPosition);
         }
         setPlaybackPhase(PlaybackPhase::Waiting);
         incrementRequestRevision();

@@ -53,6 +53,7 @@ private slots:
     void providerTimedPlaybackCommandsUpdatePhase();
     void providerTimedPlaybackAdvancesDeterministically();
     void providerTimedPlaybackEndOfSequenceRequestsFinalFrame();
+    void providerTimedPlaybackAdvancementUsesPlaybackEntryPoint();
     void providerTimedPlaybackStopsOnFrameFailure();
     void providerTimedPlaybackWaitsForMetadata();
     void providerTimedStopSupersedesPlaybackRequest();
@@ -93,12 +94,18 @@ public:
         const std::shared_ptr<int> &frameRequestCount,
         const std::shared_ptr<int> &lastRequestedFrame,
         const std::shared_ptr<int> &closeCount,
+        const std::shared_ptr<int> &playbackRequestCount = {},
+        const std::shared_ptr<int> &lastPlaybackFrame = {},
+        const std::shared_ptr<int> &lastPlaybackPosition = {},
         QObject *parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestCount(metadataRequestCount)
         , m_frameRequestCount(frameRequestCount)
         , m_lastRequestedFrame(lastRequestedFrame)
         , m_closeCount(closeCount)
+        , m_playbackRequestCount(playbackRequestCount)
+        , m_lastPlaybackFrame(lastPlaybackFrame)
+        , m_lastPlaybackPosition(lastPlaybackPosition)
     {
     }
 
@@ -113,6 +120,20 @@ public:
         m_lastFrameToken = token;
         *m_lastRequestedFrame = frame;
         ++*m_frameRequestCount;
+    }
+
+    void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position) override
+    {
+        if (m_playbackRequestCount) {
+            ++*m_playbackRequestCount;
+        }
+        if (m_lastPlaybackFrame) {
+            *m_lastPlaybackFrame = frame;
+        }
+        if (m_lastPlaybackPosition) {
+            *m_lastPlaybackPosition = position;
+        }
+        ImageSequenceProviderSession::requestPlayback(token, frame, position);
     }
 
     void close() override
@@ -135,6 +156,9 @@ private:
     std::shared_ptr<int> m_frameRequestCount;
     std::shared_ptr<int> m_lastRequestedFrame;
     std::shared_ptr<int> m_closeCount;
+    std::shared_ptr<int> m_playbackRequestCount;
+    std::shared_ptr<int> m_lastPlaybackFrame;
+    std::shared_ptr<int> m_lastPlaybackPosition;
     ImageSequenceProviderRequestToken m_lastMetadataToken;
     ImageSequenceProviderRequestToken m_lastFrameToken;
 };
@@ -146,12 +170,18 @@ public:
         const std::shared_ptr<int> &metadataRequestCount,
         const std::shared_ptr<int> &frameRequestCount,
         const std::shared_ptr<int> &lastRequestedFrame,
-        const std::shared_ptr<int> &closeCount)
+        const std::shared_ptr<int> &closeCount,
+        const std::shared_ptr<int> &playbackRequestCount = {},
+        const std::shared_ptr<int> &lastPlaybackFrame = {},
+        const std::shared_ptr<int> &lastPlaybackPosition = {})
         : m_sessionCount(sessionCount)
         , m_metadataRequestCount(metadataRequestCount)
         , m_frameRequestCount(frameRequestCount)
         , m_lastRequestedFrame(lastRequestedFrame)
         , m_closeCount(closeCount)
+        , m_playbackRequestCount(playbackRequestCount)
+        , m_lastPlaybackFrame(lastPlaybackFrame)
+        , m_lastPlaybackPosition(lastPlaybackPosition)
     {
     }
 
@@ -162,6 +192,9 @@ public:
             m_frameRequestCount,
             m_lastRequestedFrame,
             m_closeCount,
+            m_playbackRequestCount,
+            m_lastPlaybackFrame,
+            m_lastPlaybackPosition,
             parent);
         m_lastSession = session;
         return session;
@@ -178,6 +211,9 @@ private:
     std::shared_ptr<int> m_frameRequestCount;
     std::shared_ptr<int> m_lastRequestedFrame;
     std::shared_ptr<int> m_closeCount;
+    std::shared_ptr<int> m_playbackRequestCount;
+    std::shared_ptr<int> m_lastPlaybackFrame;
+    std::shared_ptr<int> m_lastPlaybackPosition;
     QPointer<CountingProviderSession> m_lastSession;
 };
 
@@ -1682,6 +1718,53 @@ void ImageViewportTest::providerTimedPlaybackEndOfSequenceRequestsFinalFrame()
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
+}
+
+void ImageViewportTest::providerTimedPlaybackAdvancementUsesPlaybackEntryPoint()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        playbackRequestCount,
+        lastPlaybackFrame,
+        lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}));
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+
+    QCOMPARE(*playbackRequestCount, 0);
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(100);
+
+    QCOMPARE(*playbackRequestCount, 1);
+    QCOMPARE(*lastPlaybackFrame, 1);
+    QCOMPARE(*lastPlaybackPosition, 100);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
 }
 
 void ImageViewportTest::providerTimedPlaybackStopsOnFrameFailure()
