@@ -57,6 +57,7 @@ private slots:
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
     void providerSequenceOpensSessionAfterAdapterDestruction();
+    void reassigningSameProviderSequenceStartsNewGeneration();
     void providerSessionClosesWhenViewportIsDestroyed();
     void providerClearCancelsActiveFrameRequestBeforeClose();
     void providerResultsAreQueuedFromSessionEntryPoint();
@@ -1549,6 +1550,52 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+}
+
+void ImageViewportTest::reassigningSameProviderSequenceStartsNewGeneration()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount,
+        frameRequestCount,
+        lastRequestedFrame,
+        closeCount,
+        std::shared_ptr<int>(),
+        std::shared_ptr<int>(),
+        std::shared_ptr<int>(),
+        cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject *metaObject = item.metaObject();
+    const uint initialRequestRevision = item.property("requestRevision").toUInt();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*closeCount, 0);
+
+    item.setSequence(result->sequence());
+
+    QCOMPARE(*sessionCount, 2);
+    QCOMPARE(*metadataRequestCount, 2);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QVERIFY(item.property("requestRevision").toUInt() > initialRequestRevision);
 }
 
 void ImageViewportTest::providerSessionClosesWhenViewportIsDestroyed()

@@ -948,7 +948,7 @@ ImageSequence *ImageViewport::sequence() const
 
 void ImageViewport::setSequence(ImageSequence *sequence)
 {
-    if (m_sequence == sequence) {
+    if (!m_sequence && !sequence) {
         return;
     }
 
