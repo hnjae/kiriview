@@ -5,15 +5,6 @@
 
 using namespace ImageViewportInternal;
 
-namespace {
-
-bool providerCapabilityResolved(ImageSequenceProviderCapabilitySupport support)
-{
-    return support != ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-}
-
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
     FactoryOutcome outcome,
     QString errorString,
