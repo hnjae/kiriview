@@ -29,6 +29,7 @@ private slots:
     void defaultConstructsAsQuickItem();
     void doesNotExposeSourceProperty();
     void unsupportedSequencePropertyWritesPreserveState();
+    void qmlUnsupportedSequenceAssignmentsPreserveState();
     void exposesDocumentedQmlSurface();
     void hasDocumentedDefaultState();
     void qmlImportsDocumentedSurface();
@@ -677,6 +678,55 @@ void ImageViewportTest::unsupportedSequencePropertyWritesPreserveState()
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(*sessionCount, 0);
+}
+
+void ImageViewportTest::qmlUnsupportedSequenceAssignmentsPreserveState()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    id: viewport
+    QtObject { id: rawObject }
+    property bool stringAssignmentPreserved: false
+    property bool objectAssignmentPreserved: false
+
+    Component.onCompleted: {
+        try {
+            sequence = "image.png"
+        } catch (error) {
+        }
+        stringAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
+        try {
+            sequence = rawObject
+        } catch (error) {
+        }
+        objectAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
 }
 
 void ImageViewportTest::exposesDocumentedQmlSurface()
