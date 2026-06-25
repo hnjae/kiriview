@@ -25,6 +25,11 @@ bool isFinitePositive(double value)
     return std::isfinite(value) && value > 0.0;
 }
 
+bool isPositiveFiniteInteger(double value)
+{
+    return std::isfinite(value) && value > 0.0 && std::trunc(value) == value;
+}
+
 bool isFinitePoint(const QPointF &point)
 {
     return std::isfinite(point.x()) && std::isfinite(point.y());
@@ -61,6 +66,10 @@ QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata &meta
     }
 
     const QSizeF size = metadata.logicalSize();
+    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+        return QStringLiteral("provider metadata is invalid");
+    }
+
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
     if (width > ImageSequenceLimits::maximumLogicalWidth()) {
@@ -3044,6 +3053,10 @@ bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMet
     }
 
     const QSizeF size = metadata.logicalSize();
+    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+        return false;
+    }
+
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
     return width <= ImageSequenceLimits::maximumLogicalWidth()
@@ -3058,6 +3071,10 @@ bool ImageViewport::validateProviderTimedMetadata(const ImageSequenceProviderMet
     }
 
     const QSizeF size = metadata.logicalSize();
+    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+        return false;
+    }
+
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
     if (width > ImageSequenceLimits::maximumLogicalWidth()
