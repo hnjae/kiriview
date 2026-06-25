@@ -387,6 +387,7 @@ public:
     Q_ENUM(BackgroundMode)
 
     explicit ImageViewport(QQuickItem *parent = nullptr);
+    ~ImageViewport() override;
 
     ImageSequence *sequence() const;
     void setSequence(ImageSequence *sequence);

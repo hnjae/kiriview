@@ -40,6 +40,7 @@ private slots:
     void replacementRetainsPreviousDisplayWhileWaitingForGeometry();
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerSequenceOpensSessionAfterAdapterDestruction();
+    void providerSessionClosesWhenViewportIsDestroyed();
     void presentationChangesNotifyGeometryState();
 };
 
@@ -66,9 +67,10 @@ int enumValue(const QMetaObject *metaObject, const char *enumName, const char *k
 class CountingProviderSession final : public ImageSequenceProviderSession
 {
 public:
-    explicit CountingProviderSession(const std::shared_ptr<int> &metadataRequestCount, QObject *parent = nullptr)
+    explicit CountingProviderSession(const std::shared_ptr<int> &metadataRequestCount, const std::shared_ptr<int> &closeCount, QObject *parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestCount(metadataRequestCount)
+        , m_closeCount(closeCount)
     {
     }
 
@@ -78,6 +80,11 @@ public:
         ++*m_metadataRequestCount;
     }
 
+    void close() override
+    {
+        ++*m_closeCount;
+    }
+
     ImageSequenceProviderRequestToken lastMetadataToken() const
     {
         return m_lastMetadataToken;
@@ -85,27 +92,32 @@ public:
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_closeCount;
     ImageSequenceProviderRequestToken m_lastMetadataToken;
 };
 
 class CountingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
 {
 public:
-    explicit CountingProviderSessionFactory(const std::shared_ptr<int> &sessionCount, const std::shared_ptr<int> &metadataRequestCount)
+    explicit CountingProviderSessionFactory(const std::shared_ptr<int> &sessionCount,
+        const std::shared_ptr<int> &metadataRequestCount,
+        const std::shared_ptr<int> &closeCount)
         : m_sessionCount(sessionCount)
         , m_metadataRequestCount(metadataRequestCount)
+        , m_closeCount(closeCount)
     {
     }
 
     ImageSequenceProviderSession *createSession(QObject *parent) override
     {
         ++*m_sessionCount;
-        return new CountingProviderSession(m_metadataRequestCount, parent);
+        return new CountingProviderSession(m_metadataRequestCount, m_closeCount, parent);
     }
 
 private:
     std::shared_ptr<int> m_sessionCount;
     std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_closeCount;
 };
 
 class CountingProviderAdapter final : public ImageSequenceProviderAdapter
@@ -948,7 +960,8 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
     const auto metadataRequestCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount, closeCount);
 
     QScopedPointer<ImageSequenceFactoryResult> result;
     {
@@ -968,6 +981,7 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*closeCount, 0);
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
@@ -978,6 +992,28 @@ void ImageViewportTest::providerSequenceOpensSessionAfterAdapterDestruction()
     QCOMPARE(item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "Unavailable"));
+}
+
+void ImageViewportTest::providerSessionClosesWhenViewportIsDestroyed()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    {
+        ImageViewport item;
+        item.setSequence(result->sequence());
+        QCOMPARE(*sessionCount, 1);
+        QCOMPARE(*metadataRequestCount, 1);
+        QCOMPARE(*closeCount, 0);
+    }
+
+    QCOMPARE(*closeCount, 1);
 }
 
 void ImageViewportTest::presentationChangesNotifyGeometryState()

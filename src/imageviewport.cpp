@@ -561,6 +561,11 @@ ImageViewport::ImageViewport(QQuickItem *parent)
     setFlag(ItemHasContents, true);
 }
 
+ImageViewport::~ImageViewport()
+{
+    closeProviderSession();
+}
+
 ImageSequence *ImageViewport::sequence() const
 {
     return m_sequence;
