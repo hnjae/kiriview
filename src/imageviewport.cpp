@@ -1781,7 +1781,21 @@ void ImageViewport::handleProviderUnsupported(const ImageSequenceProviderRequest
 
 void ImageViewport::handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderFrameToken) {
+    if (!hasProviderSequence() || !m_providerSession) {
+        return;
+    }
+
+    if (token == m_activeProviderFrameToken) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::ProviderFailure;
+        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
+        incrementRequestRevision();
+        emit requestStateChanged();
+        emit diagnosticsChanged();
+        return;
+    }
+
+    if (token != m_activeProviderMetadataToken) {
         return;
     }
 
@@ -1791,6 +1805,7 @@ void ImageViewport::handleProviderCancellation(const ImageSequenceProviderReques
     incrementRequestRevision();
     emit requestStateChanged();
     emit diagnosticsChanged();
+    closeProviderSession();
 }
 
 bool ImageViewport::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
