@@ -170,6 +170,33 @@ private:
     QVector<int> m_frameDurations;
 };
 
+class ImageSequenceProviderFrameMetadata
+{
+public:
+    enum class TimingModel {
+        Invalid,
+        Still,
+        TimedFrame,
+    };
+
+    ImageSequenceProviderFrameMetadata() = default;
+    static ImageSequenceProviderFrameMetadata stillFrame();
+    static ImageSequenceProviderFrameMetadata timedFrame(int frame, int frameStartPosition, int frameDuration = -1);
+
+    bool isValid() const;
+    bool isStillFrame() const;
+    bool isTimedFrame() const;
+    int frame() const;
+    int frameStartPosition() const;
+    int frameDuration() const;
+
+private:
+    TimingModel m_timingModel = TimingModel::Invalid;
+    int m_frame = -1;
+    int m_frameStartPosition = -1;
+    int m_frameDuration = -1;
+};
+
 class ImageSequenceProviderSession : public QObject
 {
     Q_OBJECT
@@ -185,6 +212,7 @@ public:
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
+    void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
     void providerFailed(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void providerUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void providerCancelled(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
@@ -532,12 +560,13 @@ private:
     ImageSequenceProviderRequestToken nextProviderRequestToken();
     void handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
     void handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
+    void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
     void handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     void handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata);
     bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata);
-    bool validateProviderStillFrame(ImageFrame *frame) const;
+    bool validateProviderFrame(ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString &diagnostic, const QString &fallback);
@@ -588,3 +617,4 @@ private:
 
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
 Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
+Q_DECLARE_METATYPE(ImageSequenceProviderFrameMetadata)

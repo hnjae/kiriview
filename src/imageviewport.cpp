@@ -398,6 +398,61 @@ QVector<int> ImageSequenceProviderMetadata::frameDurations() const
     return m_frameDurations;
 }
 
+ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
+{
+    ImageSequenceProviderFrameMetadata metadata;
+    metadata.m_timingModel = TimingModel::Still;
+    metadata.m_frame = 0;
+    return metadata;
+}
+
+ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::timedFrame(int frame, int frameStartPosition, int frameDuration)
+{
+    ImageSequenceProviderFrameMetadata metadata;
+    metadata.m_timingModel = TimingModel::TimedFrame;
+    metadata.m_frame = frame;
+    metadata.m_frameStartPosition = frameStartPosition;
+    metadata.m_frameDuration = frameDuration;
+    return metadata;
+}
+
+bool ImageSequenceProviderFrameMetadata::isValid() const
+{
+    if (isStillFrame()) {
+        return m_frame == 0;
+    }
+    if (isTimedFrame()) {
+        return m_frame >= 0 && m_frameStartPosition >= 0 && (m_frameDuration == -1 || m_frameDuration > 0);
+    }
+
+    return false;
+}
+
+bool ImageSequenceProviderFrameMetadata::isStillFrame() const
+{
+    return m_timingModel == TimingModel::Still;
+}
+
+bool ImageSequenceProviderFrameMetadata::isTimedFrame() const
+{
+    return m_timingModel == TimingModel::TimedFrame;
+}
+
+int ImageSequenceProviderFrameMetadata::frame() const
+{
+    return m_frame;
+}
+
+int ImageSequenceProviderFrameMetadata::frameStartPosition() const
+{
+    return m_frameStartPosition;
+}
+
+int ImageSequenceProviderFrameMetadata::frameDuration() const
+{
+    return m_frameDuration;
+}
+
 ImageSequenceProviderSession::ImageSequenceProviderSession(QObject *parent)
     : QObject(parent)
 {
@@ -1865,9 +1920,13 @@ bool ImageViewport::openProviderSession()
         this,
         &ImageViewport::handleProviderMetadataReady);
     connect(m_providerSession,
-        &ImageSequenceProviderSession::frameReady,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
         this,
         &ImageViewport::handleProviderFrameReady);
+    connect(m_providerSession,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
+        this,
+        &ImageViewport::handleProviderFrameReadyWithMetadata);
     connect(m_providerSession,
         &ImageSequenceProviderSession::providerFailed,
         this,
@@ -1965,11 +2024,16 @@ void ImageViewport::handleProviderMetadataReady(const ImageSequenceProviderReque
 
 void ImageViewport::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame)
 {
+    handleProviderFrameReadyWithMetadata(token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
+}
+
+void ImageViewport::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata)
+{
     if (!hasProviderSequence() || !m_providerSession || token != m_activeProviderFrameToken) {
         return;
     }
 
-    if (!validateProviderStillFrame(frame)) {
+    if (!validateProviderFrame(frame, metadata)) {
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider frame payload is invalid");
@@ -2131,13 +2195,31 @@ bool ImageViewport::validateProviderTimedMetadata(const ImageSequenceProviderMet
     return true;
 }
 
-bool ImageViewport::validateProviderStillFrame(ImageFrame *frame) const
+bool ImageViewport::validateProviderFrame(ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) const
 {
-    return frame
-        && frame->isValid()
-        && m_providerMetadataReady
-        && frame->logicalSize() == m_providerLogicalSize
-        && frame->payloadByteSize() <= ImageSequenceLimits::maximumPayloadBytesPerFrame();
+    if (!frame
+        || !frame->isValid()
+        || !m_providerMetadataReady
+        || frame->logicalSize() != m_providerLogicalSize
+        || frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()
+        || !metadata.isValid()) {
+        return false;
+    }
+
+    if (m_providerTimedMetadata) {
+        if (!metadata.isTimedFrame() || metadata.frame() != m_currentFrame) {
+            return false;
+        }
+        if (metadata.frameStartPosition() != providerFrameStartPosition(m_currentFrame)) {
+            return false;
+        }
+        if (metadata.frameDuration() != -1 && metadata.frameDuration() != m_providerFrameDurations.at(m_currentFrame)) {
+            return false;
+        }
+        return true;
+    }
+
+    return metadata.isStillFrame() && metadata.frame() == 0;
 }
 
 int ImageViewport::providerFrameStartPosition(int frame) const
