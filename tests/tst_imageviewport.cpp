@@ -4926,6 +4926,8 @@ void ImageViewportTest::providerFrameSeekBeforeMetadataResolvesAfterMetadata()
     QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    const uint preMetadataRequestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     QVERIFY(sessionFactory->lastSession());
     emit sessionFactory->lastSession()->metadataReady(sessionFactory->lastSession()->lastMetadataToken(),
@@ -4940,6 +4942,8 @@ void ImageViewportTest::providerFrameSeekBeforeMetadataResolvesAfterMetadata()
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
+    QVERIFY(item.property("requestRevision").toUInt() > preMetadataRequestRevision);
+    QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
 void ImageViewportTest::providerInvalidPreMetadataSeekCanStartPlaybackAfterMetadata()
