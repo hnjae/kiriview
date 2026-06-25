@@ -236,6 +236,22 @@ QtObject {
     return object->property("factorySurfaceAvailable").toBool();
 }
 
+bool installedQmlSingletonTypesAreNotCreatable()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent factoryComponent(&engine);
+    factoryComponent.setData("import ImageViewport 1.0\nImageSequenceFactory {}\n", QUrl());
+    if (!factoryComponent.isError()) {
+        return false;
+    }
+
+    QQmlComponent limitsComponent(&engine);
+    limitsComponent.setData("import ImageViewport 1.0\nImageSequenceLimits {}\n", QUrl());
+    return limitsComponent.isError();
+}
+
 bool canUseInstalledQmlCommandSurface()
 {
     QQmlEngine engine;
@@ -497,6 +513,7 @@ int main(int argc, char **argv)
     return canCreateInstalledQmlViewport()
             && canReadInstalledQmlLimits()
             && canUseInstalledQmlFactorySurface()
+            && installedQmlSingletonTypesAreNotCreatable()
             && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
         ? 0
