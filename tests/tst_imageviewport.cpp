@@ -3873,30 +3873,58 @@ void ImageViewportTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()
 
 void ImageViewportTest::providerFactoryRejectsContradictoryConstructionFacts()
 {
-    ImageSequenceFactory factory;
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount,
-        frameRequestCount,
-        lastRequestedFrame,
-        closeCount);
-    CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}),
+    auto verifyRejectedConstructionFacts = [](const ImageSequenceProviderMetadata &metadata,
+                                               ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport,
+                                               ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport,
+                                               ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport) {
+        ImageSequenceFactory factory;
+        const auto sessionCount = std::make_shared<int>(0);
+        const auto metadataRequestCount = std::make_shared<int>(0);
+        const auto frameRequestCount = std::make_shared<int>(0);
+        const auto lastRequestedFrame = std::make_shared<int>(-1);
+        const auto closeCount = std::make_shared<int>(0);
+        auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+            metadataRequestCount,
+            frameRequestCount,
+            lastRequestedFrame,
+            closeCount);
+        CountingProviderAdapter adapter(sessionFactory,
+            metadata,
+            timedPlaybackSupport,
+            frameSeekSupport,
+            positionSeekSupport);
+
+        QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+
+        QVERIFY(result);
+        QCOMPARE(result->sequence(), nullptr);
+        QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+        QVERIFY(result->errorString().contains(QStringLiteral("provider metadata")));
+        QCOMPARE(*sessionCount, 0);
+        QCOMPARE(*metadataRequestCount, 0);
+        QCOMPARE(*frameRequestCount, 0);
+    };
+
+    verifyRejectedConstructionFacts(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}),
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+    verifyRejectedConstructionFacts(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+    verifyRejectedConstructionFacts(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+    verifyRejectedConstructionFacts(ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), {100, 250}),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
         ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
-
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
-
-    QVERIFY(result);
-    QCOMPARE(result->sequence(), nullptr);
-    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
-    QVERIFY(result->errorString().contains(QStringLiteral("provider metadata")));
-    QCOMPARE(*sessionCount, 0);
-    QCOMPARE(*metadataRequestCount, 0);
-    QCOMPARE(*frameRequestCount, 0);
+    verifyRejectedConstructionFacts(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue);
 }
 
 void ImageViewportTest::providerFactoryRejectsInvalidKnownMetadata()
