@@ -28,6 +28,7 @@ private slots:
     void commandsWithoutRequestAreIgnoredDiagnostics();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
+    void clearReadyDisplayEmitsGeometryStateChanged();
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
@@ -746,6 +747,31 @@ void ImageViewportTest::nullSequenceAssignmentClearsDisplayObservations()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportTest::clearReadyDisplayEmitsGeometryStateChanged()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+
+    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QCOMPARE(geometrySpy.count(), 1);
 }
 
 void ImageViewportTest::stillImageReadyReplacementIncrementsDisplayRevision()
