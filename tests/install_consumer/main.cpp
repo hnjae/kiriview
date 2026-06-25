@@ -235,6 +235,71 @@ QtObject {
     return object->property("factorySurfaceAvailable").toBool();
 }
 
+bool canUseInstalledQmlCommandSurface()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    width: 10
+    height: 10
+
+    property bool commandSurfaceAvailable: false
+
+    Component.onCompleted: {
+        const playOutcome = play()
+        const pauseOutcome = pause()
+        const stopOutcome = stop()
+        const seekOutcome = seek(0)
+        const positionSeekOutcome = seekToPosition(0)
+        zoom = 2
+        pan = Qt.point(3, 4)
+        const resetViewOutcome = resetView()
+        commandSurfaceAvailable = requestStatus === ImageViewport.RequestStatus.NoRequest
+            && requestReason === ImageViewport.RequestReason.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && playbackPhase === ImageViewport.PlaybackPhase.Stopped
+            && playOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && pauseOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && stopOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && seekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && positionSeekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
+            && commandReason === ImageViewport.CommandReason.NoCommand
+            && commandRevision === 6
+            && zoom === 1
+            && pan.x === 0
+            && pan.y === 0
+            && frameSeekBounds.minimum === -1
+            && frameSeekBounds.maximum === -1
+            && positionSeekBounds.minimum === -1
+            && positionSeekBounds.maximum === -1
+            && itemToImage(1, 1).valid === false
+            && imageToItem(1, 1).x === 0
+            && containsVisibleImagePoint(1, 1) === false
+    }
+}
+)",
+                      QUrl());
+    if (!component.isReady()) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    const std::unique_ptr<QObject> object(component.create());
+    if (!object) {
+        qWarning() << component.errors();
+        return false;
+    }
+
+    return object->property("commandSurfaceAvailable").toBool();
+}
+
 bool canUseInstalledProviderSessionSurface()
 {
     ConsumerSession session;
@@ -388,6 +453,7 @@ int main(int argc, char **argv)
     return canCreateInstalledQmlViewport()
             && canReadInstalledQmlLimits()
             && canUseInstalledQmlFactorySurface()
+            && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
         ? 0
         : 1;
