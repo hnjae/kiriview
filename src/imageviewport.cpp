@@ -1928,7 +1928,18 @@ void ImageViewport::closeProviderSession()
     }
 
     ImageSequenceProviderSession *session = m_providerSession;
+    const ImageSequenceProviderRequestToken metadataToken = m_activeProviderMetadataToken;
+    const ImageSequenceProviderRequestToken frameToken = m_activeProviderFrameToken;
+    m_activeProviderMetadataToken = {};
+    m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
     m_providerSession.clear();
+    if (metadataToken.isValid()) {
+        session->cancelRequest(metadataToken);
+    }
+    if (frameToken.isValid()) {
+        session->cancelRequest(frameToken);
+    }
     session->close();
     delete session;
 }
