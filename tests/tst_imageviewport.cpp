@@ -753,6 +753,8 @@ ImageViewport {
     id: viewport
     QtObject { id: rawObject }
     property bool stringAssignmentPreserved: false
+    property bool urlAssignmentPreserved: false
+    property bool jsObjectAssignmentPreserved: false
     property bool objectAssignmentPreserved: false
 
     Component.onCompleted: {
@@ -761,6 +763,26 @@ ImageViewport {
         } catch (error) {
         }
         stringAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
+        try {
+            sequence = Qt.resolvedUrl("image.png")
+        } catch (error) {
+        }
+        urlAssignmentPreserved = sequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === 0
+            && displayRevision === 0
+            && errorString === ""
+        try {
+            sequence = ({ url: "image.png" })
+        } catch (error) {
+        }
+        jsObjectAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
             && requestRevision === 0
@@ -785,6 +807,8 @@ ImageViewport {
     QScopedPointer<QObject> object(component.create());
     QVERIFY2(object, qPrintable(componentErrors(component)));
     QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
+    QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
 }
 
