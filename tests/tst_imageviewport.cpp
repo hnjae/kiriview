@@ -8762,6 +8762,15 @@ void ImageViewportTest::providerTimedPlaybackFrameReadyWaitsForRenderCommit()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
+    item.advancePlaybackForTest(1000);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+
     QVERIFY(commitPaintNode(item));
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -8769,6 +8778,20 @@ void ImageViewportTest::providerTimedPlaybackFrameReadyWaitsForRenderCommit()
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
     QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    item.advancePlaybackForTest(249);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+
+    item.advancePlaybackForTest(1);
+    QCOMPARE(item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
 }
 
 void ImageViewportTest::providerTimedPausedPlaybackFrameCommitStaysPaused()
