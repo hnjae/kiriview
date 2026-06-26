@@ -4574,6 +4574,9 @@ void ImageViewportTest::providerTokenOverflowClosesSessionWithoutInvalidRequest(
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
+    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
 
     ImageViewport item;
     item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
@@ -5591,6 +5594,9 @@ void ImageViewportTest::providerConstructionMetadataSelectsInitialFrameRequest()
         ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
+    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
 
     ImageViewport item;
     item.setSequence(result->sequence());
