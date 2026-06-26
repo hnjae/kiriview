@@ -1,20 +1,32 @@
-add_executable(tst_imageviewport tst_imageviewport.cpp)
-
-target_link_libraries(tst_imageviewport PRIVATE ImageViewport ImageViewportplugin Qt6::Qml
-                                                Qt6::Quick Qt6::Test)
-
-target_include_directories(tst_imageviewport PRIVATE ${OPENGL_INCLUDE_DIR})
-
-target_compile_definitions(
-    tst_imageviewport PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
-                              IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
+add_library(imageviewport_test_support INTERFACE)
 
 target_compile_definitions(ImageViewport PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 
-qt_import_qml_plugins(tst_imageviewport)
+target_link_libraries(imageviewport_test_support INTERFACE ImageViewport ImageViewportplugin
+                                                           Qt6::Qml Qt6::Quick Qt6::Test)
 
-add_test(NAME imageviewport COMMAND tst_imageviewport)
-set_tests_properties(imageviewport PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+target_include_directories(imageviewport_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+                                                                ${OPENGL_INCLUDE_DIR})
+
+target_compile_definitions(
+    imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
+                                         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
+
+function(add_imageviewport_qt_test target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE imageviewport_test_support)
+    qt_import_qml_plugins(${target})
+    add_test(NAME ${target} COMMAND ${target})
+    set_tests_properties(${target} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endfunction()
+
+add_imageviewport_qt_test(imageviewport_public_api tst_imageviewport_public_api.cpp)
+add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
+add_imageviewport_qt_test(imageviewport_still tst_imageviewport_still.cpp)
+add_imageviewport_qt_test(imageviewport_timed tst_imageviewport_timed.cpp)
+add_imageviewport_qt_test(imageviewport_provider tst_imageviewport_provider.cpp)
+add_imageviewport_qt_test(imageviewport_render tst_imageviewport_render.cpp)
+add_imageviewport_qt_test(imageviewport_presentation tst_imageviewport_presentation.cpp)
 
 add_test(
     NAME imageviewport_install_consumer

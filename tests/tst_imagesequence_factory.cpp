@@ -1,0 +1,701 @@
+#include "imageviewport_test_support.h"
+
+class ImageSequenceFactoryTest : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void exposesTypedSequenceFactorySurface();
+    void factoryRejectsNullTypedInputs();
+    void timedFrameListNativeFactoryRejectsMismatchedCounts();
+    void timedFrameListNativeFactoryRejectsEmptyInput();
+    void qmlTimedFrameListExposesBuilderState();
+    void qmlFactoryCreatesSequencesFromSuppliedTypedHelpers();
+    void factoryResultDiagnosticsArePublicSafe();
+    void exposesImageSequenceLimits();
+    void factoryResultSequenceSurvivesFactoryDestruction();
+    void assignedFactorySequenceSurvivesResultDestruction();
+    void assignedProviderSequenceSurvivesResultDestruction();
+    void sharedFactorySequenceSurvivesFirstViewportDestruction();
+    void clearReleasesAssignedFactorySequenceOwner();
+    void imageFrameRetainsImmutablePayload();
+    void imageFrameExposesPayloadMetadata();
+    void imageFrameUsesDeviceIndependentLogicalSize();
+    void stillImageSequenceRetainsFactoryPayload();
+    void timedFrameListSequenceRetainsFactoryPayloads();
+    void commandsWithoutRequestAreIgnoredDiagnostics();
+};
+
+void ImageSequenceFactoryTest::exposesTypedSequenceFactorySurface()
+{
+    ImageSequenceFactory factory;
+    const QMetaObject* metaObject = factory.metaObject();
+
+    QVERIFY(
+        metaObject->indexOfMethod(QMetaObject::normalizedSignature("fromFrame(ImageFrame*)")) >= 0);
+    QVERIFY(metaObject->indexOfMethod(
+                QMetaObject::normalizedSignature("fromTimedFrameList(TimedImageFrameList*)"))
+        >= 0);
+    QVERIFY(metaObject->indexOfMethod(
+                QMetaObject::normalizedSignature("fromProvider(ImageSequenceProviderAdapter*)"))
+        >= 0);
+
+    QScopedPointer<QObject> result(factory.fromFrame(nullptr));
+    QVERIFY(result);
+    const QMetaObject* resultMetaObject = result->metaObject();
+    QVERIFY(resultMetaObject->indexOfProperty("sequence") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("outcome") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("errorString") >= 0);
+    QVERIFY(resultMetaObject->indexOfProperty("warningString") >= 0);
+    verifyEnumValues(
+        resultMetaObject, "FactoryOutcome", { "Created", "Invalid", "Unsupported", "Error" });
+    QCOMPARE(result->property("sequence").value<QObject*>(), nullptr);
+    QCOMPARE(result->property("outcome").toInt(),
+        enumValue(resultMetaObject, "FactoryOutcome", "Invalid"));
+    QVERIFY(!result->property("errorString").toString().isEmpty());
+    QCOMPARE(result->property("warningString").toString(), QString());
+}
+
+void ImageSequenceFactoryTest::factoryRejectsNullTypedInputs()
+{
+    ImageSequenceFactory factory;
+
+    QScopedPointer<ImageSequenceFactoryResult> frameResult(factory.fromFrame(nullptr));
+    QVERIFY(frameResult);
+    QCOMPARE(frameResult->sequence(), nullptr);
+    QCOMPARE(frameResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!frameResult->errorString().isEmpty());
+
+    QScopedPointer<ImageSequenceFactoryResult> listResult(factory.fromTimedFrameList(nullptr));
+    QVERIFY(listResult);
+    QCOMPARE(listResult->sequence(), nullptr);
+    QCOMPARE(listResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!listResult->errorString().isEmpty());
+
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(nullptr));
+    QVERIFY(providerResult);
+    QCOMPARE(providerResult->sequence(), nullptr);
+    QCOMPARE(providerResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!providerResult->errorString().isEmpty());
+}
+
+void ImageSequenceFactoryTest::timedFrameListNativeFactoryRejectsMismatchedCounts()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+
+    QScopedPointer<ImageSequenceFactoryResult> missingDurationResult(
+        factory.fromTimedFrameList({ image }, {}));
+    QVERIFY(missingDurationResult);
+    QCOMPARE(missingDurationResult->sequence(), nullptr);
+    QCOMPARE(missingDurationResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(missingDurationResult->errorString().contains(QStringLiteral("same count")));
+
+    QScopedPointer<ImageSequenceFactoryResult> missingImageResult(
+        factory.fromTimedFrameList({}, { 100 }));
+    QVERIFY(missingImageResult);
+    QCOMPARE(missingImageResult->sequence(), nullptr);
+    QCOMPARE(missingImageResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(missingImageResult->errorString().contains(QStringLiteral("same count")));
+}
+
+void ImageSequenceFactoryTest::timedFrameListNativeFactoryRejectsEmptyInput()
+{
+    ImageSequenceFactory factory;
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList({}, {}));
+
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("at least one frame")));
+    QCOMPARE(result->warningString(), QString());
+}
+
+void ImageSequenceFactoryTest::qmlTimedFrameListExposesBuilderState()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+Item {
+    TimedImageFrameList {
+        id: list
+    }
+
+    property bool initialCountIsZero: list.count === 0
+    property bool appendNullRejected: false
+    property bool appendPreservedCount: false
+    property bool appendSetDiagnostic: false
+    property bool factoryRejectsEmptyList: false
+    property bool clearResetsDiagnostic: false
+
+    Component.onCompleted: {
+        appendNullRejected = list.appendFrame(null, 100) === false
+        appendPreservedCount = list.count === 0
+        appendSetDiagnostic = list.errorString.indexOf("ImageFrame") >= 0
+        factoryRejectsEmptyList = ImageSequenceFactory.fromTimedFrameList(list).sequence === null
+        list.clear()
+        clearResetsDiagnostic = list.count === 0 && list.errorString === "" && list.warningString === ""
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("initialCountIsZero").toBool(), true);
+    QCOMPARE(object->property("appendNullRejected").toBool(), true);
+    QCOMPARE(object->property("appendPreservedCount").toBool(), true);
+    QCOMPARE(object->property("appendSetDiagnostic").toBool(), true);
+    QCOMPARE(object->property("factoryRejectsEmptyList").toBool(), true);
+    QCOMPARE(object->property("clearResetsDiagnostic").toBool(), true);
+}
+
+void ImageSequenceFactoryTest::qmlFactoryCreatesSequencesFromSuppliedTypedHelpers()
+{
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+Item {
+    property ImageFrame suppliedFrame
+    property bool frameFactoryCreated: false
+    property bool timedListAcceptedFrame: false
+    property bool timedFactoryCreated: false
+    property bool viewportReady: false
+
+    ImageViewport {
+        id: viewport
+        width: 40
+        height: 20
+    }
+
+    TimedImageFrameList {
+        id: list
+    }
+
+    Component.onCompleted: {
+        const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
+        frameFactoryCreated = frameResult.sequence !== null
+            && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && frameResult.errorString === ""
+            && frameResult.warningString === ""
+
+        timedListAcceptedFrame = list.appendFrame(suppliedFrame, 100) === true
+            && list.count === 1
+            && list.errorString === ""
+            && list.warningString === ""
+
+        const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
+        timedFactoryCreated = timedResult.sequence !== null
+            && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
+            && timedResult.errorString === ""
+            && timedResult.warningString === ""
+
+        viewport.sequence = timedResult.sequence
+        viewportReady = viewport.requestStatus === ImageViewport.RequestStatus.Ready
+            && viewport.requestReason === ImageViewport.RequestReason.Ready
+            && viewport.displayStatus === ImageViewport.DisplayStatus.Ready
+            && viewport.frameCount === 1
+            && viewport.totalDuration === 100
+            && viewport.displayedImageSize.width === 4
+            && viewport.displayedImageSize.height === 2
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("suppliedFrame"), QVariant::fromValue<QObject*>(&frame));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    QCOMPARE(object->property("frameFactoryCreated").toBool(), true);
+    QCOMPARE(object->property("timedListAcceptedFrame").toBool(), true);
+    QCOMPARE(object->property("timedFactoryCreated").toBool(), true);
+    QCOMPARE(object->property("viewportReady").toBool(), true);
+}
+
+void ImageSequenceFactoryTest::factoryResultDiagnosticsArePublicSafe()
+{
+    const int limit = ImageSequenceLimits::maximumDiagnosticStringLength();
+    QString diagnostic = QStringLiteral("failed for https://user:secret@example.test/image.png "
+                                        "token=abc123 path /home/ops/private/image.png ");
+    diagnostic += QString(limit + 100, QLatin1Char('x'));
+
+    ImageSequenceFactoryResult result(
+        nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, diagnostic, diagnostic);
+
+    const QString errorString = result.errorString();
+    const QString warningString = result.warningString();
+    QCOMPARE(errorString.toUcs4().size(), limit);
+    QCOMPARE(warningString.toUcs4().size(), limit);
+    QVERIFY(!errorString.contains(QStringLiteral("https://")));
+    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!errorString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(errorString.contains(QStringLiteral("[redacted")));
+    QVERIFY(!warningString.contains(QStringLiteral("https://")));
+    QVERIFY(!warningString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!warningString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(!warningString.contains(QStringLiteral("/home/ops/private")));
+    QVERIFY(warningString.contains(QStringLiteral("[redacted")));
+}
+
+void ImageSequenceFactoryTest::exposesImageSequenceLimits()
+{
+    ImageSequenceLimits limits;
+    const QMetaObject* metaObject = limits.metaObject();
+
+    struct LimitExpectation
+    {
+        const char* name;
+        qint64 cppValue;
+        qint64 minimum;
+    };
+
+    const LimitExpectation expectations[] = {
+        { "maximumLogicalWidth", ImageSequenceLimits::maximumLogicalWidth(), 8192 },
+        { "maximumLogicalHeight", ImageSequenceLimits::maximumLogicalHeight(), 8192 },
+        { "maximumPixelsPerFrame", ImageSequenceLimits::maximumPixelsPerFrame(), 67108864LL },
+        { "maximumPayloadBytesPerFrame", ImageSequenceLimits::maximumPayloadBytesPerFrame(),
+            268435456LL },
+        { "maximumTimedListFrameCount", ImageSequenceLimits::maximumTimedListFrameCount(), 10000 },
+        { "maximumFrameDuration", ImageSequenceLimits::maximumFrameDuration(), 86400000 },
+        { "maximumTotalSequenceDuration", ImageSequenceLimits::maximumTotalSequenceDuration(),
+            86400000 },
+        { "maximumDiagnosticStringLength", ImageSequenceLimits::maximumDiagnosticStringLength(),
+            4096 },
+    };
+
+    for (const LimitExpectation& expectation : expectations) {
+        const int propertyIndex = metaObject->indexOfProperty(expectation.name);
+        QVERIFY2(propertyIndex >= 0, expectation.name);
+        const QMetaProperty property = metaObject->property(propertyIndex);
+        QCOMPARE(property.isWritable(), false);
+        QCOMPARE(property.isConstant(), true);
+        QCOMPARE(limits.property(expectation.name).toLongLong(), expectation.cppValue);
+        QVERIFY2(expectation.cppValue >= expectation.minimum, expectation.name);
+    }
+}
+
+void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
+{
+    ImageSequenceFactoryResult* rawResult = nullptr;
+    QPointer<ImageSequenceFactoryResult> observedResult;
+    QPointer<ImageSequence> observedSequence;
+    {
+        ImageSequenceFactory factory;
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        ImageFrame frame(image);
+        rawResult = factory.fromFrame(&frame);
+        observedResult = rawResult;
+        QVERIFY(rawResult);
+        observedSequence = rawResult->sequence();
+        QVERIFY(observedSequence);
+    }
+
+    QVERIFY(observedResult);
+    QVERIFY(observedSequence);
+    QScopedPointer<ImageSequenceFactoryResult> result(rawResult);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.sequence(), result->sequence());
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    verifyRequestStatusReasonPair(item);
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+}
+
+void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    result.reset();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("frameCount").toInt(), 1);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+}
+
+void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+    QPointer<ImageSequence> observedSequence = result->sequence();
+
+    QQuickWindow window;
+    window.resize(100, 50);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    result.reset();
+
+    QVERIFY(observedSequence);
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QVERIFY(sessionFactory->lastSession());
+
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("frameCount").toInt(), 1);
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), nullptr);
+    QVERIFY(!observedSequence);
+}
+
+void ImageSequenceFactoryTest::sharedFactorySequenceSurvivesFirstViewportDestruction()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport second;
+    second.setSize(QSizeF(100.0, 50.0));
+    const QMetaObject* metaObject = second.metaObject();
+    {
+        ImageViewport first;
+        first.setSize(QSizeF(100.0, 50.0));
+        first.setSequence(result->sequence());
+        second.setSequence(result->sequence());
+
+        QCOMPARE(first.property("requestStatus").toInt(),
+            enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(second.property("requestStatus").toInt(),
+            enumValue(metaObject, "RequestStatus", "Ready"));
+    }
+
+    QCOMPARE(
+        second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        second.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(
+        second.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(second.property("requestedFrame").toInt(), 0);
+    QCOMPARE(second.property("displayedFrame").toInt(), 0);
+    QCOMPARE(second.property("frameCount").toInt(), 1);
+    QCOMPARE(second.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+    QCOMPARE(second.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+}
+
+void ImageSequenceFactoryTest::clearReleasesAssignedFactorySequenceOwner()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+    QPointer<ImageSequence> observedSequence = result->sequence();
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    item.setSequence(result->sequence());
+    result.reset();
+
+    QVERIFY(observedSequence);
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), nullptr);
+    QVERIFY(!observedSequence);
+}
+
+void ImageSequenceFactoryTest::imageFrameRetainsImmutablePayload()
+{
+    QImage image(2, 1, QImage::Format_ARGB32_Premultiplied);
+    image.setPixelColor(0, 0, QColor(255, 0, 0, 255));
+    image.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+
+    ImageFrame frame(image);
+    image.fill(QColor(0, 0, 255, 255));
+
+    const QImage retained = frame.imageForTest();
+    QCOMPARE(retained.size(), QSize(2, 1));
+    QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+    QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
+{
+    QImage transparentImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+    transparentImage.fill(Qt::transparent);
+    const ImageFrame transparentFrame(transparentImage);
+    const QMetaObject* metaObject = transparentFrame.metaObject();
+
+    QVERIFY(metaObject->indexOfProperty("valid") >= 0);
+    QVERIFY(metaObject->indexOfProperty("logicalSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("payloadByteSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("hasAlphaChannel") >= 0);
+    QVERIFY(metaObject->indexOfProperty("orientationPolicy") >= 0);
+    verifyEnumValues(metaObject, "OrientationPolicy", { "Identity" });
+
+    QCOMPARE(transparentFrame.property("valid").toBool(), true);
+    QCOMPARE(transparentFrame.property("logicalSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(transparentFrame.property("payloadByteSize").toLongLong(),
+        transparentFrame.payloadByteSize());
+    QCOMPARE(transparentFrame.property("hasAlphaChannel").toBool(), true);
+    QCOMPARE(transparentFrame.property("orientationPolicy").toInt(),
+        enumValue(metaObject, "OrientationPolicy", "Identity"));
+
+    QImage opaqueImage(2, 1, QImage::Format_RGB32);
+    opaqueImage.fill(Qt::black);
+    const ImageFrame opaqueFrame(opaqueImage);
+    QCOMPARE(opaqueFrame.property("valid").toBool(), true);
+    QCOMPARE(opaqueFrame.property("hasAlphaChannel").toBool(), false);
+
+    const ImageFrame emptyFrame;
+    QCOMPARE(emptyFrame.property("valid").toBool(), false);
+    QCOMPARE(emptyFrame.property("logicalSize").toSizeF(), QSizeF());
+    QCOMPARE(emptyFrame.property("payloadByteSize").toLongLong(), 0);
+    QCOMPARE(emptyFrame.property("hasAlphaChannel").toBool(), false);
+    QCOMPARE(emptyFrame.property("orientationPolicy").toInt(),
+        enumValue(metaObject, "OrientationPolicy", "Identity"));
+}
+
+void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
+{
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(2.0);
+    image.fill(Qt::transparent);
+
+    ImageFrame frame(image);
+
+    QCOMPARE(frame.isValid(), true);
+    QCOMPARE(frame.logicalSize(), QSizeF(2.0, 1.0));
+    QCOMPARE(frame.payloadByteSize(), static_cast<qint64>(image.sizeInBytes()));
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(20.0, 20.0));
+    item.setSequence(result->sequence());
+
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
+
+    QScopedPointer<ImageSequenceFactoryResult> nativeFrameResult(factory.fromFrame(image));
+    QVERIFY(nativeFrameResult->sequence());
+    ImageViewport nativeFrameItem;
+    nativeFrameItem.setSize(QSizeF(20.0, 20.0));
+    nativeFrameItem.setSequence(nativeFrameResult->sequence());
+    QCOMPARE(nativeFrameItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(nativeFrameItem.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
+
+    QScopedPointer<ImageSequenceFactoryResult> nativeTimedResult(
+        factory.fromTimedFrameList({ image, image }, { 100, 200 }));
+    QVERIFY(nativeTimedResult->sequence());
+    ImageViewport nativeTimedItem;
+    nativeTimedItem.setSize(QSizeF(20.0, 20.0));
+    nativeTimedItem.setSequence(nativeTimedResult->sequence());
+    QCOMPARE(nativeTimedItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(nativeTimedItem.property("frameCount").toInt(), 2);
+    QCOMPARE(nativeTimedItem.property("totalDuration").toInt(), 300);
+
+    QImage fractionalLogicalImage(3, 2, QImage::Format_ARGB32_Premultiplied);
+    fractionalLogicalImage.setDevicePixelRatio(2.0);
+    fractionalLogicalImage.fill(Qt::transparent);
+    ImageFrame fractionalLogicalFrame(fractionalLogicalImage);
+    QCOMPARE(fractionalLogicalFrame.isValid(), false);
+}
+
+void ImageSequenceFactoryTest::stillImageSequenceRetainsFactoryPayload()
+{
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+    {
+        QImage image(2, 1, QImage::Format_ARGB32_Premultiplied);
+        image.setPixelColor(0, 0, QColor(255, 0, 0, 255));
+        image.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+        ImageFrame frame(image);
+        result.reset(factory.fromFrame(&frame));
+        QVERIFY(result->sequence());
+    }
+
+    const QImage retained = result->sequence()->frameImageForTest(0);
+    QCOMPARE(retained.size(), QSize(2, 1));
+    QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+    QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageSequenceFactoryTest::timedFrameListSequenceRetainsFactoryPayloads()
+{
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result;
+    {
+        QImage firstImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+        firstImage.fill(QColor(255, 0, 0, 255));
+        QImage secondImage(2, 1, QImage::Format_ARGB32_Premultiplied);
+        secondImage.fill(QColor(0, 255, 0, 255));
+        ImageFrame firstFrame(firstImage);
+        ImageFrame secondFrame(secondImage);
+        TimedImageFrameList list;
+        QVERIFY(list.appendFrame(&firstFrame, 100));
+        QVERIFY(list.appendFrame(&secondFrame, 250));
+
+        result.reset(factory.fromTimedFrameList(&list));
+        QVERIFY(result->sequence());
+    }
+
+    const QImage firstRetained = result->sequence()->frameImageForTest(0);
+    QCOMPARE(firstRetained.size(), QSize(2, 1));
+    QCOMPARE(firstRetained.pixelColor(0, 0), QColor(255, 0, 0, 255));
+
+    const QImage secondRetained = result->sequence()->frameImageForTest(1);
+    QCOMPARE(secondRetained.size(), QSize(2, 1));
+    QCOMPARE(secondRetained.pixelColor(0, 0), QColor(0, 255, 0, 255));
+}
+
+void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
+{
+    ImageViewport item;
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 1U);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+
+    QCOMPARE(item.pause(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+
+    QCOMPARE(item.stop(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
+
+    QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 5U);
+
+    QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), 6U);
+    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
+    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(sequenceSpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(playbackSpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(diagnosticsSpy.count(), 0);
+}
+
+QTEST_MAIN(ImageSequenceFactoryTest)
+
+#include "tst_imagesequence_factory.moc"
