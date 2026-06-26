@@ -26,6 +26,7 @@ private slots:
     void clearReleasesAssignedFactorySequenceOwner();
     void imageFrameRetainsImmutablePayload();
     void imageFrameExposesPayloadMetadata();
+    void imageFrameOrientationPoliciesNormalizePayload();
     void imageFrameUsesDeviceIndependentLogicalSize();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
@@ -526,7 +527,9 @@ void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
     QVERIFY(metaObject->indexOfProperty("payloadByteSize") >= 0);
     QVERIFY(metaObject->indexOfProperty("hasAlphaChannel") >= 0);
     QVERIFY(metaObject->indexOfProperty("orientationPolicy") >= 0);
-    verifyEnumValues(metaObject, "OrientationPolicy", { "Identity" });
+    verifyEnumValues(metaObject, "OrientationPolicy",
+        { "Identity", "MirrorHorizontally", "MirrorVertically", "Rotate180", "Rotate90",
+            "MirrorHorizontallyAndRotate90", "MirrorVerticallyAndRotate90", "Rotate270" });
 
     QCOMPARE(transparentFrame.property("valid").toBool(), true);
     QCOMPARE(transparentFrame.property("logicalSize").toSizeF(), QSizeF(2.0, 1.0));
@@ -549,6 +552,77 @@ void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
     QCOMPARE(emptyFrame.property("hasAlphaChannel").toBool(), false);
     QCOMPARE(emptyFrame.property("orientationPolicy").toInt(),
         enumValue(metaObject, "OrientationPolicy", "Identity"));
+}
+
+void ImageSequenceFactoryTest::imageFrameOrientationPoliciesNormalizePayload()
+{
+    QImage image(3, 2, QImage::Format_ARGB32);
+    image.setPixelColor(0, 0, QColor(255, 0, 0, 255));
+    image.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+    image.setPixelColor(2, 0, QColor(0, 0, 255, 255));
+    image.setPixelColor(0, 1, QColor(255, 255, 0, 255));
+    image.setPixelColor(1, 1, QColor(0, 255, 255, 255));
+    image.setPixelColor(2, 1, QColor(255, 0, 255, 255));
+
+    const auto expectedImage = [&image](ImageFrame::OrientationPolicy policy) {
+        switch (policy) {
+        case ImageFrame::OrientationPolicy::Identity:
+            return image;
+        case ImageFrame::OrientationPolicy::MirrorHorizontally:
+            return image.mirrored(true, false);
+        case ImageFrame::OrientationPolicy::MirrorVertically:
+            return image.mirrored(false, true);
+        case ImageFrame::OrientationPolicy::Rotate180:
+            return image.transformed(QTransform().rotate(180));
+        case ImageFrame::OrientationPolicy::Rotate90:
+            return image.transformed(QTransform().rotate(90));
+        case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
+            return image.mirrored(true, false).transformed(QTransform().rotate(90));
+        case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
+            return image.mirrored(false, true).transformed(QTransform().rotate(90));
+        case ImageFrame::OrientationPolicy::Rotate270:
+            return image.transformed(QTransform().rotate(270));
+        }
+        return QImage();
+    };
+
+    const QList<ImageFrame::OrientationPolicy> policies = {
+        ImageFrame::OrientationPolicy::Identity,
+        ImageFrame::OrientationPolicy::MirrorHorizontally,
+        ImageFrame::OrientationPolicy::MirrorVertically,
+        ImageFrame::OrientationPolicy::Rotate180,
+        ImageFrame::OrientationPolicy::Rotate90,
+        ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90,
+        ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90,
+        ImageFrame::OrientationPolicy::Rotate270,
+    };
+
+    for (ImageFrame::OrientationPolicy policy : policies) {
+        const QImage expected = expectedImage(policy);
+        const ImageFrame frame(image, policy);
+        QCOMPARE(frame.isValid(), true);
+        QCOMPARE(frame.orientationPolicy(), policy);
+        QCOMPARE(frame.logicalSize(), expected.deviceIndependentSize());
+        QCOMPARE(frame.imageForTest().size(), expected.size());
+        for (int y = 0; y < expected.height(); ++y) {
+            for (int x = 0; x < expected.width(); ++x) {
+                QCOMPARE(frame.imageForTest().pixelColor(x, y), expected.pixelColor(x, y));
+            }
+        }
+    }
+
+    ImageFrame rotatedFrame(image, ImageFrame::OrientationPolicy::Rotate90);
+    QImage matchingImage(2, 3, QImage::Format_ARGB32);
+    matchingImage.fill(Qt::black);
+    ImageFrame matchingFrame(matchingImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&rotatedFrame, 100));
+    QVERIFY(list.appendFrame(&matchingFrame, 250));
+    QCOMPARE(list.count(), 2);
+
+    ImageFrame mismatchedFrame(image);
+    QVERIFY(!list.appendFrame(&mismatchedFrame, 100));
+    QVERIFY(list.errorString().contains(QStringLiteral("logical size")));
 }
 
 void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()

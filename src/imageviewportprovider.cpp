@@ -30,6 +30,12 @@ void ImageViewportPrivate::requestProviderFrame(ImageSequenceProviderRequestToke
     providerBridge.requestFrame(token, frame);
 }
 
+void ImageViewportPrivate::requestProviderPosition(
+    ImageSequenceProviderRequestToken token, int frame, int position)
+{
+    providerBridge.requestPosition(token, frame, position);
+}
+
 void ImageViewportPrivate::requestProviderPlayback(
     ImageSequenceProviderRequestToken token, int frame, int position)
 {
@@ -48,9 +54,11 @@ void ImageViewportPrivate::clearQueuedProviderFrameRequest()
     m_queuedProviderFrame = -1;
     m_queuedProviderPosition = -1;
     m_queuedProviderFrameFromPlayback = false;
+    m_queuedProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 }
 
-void ImageViewportPrivate::queueProviderFrameRequest(int frame, bool fromPlayback)
+void ImageViewportPrivate::queueProviderFrameRequest(
+    int frame, ProviderRequestTargetKind targetKind)
 {
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::RequestQueued;
@@ -63,12 +71,14 @@ void ImageViewportPrivate::queueProviderFrameRequest(int frame, bool fromPlaybac
     }
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 
     m_queuedProviderFrameRequest = true;
     m_queuedProviderFrameGeneration = m_sequenceGeneration;
     m_queuedProviderFrame = frame;
     m_queuedProviderPosition = m_requestedPosition;
-    m_queuedProviderFrameFromPlayback = fromPlayback;
+    m_queuedProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
+    m_queuedProviderFrameTargetKind = targetKind;
     QMetaObject::invokeMethod(q, [this]() { flushQueuedProviderFrameRequest(); },
         Qt::QueuedConnection);
 }
@@ -82,17 +92,17 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 
     const int queuedFrame = m_queuedProviderFrame;
     const int queuedPosition = m_queuedProviderPosition;
-    const bool queuedFromPlayback = m_queuedProviderFrameFromPlayback;
+    const ProviderRequestTargetKind queuedTargetKind = m_queuedProviderFrameTargetKind;
     const bool stillCurrent = m_queuedProviderFrameGeneration == m_sequenceGeneration
         && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::RequestQueued && m_currentFrame == queuedFrame
-        && m_requestedPosition == queuedPosition;
+        && m_requestedPosition == queuedPosition && m_currentProviderTargetKind == queuedTargetKind;
     clearQueuedProviderFrameRequest();
     if (!stillCurrent) {
         return;
     }
 
-    startProviderFrameRequest(queuedFrame, queuedFromPlayback);
+    startProviderFrameRequest(queuedFrame, queuedTargetKind);
     incrementRequestRevision();
     emit q->requestStateChanged();
     if (m_requestStatus == RequestStatus::Error
@@ -101,7 +111,8 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
     }
 }
 
-bool ImageViewportPrivate::startProviderFrameRequest(int frame, bool fromPlayback)
+bool ImageViewportPrivate::startProviderFrameRequest(
+    int frame, ProviderRequestTargetKind targetKind)
 {
     clearQueuedProviderFrameRequest();
     m_requestStatus = RequestStatus::Loading;
@@ -112,10 +123,13 @@ bool ImageViewportPrivate::startProviderFrameRequest(int frame, bool fromPlaybac
         return false;
     }
 
-    m_activeProviderFrameFromPlayback = fromPlayback;
+    m_activeProviderFrameTargetKind = targetKind;
+    m_activeProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
     if (m_providerSession) {
-        if (fromPlayback) {
+        if (targetKind == ProviderRequestTargetKind::Playback) {
             requestProviderPlayback(m_activeProviderFrameToken, frame, m_requestedPosition);
+        } else if (targetKind == ProviderRequestTargetKind::Position) {
+            requestProviderPosition(m_activeProviderFrameToken, frame, m_requestedPosition);
         } else {
             requestProviderFrame(m_activeProviderFrameToken, frame);
         }
@@ -129,6 +143,7 @@ void ImageViewportPrivate::publishProviderTokenExhaustion()
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     m_providerPlaybackStartPending = false;
     m_stopPlaybackWhenRequestReady = false;
     m_requestStatus = RequestStatus::Error;
@@ -194,25 +209,17 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
 
-    if (m_sequence->m_hasProviderKnownMetadata) {
-        const bool knownTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
-        const bool contradictsKnownMetadata = knownTimedMetadata != isTimedMetadata
-            || metadata.logicalSize() != m_sequence->m_providerKnownLogicalSize
-            || (knownTimedMetadata
-                && metadata.frameDurations() != m_sequence->m_providerKnownFrameDurations);
-        if (contradictsKnownMetadata) {
-            m_requestStatus = RequestStatus::Error;
-            m_requestReason = RequestReason::PayloadRejection;
-            m_errorString
-                = QStringLiteral("provider metadata contradicts construction-time metadata");
-            m_providerPlaybackStartPending = false;
-            setPlaybackPhase(PlaybackPhase::Stopped);
-            incrementRequestRevision();
-            emit q->requestStateChanged();
-            emit q->diagnosticsChanged();
-            closeProviderSession();
-            return;
-        }
+    if (providerFactsContradictMetadata(m_sequence->m_providerKnownFacts, metadata)) {
+        m_requestStatus = RequestStatus::Error;
+        m_requestReason = RequestReason::PayloadRejection;
+        m_errorString = QStringLiteral("provider metadata contradicts construction-time facts");
+        m_providerPlaybackStartPending = false;
+        setPlaybackPhase(PlaybackPhase::Stopped);
+        incrementRequestRevision();
+        emit q->requestStateChanged();
+        emit q->diagnosticsChanged();
+        closeProviderSession();
+        return;
     }
 
     m_providerMetadataReady = true;
@@ -220,10 +227,16 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
     const bool selectedFromPlaybackStart
-        = m_providerPlaybackStartPending && m_currentFrame < 0 && m_requestedPosition < 0;
+        = m_providerPlaybackStartPending
+        && m_currentProviderTargetKind == ProviderRequestTargetKind::Playback;
+    const bool selectedFromPosition
+        = m_currentProviderTargetKind == ProviderRequestTargetKind::Position;
+    ProviderRequestTargetKind requestTargetKind = selectedFromPlaybackStart
+        ? ProviderRequestTargetKind::Playback
+        : (selectedFromPosition ? ProviderRequestTargetKind::Position
+                                : ProviderRequestTargetKind::Frame);
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
-    const bool selectedFromPosition = m_currentFrame < 0 && m_requestedPosition >= 0;
     if (selectedFromPlaybackStart && !isTimedMetadata) {
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
@@ -275,9 +288,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         m_requestedPosition = isTimedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
     }
     m_playbackPosition = m_requestedPosition;
-    if (m_playbackPhase != PlaybackPhase::Waiting) {
+    m_currentProviderTargetKind = requestTargetKind;
+    if (requestTargetKind != ProviderRequestTargetKind::Playback) {
         m_latestNonPlaybackFrame = m_currentFrame;
         m_latestNonPlaybackPosition = m_requestedPosition;
+        m_latestNonPlaybackProviderTargetKind = requestTargetKind;
     }
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
@@ -286,7 +301,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     discardPendingRenderCommit();
 
     m_providerPlaybackStartPending = false;
-    if (!startProviderFrameRequest(selectedFrame, selectedFromPlaybackStart)) {
+    if (!startProviderFrameRequest(selectedFrame, requestTargetKind)) {
         incrementRequestRevision();
         emit q->requestStateChanged();
         emit q->diagnosticsChanged();
@@ -332,6 +347,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
+        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString
@@ -347,6 +363,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
+        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString = QStringLiteral("provider frame payload is invalid");
@@ -360,6 +377,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     const bool diagnosticsValueChanged = clearDiagnostics();
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState(frame->imagePayload());
@@ -439,6 +457,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
         if (activeFrameToken) {
             m_activeProviderFrameToken = {};
             m_activeProviderFrameFromPlayback = false;
+            m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         }
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
@@ -455,6 +474,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     const bool diagnosticsValueChanged = clearDiagnostics();
 
     int selectedFrame = 0;
@@ -471,6 +491,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     m_currentFrame = selectedFrame;
     m_requestedPosition = selectedPosition;
+    m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
 
     if (!m_looping && hasReadyDisplay() && m_displayedGeneration == m_sequenceGeneration
         && m_displayedFrame == selectedFrame && m_displayedPosition == selectedPosition) {
@@ -495,7 +516,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
     m_displayStatus
         = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
-    if (!startProviderFrameRequest(selectedFrame, true)) {
+    if (!startProviderFrameRequest(selectedFrame, ProviderRequestTargetKind::Playback)) {
         incrementRequestRevision();
         emit q->requestStateChanged();
         emit q->diagnosticsChanged();
@@ -523,6 +544,7 @@ void ImageViewportPrivate::handleProviderFailure(
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
+        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
@@ -562,6 +584,7 @@ void ImageViewportPrivate::handleProviderUnsupported(
         const bool unsupportedPlaybackRequest = m_activeProviderFrameFromPlayback;
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
+        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = unsupportedPlaybackRequest ? RequestReason::UnsupportedRequest
                                                      : RequestReason::PayloadRejection;
@@ -601,6 +624,7 @@ void ImageViewportPrivate::handleProviderCancellation(
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
+        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::ProviderFailure;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
@@ -657,6 +681,14 @@ std::shared_ptr<ImageSequenceProviderSessionFactory>
 ImageViewportPrivate::providerSessionFactory() const
 {
     return hasProviderSequence() ? m_sequence->m_providerSessionFactory : nullptr;
+}
+
+ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract() const
+{
+    if (hasProviderSequence()) {
+        return m_sequence->m_providerThreadingContract;
+    }
+    return ImageSequenceProviderThreadingContract::AffinityBound;
 }
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const

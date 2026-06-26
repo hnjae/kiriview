@@ -37,24 +37,29 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
+    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 
     if (hasProviderSequence()) {
-        if (m_sequence->m_hasProviderKnownMetadata) {
-            m_providerMetadataReady = m_sequence->m_hasCompleteProviderKnownMetadata;
-            m_providerTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
+        if (m_sequence->m_hasCompleteProviderKnownMetadata) {
+            m_providerMetadataReady = true;
+            m_providerTimedMetadata = m_sequence->m_providerKnownFacts.isTimedFrameList();
             m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
             m_providerFrameDurations = m_sequence->m_providerKnownFrameDurations;
-            m_currentFrame = m_providerMetadataReady ? 0 : -1;
-            m_requestedPosition = m_providerMetadataReady ? (m_providerTimedMetadata ? 0 : -1) : -1;
+            m_currentFrame = 0;
+            m_requestedPosition = m_providerTimedMetadata ? 0 : -1;
             m_playbackPosition = m_requestedPosition;
             m_latestNonPlaybackFrame = m_currentFrame;
             m_latestNonPlaybackPosition = m_requestedPosition;
+            m_currentProviderTargetKind = ProviderRequestTargetKind::Frame;
+            m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Frame;
         } else {
             m_currentFrame = -1;
             m_requestedPosition = -1;
             m_playbackPosition = -1;
             m_latestNonPlaybackFrame = -1;
             m_latestNonPlaybackPosition = -1;
+            m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
+            m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
         }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
@@ -71,6 +76,8 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_playbackPosition = hasTimedSequence() ? 0 : -1;
         m_latestNonPlaybackFrame = m_currentFrame;
         m_latestNonPlaybackPosition = m_requestedPosition;
+        m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
+        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {
@@ -82,6 +89,8 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_playbackPosition = -1;
         m_latestNonPlaybackFrame = -1;
         m_latestNonPlaybackPosition = -1;
+        m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
+        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
         m_displayedFrame = -1;
         m_displayedPosition = -1;
         m_displayedGeneration = 0;
@@ -185,9 +194,13 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence()
-        && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
+    if (hasProviderSequence() && m_providerMetadataReady) {
         return m_providerTimedMetadata ? m_providerFrameDurations.size() : 1;
+    }
+    if (hasProviderSequence() && !m_providerMetadataReady
+        && m_sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(m_sequence->m_providerFrameSeekCapability)) {
+        return m_sequence->m_providerKnownFacts.frameCount();
     }
     if (hasDisplayableSequence()) {
         return m_sequence->frameCount();
@@ -214,12 +227,19 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence()
-        && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
+    if (hasProviderSequence() && m_providerMetadataReady) {
         return {
             { QStringLiteral("minimum"), 0 },
             { QStringLiteral("maximum"),
                 m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0 },
+        };
+    }
+    if (hasProviderSequence() && !m_providerMetadataReady
+        && m_sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(m_sequence->m_providerFrameSeekCapability)) {
+        return {
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"), m_sequence->m_providerKnownFacts.frameCount() - 1 },
         };
     }
     if (hasStillSequence() || hasTimedSequence()) {

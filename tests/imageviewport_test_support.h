@@ -11,6 +11,7 @@
 #include <QtCore/QScopeGuard>
 #include <QtCore/QThread>
 #include <QtGui/QImage>
+#include <QtGui/QTransform>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlEngine>
@@ -120,7 +121,10 @@ public:
         const std::shared_ptr<int>& lastPlaybackFrame = {},
         const std::shared_ptr<int>& lastPlaybackPosition = {},
         const std::shared_ptr<int>& cancelRequestCount = {},
-        const std::shared_ptr<quint64>& lastCancelledTokenId = {}, QObject* parent = nullptr)
+        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<int>& positionRequestCount = {},
+        const std::shared_ptr<int>& lastPositionFrame = {},
+        const std::shared_ptr<int>& lastRequestedPosition = {}, QObject* parent = nullptr)
         : ImageSequenceProviderSession(parent)
         , m_metadataRequestCount(metadataRequestCount)
         , m_frameRequestCount(frameRequestCount)
@@ -131,6 +135,9 @@ public:
         , m_lastPlaybackPosition(lastPlaybackPosition)
         , m_cancelRequestCount(cancelRequestCount)
         , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_positionRequestCount(positionRequestCount)
+        , m_lastPositionFrame(lastPositionFrame)
+        , m_lastRequestedPosition(lastRequestedPosition)
     {
     }
 
@@ -145,6 +152,25 @@ public:
         m_lastFrameToken = token;
         *m_lastRequestedFrame = frame;
         ++*m_frameRequestCount;
+    }
+
+    void requestPosition(
+        ImageSequenceProviderRequestToken token, int resolvedFrame, int requestedPosition) override
+    {
+        if (!m_positionRequestCount && !m_lastPositionFrame && !m_lastRequestedPosition) {
+            ImageSequenceProviderSession::requestPosition(token, resolvedFrame, requestedPosition);
+            return;
+        }
+        m_lastPositionToken = token;
+        if (m_positionRequestCount) {
+            ++*m_positionRequestCount;
+        }
+        if (m_lastPositionFrame) {
+            *m_lastPositionFrame = resolvedFrame;
+        }
+        if (m_lastRequestedPosition) {
+            *m_lastRequestedPosition = requestedPosition;
+        }
     }
 
     void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position) override
@@ -178,6 +204,8 @@ public:
 
     ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
 
+    ImageSequenceProviderRequestToken lastPositionToken() const { return m_lastPositionToken; }
+
     ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
 
 private:
@@ -190,8 +218,12 @@ private:
     std::shared_ptr<int> m_lastPlaybackPosition;
     std::shared_ptr<int> m_cancelRequestCount;
     std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<int> m_positionRequestCount;
+    std::shared_ptr<int> m_lastPositionFrame;
+    std::shared_ptr<int> m_lastRequestedPosition;
     ImageSequenceProviderRequestToken m_lastMetadataToken;
     ImageSequenceProviderRequestToken m_lastFrameToken;
+    ImageSequenceProviderRequestToken m_lastPositionToken;
     ImageSequenceProviderRequestToken m_lastCancelledToken;
 };
 
@@ -206,7 +238,10 @@ public:
         const std::shared_ptr<int>& lastPlaybackFrame = {},
         const std::shared_ptr<int>& lastPlaybackPosition = {},
         const std::shared_ptr<int>& cancelRequestCount = {},
-        const std::shared_ptr<quint64>& lastCancelledTokenId = {})
+        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<int>& positionRequestCount = {},
+        const std::shared_ptr<int>& lastPositionFrame = {},
+        const std::shared_ptr<int>& lastRequestedPosition = {})
         : m_sessionCount(sessionCount)
         , m_metadataRequestCount(metadataRequestCount)
         , m_frameRequestCount(frameRequestCount)
@@ -217,6 +252,9 @@ public:
         , m_lastPlaybackPosition(lastPlaybackPosition)
         , m_cancelRequestCount(cancelRequestCount)
         , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_positionRequestCount(positionRequestCount)
+        , m_lastPositionFrame(lastPositionFrame)
+        , m_lastRequestedPosition(lastRequestedPosition)
     {
     }
 
@@ -226,7 +264,8 @@ public:
         CountingProviderSession* session
             = new CountingProviderSession(m_metadataRequestCount, m_frameRequestCount,
                 m_lastRequestedFrame, m_closeCount, m_playbackRequestCount, m_lastPlaybackFrame,
-                m_lastPlaybackPosition, m_cancelRequestCount, m_lastCancelledTokenId, parent);
+                m_lastPlaybackPosition, m_cancelRequestCount, m_lastCancelledTokenId,
+                m_positionRequestCount, m_lastPositionFrame, m_lastRequestedPosition, parent);
         m_lastSession = session;
         m_sessions.append(session);
         return session;
@@ -247,6 +286,9 @@ private:
     std::shared_ptr<int> m_lastPlaybackPosition;
     std::shared_ptr<int> m_cancelRequestCount;
     std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<int> m_positionRequestCount;
+    std::shared_ptr<int> m_lastPositionFrame;
+    std::shared_ptr<int> m_lastRequestedPosition;
     QPointer<CountingProviderSession> m_lastSession;
     QList<QPointer<CountingProviderSession>> m_sessions;
 };
@@ -259,6 +301,8 @@ public:
         CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
         CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
         CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
+        ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound,
         QObject* parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
         , m_factory(std::move(factory))
@@ -266,6 +310,25 @@ public:
         , m_timedPlaybackSupport(timedPlaybackSupport)
         , m_frameSeekSupport(frameSeekSupport)
         , m_positionSeekSupport(positionSeekSupport)
+        , m_threadingContract(threadingContract)
+    {
+    }
+
+    explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
+        ImageSequenceProviderKnownFacts knownFacts,
+        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
+        ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_factory(std::move(factory))
+        , m_knownFacts(std::move(knownFacts))
+        , m_timedPlaybackSupport(timedPlaybackSupport)
+        , m_frameSeekSupport(frameSeekSupport)
+        , m_positionSeekSupport(positionSeekSupport)
+        , m_threadingContract(threadingContract)
     {
     }
 
@@ -276,18 +339,34 @@ public:
 
     ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
 
+    ImageSequenceProviderKnownFacts knownFacts() const override
+    {
+        if (m_knownFacts.isSpecified()) {
+            return m_knownFacts;
+        }
+        return ImageSequenceProviderAdapter::knownFacts();
+    }
+
     CapabilitySupport timedPlaybackCapability() const override { return m_timedPlaybackSupport; }
 
     CapabilitySupport frameSeekCapability() const override { return m_frameSeekSupport; }
 
     CapabilitySupport positionSeekCapability() const override { return m_positionSeekSupport; }
 
+    ImageSequenceProviderThreadingContract threadingContract() const override
+    {
+        return m_threadingContract;
+    }
+
 private:
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
     ImageSequenceProviderMetadata m_knownMetadata;
+    ImageSequenceProviderKnownFacts m_knownFacts;
     CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+    ImageSequenceProviderThreadingContract m_threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
 };
 
 class AffinityProviderSession final : public ImageSequenceProviderSession
@@ -314,6 +393,12 @@ public:
     }
 
     void requestFrame(ImageSequenceProviderRequestToken token, int) override
+    {
+        *m_frameRequestThread = QThread::currentThread();
+        m_lastFrameToken = token;
+    }
+
+    void requestPosition(ImageSequenceProviderRequestToken token, int, int) override
     {
         *m_frameRequestThread = QThread::currentThread();
         m_lastFrameToken = token;

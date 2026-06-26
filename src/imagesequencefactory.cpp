@@ -127,16 +127,24 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     }
 
     const ImageSequenceProviderMetadata knownMetadata = adapter->knownMetadata();
+    const ImageSequenceProviderKnownFacts knownFacts = adapter->knownFacts();
     const ImageSequenceProviderCapabilitySupport timedPlaybackCapability
         = adapter->timedPlaybackCapability();
     const ImageSequenceProviderCapabilitySupport frameSeekCapability
         = adapter->frameSeekCapability();
     const ImageSequenceProviderCapabilitySupport positionSeekCapability
         = adapter->positionSeekCapability();
+    const ImageSequenceProviderThreadingContract threadingContract = adapter->threadingContract();
     const QString metadataViolation = providerMetadataLimitViolation(knownMetadata);
     if (!metadataViolation.isEmpty()) {
         return new ImageSequenceFactoryResult(
             nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, metadataViolation);
+    }
+
+    const QString factsViolation = providerKnownFactsLimitViolation(knownFacts);
+    if (!factsViolation.isEmpty()) {
+        return new ImageSequenceFactoryResult(
+            nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, factsViolation);
     }
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();
@@ -150,15 +158,16 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("provider metadata contradicts declared capabilities"));
     }
-
-    const bool hasCompleteKnownMetadata = hasKnownMetadata;
+    if (providerFactsContradictCapabilities(
+            knownFacts, timedPlaybackCapability, frameSeekCapability, positionSeekCapability)) {
+        return new ImageSequenceFactoryResult(nullptr,
+            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+            QStringLiteral("provider construction facts contradict declared capabilities"));
+    }
 
     std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(std::move(sessionFactory), hasKnownMetadata, hasCompleteKnownMetadata,
-            hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
-            hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations()
-                                                                 : QVector<int>(),
-            timedPlaybackCapability, frameSeekCapability, positionSeekCapability));
+        new ImageSequence(std::move(sessionFactory), knownFacts, timedPlaybackCapability,
+            frameSeekCapability, positionSeekCapability, threadingContract));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});

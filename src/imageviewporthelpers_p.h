@@ -123,6 +123,55 @@ inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadat
     return {};
 }
 
+inline QString providerKnownFactsLimitViolation(const ImageSequenceProviderKnownFacts& facts)
+{
+    if (!facts.isSpecified()) {
+        return {};
+    }
+    if (!facts.isValid()) {
+        return QStringLiteral("provider known facts are invalid");
+    }
+
+    const QSizeF size = facts.logicalSize();
+    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+        return QStringLiteral("provider known facts logical width exceeds maximumLogicalWidth");
+    }
+    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+        return QStringLiteral("provider known facts logical height exceeds maximumLogicalHeight");
+    }
+
+    const qint64 width = static_cast<qint64>(size.width());
+    const qint64 height = static_cast<qint64>(size.height());
+    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+        return QStringLiteral("provider known facts logical size exceeds maximumPixelsPerFrame");
+    }
+
+    const int frameCount = facts.frameCount();
+    if (frameCount > ImageSequenceLimits::maximumTimedListFrameCount()) {
+        return QStringLiteral(
+            "provider known facts frame count exceeds maximumTimedListFrameCount");
+    }
+
+    if (!facts.isTimedFrameList()) {
+        return {};
+    }
+
+    qint64 totalDuration = 0;
+    for (int duration : facts.frameDurations()) {
+        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+            return QStringLiteral(
+                "provider known facts frame duration exceeds maximumFrameDuration");
+        }
+        totalDuration += duration;
+        if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+            return QStringLiteral(
+                "provider known facts total duration exceeds maximumTotalSequenceDuration");
+        }
+    }
+
+    return {};
+}
+
 inline ImageViewport::TriState capabilitySupportToTriState(
     ImageSequenceProviderCapabilitySupport support)
 {
@@ -161,6 +210,52 @@ inline bool providerCapabilityKnownFalse(ImageSequenceProviderCapabilitySupport 
 {
     return support == ImageSequenceProviderCapabilitySupport::DeclaredFalse
         || support == ImageSequenceProviderCapabilitySupport::KnownFalse;
+}
+
+inline bool providerCapabilityKnownTrue(ImageSequenceProviderCapabilitySupport support)
+{
+    return support == ImageSequenceProviderCapabilitySupport::DeclaredTrue
+        || support == ImageSequenceProviderCapabilitySupport::KnownTrue;
+}
+
+inline bool providerFactsContradictCapabilities(const ImageSequenceProviderKnownFacts& facts,
+    ImageSequenceProviderCapabilitySupport timedPlaybackSupport,
+    ImageSequenceProviderCapabilitySupport frameSeekSupport,
+    ImageSequenceProviderCapabilitySupport positionSeekSupport)
+{
+    if (!facts.isSpecified() || facts.isLogicalSizeOnly()) {
+        return false;
+    }
+
+    const bool timedFacts = facts.isTimedFrameCount() || facts.isTimedFrameList();
+    return providerCapabilityContradictsMetadata(timedPlaybackSupport, timedFacts)
+        || providerCapabilityContradictsMetadata(frameSeekSupport, true)
+        || providerCapabilityContradictsMetadata(positionSeekSupport, timedFacts);
+}
+
+inline bool providerFactsContradictMetadata(
+    const ImageSequenceProviderKnownFacts& facts, const ImageSequenceProviderMetadata& metadata)
+{
+    if (!facts.isSpecified()) {
+        return false;
+    }
+    if (metadata.logicalSize() != facts.logicalSize()) {
+        return true;
+    }
+    if (facts.isLogicalSizeOnly()) {
+        return false;
+    }
+    if (facts.isStill()) {
+        return !metadata.isStill();
+    }
+    if (facts.isTimedFrameCount()) {
+        return !metadata.isTimedFrameList()
+            || metadata.frameDurations().size() != facts.frameCount();
+    }
+    if (facts.isTimedFrameList()) {
+        return !metadata.isTimedFrameList() || metadata.frameDurations() != facts.frameDurations();
+    }
+    return false;
 }
 
 inline bool isValidFillMode(ImageViewport::FillMode mode)

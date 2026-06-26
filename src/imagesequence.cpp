@@ -1,8 +1,36 @@
 #include "imageviewporthelpers_p.h"
 
+#include <QtGui/QTransform>
+
 #include <utility>
 
 using namespace ImageViewportInternal;
+
+namespace {
+QImage normalizedImageForOrientation(
+    const QImage& image, ImageFrame::OrientationPolicy orientationPolicy)
+{
+    switch (orientationPolicy) {
+    case ImageFrame::OrientationPolicy::Identity:
+        return image;
+    case ImageFrame::OrientationPolicy::MirrorHorizontally:
+        return image.mirrored(true, false);
+    case ImageFrame::OrientationPolicy::MirrorVertically:
+        return image.mirrored(false, true);
+    case ImageFrame::OrientationPolicy::Rotate180:
+        return image.transformed(QTransform().rotate(180));
+    case ImageFrame::OrientationPolicy::Rotate90:
+        return image.transformed(QTransform().rotate(90));
+    case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
+        return image.mirrored(true, false).transformed(QTransform().rotate(90));
+    case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
+        return image.mirrored(false, true).transformed(QTransform().rotate(90));
+    case ImageFrame::OrientationPolicy::Rotate270:
+        return image.transformed(QTransform().rotate(270));
+    }
+    return image;
+}
+}
 
 ImageSequence::ImageSequence(QObject* parent)
     : QObject(parent)
@@ -29,21 +57,25 @@ ImageSequence::ImageSequence(
 
 ImageSequence::ImageSequence(
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-    bool hasProviderKnownMetadata, bool hasCompleteProviderKnownMetadata,
-    QSizeF providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
+    ImageSequenceProviderKnownFacts providerKnownFacts,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
-    ImageSequenceProviderCapabilitySupport positionSeekCapability, QObject* parent)
+    ImageSequenceProviderCapabilitySupport positionSeekCapability,
+    ImageSequenceProviderThreadingContract providerThreadingContract, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Provider)
     , m_providerSessionFactory(std::move(providerSessionFactory))
-    , m_hasProviderKnownMetadata(hasProviderKnownMetadata)
-    , m_hasCompleteProviderKnownMetadata(hasCompleteProviderKnownMetadata)
-    , m_providerKnownLogicalSize(providerKnownLogicalSize)
-    , m_providerKnownFrameDurations(std::move(providerKnownFrameDurations))
+    , m_providerKnownFacts(std::move(providerKnownFacts))
+    , m_hasProviderKnownMetadata(m_providerKnownFacts.isSpecified())
+    , m_hasCompleteProviderKnownMetadata(m_providerKnownFacts.isComplete())
+    , m_providerKnownLogicalSize(
+          m_providerKnownFacts.isSpecified() ? m_providerKnownFacts.logicalSize() : QSizeF())
+    , m_providerKnownFrameCount(m_providerKnownFacts.frameCount())
+    , m_providerKnownFrameDurations(m_providerKnownFacts.frameDurations())
     , m_providerTimedPlaybackCapability(timedPlaybackCapability)
     , m_providerFrameSeekCapability(frameSeekCapability)
     , m_providerPositionSeekCapability(positionSeekCapability)
+    , m_providerThreadingContract(providerThreadingContract)
 {
 }
 
@@ -146,16 +178,23 @@ ImageFrame::ImageFrame(QObject* parent)
 }
 
 ImageFrame::ImageFrame(const QImage& image, QObject* parent)
+    : ImageFrame(image, OrientationPolicy::Identity, parent)
+{
+}
+
+ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent)
     : QObject(parent)
 {
-    const QSizeF logicalSize = image.deviceIndependentSize();
-    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
+    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
+    const QSizeF logicalSize = normalizedImage.deviceIndependentSize();
+    if (!normalizedImage.isNull() && isPositiveFiniteInteger(logicalSize.width())
         && isPositiveFiniteInteger(logicalSize.height())) {
         m_logicalSize = logicalSize;
-        m_payloadByteSize = image.sizeInBytes();
-        m_hasAlphaChannel = image.hasAlphaChannel();
+        m_payloadByteSize = normalizedImage.sizeInBytes();
+        m_hasAlphaChannel = normalizedImage.hasAlphaChannel();
+        m_orientationPolicy = orientationPolicy;
         if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
-            m_image = image.copy();
+            m_image = normalizedImage.copy();
         }
     }
 }

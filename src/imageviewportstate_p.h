@@ -26,6 +26,13 @@ struct ViewportChangeSet
     bool scheduleUpdate = false;
 };
 
+enum class ProviderRequestTargetKind {
+    Unknown,
+    Frame,
+    Position,
+    Playback,
+};
+
 struct PresentationState
 {
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
@@ -78,6 +85,9 @@ struct RequestState
     int playbackPosition = -1;
     int latestNonPlaybackFrame = -1;
     int latestNonPlaybackPosition = -1;
+    ProviderRequestTargetKind currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
+    ProviderRequestTargetKind latestNonPlaybackProviderTargetKind
+        = ProviderRequestTargetKind::Unknown;
     quint64 sequenceGeneration = 0;
     uint requestRevision = 0;
     uint commandRevision = 0;
@@ -93,11 +103,13 @@ struct ProviderGenerationState
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;
     bool activeFrameFromPlayback = false;
+    ProviderRequestTargetKind activeFrameTargetKind = ProviderRequestTargetKind::Unknown;
     bool queuedFrameRequest = false;
     quint64 queuedFrameGeneration = 0;
     int queuedFrame = -1;
     int queuedPosition = -1;
     bool queuedFrameFromPlayback = false;
+    ProviderRequestTargetKind queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
     bool metadataReady = false;
     bool timedMetadata = false;
     QSizeF logicalSize;

@@ -14,9 +14,12 @@ public:
     ImageSequenceProviderRequestToken nextRequestToken();
     void requestMetadata(ImageSequenceProviderRequestToken token);
     void requestFrame(ImageSequenceProviderRequestToken token, int frame);
+    void requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelRequest(ImageSequenceProviderRequestToken token);
 
 private:
+    ImageSequenceProviderThreadingContract threadingContract() const;
+
     ImageViewportPrivate& viewport;
 };

@@ -11,9 +11,14 @@
 
 namespace {
 template <typename Function>
-void invokeSessionCommand(ImageSequenceProviderSession* session, Function function)
+void invokeSessionCommand(ImageSequenceProviderSession* session,
+    ImageSequenceProviderThreadingContract threadingContract, Function function)
 {
     if (!session) {
+        return;
+    }
+    if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
+        function();
         return;
     }
     if (session->thread() == QThread::currentThread()) {
@@ -40,6 +45,7 @@ bool acceptsSessionResult(const ImageViewportPrivate& viewport, quint64 sessionS
 {
     return viewport.m_providerSession && viewport.m_providerSessionSerial == sessionSerial;
 }
+
 }
 
 ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate& viewport)
@@ -59,16 +65,19 @@ void ViewportProviderBridge::closeSession()
     viewport.m_activeProviderMetadataToken = {};
     viewport.m_activeProviderFrameToken = {};
     viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_providerSession.clear();
     if (metadataToken.isValid()) {
-        invokeSessionCommand(
-            session, [session, metadataToken]() { session->cancelRequest(metadataToken); });
+        invokeSessionCommand(session, threadingContract(),
+            [session, metadataToken]() { session->cancelRequest(metadataToken); });
     }
     if (frameToken.isValid()) {
-        invokeSessionCommand(
-            session, [session, frameToken]() { session->cancelRequest(frameToken); });
+        invokeSessionCommand(session, threadingContract(),
+            [session, frameToken]() { session->cancelRequest(frameToken); });
     }
-    invokeSessionCommand(session, [session]() { session->close(); });
+    invokeSessionCommand(
+        session, threadingContract(), [session]() { session->close(); });
     releaseSession(session);
     viewport.m_nextProviderRequestToken = 0;
 }
@@ -200,13 +209,8 @@ bool ViewportProviderBridge::openSession()
 
     if (viewport.m_providerMetadataReady) {
         viewport.discardPendingRenderCommit();
-        viewport.m_activeProviderFrameToken = nextRequestToken();
-        if (!viewport.m_activeProviderFrameToken.isValid()) {
-            viewport.publishProviderTokenExhaustion();
-            return true;
-        }
-        viewport.m_activeProviderFrameFromPlayback = false;
-        requestFrame(viewport.m_activeProviderFrameToken, viewport.m_currentFrame);
+        viewport.startProviderFrameRequest(
+            viewport.m_currentFrame, viewport.m_currentProviderTargetKind);
     } else {
         viewport.m_activeProviderMetadataToken = nextRequestToken();
         if (!viewport.m_activeProviderMetadataToken.isValid()) {
@@ -234,7 +238,8 @@ void ViewportProviderBridge::requestMetadata(ImageSequenceProviderRequestToken t
         return;
     }
     ImageSequenceProviderSession* session = viewport.m_providerSession;
-    invokeSessionCommand(session, [session, token]() { session->requestMetadata(token); });
+    invokeSessionCommand(session, threadingContract(),
+        [session, token]() { session->requestMetadata(token); });
 }
 
 void ViewportProviderBridge::requestFrame(ImageSequenceProviderRequestToken token, int frame)
@@ -243,8 +248,19 @@ void ViewportProviderBridge::requestFrame(ImageSequenceProviderRequestToken toke
         return;
     }
     ImageSequenceProviderSession* session = viewport.m_providerSession;
-    invokeSessionCommand(
-        session, [session, token, frame]() { session->requestFrame(token, frame); });
+    invokeSessionCommand(session, threadingContract(),
+        [session, token, frame]() { session->requestFrame(token, frame); });
+}
+
+void ViewportProviderBridge::requestPosition(
+    ImageSequenceProviderRequestToken token, int frame, int position)
+{
+    if (!token.isValid()) {
+        return;
+    }
+    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    invokeSessionCommand(session, threadingContract(),
+        [session, token, frame, position]() { session->requestPosition(token, frame, position); });
 }
 
 void ViewportProviderBridge::requestPlayback(
@@ -254,7 +270,7 @@ void ViewportProviderBridge::requestPlayback(
         return;
     }
     ImageSequenceProviderSession* session = viewport.m_providerSession;
-    invokeSessionCommand(session,
+    invokeSessionCommand(session, threadingContract(),
         [session, token, frame, position]() { session->requestPlayback(token, frame, position); });
 }
 
@@ -264,5 +280,11 @@ void ViewportProviderBridge::cancelRequest(ImageSequenceProviderRequestToken tok
         return;
     }
     ImageSequenceProviderSession* session = viewport.m_providerSession;
-    invokeSessionCommand(session, [session, token]() { session->cancelRequest(token); });
+    invokeSessionCommand(session, threadingContract(),
+        [session, token]() { session->cancelRequest(token); });
+}
+
+ImageSequenceProviderThreadingContract ViewportProviderBridge::threadingContract() const
+{
+    return viewport.providerThreadingContract();
 }

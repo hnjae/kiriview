@@ -18,6 +18,22 @@ ImageSequenceProviderAdapter::sessionFactory() const
 
 ImageSequenceProviderMetadata ImageSequenceProviderAdapter::knownMetadata() const { return {}; }
 
+ImageSequenceProviderKnownFacts ImageSequenceProviderAdapter::knownFacts() const
+{
+    const ImageSequenceProviderMetadata metadata = knownMetadata();
+    if (!metadata.isSpecified()) {
+        return {};
+    }
+    if (metadata.isStill()) {
+        return ImageSequenceProviderKnownFacts::still(metadata.logicalSize());
+    }
+    if (metadata.isTimedFrameList()) {
+        return ImageSequenceProviderKnownFacts::timedFrameList(
+            metadata.logicalSize(), metadata.frameDurations());
+    }
+    return {};
+}
+
 ImageSequenceProviderAdapter::CapabilitySupport
 ImageSequenceProviderAdapter::timedPlaybackCapability() const
 {
@@ -36,6 +52,11 @@ ImageSequenceProviderAdapter::positionSeekCapability() const
     return CapabilitySupport::Unavailable;
 }
 
+ImageSequenceProviderThreadingContract ImageSequenceProviderAdapter::threadingContract() const
+{
+    return ImageSequenceProviderThreadingContract::AffinityBound;
+}
+
 ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
     : m_id(id)
 {
@@ -44,6 +65,135 @@ ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
 quint64 ImageSequenceProviderRequestToken::id() const { return m_id; }
 
 bool ImageSequenceProviderRequestToken::isValid() const { return m_id != 0; }
+
+ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::logicalSize(QSizeF logicalSize)
+{
+    ImageSequenceProviderKnownFacts facts;
+    facts.m_kind = Kind::LogicalSize;
+    facts.m_logicalSize = logicalSize;
+    return facts;
+}
+
+ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::still(QSizeF logicalSize)
+{
+    ImageSequenceProviderKnownFacts facts;
+    facts.m_kind = Kind::Still;
+    facts.m_logicalSize = logicalSize;
+    facts.m_frameCount = 1;
+    return facts;
+}
+
+ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::timedFrameCount(
+    QSizeF logicalSize, int frameCount)
+{
+    ImageSequenceProviderKnownFacts facts;
+    facts.m_kind = Kind::TimedFrameCount;
+    facts.m_logicalSize = logicalSize;
+    facts.m_frameCount = frameCount;
+    return facts;
+}
+
+ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::fixedDurationFrames(
+    QSizeF logicalSize, int frameCount, int frameDuration)
+{
+    ImageSequenceProviderKnownFacts facts;
+    facts.m_kind = Kind::TimedFrameList;
+    facts.m_logicalSize = logicalSize;
+    facts.m_frameCount = frameCount;
+    if (frameCount > 0) {
+        const int retainedFrameCount
+            = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+        facts.m_frameDurations = QVector<int>(retainedFrameCount, frameDuration);
+    }
+    return facts;
+}
+
+ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::timedFrameList(
+    QSizeF logicalSize, QVector<int> frameDurations)
+{
+    ImageSequenceProviderKnownFacts facts;
+    facts.m_kind = Kind::TimedFrameList;
+    facts.m_logicalSize = logicalSize;
+    facts.m_frameCount = frameDurations.size();
+    facts.m_frameDurations = std::move(frameDurations);
+    return facts;
+}
+
+bool ImageSequenceProviderKnownFacts::isSpecified() const { return m_kind != Kind::Unknown; }
+
+bool ImageSequenceProviderKnownFacts::isValid() const
+{
+    if (!isSpecified()) {
+        return false;
+    }
+    if (!isPositiveFiniteInteger(m_logicalSize.width())
+        || !isPositiveFiniteInteger(m_logicalSize.height())) {
+        return false;
+    }
+    if (isLogicalSizeOnly()) {
+        return true;
+    }
+    if (isStill()) {
+        return m_frameCount == 1 && m_frameDurations.isEmpty();
+    }
+    if (isTimedFrameCount()) {
+        return m_frameCount > 0 && m_frameDurations.isEmpty();
+    }
+    if (isTimedFrameList()) {
+        if (m_frameCount <= 0 || m_frameDurations.isEmpty()
+            || m_frameDurations.size() != m_frameCount) {
+            return false;
+        }
+        for (int duration : m_frameDurations) {
+            if (duration <= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+bool ImageSequenceProviderKnownFacts::isComplete() const
+{
+    return isStill() || isTimedFrameList();
+}
+
+bool ImageSequenceProviderKnownFacts::isLogicalSizeOnly() const
+{
+    return m_kind == Kind::LogicalSize;
+}
+
+bool ImageSequenceProviderKnownFacts::isStill() const { return m_kind == Kind::Still; }
+
+bool ImageSequenceProviderKnownFacts::isTimedFrameCount() const
+{
+    return m_kind == Kind::TimedFrameCount;
+}
+
+bool ImageSequenceProviderKnownFacts::isTimedFrameList() const
+{
+    return m_kind == Kind::TimedFrameList;
+}
+
+QSizeF ImageSequenceProviderKnownFacts::logicalSize() const { return m_logicalSize; }
+
+int ImageSequenceProviderKnownFacts::frameCount() const
+{
+    if (isStill()) {
+        return 1;
+    }
+    if (isTimedFrameCount() || isTimedFrameList()) {
+        return m_frameCount;
+    }
+    return -1;
+}
+
+QVector<int> ImageSequenceProviderKnownFacts::frameDurations() const
+{
+    return m_frameDurations;
+}
 
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(QSizeF logicalSize)
 {
@@ -172,6 +322,12 @@ ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
 }
 
 void ImageSequenceProviderSession::requestFrame(ImageSequenceProviderRequestToken, int) { }
+
+void ImageSequenceProviderSession::requestPosition(
+    ImageSequenceProviderRequestToken token, int resolvedFrame, int)
+{
+    requestFrame(token, resolvedFrame);
+}
 
 void ImageSequenceProviderSession::requestPlayback(
     ImageSequenceProviderRequestToken token, int frame, int)

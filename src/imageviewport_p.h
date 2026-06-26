@@ -24,6 +24,7 @@ public:
     using RequestStatus = ImageViewport::RequestStatus;
     using TriState = ImageViewport::TriState;
     using VerticalAlignment = ImageViewport::VerticalAlignment;
+    using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
 
     explicit ImageViewportPrivate(ImageViewport* viewport);
     ~ImageViewportPrivate();
@@ -130,12 +131,14 @@ public:
     ImageSequenceProviderRequestToken nextProviderRequestToken();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
+    void requestProviderPosition(
+        ImageSequenceProviderRequestToken token, int frame, int position);
     void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelProviderRequest(ImageSequenceProviderRequestToken token);
     void clearQueuedProviderFrameRequest();
-    void queueProviderFrameRequest(int frame, bool fromPlayback);
+    void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
-    bool startProviderFrameRequest(int frame, bool fromPlayback);
+    bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void publishProviderTokenExhaustion();
     void handleProviderMetadataReady(
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
@@ -162,6 +165,7 @@ public:
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
+    ImageSequenceProviderThreadingContract providerThreadingContract() const;
     void publishAcceptedTargetState(const QImage& providerImage = {});
     void publishSequenceReadyState(const QImage& providerImage = {});
     void publishRenderWaitingState();
@@ -230,6 +234,9 @@ public:
     int& m_playbackPosition = request.playbackPosition;
     int& m_latestNonPlaybackFrame = request.latestNonPlaybackFrame;
     int& m_latestNonPlaybackPosition = request.latestNonPlaybackPosition;
+    ProviderRequestTargetKind& m_currentProviderTargetKind = request.currentProviderTargetKind;
+    ProviderRequestTargetKind& m_latestNonPlaybackProviderTargetKind
+        = request.latestNonPlaybackProviderTargetKind;
     quint64& m_sequenceGeneration = request.sequenceGeneration;
     int& m_displayedFrame = display.displayedFrame;
     int& m_displayedPosition = display.displayedPosition;
@@ -255,11 +262,13 @@ public:
     ImageSequenceProviderRequestToken& m_activeProviderMetadataToken = provider.activeMetadataToken;
     ImageSequenceProviderRequestToken& m_activeProviderFrameToken = provider.activeFrameToken;
     bool& m_activeProviderFrameFromPlayback = provider.activeFrameFromPlayback;
+    ProviderRequestTargetKind& m_activeProviderFrameTargetKind = provider.activeFrameTargetKind;
     bool& m_queuedProviderFrameRequest = provider.queuedFrameRequest;
     quint64& m_queuedProviderFrameGeneration = provider.queuedFrameGeneration;
     int& m_queuedProviderFrame = provider.queuedFrame;
     int& m_queuedProviderPosition = provider.queuedPosition;
     bool& m_queuedProviderFrameFromPlayback = provider.queuedFrameFromPlayback;
+    ProviderRequestTargetKind& m_queuedProviderFrameTargetKind = provider.queuedFrameTargetKind;
     bool& m_providerMetadataReady = provider.metadataReady;
     bool& m_providerTimedMetadata = provider.timedMetadata;
     QSizeF& m_providerLogicalSize = provider.logicalSize;
