@@ -29,7 +29,7 @@ public:
         QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         auto payload = std::make_unique<ImageFrame>(image);
-        emit frameReady(token,
+        emit frameHandleWithMetadataReady(token,
             new ImageSequenceProviderFrameHandle(std::move(payload)),
             ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
     }
@@ -499,13 +499,12 @@ bool canUseInstalledProviderRawFrameSignalSurface()
     bool rawFrameWithMetadataReceived = false;
 
     QObject::connect(&session,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::imageFrameReady,
         [&rawFrameReceived, &token, &frame](const ImageSequenceProviderRequestToken &receivedToken, ImageFrame *receivedFrame) {
             rawFrameReceived = receivedToken == token && receivedFrame == &frame;
         });
     QObject::connect(&session,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(
-            &ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::imageFrameWithMetadataReady,
         [&rawFrameWithMetadataReceived, &token, &frame, &metadata](const ImageSequenceProviderRequestToken &receivedToken,
             ImageFrame *receivedFrame,
             const ImageSequenceProviderFrameMetadata &receivedMetadata) {
@@ -517,8 +516,8 @@ bool canUseInstalledProviderRawFrameSignalSurface()
                 && receivedMetadata.frameDuration() == metadata.frameDuration();
         });
 
-    emit session.frameReady(token, &frame);
-    emit session.frameReady(token, &frame, metadata);
+    emit session.imageFrameReady(token, &frame);
+    emit session.imageFrameWithMetadataReady(token, &frame, metadata);
 
     return rawFrameReceived && rawFrameWithMetadataReceived;
 }

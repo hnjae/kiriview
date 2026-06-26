@@ -310,10 +310,10 @@ public:
 
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
-    void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
-    void frameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
-    void frameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame);
-    void frameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void imageFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
+    void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
+    void frameHandleReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame);
+    void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata);
     void providerWaiting(const ImageSequenceProviderRequestToken &token);
     void providerProgress(const ImageSequenceProviderRequestToken &token, double progress);
     void endOfSequence(const ImageSequenceProviderRequestToken &token);

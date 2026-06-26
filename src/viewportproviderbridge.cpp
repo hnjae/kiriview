@@ -103,7 +103,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::imageFrameReady,
         viewport.q,
         [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageFrame *frame) {
             if (!acceptsSessionResult(viewport, sessionSerial)) {
@@ -113,7 +113,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::imageFrameWithMetadataReady,
         viewport.q,
         [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) {
             if (!acceptsSessionResult(viewport, sessionSerial)) {
@@ -123,7 +123,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageSequenceProviderFrameHandle *>(&ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::frameHandleReady,
         viewport.q,
         [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
@@ -135,7 +135,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(viewport.m_providerSession,
-        qOverload<const ImageSequenceProviderRequestToken &, ImageSequenceProviderFrameHandle *, const ImageSequenceProviderFrameMetadata &>(&ImageSequenceProviderSession::frameReady),
+        &ImageSequenceProviderSession::frameHandleWithMetadataReady,
         viewport.q,
         [this, sessionSerial](const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;

@@ -902,7 +902,7 @@ public:
     void requestFrame(const ImageSequenceProviderRequestToken &token, int) override
     {
         ++*m_frameRequestCount;
-        emit frameReady(token, m_frame.get());
+        emit imageFrameReady(token, m_frame.get());
     }
 
 private:
@@ -1013,7 +1013,7 @@ void emitTimedProviderFrameReady(CountingProviderSession *session,
     int frameIndex,
     int frameStartPosition)
 {
-    emit session->frameReady(token,
+    emit session->imageFrameWithMetadataReady(token,
         frame,
         ImageSequenceProviderFrameMetadata::timedFrame(frameIndex, frameStartPosition));
     drainQueuedProviderResults();
@@ -2241,7 +2241,7 @@ void ImageViewportTest::assignedProviderSequenceSurvivesResultDestruction()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     QVERIFY(commitPaintNode(item));
 
@@ -4579,7 +4579,7 @@ void ImageViewportTest::providerSessionEntryPointsUseSessionAffinity()
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         ImageFrame frame(image);
-        emit session->frameReady(session->lastFrameToken(),
+        emit session->imageFrameWithMetadataReady(session->lastFrameToken(),
             &frame,
             ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
         drainQueuedProviderResults();
@@ -6876,7 +6876,7 @@ void ImageViewportTest::providerFrameReadyDominatesLateProgress()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(frameToken, &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -7485,7 +7485,7 @@ void ImageViewportTest::providerPlaybackBeforeStillMetadataKeepsGenerationSeekab
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     QVERIFY(commitPaintNode(item));
 
@@ -7530,7 +7530,7 @@ void ImageViewportTest::providerStillFrameReadyCommitsDisplay()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     QVERIFY(commitPaintNode(item));
 
@@ -7580,7 +7580,7 @@ void ImageViewportTest::providerStillFrameUsesDeviceIndependentPayloadSize()
     image.setDevicePixelRatio(2.0);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -7747,7 +7747,7 @@ void ImageViewportTest::providerTotalDurationSeekRejectsPublicPositionEnvelope()
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     const ImageSequenceProviderRequestToken frameToken = sessionFactory->lastSession()->lastFrameToken();
-    emit sessionFactory->lastSession()->frameReady(frameToken,
+    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(frameToken,
         &frame,
         ImageSequenceProviderFrameMetadata::timedFrame(1, 350));
     drainQueuedProviderResults();
@@ -7859,7 +7859,7 @@ void ImageViewportTest::providerStillFrameEnvelopeMismatchRejectsPayload()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(),
+    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(sessionFactory->lastSession()->lastFrameToken(),
         &frame,
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
     drainQueuedProviderResults();
@@ -7902,7 +7902,7 @@ void ImageViewportTest::providerTimedFrameRejectsStillEnvelope()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(),
+    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(sessionFactory->lastSession()->lastFrameToken(),
         &frame,
         ImageSequenceProviderFrameMetadata::stillFrame());
     drainQueuedProviderResults();
@@ -7945,7 +7945,7 @@ void ImageViewportTest::providerTimedFrameDurationMismatchRejectsPayload()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(),
+    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(sessionFactory->lastSession()->lastFrameToken(),
         &frame,
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 250));
     drainQueuedProviderResults();
@@ -8101,7 +8101,7 @@ void ImageViewportTest::providerFrameRejectsInvalidPayloadByteSize()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image, -1);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -8144,7 +8144,7 @@ void ImageViewportTest::providerRejectedOwnedFramePayloadReleasesOnce()
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), payload);
+    emit sessionFactory->lastSession()->frameHandleReady(sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
@@ -8193,7 +8193,7 @@ void ImageViewportTest::providerStaleOwnedFramePayloadReleasesOnce()
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameReady(staleToken, payload);
+    emit sessionFactory->lastSession()->frameHandleReady(staleToken, payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
@@ -8240,7 +8240,7 @@ void ImageViewportTest::providerClosedGenerationOwnedFramePayloadReleasesOnce()
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameReady(frameToken, payload);
+    emit sessionFactory->lastSession()->frameHandleReady(frameToken, payload);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
@@ -8291,7 +8291,7 @@ void ImageViewportTest::providerAcceptedOwnedFramePayloadReleasesOnce()
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), payload);
+    emit sessionFactory->lastSession()->frameHandleReady(sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
@@ -11439,7 +11439,7 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(frameToken, &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -12013,7 +12013,7 @@ void ImageViewportTest::providerFrameUnsupportedKeepsGenerationSeekable()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(frameToken, &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Unsupported"));
@@ -12250,7 +12250,7 @@ void ImageViewportTest::providerFrameCancellationReportsProviderFailure()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(frameToken, &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(frameToken, &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -12793,7 +12793,7 @@ void ImageViewportTest::providerStillFrameCreatesTexturePaintNode()
     QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
@@ -12838,7 +12838,7 @@ void ImageViewportTest::providerStillFrameWaitingForGeometryCreatesTexturePaintN
     QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->frameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emit sessionFactory->lastSession()->imageFrameReady(sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
