@@ -47,7 +47,11 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode *oldNode, const Input &i
         return {nullptr, CommitResult::Failed};
     }
 
-    QSGTexture *texture = input.window->createTextureFromImage(input.image);
+    QQuickWindow::CreateTextureOptions textureOptions;
+    if (input.mipmap) {
+        textureOptions |= QQuickWindow::TextureHasMipmaps;
+    }
+    QSGTexture *texture = input.window->createTextureFromImage(input.image, textureOptions);
     QSGImageNode *imageNode = input.window->createImageNode();
     if (!texture || !imageNode) {
         delete texture;

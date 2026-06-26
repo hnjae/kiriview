@@ -260,6 +260,7 @@ private slots:
     void stillImageCreatesTexturePaintNode();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void solidBackgroundRendersBehindImageNode();
+    void qualityAndMirroringConfigureTextureNode();
     void stillImagePaintFailureReportsRenderFailure();
     void timedFrameListPaintFailureRetainsPreviousDisplay();
     void timedFrameListPlaybackPaintFailureStopsPlayback();
@@ -12286,6 +12287,42 @@ void ImageViewportTest::solidBackgroundRendersBehindImageNode()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportTest::qualityAndMirroringConfigureTextureNode()
+{
+    ImageSequenceFactory factory;
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSmoothing(false);
+    item.setMipmap(true);
+    item.setMirrorHorizontally(true);
+    item.setMirrorVertically(true);
+    item.setSequence(result->sequence());
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+
+    auto *imageNode = dynamic_cast<QSGImageNode *>(root->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(imageNode->filtering(), QSGTexture::Nearest);
+    if (imageNode->texture()->hasMipmaps()) {
+        QCOMPARE(imageNode->mipmapFiltering(), QSGTexture::Linear);
+    } else {
+        QCOMPARE(imageNode->mipmapFiltering(), QSGTexture::None);
+    }
+    QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally);
+    QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically);
 }
 
 void ImageViewportTest::stillImagePaintFailureReportsRenderFailure()
