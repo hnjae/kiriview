@@ -80,6 +80,41 @@ private:
     bool m_closed = false;
 };
 
+class DefaultPlaybackFallbackSession final : public ImageSequenceProviderSession
+{
+public:
+    using ImageSequenceProviderSession::ImageSequenceProviderSession;
+
+    void requestMetadata(const ImageSequenceProviderRequestToken &) override {}
+
+    void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+    {
+        m_lastFrameToken = token;
+        m_lastFrame = frame;
+        ++m_frameRequestCount;
+    }
+
+    ImageSequenceProviderRequestToken lastFrameToken() const
+    {
+        return m_lastFrameToken;
+    }
+
+    int lastFrame() const
+    {
+        return m_lastFrame;
+    }
+
+    int frameRequestCount() const
+    {
+        return m_frameRequestCount;
+    }
+
+private:
+    ImageSequenceProviderRequestToken m_lastFrameToken;
+    int m_lastFrame = -1;
+    int m_frameRequestCount = 0;
+};
+
 class ConsumerSessionFactory final : public ImageSequenceProviderSessionFactory
 {
 public:
@@ -439,6 +474,18 @@ bool canUseInstalledProviderSessionSurface()
         && session.lastCancelledToken() == token
         && session.closed();
 }
+
+bool canUseInstalledProviderPlaybackFallbackSurface()
+{
+    DefaultPlaybackFallbackSession session;
+    const ImageSequenceProviderRequestToken token(9);
+
+    session.requestPlayback(token, 3, 250);
+
+    return session.frameRequestCount() == 1
+        && session.lastFrameToken() == token
+        && session.lastFrame() == 3;
+}
 }
 
 int main(int argc, char **argv)
@@ -629,6 +676,7 @@ int main(int argc, char **argv)
             && installedQmlOpaqueTypesAreNotCreatable()
             && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
+            && canUseInstalledProviderPlaybackFallbackSurface()
         ? 0
         : 1;
 }
