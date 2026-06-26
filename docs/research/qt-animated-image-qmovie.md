@@ -1,5 +1,4 @@
 ---
-title: Qt AnimatedImage and QMovie playback internals
 researched_on: 2026-06-21
 ---
 

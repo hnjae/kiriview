@@ -1,5 +1,4 @@
 ---
-title: Qt Quick Image transform order
 researched_on: 2026-06-21
 ---
 
