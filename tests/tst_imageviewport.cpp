@@ -3293,6 +3293,10 @@ void ImageViewportTest::timedFrameListBuilderValidatesEntries()
     QCOMPARE(list.count(), 0);
     QVERIFY(list.errorString().contains(QStringLiteral("duration")));
 
+    QCOMPARE(list.appendFrame(&frame, -1), false);
+    QCOMPARE(list.count(), 0);
+    QVERIFY(list.errorString().contains(QStringLiteral("duration")));
+
     QCOMPARE(list.appendFrame(&frame, 100), true);
     QCOMPARE(list.appendFrame(&differentSizeFrame, 100), false);
     QCOMPARE(list.count(), 1);
