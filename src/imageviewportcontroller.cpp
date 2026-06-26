@@ -103,7 +103,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
         return CommandOutcome::Unsupported;
     }
 
-    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata
+        && m_providerTimedPlaybackSupport) {
         const bool preservePlaybackPosition
             = shouldPreservePlaybackPositionOnPlay(m_playbackPhase, m_stopPlaybackWhenRequestReady)
             && m_playbackPosition >= 0;
@@ -128,8 +129,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
                 = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
             discardPendingRenderCommit();
             if (m_activeProviderFrameToken.isValid()) {
-                queueProviderFrameRequest(
-                    selectedFrame, ProviderRequestTargetKind::Playback);
+                queueProviderFrameRequest(selectedFrame, ProviderRequestTargetKind::Playback);
             } else if (!startProviderFrameRequest(
                            selectedFrame, ProviderRequestTargetKind::Playback)) {
                 incrementRequestRevision();
@@ -367,8 +367,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_providerSession && m_currentFrame >= 0) {
-            if (!startProviderFrameRequest(
-                    m_currentFrame, m_latestNonPlaybackProviderTargetKind)) {
+            if (!startProviderFrameRequest(m_currentFrame, m_latestNonPlaybackProviderTargetKind)) {
                 incrementRequestRevision();
                 emit q->requestStateChanged();
                 emit q->diagnosticsChanged();
@@ -429,6 +428,10 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
 
     if (hasDisplayableSequence()) {
         if (hasProviderSequence() && m_providerMetadataReady) {
+            if (!m_providerFrameSeekSupport) {
+                setCommandDiagnostic(CommandReason::UnsupportedRequest);
+                return CommandOutcome::Unsupported;
+            }
             const int maximumFrame
                 = m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0;
             if (frame > maximumFrame) {
@@ -596,6 +599,10 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
     }
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
+        if (!m_providerPositionSeekSupport) {
+            setCommandDiagnostic(CommandReason::UnsupportedRequest);
+            return CommandOutcome::Unsupported;
+        }
         const int frame = providerFrameIndexForPosition(milliseconds);
         if (frame < 0) {
             setCommandDiagnostic(CommandReason::InvalidRequest);

@@ -112,6 +112,9 @@ struct ProviderGenerationState
     ProviderRequestTargetKind queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
     bool metadataReady = false;
     bool timedMetadata = false;
+    bool timedPlaybackSupport = false;
+    bool frameSeekSupport = false;
+    bool positionSeekSupport = false;
     QSizeF logicalSize;
     QVector<int> frameDurations;
 };

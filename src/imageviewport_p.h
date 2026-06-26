@@ -131,8 +131,7 @@ public:
     ImageSequenceProviderRequestToken nextProviderRequestToken();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
-    void requestProviderPosition(
-        ImageSequenceProviderRequestToken token, int frame, int position);
+    void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelProviderRequest(ImageSequenceProviderRequestToken token);
     void clearQueuedProviderFrameRequest();
@@ -271,6 +270,9 @@ public:
     ProviderRequestTargetKind& m_queuedProviderFrameTargetKind = provider.queuedFrameTargetKind;
     bool& m_providerMetadataReady = provider.metadataReady;
     bool& m_providerTimedMetadata = provider.timedMetadata;
+    bool& m_providerTimedPlaybackSupport = provider.timedPlaybackSupport;
+    bool& m_providerFrameSeekSupport = provider.frameSeekSupport;
+    bool& m_providerPositionSeekSupport = provider.positionSeekSupport;
     QSizeF& m_providerLogicalSize = provider.logicalSize;
     QVector<int>& m_providerFrameDurations = provider.frameDurations;
 };

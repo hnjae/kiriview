@@ -75,6 +75,9 @@ inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadat
     if (!metadata.isStill() && !metadata.isTimedFrameList()) {
         return QStringLiteral("provider metadata is invalid");
     }
+    if (metadata.isStill() && (metadata.timedPlaybackSupport() || metadata.positionSeekSupport())) {
+        return QStringLiteral("provider metadata is invalid");
+    }
 
     const QSizeF size = metadata.logicalSize();
     if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
@@ -218,9 +221,21 @@ inline bool providerCapabilityKnownTrue(ImageSequenceProviderCapabilitySupport s
         || support == ImageSequenceProviderCapabilitySupport::KnownTrue;
 }
 
+inline bool providerResolvedCapability(
+    ImageSequenceProviderCapabilitySupport support, bool defaultSupport)
+{
+    if (providerCapabilityKnownFalse(support)) {
+        return false;
+    }
+    if (providerCapabilityKnownTrue(support)) {
+        return true;
+    }
+    return defaultSupport;
+}
+
 inline bool providerFactsContradictCapabilities(const ImageSequenceProviderKnownFacts& facts,
     ImageSequenceProviderCapabilitySupport timedPlaybackSupport,
-    ImageSequenceProviderCapabilitySupport frameSeekSupport,
+    ImageSequenceProviderCapabilitySupport,
     ImageSequenceProviderCapabilitySupport positionSeekSupport)
 {
     if (!facts.isSpecified() || facts.isLogicalSizeOnly()) {
@@ -228,9 +243,8 @@ inline bool providerFactsContradictCapabilities(const ImageSequenceProviderKnown
     }
 
     const bool timedFacts = facts.isTimedFrameCount() || facts.isTimedFrameList();
-    return providerCapabilityContradictsMetadata(timedPlaybackSupport, timedFacts)
-        || providerCapabilityContradictsMetadata(frameSeekSupport, true)
-        || providerCapabilityContradictsMetadata(positionSeekSupport, timedFacts);
+    return providerCapabilityKnownTrue(timedPlaybackSupport) && !timedFacts
+        || providerCapabilityKnownTrue(positionSeekSupport) && !timedFacts;
 }
 
 inline bool providerFactsContradictMetadata(

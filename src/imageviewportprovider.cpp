@@ -79,8 +79,8 @@ void ImageViewportPrivate::queueProviderFrameRequest(
     m_queuedProviderPosition = m_requestedPosition;
     m_queuedProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
     m_queuedProviderFrameTargetKind = targetKind;
-    QMetaObject::invokeMethod(q, [this]() { flushQueuedProviderFrameRequest(); },
-        Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
 }
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()
@@ -192,10 +192,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     }
 
     if (providerCapabilityContradictsMetadata(
-            m_sequence->m_providerTimedPlaybackCapability, isTimedMetadata)
-        || providerCapabilityContradictsMetadata(m_sequence->m_providerFrameSeekCapability, true)
+            m_sequence->m_providerTimedPlaybackCapability, metadata.timedPlaybackSupport())
         || providerCapabilityContradictsMetadata(
-            m_sequence->m_providerPositionSeekCapability, isTimedMetadata)) {
+            m_sequence->m_providerFrameSeekCapability, metadata.frameSeekSupport())
+        || providerCapabilityContradictsMetadata(
+            m_sequence->m_providerPositionSeekCapability, metadata.positionSeekSupport())) {
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
         m_errorString
@@ -224,10 +225,12 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     m_providerMetadataReady = true;
     m_providerTimedMetadata = isTimedMetadata;
+    m_providerTimedPlaybackSupport = metadata.timedPlaybackSupport();
+    m_providerFrameSeekSupport = metadata.frameSeekSupport();
+    m_providerPositionSeekSupport = metadata.positionSeekSupport();
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
-    const bool selectedFromPlaybackStart
-        = m_providerPlaybackStartPending
+    const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && m_currentProviderTargetKind == ProviderRequestTargetKind::Playback;
     const bool selectedFromPosition
         = m_currentProviderTargetKind == ProviderRequestTargetKind::Position;
@@ -237,7 +240,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
                                 : ProviderRequestTargetKind::Frame);
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
-    if (selectedFromPlaybackStart && !isTimedMetadata) {
+    if (selectedFromPlaybackStart && (!isTimedMetadata || !m_providerTimedPlaybackSupport)) {
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
         const bool diagnosticsValueChanged = clearDiagnostics();
@@ -251,7 +254,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
     if (selectedFromPosition) {
-        if (!isTimedMetadata) {
+        if (!isTimedMetadata || !m_providerPositionSeekSupport) {
             m_requestStatus = RequestStatus::Unsupported;
             m_requestReason = RequestReason::UnsupportedRequest;
             const bool diagnosticsValueChanged = clearDiagnostics();

@@ -155,10 +155,7 @@ bool ImageSequenceProviderKnownFacts::isValid() const
     return false;
 }
 
-bool ImageSequenceProviderKnownFacts::isComplete() const
-{
-    return isStill() || isTimedFrameList();
-}
+bool ImageSequenceProviderKnownFacts::isComplete() const { return isStill() || isTimedFrameList(); }
 
 bool ImageSequenceProviderKnownFacts::isLogicalSizeOnly() const
 {
@@ -190,10 +187,7 @@ int ImageSequenceProviderKnownFacts::frameCount() const
     return -1;
 }
 
-QVector<int> ImageSequenceProviderKnownFacts::frameDurations() const
-{
-    return m_frameDurations;
-}
+QVector<int> ImageSequenceProviderKnownFacts::frameDurations() const { return m_frameDurations; }
 
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(QSizeF logicalSize)
 {
@@ -234,7 +228,7 @@ bool ImageSequenceProviderMetadata::isValid() const
         return false;
     }
     if (isStill()) {
-        return true;
+        return !timedPlaybackSupport() && !positionSeekSupport();
     }
     if (isTimedFrameList()) {
         if (m_frameDurations.isEmpty()) {
@@ -267,6 +261,36 @@ bool ImageSequenceProviderMetadata::isTimedFrameList() const
 QSizeF ImageSequenceProviderMetadata::logicalSize() const { return m_logicalSize; }
 
 QVector<int> ImageSequenceProviderMetadata::frameDurations() const { return m_frameDurations; }
+
+void ImageSequenceProviderMetadata::setTimedPlaybackSupport(bool supported)
+{
+    m_timedPlaybackSupport = supported;
+}
+
+void ImageSequenceProviderMetadata::setFrameSeekSupport(bool supported)
+{
+    m_frameSeekSupport = supported;
+}
+
+void ImageSequenceProviderMetadata::setPositionSeekSupport(bool supported)
+{
+    m_positionSeekSupport = supported;
+}
+
+bool ImageSequenceProviderMetadata::timedPlaybackSupport() const
+{
+    return m_timedPlaybackSupport.value_or(isTimedFrameList());
+}
+
+bool ImageSequenceProviderMetadata::frameSeekSupport() const
+{
+    return m_frameSeekSupport.value_or(isStill() || isTimedFrameList());
+}
+
+bool ImageSequenceProviderMetadata::positionSeekSupport() const
+{
+    return m_positionSeekSupport.value_or(isTimedFrameList());
+}
 
 ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
 {

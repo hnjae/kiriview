@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
@@ -327,11 +328,20 @@ public:
     bool isTimedFrameList() const;
     QSizeF logicalSize() const;
     QVector<int> frameDurations() const;
+    void setTimedPlaybackSupport(bool supported);
+    void setFrameSeekSupport(bool supported);
+    void setPositionSeekSupport(bool supported);
+    bool timedPlaybackSupport() const;
+    bool frameSeekSupport() const;
+    bool positionSeekSupport() const;
 
 private:
     TimingModel m_timingModel = TimingModel::Invalid;
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
+    std::optional<bool> m_timedPlaybackSupport;
+    std::optional<bool> m_frameSeekSupport;
+    std::optional<bool> m_positionSeekSupport;
 };
 
 class ImageSequenceProviderFrameMetadata

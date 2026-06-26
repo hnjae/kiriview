@@ -31,6 +31,9 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     m_providerPlaybackStartPending = false;
     m_providerMetadataReady = false;
     m_providerTimedMetadata = false;
+    m_providerTimedPlaybackSupport = false;
+    m_providerFrameSeekSupport = false;
+    m_providerPositionSeekSupport = false;
     m_providerLogicalSize = {};
     m_providerFrameDurations.clear();
     discardPendingRenderCommit();
@@ -43,6 +46,12 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         if (m_sequence->m_hasCompleteProviderKnownMetadata) {
             m_providerMetadataReady = true;
             m_providerTimedMetadata = m_sequence->m_providerKnownFacts.isTimedFrameList();
+            m_providerTimedPlaybackSupport = providerResolvedCapability(
+                m_sequence->m_providerTimedPlaybackCapability, m_providerTimedMetadata);
+            m_providerFrameSeekSupport
+                = providerResolvedCapability(m_sequence->m_providerFrameSeekCapability, true);
+            m_providerPositionSeekSupport = providerResolvedCapability(
+                m_sequence->m_providerPositionSeekCapability, m_providerTimedMetadata);
             m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
             m_providerFrameDurations = m_sequence->m_providerKnownFrameDurations;
             m_currentFrame = 0;
@@ -228,6 +237,9 @@ int ImageViewportPrivate::totalDuration() const
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
     if (hasProviderSequence() && m_providerMetadataReady) {
+        if (!m_providerFrameSeekSupport) {
+            return invalidRange();
+        }
         return {
             { QStringLiteral("minimum"), 0 },
             { QStringLiteral("maximum"),
@@ -254,7 +266,7 @@ QVariantMap ImageViewportPrivate::frameSeekBounds() const
 
 QVariantMap ImageViewportPrivate::positionSeekBounds() const
 {
-    if (hasProviderSequence() && m_providerTimedMetadata) {
+    if (hasProviderSequence() && m_providerTimedMetadata && m_providerPositionSeekSupport) {
         int total = 0;
         for (int duration : std::as_const(m_providerFrameDurations)) {
             total += duration;
@@ -277,7 +289,7 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
 ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
 {
     if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerTimedMetadata ? TriState::True : TriState::False;
+        return m_providerTimedPlaybackSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(m_sequence->m_providerTimedPlaybackCapability);
@@ -295,7 +307,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() cons
 ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 {
     if (hasProviderSequence() && m_providerMetadataReady) {
-        return TriState::True;
+        return m_providerFrameSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(m_sequence->m_providerFrameSeekCapability);
@@ -310,7 +322,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 {
     if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerTimedMetadata ? TriState::True : TriState::False;
+        return m_providerPositionSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(m_sequence->m_providerPositionSeekCapability);

@@ -150,24 +150,38 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     const bool hasKnownMetadata = knownMetadata.isSpecified();
     if (hasKnownMetadata
         && (providerCapabilityContradictsMetadata(
-                timedPlaybackCapability, knownMetadata.isTimedFrameList())
-            || providerCapabilityContradictsMetadata(frameSeekCapability, true)
+                timedPlaybackCapability, knownMetadata.timedPlaybackSupport())
             || providerCapabilityContradictsMetadata(
-                positionSeekCapability, knownMetadata.isTimedFrameList()))) {
+                frameSeekCapability, knownMetadata.frameSeekSupport())
+            || providerCapabilityContradictsMetadata(
+                positionSeekCapability, knownMetadata.positionSeekSupport()))) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("provider metadata contradicts declared capabilities"));
     }
-    if (providerFactsContradictCapabilities(
-            knownFacts, timedPlaybackCapability, frameSeekCapability, positionSeekCapability)) {
+    const ImageSequenceProviderCapabilitySupport effectiveTimedPlaybackCapability = hasKnownMetadata
+        ? (knownMetadata.timedPlaybackSupport()
+                  ? ImageSequenceProviderCapabilitySupport::KnownTrue
+                  : ImageSequenceProviderCapabilitySupport::KnownFalse)
+        : timedPlaybackCapability;
+    const ImageSequenceProviderCapabilitySupport effectiveFrameSeekCapability = hasKnownMetadata
+        ? (knownMetadata.frameSeekSupport() ? ImageSequenceProviderCapabilitySupport::KnownTrue
+                                            : ImageSequenceProviderCapabilitySupport::KnownFalse)
+        : frameSeekCapability;
+    const ImageSequenceProviderCapabilitySupport effectivePositionSeekCapability = hasKnownMetadata
+        ? (knownMetadata.positionSeekSupport() ? ImageSequenceProviderCapabilitySupport::KnownTrue
+                                               : ImageSequenceProviderCapabilitySupport::KnownFalse)
+        : positionSeekCapability;
+    if (providerFactsContradictCapabilities(knownFacts, effectiveTimedPlaybackCapability,
+            effectiveFrameSeekCapability, effectivePositionSeekCapability)) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("provider construction facts contradict declared capabilities"));
     }
 
     std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(std::move(sessionFactory), knownFacts, timedPlaybackCapability,
-            frameSeekCapability, positionSeekCapability, threadingContract));
+        new ImageSequence(std::move(sessionFactory), knownFacts, effectiveTimedPlaybackCapability,
+            effectiveFrameSeekCapability, effectivePositionSeekCapability, threadingContract));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
