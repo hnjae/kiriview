@@ -4342,6 +4342,14 @@ void ImageViewportTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(timedFrameMetadata.frameStartPosition(), 100);
     QCOMPARE(timedFrameMetadata.frameDuration(), 250);
 
+    const ImageSequenceProviderFrameMetadata unknownDurationTimedFrameMetadata =
+        ImageSequenceProviderFrameMetadata::timedFrame(1, 100);
+    QCOMPARE(unknownDurationTimedFrameMetadata.isValid(), true);
+    QCOMPARE(unknownDurationTimedFrameMetadata.isTimedFrame(), true);
+    QCOMPARE(unknownDurationTimedFrameMetadata.frame(), 1);
+    QCOMPARE(unknownDurationTimedFrameMetadata.frameStartPosition(), 100);
+    QCOMPARE(unknownDurationTimedFrameMetadata.frameDuration(), -1);
+
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(-1, 100).isValid(), false);
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, -1).isValid(), false);
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 0).isValid(), false);
