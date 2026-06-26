@@ -201,7 +201,7 @@ int ImageViewportPrivate::totalDuration() const
 {
     if (hasProviderSequence() && m_providerTimedMetadata) {
         int total = 0;
-        for (int duration : m_providerFrameDurations) {
+        for (int duration : std::as_const(m_providerFrameDurations)) {
             total += duration;
         }
         return total;
@@ -235,7 +235,7 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
 {
     if (hasProviderSequence() && m_providerTimedMetadata) {
         int total = 0;
-        for (int duration : m_providerFrameDurations) {
+        for (int duration : std::as_const(m_providerFrameDurations)) {
             total += duration;
         }
         return {

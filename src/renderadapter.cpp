@@ -3,6 +3,7 @@
 #include <QtQuick/QSGSimpleRectNode>
 
 #include <algorithm>
+#include <cmath>
 
 RenderAdapter::Output RenderAdapter::createNode(QSGNode *oldNode, const Input &input) const
 {
@@ -24,10 +25,12 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode *oldNode, const Input &i
         constexpr double checkerboardTileSize = 8.0;
         const QColor lightSquare(238, 238, 238);
         const QColor darkSquare(204, 204, 204);
-        for (double y = 0.0; y < input.itemSize.height(); y += checkerboardTileSize) {
-            for (double x = 0.0; x < input.itemSize.width(); x += checkerboardTileSize) {
-                const int column = static_cast<int>(x / checkerboardTileSize);
-                const int row = static_cast<int>(y / checkerboardTileSize);
+        const int rowCount = static_cast<int>(std::ceil(input.itemSize.height() / checkerboardTileSize));
+        const int columnCount = static_cast<int>(std::ceil(input.itemSize.width() / checkerboardTileSize));
+        for (int row = 0; row < rowCount; ++row) {
+            const double y = row * checkerboardTileSize;
+            for (int column = 0; column < columnCount; ++column) {
+                const double x = column * checkerboardTileSize;
                 const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
                 const QRectF tile(x,
                     y,

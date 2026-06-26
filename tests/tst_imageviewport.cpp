@@ -22,6 +22,7 @@
 #include <limits>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 static_assert(std::is_abstract_v<ImageSequenceProviderAdapter>,
     "ImageSequenceProviderAdapter must remain an abstract public extension-point base");
@@ -293,7 +294,8 @@ namespace {
 QString componentErrors(const QQmlComponent &component)
 {
     QStringList messages;
-    for (const QQmlError &error : component.errors()) {
+    const QList<QQmlError> errors = component.errors();
+    for (const QQmlError &error : errors) {
         messages.append(error.toString());
     }
     return messages.join(QLatin1Char('\n'));
@@ -13172,10 +13174,10 @@ void ImageViewportTest::invalidPresentationEnumValuesAreIgnored()
     ImageViewport item;
     const uint initialDisplayRevision = item.property("displayRevision").toUInt();
 
-    item.setFillMode(static_cast<ImageViewport::FillMode>(999));
-    item.setHorizontalAlignment(static_cast<ImageViewport::HorizontalAlignment>(999));
-    item.setVerticalAlignment(static_cast<ImageViewport::VerticalAlignment>(999));
-    item.setBackgroundMode(static_cast<ImageViewport::BackgroundMode>(999));
+    QVERIFY(item.setProperty("fillMode", 999));
+    QVERIFY(item.setProperty("horizontalAlignment", 999));
+    QVERIFY(item.setProperty("verticalAlignment", 999));
+    QVERIFY(item.setProperty("backgroundMode", 999));
 
     QCOMPARE(item.fillMode(), ImageViewport::FillMode::Contain);
     QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignHCenter);

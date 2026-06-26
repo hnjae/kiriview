@@ -618,13 +618,13 @@ public:
     bool looping() const;
     void setLooping(bool looping);
 
-    Q_INVOKABLE CommandOutcome clear();
-    Q_INVOKABLE CommandOutcome play();
-    Q_INVOKABLE CommandOutcome pause();
-    Q_INVOKABLE CommandOutcome stop();
-    Q_INVOKABLE CommandOutcome seek(int frame);
-    Q_INVOKABLE CommandOutcome seekToPosition(int milliseconds);
-    Q_INVOKABLE CommandOutcome resetView();
+    Q_INVOKABLE ImageViewport::CommandOutcome clear();
+    Q_INVOKABLE ImageViewport::CommandOutcome play();
+    Q_INVOKABLE ImageViewport::CommandOutcome pause();
+    Q_INVOKABLE ImageViewport::CommandOutcome stop();
+    Q_INVOKABLE ImageViewport::CommandOutcome seek(int frame);
+    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
+    Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
     Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
