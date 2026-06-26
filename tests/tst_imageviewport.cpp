@@ -4275,6 +4275,29 @@ void ImageViewportTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(-1, 100).isValid(), false);
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, -1).isValid(), false);
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 0).isValid(), false);
+
+    class PlaybackFallbackSession final : public ImageSequenceProviderSession
+    {
+    public:
+        void requestMetadata(const ImageSequenceProviderRequestToken &) override {}
+
+        void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+        {
+            lastFrameToken = token;
+            lastFrame = frame;
+            ++frameRequestCount;
+        }
+
+        ImageSequenceProviderRequestToken lastFrameToken;
+        int lastFrame = -1;
+        int frameRequestCount = 0;
+    };
+
+    PlaybackFallbackSession session;
+    session.requestPlayback(token, 7, 125);
+    QCOMPARE(session.frameRequestCount, 1);
+    QCOMPARE(session.lastFrameToken, token);
+    QCOMPARE(session.lastFrame, 7);
 }
 
 void ImageViewportTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()
