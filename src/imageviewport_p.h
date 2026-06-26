@@ -132,6 +132,10 @@ public:
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
     void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelProviderRequest(ImageSequenceProviderRequestToken token);
+    void clearQueuedProviderFrameRequest();
+    void queueProviderFrameRequest(int frame, bool fromPlayback);
+    void flushQueuedProviderFrameRequest();
+    bool startProviderFrameRequest(int frame, bool fromPlayback);
     void publishProviderTokenExhaustion();
     void handleProviderMetadataReady(
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
@@ -251,6 +255,11 @@ public:
     ImageSequenceProviderRequestToken& m_activeProviderMetadataToken = provider.activeMetadataToken;
     ImageSequenceProviderRequestToken& m_activeProviderFrameToken = provider.activeFrameToken;
     bool& m_activeProviderFrameFromPlayback = provider.activeFrameFromPlayback;
+    bool& m_queuedProviderFrameRequest = provider.queuedFrameRequest;
+    quint64& m_queuedProviderFrameGeneration = provider.queuedFrameGeneration;
+    int& m_queuedProviderFrame = provider.queuedFrame;
+    int& m_queuedProviderPosition = provider.queuedPosition;
+    bool& m_queuedProviderFrameFromPlayback = provider.queuedFrameFromPlayback;
     bool& m_providerMetadataReady = provider.metadataReady;
     bool& m_providerTimedMetadata = provider.timedMetadata;
     QSizeF& m_providerLogicalSize = provider.logicalSize;

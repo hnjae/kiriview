@@ -94,6 +94,9 @@ private slots:
     void providerStaleOwnedFramePayloadReleasesOnce();
     void providerClosedGenerationOwnedFramePayloadReleasesOnce();
     void providerAcceptedOwnedFramePayloadReleasesOnce();
+    void providerFrameSeekQueuesBehindActiveFrameRequest();
+    void providerFrameReadyWithPositiveGeometryPublishesUploadPending();
+    void providerFrameReadyWithZeroGeometryKeepsRenderWaiting();
     void providerTimedFrameSeekRequestsSelectedFrame();
     void providerTimedFrameSeekWithoutDiagnosticsDoesNotNotify();
     void providerTimedFrameCommitWithUnchangedGeometryDoesNotNotifyGeometryState();
@@ -1572,7 +1575,7 @@ void ImageViewportProviderTest::providerFrameResultsAreQueuedFromSessionEntryPoi
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
@@ -1830,15 +1833,21 @@ void ImageViewportProviderTest::providerKnownConstructionMetadataBindsAcceptedSe
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*metadataRequestCount, 0);
-    QCOMPARE(*frameRequestCount, 2);
-    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    drainQueuedProviderResults();
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -2724,8 +2733,14 @@ void ImageViewportProviderTest::providerFixedDurationMetadataSelectsInitialFrame
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
 
     QCOMPARE(item.seekToPosition(250), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 2);
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 2);
     QCOMPARE(item.property("requestedPosition").toInt(), 250);
 }
@@ -2901,7 +2916,10 @@ void ImageViewportProviderTest::providerFrameReadyDominatesLateProgress()
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
+    QQuickWindow window;
+    window.resize(100, 100);
     PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2924,7 +2942,7 @@ void ImageViewportProviderTest::providerFrameReadyDominatesLateProgress()
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
@@ -2943,7 +2961,7 @@ void ImageViewportProviderTest::providerFrameReadyDominatesLateProgress()
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
@@ -3040,6 +3058,7 @@ void ImageViewportProviderTest::providerRequestTokensAreUniqueWithinSession()
     QCOMPARE(*frameRequestCount, 1);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken seekFrameToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -3680,7 +3699,7 @@ void ImageViewportProviderTest::providerStillFrameUsesDeviceIndependentPayloadSi
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
@@ -3739,7 +3758,7 @@ void ImageViewportProviderTest::providerTimedFrameReadyCommitsTimedDisplay()
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
@@ -3844,6 +3863,10 @@ void ImageViewportProviderTest::providerTotalDurationSeekRejectsPublicPositionEn
 
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
 
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
     QCOMPARE(
@@ -4335,6 +4358,7 @@ void ImageViewportProviderTest::providerStaleOwnedFramePayloadReleasesOnce()
         = sessionFactory->lastSession()->lastFrameToken();
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QVERIFY(staleToken != sessionFactory->lastSession()->lastFrameToken());
 
@@ -4455,7 +4479,7 @@ void ImageViewportProviderTest::providerAcceptedOwnedFramePayloadReleasesOnce()
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
 
     QVERIFY(commitPaintNode(item));
 
@@ -4468,6 +4492,220 @@ void ImageViewportProviderTest::providerAcceptedOwnedFramePayloadReleasesOnce()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+}
+
+void ImageViewportProviderTest::providerFrameSeekQueuesBehindActiveFrameRequest()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount,
+        lastCancelledTokenId);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
+    QVERIFY(initialFrameToken.isValid());
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+
+    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
+    const uint providerWaitingRevision = item.property("requestRevision").toUInt();
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QVERIFY(item.property("requestRevision").toUInt() > providerWaitingRevision);
+    QCOMPARE(requestStateSpy.count(), 1);
+    QCOMPARE(requestRevisionSpy.count(), 1);
+
+    const uint queuedRevision = item.property("requestRevision").toUInt();
+    drainQueuedProviderResults();
+
+    const ImageSequenceProviderRequestToken seekFrameToken = session->lastFrameToken();
+    QVERIFY(seekFrameToken.isValid());
+    QVERIFY(seekFrameToken != initialFrameToken);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QVERIFY(item.property("requestRevision").toUInt() > queuedRevision);
+    QCOMPARE(requestStateSpy.count(), 2);
+    QCOMPARE(requestRevisionSpy.count(), 2);
+
+    QImage staleImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    staleImage.fill(Qt::transparent);
+    ImageFrame staleFrame(staleImage);
+    const uint activeRevision = item.property("requestRevision").toUInt();
+    emitTimedProviderFrameReady(session, initialFrameToken, &staleFrame, 0, 0);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(item.property("requestRevision").toUInt(), activeRevision);
+    QCOMPARE(requestStateSpy.count(), 2);
+    QCOMPARE(requestRevisionSpy.count(), 2);
+}
+
+void ImageViewportProviderTest::providerFrameReadyWithPositiveGeometryPublishesUploadPending()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QVERIFY(item.hasPendingRenderCommitForTest());
+
+    const uint uploadPendingRevision = item.property("requestRevision").toUInt();
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(item.property("requestRevision").toUInt() > uploadPendingRevision);
+}
+
+void ImageViewportProviderTest::providerFrameReadyWithZeroGeometryKeepsRenderWaiting()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(0.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QVERIFY(item.hasPendingRenderCommitForTest());
+
+    const uint renderWaitingRevision = item.property("requestRevision").toUInt();
+    item.setSize(QSizeF(100.0, 100.0));
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(item.property("requestRevision").toUInt() > renderWaitingRevision);
 }
 
 void ImageViewportProviderTest::providerTimedFrameSeekRequestsSelectedFrame()
@@ -4659,9 +4897,11 @@ void ImageViewportProviderTest::providerTimedFrameSeekCancelsSupersededRequest()
     QVERIFY(commitPaintNode(item));
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken firstSeekToken
         = sessionFactory->lastSession()->lastFrameToken();
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    drainQueuedProviderResults();
 
     QCOMPARE(*cancelRequestCount, 1);
     QVERIFY(sessionFactory->lastSession()->lastCancelledToken() == firstSeekToken);
@@ -5124,7 +5364,7 @@ void ImageViewportProviderTest::providerTimedPlaybackFrameReadyWaitsForRenderCom
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
@@ -5136,7 +5376,7 @@ void ImageViewportProviderTest::providerTimedPlaybackFrameReadyWaitsForRenderCom
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);

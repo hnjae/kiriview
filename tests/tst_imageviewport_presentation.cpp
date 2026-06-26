@@ -2830,7 +2830,7 @@ void ImageViewportPresentationTest::providerTimedFramePaintFailureRetainsPreviou
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
@@ -2924,7 +2924,7 @@ void ImageViewportPresentationTest::providerTimedPlaybackPaintFailureStopsPlayba
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
@@ -3090,7 +3090,7 @@ void ImageViewportPresentationTest::providerSupersededRenderWaitingClearsPending
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+        enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);

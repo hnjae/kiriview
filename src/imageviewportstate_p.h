@@ -93,6 +93,11 @@ struct ProviderGenerationState
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;
     bool activeFrameFromPlayback = false;
+    bool queuedFrameRequest = false;
+    quint64 queuedFrameGeneration = 0;
+    int queuedFrame = -1;
+    int queuedPosition = -1;
+    bool queuedFrameFromPlayback = false;
     bool metadataReady = false;
     bool timedMetadata = false;
     QSizeF logicalSize;

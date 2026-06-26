@@ -1,11 +1,17 @@
 #include "framepreparation_p.h"
 #include "imageviewport_p.h"
 
+#include <QtCore/QMetaObject>
+
 #include <memory>
 
 using namespace ImageViewportInternal;
 
-void ImageViewportPrivate::closeProviderSession() { providerBridge.closeSession(); }
+void ImageViewportPrivate::closeProviderSession()
+{
+    clearQueuedProviderFrameRequest();
+    providerBridge.closeSession();
+}
 
 bool ImageViewportPrivate::openProviderSession() { return providerBridge.openSession(); }
 
@@ -35,8 +41,91 @@ void ImageViewportPrivate::cancelProviderRequest(ImageSequenceProviderRequestTok
     providerBridge.cancelRequest(token);
 }
 
+void ImageViewportPrivate::clearQueuedProviderFrameRequest()
+{
+    m_queuedProviderFrameRequest = false;
+    m_queuedProviderFrameGeneration = 0;
+    m_queuedProviderFrame = -1;
+    m_queuedProviderPosition = -1;
+    m_queuedProviderFrameFromPlayback = false;
+}
+
+void ImageViewportPrivate::queueProviderFrameRequest(int frame, bool fromPlayback)
+{
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::RequestQueued;
+    m_displayStatus
+        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    discardPendingRenderCommit();
+
+    if (m_providerSession && m_activeProviderFrameToken.isValid()) {
+        cancelProviderRequest(m_activeProviderFrameToken);
+    }
+    m_activeProviderFrameToken = {};
+    m_activeProviderFrameFromPlayback = false;
+
+    m_queuedProviderFrameRequest = true;
+    m_queuedProviderFrameGeneration = m_sequenceGeneration;
+    m_queuedProviderFrame = frame;
+    m_queuedProviderPosition = m_requestedPosition;
+    m_queuedProviderFrameFromPlayback = fromPlayback;
+    QMetaObject::invokeMethod(q, [this]() { flushQueuedProviderFrameRequest(); },
+        Qt::QueuedConnection);
+}
+
+void ImageViewportPrivate::flushQueuedProviderFrameRequest()
+{
+    if (!m_queuedProviderFrameRequest || !hasProviderSequence() || !m_providerSession) {
+        clearQueuedProviderFrameRequest();
+        return;
+    }
+
+    const int queuedFrame = m_queuedProviderFrame;
+    const int queuedPosition = m_queuedProviderPosition;
+    const bool queuedFromPlayback = m_queuedProviderFrameFromPlayback;
+    const bool stillCurrent = m_queuedProviderFrameGeneration == m_sequenceGeneration
+        && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::RequestQueued && m_currentFrame == queuedFrame
+        && m_requestedPosition == queuedPosition;
+    clearQueuedProviderFrameRequest();
+    if (!stillCurrent) {
+        return;
+    }
+
+    startProviderFrameRequest(queuedFrame, queuedFromPlayback);
+    incrementRequestRevision();
+    emit q->requestStateChanged();
+    if (m_requestStatus == RequestStatus::Error
+        && m_requestReason == RequestReason::ProviderFailure) {
+        emit q->diagnosticsChanged();
+    }
+}
+
+bool ImageViewportPrivate::startProviderFrameRequest(int frame, bool fromPlayback)
+{
+    clearQueuedProviderFrameRequest();
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::ProviderWaiting;
+    m_activeProviderFrameToken = nextProviderRequestToken();
+    if (!m_activeProviderFrameToken.isValid()) {
+        publishProviderTokenExhaustion();
+        return false;
+    }
+
+    m_activeProviderFrameFromPlayback = fromPlayback;
+    if (m_providerSession) {
+        if (fromPlayback) {
+            requestProviderPlayback(m_activeProviderFrameToken, frame, m_requestedPosition);
+        } else {
+            requestProviderFrame(m_activeProviderFrameToken, frame);
+        }
+    }
+    return true;
+}
+
 void ImageViewportPrivate::publishProviderTokenExhaustion()
 {
+    clearQueuedProviderFrameRequest();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
@@ -196,20 +285,12 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
 
-    m_activeProviderFrameToken = nextProviderRequestToken();
-    if (!m_activeProviderFrameToken.isValid()) {
-        publishProviderTokenExhaustion();
+    m_providerPlaybackStartPending = false;
+    if (!startProviderFrameRequest(selectedFrame, selectedFromPlaybackStart)) {
         incrementRequestRevision();
         emit q->requestStateChanged();
         emit q->diagnosticsChanged();
         return;
-    }
-    m_activeProviderFrameFromPlayback = selectedFromPlaybackStart;
-    m_providerPlaybackStartPending = false;
-    if (selectedFromPlaybackStart) {
-        requestProviderPlayback(m_activeProviderFrameToken, selectedFrame, m_requestedPosition);
-    } else {
-        requestProviderFrame(m_activeProviderFrameToken, selectedFrame);
     }
     incrementRequestRevision();
     emit q->requestStateChanged();
@@ -248,6 +329,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     }
 
     if (m_providerMetadataReady && FramePreparation::exceedsPayloadLimit(frame)) {
+        clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
@@ -262,6 +344,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     }
 
     if (!validateProviderFrame(frame, metadata)) {
+        clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
@@ -349,6 +432,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     if (activeMetadataToken || !m_providerMetadataReady || !m_providerTimedMetadata
         || !m_activeProviderFrameFromPlayback) {
+        clearQueuedProviderFrameRequest();
         if (activeMetadataToken) {
             m_activeProviderMetadataToken = {};
         }
@@ -411,17 +495,11 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
     m_displayStatus
         = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
-    m_activeProviderFrameToken = nextProviderRequestToken();
-    if (!m_activeProviderFrameToken.isValid()) {
-        publishProviderTokenExhaustion();
+    if (!startProviderFrameRequest(selectedFrame, true)) {
         incrementRequestRevision();
         emit q->requestStateChanged();
         emit q->diagnosticsChanged();
         return;
-    }
-    m_activeProviderFrameFromPlayback = true;
-    if (m_providerSession) {
-        requestProviderPlayback(m_activeProviderFrameToken, selectedFrame, selectedPosition);
     }
     setPlaybackPhase(PlaybackPhase::Waiting);
     incrementRequestRevision();
@@ -442,6 +520,7 @@ void ImageViewportPrivate::handleProviderFailure(
     }
 
     if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+        clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;
@@ -479,6 +558,7 @@ void ImageViewportPrivate::handleProviderUnsupported(
     }
 
     if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+        clearQueuedProviderFrameRequest();
         const bool unsupportedPlaybackRequest = m_activeProviderFrameFromPlayback;
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
@@ -518,6 +598,7 @@ void ImageViewportPrivate::handleProviderCancellation(
     }
 
     if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+        clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Error;

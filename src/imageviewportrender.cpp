@@ -9,8 +9,9 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
     const bool hasPendingProviderCommit = hasProviderSequence()
         && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::RenderWaiting && m_renderCommitPending
-        && !m_pendingDisplayImage.isNull() && !itemBounds().isEmpty();
+        && (m_requestReason == RequestReason::UploadPending
+            || m_requestReason == RequestReason::RenderWaiting)
+        && m_renderCommitPending && !m_pendingDisplayImage.isNull() && !itemBounds().isEmpty();
     const QImage image = hasPendingProviderCommit
         ? m_pendingDisplayImage
         : (hasReadyDisplay() ? m_displayedImage : QImage());
@@ -79,8 +80,9 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
 
     bool displayRevisionChanged = false;
     if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::RenderWaiting && newGeometry.width() > 0.0
-        && newGeometry.height() > 0.0) {
+        && (m_requestReason == RequestReason::UploadPending
+            || m_requestReason == RequestReason::RenderWaiting)
+        && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
         if (hasProviderSequence() && !m_pendingDisplayImage.isNull()) {
             update();
             return;
@@ -96,6 +98,13 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         displayRevisionChanged = true;
         emit q->requestStateChanged();
         emit q->displayStateChanged();
+    } else if (hasProviderSequence() && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::UploadPending
+        && (newGeometry.width() <= 0.0 || newGeometry.height() <= 0.0)
+        && !m_pendingDisplayImage.isNull()) {
+        m_requestReason = RequestReason::RenderWaiting;
+        incrementRequestRevision();
+        emit q->requestStateChanged();
     } else if (hasReadyDisplay()) {
         incrementDisplayRevision();
         displayRevisionChanged = true;

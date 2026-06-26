@@ -443,11 +443,15 @@ void ImageViewportRenderTest::providerTotalDurationSeekEndOfSequenceReportsProto
     drainQueuedProviderResults();
 
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken totalDurationToken
         = sessionFactory->lastSession()->lastFrameToken();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
-    QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
