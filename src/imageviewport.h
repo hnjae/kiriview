@@ -42,13 +42,13 @@ private:
     };
 
     explicit ImageSequence(QObject* parent = nullptr);
-    explicit ImageSequence(const QSizeF& logicalSize, QImage stillImage, QObject* parent = nullptr);
-    explicit ImageSequence(const QSizeF& logicalSize, QVector<int> frameDurations,
+    explicit ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent = nullptr);
+    explicit ImageSequence(QSizeF logicalSize, QVector<int> frameDurations,
         QVector<QImage> frameImages, QObject* parent = nullptr);
     explicit ImageSequence(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         bool hasProviderKnownMetadata, bool hasCompleteProviderKnownMetadata,
-        const QSizeF& providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
+        QSizeF providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
         ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
         ImageSequenceProviderCapabilitySupport frameSeekCapability,
         ImageSequenceProviderCapabilitySupport positionSeekCapability, QObject* parent = nullptr);
@@ -230,14 +230,14 @@ public:
     quint64 id() const;
     bool isValid() const;
 
-    friend bool operator==(const ImageSequenceProviderRequestToken& left,
-        const ImageSequenceProviderRequestToken& right)
+    friend bool operator==(
+        ImageSequenceProviderRequestToken left, ImageSequenceProviderRequestToken right)
     {
         return left.m_id == right.m_id;
     }
 
-    friend bool operator!=(const ImageSequenceProviderRequestToken& left,
-        const ImageSequenceProviderRequestToken& right)
+    friend bool operator!=(
+        ImageSequenceProviderRequestToken left, ImageSequenceProviderRequestToken right)
     {
         return !(left == right);
     }
@@ -257,11 +257,11 @@ public:
     };
 
     ImageSequenceProviderMetadata() = default;
-    static ImageSequenceProviderMetadata still(const QSizeF& logicalSize);
+    static ImageSequenceProviderMetadata still(QSizeF logicalSize);
     static ImageSequenceProviderMetadata fixedDurationFrames(
-        const QSizeF& logicalSize, int frameCount, int frameDuration);
+        QSizeF logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderMetadata timedFrameList(
-        const QSizeF& logicalSize, QVector<int> frameDurations);
+        QSizeF logicalSize, QVector<int> frameDurations);
 
     bool isSpecified() const;
     bool isValid() const;
@@ -312,11 +312,10 @@ public:
     explicit ImageSequenceProviderSession(QObject* parent = nullptr);
     ~ImageSequenceProviderSession() override = default;
 
-    virtual void requestMetadata(const ImageSequenceProviderRequestToken& token) = 0;
-    virtual void requestFrame(const ImageSequenceProviderRequestToken& token, int frame);
-    virtual void requestPlayback(
-        const ImageSequenceProviderRequestToken& token, int frame, int position);
-    virtual void cancelRequest(const ImageSequenceProviderRequestToken& token);
+    virtual void requestMetadata(ImageSequenceProviderRequestToken token) = 0;
+    virtual void requestFrame(ImageSequenceProviderRequestToken token, int frame);
+    virtual void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
+    virtual void cancelRequest(ImageSequenceProviderRequestToken token);
     virtual void close();
 
 signals:
@@ -344,7 +343,13 @@ class ImageSequenceProviderSessionFactory
 {
 public:
     virtual ~ImageSequenceProviderSessionFactory() = default;
+    ImageSequenceProviderSessionFactory(const ImageSequenceProviderSessionFactory&) = delete;
+    ImageSequenceProviderSessionFactory& operator=(const ImageSequenceProviderSessionFactory&)
+        = delete;
     virtual ImageSequenceProviderSession* createSession(QObject* parent) = 0;
+
+protected:
+    ImageSequenceProviderSessionFactory() = default;
 };
 
 class ImageSequenceFactoryResult : public QObject
@@ -634,7 +639,7 @@ public:
     double zoom() const;
     void setZoom(double zoom);
     QPointF pan() const;
-    void setPan(const QPointF& pan);
+    void setPan(QPointF pan);
     bool looping() const;
     void setLooping(bool looping);
 

@@ -4,6 +4,12 @@ class ImageSequenceFactoryTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageSequenceFactoryTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void exposesTypedSequenceFactorySurface();
     void factoryRejectsNullTypedInputs();

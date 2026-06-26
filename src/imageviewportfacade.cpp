@@ -76,7 +76,7 @@ void ImageViewport::setBackgroundColor(const QColor& color) { d->setBackgroundCo
 double ImageViewport::zoom() const { return d->zoom(); }
 void ImageViewport::setZoom(double zoom) { d->setZoom(zoom); }
 QPointF ImageViewport::pan() const { return d->pan(); }
-void ImageViewport::setPan(const QPointF& pan) { d->setPan(pan); }
+void ImageViewport::setPan(QPointF pan) { d->setPan(pan); }
 bool ImageViewport::looping() const { return d->looping(); }
 void ImageViewport::setLooping(bool looping) { d->setLooping(looping); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }

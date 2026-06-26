@@ -91,9 +91,9 @@ void verifyRequestStatusReasonPair(const ImageViewport& item)
 
 void verifyInvalidCoordinateResult(const QVariantMap& result)
 {
-    QCOMPARE(result.value("valid").toBool(), false);
-    QCOMPARE(result.value("x").toDouble(), 0.0);
-    QCOMPARE(result.value("y").toDouble(), 0.0);
+    QCOMPARE(result.value(QStringLiteral("valid")).toBool(), false);
+    QCOMPARE(result.value(QStringLiteral("x")).toDouble(), 0.0);
+    QCOMPARE(result.value(QStringLiteral("y")).toDouble(), 0.0);
 }
 
 class PaintProbeViewport final : public ImageViewport
@@ -134,21 +134,20 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         m_lastMetadataToken = token;
         ++*m_metadataRequestCount;
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
     {
         m_lastFrameToken = token;
         *m_lastRequestedFrame = frame;
         ++*m_frameRequestCount;
     }
 
-    void requestPlayback(
-        const ImageSequenceProviderRequestToken& token, int frame, int position) override
+    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position) override
     {
         if (m_playbackRequestCount) {
             ++*m_playbackRequestCount;
@@ -162,7 +161,7 @@ public:
         ImageSequenceProviderSession::requestPlayback(token, frame, position);
     }
 
-    void cancelRequest(const ImageSequenceProviderRequestToken& token) override
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
     {
         m_lastCancelledToken = token;
         if (m_cancelRequestCount) {
@@ -308,25 +307,25 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         *m_metadataRequestThread = QThread::currentThread();
         m_lastMetadataToken = token;
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int) override
+    void requestFrame(ImageSequenceProviderRequestToken token, int) override
     {
         *m_frameRequestThread = QThread::currentThread();
         m_lastFrameToken = token;
     }
 
-    void requestPlayback(const ImageSequenceProviderRequestToken& token, int, int) override
+    void requestPlayback(ImageSequenceProviderRequestToken token, int, int) override
     {
         *m_playbackRequestThread = QThread::currentThread();
         m_lastPlaybackToken = token;
     }
 
-    void cancelRequest(const ImageSequenceProviderRequestToken&) override
+    void cancelRequest(ImageSequenceProviderRequestToken) override
     {
         *m_cancelRequestThread = QThread::currentThread();
     }
@@ -423,18 +422,15 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         m_lastMetadataToken = token;
         ++*m_metadataRequestCount;
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken&, int) override
-    {
-        ++*m_frameRequestCount;
-    }
+    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
 
-    void cancelRequest(const ImageSequenceProviderRequestToken& token) override
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
     {
         ++*m_cancelRequestCount;
         emit providerCancelled(token, QStringLiteral("request cleanup complete"));
@@ -502,6 +498,23 @@ public:
     }
 };
 
+class PlaybackFallbackSession final : public ImageSequenceProviderSession
+{
+public:
+    void requestMetadata(ImageSequenceProviderRequestToken) override { }
+
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
+    {
+        lastFrameToken = token;
+        lastFrame = frame;
+        ++frameRequestCount;
+    }
+
+    ImageSequenceProviderRequestToken lastFrameToken;
+    int lastFrame = -1;
+    int frameRequestCount = 0;
+};
+
 class SynchronousMetadataProviderSession final : public ImageSequenceProviderSession
 {
 public:
@@ -513,16 +526,13 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         ++*m_metadataRequestCount;
         emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken&, int) override
-    {
-        ++*m_frameRequestCount;
-    }
+    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
@@ -564,12 +574,12 @@ public:
         m_frame = std::make_unique<ImageFrame>(image);
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken&) override
+    void requestMetadata(ImageSequenceProviderRequestToken) override
     {
         QFAIL("complete construction metadata should not request runtime metadata");
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int) override
+    void requestFrame(ImageSequenceProviderRequestToken token, int) override
     {
         ++*m_frameRequestCount;
         emit imageFrameReady(token, m_frame.get());
@@ -607,7 +617,7 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         ++*m_metadataRequestCount;
         emit providerFailed(token, QStringLiteral("metadata failed synchronously"));
@@ -645,7 +655,7 @@ public:
     {
     }
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         ++*m_metadataRequestCount;
         emit providerUnsupported(token, QStringLiteral("metadata unsupported synchronously"));
@@ -681,7 +691,7 @@ void drainQueuedProviderResults()
 }
 
 void emitTimedProviderFrameReady(CountingProviderSession* session,
-    const ImageSequenceProviderRequestToken& token, ImageFrame* frame, int frameIndex,
+    ImageSequenceProviderRequestToken token, ImageFrame* frame, int frameIndex,
     int frameStartPosition)
 {
     emit session->imageFrameWithMetadataReady(token, frame,

@@ -102,7 +102,7 @@ public:
     double zoom() const;
     void setZoom(double zoom);
     QPointF pan() const;
-    void setPan(const QPointF& pan);
+    void setPan(QPointF pan);
     bool looping() const;
     void setLooping(bool looping);
     QVariantMap itemToImage(double x, double y) const;
@@ -128,36 +128,32 @@ public:
     void closeProviderSession();
     bool openProviderSession();
     ImageSequenceProviderRequestToken nextProviderRequestToken();
-    void requestProviderMetadata(const ImageSequenceProviderRequestToken& token);
-    void requestProviderFrame(const ImageSequenceProviderRequestToken& token, int frame);
-    void requestProviderPlayback(
-        const ImageSequenceProviderRequestToken& token, int frame, int position);
-    void cancelProviderRequest(const ImageSequenceProviderRequestToken& token);
+    void requestProviderMetadata(ImageSequenceProviderRequestToken token);
+    void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
+    void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
+    void cancelProviderRequest(ImageSequenceProviderRequestToken token);
     void publishProviderTokenExhaustion();
-    void handleProviderMetadataReady(const ImageSequenceProviderRequestToken& token,
-        const ImageSequenceProviderMetadata& metadata);
+    void handleProviderMetadataReady(
+        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
+    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
+    void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
+        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
     void handleProviderFrameReady(
-        const ImageSequenceProviderRequestToken& token, ImageFrame* frame);
-    void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken& token,
-        ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata);
-    void handleProviderFrameReady(
-        const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame);
-    void handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken& token,
-        ImageSequenceProviderFrameHandle* frame,
-        const ImageSequenceProviderFrameMetadata& metadata);
-    void handleProviderWaiting(const ImageSequenceProviderRequestToken& token);
-    void handleProviderProgress(const ImageSequenceProviderRequestToken& token, double progress);
-    void handleProviderEndOfSequence(const ImageSequenceProviderRequestToken& token);
-    void handleProviderFailure(
-        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
+    void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
+    void handleProviderWaiting(ImageSequenceProviderRequestToken token);
+    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
+    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
+    void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderUnsupported(
-        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+        ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderCancellation(
-        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+        ImageSequenceProviderRequestToken token, const QString& diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);
     bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata);
     bool validateProviderFrame(
-        ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata) const;
+        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) const;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;

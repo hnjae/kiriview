@@ -12,10 +12,10 @@ public:
     void closeSession();
     bool openSession();
     ImageSequenceProviderRequestToken nextRequestToken();
-    void requestMetadata(const ImageSequenceProviderRequestToken& token);
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame);
-    void requestPlayback(const ImageSequenceProviderRequestToken& token, int frame, int position);
-    void cancelRequest(const ImageSequenceProviderRequestToken& token);
+    void requestMetadata(ImageSequenceProviderRequestToken token);
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame);
+    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
+    void cancelRequest(ImageSequenceProviderRequestToken token);
 
 private:
     ImageViewportPrivate& viewport;

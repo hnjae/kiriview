@@ -4,6 +4,12 @@ class ImageViewportProviderTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportProviderTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void replacementClearsRetainedDisplayDiagnostics();
     void providerPublicValueTypesValidateTiming();
@@ -285,23 +291,6 @@ void ImageViewportProviderTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, -1).isValid(), false);
     QCOMPARE(ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 0).isValid(), false);
 
-    class PlaybackFallbackSession final : public ImageSequenceProviderSession
-    {
-    public:
-        void requestMetadata(const ImageSequenceProviderRequestToken&) override { }
-
-        void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
-        {
-            lastFrameToken = token;
-            lastFrame = frame;
-            ++frameRequestCount;
-        }
-
-        ImageSequenceProviderRequestToken lastFrameToken;
-        int lastFrame = -1;
-        int frameRequestCount = 0;
-    };
-
     PlaybackFallbackSession session;
     session.requestPlayback(token, 7, 125);
     QCOMPARE(session.frameRequestCount, 1);
@@ -562,10 +551,12 @@ void ImageViewportProviderTest::providerSequenceOpensSessionAfterAdapterDestruct
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), -1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(),
         enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(),
@@ -1706,10 +1697,12 @@ void ImageViewportProviderTest::providerConstructionMetadataSelectsInitialFrameR
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 350);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -1754,10 +1747,12 @@ void ImageViewportProviderTest::
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 3);
     QCOMPARE(item.property("totalDuration").toInt(), 300);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 2);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 300);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 2);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 300);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -1799,10 +1794,12 @@ void ImageViewportProviderTest::
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 350);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -1884,10 +1881,12 @@ void ImageViewportProviderTest::providerKnownStillConstructionMetadataConstrains
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -1938,8 +1937,9 @@ void ImageViewportProviderTest::providerKnownConstructionMetadataRejectsSeeksPas
     const QMetaObject* metaObject = item.metaObject();
     const uint requestRevision = item.property("requestRevision").toUInt();
 
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 350);
 
     QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -2609,10 +2609,12 @@ void ImageViewportProviderTest::providerStillMetadataSelectsInitialFrameRequest(
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -2665,10 +2667,12 @@ void ImageViewportProviderTest::providerTimedMetadataSelectsInitialFrameRequest(
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 350);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -2713,8 +2717,9 @@ void ImageViewportProviderTest::providerFixedDurationMetadataSelectsInitialFrame
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 3);
     QCOMPARE(item.property("totalDuration").toInt(), 300);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 2);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 300);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 2);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 300);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
 
@@ -3239,10 +3244,12 @@ void ImageViewportProviderTest::providerStillMetadataRevisesAcceptedSeekObservat
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(
         item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));

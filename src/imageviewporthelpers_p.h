@@ -27,7 +27,7 @@ inline bool isAdmittedLogicalSizeComponent(double value, int maximum)
     return isPositiveFiniteInteger(value) && value <= static_cast<double>(maximum);
 }
 
-inline bool isFinitePoint(const QPointF& point)
+inline bool isFinitePoint(QPointF point)
 {
     return std::isfinite(point.x()) && std::isfinite(point.y());
 }

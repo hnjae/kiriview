@@ -4,6 +4,12 @@ class ImageViewportPublicApiTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportPublicApiTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void defaultConstructsAsQuickItem();
     void doesNotExposeOutOfScopePublicState();
@@ -515,10 +521,12 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), -1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(),
         enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(),

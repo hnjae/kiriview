@@ -4,6 +4,12 @@ class ImageViewportStillTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportStillTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void resetViewWithoutRequestClearsTransformAndCommandDiagnostic();
     void resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic();
@@ -199,10 +205,12 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), -1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), -1);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
@@ -224,9 +232,9 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     item.setSize(QSizeF(100.0, 100.0));
 
     const QVariantMap centerImage = item.itemToImage(50.0, 50.0);
-    QCOMPARE(centerImage.value("valid").toBool(), true);
-    QCOMPARE(centerImage.value("x").toDouble(), 8.0);
-    QCOMPARE(centerImage.value("y").toDouble(), 4.0);
+    QCOMPARE(centerImage.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(centerImage.value(QStringLiteral("x")).toDouble(), 8.0);
+    QCOMPARE(centerImage.value(QStringLiteral("y")).toDouble(), 4.0);
 
     const QVariantMap rightEdgeImage = item.itemToImage(100.0, 50.0);
     verifyInvalidCoordinateResult(rightEdgeImage);
@@ -237,9 +245,9 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(item.containsVisibleImagePoint(8.0, 8.0), false);
 
     const QVariantMap centerItem = item.imageToItem(8.0, 4.0);
-    QCOMPARE(centerItem.value("valid").toBool(), true);
-    QCOMPARE(centerItem.value("x").toDouble(), 50.0);
-    QCOMPARE(centerItem.value("y").toDouble(), 50.0);
+    QCOMPARE(centerItem.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(centerItem.value(QStringLiteral("x")).toDouble(), 50.0);
+    QCOMPARE(centerItem.value(QStringLiteral("y")).toDouble(), 50.0);
     verifyInvalidCoordinateResult(item.imageToItem(8.0, 8.0));
 }
 
@@ -668,60 +676,60 @@ void ImageViewportStillTest::stillImageFillModesAndMirroringUseDocumentedGeometr
     item.setFillMode(ImageViewport::FillMode::Cover);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-50.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(4.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(0.0, 50.0).value("x").toDouble(), 4.0);
-    QCOMPARE(item.itemToImage(99.0, 50.0).value("valid").toBool(), true);
+    QCOMPARE(item.itemToImage(0.0, 50.0).value(QStringLiteral("x")).toDouble(), 4.0);
+    QCOMPARE(item.itemToImage(99.0, 50.0).value(QStringLiteral("valid")).toBool(), true);
     QCOMPARE(item.containsVisibleImagePoint(3.999, 4.0), false);
     QCOMPARE(item.containsVisibleImagePoint(12.0, 4.0), false);
     QCOMPARE(item.containsVisibleImagePoint(11.999, 4.0), true);
-    QCOMPARE(item.imageToItem(4.0, 4.0).value("x").toDouble(), 0.0);
+    QCOMPARE(item.imageToItem(4.0, 4.0).value(QStringLiteral("x")).toDouble(), 0.0);
     verifyInvalidCoordinateResult(item.imageToItem(12.0, 4.0));
 
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(99.0, 50.0).value("x").toDouble(), 7.92);
+    QCOMPARE(item.itemToImage(99.0, 50.0).value(QStringLiteral("x")).toDouble(), 7.92);
 
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignRight);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(0.0, 50.0).value("x").toDouble(), 8.0);
-    QVERIFY(item.itemToImage(99.0, 50.0).value("x").toDouble() > 15.9);
+    QCOMPARE(item.itemToImage(0.0, 50.0).value(QStringLiteral("x")).toDouble(), 8.0);
+    QVERIFY(item.itemToImage(99.0, 50.0).value(QStringLiteral("x")).toDouble() > 15.9);
 
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
     item.setFillMode(ImageViewport::FillMode::Stretch);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(item.itemToImage(50.0, 50.0).value("x").toDouble(), 8.0);
-    QCOMPARE(item.itemToImage(50.0, 50.0).value("y").toDouble(), 4.0);
+    QCOMPARE(item.itemToImage(50.0, 50.0).value(QStringLiteral("x")).toDouble(), 8.0);
+    QCOMPARE(item.itemToImage(50.0, 50.0).value(QStringLiteral("y")).toDouble(), 4.0);
 
     item.setFillMode(ImageViewport::FillMode::Center);
     item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(42.0, 46.0, 16.0, 8.0));
-    QCOMPARE(item.itemToImage(42.0, 46.0).value("valid").toBool(), true);
+    QCOMPARE(item.itemToImage(42.0, 46.0).value(QStringLiteral("valid")).toBool(), true);
     verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
 
     item.setMirrorHorizontally(true);
     verifyInvalidCoordinateResult(item.itemToImage(42.0, 50.0));
     verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
     const QVariantMap horizontallyMirrored = item.itemToImage(57.999, 50.0);
-    QCOMPARE(horizontallyMirrored.value("valid").toBool(), true);
-    QVERIFY(qAbs(horizontallyMirrored.value("x").toDouble() - 0.001) < 0.000001);
+    QCOMPARE(horizontallyMirrored.value(QStringLiteral("valid")).toBool(), true);
+    QVERIFY(qAbs(horizontallyMirrored.value(QStringLiteral("x")).toDouble() - 0.001) < 0.000001);
 
     item.setMirrorVertically(true);
     const QVariantMap mirrored = item.itemToImage(42.001, 46.001);
-    QCOMPARE(mirrored.value("valid").toBool(), true);
-    QCOMPARE(mirrored.value("x").toDouble(), 15.999);
-    QCOMPARE(mirrored.value("y").toDouble(), 7.999);
+    QCOMPARE(mirrored.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(mirrored.value(QStringLiteral("x")).toDouble(), 15.999);
+    QCOMPARE(mirrored.value(QStringLiteral("y")).toDouble(), 7.999);
 
     const QVariantMap mirroredItem = item.imageToItem(15.999, 7.999);
-    QCOMPARE(mirroredItem.value("valid").toBool(), true);
-    QCOMPARE(mirroredItem.value("x").toDouble(), 42.001);
-    QCOMPARE(mirroredItem.value("y").toDouble(), 46.001);
+    QCOMPARE(mirroredItem.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(mirroredItem.value(QStringLiteral("x")).toDouble(), 42.001);
+    QCOMPARE(mirroredItem.value(QStringLiteral("y")).toDouble(), 46.001);
 
     const QVariantMap mirroredOriginItem = item.imageToItem(0.0, 0.0);
-    QCOMPARE(mirroredOriginItem.value("valid").toBool(), true);
-    QCOMPARE(mirroredOriginItem.value("x").toDouble(), 58.0);
-    QCOMPARE(mirroredOriginItem.value("y").toDouble(), 54.0);
+    QCOMPARE(mirroredOriginItem.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(mirroredOriginItem.value(QStringLiteral("x")).toDouble(), 58.0);
+    QCOMPARE(mirroredOriginItem.value(QStringLiteral("y")).toDouble(), 54.0);
 }
 
 void ImageViewportStillTest::coordinateHelpersRejectNonFiniteInputs()
@@ -771,12 +779,12 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     QCOMPARE(item.containsVisibleImagePoint(15.999, 4.0), true);
 
     const QVariantMap leftItem = item.itemToImage(0.001, 50.0);
-    QCOMPARE(leftItem.value("valid").toBool(), true);
-    QCOMPARE(leftItem.value("x").toDouble(), 15.99992);
+    QCOMPARE(leftItem.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(leftItem.value(QStringLiteral("x")).toDouble(), 15.99992);
 
     const QVariantMap rightHalfImage = item.imageToItem(12.0, 4.0);
-    QCOMPARE(rightHalfImage.value("valid").toBool(), true);
-    QCOMPARE(rightHalfImage.value("x").toDouble(), 50.0);
+    QCOMPARE(rightHalfImage.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(rightHalfImage.value(QStringLiteral("x")).toDouble(), 50.0);
     verifyInvalidCoordinateResult(item.imageToItem(4.0, 4.0));
 }
 
@@ -797,8 +805,8 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -100.0, 100.0, 200.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 8.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(50.0, 0.0).value("y").toDouble(), 8.0);
-    QVERIFY(item.itemToImage(50.0, 99.0).value("y").toDouble() > 15.9);
+    QCOMPARE(item.itemToImage(50.0, 0.0).value(QStringLiteral("y")).toDouble(), 8.0);
+    QVERIFY(item.itemToImage(50.0, 99.0).value(QStringLiteral("y")).toDouble() > 15.9);
     QCOMPARE(item.containsVisibleImagePoint(4.0, 7.999), false);
     QCOMPARE(item.containsVisibleImagePoint(4.0, 8.0), true);
     QCOMPARE(item.containsVisibleImagePoint(4.0, 15.999), true);
@@ -954,7 +962,7 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
-    QCOMPARE(item.itemToImage(1.0, 1.0).value("valid").toBool(), false);
+    QCOMPARE(item.itemToImage(1.0, 1.0).value(QStringLiteral("valid")).toBool(), false);
     QCOMPARE(item.property("displayRevision").toUInt(), readyDisplayRevision + 1U);
     QCOMPARE(displayRevisionSpy.count(), 1);
 

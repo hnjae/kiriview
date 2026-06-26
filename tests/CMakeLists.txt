@@ -12,6 +12,7 @@ target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
                                          IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
+# Add a Qt test executable with shared ImageViewport test wiring.
 function(add_imageviewport_qt_test target source)
     add_executable(${target} ${source})
     target_link_libraries(${target} PRIVATE imageviewport_test_support)

@@ -4,6 +4,12 @@ class ImageViewportRenderTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportRenderTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void providerTimedPlaybackEndOfSequenceDoesNotPromoteRetainedPreviousGeneration();
     void providerTimedPlaybackEndOfSequenceFinalUsesPlaybackEntryPoint();

@@ -45,7 +45,7 @@ quint64 ImageSequenceProviderRequestToken::id() const { return m_id; }
 
 bool ImageSequenceProviderRequestToken::isValid() const { return m_id != 0; }
 
-ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF& logicalSize)
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(QSizeF logicalSize)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::Still;
@@ -54,7 +54,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF&
 }
 
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames(
-    const QSizeF& logicalSize, int frameCount, int frameDuration)
+    QSizeF logicalSize, int frameCount, int frameDuration)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::FixedDurationFrames;
@@ -68,7 +68,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames
 }
 
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
-    const QSizeF& logicalSize, QVector<int> frameDurations)
+    QSizeF logicalSize, QVector<int> frameDurations)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::TimedFrameList;
@@ -171,14 +171,14 @@ ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
 {
 }
 
-void ImageSequenceProviderSession::requestFrame(const ImageSequenceProviderRequestToken&, int) { }
+void ImageSequenceProviderSession::requestFrame(ImageSequenceProviderRequestToken, int) { }
 
 void ImageSequenceProviderSession::requestPlayback(
-    const ImageSequenceProviderRequestToken& token, int frame, int)
+    ImageSequenceProviderRequestToken token, int frame, int)
 {
     requestFrame(token, frame);
 }
 
-void ImageSequenceProviderSession::cancelRequest(const ImageSequenceProviderRequestToken&) { }
+void ImageSequenceProviderSession::cancelRequest(ImageSequenceProviderRequestToken) { }
 
 void ImageSequenceProviderSession::close() { }

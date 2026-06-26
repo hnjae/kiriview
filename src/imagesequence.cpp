@@ -9,7 +9,7 @@ ImageSequence::ImageSequence(QObject* parent)
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF& logicalSize, QImage stillImage, QObject* parent)
+ImageSequence::ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Still)
     , m_logicalSize(logicalSize)
@@ -17,8 +17,8 @@ ImageSequence::ImageSequence(const QSizeF& logicalSize, QImage stillImage, QObje
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF& logicalSize, QVector<int> frameDurations,
-    QVector<QImage> frameImages, QObject* parent)
+ImageSequence::ImageSequence(
+    QSizeF logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
@@ -30,7 +30,7 @@ ImageSequence::ImageSequence(const QSizeF& logicalSize, QVector<int> frameDurati
 ImageSequence::ImageSequence(
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
     bool hasProviderKnownMetadata, bool hasCompleteProviderKnownMetadata,
-    const QSizeF& providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
+    QSizeF providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
     ImageSequenceProviderCapabilitySupport positionSeekCapability, QObject* parent)

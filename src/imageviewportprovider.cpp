@@ -14,24 +14,23 @@ ImageSequenceProviderRequestToken ImageViewportPrivate::nextProviderRequestToken
     return providerBridge.nextRequestToken();
 }
 
-void ImageViewportPrivate::requestProviderMetadata(const ImageSequenceProviderRequestToken& token)
+void ImageViewportPrivate::requestProviderMetadata(ImageSequenceProviderRequestToken token)
 {
     providerBridge.requestMetadata(token);
 }
 
-void ImageViewportPrivate::requestProviderFrame(
-    const ImageSequenceProviderRequestToken& token, int frame)
+void ImageViewportPrivate::requestProviderFrame(ImageSequenceProviderRequestToken token, int frame)
 {
     providerBridge.requestFrame(token, frame);
 }
 
 void ImageViewportPrivate::requestProviderPlayback(
-    const ImageSequenceProviderRequestToken& token, int frame, int position)
+    ImageSequenceProviderRequestToken token, int frame, int position)
 {
     providerBridge.requestPlayback(token, frame, position);
 }
 
-void ImageViewportPrivate::cancelProviderRequest(const ImageSequenceProviderRequestToken& token)
+void ImageViewportPrivate::cancelProviderRequest(ImageSequenceProviderRequestToken token)
 {
     providerBridge.cancelRequest(token);
 }
@@ -50,7 +49,7 @@ void ImageViewportPrivate::publishProviderTokenExhaustion()
 }
 
 void ImageViewportPrivate::handleProviderMetadataReady(
-    const ImageSequenceProviderRequestToken& token, const ImageSequenceProviderMetadata& metadata)
+    ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
 {
     if (!hasProviderSequence() || !m_providerSession || !m_activeProviderMetadataToken.isValid()
         || token != m_activeProviderMetadataToken) {
@@ -217,22 +216,22 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(
-    const ImageSequenceProviderRequestToken& token, ImageFrame* frame)
+    ImageSequenceProviderRequestToken token, ImageFrame* frame)
 {
     handleProviderFrameReadyWithMetadata(
         token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(
-    const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame)
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame)
 {
     handleProviderFrameReadyWithMetadata(
         token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
 }
 
 void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
-    const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame,
-    const ImageSequenceProviderFrameMetadata& metadata)
+    ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame,
+    ImageSequenceProviderFrameMetadata metadata)
 {
     std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(frame);
     handleProviderFrameReadyWithMetadata(
@@ -240,8 +239,8 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
 }
 
 void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
-    const ImageSequenceProviderRequestToken& token, ImageFrame* frame,
-    const ImageSequenceProviderFrameMetadata& metadata)
+    ImageSequenceProviderRequestToken token, ImageFrame* frame,
+    ImageSequenceProviderFrameMetadata metadata)
 {
     if (!hasProviderSequence() || !m_providerSession || !m_activeProviderFrameToken.isValid()
         || token != m_activeProviderFrameToken) {
@@ -301,7 +300,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     update();
 }
 
-void ImageViewportPrivate::handleProviderWaiting(const ImageSequenceProviderRequestToken& token)
+void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestToken token)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -325,7 +324,7 @@ void ImageViewportPrivate::handleProviderWaiting(const ImageSequenceProviderRequ
 }
 
 void ImageViewportPrivate::handleProviderProgress(
-    const ImageSequenceProviderRequestToken& token, double progress)
+    ImageSequenceProviderRequestToken token, double progress)
 {
     if (!std::isfinite(progress) || progress < 0.0 || progress > 1.0) {
         return;
@@ -334,8 +333,7 @@ void ImageViewportPrivate::handleProviderProgress(
     handleProviderWaiting(token);
 }
 
-void ImageViewportPrivate::handleProviderEndOfSequence(
-    const ImageSequenceProviderRequestToken& token)
+void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequestToken token)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -437,7 +435,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(
 }
 
 void ImageViewportPrivate::handleProviderFailure(
-    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
+    ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -474,7 +472,7 @@ void ImageViewportPrivate::handleProviderFailure(
 }
 
 void ImageViewportPrivate::handleProviderUnsupported(
-    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
+    ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -513,7 +511,7 @@ void ImageViewportPrivate::handleProviderUnsupported(
 }
 
 void ImageViewportPrivate::handleProviderCancellation(
-    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
+    ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -562,7 +560,7 @@ bool ImageViewportPrivate::validateProviderTimedMetadata(
 }
 
 bool ImageViewportPrivate::validateProviderFrame(
-    ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata) const
+    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) const
 {
     return FramePreparation::validateProviderFrame(frame, metadata,
         {

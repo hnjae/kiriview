@@ -4,6 +4,12 @@ class ImageViewportTimedTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportTimedTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void stillImageFactoryRejectsInvalidPayloadByteSize();
     void timedFrameListBuilderValidatesEntries();
@@ -200,10 +206,12 @@ void ImageViewportTimedTest::timedFrameListAssignmentPublishesInitialTimedState(
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value("maximum").toInt(), 1);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("minimum").toInt(), 0);
-    QCOMPARE(item.property("positionSeekBounds").toMap().value("maximum").toInt(), 350);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 1);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
+    QCOMPARE(
+        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 350);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));

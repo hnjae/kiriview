@@ -4,6 +4,12 @@ class ImageViewportPresentationTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportPresentationTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void providerTimedStopWhileWaitingForMetadataRestoresExplicitSeek();
     void providerTimedStopWhileWaitingForMetadataRestoresExplicitPositionSeek();
@@ -864,14 +870,14 @@ void ImageViewportPresentationTest::providerUnsupportedAndCancellationDiagnostic
     const QString diagnostic = QStringLiteral(
         "terminal result for https://user:secret@example.test/image.png token=abc123 path "
         "/home/ops/private/image.png and C:\\Users\\ops\\secret.png");
-    verifyDiagnostic([&diagnostic](CountingProviderSession* session,
-                         const ImageSequenceProviderRequestToken& token) {
-        emit session->providerUnsupported(token, diagnostic);
-    });
-    verifyDiagnostic([&diagnostic](CountingProviderSession* session,
-                         const ImageSequenceProviderRequestToken& token) {
-        emit session->providerCancelled(token, diagnostic);
-    });
+    verifyDiagnostic(
+        [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
+            emit session->providerUnsupported(token, diagnostic);
+        });
+    verifyDiagnostic(
+        [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
+            emit session->providerCancelled(token, diagnostic);
+        });
 }
 
 void ImageViewportPresentationTest::providerDiagnosticsArePlainText()

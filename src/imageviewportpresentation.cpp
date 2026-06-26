@@ -174,7 +174,7 @@ void ImageViewportPrivate::setZoom(double zoom)
 
 QPointF ImageViewportPrivate::pan() const { return m_pan; }
 
-void ImageViewportPrivate::setPan(const QPointF& pan)
+void ImageViewportPrivate::setPan(QPointF pan)
 {
     const bool unchanged = m_pan.x() == pan.x() && m_pan.y() == pan.y();
     if (!isFinitePoint(pan) || unchanged) {

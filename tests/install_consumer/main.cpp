@@ -19,12 +19,12 @@ class ConsumerSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
     {
         emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
     {
         QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
@@ -34,8 +34,7 @@ public:
             ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
     }
 
-    void requestPlayback(
-        const ImageSequenceProviderRequestToken& token, int frame, int position) override
+    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position) override
     {
         m_lastPlaybackFrame = frame;
         m_lastPlaybackPosition = position;
@@ -43,7 +42,7 @@ public:
         emit endOfSequence(token);
     }
 
-    void cancelRequest(const ImageSequenceProviderRequestToken& token) override
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
     {
         m_lastCancelledToken = token;
         emit providerCancelled(token, QStringLiteral("cancelled"));
@@ -71,9 +70,9 @@ class DefaultPlaybackFallbackSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(const ImageSequenceProviderRequestToken&) override { }
+    void requestMetadata(ImageSequenceProviderRequestToken) override { }
 
-    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
     {
         m_lastFrameToken = token;
         m_lastFrame = frame;

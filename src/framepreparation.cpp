@@ -2,6 +2,8 @@
 
 #include "imageviewporthelpers_p.h"
 
+#include <utility>
+
 using namespace ImageViewportInternal;
 
 bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata)
@@ -66,8 +68,8 @@ bool FramePreparation::exceedsPayloadLimit(const ImageFrame* frame)
     return frame && frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame();
 }
 
-bool FramePreparation::validateProviderFrame(ImageFrame* frame,
-    const ImageSequenceProviderFrameMetadata& metadata, const ProviderFrameState& state)
+bool FramePreparation::validateProviderFrame(
+    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state)
 {
     if (!frame || !frame->isValid() || !state.metadataReady
         || frame->logicalSize() != state.logicalSize || frame->payloadByteSize() <= 0
@@ -139,10 +141,10 @@ int FramePreparation::totalDuration(const QVector<int>& frameDurations)
     return total;
 }
 
-QString FramePreparation::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
+QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback)
 {
-    const QString selected = plainTextDiagnostic(
-        redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic));
+    QString selected = plainTextDiagnostic(redactDiagnosticDetails(
+        diagnostic.isEmpty() ? std::move(fallback) : std::move(diagnostic)));
     const auto scalars = selected.toUcs4();
     const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
     if (scalars.size() <= maximumLength) {
