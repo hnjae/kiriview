@@ -179,6 +179,7 @@ in
 
   packages = [
     pkgs.cmake
+    pkgs.cmake-format
     pkgs.clazy
     pkgs.git
     pkgs.just
