@@ -486,6 +486,42 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
         && session.lastFrameToken() == token
         && session.lastFrame() == 3;
 }
+
+bool canUseInstalledProviderRawFrameSignalSurface()
+{
+    ConsumerSession session;
+    const ImageSequenceProviderRequestToken token(11);
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    const ImageSequenceProviderFrameMetadata metadata = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 100);
+    bool rawFrameReceived = false;
+    bool rawFrameWithMetadataReceived = false;
+
+    QObject::connect(&session,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *>(&ImageSequenceProviderSession::frameReady),
+        [&rawFrameReceived, &token, &frame](const ImageSequenceProviderRequestToken &receivedToken, ImageFrame *receivedFrame) {
+            rawFrameReceived = receivedToken == token && receivedFrame == &frame;
+        });
+    QObject::connect(&session,
+        qOverload<const ImageSequenceProviderRequestToken &, ImageFrame *, const ImageSequenceProviderFrameMetadata &>(
+            &ImageSequenceProviderSession::frameReady),
+        [&rawFrameWithMetadataReceived, &token, &frame, &metadata](const ImageSequenceProviderRequestToken &receivedToken,
+            ImageFrame *receivedFrame,
+            const ImageSequenceProviderFrameMetadata &receivedMetadata) {
+            rawFrameWithMetadataReceived = receivedToken == token
+                && receivedFrame == &frame
+                && receivedMetadata.isTimedFrame()
+                && receivedMetadata.frame() == metadata.frame()
+                && receivedMetadata.frameStartPosition() == metadata.frameStartPosition()
+                && receivedMetadata.frameDuration() == metadata.frameDuration();
+        });
+
+    emit session.frameReady(token, &frame);
+    emit session.frameReady(token, &frame, metadata);
+
+    return rawFrameReceived && rawFrameWithMetadataReceived;
+}
 }
 
 int main(int argc, char **argv)
@@ -677,6 +713,7 @@ int main(int argc, char **argv)
             && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
             && canUseInstalledProviderPlaybackFallbackSurface()
+            && canUseInstalledProviderRawFrameSignalSurface()
         ? 0
         : 1;
 }
