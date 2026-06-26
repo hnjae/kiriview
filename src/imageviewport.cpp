@@ -1,17 +1,13 @@
-#include "imageviewport_p.h"
 #include "imagesequenceownership_p.h"
+#include "imageviewport_p.h"
 
 #include <utility>
 
-
 using namespace ImageViewportInternal;
 
-ImageSequence *ImageViewportPrivate::sequence() const
-{
-    return m_sequence;
-}
+ImageSequence* ImageViewportPrivate::sequence() const { return m_sequence; }
 
-void ImageViewportPrivate::setSequence(ImageSequence *sequence)
+void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 {
     if (!m_sequence && !sequence) {
         return;
@@ -62,7 +58,8 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
         }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
-        m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        m_displayStatus
+            = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         if (!openProviderSession()) {
             m_requestStatus = RequestStatus::Error;
             m_requestReason = RequestReason::ProviderFailure;
@@ -98,7 +95,8 @@ void ImageViewportPrivate::setSequence(ImageSequence *sequence)
     }
 
     incrementRequestRevision();
-    const bool displayValueChanged = m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready;
+    const bool displayValueChanged
+        = m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready;
     if (displayValueChanged) {
         incrementDisplayRevision();
     }
@@ -187,7 +185,8 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence() && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
+    if (hasProviderSequence()
+        && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
         return m_providerTimedMetadata ? m_providerFrameDurations.size() : 1;
     }
     if (hasDisplayableSequence()) {
@@ -215,16 +214,18 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence() && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
+    if (hasProviderSequence()
+        && (m_providerMetadataReady || m_sequence->m_hasProviderKnownMetadata)) {
         return {
-            {QStringLiteral("minimum"), 0},
-            {QStringLiteral("maximum"), m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0},
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"),
+                m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0 },
         };
     }
     if (hasStillSequence() || hasTimedSequence()) {
         return {
-            {QStringLiteral("minimum"), 0},
-            {QStringLiteral("maximum"), m_sequence->frameCount() - 1},
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"), m_sequence->frameCount() - 1 },
         };
     }
 
@@ -239,14 +240,14 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
             total += duration;
         }
         return {
-            {QStringLiteral("minimum"), 0},
-            {QStringLiteral("maximum"), total},
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"), total },
         };
     }
     if (hasTimedSequence()) {
         return {
-            {QStringLiteral("minimum"), 0},
-            {QStringLiteral("maximum"), m_sequence->totalDuration()},
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"), m_sequence->totalDuration() },
         };
     }
 
@@ -313,27 +314,12 @@ QSizeF ImageViewportPrivate::displayedImageSize() const
     return QSizeF(0.0, 0.0);
 }
 
-uint ImageViewportPrivate::displayRevision() const
-{
-    return m_displayRevision;
-}
+uint ImageViewportPrivate::displayRevision() const { return m_displayRevision; }
 
-uint ImageViewportPrivate::requestRevision() const
-{
-    return m_requestRevision;
-}
+uint ImageViewportPrivate::requestRevision() const { return m_requestRevision; }
 
-uint ImageViewportPrivate::commandRevision() const
-{
-    return m_commandRevision;
-}
+uint ImageViewportPrivate::commandRevision() const { return m_commandRevision; }
 
-QString ImageViewportPrivate::errorString() const
-{
-    return m_errorString;
-}
+QString ImageViewportPrivate::errorString() const { return m_errorString; }
 
-QString ImageViewportPrivate::warningString() const
-{
-    return m_warningString;
-}
+QString ImageViewportPrivate::warningString() const { return m_warningString; }

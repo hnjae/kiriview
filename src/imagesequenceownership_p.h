@@ -6,7 +6,7 @@
 
 namespace ImageViewportInternal {
 
-void registerFactorySequenceOwner(const std::shared_ptr<ImageSequence> &sequence);
-std::shared_ptr<ImageSequence> factorySequenceOwner(ImageSequence *sequence);
+void registerFactorySequenceOwner(const std::shared_ptr<ImageSequence>& sequence);
+std::shared_ptr<ImageSequence> factorySequenceOwner(ImageSequence* sequence);
 
 }

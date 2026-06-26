@@ -1,41 +1,37 @@
-#include "imageviewport_p.h"
 #include "framepreparation_p.h"
+#include "imageviewport_p.h"
 
 #include <memory>
 
 using namespace ImageViewportInternal;
 
-void ImageViewportPrivate::closeProviderSession()
-{
-    providerBridge.closeSession();
-}
+void ImageViewportPrivate::closeProviderSession() { providerBridge.closeSession(); }
 
-bool ImageViewportPrivate::openProviderSession()
-{
-    return providerBridge.openSession();
-}
+bool ImageViewportPrivate::openProviderSession() { return providerBridge.openSession(); }
 
 ImageSequenceProviderRequestToken ImageViewportPrivate::nextProviderRequestToken()
 {
     return providerBridge.nextRequestToken();
 }
 
-void ImageViewportPrivate::requestProviderMetadata(const ImageSequenceProviderRequestToken &token)
+void ImageViewportPrivate::requestProviderMetadata(const ImageSequenceProviderRequestToken& token)
 {
     providerBridge.requestMetadata(token);
 }
 
-void ImageViewportPrivate::requestProviderFrame(const ImageSequenceProviderRequestToken &token, int frame)
+void ImageViewportPrivate::requestProviderFrame(
+    const ImageSequenceProviderRequestToken& token, int frame)
 {
     providerBridge.requestFrame(token, frame);
 }
 
-void ImageViewportPrivate::requestProviderPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position)
+void ImageViewportPrivate::requestProviderPlayback(
+    const ImageSequenceProviderRequestToken& token, int frame, int position)
 {
     providerBridge.requestPlayback(token, frame, position);
 }
 
-void ImageViewportPrivate::cancelProviderRequest(const ImageSequenceProviderRequestToken &token)
+void ImageViewportPrivate::cancelProviderRequest(const ImageSequenceProviderRequestToken& token)
 {
     providerBridge.cancelRequest(token);
 }
@@ -53,11 +49,10 @@ void ImageViewportPrivate::publishProviderTokenExhaustion()
     setPlaybackPhase(PlaybackPhase::Stopped);
 }
 
-void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata)
+void ImageViewportPrivate::handleProviderMetadataReady(
+    const ImageSequenceProviderRequestToken& token, const ImageSequenceProviderMetadata& metadata)
 {
-    if (!hasProviderSequence()
-        || !m_providerSession
-        || !m_activeProviderMetadataToken.isValid()
+    if (!hasProviderSequence() || !m_providerSession || !m_activeProviderMetadataToken.isValid()
         || token != m_activeProviderMetadataToken) {
         return;
     }
@@ -93,12 +88,15 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
         return;
     }
 
-    if (providerCapabilityContradictsMetadata(m_sequence->m_providerTimedPlaybackCapability, isTimedMetadata)
+    if (providerCapabilityContradictsMetadata(
+            m_sequence->m_providerTimedPlaybackCapability, isTimedMetadata)
         || providerCapabilityContradictsMetadata(m_sequence->m_providerFrameSeekCapability, true)
-        || providerCapabilityContradictsMetadata(m_sequence->m_providerPositionSeekCapability, isTimedMetadata)) {
+        || providerCapabilityContradictsMetadata(
+            m_sequence->m_providerPositionSeekCapability, isTimedMetadata)) {
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider metadata contradicts construction-time capabilities");
+        m_errorString
+            = QStringLiteral("provider metadata contradicts construction-time capabilities");
         m_providerPlaybackStartPending = false;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
@@ -112,11 +110,13 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
         const bool knownTimedMetadata = !m_sequence->m_providerKnownFrameDurations.isEmpty();
         const bool contradictsKnownMetadata = knownTimedMetadata != isTimedMetadata
             || metadata.logicalSize() != m_sequence->m_providerKnownLogicalSize
-            || (knownTimedMetadata && metadata.frameDurations() != m_sequence->m_providerKnownFrameDurations);
+            || (knownTimedMetadata
+                && metadata.frameDurations() != m_sequence->m_providerKnownFrameDurations);
         if (contradictsKnownMetadata) {
             m_requestStatus = RequestStatus::Error;
             m_requestReason = RequestReason::PayloadRejection;
-            m_errorString = QStringLiteral("provider metadata contradicts construction-time metadata");
+            m_errorString
+                = QStringLiteral("provider metadata contradicts construction-time metadata");
             m_providerPlaybackStartPending = false;
             setPlaybackPhase(PlaybackPhase::Stopped);
             incrementRequestRevision();
@@ -131,7 +131,8 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
     m_providerTimedMetadata = isTimedMetadata;
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
-    const bool selectedFromPlaybackStart = m_providerPlaybackStartPending && m_currentFrame < 0 && m_requestedPosition < 0;
+    const bool selectedFromPlaybackStart
+        = m_providerPlaybackStartPending && m_currentFrame < 0 && m_requestedPosition < 0;
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
     const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
     const bool selectedFromPosition = m_currentFrame < 0 && m_requestedPosition >= 0;
@@ -192,7 +193,8 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
     }
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
-    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_displayStatus
+        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
 
     m_activeProviderFrameToken = nextProviderRequestToken();
@@ -214,27 +216,34 @@ void ImageViewportPrivate::handleProviderMetadataReady(const ImageSequenceProvid
     emit q->requestStateChanged();
 }
 
-void ImageViewportPrivate::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame)
+void ImageViewportPrivate::handleProviderFrameReady(
+    const ImageSequenceProviderRequestToken& token, ImageFrame* frame)
 {
-    handleProviderFrameReadyWithMetadata(token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
+    handleProviderFrameReadyWithMetadata(
+        token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
 }
 
-void ImageViewportPrivate::handleProviderFrameReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame)
+void ImageViewportPrivate::handleProviderFrameReady(
+    const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame)
 {
-    handleProviderFrameReadyWithMetadata(token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
+    handleProviderFrameReadyWithMetadata(
+        token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
 }
 
-void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata)
+void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
+    const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame,
+    const ImageSequenceProviderFrameMetadata& metadata)
 {
     std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(frame);
-    handleProviderFrameReadyWithMetadata(token, ownedFrame ? ownedFrame->frame() : nullptr, metadata);
+    handleProviderFrameReadyWithMetadata(
+        token, ownedFrame ? ownedFrame->frame() : nullptr, metadata);
 }
 
-void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata)
+void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
+    const ImageSequenceProviderRequestToken& token, ImageFrame* frame,
+    const ImageSequenceProviderFrameMetadata& metadata)
 {
-    if (!hasProviderSequence()
-        || !m_providerSession
-        || !m_activeProviderFrameToken.isValid()
+    if (!hasProviderSequence() || !m_providerSession || !m_activeProviderFrameToken.isValid()
         || token != m_activeProviderFrameToken) {
         return;
     }
@@ -244,7 +253,8 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSeque
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame");
+        m_errorString
+            = QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame");
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit q->requestStateChanged();
@@ -271,17 +281,18 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSeque
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState(frame->imagePayload());
-    if (m_playbackPhase == PlaybackPhase::Waiting
-        && m_requestStatus == RequestStatus::Ready
+    if (m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready
         && !m_renderCommitPending) {
-        setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+        setPlaybackPhase(
+            m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
         m_stopPlaybackWhenRequestReady = false;
     }
     incrementRequestRevision();
     incrementDisplayRevision();
     emit q->requestStateChanged();
     emit q->displayStateChanged();
-    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
+    if (rectsDifferExactly(contentRect(), oldContentRect)
+        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     if (diagnosticsValueChanged) {
@@ -290,17 +301,16 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(const ImageSeque
     update();
 }
 
-void ImageViewportPrivate::handleProviderWaiting(const ImageSequenceProviderRequestToken &token)
+void ImageViewportPrivate::handleProviderWaiting(const ImageSequenceProviderRequestToken& token)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
     }
 
     const bool activeMetadataToken = !m_providerMetadataReady
-        && m_activeProviderMetadataToken.isValid()
-        && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = m_activeProviderFrameToken.isValid()
-        && token == m_activeProviderFrameToken;
+        && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken
+        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken;
     if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
         return;
     }
@@ -314,7 +324,8 @@ void ImageViewportPrivate::handleProviderWaiting(const ImageSequenceProviderRequ
     emit q->requestStateChanged();
 }
 
-void ImageViewportPrivate::handleProviderProgress(const ImageSequenceProviderRequestToken &token, double progress)
+void ImageViewportPrivate::handleProviderProgress(
+    const ImageSequenceProviderRequestToken& token, double progress)
 {
     if (!std::isfinite(progress) || progress < 0.0 || progress > 1.0) {
         return;
@@ -323,24 +334,22 @@ void ImageViewportPrivate::handleProviderProgress(const ImageSequenceProviderReq
     handleProviderWaiting(token);
 }
 
-void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProviderRequestToken &token)
+void ImageViewportPrivate::handleProviderEndOfSequence(
+    const ImageSequenceProviderRequestToken& token)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
     }
 
     const bool activeMetadataToken = !m_providerMetadataReady
-        && m_activeProviderMetadataToken.isValid()
-        && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = m_activeProviderFrameToken.isValid()
-        && token == m_activeProviderFrameToken;
+        && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
+    const bool activeFrameToken
+        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken;
     if (!activeMetadataToken && !activeFrameToken) {
         return;
     }
 
-    if (activeMetadataToken
-        || !m_providerMetadataReady
-        || !m_providerTimedMetadata
+    if (activeMetadataToken || !m_providerMetadataReady || !m_providerTimedMetadata
         || !m_activeProviderFrameFromPlayback) {
         if (activeMetadataToken) {
             m_activeProviderMetadataToken = {};
@@ -381,11 +390,8 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
     m_currentFrame = selectedFrame;
     m_requestedPosition = selectedPosition;
 
-    if (!m_looping
-        && hasReadyDisplay()
-        && m_displayedGeneration == m_sequenceGeneration
-        && m_displayedFrame == selectedFrame
-        && m_displayedPosition == selectedPosition) {
+    if (!m_looping && hasReadyDisplay() && m_displayedGeneration == m_sequenceGeneration
+        && m_displayedFrame == selectedFrame && m_displayedPosition == selectedPosition) {
         m_requestStatus = RequestStatus::Ready;
         m_requestReason = RequestReason::Ready;
         m_displayStatus = DisplayStatus::Ready;
@@ -404,7 +410,8 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
 
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
-    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    m_displayStatus
+        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
     m_activeProviderFrameToken = nextProviderRequestToken();
     if (!m_activeProviderFrameToken.isValid()) {
@@ -429,7 +436,8 @@ void ImageViewportPrivate::handleProviderEndOfSequence(const ImageSequenceProvid
     update();
 }
 
-void ImageViewportPrivate::handleProviderFailure(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
+void ImageViewportPrivate::handleProviderFailure(
+    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -448,8 +456,7 @@ void ImageViewportPrivate::handleProviderFailure(const ImageSequenceProviderRequ
         return;
     }
 
-    if (m_providerMetadataReady
-        || !m_activeProviderMetadataToken.isValid()
+    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
         || token != m_activeProviderMetadataToken) {
         return;
     }
@@ -466,7 +473,8 @@ void ImageViewportPrivate::handleProviderFailure(const ImageSequenceProviderRequ
     closeProviderSession();
 }
 
-void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
+void ImageViewportPrivate::handleProviderUnsupported(
+    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -477,7 +485,8 @@ void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProvider
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason = unsupportedPlaybackRequest ? RequestReason::UnsupportedRequest : RequestReason::PayloadRejection;
+        m_requestReason = unsupportedPlaybackRequest ? RequestReason::UnsupportedRequest
+                                                     : RequestReason::PayloadRejection;
         m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
@@ -486,8 +495,7 @@ void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProvider
         return;
     }
 
-    if (m_providerMetadataReady
-        || !m_activeProviderMetadataToken.isValid()
+    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
         || token != m_activeProviderMetadataToken) {
         return;
     }
@@ -504,7 +512,8 @@ void ImageViewportPrivate::handleProviderUnsupported(const ImageSequenceProvider
     closeProviderSession();
 }
 
-void ImageViewportPrivate::handleProviderCancellation(const ImageSequenceProviderRequestToken &token, const QString &diagnostic)
+void ImageViewportPrivate::handleProviderCancellation(
+    const ImageSequenceProviderRequestToken& token, const QString& diagnostic)
 {
     if (!hasProviderSequence() || !m_providerSession) {
         return;
@@ -523,8 +532,7 @@ void ImageViewportPrivate::handleProviderCancellation(const ImageSequenceProvide
         return;
     }
 
-    if (m_providerMetadataReady
-        || !m_activeProviderMetadataToken.isValid()
+    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
         || token != m_activeProviderMetadataToken) {
         return;
     }
@@ -541,20 +549,22 @@ void ImageViewportPrivate::handleProviderCancellation(const ImageSequenceProvide
     closeProviderSession();
 }
 
-bool ImageViewportPrivate::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
+bool ImageViewportPrivate::validateProviderStillMetadata(
+    const ImageSequenceProviderMetadata& metadata)
 {
     return FramePreparation::validateProviderStillMetadata(metadata);
 }
 
-bool ImageViewportPrivate::validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata)
+bool ImageViewportPrivate::validateProviderTimedMetadata(
+    const ImageSequenceProviderMetadata& metadata)
 {
     return FramePreparation::validateProviderTimedMetadata(metadata);
 }
 
-bool ImageViewportPrivate::validateProviderFrame(ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata) const
+bool ImageViewportPrivate::validateProviderFrame(
+    ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata) const
 {
-    return FramePreparation::validateProviderFrame(frame,
-        metadata,
+    return FramePreparation::validateProviderFrame(frame, metadata,
         {
             m_providerMetadataReady,
             m_providerTimedMetadata,
@@ -564,7 +574,8 @@ bool ImageViewportPrivate::validateProviderFrame(ImageFrame *frame, const ImageS
         });
 }
 
-std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::providerSessionFactory() const
+std::shared_ptr<ImageSequenceProviderSessionFactory>
+ImageViewportPrivate::providerSessionFactory() const
 {
     return hasProviderSequence() ? m_sequence->m_providerSessionFactory : nullptr;
 }

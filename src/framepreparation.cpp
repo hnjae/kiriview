@@ -4,7 +4,7 @@
 
 using namespace ImageViewportInternal;
 
-bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProviderMetadata &metadata)
+bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata)
 {
     if (!metadata.isStill() || !metadata.isValid()) {
         return false;
@@ -12,7 +12,8 @@ bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProvider
 
     const QSizeF size = metadata.logicalSize();
     if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
-        || !isAdmittedLogicalSizeComponent(size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
+        || !isAdmittedLogicalSizeComponent(
+            size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
         return false;
     }
 
@@ -21,7 +22,7 @@ bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProvider
     return width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
 }
 
-bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProviderMetadata &metadata)
+bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata)
 {
     if (!metadata.isTimedFrameList() || !metadata.isValid()) {
         return false;
@@ -29,7 +30,8 @@ bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProvider
 
     const QSizeF size = metadata.logicalSize();
     if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
-        || !isAdmittedLogicalSizeComponent(size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
+        || !isAdmittedLogicalSizeComponent(
+            size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
         return false;
     }
 
@@ -40,7 +42,8 @@ bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProvider
     }
 
     const QVector<int> durations = metadata.frameDurations();
-    if (durations.isEmpty() || durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
+    if (durations.isEmpty()
+        || durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
         return false;
     }
 
@@ -58,18 +61,16 @@ bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProvider
     return true;
 }
 
-bool FramePreparation::exceedsPayloadLimit(const ImageFrame *frame)
+bool FramePreparation::exceedsPayloadLimit(const ImageFrame* frame)
 {
     return frame && frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame();
 }
 
-bool FramePreparation::validateProviderFrame(ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata, const ProviderFrameState &state)
+bool FramePreparation::validateProviderFrame(ImageFrame* frame,
+    const ImageSequenceProviderFrameMetadata& metadata, const ProviderFrameState& state)
 {
-    if (!frame
-        || !frame->isValid()
-        || !state.metadataReady
-        || frame->logicalSize() != state.logicalSize
-        || frame->payloadByteSize() <= 0
+    if (!frame || !frame->isValid() || !state.metadataReady
+        || frame->logicalSize() != state.logicalSize || frame->payloadByteSize() <= 0
         || frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()
         || !metadata.isValid()) {
         return false;
@@ -79,10 +80,12 @@ bool FramePreparation::validateProviderFrame(ImageFrame *frame, const ImageSeque
         if (!metadata.isTimedFrame() || metadata.frame() != state.currentFrame) {
             return false;
         }
-        if (metadata.frameStartPosition() != providerFrameStartPosition(state.frameDurations, state.currentFrame)) {
+        if (metadata.frameStartPosition()
+            != providerFrameStartPosition(state.frameDurations, state.currentFrame)) {
             return false;
         }
-        if (metadata.frameDuration() != -1 && metadata.frameDuration() != state.frameDurations.at(state.currentFrame)) {
+        if (metadata.frameDuration() != -1
+            && metadata.frameDuration() != state.frameDurations.at(state.currentFrame)) {
             return false;
         }
         return true;
@@ -91,7 +94,7 @@ bool FramePreparation::validateProviderFrame(ImageFrame *frame, const ImageSeque
     return metadata.isStillFrame() && metadata.frame() == 0;
 }
 
-int FramePreparation::providerFrameStartPosition(const QVector<int> &frameDurations, int frame)
+int FramePreparation::providerFrameStartPosition(const QVector<int>& frameDurations, int frame)
 {
     if (frameDurations.isEmpty() || frame < 0 || frame >= frameDurations.size()) {
         return -1;
@@ -104,7 +107,8 @@ int FramePreparation::providerFrameStartPosition(const QVector<int> &frameDurati
     return position;
 }
 
-int FramePreparation::providerFrameIndexForPosition(const QVector<int> &frameDurations, int position)
+int FramePreparation::providerFrameIndexForPosition(
+    const QVector<int>& frameDurations, int position)
 {
     const int duration = totalDuration(frameDurations);
     if (frameDurations.isEmpty() || position < 0 || position > duration) {
@@ -126,7 +130,7 @@ int FramePreparation::providerFrameIndexForPosition(const QVector<int> &frameDur
     return -1;
 }
 
-int FramePreparation::totalDuration(const QVector<int> &frameDurations)
+int FramePreparation::totalDuration(const QVector<int>& frameDurations)
 {
     int total = 0;
     for (int duration : frameDurations) {
@@ -135,9 +139,10 @@ int FramePreparation::totalDuration(const QVector<int> &frameDurations)
     return total;
 }
 
-QString FramePreparation::boundedDiagnostic(const QString &diagnostic, const QString &fallback)
+QString FramePreparation::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
 {
-    const QString selected = plainTextDiagnostic(redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic));
+    const QString selected = plainTextDiagnostic(
+        redactDiagnosticDetails(diagnostic.isEmpty() ? fallback : diagnostic));
     const auto scalars = selected.toUcs4();
     const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
     if (scalars.size() <= maximumLength) {

@@ -6,9 +6,9 @@
 #include <QImage>
 #include <QQmlComponent>
 #include <QQmlEngine>
-#include <QtPlugin>
 #include <QUrl>
 #include <QVariant>
+#include <QtPlugin>
 
 #include <memory>
 
@@ -19,12 +19,12 @@ class ConsumerSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(const ImageSequenceProviderRequestToken &token) override
+    void requestMetadata(const ImageSequenceProviderRequestToken& token) override
     {
         emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
     }
 
-    void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
     {
         QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
@@ -34,7 +34,8 @@ public:
             ImageSequenceProviderFrameMetadata::timedFrame(frame, 0, 100));
     }
 
-    void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position) override
+    void requestPlayback(
+        const ImageSequenceProviderRequestToken& token, int frame, int position) override
     {
         m_lastPlaybackFrame = frame;
         m_lastPlaybackPosition = position;
@@ -42,36 +43,21 @@ public:
         emit endOfSequence(token);
     }
 
-    void cancelRequest(const ImageSequenceProviderRequestToken &token) override
+    void cancelRequest(const ImageSequenceProviderRequestToken& token) override
     {
         m_lastCancelledToken = token;
         emit providerCancelled(token, QStringLiteral("cancelled"));
     }
 
-    void close() override
-    {
-        m_closed = true;
-    }
+    void close() override { m_closed = true; }
 
-    int lastPlaybackFrame() const
-    {
-        return m_lastPlaybackFrame;
-    }
+    int lastPlaybackFrame() const { return m_lastPlaybackFrame; }
 
-    int lastPlaybackPosition() const
-    {
-        return m_lastPlaybackPosition;
-    }
+    int lastPlaybackPosition() const { return m_lastPlaybackPosition; }
 
-    ImageSequenceProviderRequestToken lastCancelledToken() const
-    {
-        return m_lastCancelledToken;
-    }
+    ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
 
-    bool closed() const
-    {
-        return m_closed;
-    }
+    bool closed() const { return m_closed; }
 
 private:
     int m_lastPlaybackFrame = -1;
@@ -85,29 +71,20 @@ class DefaultPlaybackFallbackSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(const ImageSequenceProviderRequestToken &) override {}
+    void requestMetadata(const ImageSequenceProviderRequestToken&) override { }
 
-    void requestFrame(const ImageSequenceProviderRequestToken &token, int frame) override
+    void requestFrame(const ImageSequenceProviderRequestToken& token, int frame) override
     {
         m_lastFrameToken = token;
         m_lastFrame = frame;
         ++m_frameRequestCount;
     }
 
-    ImageSequenceProviderRequestToken lastFrameToken() const
-    {
-        return m_lastFrameToken;
-    }
+    ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
 
-    int lastFrame() const
-    {
-        return m_lastFrame;
-    }
+    int lastFrame() const { return m_lastFrame; }
 
-    int frameRequestCount() const
-    {
-        return m_frameRequestCount;
-    }
+    int frameRequestCount() const { return m_frameRequestCount; }
 
 private:
     ImageSequenceProviderRequestToken m_lastFrameToken;
@@ -118,7 +95,7 @@ private:
 class ConsumerSessionFactory final : public ImageSequenceProviderSessionFactory
 {
 public:
-    ImageSequenceProviderSession *createSession(QObject *parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent) override
     {
         return new ConsumerSession(parent);
     }
@@ -142,10 +119,7 @@ public:
         return CapabilitySupport::KnownTrue;
     }
 
-    CapabilitySupport frameSeekCapability() const override
-    {
-        return CapabilitySupport::KnownTrue;
-    }
+    CapabilitySupport frameSeekCapability() const override { return CapabilitySupport::KnownTrue; }
 
     CapabilitySupport positionSeekCapability() const override
     {
@@ -160,7 +134,9 @@ bool canCreateInstalledQmlViewport()
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
 
     QQmlComponent component(&engine);
-    component.setData("import QtQuick\nimport ImageViewport 1.0\nImageViewport { width: 10; height: 10 }\n", QUrl());
+    component.setData(
+        "import QtQuick\nimport ImageViewport 1.0\nImageViewport { width: 10; height: 10 }\n",
+        QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
         return false;
@@ -171,7 +147,7 @@ bool canCreateInstalledQmlViewport()
         qWarning() << component.errors();
         return false;
     }
-    return qobject_cast<ImageViewport *>(object.get()) != nullptr;
+    return qobject_cast<ImageViewport*>(object.get()) != nullptr;
 }
 
 bool canReadInstalledQmlLimits()
@@ -195,7 +171,7 @@ QtObject {
     property var maximumDiagnosticStringLength: ImageSequenceLimits.maximumDiagnosticStringLength
 }
 )",
-                      QUrl());
+        QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
         return false;
@@ -207,14 +183,22 @@ QtObject {
         return false;
     }
 
-    if (object->property("maximumLogicalWidth").toInt() != ImageSequenceLimits::maximumLogicalWidth()
-        || object->property("maximumLogicalHeight").toInt() != ImageSequenceLimits::maximumLogicalHeight()
-        || object->property("maximumPixelsPerFrame").toLongLong() != ImageSequenceLimits::maximumPixelsPerFrame()
-        || object->property("maximumPayloadBytesPerFrame").toLongLong() != ImageSequenceLimits::maximumPayloadBytesPerFrame()
-        || object->property("maximumTimedListFrameCount").toInt() != ImageSequenceLimits::maximumTimedListFrameCount()
-        || object->property("maximumFrameDuration").toInt() != ImageSequenceLimits::maximumFrameDuration()
-        || object->property("maximumTotalSequenceDuration").toInt() != ImageSequenceLimits::maximumTotalSequenceDuration()
-        || object->property("maximumDiagnosticStringLength").toInt() != ImageSequenceLimits::maximumDiagnosticStringLength()) {
+    if (object->property("maximumLogicalWidth").toInt()
+            != ImageSequenceLimits::maximumLogicalWidth()
+        || object->property("maximumLogicalHeight").toInt()
+            != ImageSequenceLimits::maximumLogicalHeight()
+        || object->property("maximumPixelsPerFrame").toLongLong()
+            != ImageSequenceLimits::maximumPixelsPerFrame()
+        || object->property("maximumPayloadBytesPerFrame").toLongLong()
+            != ImageSequenceLimits::maximumPayloadBytesPerFrame()
+        || object->property("maximumTimedListFrameCount").toInt()
+            != ImageSequenceLimits::maximumTimedListFrameCount()
+        || object->property("maximumFrameDuration").toInt()
+            != ImageSequenceLimits::maximumFrameDuration()
+        || object->property("maximumTotalSequenceDuration").toInt()
+            != ImageSequenceLimits::maximumTotalSequenceDuration()
+        || object->property("maximumDiagnosticStringLength").toInt()
+            != ImageSequenceLimits::maximumDiagnosticStringLength()) {
         return false;
     }
 
@@ -256,7 +240,7 @@ QtObject {
         && providerResult.warningString === ""
 }
 )",
-                      QUrl());
+        QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
         return false;
@@ -317,14 +301,15 @@ Item {
     }
 }
 )",
-                      QUrl());
+        QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
         return false;
     }
 
     QVariantMap initialProperties;
-    initialProperties.insert(QStringLiteral("suppliedFrame"), QVariant::fromValue<QObject *>(&frame));
+    initialProperties.insert(
+        QStringLiteral("suppliedFrame"), QVariant::fromValue<QObject*>(&frame));
     const std::unique_ptr<QObject> object(component.createWithInitialProperties(initialProperties));
     if (!object) {
         qWarning() << component.errors();
@@ -363,9 +348,10 @@ bool installedQmlOpaqueTypesAreNotCreatable()
         QStringLiteral("ImageSequenceFactoryResult"),
     };
 
-    for (const QString &typeName : typeNames) {
+    for (const QString& typeName : typeNames) {
         QQmlComponent component(&engine);
-        component.setData(QStringLiteral("import ImageViewport 1.0\n%1 {}\n").arg(typeName).toUtf8(), QUrl());
+        component.setData(
+            QStringLiteral("import ImageViewport 1.0\n%1 {}\n").arg(typeName).toUtf8(), QUrl());
         if (!component.isError()) {
             return false;
         }
@@ -424,7 +410,7 @@ ImageViewport {
     }
 }
 )",
-                      QUrl());
+        QUrl());
     if (!component.isReady()) {
         qWarning() << component.errors();
         return false;
@@ -446,33 +432,27 @@ bool canUseInstalledProviderSessionSurface()
     bool progressReceived = false;
     bool endReceived = false;
     bool cancellationReceived = false;
-    QObject::connect(&session,
-        &ImageSequenceProviderSession::providerProgress,
-        [&progressReceived, &token](const ImageSequenceProviderRequestToken &receivedToken, double progress) {
-            progressReceived = receivedToken == token && progress == 0.5;
-        });
-    QObject::connect(&session,
-        &ImageSequenceProviderSession::endOfSequence,
-        [&endReceived, &token](const ImageSequenceProviderRequestToken &receivedToken) {
+    QObject::connect(&session, &ImageSequenceProviderSession::providerProgress,
+        [&progressReceived, &token](const ImageSequenceProviderRequestToken& receivedToken,
+            double progress) { progressReceived = receivedToken == token && progress == 0.5; });
+    QObject::connect(&session, &ImageSequenceProviderSession::endOfSequence,
+        [&endReceived, &token](const ImageSequenceProviderRequestToken& receivedToken) {
             endReceived = receivedToken == token;
         });
-    QObject::connect(&session,
-        &ImageSequenceProviderSession::providerCancelled,
-        [&cancellationReceived, &token](const ImageSequenceProviderRequestToken &receivedToken, const QString &diagnostic) {
-            cancellationReceived = receivedToken == token && diagnostic == QStringLiteral("cancelled");
+    QObject::connect(&session, &ImageSequenceProviderSession::providerCancelled,
+        [&cancellationReceived, &token](
+            const ImageSequenceProviderRequestToken& receivedToken, const QString& diagnostic) {
+            cancellationReceived
+                = receivedToken == token && diagnostic == QStringLiteral("cancelled");
         });
 
     session.requestPlayback(token, 1, 100);
     session.cancelRequest(token);
     session.close();
 
-    return progressReceived
-        && endReceived
-        && cancellationReceived
-        && session.lastPlaybackFrame() == 1
-        && session.lastPlaybackPosition() == 100
-        && session.lastCancelledToken() == token
-        && session.closed();
+    return progressReceived && endReceived && cancellationReceived
+        && session.lastPlaybackFrame() == 1 && session.lastPlaybackPosition() == 100
+        && session.lastCancelledToken() == token && session.closed();
 }
 
 bool canUseInstalledProviderPlaybackFallbackSurface()
@@ -482,8 +462,7 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
 
     session.requestPlayback(token, 3, 250);
 
-    return session.frameRequestCount() == 1
-        && session.lastFrameToken() == token
+    return session.frameRequestCount() == 1 && session.lastFrameToken() == token
         && session.lastFrame() == 3;
 }
 
@@ -494,24 +473,22 @@ bool canUseInstalledProviderRawFrameSignalSurface()
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    const ImageSequenceProviderFrameMetadata metadata = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 100);
+    const ImageSequenceProviderFrameMetadata metadata
+        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 100);
     bool rawFrameReceived = false;
     bool rawFrameWithMetadataReceived = false;
 
-    QObject::connect(&session,
-        &ImageSequenceProviderSession::imageFrameReady,
-        [&rawFrameReceived, &token, &frame](const ImageSequenceProviderRequestToken &receivedToken, ImageFrame *receivedFrame) {
+    QObject::connect(&session, &ImageSequenceProviderSession::imageFrameReady,
+        [&rawFrameReceived, &token, &frame](
+            const ImageSequenceProviderRequestToken& receivedToken, ImageFrame* receivedFrame) {
             rawFrameReceived = receivedToken == token && receivedFrame == &frame;
         });
-    QObject::connect(&session,
-        &ImageSequenceProviderSession::imageFrameWithMetadataReady,
-        [&rawFrameWithMetadataReceived, &token, &frame, &metadata](const ImageSequenceProviderRequestToken &receivedToken,
-            ImageFrame *receivedFrame,
-            const ImageSequenceProviderFrameMetadata &receivedMetadata) {
-            rawFrameWithMetadataReceived = receivedToken == token
-                && receivedFrame == &frame
-                && receivedMetadata.isTimedFrame()
-                && receivedMetadata.frame() == metadata.frame()
+    QObject::connect(&session, &ImageSequenceProviderSession::imageFrameWithMetadataReady,
+        [&rawFrameWithMetadataReceived, &token, &frame, &metadata](
+            const ImageSequenceProviderRequestToken& receivedToken, ImageFrame* receivedFrame,
+            const ImageSequenceProviderFrameMetadata& receivedMetadata) {
+            rawFrameWithMetadataReceived = receivedToken == token && receivedFrame == &frame
+                && receivedMetadata.isTimedFrame() && receivedMetadata.frame() == metadata.frame()
                 && receivedMetadata.frameStartPosition() == metadata.frameStartPosition()
                 && receivedMetadata.frameDuration() == metadata.frameDuration();
         });
@@ -523,55 +500,63 @@ bool canUseInstalledProviderRawFrameSignalSurface()
 }
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     QGuiApplication app(argc, argv);
 
-    [[maybe_unused]] const auto knownTrue = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
-    [[maybe_unused]] const auto knownFalse = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
+    [[maybe_unused]] const auto knownTrue
+        = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
+    [[maybe_unused]] const auto knownFalse
+        = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
     ImageSequenceProviderRequestToken token(1);
     if (!token.isValid() || token.id() != 1 || token != ImageSequenceProviderRequestToken(1)) {
         return 1;
     }
 
-    const ImageSequenceProviderMetadata metadata = ImageSequenceProviderMetadata::timedFrameList(QSizeF(2.0, 2.0), {100, 200});
-    if (!metadata.isSpecified() || !metadata.isValid() || metadata.isStill() || !metadata.isTimedFrameList()) {
+    const ImageSequenceProviderMetadata metadata
+        = ImageSequenceProviderMetadata::timedFrameList(QSizeF(2.0, 2.0), { 100, 200 });
+    if (!metadata.isSpecified() || !metadata.isValid() || metadata.isStill()
+        || !metadata.isTimedFrameList()) {
         return 1;
     }
-    if (metadata.logicalSize() != QSizeF(2.0, 2.0) || metadata.frameDurations() != QVector<int>({100, 200})) {
-        return 1;
-    }
-
-    const ImageSequenceProviderMetadata fixedMetadata = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 3, 50);
-    if (!fixedMetadata.isSpecified() || !fixedMetadata.isValid() || fixedMetadata.isStill() || !fixedMetadata.isTimedFrameList()) {
-        return 1;
-    }
-    if (fixedMetadata.logicalSize() != QSizeF(2.0, 2.0) || fixedMetadata.frameDurations() != QVector<int>({50, 50, 50})) {
+    if (metadata.logicalSize() != QSizeF(2.0, 2.0)
+        || metadata.frameDurations() != QVector<int>({ 100, 200 })) {
         return 1;
     }
 
-    const ImageSequenceProviderMetadata stillMetadata = ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0));
-    if (!stillMetadata.isSpecified() || !stillMetadata.isValid() || !stillMetadata.isStill() || stillMetadata.isTimedFrameList()) {
+    const ImageSequenceProviderMetadata fixedMetadata
+        = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 3, 50);
+    if (!fixedMetadata.isSpecified() || !fixedMetadata.isValid() || fixedMetadata.isStill()
+        || !fixedMetadata.isTimedFrameList()) {
         return 1;
     }
-    if (stillMetadata.logicalSize() != QSizeF(2.0, 2.0) || !stillMetadata.frameDurations().isEmpty()) {
-        return 1;
-    }
-
-    const ImageSequenceProviderFrameMetadata frameMetadata = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 200);
-    if (!frameMetadata.isValid()
-        || !frameMetadata.isTimedFrame()
-        || frameMetadata.frame() != 1
-        || frameMetadata.frameStartPosition() != 100
-        || frameMetadata.frameDuration() != 200) {
+    if (fixedMetadata.logicalSize() != QSizeF(2.0, 2.0)
+        || fixedMetadata.frameDurations() != QVector<int>({ 50, 50, 50 })) {
         return 1;
     }
 
-    const ImageSequenceProviderFrameMetadata stillFrameMetadata = ImageSequenceProviderFrameMetadata::stillFrame();
-    if (!stillFrameMetadata.isValid()
-        || !stillFrameMetadata.isStillFrame()
-        || stillFrameMetadata.isTimedFrame()
-        || stillFrameMetadata.frame() != 0
+    const ImageSequenceProviderMetadata stillMetadata
+        = ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0));
+    if (!stillMetadata.isSpecified() || !stillMetadata.isValid() || !stillMetadata.isStill()
+        || stillMetadata.isTimedFrameList()) {
+        return 1;
+    }
+    if (stillMetadata.logicalSize() != QSizeF(2.0, 2.0)
+        || !stillMetadata.frameDurations().isEmpty()) {
+        return 1;
+    }
+
+    const ImageSequenceProviderFrameMetadata frameMetadata
+        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 200);
+    if (!frameMetadata.isValid() || !frameMetadata.isTimedFrame() || frameMetadata.frame() != 1
+        || frameMetadata.frameStartPosition() != 100 || frameMetadata.frameDuration() != 200) {
+        return 1;
+    }
+
+    const ImageSequenceProviderFrameMetadata stillFrameMetadata
+        = ImageSequenceProviderFrameMetadata::stillFrame();
+    if (!stillFrameMetadata.isValid() || !stillFrameMetadata.isStillFrame()
+        || stillFrameMetadata.isTimedFrame() || stillFrameMetadata.frame() != 0
         || stillFrameMetadata.frameStartPosition() != -1
         || stillFrameMetadata.frameDuration() != -1) {
         return 1;
@@ -579,10 +564,8 @@ int main(int argc, char **argv)
 
     ImageSequenceFactory factory;
     const ImageFrame emptyFrame;
-    if (emptyFrame.isValid()
-        || emptyFrame.logicalSize() != QSizeF()
-        || emptyFrame.payloadByteSize() != 0
-        || emptyFrame.hasAlphaChannel()
+    if (emptyFrame.isValid() || emptyFrame.logicalSize() != QSizeF()
+        || emptyFrame.payloadByteSize() != 0 || emptyFrame.hasAlphaChannel()
         || emptyFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
@@ -590,10 +573,8 @@ int main(int argc, char **argv)
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     const ImageFrame imageFrame(image);
-    if (!imageFrame.isValid()
-        || imageFrame.logicalSize() != QSizeF(2.0, 2.0)
-        || imageFrame.payloadByteSize() <= 0
-        || !imageFrame.hasAlphaChannel()
+    if (!imageFrame.isValid() || imageFrame.logicalSize() != QSizeF(2.0, 2.0)
+        || imageFrame.payloadByteSize() <= 0 || !imageFrame.hasAlphaChannel()
         || imageFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
@@ -616,14 +597,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    std::unique_ptr<ImageSequenceFactoryResult> deviceIndependentStillResult(factory.fromFrame(deviceIndependentImage));
+    std::unique_ptr<ImageSequenceFactoryResult> deviceIndependentStillResult(
+        factory.fromFrame(deviceIndependentImage));
     if (!deviceIndependentStillResult || !deviceIndependentStillResult->sequence()) {
         return 1;
     }
 
     std::unique_ptr<ImageSequenceFactoryResult> invalidFrameResult(factory.fromFrame(QImage()));
-    if (!invalidFrameResult
-        || invalidFrameResult->sequence()
+    if (!invalidFrameResult || invalidFrameResult->sequence()
         || invalidFrameResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
         || invalidFrameResult->errorString().isEmpty()
         || !invalidFrameResult->warningString().isEmpty()) {
@@ -633,8 +614,9 @@ int main(int argc, char **argv)
     QVector<QImage> timedImages;
     timedImages.append(image);
     timedImages.append(image);
-    QVector<int> timedDurations{100, 200};
-    std::unique_ptr<ImageSequenceFactoryResult> timedResult(factory.fromTimedFrameList(timedImages, timedDurations));
+    QVector<int> timedDurations { 100, 200 };
+    std::unique_ptr<ImageSequenceFactoryResult> timedResult(
+        factory.fromTimedFrameList(timedImages, timedDurations));
     if (!timedResult || !timedResult->sequence()) {
         return 1;
     }
@@ -651,9 +633,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    std::unique_ptr<ImageSequenceFactoryResult> mismatchedTimedResult(factory.fromTimedFrameList(timedImages, {100}));
-    if (!mismatchedTimedResult
-        || mismatchedTimedResult->sequence()
+    std::unique_ptr<ImageSequenceFactoryResult> mismatchedTimedResult(
+        factory.fromTimedFrameList(timedImages, { 100 }));
+    if (!mismatchedTimedResult || mismatchedTimedResult->sequence()
         || mismatchedTimedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
         || !mismatchedTimedResult->errorString().contains(QStringLiteral("same count"))
         || !mismatchedTimedResult->warningString().isEmpty()) {
@@ -667,11 +649,13 @@ int main(int argc, char **argv)
     if (builder.count() != 1) {
         return 1;
     }
-    if (builder.appendFrame(image, 0) || builder.count() != 1 || !builder.errorString().contains(QStringLiteral("positive"))) {
+    if (builder.appendFrame(image, 0) || builder.count() != 1
+        || !builder.errorString().contains(QStringLiteral("positive"))) {
         return 1;
     }
     builder.clear();
-    if (builder.count() != 0 || !builder.errorString().isEmpty() || !builder.warningString().isEmpty()) {
+    if (builder.count() != 0 || !builder.errorString().isEmpty()
+        || !builder.warningString().isEmpty()) {
         return 1;
     }
 
@@ -688,10 +672,8 @@ int main(int argc, char **argv)
     providerViewport.setSequence(result->sequence());
     if (providerViewport.requestStatus() != ImageViewport::RequestStatus::Loading
         || providerViewport.requestReason() != ImageViewport::RequestReason::ProviderWaiting
-        || providerViewport.requestedFrame() != 0
-        || providerViewport.requestedPosition() != 0
-        || providerViewport.frameCount() != 2
-        || providerViewport.totalDuration() != 200) {
+        || providerViewport.requestedFrame() != 0 || providerViewport.requestedPosition() != 0
+        || providerViewport.frameCount() != 2 || providerViewport.totalDuration() != 200) {
         return 1;
     }
 
@@ -703,13 +685,10 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    return canCreateInstalledQmlViewport()
-            && canReadInstalledQmlLimits()
-            && canUseInstalledQmlFactorySurface()
-            && canUseInstalledQmlTypedFactorySurface()
+    return canCreateInstalledQmlViewport() && canReadInstalledQmlLimits()
+            && canUseInstalledQmlFactorySurface() && canUseInstalledQmlTypedFactorySurface()
             && installedQmlSingletonTypesAreNotCreatable()
-            && installedQmlOpaqueTypesAreNotCreatable()
-            && canUseInstalledQmlCommandSurface()
+            && installedQmlOpaqueTypesAreNotCreatable() && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
             && canUseInstalledProviderPlaybackFallbackSurface()
             && canUseInstalledProviderRawFrameSignalSurface()

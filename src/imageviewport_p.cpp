@@ -1,14 +1,12 @@
 #include "imageviewport_p.h"
 
-ImageViewportPrivate::ImageViewportPrivate(ImageViewport *viewport)
+ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
     , controller(*this)
     , providerBridge(*this)
 {
     playbackTimer.setSingleShot(true);
-    QObject::connect(&playbackTimer, &QTimer::timeout, q, [this]() {
-        handlePlaybackTimer();
-    });
+    QObject::connect(&playbackTimer, &QTimer::timeout, q, [this]() { handlePlaybackTimer(); });
 }
 
 ImageViewportPrivate::~ImageViewportPrivate()
@@ -17,22 +15,10 @@ ImageViewportPrivate::~ImageViewportPrivate()
     closeProviderSession();
 }
 
-double ImageViewportPrivate::width() const
-{
-    return q->width();
-}
+double ImageViewportPrivate::width() const { return q->width(); }
 
-double ImageViewportPrivate::height() const
-{
-    return q->height();
-}
+double ImageViewportPrivate::height() const { return q->height(); }
 
-QQuickWindow *ImageViewportPrivate::window() const
-{
-    return q->window();
-}
+QQuickWindow* ImageViewportPrivate::window() const { return q->window(); }
 
-void ImageViewportPrivate::update()
-{
-    q->update();
-}
+void ImageViewportPrivate::update() { q->update(); }

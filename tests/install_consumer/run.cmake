@@ -6,7 +6,8 @@ if(DEFINED ENV{CMAKE_PREFIX_PATH} AND NOT "$ENV{CMAKE_PREFIX_PATH}" STREQUAL "")
     list(APPEND consumer_prefix_path ${environment_prefix_path})
 endif()
 set(opengl_gl_library "${IMAGEVIEWPORT_OPENGL_GL_LIBRARY}")
-if((NOT opengl_gl_library OR opengl_gl_library MATCHES "-NOTFOUND$") AND IMAGEVIEWPORT_OPENGL_OPENGL_LIBRARY)
+if((NOT opengl_gl_library OR opengl_gl_library MATCHES "-NOTFOUND$")
+   AND IMAGEVIEWPORT_OPENGL_OPENGL_LIBRARY)
     get_filename_component(opengl_library_dir "${IMAGEVIEWPORT_OPENGL_OPENGL_LIBRARY}" DIRECTORY)
     set(opengl_gl_library "${opengl_library_dir}/libGL.so")
 endif()
@@ -17,17 +18,13 @@ execute_process(
     COMMAND "${CMAKE_COMMAND}" --install "${IMAGEVIEWPORT_BUILD_DIR}" --prefix "${prefix}"
     RESULT_VARIABLE install_result
     OUTPUT_VARIABLE install_output
-    ERROR_VARIABLE install_error
-)
+    ERROR_VARIABLE install_error)
 if(NOT install_result EQUAL 0)
     message(FATAL_ERROR "ImageViewport install failed:\n${install_output}\n${install_error}")
 endif()
 
-file(GLOB qml_module_dirs
-    "${prefix}/qml/ImageViewport"
-    "${prefix}/lib/qml/ImageViewport"
-    "${prefix}/lib64/qml/ImageViewport"
-)
+file(GLOB qml_module_dirs "${prefix}/qml/ImageViewport" "${prefix}/lib/qml/ImageViewport"
+     "${prefix}/lib64/qml/ImageViewport")
 list(LENGTH qml_module_dirs qml_module_dir_count)
 if(qml_module_dir_count EQUAL 0)
     message(FATAL_ERROR "Installed ImageViewport package did not include a QML module directory")
@@ -41,54 +38,54 @@ foreach(required_qml_file IN ITEMS qmldir ImageViewport.qmltypes libImageViewpor
 endforeach()
 
 if(NOT EXISTS "${prefix}/include/ImageViewport/imageviewport.h")
-    message(FATAL_ERROR "Installed ImageViewport package did not include the public imageviewport.h header")
+    message(
+        FATAL_ERROR
+            "Installed ImageViewport package did not include the public imageviewport.h header")
 endif()
 file(READ "${prefix}/include/ImageViewport/imageviewport.h" installed_public_header)
 if(installed_public_header MATCHES "ViewportProviderBridge")
-    message(FATAL_ERROR "Installed ImageViewport public header exposed internal provider bridge type")
+    message(
+        FATAL_ERROR "Installed ImageViewport public header exposed internal provider bridge type")
 endif()
 file(GLOB installed_private_headers "${prefix}/include/ImageViewport/*_p.h")
 if(installed_private_headers)
-    message(FATAL_ERROR "Installed ImageViewport package exposed private headers: ${installed_private_headers}")
+    message(
+        FATAL_ERROR
+            "Installed ImageViewport package exposed private headers: ${installed_private_headers}")
 endif()
 
 execute_process(
-    COMMAND "${CMAKE_COMMAND}"
-        -S "${IMAGEVIEWPORT_CONSUMER_SOURCE_DIR}"
-        -B "${consumer_build_dir}"
+    COMMAND
+        "${CMAKE_COMMAND}" -S "${IMAGEVIEWPORT_CONSUMER_SOURCE_DIR}" -B "${consumer_build_dir}"
         "-DCMAKE_PREFIX_PATH=${consumer_prefix_path}"
         -DOPENGL_INCLUDE_DIR=${IMAGEVIEWPORT_OPENGL_INCLUDE_DIR}
         -DOPENGL_opengl_LIBRARY=${IMAGEVIEWPORT_OPENGL_OPENGL_LIBRARY}
         -DOPENGL_glx_LIBRARY=${IMAGEVIEWPORT_OPENGL_GLX_LIBRARY}
-        -DOPENGL_gl_LIBRARY=${opengl_gl_library}
-        -DOpenGL_GL_PREFERENCE=LEGACY
+        -DOPENGL_gl_LIBRARY=${opengl_gl_library} -DOpenGL_GL_PREFERENCE=LEGACY
         -DIMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT=${qml_import_root}
     RESULT_VARIABLE configure_result
     OUTPUT_VARIABLE configure_output
-    ERROR_VARIABLE configure_error
-)
+    ERROR_VARIABLE configure_error)
 if(NOT configure_result EQUAL 0)
-    message(FATAL_ERROR "Install consumer configure failed:\n${configure_output}\n${configure_error}")
+    message(
+        FATAL_ERROR "Install consumer configure failed:\n${configure_output}\n${configure_error}")
 endif()
 
 execute_process(
     COMMAND "${CMAKE_COMMAND}" --build "${consumer_build_dir}"
     RESULT_VARIABLE build_result
     OUTPUT_VARIABLE build_output
-    ERROR_VARIABLE build_error
-)
+    ERROR_VARIABLE build_error)
 if(NOT build_result EQUAL 0)
     message(FATAL_ERROR "Install consumer build failed:\n${build_output}\n${build_error}")
 endif()
 
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env
-        QT_QPA_PLATFORM=offscreen
-        "${consumer_build_dir}/imageviewport_install_consumer"
+    COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+            "${consumer_build_dir}/imageviewport_install_consumer"
     RESULT_VARIABLE run_result
     OUTPUT_VARIABLE run_output
-    ERROR_VARIABLE run_error
-)
+    ERROR_VARIABLE run_error)
 if(NOT run_result EQUAL 0)
     message(FATAL_ERROR "Install consumer run failed:\n${run_output}\n${run_error}")
 endif()

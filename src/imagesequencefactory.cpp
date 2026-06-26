@@ -1,16 +1,13 @@
-#include "imageviewporthelpers_p.h"
 #include "framepreparation_p.h"
 #include "imagesequenceownership_p.h"
+#include "imageviewporthelpers_p.h"
 
 #include <utility>
 
 using namespace ImageViewportInternal;
 
-ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
-    FactoryOutcome outcome,
-    QString errorString,
-    QString warningString,
-    QObject *parent)
+ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence* sequence,
+    FactoryOutcome outcome, QString errorString, QString warningString, QObject* parent)
     : QObject(parent)
     , m_sequence(sequence)
     , m_outcome(outcome)
@@ -20,47 +17,37 @@ ImageSequenceFactoryResult::ImageSequenceFactoryResult(ImageSequence *sequence,
 }
 
 ImageSequenceFactoryResult::ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
-    FactoryOutcome outcome,
-    QString errorString,
-    QString warningString,
-    QObject *parent)
-    : ImageSequenceFactoryResult(sequence.get(), outcome, std::move(errorString), std::move(warningString), parent)
+    FactoryOutcome outcome, QString errorString, QString warningString, QObject* parent)
+    : ImageSequenceFactoryResult(
+          sequence.get(), outcome, std::move(errorString), std::move(warningString), parent)
 {
     m_sequenceOwner = std::move(sequence);
 }
 
-ImageSequence *ImageSequenceFactoryResult::sequence() const
-{
-    return m_sequence;
-}
+ImageSequence* ImageSequenceFactoryResult::sequence() const { return m_sequence; }
 
 ImageSequenceFactoryResult::FactoryOutcome ImageSequenceFactoryResult::outcome() const
 {
     return m_outcome;
 }
 
-QString ImageSequenceFactoryResult::errorString() const
-{
-    return m_errorString;
-}
+QString ImageSequenceFactoryResult::errorString() const { return m_errorString; }
 
-QString ImageSequenceFactoryResult::warningString() const
-{
-    return m_warningString;
-}
+QString ImageSequenceFactoryResult::warningString() const { return m_warningString; }
 
-ImageSequenceFactory::ImageSequenceFactory(QObject *parent)
+ImageSequenceFactory::ImageSequenceFactory(QObject* parent)
     : QObject(parent)
 {
 }
 
-ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(const QImage &image)
+ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(const QImage& image)
 {
     ImageFrame frame(image);
     return fromFrame(&frame);
 }
 
-ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(const QVector<QImage> &images, const QVector<int> &durationsMilliseconds)
+ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(
+    const QVector<QImage>& images, const QVector<int>& durationsMilliseconds)
 {
     if (images.size() != durationsMilliseconds.size()) {
         return new ImageSequenceFactoryResult(nullptr,
@@ -73,8 +60,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(const QVect
         ImageFrame frame(images.at(index));
         if (!list.appendFrame(&frame, durationsMilliseconds.at(index))) {
             return new ImageSequenceFactoryResult(nullptr,
-                ImageSequenceFactoryResult::FactoryOutcome::Invalid,
-                list.errorString(),
+                ImageSequenceFactoryResult::FactoryOutcome::Invalid, list.errorString(),
                 list.warningString());
         }
     }
@@ -82,7 +68,7 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(const QVect
     return fromTimedFrameList(&list);
 }
 
-ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
+ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
 {
     if (!frame) {
         return new ImageSequenceFactoryResult(nullptr,
@@ -98,20 +84,18 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromFrame(ImageFrame *frame)
 
     const QString limitViolation = frameLimitViolation(*frame);
     if (!limitViolation.isEmpty()) {
-        return new ImageSequenceFactoryResult(nullptr,
-            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
-            limitViolation);
+        return new ImageSequenceFactoryResult(
+            nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, limitViolation);
     }
 
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(frame->logicalSize(), frame->imagePayload()));
+    std::shared_ptr<ImageSequence> sequence(
+        new ImageSequence(frame->logicalSize(), frame->imagePayload()));
     registerFactorySequenceOwner(sequence);
-    return new ImageSequenceFactoryResult(std::move(sequence),
-        ImageSequenceFactoryResult::FactoryOutcome::Created,
-        {},
-        {});
+    return new ImageSequenceFactoryResult(
+        std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
 
-ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageFrameList *list)
+ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageFrameList* list)
 {
     if (!list || !list->isValid()) {
         return new ImageSequenceFactoryResult(nullptr,
@@ -119,15 +103,15 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList must contain at least one frame"));
     }
 
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages()));
+    std::shared_ptr<ImageSequence> sequence(
+        new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages()));
     registerFactorySequenceOwner(sequence);
-    return new ImageSequenceFactoryResult(std::move(sequence),
-        ImageSequenceFactoryResult::FactoryOutcome::Created,
-        {},
-        {});
+    return new ImageSequenceFactoryResult(
+        std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
 
-ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProviderAdapter *adapter)
+ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
+    ImageSequenceProviderAdapter* adapter)
 {
     if (!adapter) {
         return new ImageSequenceFactoryResult(nullptr,
@@ -143,21 +127,25 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
     }
 
     const ImageSequenceProviderMetadata knownMetadata = adapter->knownMetadata();
-    const ImageSequenceProviderCapabilitySupport timedPlaybackCapability = adapter->timedPlaybackCapability();
-    const ImageSequenceProviderCapabilitySupport frameSeekCapability = adapter->frameSeekCapability();
-    const ImageSequenceProviderCapabilitySupport positionSeekCapability = adapter->positionSeekCapability();
+    const ImageSequenceProviderCapabilitySupport timedPlaybackCapability
+        = adapter->timedPlaybackCapability();
+    const ImageSequenceProviderCapabilitySupport frameSeekCapability
+        = adapter->frameSeekCapability();
+    const ImageSequenceProviderCapabilitySupport positionSeekCapability
+        = adapter->positionSeekCapability();
     const QString metadataViolation = providerMetadataLimitViolation(knownMetadata);
     if (!metadataViolation.isEmpty()) {
-        return new ImageSequenceFactoryResult(nullptr,
-            ImageSequenceFactoryResult::FactoryOutcome::Invalid,
-            metadataViolation);
+        return new ImageSequenceFactoryResult(
+            nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, metadataViolation);
     }
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();
     if (hasKnownMetadata
-        && (providerCapabilityContradictsMetadata(timedPlaybackCapability, knownMetadata.isTimedFrameList())
+        && (providerCapabilityContradictsMetadata(
+                timedPlaybackCapability, knownMetadata.isTimedFrameList())
             || providerCapabilityContradictsMetadata(frameSeekCapability, true)
-            || providerCapabilityContradictsMetadata(positionSeekCapability, knownMetadata.isTimedFrameList()))) {
+            || providerCapabilityContradictsMetadata(
+                positionSeekCapability, knownMetadata.isTimedFrameList()))) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("provider metadata contradicts declared capabilities"));
@@ -165,40 +153,27 @@ ImageSequenceFactoryResult *ImageSequenceFactory::fromProvider(ImageSequenceProv
 
     const bool hasCompleteKnownMetadata = hasKnownMetadata;
 
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(std::move(sessionFactory),
-        hasKnownMetadata,
-        hasCompleteKnownMetadata,
-        hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
-        hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations() : QVector<int>(),
-        timedPlaybackCapability,
-        frameSeekCapability,
-        positionSeekCapability));
+    std::shared_ptr<ImageSequence> sequence(
+        new ImageSequence(std::move(sessionFactory), hasKnownMetadata, hasCompleteKnownMetadata,
+            hasKnownMetadata ? knownMetadata.logicalSize() : QSizeF(),
+            hasKnownMetadata && knownMetadata.isTimedFrameList() ? knownMetadata.frameDurations()
+                                                                 : QVector<int>(),
+            timedPlaybackCapability, frameSeekCapability, positionSeekCapability));
     registerFactorySequenceOwner(sequence);
-    return new ImageSequenceFactoryResult(std::move(sequence),
-        ImageSequenceFactoryResult::FactoryOutcome::Created,
-        {},
-        {});
+    return new ImageSequenceFactoryResult(
+        std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
 
-ImageSequenceLimits::ImageSequenceLimits(QObject *parent)
+ImageSequenceLimits::ImageSequenceLimits(QObject* parent)
     : QObject(parent)
 {
 }
 
-int ImageSequenceLimits::getMaximumLogicalWidth() const
-{
-    return maximumLogicalWidth();
-}
+int ImageSequenceLimits::getMaximumLogicalWidth() const { return maximumLogicalWidth(); }
 
-int ImageSequenceLimits::getMaximumLogicalHeight() const
-{
-    return maximumLogicalHeight();
-}
+int ImageSequenceLimits::getMaximumLogicalHeight() const { return maximumLogicalHeight(); }
 
-qint64 ImageSequenceLimits::getMaximumPixelsPerFrame() const
-{
-    return maximumPixelsPerFrame();
-}
+qint64 ImageSequenceLimits::getMaximumPixelsPerFrame() const { return maximumPixelsPerFrame(); }
 
 qint64 ImageSequenceLimits::getMaximumPayloadBytesPerFrame() const
 {
@@ -210,10 +185,7 @@ int ImageSequenceLimits::getMaximumTimedListFrameCount() const
     return maximumTimedListFrameCount();
 }
 
-int ImageSequenceLimits::getMaximumFrameDuration() const
-{
-    return maximumFrameDuration();
-}
+int ImageSequenceLimits::getMaximumFrameDuration() const { return maximumFrameDuration(); }
 
 int ImageSequenceLimits::getMaximumTotalSequenceDuration() const
 {
@@ -225,40 +197,22 @@ int ImageSequenceLimits::getMaximumDiagnosticStringLength() const
     return maximumDiagnosticStringLength();
 }
 
-int ImageSequenceLimits::maximumLogicalWidth()
-{
-    return minimumMaximumLogicalSide;
-}
+int ImageSequenceLimits::maximumLogicalWidth() { return minimumMaximumLogicalSide; }
 
-int ImageSequenceLimits::maximumLogicalHeight()
-{
-    return minimumMaximumLogicalSide;
-}
+int ImageSequenceLimits::maximumLogicalHeight() { return minimumMaximumLogicalSide; }
 
-qint64 ImageSequenceLimits::maximumPixelsPerFrame()
-{
-    return minimumMaximumPixelsPerFrame;
-}
+qint64 ImageSequenceLimits::maximumPixelsPerFrame() { return minimumMaximumPixelsPerFrame; }
 
 qint64 ImageSequenceLimits::maximumPayloadBytesPerFrame()
 {
     return minimumMaximumPayloadBytesPerFrame;
 }
 
-int ImageSequenceLimits::maximumTimedListFrameCount()
-{
-    return minimumMaximumTimedListFrameCount;
-}
+int ImageSequenceLimits::maximumTimedListFrameCount() { return minimumMaximumTimedListFrameCount; }
 
-int ImageSequenceLimits::maximumFrameDuration()
-{
-    return minimumMaximumDuration;
-}
+int ImageSequenceLimits::maximumFrameDuration() { return minimumMaximumDuration; }
 
-int ImageSequenceLimits::maximumTotalSequenceDuration()
-{
-    return minimumMaximumDuration;
-}
+int ImageSequenceLimits::maximumTotalSequenceDuration() { return minimumMaximumDuration; }
 
 int ImageSequenceLimits::maximumDiagnosticStringLength()
 {

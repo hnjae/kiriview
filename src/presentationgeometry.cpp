@@ -5,7 +5,7 @@
 
 namespace {
 
-QRectF contentRectForReadyState(const PresentationGeometry::State &state)
+QRectF contentRectForReadyState(const PresentationGeometry::State& state)
 {
     if (!state.hasReadyDisplay || state.itemBounds.isEmpty() || state.imageSize.isEmpty()) {
         return {};
@@ -14,12 +14,14 @@ QRectF contentRectForReadyState(const PresentationGeometry::State &state)
     QSizeF placedSize;
     switch (state.fillMode) {
     case ImageViewport::FillMode::Contain: {
-        const double scale = std::min(state.itemBounds.width() / state.imageSize.width(), state.itemBounds.height() / state.imageSize.height());
+        const double scale = std::min(state.itemBounds.width() / state.imageSize.width(),
+            state.itemBounds.height() / state.imageSize.height());
         placedSize = state.imageSize * scale;
         break;
     }
     case ImageViewport::FillMode::Cover: {
-        const double scale = std::max(state.itemBounds.width() / state.imageSize.width(), state.itemBounds.height() / state.imageSize.height());
+        const double scale = std::max(state.itemBounds.width() / state.imageSize.width(),
+            state.itemBounds.height() / state.imageSize.height());
         placedSize = state.imageSize * scale;
         break;
     }
@@ -54,12 +56,12 @@ QRectF contentRectForReadyState(const PresentationGeometry::State &state)
 
 }
 
-QRectF PresentationGeometry::contentRect(const State &state)
+QRectF PresentationGeometry::contentRect(const State& state)
 {
     return contentRectForReadyState(state);
 }
 
-QRectF PresentationGeometry::visibleImageRect(const State &state)
+QRectF PresentationGeometry::visibleImageRect(const State& state)
 {
     if (!state.hasReadyDisplay || state.itemBounds.isEmpty()) {
         return {};
@@ -75,8 +77,10 @@ QRectF PresentationGeometry::visibleImageRect(const State &state)
         return {};
     }
 
-    const double x = (visibleItemRect.x() - content.x()) / content.width() * state.imageSize.width();
-    const double y = (visibleItemRect.y() - content.y()) / content.height() * state.imageSize.height();
+    const double x
+        = (visibleItemRect.x() - content.x()) / content.width() * state.imageSize.width();
+    const double y
+        = (visibleItemRect.y() - content.y()) / content.height() * state.imageSize.height();
     const double width = visibleItemRect.width() / content.width() * state.imageSize.width();
     const double height = visibleItemRect.height() / content.height() * state.imageSize.height();
     QRectF visibleImageRect(x, y, width, height);
@@ -89,7 +93,7 @@ QRectF PresentationGeometry::visibleImageRect(const State &state)
     return visibleImageRect;
 }
 
-QVariantMap PresentationGeometry::itemToImage(const State &state, double x, double y)
+QVariantMap PresentationGeometry::itemToImage(const State& state, double x, double y)
 {
     if (!state.hasReadyDisplay || !std::isfinite(x) || !std::isfinite(y)) {
         return invalidCoordinateResult();
@@ -97,7 +101,8 @@ QVariantMap PresentationGeometry::itemToImage(const State &state, double x, doub
 
     const QRectF content = contentRectForReadyState(state);
     const QRectF visibleItemRect = content.intersected(state.itemBounds);
-    if (visibleItemRect.isEmpty() || x < visibleItemRect.left() || y < visibleItemRect.top() || x >= visibleItemRect.right() || y >= visibleItemRect.bottom()) {
+    if (visibleItemRect.isEmpty() || x < visibleItemRect.left() || y < visibleItemRect.top()
+        || x >= visibleItemRect.right() || y >= visibleItemRect.bottom()) {
         return invalidCoordinateResult();
     }
 
@@ -115,13 +120,13 @@ QVariantMap PresentationGeometry::itemToImage(const State &state, double x, doub
     }
 
     return {
-        {QStringLiteral("valid"), true},
-        {QStringLiteral("x"), imageX},
-        {QStringLiteral("y"), imageY},
+        { QStringLiteral("valid"), true },
+        { QStringLiteral("x"), imageX },
+        { QStringLiteral("y"), imageY },
     };
 }
 
-QVariantMap PresentationGeometry::imageToItem(const State &state, double x, double y)
+QVariantMap PresentationGeometry::imageToItem(const State& state, double x, double y)
 {
     if (!containsVisibleImagePoint(state, x, y)) {
         return invalidCoordinateResult();
@@ -144,13 +149,13 @@ QVariantMap PresentationGeometry::imageToItem(const State &state, double x, doub
     }
 
     return {
-        {QStringLiteral("valid"), true},
-        {QStringLiteral("x"), itemX},
-        {QStringLiteral("y"), itemY},
+        { QStringLiteral("valid"), true },
+        { QStringLiteral("x"), itemX },
+        { QStringLiteral("y"), itemY },
     };
 }
 
-bool PresentationGeometry::containsVisibleImagePoint(const State &state, double x, double y)
+bool PresentationGeometry::containsVisibleImagePoint(const State& state, double x, double y)
 {
     if (!state.hasReadyDisplay || !std::isfinite(x) || !std::isfinite(y)) {
         return false;
@@ -161,17 +166,14 @@ bool PresentationGeometry::containsVisibleImagePoint(const State &state, double 
     }
 
     const QRectF visible = visibleImageRect(state);
-    return x >= visible.left()
-        && y >= visible.top()
-        && x < visible.right()
-        && y < visible.bottom();
+    return x >= visible.left() && y >= visible.top() && x < visible.right() && y < visible.bottom();
 }
 
 QVariantMap PresentationGeometry::invalidCoordinateResult()
 {
     return {
-        {QStringLiteral("valid"), false},
-        {QStringLiteral("x"), 0.0},
-        {QStringLiteral("y"), 0.0},
+        { QStringLiteral("valid"), false },
+        { QStringLiteral("x"), 0.0 },
+        { QStringLiteral("y"), 0.0 },
     };
 }

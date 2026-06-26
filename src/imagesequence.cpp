@@ -4,12 +4,12 @@
 
 using namespace ImageViewportInternal;
 
-ImageSequence::ImageSequence(QObject *parent)
+ImageSequence::ImageSequence(QObject* parent)
     : QObject(parent)
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObject *parent)
+ImageSequence::ImageSequence(const QSizeF& logicalSize, QImage stillImage, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Still)
     , m_logicalSize(logicalSize)
@@ -17,7 +17,8 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObje
 {
 }
 
-ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject *parent)
+ImageSequence::ImageSequence(const QSizeF& logicalSize, QVector<int> frameDurations,
+    QVector<QImage> frameImages, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
@@ -26,15 +27,13 @@ ImageSequence::ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurati
 {
 }
 
-ImageSequence::ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-    bool hasProviderKnownMetadata,
-    bool hasCompleteProviderKnownMetadata,
-    const QSizeF &providerKnownLogicalSize,
-    QVector<int> providerKnownFrameDurations,
+ImageSequence::ImageSequence(
+    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
+    bool hasProviderKnownMetadata, bool hasCompleteProviderKnownMetadata,
+    const QSizeF& providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
-    ImageSequenceProviderCapabilitySupport positionSeekCapability,
-    QObject *parent)
+    ImageSequenceProviderCapabilitySupport positionSeekCapability, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Provider)
     , m_providerSessionFactory(std::move(providerSessionFactory))
@@ -54,32 +53,18 @@ bool ImageSequence::isValid() const
         return m_providerSessionFactory != nullptr;
     }
 
-    return m_timingModel != TimingModel::None
-        && m_logicalSize.isValid()
-        && m_logicalSize.width() > 0.0
-        && m_logicalSize.height() > 0.0
+    return m_timingModel != TimingModel::None && m_logicalSize.isValid()
+        && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0
         && (isStill() || !m_frameDurations.isEmpty());
 }
 
-bool ImageSequence::isStill() const
-{
-    return m_timingModel == TimingModel::Still;
-}
+bool ImageSequence::isStill() const { return m_timingModel == TimingModel::Still; }
 
-bool ImageSequence::isTimedList() const
-{
-    return m_timingModel == TimingModel::TimedList;
-}
+bool ImageSequence::isTimedList() const { return m_timingModel == TimingModel::TimedList; }
 
-bool ImageSequence::isProvider() const
-{
-    return m_timingModel == TimingModel::Provider;
-}
+bool ImageSequence::isProvider() const { return m_timingModel == TimingModel::Provider; }
 
-QSizeF ImageSequence::logicalSize() const
-{
-    return m_logicalSize;
-}
+QSizeF ImageSequence::logicalSize() const { return m_logicalSize; }
 
 int ImageSequence::frameCount() const
 {
@@ -152,22 +137,20 @@ QImage ImageSequence::frameImage(int frame) const
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageSequence::frameImageForTest(int frame) const
-{
-    return frameImage(frame);
-}
+QImage ImageSequence::frameImageForTest(int frame) const { return frameImage(frame); }
 #endif
 
-ImageFrame::ImageFrame(QObject *parent)
+ImageFrame::ImageFrame(QObject* parent)
     : QObject(parent)
 {
 }
 
-ImageFrame::ImageFrame(const QImage &image, QObject *parent)
+ImageFrame::ImageFrame(const QImage& image, QObject* parent)
     : QObject(parent)
 {
     const QSizeF logicalSize = image.deviceIndependentSize();
-    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width()) && isPositiveFiniteInteger(logicalSize.height())) {
+    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
+        && isPositiveFiniteInteger(logicalSize.height())) {
         m_logicalSize = logicalSize;
         m_payloadByteSize = image.sizeInBytes();
         m_hasAlphaChannel = image.hasAlphaChannel();
@@ -178,11 +161,12 @@ ImageFrame::ImageFrame(const QImage &image, QObject *parent)
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-ImageFrame::ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QObject *parent)
+ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeForTest, QObject* parent)
     : QObject(parent)
 {
     const QSizeF logicalSize = image.deviceIndependentSize();
-    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width()) && isPositiveFiniteInteger(logicalSize.height())) {
+    if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
+        && isPositiveFiniteInteger(logicalSize.height())) {
         m_logicalSize = logicalSize;
         m_payloadByteSize = payloadByteSizeForTest;
         m_hasAlphaChannel = image.hasAlphaChannel();
@@ -196,56 +180,35 @@ bool ImageFrame::isValid() const
     return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
 }
 
-QSizeF ImageFrame::logicalSize() const
-{
-    return m_logicalSize;
-}
+QSizeF ImageFrame::logicalSize() const { return m_logicalSize; }
 
-qint64 ImageFrame::payloadByteSize() const
-{
-    return m_payloadByteSize;
-}
+qint64 ImageFrame::payloadByteSize() const { return m_payloadByteSize; }
 
-bool ImageFrame::hasAlphaChannel() const
-{
-    return m_hasAlphaChannel;
-}
+bool ImageFrame::hasAlphaChannel() const { return m_hasAlphaChannel; }
 
-ImageFrame::OrientationPolicy ImageFrame::orientationPolicy() const
-{
-    return m_orientationPolicy;
-}
+ImageFrame::OrientationPolicy ImageFrame::orientationPolicy() const { return m_orientationPolicy; }
 
-const QImage &ImageFrame::imagePayload() const
-{
-    return m_image;
-}
+const QImage& ImageFrame::imagePayload() const { return m_image; }
 
-ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(std::unique_ptr<ImageFrame> frame, QObject *parent)
+ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(
+    std::unique_ptr<ImageFrame> frame, QObject* parent)
     : QObject(parent)
     , m_frame(frame.release())
-    , m_releaseFrame([](ImageFrame *releasedFrame) {
-        delete releasedFrame;
-    })
+    , m_releaseFrame([](ImageFrame* releasedFrame) { delete releasedFrame; })
 {
 }
 
-ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(ImageFrame *frame, ReleaseCallback releaseFrame, QObject *parent)
+ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(
+    ImageFrame* frame, ReleaseCallback releaseFrame, QObject* parent)
     : QObject(parent)
     , m_frame(frame)
     , m_releaseFrame(std::move(releaseFrame))
 {
 }
 
-ImageSequenceProviderFrameHandle::~ImageSequenceProviderFrameHandle()
-{
-    release();
-}
+ImageSequenceProviderFrameHandle::~ImageSequenceProviderFrameHandle() { release(); }
 
-ImageFrame *ImageSequenceProviderFrameHandle::frame() const
-{
-    return m_frame;
-}
+ImageFrame* ImageSequenceProviderFrameHandle::frame() const { return m_frame; }
 
 void ImageSequenceProviderFrameHandle::release()
 {
@@ -254,7 +217,7 @@ void ImageSequenceProviderFrameHandle::release()
     }
 
     m_released = true;
-    ImageFrame *releasedFrame = m_frame;
+    ImageFrame* releasedFrame = m_frame;
     m_frame = nullptr;
     if (m_releaseFrame) {
         m_releaseFrame(releasedFrame);
@@ -262,39 +225,27 @@ void ImageSequenceProviderFrameHandle::release()
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageFrame::imageForTest() const
-{
-    return m_image;
-}
+QImage ImageFrame::imageForTest() const { return m_image; }
 #endif
 
-TimedImageFrameList::TimedImageFrameList(QObject *parent)
+TimedImageFrameList::TimedImageFrameList(QObject* parent)
     : QObject(parent)
 {
 }
 
-int TimedImageFrameList::count() const
-{
-    return m_frameDurations.size();
-}
+int TimedImageFrameList::count() const { return m_frameDurations.size(); }
 
-QString TimedImageFrameList::errorString() const
-{
-    return m_errorString;
-}
+QString TimedImageFrameList::errorString() const { return m_errorString; }
 
-QString TimedImageFrameList::warningString() const
-{
-    return m_warningString;
-}
+QString TimedImageFrameList::warningString() const { return m_warningString; }
 
-bool TimedImageFrameList::appendFrame(const QImage &image, int durationMilliseconds)
+bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseconds)
 {
     ImageFrame frame(image);
     return appendFrame(&frame, durationMilliseconds);
 }
 
-bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMilliseconds)
+bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMilliseconds)
 {
     if (!frame || !frame->isValid()) {
         setErrorString(QStringLiteral("ImageFrame is required"));
@@ -326,7 +277,8 @@ bool TimedImageFrameList::appendFrame(ImageFrame *frame, int durationMillisecond
         return false;
     }
 
-    if (static_cast<qint64>(totalDuration()) + durationMilliseconds > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+    if (static_cast<qint64>(totalDuration()) + durationMilliseconds
+        > ImageSequenceLimits::maximumTotalSequenceDuration()) {
         setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTotalSequenceDuration"));
         return false;
     }
@@ -348,7 +300,8 @@ void TimedImageFrameList::clear()
     }
 
     const bool shouldEmitCountChanged = !m_frameDurations.isEmpty();
-    const bool shouldEmitDiagnosticsChanged = !m_errorString.isEmpty() || !m_warningString.isEmpty();
+    const bool shouldEmitDiagnosticsChanged
+        = !m_errorString.isEmpty() || !m_warningString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
     m_frameImages.clear();
@@ -364,23 +317,15 @@ void TimedImageFrameList::clear()
 
 bool TimedImageFrameList::isValid() const
 {
-    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0 && !m_frameDurations.isEmpty();
+    return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0
+        && !m_frameDurations.isEmpty();
 }
 
-QSizeF TimedImageFrameList::logicalSize() const
-{
-    return m_logicalSize;
-}
+QSizeF TimedImageFrameList::logicalSize() const { return m_logicalSize; }
 
-QVector<int> TimedImageFrameList::frameDurations() const
-{
-    return m_frameDurations;
-}
+QVector<int> TimedImageFrameList::frameDurations() const { return m_frameDurations; }
 
-QVector<QImage> TimedImageFrameList::frameImages() const
-{
-    return m_frameImages;
-}
+QVector<QImage> TimedImageFrameList::frameImages() const { return m_frameImages; }
 
 int TimedImageFrameList::totalDuration() const
 {
@@ -391,7 +336,7 @@ int TimedImageFrameList::totalDuration() const
     return total;
 }
 
-void TimedImageFrameList::setErrorString(const QString &errorString)
+void TimedImageFrameList::setErrorString(const QString& errorString)
 {
     if (m_errorString == errorString) {
         return;

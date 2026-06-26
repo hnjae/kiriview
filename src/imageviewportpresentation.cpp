@@ -7,7 +7,7 @@ using namespace ImageViewportInternal;
 
 namespace {
 
-PresentationGeometry::State geometryState(const ImageViewportPrivate &viewport)
+PresentationGeometry::State geometryState(const ImageViewportPrivate& viewport)
 {
     return {
         viewport.hasReadyDisplay(),
@@ -23,7 +23,8 @@ PresentationGeometry::State geometryState(const ImageViewportPrivate &viewport)
     };
 }
 
-PresentationGeometry::State geometryStateForItemBounds(const ImageViewportPrivate &viewport, const QRectF &bounds)
+PresentationGeometry::State geometryStateForItemBounds(
+    const ImageViewportPrivate& viewport, const QRectF& bounds)
 {
     PresentationGeometry::State state = geometryState(viewport);
     state.itemBounds = bounds;
@@ -42,10 +43,7 @@ QRectF ImageViewportPrivate::visibleImageRect() const
     return PresentationGeometry::visibleImageRect(geometryState(*this));
 }
 
-ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const
-{
-    return m_fillMode;
-}
+ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const { return m_fillMode; }
 
 void ImageViewportPrivate::setFillMode(FillMode mode)
 {
@@ -87,10 +85,7 @@ void ImageViewportPrivate::setVerticalAlignment(VerticalAlignment alignment)
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::smoothing() const
-{
-    return m_smoothing;
-}
+bool ImageViewportPrivate::smoothing() const { return m_smoothing; }
 
 void ImageViewportPrivate::setSmoothing(bool smoothing)
 {
@@ -102,10 +97,7 @@ void ImageViewportPrivate::setSmoothing(bool smoothing)
     notifyPresentationChanged(false);
 }
 
-bool ImageViewportPrivate::mipmap() const
-{
-    return m_mipmap;
-}
+bool ImageViewportPrivate::mipmap() const { return m_mipmap; }
 
 void ImageViewportPrivate::setMipmap(bool mipmap)
 {
@@ -117,10 +109,7 @@ void ImageViewportPrivate::setMipmap(bool mipmap)
     notifyPresentationChanged(false);
 }
 
-bool ImageViewportPrivate::mirrorHorizontally() const
-{
-    return m_mirrorHorizontally;
-}
+bool ImageViewportPrivate::mirrorHorizontally() const { return m_mirrorHorizontally; }
 
 void ImageViewportPrivate::setMirrorHorizontally(bool mirror)
 {
@@ -132,10 +121,7 @@ void ImageViewportPrivate::setMirrorHorizontally(bool mirror)
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::mirrorVertically() const
-{
-    return m_mirrorVertically;
-}
+bool ImageViewportPrivate::mirrorVertically() const { return m_mirrorVertically; }
 
 void ImageViewportPrivate::setMirrorVertically(bool mirror)
 {
@@ -162,12 +148,9 @@ void ImageViewportPrivate::setBackgroundMode(BackgroundMode mode)
     notifyPresentationChanged(false);
 }
 
-QColor ImageViewportPrivate::backgroundColor() const
-{
-    return m_backgroundColor;
-}
+QColor ImageViewportPrivate::backgroundColor() const { return m_backgroundColor; }
 
-void ImageViewportPrivate::setBackgroundColor(const QColor &color)
+void ImageViewportPrivate::setBackgroundColor(const QColor& color)
 {
     if (m_backgroundColor == color) {
         return;
@@ -177,10 +160,7 @@ void ImageViewportPrivate::setBackgroundColor(const QColor &color)
     notifyPresentationChanged(false);
 }
 
-double ImageViewportPrivate::zoom() const
-{
-    return m_zoom;
-}
+double ImageViewportPrivate::zoom() const { return m_zoom; }
 
 void ImageViewportPrivate::setZoom(double zoom)
 {
@@ -192,12 +172,9 @@ void ImageViewportPrivate::setZoom(double zoom)
     notifyPresentationChanged(true);
 }
 
-QPointF ImageViewportPrivate::pan() const
-{
-    return m_pan;
-}
+QPointF ImageViewportPrivate::pan() const { return m_pan; }
 
-void ImageViewportPrivate::setPan(const QPointF &pan)
+void ImageViewportPrivate::setPan(const QPointF& pan)
 {
     const bool unchanged = m_pan.x() == pan.x() && m_pan.y() == pan.y();
     if (!isFinitePoint(pan) || unchanged) {
@@ -208,10 +185,7 @@ void ImageViewportPrivate::setPan(const QPointF &pan)
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::looping() const
-{
-    return m_looping;
-}
+bool ImageViewportPrivate::looping() const { return m_looping; }
 
 void ImageViewportPrivate::setLooping(bool looping)
 {
@@ -241,8 +215,8 @@ bool ImageViewportPrivate::containsVisibleImagePoint(double x, double y) const
 QVariantMap ImageViewportPrivate::invalidRange()
 {
     return {
-        {QStringLiteral("minimum"), -1},
-        {QStringLiteral("maximum"), -1},
+        { QStringLiteral("minimum"), -1 },
+        { QStringLiteral("maximum"), -1 },
     };
 }
 
@@ -275,12 +249,12 @@ QRectF ImageViewportPrivate::itemBounds() const
     return QRectF(0.0, 0.0, width(), height());
 }
 
-QRectF ImageViewportPrivate::contentRectForItemBounds(const QRectF &bounds) const
+QRectF ImageViewportPrivate::contentRectForItemBounds(const QRectF& bounds) const
 {
     return PresentationGeometry::contentRect(geometryStateForItemBounds(*this, bounds));
 }
 
-QRectF ImageViewportPrivate::visibleImageRectForItemBounds(const QRectF &bounds) const
+QRectF ImageViewportPrivate::visibleImageRectForItemBounds(const QRectF& bounds) const
 {
     return PresentationGeometry::visibleImageRect(geometryStateForItemBounds(*this, bounds));
 }

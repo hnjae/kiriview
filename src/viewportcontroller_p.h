@@ -7,7 +7,7 @@ class ImageViewportPrivate;
 class ViewportController
 {
 public:
-    explicit ViewportController(ImageViewportPrivate &viewport);
+    explicit ViewportController(ImageViewportPrivate& viewport);
 
     ImageViewport::CommandOutcome clear();
     ImageViewport::CommandOutcome play();
@@ -23,5 +23,5 @@ public:
 #endif
 
 private:
-    ImageViewportPrivate &viewport;
+    ImageViewportPrivate& viewport;
 };

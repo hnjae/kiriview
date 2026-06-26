@@ -2,30 +2,18 @@
 
 #include "imageviewport_p.h"
 
-ViewportController::ViewportController(ImageViewportPrivate &viewport)
+ViewportController::ViewportController(ImageViewportPrivate& viewport)
     : viewport(viewport)
 {
 }
 
-ImageViewport::CommandOutcome ViewportController::clear()
-{
-    return viewport.clearCommandImpl();
-}
+ImageViewport::CommandOutcome ViewportController::clear() { return viewport.clearCommandImpl(); }
 
-ImageViewport::CommandOutcome ViewportController::play()
-{
-    return viewport.playCommandImpl();
-}
+ImageViewport::CommandOutcome ViewportController::play() { return viewport.playCommandImpl(); }
 
-ImageViewport::CommandOutcome ViewportController::pause()
-{
-    return viewport.pauseCommandImpl();
-}
+ImageViewport::CommandOutcome ViewportController::pause() { return viewport.pauseCommandImpl(); }
 
-ImageViewport::CommandOutcome ViewportController::stop()
-{
-    return viewport.stopCommandImpl();
-}
+ImageViewport::CommandOutcome ViewportController::stop() { return viewport.stopCommandImpl(); }
 
 ImageViewport::CommandOutcome ViewportController::seek(int frame)
 {
@@ -107,10 +95,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
     return outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
-{
-    return controller.resetView();
-}
+ImageViewport::CommandOutcome ImageViewportPrivate::resetView() { return controller.resetView(); }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)

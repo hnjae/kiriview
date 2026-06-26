@@ -5,32 +5,33 @@
 
 using namespace ImageViewportInternal;
 
-ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject *parent)
+ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject* parent)
     : QObject(parent)
 {
 }
 
-std::shared_ptr<ImageSequenceProviderSessionFactory> ImageSequenceProviderAdapter::sessionFactory() const
+std::shared_ptr<ImageSequenceProviderSessionFactory>
+ImageSequenceProviderAdapter::sessionFactory() const
 {
     return {};
 }
 
-ImageSequenceProviderMetadata ImageSequenceProviderAdapter::knownMetadata() const
-{
-    return {};
-}
+ImageSequenceProviderMetadata ImageSequenceProviderAdapter::knownMetadata() const { return {}; }
 
-ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::timedPlaybackCapability() const
+ImageSequenceProviderAdapter::CapabilitySupport
+ImageSequenceProviderAdapter::timedPlaybackCapability() const
 {
     return CapabilitySupport::Unavailable;
 }
 
-ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::frameSeekCapability() const
+ImageSequenceProviderAdapter::CapabilitySupport
+ImageSequenceProviderAdapter::frameSeekCapability() const
 {
     return CapabilitySupport::Unavailable;
 }
 
-ImageSequenceProviderAdapter::CapabilitySupport ImageSequenceProviderAdapter::positionSeekCapability() const
+ImageSequenceProviderAdapter::CapabilitySupport
+ImageSequenceProviderAdapter::positionSeekCapability() const
 {
     return CapabilitySupport::Unavailable;
 }
@@ -40,17 +41,11 @@ ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
 {
 }
 
-quint64 ImageSequenceProviderRequestToken::id() const
-{
-    return m_id;
-}
+quint64 ImageSequenceProviderRequestToken::id() const { return m_id; }
 
-bool ImageSequenceProviderRequestToken::isValid() const
-{
-    return m_id != 0;
-}
+bool ImageSequenceProviderRequestToken::isValid() const { return m_id != 0; }
 
-ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF &logicalSize)
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF& logicalSize)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::Still;
@@ -58,19 +53,22 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(const QSizeF 
     return metadata;
 }
 
-ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames(const QSizeF &logicalSize, int frameCount, int frameDuration)
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames(
+    const QSizeF& logicalSize, int frameCount, int frameDuration)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::FixedDurationFrames;
     metadata.m_logicalSize = logicalSize;
     if (frameCount > 0) {
-        const int retainedFrameCount = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+        const int retainedFrameCount
+            = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
         metadata.m_frameDurations = QVector<int>(retainedFrameCount, frameDuration);
     }
     return metadata;
 }
 
-ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations)
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
+    const QSizeF& logicalSize, QVector<int> frameDurations)
 {
     ImageSequenceProviderMetadata metadata;
     metadata.m_timingModel = TimingModel::TimedFrameList;
@@ -81,7 +79,8 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(cons
 
 bool ImageSequenceProviderMetadata::isValid() const
 {
-    if (!isPositiveFiniteInteger(m_logicalSize.width()) || !isPositiveFiniteInteger(m_logicalSize.height())) {
+    if (!isPositiveFiniteInteger(m_logicalSize.width())
+        || !isPositiveFiniteInteger(m_logicalSize.height())) {
         return false;
     }
     if (isStill()) {
@@ -107,25 +106,17 @@ bool ImageSequenceProviderMetadata::isSpecified() const
     return m_timingModel != TimingModel::Invalid;
 }
 
-bool ImageSequenceProviderMetadata::isStill() const
-{
-    return m_timingModel == TimingModel::Still;
-}
+bool ImageSequenceProviderMetadata::isStill() const { return m_timingModel == TimingModel::Still; }
 
 bool ImageSequenceProviderMetadata::isTimedFrameList() const
 {
-    return m_timingModel == TimingModel::FixedDurationFrames || m_timingModel == TimingModel::TimedFrameList;
+    return m_timingModel == TimingModel::FixedDurationFrames
+        || m_timingModel == TimingModel::TimedFrameList;
 }
 
-QSizeF ImageSequenceProviderMetadata::logicalSize() const
-{
-    return m_logicalSize;
-}
+QSizeF ImageSequenceProviderMetadata::logicalSize() const { return m_logicalSize; }
 
-QVector<int> ImageSequenceProviderMetadata::frameDurations() const
-{
-    return m_frameDurations;
-}
+QVector<int> ImageSequenceProviderMetadata::frameDurations() const { return m_frameDurations; }
 
 ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
 {
@@ -135,7 +126,8 @@ ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFram
     return metadata;
 }
 
-ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::timedFrame(int frame, int frameStartPosition, int frameDuration)
+ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::timedFrame(
+    int frame, int frameStartPosition, int frameDuration)
 {
     ImageSequenceProviderFrameMetadata metadata;
     metadata.m_timingModel = TimingModel::TimedFrame;
@@ -151,7 +143,8 @@ bool ImageSequenceProviderFrameMetadata::isValid() const
         return m_frame == 0;
     }
     if (isTimedFrame()) {
-        return m_frame >= 0 && m_frameStartPosition >= 0 && (m_frameDuration == -1 || m_frameDuration > 0);
+        return m_frame >= 0 && m_frameStartPosition >= 0
+            && (m_frameDuration == -1 || m_frameDuration > 0);
     }
 
     return false;
@@ -167,39 +160,25 @@ bool ImageSequenceProviderFrameMetadata::isTimedFrame() const
     return m_timingModel == TimingModel::TimedFrame;
 }
 
-int ImageSequenceProviderFrameMetadata::frame() const
-{
-    return m_frame;
-}
+int ImageSequenceProviderFrameMetadata::frame() const { return m_frame; }
 
-int ImageSequenceProviderFrameMetadata::frameStartPosition() const
-{
-    return m_frameStartPosition;
-}
+int ImageSequenceProviderFrameMetadata::frameStartPosition() const { return m_frameStartPosition; }
 
-int ImageSequenceProviderFrameMetadata::frameDuration() const
-{
-    return m_frameDuration;
-}
+int ImageSequenceProviderFrameMetadata::frameDuration() const { return m_frameDuration; }
 
-ImageSequenceProviderSession::ImageSequenceProviderSession(QObject *parent)
+ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
     : QObject(parent)
 {
 }
 
-void ImageSequenceProviderSession::requestFrame(const ImageSequenceProviderRequestToken &, int)
-{
-}
+void ImageSequenceProviderSession::requestFrame(const ImageSequenceProviderRequestToken&, int) { }
 
-void ImageSequenceProviderSession::requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int)
+void ImageSequenceProviderSession::requestPlayback(
+    const ImageSequenceProviderRequestToken& token, int frame, int)
 {
     requestFrame(token, frame);
 }
 
-void ImageSequenceProviderSession::cancelRequest(const ImageSequenceProviderRequestToken &)
-{
-}
+void ImageSequenceProviderSession::cancelRequest(const ImageSequenceProviderRequestToken&) { }
 
-void ImageSequenceProviderSession::close()
-{
-}
+void ImageSequenceProviderSession::close() { }

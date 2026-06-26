@@ -1,8 +1,8 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include <QtCore/QPointer>
 #include <QtCore/QPointF>
+#include <QtCore/QPointer>
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QVariantMap>
@@ -41,18 +41,17 @@ private:
         Provider,
     };
 
-    explicit ImageSequence(QObject *parent = nullptr);
-    explicit ImageSequence(const QSizeF &logicalSize, QImage stillImage, QObject *parent = nullptr);
-    explicit ImageSequence(const QSizeF &logicalSize, QVector<int> frameDurations, QVector<QImage> frameImages, QObject *parent = nullptr);
-    explicit ImageSequence(std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-        bool hasProviderKnownMetadata,
-        bool hasCompleteProviderKnownMetadata,
-        const QSizeF &providerKnownLogicalSize,
-        QVector<int> providerKnownFrameDurations,
+    explicit ImageSequence(QObject* parent = nullptr);
+    explicit ImageSequence(const QSizeF& logicalSize, QImage stillImage, QObject* parent = nullptr);
+    explicit ImageSequence(const QSizeF& logicalSize, QVector<int> frameDurations,
+        QVector<QImage> frameImages, QObject* parent = nullptr);
+    explicit ImageSequence(
+        std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
+        bool hasProviderKnownMetadata, bool hasCompleteProviderKnownMetadata,
+        const QSizeF& providerKnownLogicalSize, QVector<int> providerKnownFrameDurations,
         ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
         ImageSequenceProviderCapabilitySupport frameSeekCapability,
-        ImageSequenceProviderCapabilitySupport positionSeekCapability,
-        QObject *parent = nullptr);
+        ImageSequenceProviderCapabilitySupport positionSeekCapability, QObject* parent = nullptr);
 
     bool isValid() const;
     bool isStill() const;
@@ -68,6 +67,7 @@ private:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 public:
     QImage frameImageForTest(int frame) const;
+
 private:
 #endif
 
@@ -81,9 +81,12 @@ private:
     bool m_hasCompleteProviderKnownMetadata = false;
     QSizeF m_providerKnownLogicalSize;
     QVector<int> m_providerKnownFrameDurations;
-    ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_providerFrameSeekCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_providerPositionSeekCapability = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport m_providerFrameSeekCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport m_providerPositionSeekCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
 
     friend class ImageSequenceFactory;
     friend class ImageViewport;
@@ -107,10 +110,10 @@ public:
     };
     Q_ENUM(OrientationPolicy)
 
-    explicit ImageFrame(QObject *parent = nullptr);
-    explicit ImageFrame(const QImage &image, QObject *parent = nullptr);
+    explicit ImageFrame(QObject* parent = nullptr);
+    explicit ImageFrame(const QImage& image, QObject* parent = nullptr);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    ImageFrame(const QImage &image, qsizetype payloadByteSizeForTest, QObject *parent = nullptr);
+    ImageFrame(const QImage& image, qsizetype payloadByteSizeForTest, QObject* parent = nullptr);
 #endif
 
     bool isValid() const;
@@ -124,7 +127,7 @@ public:
 #endif
 
 private:
-    const QImage &imagePayload() const;
+    const QImage& imagePayload() const;
 
     QImage m_image;
     QSizeF m_logicalSize;
@@ -145,17 +148,19 @@ class ImageSequenceProviderFrameHandle : public QObject
     QML_UNCREATABLE("ImageSequenceProviderFrameHandle objects are created by provider adapters")
 
 public:
-    using ReleaseCallback = std::function<void(ImageFrame *)>;
+    using ReleaseCallback = std::function<void(ImageFrame*)>;
 
-    explicit ImageSequenceProviderFrameHandle(std::unique_ptr<ImageFrame> frame, QObject *parent = nullptr);
-    ImageSequenceProviderFrameHandle(ImageFrame *frame, ReleaseCallback releaseFrame, QObject *parent = nullptr);
+    explicit ImageSequenceProviderFrameHandle(
+        std::unique_ptr<ImageFrame> frame, QObject* parent = nullptr);
+    ImageSequenceProviderFrameHandle(
+        ImageFrame* frame, ReleaseCallback releaseFrame, QObject* parent = nullptr);
     ~ImageSequenceProviderFrameHandle() override;
 
-    ImageFrame *frame() const;
+    ImageFrame* frame() const;
     void release();
 
 private:
-    ImageFrame *m_frame = nullptr;
+    ImageFrame* m_frame = nullptr;
     ReleaseCallback m_releaseFrame;
     bool m_released = false;
 };
@@ -169,13 +174,13 @@ class TimedImageFrameList : public QObject
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
 
 public:
-    explicit TimedImageFrameList(QObject *parent = nullptr);
+    explicit TimedImageFrameList(QObject* parent = nullptr);
 
     int count() const;
     QString errorString() const;
     QString warningString() const;
-    bool appendFrame(const QImage &image, int durationMilliseconds);
-    Q_INVOKABLE bool appendFrame(ImageFrame *frame, int durationMilliseconds);
+    bool appendFrame(const QImage& image, int durationMilliseconds);
+    Q_INVOKABLE bool appendFrame(ImageFrame* frame, int durationMilliseconds);
     Q_INVOKABLE void clear();
 
 signals:
@@ -188,7 +193,7 @@ private:
     QVector<int> frameDurations() const;
     QVector<QImage> frameImages() const;
     int totalDuration() const;
-    void setErrorString(const QString &errorString);
+    void setErrorString(const QString& errorString);
 
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
@@ -208,7 +213,7 @@ class ImageSequenceProviderAdapter : public QObject
 public:
     using CapabilitySupport = ImageSequenceProviderCapabilitySupport;
 
-    explicit ImageSequenceProviderAdapter(QObject *parent = nullptr);
+    explicit ImageSequenceProviderAdapter(QObject* parent = nullptr);
     virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const = 0;
     virtual ImageSequenceProviderMetadata knownMetadata() const;
     virtual CapabilitySupport timedPlaybackCapability() const;
@@ -225,12 +230,14 @@ public:
     quint64 id() const;
     bool isValid() const;
 
-    friend bool operator==(const ImageSequenceProviderRequestToken &left, const ImageSequenceProviderRequestToken &right)
+    friend bool operator==(const ImageSequenceProviderRequestToken& left,
+        const ImageSequenceProviderRequestToken& right)
     {
         return left.m_id == right.m_id;
     }
 
-    friend bool operator!=(const ImageSequenceProviderRequestToken &left, const ImageSequenceProviderRequestToken &right)
+    friend bool operator!=(const ImageSequenceProviderRequestToken& left,
+        const ImageSequenceProviderRequestToken& right)
     {
         return !(left == right);
     }
@@ -250,9 +257,11 @@ public:
     };
 
     ImageSequenceProviderMetadata() = default;
-    static ImageSequenceProviderMetadata still(const QSizeF &logicalSize);
-    static ImageSequenceProviderMetadata fixedDurationFrames(const QSizeF &logicalSize, int frameCount, int frameDuration);
-    static ImageSequenceProviderMetadata timedFrameList(const QSizeF &logicalSize, QVector<int> frameDurations);
+    static ImageSequenceProviderMetadata still(const QSizeF& logicalSize);
+    static ImageSequenceProviderMetadata fixedDurationFrames(
+        const QSizeF& logicalSize, int frameCount, int frameDuration);
+    static ImageSequenceProviderMetadata timedFrameList(
+        const QSizeF& logicalSize, QVector<int> frameDurations);
 
     bool isSpecified() const;
     bool isValid() const;
@@ -278,7 +287,8 @@ public:
 
     ImageSequenceProviderFrameMetadata() = default;
     static ImageSequenceProviderFrameMetadata stillFrame();
-    static ImageSequenceProviderFrameMetadata timedFrame(int frame, int frameStartPosition, int frameDuration = -1);
+    static ImageSequenceProviderFrameMetadata timedFrame(
+        int frame, int frameStartPosition, int frameDuration = -1);
 
     bool isValid() const;
     bool isStillFrame() const;
@@ -299,34 +309,42 @@ class ImageSequenceProviderSession : public QObject
     Q_OBJECT
 
 public:
-    explicit ImageSequenceProviderSession(QObject *parent = nullptr);
+    explicit ImageSequenceProviderSession(QObject* parent = nullptr);
     ~ImageSequenceProviderSession() override = default;
 
-    virtual void requestMetadata(const ImageSequenceProviderRequestToken &token) = 0;
-    virtual void requestFrame(const ImageSequenceProviderRequestToken &token, int frame);
-    virtual void requestPlayback(const ImageSequenceProviderRequestToken &token, int frame, int position);
-    virtual void cancelRequest(const ImageSequenceProviderRequestToken &token);
+    virtual void requestMetadata(const ImageSequenceProviderRequestToken& token) = 0;
+    virtual void requestFrame(const ImageSequenceProviderRequestToken& token, int frame);
+    virtual void requestPlayback(
+        const ImageSequenceProviderRequestToken& token, int frame, int position);
+    virtual void cancelRequest(const ImageSequenceProviderRequestToken& token);
     virtual void close();
 
 signals:
-    void metadataReady(const ImageSequenceProviderRequestToken &token, const ImageSequenceProviderMetadata &metadata);
-    void imageFrameReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame);
-    void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken &token, ImageFrame *frame, const ImageSequenceProviderFrameMetadata &metadata);
-    void frameHandleReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame);
-    void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken &token, ImageSequenceProviderFrameHandle *frame, const ImageSequenceProviderFrameMetadata &metadata);
-    void providerWaiting(const ImageSequenceProviderRequestToken &token);
-    void providerProgress(const ImageSequenceProviderRequestToken &token, double progress);
-    void endOfSequence(const ImageSequenceProviderRequestToken &token);
-    void providerFailed(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
-    void providerUnsupported(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
-    void providerCancelled(const ImageSequenceProviderRequestToken &token, const QString &diagnostic);
+    void metadataReady(const ImageSequenceProviderRequestToken& token,
+        const ImageSequenceProviderMetadata& metadata);
+    void imageFrameReady(const ImageSequenceProviderRequestToken& token, ImageFrame* frame);
+    void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken& token,
+        ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata);
+    void frameHandleReady(
+        const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame);
+    void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken& token,
+        ImageSequenceProviderFrameHandle* frame,
+        const ImageSequenceProviderFrameMetadata& metadata);
+    void providerWaiting(const ImageSequenceProviderRequestToken& token);
+    void providerProgress(const ImageSequenceProviderRequestToken& token, double progress);
+    void endOfSequence(const ImageSequenceProviderRequestToken& token);
+    void providerFailed(const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+    void providerUnsupported(
+        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+    void providerCancelled(
+        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
 };
 
 class ImageSequenceProviderSessionFactory
 {
 public:
     virtual ~ImageSequenceProviderSessionFactory() = default;
-    virtual ImageSequenceProviderSession *createSession(QObject *parent) = 0;
+    virtual ImageSequenceProviderSession* createSession(QObject* parent) = 0;
 };
 
 class ImageSequenceFactoryResult : public QObject
@@ -334,7 +352,7 @@ class ImageSequenceFactoryResult : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_UNCREATABLE("ImageSequenceFactoryResult objects are returned by ImageSequenceFactory")
-    Q_PROPERTY(ImageSequence *sequence READ sequence CONSTANT)
+    Q_PROPERTY(ImageSequence* sequence READ sequence CONSTANT)
     Q_PROPERTY(FactoryOutcome outcome READ outcome CONSTANT)
     Q_PROPERTY(QString errorString READ errorString CONSTANT)
     Q_PROPERTY(QString warningString READ warningString CONSTANT)
@@ -348,13 +366,10 @@ public:
     };
     Q_ENUM(FactoryOutcome)
 
-    explicit ImageSequenceFactoryResult(ImageSequence *sequence,
-        FactoryOutcome outcome,
-        QString errorString = {},
-        QString warningString = {},
-        QObject *parent = nullptr);
+    explicit ImageSequenceFactoryResult(ImageSequence* sequence, FactoryOutcome outcome,
+        QString errorString = {}, QString warningString = {}, QObject* parent = nullptr);
 
-    ImageSequence *sequence() const;
+    ImageSequence* sequence() const;
     FactoryOutcome outcome() const;
     QString errorString() const;
     QString warningString() const;
@@ -363,10 +378,8 @@ private:
     friend class ImageSequenceFactory;
 
     explicit ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
-        FactoryOutcome outcome,
-        QString errorString = {},
-        QString warningString = {},
-        QObject *parent = nullptr);
+        FactoryOutcome outcome, QString errorString = {}, QString warningString = {},
+        QObject* parent = nullptr);
 
     QPointer<ImageSequence> m_sequence;
     std::shared_ptr<ImageSequence> m_sequenceOwner;
@@ -382,13 +395,14 @@ class ImageSequenceFactory : public QObject
     QML_SINGLETON
 
 public:
-    explicit ImageSequenceFactory(QObject *parent = nullptr);
+    explicit ImageSequenceFactory(QObject* parent = nullptr);
 
-    ImageSequenceFactoryResult *fromFrame(const QImage &image);
-    ImageSequenceFactoryResult *fromTimedFrameList(const QVector<QImage> &images, const QVector<int> &durationsMilliseconds);
-    Q_INVOKABLE ImageSequenceFactoryResult *fromFrame(ImageFrame *frame);
-    Q_INVOKABLE ImageSequenceFactoryResult *fromTimedFrameList(TimedImageFrameList *list);
-    Q_INVOKABLE ImageSequenceFactoryResult *fromProvider(ImageSequenceProviderAdapter *adapter);
+    ImageSequenceFactoryResult* fromFrame(const QImage& image);
+    ImageSequenceFactoryResult* fromTimedFrameList(
+        const QVector<QImage>& images, const QVector<int>& durationsMilliseconds);
+    Q_INVOKABLE ImageSequenceFactoryResult* fromFrame(ImageFrame* frame);
+    Q_INVOKABLE ImageSequenceFactoryResult* fromTimedFrameList(TimedImageFrameList* list);
+    Q_INVOKABLE ImageSequenceFactoryResult* fromProvider(ImageSequenceProviderAdapter* adapter);
 };
 
 class ImageSequenceLimits : public QObject
@@ -406,7 +420,7 @@ class ImageSequenceLimits : public QObject
     Q_PROPERTY(int maximumDiagnosticStringLength READ getMaximumDiagnosticStringLength CONSTANT)
 
 public:
-    explicit ImageSequenceLimits(QObject *parent = nullptr);
+    explicit ImageSequenceLimits(QObject* parent = nullptr);
 
     int getMaximumLogicalWidth() const;
     int getMaximumLogicalHeight() const;
@@ -432,7 +446,7 @@ class ImageViewport : public QQuickItem
     Q_OBJECT
     Q_CLASSINFO("RegisterEnumClassesUnscoped", "false")
     QML_ELEMENT
-    Q_PROPERTY(ImageSequence *sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
+    Q_PROPERTY(ImageSequence* sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
     Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
     Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
     Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
@@ -458,14 +472,20 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
     Q_PROPERTY(FillMode fillMode READ fillMode WRITE setFillMode NOTIFY presentationChanged)
-    Q_PROPERTY(HorizontalAlignment horizontalAlignment READ horizontalAlignment WRITE setHorizontalAlignment NOTIFY presentationChanged)
-    Q_PROPERTY(VerticalAlignment verticalAlignment READ verticalAlignment WRITE setVerticalAlignment NOTIFY presentationChanged)
+    Q_PROPERTY(HorizontalAlignment horizontalAlignment READ horizontalAlignment WRITE
+            setHorizontalAlignment NOTIFY presentationChanged)
+    Q_PROPERTY(VerticalAlignment verticalAlignment READ verticalAlignment WRITE setVerticalAlignment
+            NOTIFY presentationChanged)
     Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing NOTIFY presentationChanged)
     Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap NOTIFY presentationChanged)
-    Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally NOTIFY presentationChanged)
-    Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically NOTIFY presentationChanged)
-    Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode NOTIFY presentationChanged)
-    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY presentationChanged)
+    Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally NOTIFY
+            presentationChanged)
+    Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically NOTIFY
+            presentationChanged)
+    Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode NOTIFY
+            presentationChanged)
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY
+            presentationChanged)
     Q_PROPERTY(double zoom READ zoom WRITE setZoom NOTIFY presentationChanged)
     Q_PROPERTY(QPointF pan READ pan WRITE setPan NOTIFY presentationChanged)
     Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
@@ -562,11 +582,11 @@ public:
     };
     Q_ENUM(BackgroundMode)
 
-    explicit ImageViewport(QQuickItem *parent = nullptr);
+    explicit ImageViewport(QQuickItem* parent = nullptr);
     ~ImageViewport() override;
 
-    ImageSequence *sequence() const;
-    void setSequence(ImageSequence *sequence);
+    ImageSequence* sequence() const;
+    void setSequence(ImageSequence* sequence);
 
     RequestStatus requestStatus() const;
     RequestReason requestReason() const;
@@ -610,11 +630,11 @@ public:
     BackgroundMode backgroundMode() const;
     void setBackgroundMode(BackgroundMode mode);
     QColor backgroundColor() const;
-    void setBackgroundColor(const QColor &color);
+    void setBackgroundColor(const QColor& color);
     double zoom() const;
     void setZoom(double zoom);
     QPointF pan() const;
-    void setPan(const QPointF &pan);
+    void setPan(const QPointF& pan);
     bool looping() const;
     void setLooping(bool looping);
 
@@ -649,8 +669,8 @@ signals:
     void loopingChanged();
 
 protected:
-    QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
-    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
+    QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data) override;
+    void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
     friend class ImageViewportPrivate;

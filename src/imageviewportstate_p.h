@@ -10,7 +10,8 @@
 
 namespace ImageViewportInternal {
 
-struct ViewportChangeSet {
+struct ViewportChangeSet
+{
     bool requestState = false;
     bool displayState = false;
     bool geometryState = false;
@@ -25,10 +26,13 @@ struct ViewportChangeSet {
     bool scheduleUpdate = false;
 };
 
-struct PresentationState {
+struct PresentationState
+{
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
-    ImageViewport::HorizontalAlignment horizontalAlignment = ImageViewport::HorizontalAlignment::AlignHCenter;
-    ImageViewport::VerticalAlignment verticalAlignment = ImageViewport::VerticalAlignment::AlignVCenter;
+    ImageViewport::HorizontalAlignment horizontalAlignment
+        = ImageViewport::HorizontalAlignment::AlignHCenter;
+    ImageViewport::VerticalAlignment verticalAlignment
+        = ImageViewport::VerticalAlignment::AlignVCenter;
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
     QColor backgroundColor = Qt::transparent;
     double zoom = 1.0;
@@ -39,7 +43,8 @@ struct PresentationState {
     bool mirrorVertically = false;
 };
 
-struct DisplayState {
+struct DisplayState
+{
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     int displayedFrame = -1;
     int displayedPosition = -1;
@@ -57,7 +62,8 @@ struct DisplayState {
     uint revision = 0;
 };
 
-struct RequestState {
+struct RequestState
+{
     QPointer<ImageSequence> sequence;
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
@@ -79,7 +85,8 @@ struct RequestState {
     QString warningString;
 };
 
-struct ProviderGenerationState {
+struct ProviderGenerationState
+{
     QPointer<ImageSequenceProviderSession> session;
     quint64 sessionSerial = 0;
     quint64 nextRequestToken = 0;

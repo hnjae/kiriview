@@ -15,10 +15,7 @@ constexpr int minimumMaximumTimedListFrameCount = 10000;
 constexpr int minimumMaximumDuration = 86400000;
 constexpr int minimumMaximumDiagnosticStringLength = 4096;
 
-inline bool isFinitePositive(double value)
-{
-    return std::isfinite(value) && value > 0.0;
-}
+inline bool isFinitePositive(double value) { return std::isfinite(value) && value > 0.0; }
 
 inline bool isPositiveFiniteInteger(double value)
 {
@@ -30,25 +27,23 @@ inline bool isAdmittedLogicalSizeComponent(double value, int maximum)
     return isPositiveFiniteInteger(value) && value <= static_cast<double>(maximum);
 }
 
-inline bool isFinitePoint(const QPointF &point)
+inline bool isFinitePoint(const QPointF& point)
 {
     return std::isfinite(point.x()) && std::isfinite(point.y());
 }
 
-inline bool rectsExactlyEqual(const QRectF &left, const QRectF &right)
+inline bool rectsExactlyEqual(const QRectF& left, const QRectF& right)
 {
-    return left.x() == right.x()
-        && left.y() == right.y()
-        && left.width() == right.width()
+    return left.x() == right.x() && left.y() == right.y() && left.width() == right.width()
         && left.height() == right.height();
 }
 
-inline bool rectsDifferExactly(const QRectF &left, const QRectF &right)
+inline bool rectsDifferExactly(const QRectF& left, const QRectF& right)
 {
     return !rectsExactlyEqual(left, right);
 }
 
-inline QString frameLimitViolation(const ImageFrame &frame)
+inline QString frameLimitViolation(const ImageFrame& frame)
 {
     const QSizeF size = frame.logicalSize();
     const qint64 width = static_cast<qint64>(size.width());
@@ -72,7 +67,7 @@ inline QString frameLimitViolation(const ImageFrame &frame)
     return {};
 }
 
-inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata &metadata)
+inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadata& metadata)
 {
     if (!metadata.isSpecified()) {
         return {};
@@ -120,14 +115,16 @@ inline QString providerMetadataLimitViolation(const ImageSequenceProviderMetadat
         }
         totalDuration += duration;
         if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
-            return QStringLiteral("provider metadata total duration exceeds maximumTotalSequenceDuration");
+            return QStringLiteral(
+                "provider metadata total duration exceeds maximumTotalSequenceDuration");
         }
     }
 
     return {};
 }
 
-inline ImageViewport::TriState capabilitySupportToTriState(ImageSequenceProviderCapabilitySupport support)
+inline ImageViewport::TriState capabilitySupportToTriState(
+    ImageSequenceProviderCapabilitySupport support)
 {
     switch (support) {
     case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
@@ -143,7 +140,8 @@ inline ImageViewport::TriState capabilitySupportToTriState(ImageSequenceProvider
     return ImageViewport::TriState::Unavailable;
 }
 
-inline bool providerCapabilityContradictsMetadata(ImageSequenceProviderCapabilitySupport support, bool metadataCapability)
+inline bool providerCapabilityContradictsMetadata(
+    ImageSequenceProviderCapabilitySupport support, bool metadataCapability)
 {
     switch (support) {
     case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
@@ -220,8 +218,10 @@ inline QString redactDiagnosticDetails(QString diagnostic)
         QStringLiteral("\\b(?:password|passwd|pwd|token|api[_-]?key|secret)\\s*[:=]\\s*\\S+"),
         QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression urlPattern(QStringLiteral("\\b[A-Za-z][A-Za-z0-9+.-]*://\\S+"));
-    static const QRegularExpression windowsPathPattern(QStringLiteral("\\b[A-Za-z]:[\\\\/][^\\s]+"));
-    static const QRegularExpression unixPathPattern(QStringLiteral("(?<!\\w)/(?:[^\\s/]+/)+[^\\s]+"));
+    static const QRegularExpression windowsPathPattern(
+        QStringLiteral("\\b[A-Za-z]:[\\\\/][^\\s]+"));
+    static const QRegularExpression unixPathPattern(
+        QStringLiteral("(?<!\\w)/(?:[^\\s/]+/)+[^\\s]+"));
 
     diagnostic.replace(credentialPattern, QStringLiteral("[redacted-credential]"));
     diagnostic.replace(urlPattern, QStringLiteral("[redacted-url]"));

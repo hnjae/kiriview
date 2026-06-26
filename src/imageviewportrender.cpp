@@ -1,19 +1,19 @@
 #include "imageviewport_p.h"
 
-#include <QtQuick/QSGNode>
 #include <QtQuick/QQuickWindow>
+#include <QtQuick/QSGNode>
 
 using namespace ImageViewportInternal;
 
-QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
+QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
     const bool hasPendingProviderCommit = hasProviderSequence()
         && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::RenderWaiting
-        && m_renderCommitPending
-        && !m_pendingDisplayImage.isNull()
-        && !itemBounds().isEmpty();
-    const QImage image = hasPendingProviderCommit ? m_pendingDisplayImage : (hasReadyDisplay() ? m_displayedImage : QImage());
+        && m_requestReason == RequestReason::RenderWaiting && m_renderCommitPending
+        && !m_pendingDisplayImage.isNull() && !itemBounds().isEmpty();
+    const QImage image = hasPendingProviderCommit
+        ? m_pendingDisplayImage
+        : (hasReadyDisplay() ? m_displayedImage : QImage());
 
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
@@ -43,15 +43,14 @@ QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
         return nullptr;
     }
 
-    const bool resumePlaybackAfterCommit = !image.isNull()
-        && m_renderCommitPending
-        && m_playbackPhase == PlaybackPhase::Waiting
-        && m_requestStatus == RequestStatus::Ready;
+    const bool resumePlaybackAfterCommit = !image.isNull() && m_renderCommitPending
+        && m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready;
     if (!image.isNull()) {
         m_renderCommitPending = false;
         clearRenderFailureRetainedDisplay();
         if (resumePlaybackAfterCommit) {
-            setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+            setPlaybackPhase(
+                m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
             m_stopPlaybackWhenRequestReady = false;
         }
         if (hasPendingProviderCommit) {
@@ -61,7 +60,8 @@ QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
             if (m_displayStatus != oldDisplayStatus) {
                 emit q->displayStateChanged();
             }
-            if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
+            if (rectsDifferExactly(contentRect(), oldContentRect)
+                || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
                 emit q->geometryStateChanged();
             }
         }
@@ -69,20 +69,17 @@ QSGNode *ImageViewportPrivate::updatePaintNode(QSGNode *oldNode)
     return render.node;
 }
 
-void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
-    const QRectF &oldGeometry,
-    const QRectF &oldContentRect,
-    const QRectF &oldVisibleImageRect)
+void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
+    const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
-    if (newGeometry.width() == oldGeometry.width() && newGeometry.height() == oldGeometry.height()) {
+    if (newGeometry.width() == oldGeometry.width()
+        && newGeometry.height() == oldGeometry.height()) {
         return;
     }
 
     bool displayRevisionChanged = false;
-    if (hasDisplayableSequence()
-        && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::RenderWaiting
-        && newGeometry.width() > 0.0
+    if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading
+        && m_requestReason == RequestReason::RenderWaiting && newGeometry.width() > 0.0
         && newGeometry.height() > 0.0) {
         if (hasProviderSequence() && !m_pendingDisplayImage.isNull()) {
             update();
@@ -90,7 +87,8 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
         }
         publishSequenceReadyState();
         if (m_playbackPhase == PlaybackPhase::Waiting) {
-            setPlaybackPhase(m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
+            setPlaybackPhase(
+                m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
             m_stopPlaybackWhenRequestReady = false;
         }
         incrementRequestRevision();
@@ -107,7 +105,8 @@ void ImageViewportPrivate::geometryChanged(const QRectF &newGeometry,
         incrementDisplayRevision();
     }
 
-    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
+    if (rectsDifferExactly(contentRect(), oldContentRect)
+        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     update();
@@ -148,7 +147,8 @@ void ImageViewportPrivate::reportRenderFailure()
     if (m_displayStatus != oldDisplayStatus) {
         emit q->displayStateChanged();
     }
-    if (rectsDifferExactly(contentRect(), oldContentRect) || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
+    if (rectsDifferExactly(contentRect(), oldContentRect)
+        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
     emit q->diagnosticsChanged();

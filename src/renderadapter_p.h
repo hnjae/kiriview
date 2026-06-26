@@ -2,10 +2,10 @@
 
 #include "imageviewport.h"
 
+#include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGImageNode>
 #include <QtQuick/QSGNode>
 #include <QtQuick/QSGTexture>
-#include <QtQuick/QQuickWindow>
 
 class RenderAdapter
 {
@@ -16,7 +16,8 @@ public:
         Failed,
     };
 
-    struct Input {
+    struct Input
+    {
         QSizeF itemSize;
         ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
         QColor backgroundColor = Qt::transparent;
@@ -27,13 +28,14 @@ public:
         bool mipmap = false;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
-        QQuickWindow *window = nullptr;
+        QQuickWindow* window = nullptr;
     };
 
-    struct Output {
-        QSGNode *node = nullptr;
+    struct Output
+    {
+        QSGNode* node = nullptr;
         CommitResult result = CommitResult::Empty;
     };
 
-    Output createNode(QSGNode *oldNode, const Input &input) const;
+    Output createNode(QSGNode* oldNode, const Input& input) const;
 };
