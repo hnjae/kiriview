@@ -315,6 +315,30 @@ bool installedQmlSingletonTypesAreNotCreatable()
     return limitsComponent.isError();
 }
 
+bool installedQmlOpaqueTypesAreNotCreatable()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_INSTALLED_QML_IMPORT_ROOT));
+
+    const QStringList typeNames = {
+        QStringLiteral("ImageSequence"),
+        QStringLiteral("ImageFrame"),
+        QStringLiteral("ImageSequenceProviderFrameHandle"),
+        QStringLiteral("ImageSequenceProviderAdapter"),
+        QStringLiteral("ImageSequenceFactoryResult"),
+    };
+
+    for (const QString &typeName : typeNames) {
+        QQmlComponent component(&engine);
+        component.setData(QStringLiteral("import ImageViewport 1.0\n%1 {}\n").arg(typeName).toUtf8(), QUrl());
+        if (!component.isError()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool canUseInstalledQmlCommandSurface()
 {
     QQmlEngine engine;
@@ -602,6 +626,7 @@ int main(int argc, char **argv)
             && canUseInstalledQmlFactorySurface()
             && canUseInstalledQmlTypedFactorySurface()
             && installedQmlSingletonTypesAreNotCreatable()
+            && installedQmlOpaqueTypesAreNotCreatable()
             && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
         ? 0
