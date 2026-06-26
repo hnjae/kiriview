@@ -54,6 +54,7 @@ private slots:
     void exposesTypedSequenceFactorySurface();
     void factoryRejectsNullTypedInputs();
     void timedFrameListNativeFactoryRejectsMismatchedCounts();
+    void timedFrameListNativeFactoryRejectsEmptyInput();
     void qmlTimedFrameListExposesBuilderState();
     void qmlFactoryCreatesSequencesFromSuppliedTypedHelpers();
     void factoryResultDiagnosticsArePublicSafe();
@@ -1934,6 +1935,19 @@ void ImageViewportTest::timedFrameListNativeFactoryRejectsMismatchedCounts()
     QCOMPARE(missingImageResult->sequence(), nullptr);
     QCOMPARE(missingImageResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(missingImageResult->errorString().contains(QStringLiteral("same count")));
+}
+
+void ImageViewportTest::timedFrameListNativeFactoryRejectsEmptyInput()
+{
+    ImageSequenceFactory factory;
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList({}, {}));
+
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("at least one frame")));
+    QCOMPARE(result->warningString(), QString());
 }
 
 void ImageViewportTest::qmlTimedFrameListExposesBuilderState()
