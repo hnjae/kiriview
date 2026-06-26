@@ -11354,6 +11354,24 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
 
+    const uint terminalRequestRevision = item.property("requestRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+
+    emit sessionFactory->lastSession()->providerProgress(frameToken, 1.0);
+    drainQueuedProviderResults();
+    emit sessionFactory->lastSession()->providerWaiting(frameToken);
+    drainQueuedProviderResults();
+
+    QCOMPARE(item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestRevision").toUInt(), terminalRequestRevision);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(diagnosticsSpy.count(), 0);
+
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
@@ -11365,7 +11383,7 @@ void ImageViewportTest::providerFrameFailureKeepsGenerationSeekable()
     QCOMPARE(item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
 
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    diagnosticsSpy.clear();
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 2);
