@@ -85,6 +85,7 @@ private slots:
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void coordinateHelpersRejectNonFiniteInputs();
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
+    void stillImageCoverUsesBottomAlignmentAsCropFocus();
     void stillImageAssignmentWaitsForPositiveGeometry();
     void stillImageFactoryRejectsPublishedLimitViolations();
     void stillImageFactoryRejectsInvalidPayloadByteSize();
@@ -3070,6 +3071,13 @@ void ImageViewportTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
     QCOMPARE(item.itemToImage(99.0, 50.0).value("x").toDouble(), 7.92);
 
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignRight);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
+    QCOMPARE(item.itemToImage(0.0, 50.0).value("x").toDouble(), 8.0);
+    QVERIFY(item.itemToImage(99.0, 50.0).value("x").toDouble() > 15.9);
+
+    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
     item.setFillMode(ImageViewport::FillMode::Stretch);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
@@ -3160,6 +3168,30 @@ void ImageViewportTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
     QCOMPARE(rightHalfImage.value("valid").toBool(), true);
     QCOMPARE(rightHalfImage.value("x").toDouble(), 50.0);
     verifyInvalidCoordinateResult(item.imageToItem(4.0, 4.0));
+}
+
+void ImageViewportTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
+{
+    ImageSequenceFactory factory;
+    QImage image(8, 16, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    item.setFillMode(ImageViewport::FillMode::Cover);
+    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignBottom);
+
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -100.0, 100.0, 200.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 8.0, 8.0, 8.0));
+    QCOMPARE(item.itemToImage(50.0, 0.0).value("y").toDouble(), 8.0);
+    QVERIFY(item.itemToImage(50.0, 99.0).value("y").toDouble() > 15.9);
+    QCOMPARE(item.containsVisibleImagePoint(4.0, 7.999), false);
+    QCOMPARE(item.containsVisibleImagePoint(4.0, 8.0), true);
+    QCOMPARE(item.containsVisibleImagePoint(4.0, 15.999), true);
 }
 
 void ImageViewportTest::stillImageAssignmentWaitsForPositiveGeometry()
