@@ -1501,6 +1501,9 @@ void ImageViewportTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    verifyInvalidCoordinateResult(item.itemToImage(1.0, 1.0));
+    verifyInvalidCoordinateResult(item.imageToItem(1.0, 1.0));
+    QCOMPARE(item.containsVisibleImagePoint(1.0, 1.0), false);
     QCOMPARE(item.property("displayRevision").toUInt(), 0U);
     QCOMPARE(item.property("requestRevision").toUInt(), 0U);
     QCOMPARE(item.property("commandRevision").toUInt(), 0U);
