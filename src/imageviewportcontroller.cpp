@@ -210,7 +210,7 @@ quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
 
 quint64 ImageViewportPrivate::pendingRenderPayloadIdForTestImpl() const
 {
-    return m_pendingPreparedPayloadId;
+    return m_pendingRenderPayload.payloadId;
 }
 #endif
 
@@ -385,7 +385,7 @@ void ImageViewportPrivate::commitDisplayedRequestSnapshot()
     request.displayedRequest.generation = request.sequenceGeneration;
     request.displayedRequest.request = request.activeRequest;
     request.displayedRequest.request.target = displayedTarget;
-    request.displayedRequest.request.preparedPayloadId = m_pendingPreparedPayloadId;
+    request.displayedRequest.request.preparedPayloadId = m_pendingRenderPayload.payloadId;
 }
 
 void ImageViewportPrivate::clearDisplayedDisplay()
@@ -397,18 +397,16 @@ void ImageViewportPrivate::clearDisplayedDisplay()
 
 void ImageViewportPrivate::beginPreparedPayloadIdentity()
 {
-    m_pendingRenderGeneration = request.sequenceGeneration;
-    m_pendingRenderRequestId = request.activeRequest.identity.id;
-    m_pendingPreparedPayloadId
+    m_pendingRenderPayload.generation = request.sequenceGeneration;
+    m_pendingRenderPayload.requestId = request.activeRequest.identity.id;
+    m_pendingRenderPayload.payloadId
         = request.activeRequest.identity.id == 0 ? 0 : ++m_nextPreparedPayloadId;
-    request.activeRequest.preparedPayloadId = m_pendingPreparedPayloadId;
+    request.activeRequest.preparedPayloadId = m_pendingRenderPayload.payloadId;
 }
 
 void ImageViewportPrivate::clearPendingRenderIdentity()
 {
-    m_pendingRenderGeneration = 0;
-    m_pendingRenderRequestId = 0;
-    m_pendingPreparedPayloadId = 0;
+    m_pendingRenderPayload = {};
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::ignoredNoRequest()

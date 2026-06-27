@@ -250,10 +250,9 @@ public:
     QImage& m_displayedImage = display.displayedImage;
     QImage& m_pendingDisplayImage = display.pendingDisplayImage;
     bool& m_renderCommitPending = display.renderCommitPending;
-    quint64& m_pendingRenderGeneration = display.pendingRenderGeneration;
     quint64& m_nextPreparedPayloadId = display.nextPreparedPayloadId;
-    quint64& m_pendingRenderRequestId = display.pendingRenderRequestId;
-    quint64& m_pendingPreparedPayloadId = display.pendingPreparedPayloadId;
+    ImageViewportInternal::PreparedPayloadIdentity& m_pendingRenderPayload
+        = display.pendingRenderPayload;
     bool& m_renderFailureRetainedDisplayValid = display.renderFailureRetainedDisplayValid;
     QSizeF& m_renderFailureRetainedImageSize = display.renderFailureRetainedImageSize;
     QImage& m_renderFailureRetainedImage = display.renderFailureRetainedImage;
