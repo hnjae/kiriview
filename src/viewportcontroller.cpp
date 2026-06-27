@@ -70,6 +70,32 @@ ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewpo
     return target;
 }
 
+void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, ProviderStopRestoreTarget target)
+{
+    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
+    viewport.m_playbackPosition = viewport.m_requestedPosition;
+    viewport.m_currentProviderTargetKind = target.targetKind;
+}
+
+bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
+{
+    return viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
+        && viewport.m_displayedFrame == viewport.m_currentFrame
+        && viewport.m_displayedPosition == viewport.m_requestedPosition;
+}
+
+void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
+{
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+    viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+    viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
+        ? ImageViewport::DisplayStatus::Retained
+        : ImageViewport::DisplayStatus::Empty;
+    viewport.discardPendingRenderCommit();
+}
+
 void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, int frame, int position,
     ImageViewportInternal::ProviderRequestTargetKind targetKind
     = ImageViewportInternal::ProviderRequestTargetKind::Unknown)
@@ -465,25 +491,13 @@ ViewportCommandResult ViewportController::stop()
 
         const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
 
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = restoredTarget.frame;
-        viewport.m_requestedPosition = restoredTarget.position;
-        viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_currentProviderTargetKind = restoredTarget.targetKind;
-        if (viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
-            && viewport.m_displayedFrame == viewport.m_currentFrame
-            && viewport.m_displayedPosition == viewport.m_requestedPosition) {
+        applyProviderStopRestoreTarget(viewport, restoredTarget);
+        if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
             viewport.m_requestReason = ImageViewport::RequestReason::Ready;
             viewport.m_displayStatus = ImageViewport::DisplayStatus::Ready;
         } else {
-            viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-            viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-            viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
-                ? ImageViewport::DisplayStatus::Retained
-                : ImageViewport::DisplayStatus::Empty;
-            viewport.discardPendingRenderCommit();
+            publishProviderStopRestoreLoading(viewport);
             if (viewport.m_providerSession && viewport.m_currentFrame >= 0
                 && !viewport.startProviderFrameRequest(
                     viewport.m_currentFrame, viewport.m_latestNonPlaybackProviderTargetKind)) {
@@ -511,15 +525,8 @@ ViewportCommandResult ViewportController::stop()
 
         const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
 
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = restoredTarget.frame;
-        viewport.m_requestedPosition = restoredTarget.position;
-        viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_currentProviderTargetKind = restoredTarget.targetKind;
-        if (viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
-            && viewport.m_displayedFrame == viewport.m_currentFrame
-            && viewport.m_displayedPosition == viewport.m_requestedPosition) {
+        applyProviderStopRestoreTarget(viewport, restoredTarget);
+        if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.m_playbackPosition = viewport.m_requestedPosition;
             viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
             viewport.m_requestReason = ImageViewport::RequestReason::Ready;
@@ -533,12 +540,7 @@ ViewportCommandResult ViewportController::stop()
             result.changes.diagnostics = diagnosticsValueChanged;
             return result;
         }
-        viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-        viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-        viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
-            ? ImageViewport::DisplayStatus::Retained
-            : ImageViewport::DisplayStatus::Empty;
-        viewport.discardPendingRenderCommit();
+        publishProviderStopRestoreLoading(viewport);
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
         if (viewport.m_providerSession && viewport.m_currentFrame >= 0) {
             if (!viewport.startProviderFrameRequest(
