@@ -26,6 +26,16 @@ void applyProviderFrameTerminalResult(
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderMetadataTerminalResult(
+    ImageViewportPrivate& viewport, const ViewportProviderMetadataTerminalResult& result)
+{
+    const auto changes = viewport.controller.handleProviderMetadataTerminalResult(result);
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -546,15 +556,13 @@ void ImageViewportPrivate::handleProviderFailure(
         return;
     }
 
-    m_requestStatus = RequestStatus::Error;
-    m_requestReason = RequestReason::ProviderFailure;
-    m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
-    m_activeProviderMetadataToken = {};
-    m_providerPlaybackStartPending = false;
-    setPlaybackPhase(PlaybackPhase::Stopped);
-    incrementRequestRevision();
-    emit q->requestStateChanged();
-    emit q->diagnosticsChanged();
+    applyProviderMetadataTerminalResult(*this,
+        {
+            RequestStatus::Error,
+            RequestReason::ProviderFailure,
+            diagnostic,
+            QStringLiteral("provider failure"),
+        });
     closeProviderSession();
 }
 
@@ -583,15 +591,13 @@ void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderReques
         return;
     }
 
-    m_requestStatus = RequestStatus::Unsupported;
-    m_requestReason = RequestReason::UnsupportedRequest;
-    m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
-    m_activeProviderMetadataToken = {};
-    m_providerPlaybackStartPending = false;
-    setPlaybackPhase(PlaybackPhase::Stopped);
-    incrementRequestRevision();
-    emit q->requestStateChanged();
-    emit q->diagnosticsChanged();
+    applyProviderMetadataTerminalResult(*this,
+        {
+            RequestStatus::Unsupported,
+            RequestReason::UnsupportedRequest,
+            diagnostic,
+            QStringLiteral("provider unsupported"),
+        });
     closeProviderSession();
 }
 
@@ -618,15 +624,13 @@ void ImageViewportPrivate::handleProviderCancellation(
         return;
     }
 
-    m_requestStatus = RequestStatus::Error;
-    m_requestReason = RequestReason::ProviderFailure;
-    m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
-    m_activeProviderMetadataToken = {};
-    m_providerPlaybackStartPending = false;
-    setPlaybackPhase(PlaybackPhase::Stopped);
-    incrementRequestRevision();
-    emit q->requestStateChanged();
-    emit q->diagnosticsChanged();
+    applyProviderMetadataTerminalResult(*this,
+        {
+            RequestStatus::Error,
+            RequestReason::ProviderFailure,
+            diagnostic,
+            QStringLiteral("provider cancelled request"),
+        });
     closeProviderSession();
 }
 

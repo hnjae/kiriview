@@ -927,6 +927,23 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTerminalResult(
+    const ViewportProviderMetadataTerminalResult& result)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.m_requestStatus = result.status;
+    viewport.m_requestReason = result.reason;
+    viewport.m_errorString
+        = ImageViewportPrivate::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic);
+    viewport.m_activeProviderMetadataToken = {};
+    viewport.m_providerPlaybackStartPending = false;
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

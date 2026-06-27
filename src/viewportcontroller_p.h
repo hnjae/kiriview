@@ -39,6 +39,14 @@ struct ViewportProviderFrameTerminalResult
     QString fallbackDiagnostic;
 };
 
+struct ViewportProviderMetadataTerminalResult
+{
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    QString diagnostic;
+    QString fallbackDiagnostic;
+};
+
 class ViewportController
 {
 public:
@@ -56,6 +64,8 @@ public:
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
         const ViewportProviderFrameTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
+        const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();
