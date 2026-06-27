@@ -22,6 +22,9 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     if (hasPendingProviderCommit) {
         publishSequenceReadyState(m_pendingDisplayImage);
     }
+    const quint64 renderRequestId = m_renderCommitPending ? m_pendingRenderRequestId : 0;
+    const quint64 renderPreparedPayloadId
+        = m_renderCommitPending ? m_pendingPreparedPayloadId : 0;
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {
@@ -35,19 +38,24 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             m_mipmap,
             m_mirrorHorizontally,
             m_mirrorVertically,
+            renderRequestId,
+            renderPreparedPayloadId,
             window(),
         });
+    const bool renderMatchesPending = m_renderCommitPending
+        && render.requestId == m_pendingRenderRequestId
+        && render.preparedPayloadId == m_pendingPreparedPayloadId;
     if (render.result == RenderAdapter::CommitResult::Failed) {
-        if (m_displayStatus == DisplayStatus::Ready && m_renderCommitPending) {
+        if (m_displayStatus == DisplayStatus::Ready && renderMatchesPending) {
             reportRenderFailure();
         }
         return nullptr;
     }
 
-    const bool resumePlaybackAfterCommit = !image.isNull() && m_renderCommitPending
+    const bool resumePlaybackAfterCommit = !image.isNull() && renderMatchesPending
         && m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready;
     if (!image.isNull()) {
-        if (m_renderCommitPending) {
+        if (renderMatchesPending) {
             commitDisplayedRequestIdentity();
             m_renderCommitPending = false;
             clearPendingRenderIdentity();
