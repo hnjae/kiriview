@@ -1,5 +1,6 @@
 #pragma once
 
+#include "framepreparation_p.h"
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 
@@ -41,6 +42,8 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
+        const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

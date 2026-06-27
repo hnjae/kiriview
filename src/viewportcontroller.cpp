@@ -838,6 +838,57 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
+    const FramePreparation::ProviderFrameAdmissionResult& admission)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (!admission.accepted()) {
+        viewport.clearQueuedProviderFrameRequest();
+        viewport.m_activeProviderFrameToken = {};
+        viewport.m_activeProviderFrameRequestId = 0;
+        viewport.m_activeProviderFrameFromPlayback = false;
+        viewport.m_activeProviderFrameTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+        viewport.m_requestStatus = admission.status;
+        viewport.m_requestReason = admission.reason;
+        viewport.m_errorString = admission.diagnostic;
+        setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+        changes.requestRevision = true;
+        changes.requestState = true;
+        changes.diagnostics = true;
+        return changes;
+    }
+
+    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    const QRectF oldContentRect = viewport.contentRect();
+    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+    viewport.publishAcceptedTargetState(admission.uploadReadyPayload);
+    if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready
+        && !viewport.m_pendingRenderPayload.commitPending) {
+        setPlaybackPhase(viewport, changes,
+            viewport.m_stopPlaybackWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
+                                                    : ImageViewport::PlaybackPhase::Playing);
+        viewport.m_stopPlaybackWhenRequestReady = false;
+    }
+    changes.requestRevision = true;
+    changes.displayRevision = true;
+    changes.requestState = true;
+    changes.displayState = true;
+    changes.geometryState = ImageViewportInternal::rectsDifferExactly(
+        viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    changes.diagnostics = diagnosticsValueChanged;
+    changes.scheduleUpdate = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

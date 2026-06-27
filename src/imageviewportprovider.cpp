@@ -384,48 +384,11 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
             m_providerTimingIntervals,
             request.activeRequest.target.frame,
         });
-    if (!admission.accepted()) {
-        clearQueuedProviderFrameRequest();
-        m_activeProviderFrameToken = {};
-        m_activeProviderFrameRequestId = 0;
-        m_activeProviderFrameFromPlayback = false;
-        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = admission.status;
-        m_requestReason = admission.reason;
-        m_errorString = admission.diagnostic;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
-        return;
+    const auto changes = controller.handleProviderFrameAdmission(admission);
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
     }
-
-    const bool diagnosticsValueChanged = clearDiagnostics();
-    m_activeProviderFrameToken = {};
-    m_activeProviderFrameRequestId = 0;
-    m_activeProviderFrameFromPlayback = false;
-    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-    const QRectF oldContentRect = contentRect();
-    const QRectF oldVisibleImageRect = visibleImageRect();
-    publishAcceptedTargetState(admission.uploadReadyPayload);
-    if (m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready
-        && !m_pendingRenderPayload.commitPending) {
-        setPlaybackPhase(
-            m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
-        m_stopPlaybackWhenRequestReady = false;
-    }
-    incrementRequestRevision();
-    incrementDisplayRevision();
-    emit q->requestStateChanged();
-    emit q->displayStateChanged();
-    if (rectsDifferExactly(contentRect(), oldContentRect)
-        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-        emit q->geometryStateChanged();
-    }
-    if (diagnosticsValueChanged) {
-        emit q->diagnosticsChanged();
-    }
-    update();
 }
 
 void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestToken token)
