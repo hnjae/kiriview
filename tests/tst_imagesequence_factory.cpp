@@ -1,4 +1,5 @@
 #include "imageviewport_test_support.h"
+#include "framepreparation_p.h"
 #include "timingintervals_p.h"
 
 class ImageSequenceFactoryTest : public QObject
@@ -29,6 +30,8 @@ private slots:
     void imageFrameExposesPayloadMetadata();
     void imageFrameOrientationPoliciesNormalizePayload();
     void imageFrameUsesDeviceIndependentLogicalSize();
+    void providerMetadataAdmissionAcceptsTimedMetadata();
+    void providerMetadataAdmissionRejectsInvalidTiming();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
@@ -303,6 +306,39 @@ void ImageSequenceFactoryTest::exposesImageSequenceLimits()
         QCOMPARE(limits.property(expectation.name).toLongLong(), expectation.cppValue);
         QVERIFY2(expectation.cppValue >= expectation.minimum, expectation.name);
     }
+}
+
+void ImageSequenceFactoryTest::providerMetadataAdmissionAcceptsTimedMetadata()
+{
+    const auto admission = FramePreparation::admitProviderMetadata(
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+
+    QVERIFY(admission.accepted());
+    QCOMPARE(admission.cause, FramePreparation::ProviderMetadataAdmissionResult::Cause::Accepted);
+    QCOMPARE(admission.status, ImageViewport::RequestStatus::Ready);
+    QCOMPARE(admission.reason, ImageViewport::RequestReason::Ready);
+    QCOMPARE(admission.logicalSize, QSizeF(16.0, 8.0));
+    QCOMPARE(admission.timedMetadata, true);
+    QVERIFY(admission.timingIntervals.isValid());
+    QCOMPARE(admission.timingIntervals.frameCount(), 2);
+    QCOMPARE(admission.timingIntervals.totalDuration(), 350);
+    QCOMPARE(admission.timingIntervals.frameStartPosition(1), 100);
+    QCOMPARE(admission.diagnostic, QString());
+}
+
+void ImageSequenceFactoryTest::providerMetadataAdmissionRejectsInvalidTiming()
+{
+    const auto admission = FramePreparation::admitProviderMetadata(
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 0 }));
+
+    QVERIFY(!admission.accepted());
+    QCOMPARE(admission.cause,
+        FramePreparation::ProviderMetadataAdmissionResult::Cause::InvalidFrameDuration);
+    QCOMPARE(admission.status, ImageViewport::RequestStatus::Error);
+    QCOMPARE(admission.reason, ImageViewport::RequestReason::PayloadRejection);
+    QCOMPARE(admission.timedMetadata, false);
+    QVERIFY(!admission.timingIntervals.isValid());
+    QVERIFY(admission.diagnostic.contains(QStringLiteral("duration")));
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()

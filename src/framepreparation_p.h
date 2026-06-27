@@ -1,10 +1,36 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "timingintervals_p.h"
 
 class FramePreparation
 {
 public:
+    struct ProviderMetadataAdmissionResult
+    {
+        enum class Cause {
+            Accepted,
+            InvalidMetadata,
+            LogicalWidthTooLarge,
+            LogicalHeightTooLarge,
+            PixelCountTooLarge,
+            FrameCountTooLarge,
+            InvalidFrameDuration,
+            FrameDurationTooLarge,
+            TotalDurationTooLarge,
+        };
+
+        Cause cause = Cause::Accepted;
+        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
+        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        QString diagnostic;
+        bool timedMetadata = false;
+        QSizeF logicalSize;
+        TimingIntervals timingIntervals;
+
+        bool accepted() const;
+    };
+
     struct ProviderFrameState
     {
         bool metadataReady = false;
@@ -37,8 +63,8 @@ public:
         bool accepted() const;
     };
 
-    static bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);
-    static bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata);
+    static ProviderMetadataAdmissionResult admitProviderMetadata(
+        const ImageSequenceProviderMetadata& metadata);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
     static int providerFrameStartPosition(const QVector<int>& frameDurations, int frame);

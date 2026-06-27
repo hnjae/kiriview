@@ -156,8 +156,6 @@ public:
         ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);
-    bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;

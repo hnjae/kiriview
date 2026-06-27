@@ -9,6 +9,17 @@ using namespace ImageViewportInternal;
 
 namespace {
 
+FramePreparation::ProviderMetadataAdmissionResult providerMetadataRejection(
+    FramePreparation::ProviderMetadataAdmissionResult::Cause cause, QString diagnostic)
+{
+    return {
+        cause,
+        ImageViewport::RequestStatus::Error,
+        ImageViewport::RequestReason::PayloadRejection,
+        std::move(diagnostic),
+    };
+}
+
 FramePreparation::ProviderFrameAdmissionResult providerFrameRejection(
     FramePreparation::ProviderFrameAdmissionResult::Cause cause,
     ImageViewport::RequestStatus status, QString diagnostic)
@@ -30,66 +41,99 @@ FramePreparation::ProviderFrameAdmissionResult providerFrameError(
 
 } // namespace
 
+bool FramePreparation::ProviderMetadataAdmissionResult::accepted() const
+{
+    return cause == Cause::Accepted;
+}
+
 bool FramePreparation::ProviderFrameAdmissionResult::accepted() const
 {
     return cause == Cause::Accepted;
 }
 
-bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata)
+FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProviderMetadata(
+    const ImageSequenceProviderMetadata& metadata)
 {
-    if (!metadata.isStill() || !metadata.isValid()) {
-        return false;
+    using Cause = ProviderMetadataAdmissionResult::Cause;
+
+    if (!metadata.isSpecified() || (!metadata.isStill() && !metadata.isTimedFrameList())) {
+        return providerMetadataRejection(
+            Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
+    }
+    if (metadata.isStill() && (metadata.timedPlaybackSupport() || metadata.positionSeekSupport())) {
+        return providerMetadataRejection(
+            Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
 
     const QSizeF size = metadata.logicalSize();
-    if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
-        || !isAdmittedLogicalSizeComponent(
-            size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
-        return false;
+    if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
+        return providerMetadataRejection(
+            Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-
-    const qint64 width = static_cast<qint64>(size.width());
-    const qint64 height = static_cast<qint64>(size.height());
-    return width * height <= ImageSequenceLimits::maximumPixelsPerFrame();
-}
-
-bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata)
-{
-    if (!metadata.isTimedFrameList() || !metadata.isValid()) {
-        return false;
+    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+        return providerMetadataRejection(Cause::LogicalWidthTooLarge,
+            QStringLiteral("provider metadata logical width exceeds maximumLogicalWidth"));
     }
-
-    const QSizeF size = metadata.logicalSize();
-    if (!isAdmittedLogicalSizeComponent(size.width(), ImageSequenceLimits::maximumLogicalWidth())
-        || !isAdmittedLogicalSizeComponent(
-            size.height(), ImageSequenceLimits::maximumLogicalHeight())) {
-        return false;
+    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+        return providerMetadataRejection(Cause::LogicalHeightTooLarge,
+            QStringLiteral("provider metadata logical height exceeds maximumLogicalHeight"));
     }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
     if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
-        return false;
+        return providerMetadataRejection(Cause::PixelCountTooLarge,
+            QStringLiteral("provider metadata logical size exceeds maximumPixelsPerFrame"));
+    }
+
+    if (metadata.isStill()) {
+        return {
+            Cause::Accepted,
+            ImageViewport::RequestStatus::Ready,
+            ImageViewport::RequestReason::Ready,
+            {},
+            false,
+            size,
+        };
     }
 
     const QVector<int> durations = metadata.frameDurations();
-    if (durations.isEmpty()
-        || durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
-        return false;
+    if (durations.isEmpty()) {
+        return providerMetadataRejection(
+            Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
+    }
+    if (durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
+        return providerMetadataRejection(Cause::FrameCountTooLarge,
+            QStringLiteral("provider metadata frame count exceeds maximumTimedListFrameCount"));
     }
 
     qint64 totalDuration = 0;
     for (int duration : durations) {
-        if (duration <= 0 || duration > ImageSequenceLimits::maximumFrameDuration()) {
-            return false;
+        if (duration <= 0) {
+            return providerMetadataRejection(Cause::InvalidFrameDuration,
+                QStringLiteral("provider metadata frame duration must be positive"));
+        }
+        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+            return providerMetadataRejection(Cause::FrameDurationTooLarge,
+                QStringLiteral("provider metadata frame duration exceeds maximumFrameDuration"));
         }
         totalDuration += duration;
         if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
-            return false;
+            return providerMetadataRejection(Cause::TotalDurationTooLarge,
+                QStringLiteral(
+                    "provider metadata total duration exceeds maximumTotalSequenceDuration"));
         }
     }
 
-    return true;
+    return {
+        Cause::Accepted,
+        ImageViewport::RequestStatus::Ready,
+        ImageViewport::RequestReason::Ready,
+        {},
+        true,
+        size,
+        TimingIntervals::fromFrameDurations(durations),
+    };
 }
 
 FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFrame(

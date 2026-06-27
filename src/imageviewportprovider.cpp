@@ -162,26 +162,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     m_activeProviderMetadataToken = {};
 
-    const QString metadataViolation = providerMetadataLimitViolation(metadata);
-    if (!metadataViolation.isEmpty()) {
+    const auto metadataAdmission = FramePreparation::admitProviderMetadata(metadata);
+    if (!metadataAdmission.accepted()) {
         m_requestStatus = RequestStatus::Error;
         m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = metadataViolation;
-        m_providerPlaybackStartPending = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
-        closeProviderSession();
-        return;
-    }
-
-    const bool isStillMetadata = validateProviderStillMetadata(metadata);
-    const bool isTimedMetadata = validateProviderTimedMetadata(metadata);
-    if (!isStillMetadata && !isTimedMetadata) {
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider metadata is invalid");
+        m_errorString = metadataAdmission.diagnostic;
         m_providerPlaybackStartPending = false;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
@@ -224,15 +209,14 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     }
 
     m_providerMetadataReady = true;
-    m_providerTimedMetadata = isTimedMetadata;
+    m_providerTimedMetadata = metadataAdmission.timedMetadata;
     m_providerTimedPlaybackSupport = metadata.timedPlaybackSupport();
     m_providerFrameSeekSupport = metadata.frameSeekSupport();
     m_providerPositionSeekSupport = metadata.positionSeekSupport();
-    m_providerLogicalSize = metadata.logicalSize();
-    m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
-    m_providerTimingIntervals = isTimedMetadata
-        ? TimingIntervals::fromFrameDurations(m_providerFrameDurations)
-        : TimingIntervals();
+    m_providerLogicalSize = metadataAdmission.logicalSize;
+    m_providerFrameDurations = metadataAdmission.timedMetadata ? metadata.frameDurations()
+                                                              : QVector<int>();
+    m_providerTimingIntervals = metadataAdmission.timingIntervals;
     const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && m_currentProviderTargetKind == ProviderRequestTargetKind::Playback;
     const bool selectedFromPosition
@@ -242,8 +226,10 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         : (selectedFromPosition ? ProviderRequestTargetKind::Position
                                 : ProviderRequestTargetKind::Frame);
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
-    const int providerFrameCount = isTimedMetadata ? m_providerTimingIntervals.frameCount() : 1;
-    if (selectedFromPlaybackStart && (!isTimedMetadata || !m_providerTimedPlaybackSupport)) {
+    const int providerFrameCount
+        = metadataAdmission.timedMetadata ? m_providerTimingIntervals.frameCount() : 1;
+    if (selectedFromPlaybackStart
+        && (!metadataAdmission.timedMetadata || !m_providerTimedPlaybackSupport)) {
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
         const bool diagnosticsValueChanged = clearDiagnostics();
@@ -257,7 +243,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
     if (selectedFromPosition) {
-        if (!isTimedMetadata || !m_providerPositionSeekSupport) {
+        if (!metadataAdmission.timedMetadata || !m_providerPositionSeekSupport) {
             m_requestStatus = RequestStatus::Unsupported;
             m_requestReason = RequestReason::UnsupportedRequest;
             const bool diagnosticsValueChanged = clearDiagnostics();
@@ -291,7 +277,8 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     m_currentFrame = selectedFrame;
     if (!selectedFromPosition) {
-        m_requestedPosition = isTimedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
+        m_requestedPosition
+            = metadataAdmission.timedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
     }
     m_playbackPosition = m_requestedPosition;
     m_currentProviderTargetKind = requestTargetKind;
@@ -649,18 +636,6 @@ void ImageViewportPrivate::handleProviderCancellation(
     emit q->requestStateChanged();
     emit q->diagnosticsChanged();
     closeProviderSession();
-}
-
-bool ImageViewportPrivate::validateProviderStillMetadata(
-    const ImageSequenceProviderMetadata& metadata)
-{
-    return FramePreparation::validateProviderStillMetadata(metadata);
-}
-
-bool ImageViewportPrivate::validateProviderTimedMetadata(
-    const ImageSequenceProviderMetadata& metadata)
-{
-    return FramePreparation::validateProviderTimedMetadata(metadata);
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory>
