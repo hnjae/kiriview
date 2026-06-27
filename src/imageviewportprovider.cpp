@@ -45,6 +45,17 @@ void applyProviderMetadataContradiction(ImageViewportPrivate& viewport, const QS
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderMetadataAdmissionRejection(
+    ImageViewportPrivate& viewport, const QString& diagnostic)
+{
+    const auto changes
+        = viewport.controller.handleProviderMetadataAdmissionRejection({ diagnostic });
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -235,14 +246,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     const auto metadataAdmission = FramePreparation::admitProviderMetadata(metadata);
     if (!metadataAdmission.accepted()) {
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = metadataAdmission.diagnostic;
-        m_providerPlaybackStartPending = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderMetadataAdmissionRejection(*this, metadataAdmission.diagnostic);
         closeProviderSession();
         return;
     }

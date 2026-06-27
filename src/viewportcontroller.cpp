@@ -959,6 +959,22 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet
+ViewportController::handleProviderMetadataAdmissionRejection(
+    const ViewportProviderMetadataAdmissionRejection& rejection)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
+    viewport.m_requestReason = ImageViewport::RequestReason::PayloadRejection;
+    viewport.m_errorString = rejection.diagnostic;
+    viewport.m_providerPlaybackStartPending = false;
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
 {
     ImageViewportInternal::ViewportChangeSet changes;
