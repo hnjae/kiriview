@@ -1188,6 +1188,38 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
     return allocation;
 }
 
+ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
+    ViewportProviderFrameQueueRequest request)
+{
+    ViewportProviderFrameQueueResult result;
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+    viewport.m_requestReason = ImageViewport::RequestReason::RequestQueued;
+    viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
+        ? ImageViewport::DisplayStatus::Retained
+        : ImageViewport::DisplayStatus::Empty;
+    viewport.discardPendingRenderCommit();
+
+    if (viewport.m_providerSession && viewport.m_activeProviderFrameToken.isValid()) {
+        result.cancelToken = viewport.m_activeProviderFrameToken;
+    }
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+
+    viewport.m_queuedProviderFrameRequest = true;
+    viewport.m_queuedProviderFrameGeneration = viewport.request.sequenceGeneration;
+    viewport.m_queuedProviderFrameRequestId = viewport.request.activeRequest.identity.id;
+    viewport.m_queuedProviderFrame = request.frame;
+    viewport.m_queuedProviderPosition = viewport.request.activeRequest.target.position;
+    viewport.m_queuedProviderFrameFromPlayback
+        = request.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    viewport.m_queuedProviderFrameTargetKind = request.targetKind;
+    result.scheduleFlush = true;
+    return result;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

@@ -106,6 +106,19 @@ struct ViewportProviderRequestTokenAllocation
     ViewportProviderSessionClose sessionClose;
 };
 
+struct ViewportProviderFrameQueueRequest
+{
+    int frame = -1;
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+};
+
+struct ViewportProviderFrameQueueResult
+{
+    ImageSequenceProviderRequestToken cancelToken;
+    bool scheduleFlush = false;
+};
+
 class ViewportController
 {
 public:
@@ -141,6 +154,8 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
+    ViewportProviderFrameQueueResult queueProviderFrameRequest(
+        ViewportProviderFrameQueueRequest request);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

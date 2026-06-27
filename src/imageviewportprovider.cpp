@@ -152,29 +152,15 @@ void ImageViewportPrivate::publishProviderFrameLoadingState()
 void ImageViewportPrivate::queueProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
-    m_requestStatus = RequestStatus::Loading;
-    m_requestReason = RequestReason::RequestQueued;
-    m_displayStatus
-        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    discardPendingRenderCommit();
-
-    if (m_providerSession && m_activeProviderFrameToken.isValid()) {
-        cancelProviderRequest(m_activeProviderFrameToken);
+    const ViewportProviderFrameQueueResult result = controller.queueProviderFrameRequest(
+        { frame, targetKind });
+    if (result.cancelToken.isValid()) {
+        cancelProviderRequest(result.cancelToken);
     }
-    m_activeProviderFrameToken = {};
-    m_activeProviderFrameRequestId = 0;
-    m_activeProviderFrameFromPlayback = false;
-    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-
-    m_queuedProviderFrameRequest = true;
-    m_queuedProviderFrameGeneration = request.sequenceGeneration;
-    m_queuedProviderFrameRequestId = request.activeRequest.identity.id;
-    m_queuedProviderFrame = frame;
-    m_queuedProviderPosition = request.activeRequest.target.position;
-    m_queuedProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
-    m_queuedProviderFrameTargetKind = targetKind;
-    QMetaObject::invokeMethod(
-        q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+    if (result.scheduleFlush) {
+        QMetaObject::invokeMethod(
+            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+    }
 }
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()
