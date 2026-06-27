@@ -52,6 +52,8 @@ ImageSequence::ImageSequence(
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
     , m_frameDurations(std::move(frameDurations))
+    , m_timingIntervals(
+          std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(m_frameDurations)))
     , m_frameImages(std::move(frameImages))
 {
 }
@@ -88,7 +90,7 @@ bool ImageSequence::isValid() const
 
     return m_timingModel != TimingModel::None && m_logicalSize.isValid()
         && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0
-        && (isStill() || !m_frameDurations.isEmpty());
+        && (isStill() || (m_timingIntervals && m_timingIntervals->isValid()));
 }
 
 bool ImageSequence::isStill() const { return m_timingModel == TimingModel::Still; }
@@ -105,7 +107,7 @@ int ImageSequence::frameCount() const
         return 1;
     }
     if (isTimedList()) {
-        return m_frameDurations.size();
+        return m_timingIntervals ? m_timingIntervals->frameCount() : -1;
     }
 
     return -1;
@@ -117,7 +119,7 @@ int ImageSequence::totalDuration() const
         return -1;
     }
 
-    return TimingIntervals::fromFrameDurations(m_frameDurations).totalDuration();
+    return m_timingIntervals ? m_timingIntervals->totalDuration() : -1;
 }
 
 int ImageSequence::frameStartPosition(int frame) const
@@ -126,7 +128,7 @@ int ImageSequence::frameStartPosition(int frame) const
         return -1;
     }
 
-    return TimingIntervals::fromFrameDurations(m_frameDurations).frameStartPosition(frame);
+    return m_timingIntervals ? m_timingIntervals->frameStartPosition(frame) : -1;
 }
 
 int ImageSequence::frameIndexForPosition(int position) const
@@ -135,7 +137,7 @@ int ImageSequence::frameIndexForPosition(int position) const
         return -1;
     }
 
-    return TimingIntervals::fromFrameDurations(m_frameDurations).frameIndexForPosition(position);
+    return m_timingIntervals ? m_timingIntervals->frameIndexForPosition(position) : -1;
 }
 
 QImage ImageSequence::frameImage(int frame) const

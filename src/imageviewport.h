@@ -19,6 +19,7 @@
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
 class ImageViewportPrivate;
+class TimingIntervals;
 
 enum class ImageSequenceProviderThreadingContract {
     AffinityBound,
@@ -120,6 +121,7 @@ private:
     QSizeF m_logicalSize;
     QImage m_stillImage;
     QVector<int> m_frameDurations;
+    std::shared_ptr<const TimingIntervals> m_timingIntervals;
     QVector<QImage> m_frameImages;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
     ImageSequenceProviderKnownFacts m_providerKnownFacts;
