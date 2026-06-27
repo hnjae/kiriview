@@ -138,9 +138,7 @@ ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport,
         : ImageViewport::DisplayStatus::Empty;
     viewport.discardPendingRenderCommit();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-    if (viewport.m_activeProviderFrameToken.isValid()) {
-        viewport.queueProviderFrameRequest(frame, targetKind);
-    } else if (!viewport.startProviderFrameRequest(frame, targetKind)) {
+    if (!viewport.dispatchProviderFrameRequest(frame, targetKind)) {
         result.changes.requestRevision = true;
         result.changes.displayRevision = true;
         result.changes.requestState = true;
@@ -332,12 +330,8 @@ ViewportCommandResult ViewportController::play()
                 ? ImageViewport::DisplayStatus::Retained
                 : ImageViewport::DisplayStatus::Empty;
             viewport.discardPendingRenderCommit();
-            if (viewport.m_activeProviderFrameToken.isValid()) {
-                viewport.queueProviderFrameRequest(
-                    selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback);
-            } else if (!viewport.startProviderFrameRequest(
-                           selectedFrame,
-                           ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
+            if (!viewport.dispatchProviderFrameRequest(
+                    selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;

@@ -139,6 +139,7 @@ public:
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
+    bool dispatchProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void publishProviderTokenExhaustion();
     void handleProviderMetadataReady(
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);

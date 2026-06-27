@@ -143,6 +143,17 @@ bool ImageViewportPrivate::startProviderFrameRequest(
     return true;
 }
 
+bool ImageViewportPrivate::dispatchProviderFrameRequest(
+    int frame, ProviderRequestTargetKind targetKind)
+{
+    if (m_activeProviderFrameToken.isValid()) {
+        queueProviderFrameRequest(frame, targetKind);
+        return true;
+    }
+
+    return startProviderFrameRequest(frame, targetKind);
+}
+
 void ImageViewportPrivate::publishProviderTokenExhaustion()
 {
     clearQueuedProviderFrameRequest();

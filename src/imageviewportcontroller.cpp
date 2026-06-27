@@ -117,9 +117,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
-        if (m_activeProviderFrameToken.isValid()) {
-            queueProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback);
-        } else if (!startProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
+        if (!dispatchProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
             publishPlaybackRequestChange(*this, previousFrame);
             emit q->diagnosticsChanged();
             update();
