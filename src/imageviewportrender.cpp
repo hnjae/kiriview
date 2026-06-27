@@ -11,6 +11,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const QImage image = synchronization.pendingProviderCommit
         ? m_displayedImage
         : (hasReadyDisplay() ? m_displayedImage : QImage());
+    const quint64 renderGeneration = m_renderCommitPending ? m_pendingRenderGeneration : 0;
     const quint64 renderRequestId = m_renderCommitPending ? m_pendingRenderRequestId : 0;
     const quint64 renderPreparedPayloadId
         = m_renderCommitPending ? m_pendingPreparedPayloadId : 0;
@@ -27,13 +28,14 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             m_mipmap,
             m_mirrorHorizontally,
             m_mirrorVertically,
+            renderGeneration,
             renderRequestId,
             renderPreparedPayloadId,
             window(),
         });
     if (render.result == RenderAdapter::CommitResult::Failed) {
         const auto changes = controller.acknowledgeRenderFailure(
-            { render.requestId, render.preparedPayloadId });
+            { render.generation, render.requestId, render.preparedPayloadId });
         applyControllerChanges(changes);
         if (changes.playbackPhase) {
             syncPlaybackTimer();
@@ -42,7 +44,8 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     }
 
     const auto changes = controller.acknowledgeRenderCommit(
-        { render.requestId, render.preparedPayloadId }, !image.isNull(), synchronization);
+        { render.generation, render.requestId, render.preparedPayloadId }, !image.isNull(),
+        synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

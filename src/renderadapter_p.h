@@ -28,6 +28,7 @@ public:
         bool mipmap = false;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
+        quint64 generation = 0;
         quint64 requestId = 0;
         quint64 preparedPayloadId = 0;
         QQuickWindow* window = nullptr;
@@ -37,6 +38,7 @@ public:
     {
         QSGNode* node = nullptr;
         CommitResult result = CommitResult::Empty;
+        quint64 generation = 0;
         quint64 requestId = 0;
         quint64 preparedPayloadId = 0;
     };

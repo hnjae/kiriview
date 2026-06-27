@@ -10,13 +10,13 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     delete oldNode;
 
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, input.requestId,
+        return { nullptr, RenderAdapter::CommitResult::Empty, input.generation, input.requestId,
             input.preparedPayloadId };
     }
 
     const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
     if (!hasBackground && input.image.isNull()) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, input.requestId,
+        return { nullptr, RenderAdapter::CommitResult::Empty, input.generation, input.requestId,
             input.preparedPayloadId };
     }
 
@@ -46,12 +46,14 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
 
     if (input.image.isNull()) {
-        return { root, CommitResult::Empty, input.requestId, input.preparedPayloadId };
+        return { root, CommitResult::Empty, input.generation, input.requestId,
+            input.preparedPayloadId };
     }
 
     if (!input.window) {
         delete root;
-        return { nullptr, CommitResult::Failed, input.requestId, input.preparedPayloadId };
+        return { nullptr, CommitResult::Failed, input.generation, input.requestId,
+            input.preparedPayloadId };
     }
 
     QQuickWindow::CreateTextureOptions textureOptions;
@@ -64,7 +66,8 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         delete texture;
         delete imageNode;
         delete root;
-        return { nullptr, CommitResult::Failed, input.requestId, input.preparedPayloadId };
+        return { nullptr, CommitResult::Failed, input.generation, input.requestId,
+            input.preparedPayloadId };
     }
 
     imageNode->setTexture(texture);
@@ -86,5 +89,6 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
     imageNode->setTextureCoordinatesTransform(transform);
     root->appendChildNode(imageNode);
-    return { root, CommitResult::Committed, input.requestId, input.preparedPayloadId };
+    return { root, CommitResult::Committed, input.generation, input.requestId,
+        input.preparedPayloadId };
 }

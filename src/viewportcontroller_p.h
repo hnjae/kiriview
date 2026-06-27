@@ -15,6 +15,7 @@ struct ViewportCommandResult
 
 struct ViewportRenderAcknowledgement
 {
+    quint64 generation = 0;
     quint64 requestId = 0;
     quint64 preparedPayloadId = 0;
 };

@@ -100,6 +100,8 @@ bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
     return viewport.m_renderCommitPending
+        && acknowledgement.generation == viewport.m_pendingRenderGeneration
+        && acknowledgement.generation == viewport.request.sequenceGeneration
         && acknowledgement.requestId == viewport.m_pendingRenderRequestId
         && acknowledgement.preparedPayloadId == viewport.m_pendingPreparedPayloadId
         && acknowledgement.preparedPayloadId == viewport.request.activeRequest.preparedPayloadId;

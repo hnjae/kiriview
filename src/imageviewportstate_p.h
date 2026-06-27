@@ -94,6 +94,7 @@ struct DisplayState
     QImage displayedImage;
     QImage pendingDisplayImage;
     bool renderCommitPending = false;
+    quint64 pendingRenderGeneration = 0;
     quint64 nextPreparedPayloadId = 0;
     quint64 pendingRenderRequestId = 0;
     quint64 pendingPreparedPayloadId = 0;

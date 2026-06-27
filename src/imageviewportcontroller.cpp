@@ -397,6 +397,7 @@ void ImageViewportPrivate::clearDisplayedDisplay()
 
 void ImageViewportPrivate::beginPreparedPayloadIdentity()
 {
+    m_pendingRenderGeneration = request.sequenceGeneration;
     m_pendingRenderRequestId = request.activeRequest.identity.id;
     m_pendingPreparedPayloadId
         = request.activeRequest.identity.id == 0 ? 0 : ++m_nextPreparedPayloadId;
@@ -405,6 +406,7 @@ void ImageViewportPrivate::beginPreparedPayloadIdentity()
 
 void ImageViewportPrivate::clearPendingRenderIdentity()
 {
+    m_pendingRenderGeneration = 0;
     m_pendingRenderRequestId = 0;
     m_pendingPreparedPayloadId = 0;
 }
