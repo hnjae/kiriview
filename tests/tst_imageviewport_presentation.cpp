@@ -231,13 +231,17 @@ void ImageViewportPresentationTest::
 
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
+    const quint64 playbackRequestId = item.activeRequestIdForTest();
+    QVERIFY(playbackRequestId > 0);
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*frameRequestCount, 1);
 
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+    const quint64 stopRequestId = item.activeRequestIdForTest();
     const ImageSequenceProviderRequestToken nonPlaybackToken
         = sessionFactory->lastSession()->lastFrameToken();
 
+    QVERIFY(stopRequestId > playbackRequestId);
     QCOMPARE(*cancelRequestCount, 1);
     QVERIFY(sessionFactory->lastSession()->lastCancelledToken() == playbackToken);
     QVERIFY(nonPlaybackToken != playbackToken);
