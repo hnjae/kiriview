@@ -906,6 +906,27 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(
+    const ViewportProviderFrameTerminalResult& result)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.clearQueuedProviderFrameRequest();
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_requestStatus = result.status;
+    viewport.m_requestReason = result.reason;
+    viewport.m_errorString
+        = ImageViewportPrivate::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic);
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

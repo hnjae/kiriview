@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 
 #include <QtCore/QRectF>
+#include <QtCore/QString>
 
 class ImageViewportPrivate;
 
@@ -30,6 +31,14 @@ struct ViewportRenderSynchronization
     QRectF oldVisibleImageRect;
 };
 
+struct ViewportProviderFrameTerminalResult
+{
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    QString diagnostic;
+    QString fallbackDiagnostic;
+};
+
 class ViewportController
 {
 public:
@@ -45,6 +54,8 @@ public:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
+        const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

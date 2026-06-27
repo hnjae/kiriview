@@ -16,6 +16,16 @@ bool activeProviderFrameTokenMatchesActiveRequest(
         && token == viewport.request.activeRequest.providerFrameToken
         && viewport.m_activeProviderFrameRequestId == viewport.request.activeRequest.identity.id;
 }
+
+void applyProviderFrameTerminalResult(
+    ImageViewportPrivate& viewport, const ViewportProviderFrameTerminalResult& result)
+{
+    const auto changes = viewport.controller.handleProviderFrameTerminalResult(result);
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -521,18 +531,13 @@ void ImageViewportPrivate::handleProviderFailure(
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        clearQueuedProviderFrameRequest();
-        m_activeProviderFrameToken = {};
-        m_activeProviderFrameRequestId = 0;
-        m_activeProviderFrameFromPlayback = false;
-        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::ProviderFailure;
-        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider failure"));
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderFrameTerminalResult(*this,
+            {
+                RequestStatus::Error,
+                RequestReason::ProviderFailure,
+                diagnostic,
+                QStringLiteral("provider failure"),
+            });
         return;
     }
 
@@ -561,21 +566,15 @@ void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderReques
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        clearQueuedProviderFrameRequest();
-        m_activeProviderFrameToken = {};
-        m_activeProviderFrameRequestId = 0;
-        m_activeProviderFrameFromPlayback = false;
-        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason
-            = cause == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-            ? RequestReason::UnsupportedRequest
-            : RequestReason::PayloadRejection;
-        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider unsupported"));
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderFrameTerminalResult(*this,
+            {
+                RequestStatus::Unsupported,
+                cause == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
+                    ? RequestReason::UnsupportedRequest
+                    : RequestReason::PayloadRejection,
+                diagnostic,
+                QStringLiteral("provider unsupported"),
+            });
         return;
     }
 
@@ -604,18 +603,13 @@ void ImageViewportPrivate::handleProviderCancellation(
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        clearQueuedProviderFrameRequest();
-        m_activeProviderFrameToken = {};
-        m_activeProviderFrameRequestId = 0;
-        m_activeProviderFrameFromPlayback = false;
-        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::ProviderFailure;
-        m_errorString = boundedDiagnostic(diagnostic, QStringLiteral("provider cancelled request"));
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderFrameTerminalResult(*this,
+            {
+                RequestStatus::Error,
+                RequestReason::ProviderFailure,
+                diagnostic,
+                QStringLiteral("provider cancelled request"),
+            });
         return;
     }
 
