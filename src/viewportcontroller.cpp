@@ -39,6 +39,36 @@ void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& res
     viewport.m_playbackPhase = phase;
     result.changes.playbackPhase = true;
 }
+
+struct ProviderStopRestoreTarget {
+    int frame = -1;
+    int position = -1;
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+};
+
+ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
+{
+    ProviderStopRestoreTarget target;
+    target.frame = viewport.m_latestNonPlaybackFrame;
+    target.position = viewport.m_latestNonPlaybackPosition;
+    if (target.frame < 0 && target.position >= 0) {
+        target.frame = viewport.providerFrameIndexForPosition(target.position);
+    }
+    if (target.frame < 0 && target.position < 0 && viewport.m_currentFrame >= 0) {
+        target.frame = viewport.m_currentFrame;
+        target.position = viewport.providerFrameStartPosition(target.frame);
+    }
+    if (target.position < 0 && target.frame >= 0) {
+        target.position = viewport.providerFrameStartPosition(target.frame);
+    }
+    target.targetKind = viewport.m_latestNonPlaybackProviderTargetKind;
+    if (target.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
+        && target.frame >= 0) {
+        target.targetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
+    }
+    return target;
+}
 }
 
 ViewportController::ViewportController(ImageViewportPrivate& viewport)
@@ -334,31 +364,14 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_queuedProviderFrameRequest && viewport.m_queuedProviderFrameFromPlayback) {
         viewport.clearQueuedProviderFrameRequest();
 
-        int restoredFrame = viewport.m_latestNonPlaybackFrame;
-        int restoredPosition = viewport.m_latestNonPlaybackPosition;
-        if (restoredFrame < 0 && restoredPosition >= 0) {
-            restoredFrame = viewport.providerFrameIndexForPosition(restoredPosition);
-        }
-        if (restoredFrame < 0 && restoredPosition < 0 && viewport.m_currentFrame >= 0) {
-            restoredFrame = viewport.m_currentFrame;
-            restoredPosition = viewport.providerFrameStartPosition(restoredFrame);
-        }
-        if (restoredPosition < 0 && restoredFrame >= 0) {
-            restoredPosition = viewport.providerFrameStartPosition(restoredFrame);
-        }
-        ImageViewportInternal::ProviderRequestTargetKind restoredTargetKind
-            = viewport.m_latestNonPlaybackProviderTargetKind;
-        if (restoredTargetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
-            && restoredFrame >= 0) {
-            restoredTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
-        }
+        const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         viewport.beginDisplayRequest(
             ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = restoredFrame;
-        viewport.m_requestedPosition = restoredPosition;
+        viewport.m_currentFrame = restoredTarget.frame;
+        viewport.m_requestedPosition = restoredTarget.position;
         viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_currentProviderTargetKind = restoredTargetKind;
+        viewport.m_currentProviderTargetKind = restoredTarget.targetKind;
         if (viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
             && viewport.m_displayedFrame == viewport.m_currentFrame
             && viewport.m_displayedPosition == viewport.m_requestedPosition) {
@@ -397,31 +410,14 @@ ViewportCommandResult ViewportController::stop()
         viewport.m_activeProviderFrameTargetKind
             = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 
-        int restoredFrame = viewport.m_latestNonPlaybackFrame;
-        int restoredPosition = viewport.m_latestNonPlaybackPosition;
-        if (restoredFrame < 0 && restoredPosition >= 0) {
-            restoredFrame = viewport.providerFrameIndexForPosition(restoredPosition);
-        }
-        if (restoredFrame < 0 && restoredPosition < 0 && viewport.m_currentFrame >= 0) {
-            restoredFrame = viewport.m_currentFrame;
-            restoredPosition = viewport.providerFrameStartPosition(restoredFrame);
-        }
-        if (restoredPosition < 0 && restoredFrame >= 0) {
-            restoredPosition = viewport.providerFrameStartPosition(restoredFrame);
-        }
-        ImageViewportInternal::ProviderRequestTargetKind restoredTargetKind
-            = viewport.m_latestNonPlaybackProviderTargetKind;
-        if (restoredTargetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
-            && restoredFrame >= 0) {
-            restoredTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
-        }
+        const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         viewport.beginDisplayRequest(
             ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = restoredFrame;
-        viewport.m_requestedPosition = restoredPosition;
+        viewport.m_currentFrame = restoredTarget.frame;
+        viewport.m_requestedPosition = restoredTarget.position;
         viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_currentProviderTargetKind = restoredTargetKind;
+        viewport.m_currentProviderTargetKind = restoredTarget.targetKind;
         if (viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
             && viewport.m_displayedFrame == viewport.m_currentFrame
             && viewport.m_displayedPosition == viewport.m_requestedPosition) {
