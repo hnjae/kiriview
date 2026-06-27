@@ -282,10 +282,12 @@ public:
     quint64& m_nextProviderRequestToken = provider.nextRequestToken;
     ImageSequenceProviderRequestToken& m_activeProviderMetadataToken = provider.activeMetadataToken;
     ImageSequenceProviderRequestToken& m_activeProviderFrameToken = provider.activeFrameToken;
+    quint64& m_activeProviderFrameRequestId = provider.activeFrameRequestId;
     bool& m_activeProviderFrameFromPlayback = provider.activeFrameFromPlayback;
     ProviderRequestTargetKind& m_activeProviderFrameTargetKind = provider.activeFrameTargetKind;
     bool& m_queuedProviderFrameRequest = provider.queuedFrameRequest;
     quint64& m_queuedProviderFrameGeneration = provider.queuedFrameGeneration;
+    quint64& m_queuedProviderFrameRequestId = provider.queuedFrameRequestId;
     int& m_queuedProviderFrame = provider.queuedFrame;
     int& m_queuedProviderPosition = provider.queuedPosition;
     bool& m_queuedProviderFrameFromPlayback = provider.queuedFrameFromPlayback;

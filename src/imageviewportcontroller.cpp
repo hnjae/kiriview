@@ -63,6 +63,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_providerTimingIntervals = {};
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     m_errorString.clear();
@@ -324,6 +325,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
             cancelProviderRequest(m_activeProviderFrameToken);
         }
         m_activeProviderFrameToken = {};
+        m_activeProviderFrameRequestId = 0;
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 

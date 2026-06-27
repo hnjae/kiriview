@@ -51,6 +51,7 @@ void ImageViewportPrivate::clearQueuedProviderFrameRequest()
 {
     m_queuedProviderFrameRequest = false;
     m_queuedProviderFrameGeneration = 0;
+    m_queuedProviderFrameRequestId = 0;
     m_queuedProviderFrame = -1;
     m_queuedProviderPosition = -1;
     m_queuedProviderFrameFromPlayback = false;
@@ -70,11 +71,13 @@ void ImageViewportPrivate::queueProviderFrameRequest(
         cancelProviderRequest(m_activeProviderFrameToken);
     }
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 
     m_queuedProviderFrameRequest = true;
     m_queuedProviderFrameGeneration = m_sequenceGeneration;
+    m_queuedProviderFrameRequestId = m_activeRequestId;
     m_queuedProviderFrame = frame;
     m_queuedProviderPosition = m_requestedPosition;
     m_queuedProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
@@ -92,8 +95,10 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 
     const int queuedFrame = m_queuedProviderFrame;
     const int queuedPosition = m_queuedProviderPosition;
+    const quint64 queuedRequestId = m_queuedProviderFrameRequestId;
     const ProviderRequestTargetKind queuedTargetKind = m_queuedProviderFrameTargetKind;
     const bool stillCurrent = m_queuedProviderFrameGeneration == m_sequenceGeneration
+        && queuedRequestId == m_activeRequestId
         && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::RequestQueued && m_currentFrame == queuedFrame
         && m_requestedPosition == queuedPosition && m_currentProviderTargetKind == queuedTargetKind;
@@ -118,6 +123,7 @@ bool ImageViewportPrivate::startProviderFrameRequest(
     m_requestStatus = RequestStatus::Loading;
     m_requestReason = RequestReason::ProviderWaiting;
     m_activeProviderFrameToken = nextProviderRequestToken();
+    m_activeProviderFrameRequestId = m_activeRequestId;
     if (!m_activeProviderFrameToken.isValid()) {
         publishProviderTokenExhaustion();
         return false;
@@ -142,6 +148,7 @@ void ImageViewportPrivate::publishProviderTokenExhaustion()
     clearQueuedProviderFrameRequest();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     m_providerPlaybackStartPending = false;
@@ -330,7 +337,8 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     ImageSequenceProviderFrameMetadata metadata)
 {
     if (!hasProviderSequence() || !m_providerSession || !m_activeProviderFrameToken.isValid()
-        || token != m_activeProviderFrameToken) {
+        || token != m_activeProviderFrameToken
+        || m_activeProviderFrameRequestId != m_activeRequestId) {
         return;
     }
 
@@ -345,6 +353,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     if (!admission.accepted()) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
+        m_activeProviderFrameRequestId = 0;
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = admission.status;
@@ -359,6 +368,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
 
     const bool diagnosticsValueChanged = clearDiagnostics();
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = contentRect();
@@ -393,7 +403,8 @@ void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestTok
     const bool activeMetadataToken = !m_providerMetadataReady
         && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
     const bool activeFrameToken
-        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken;
+        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
+        && m_activeProviderFrameRequestId == m_activeRequestId;
     if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
         return;
     }
@@ -426,7 +437,8 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
     const bool activeMetadataToken = !m_providerMetadataReady
         && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
     const bool activeFrameToken
-        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken;
+        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
+        && m_activeProviderFrameRequestId == m_activeRequestId;
     if (!activeMetadataToken && !activeFrameToken) {
         return;
     }
@@ -439,6 +451,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
         }
         if (activeFrameToken) {
             m_activeProviderFrameToken = {};
+            m_activeProviderFrameRequestId = 0;
             m_activeProviderFrameFromPlayback = false;
             m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         }
@@ -456,6 +469,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
     }
 
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     const bool diagnosticsValueChanged = clearDiagnostics();
@@ -523,9 +537,11 @@ void ImageViewportPrivate::handleProviderFailure(
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
+        && m_activeProviderFrameRequestId == m_activeRequestId) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
+        m_activeProviderFrameRequestId = 0;
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Error;
@@ -562,9 +578,11 @@ void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderReques
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
+        && m_activeProviderFrameRequestId == m_activeRequestId) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
+        m_activeProviderFrameRequestId = 0;
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Unsupported;
@@ -604,9 +622,11 @@ void ImageViewportPrivate::handleProviderCancellation(
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken) {
+    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
+        && m_activeProviderFrameRequestId == m_activeRequestId) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
+        m_activeProviderFrameRequestId = 0;
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
         m_requestStatus = RequestStatus::Error;

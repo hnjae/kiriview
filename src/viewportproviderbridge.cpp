@@ -78,6 +78,7 @@ void ViewportProviderBridge::closeSession()
     const ImageSequenceProviderRequestToken frameToken = viewport.m_activeProviderFrameToken;
     viewport.m_activeProviderMetadataToken = {};
     viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
     viewport.m_activeProviderFrameFromPlayback = false;
     viewport.m_activeProviderFrameTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;

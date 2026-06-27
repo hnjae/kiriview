@@ -42,6 +42,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     discardPendingRenderCommit();
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
+    m_activeProviderFrameRequestId = 0;
     m_activeProviderFrameFromPlayback = false;
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 

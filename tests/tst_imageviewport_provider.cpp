@@ -5487,6 +5487,8 @@ void ImageViewportProviderTest::providerTimedSameFrameSeekSupersedesActiveReques
     CountingProviderSession* session = sessionFactory->lastSession();
     const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
     QVERIFY(initialFrameToken.isValid());
+    const quint64 initialRequestId = item.activeRequestIdForTest();
+    QVERIFY(initialRequestId > 0);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
 
@@ -5517,6 +5519,8 @@ void ImageViewportProviderTest::providerTimedSameFrameSeekSupersedesActiveReques
     const ImageSequenceProviderRequestToken activeFrameToken = session->lastFrameToken();
     QVERIFY(activeFrameToken.isValid());
     QVERIFY(activeFrameToken != initialFrameToken);
+    const quint64 activeRequestId = item.activeRequestIdForTest();
+    QVERIFY(activeRequestId > initialRequestId);
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
@@ -5547,6 +5551,7 @@ void ImageViewportProviderTest::providerTimedSameFrameSeekSupersedesActiveReques
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(item.activeRequestIdForTest(), activeRequestId);
     QCOMPARE(item.property("requestRevision").toUInt(), activeRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
