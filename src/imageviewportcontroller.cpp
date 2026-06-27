@@ -63,14 +63,14 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
 void applyPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
+    viewport.request.activeRequest.target.frame = target.frame;
+    viewport.request.activeRequest.target.position = target.position;
 }
 
 void publishPlaybackRequestChange(ImageViewportPrivate& viewport, int previousFrame)
 {
     viewport.incrementRequestRevision();
-    if (viewport.m_currentFrame != previousFrame
+    if (viewport.request.activeRequest.target.frame != previousFrame
         || viewport.m_displayStatus != ImageViewport::DisplayStatus::Ready) {
         viewport.incrementDisplayRevision();
     }
@@ -108,15 +108,16 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
         const int duration = totalDuration();
-        const int previousFrame = m_currentFrame;
+        const int previousFrame = request.activeRequest.target.frame;
+        const int currentFrame = request.activeRequest.target.frame;
         const PlaybackAdvanceTarget target = playbackAdvanceTarget(
-            elapsedMilliseconds, m_currentFrame, m_playbackPosition, m_looping, duration,
+            elapsedMilliseconds, currentFrame, request.playbackPosition, m_looping, duration,
             frameCount(), [this](int frame) { return providerFrameStartPosition(frame); },
             [this](int position) { return providerFrameIndexForPosition(position); });
         if (!target.valid) {
             return;
         }
-        m_playbackPosition = target.playbackPosition;
+        request.playbackPosition = target.playbackPosition;
         if (target.displayTarget.frame == previousFrame && m_requestStatus == RequestStatus::Ready) {
             if (m_stopPlaybackWhenRequestReady) {
                 setPlaybackPhase(PlaybackPhase::Stopped);
@@ -128,7 +129,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         }
 
         applyPlaybackTarget(*this, target.displayTarget);
-        m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
+        request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Playback;
         publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (!dispatchProviderFrameRequest(
@@ -152,17 +153,18 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     }
 
     const int totalDuration = m_sequence->totalDuration();
-    const int previousFrame = m_currentFrame;
+    const int previousFrame = request.activeRequest.target.frame;
+    const int currentFrame = request.activeRequest.target.frame;
     const PlaybackAdvanceTarget target = playbackAdvanceTarget(
-        elapsedMilliseconds, m_currentFrame, m_playbackPosition, m_looping, totalDuration,
+        elapsedMilliseconds, currentFrame, request.playbackPosition, m_looping, totalDuration,
         m_sequence->frameCount(), [this](int frame) { return m_sequence->frameStartPosition(frame); },
         [this](int position) { return m_sequence->frameIndexForPosition(position); });
     if (!target.valid) {
         return;
     }
 
-    m_playbackPosition = target.playbackPosition;
-    if (!target.reachedEnd && !target.looped && target.displayTarget.frame == m_currentFrame) {
+    request.playbackPosition = target.playbackPosition;
+    if (!target.reachedEnd && !target.looped && target.displayTarget.frame == currentFrame) {
         return;
     }
 
@@ -196,11 +198,14 @@ bool ImageViewportPrivate::hasPendingRenderCommitForTestImpl() const
     return m_renderCommitPending;
 }
 
-quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const { return m_activeRequestId; }
+quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const
+{
+    return request.activeRequest.identity.id;
+}
 
 quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
 {
-    return m_displayedRequestId;
+    return request.displayedRequest.request.identity.id;
 }
 
 quint64 ImageViewportPrivate::pendingRenderPayloadIdForTestImpl() const
@@ -282,19 +287,20 @@ int ImageViewportPrivate::playbackTimerInterval() const
 
     int frameStart = -1;
     int frameDuration = -1;
+    const int currentFrame = request.activeRequest.target.frame;
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
-        if (m_currentFrame < 0 || m_currentFrame >= m_providerTimingIntervals.frameCount()) {
+        if (currentFrame < 0 || currentFrame >= m_providerTimingIntervals.frameCount()) {
             return -1;
         }
-        frameStart = providerFrameStartPosition(m_currentFrame);
-        frameDuration = m_providerTimingIntervals.frameDuration(m_currentFrame);
+        frameStart = providerFrameStartPosition(currentFrame);
+        frameDuration = m_providerTimingIntervals.frameDuration(currentFrame);
     } else if (hasTimedSequence()) {
-        if (m_currentFrame < 0 || m_currentFrame >= m_sequence->frameCount()) {
+        if (currentFrame < 0 || currentFrame >= m_sequence->frameCount()) {
             return -1;
         }
-        frameStart = m_sequence->frameStartPosition(m_currentFrame);
-        const int nextFrameStart = m_currentFrame + 1 < m_sequence->frameCount()
-            ? m_sequence->frameStartPosition(m_currentFrame + 1)
+        frameStart = m_sequence->frameStartPosition(currentFrame);
+        const int nextFrameStart = currentFrame + 1 < m_sequence->frameCount()
+            ? m_sequence->frameStartPosition(currentFrame + 1)
             : m_sequence->totalDuration();
         frameDuration = nextFrameStart - frameStart;
     } else {
@@ -305,7 +311,7 @@ int ImageViewportPrivate::playbackTimerInterval() const
         return -1;
     }
 
-    const int playbackPosition = m_playbackPosition >= 0 ? m_playbackPosition : frameStart;
+    const int playbackPosition = request.playbackPosition >= 0 ? request.playbackPosition : frameStart;
     const int remaining = frameStart + frameDuration - playbackPosition;
     return std::max(1, remaining);
 }
@@ -340,7 +346,7 @@ bool ImageViewportPrivate::clearDiagnostics()
 
 void ImageViewportPrivate::clearRequestIdentity()
 {
-    m_nextRequestId = 0;
+    request.nextRequestId = 0;
     request.activeRequest.identity = {};
     request.latestNonPlaybackRequest.identity = {};
 }
@@ -348,8 +354,8 @@ void ImageViewportPrivate::clearRequestIdentity()
 void ImageViewportPrivate::beginDisplayRequest(
     DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
 {
-    m_activeRequestId = ++m_nextRequestId;
-    m_activeRequestOrigin = origin;
+    request.activeRequest.identity.id = ++request.nextRequestId;
+    request.activeRequest.identity.origin = origin;
     request.activeRequest.providerFrameToken = {};
     request.activeRequest.preparedPayloadId = 0;
     if (rememberAsLatestNonPlayback) {
@@ -362,16 +368,38 @@ void ImageViewportPrivate::beginInitialDisplayRequest(bool rememberAsLatestNonPl
     beginDisplayRequest(DisplayRequestOrigin::Initial, rememberAsLatestNonPlayback);
 }
 
-void ImageViewportPrivate::commitDisplayedRequestIdentity()
+ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplayRequestSnapshot(
+    int displayedPosition) const
 {
-    m_displayedRequestId = m_activeRequestId;
-    m_displayedPreparedPayloadId = m_pendingPreparedPayloadId;
+    DisplayRequestSnapshot snapshot = request.displayedRequest;
+    snapshot.generation = request.sequenceGeneration;
+    snapshot.request.target = request.activeRequest.target;
+    snapshot.request.target.frame = request.activeRequest.target.frame;
+    snapshot.request.target.position = displayedPosition;
+    return snapshot;
+}
+
+void ImageViewportPrivate::commitDisplayedRequestSnapshot()
+{
+    const auto displayedTarget = request.displayedRequest.request.target;
+    request.displayedRequest.generation = request.sequenceGeneration;
+    request.displayedRequest.request = request.activeRequest;
+    request.displayedRequest.request.target = displayedTarget;
+    request.displayedRequest.request.preparedPayloadId = m_pendingPreparedPayloadId;
+}
+
+void ImageViewportPrivate::clearDisplayedDisplay()
+{
+    request.displayedRequest = {};
+    m_displayedImageSize = {};
+    m_displayedImage = {};
 }
 
 void ImageViewportPrivate::beginPreparedPayloadIdentity()
 {
-    m_pendingRenderRequestId = m_activeRequestId;
-    m_pendingPreparedPayloadId = m_activeRequestId == 0 ? 0 : ++m_nextPreparedPayloadId;
+    m_pendingRenderRequestId = request.activeRequest.identity.id;
+    m_pendingPreparedPayloadId
+        = request.activeRequest.identity.id == 0 ? 0 : ++m_nextPreparedPayloadId;
     request.activeRequest.preparedPayloadId = m_pendingPreparedPayloadId;
 }
 
@@ -512,14 +540,14 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
     publishReadyDisplayState();
     m_renderCommitPending = true;
     beginPreparedPayloadIdentity();
-    m_displayedFrame = m_currentFrame;
-    m_displayedGeneration = m_sequenceGeneration;
+    int displayedPosition = -1;
+    const int currentFrame = request.activeRequest.target.frame;
     if (hasProviderSequence()) {
-        m_displayedPosition = providerFrameStartPosition(m_currentFrame);
+        displayedPosition = providerFrameStartPosition(currentFrame);
     } else {
-        m_displayedPosition
-            = hasTimedSequence() ? m_sequence->frameStartPosition(m_currentFrame) : -1;
+        displayedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(currentFrame) : -1;
     }
+    request.displayedRequest = activeDisplayRequestSnapshot(displayedPosition);
     m_displayedImageSize
         = hasProviderSequence() ? m_providerLogicalSize : m_sequence->logicalSize();
     if (hasProviderSequence()) {
@@ -530,7 +558,9 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
         }
         m_pendingDisplayImage = {};
     } else {
-        m_displayedImage = m_sequence ? m_sequence->frameImage(m_displayedFrame) : QImage();
+        m_displayedImage = m_sequence
+            ? m_sequence->frameImage(request.displayedRequest.request.target.frame)
+            : QImage();
         m_pendingDisplayImage = {};
     }
 }

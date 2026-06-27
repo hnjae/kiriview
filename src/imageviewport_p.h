@@ -24,6 +24,7 @@ public:
     using RequestStatus = ImageViewport::RequestStatus;
     using TriState = ImageViewport::TriState;
     using VerticalAlignment = ImageViewport::VerticalAlignment;
+    using DisplayRequestSnapshot = ImageViewportInternal::DisplayRequestSnapshot;
     using DisplayRequestOrigin = ImageViewportInternal::DisplayRequestOrigin;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
 
@@ -186,7 +187,9 @@ public:
     void beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
         bool rememberAsLatestNonPlayback);
     void beginInitialDisplayRequest(bool rememberAsLatestNonPlayback);
-    void commitDisplayedRequestIdentity();
+    DisplayRequestSnapshot activeDisplayRequestSnapshot(int displayedPosition) const;
+    void commitDisplayedRequestSnapshot();
+    void clearDisplayedDisplay();
     void beginPreparedPayloadIdentity();
     void clearPendingRenderIdentity();
     CommandOutcome ignoredNoRequest();
@@ -244,25 +247,6 @@ public:
     bool& m_looping = request.looping;
     bool& m_stopPlaybackWhenRequestReady = request.stopPlaybackWhenRequestReady;
     bool& m_providerPlaybackStartPending = request.providerPlaybackStartPending;
-    int& m_currentFrame = request.activeRequest.target.frame;
-    int& m_requestedPosition = request.activeRequest.target.position;
-    int& m_playbackPosition = request.playbackPosition;
-    int& m_latestNonPlaybackFrame = request.latestNonPlaybackRequest.target.frame;
-    int& m_latestNonPlaybackPosition = request.latestNonPlaybackRequest.target.position;
-    ProviderRequestTargetKind& m_currentProviderTargetKind
-        = request.activeRequest.target.providerTargetKind;
-    ProviderRequestTargetKind& m_latestNonPlaybackProviderTargetKind
-        = request.latestNonPlaybackRequest.target.providerTargetKind;
-    quint64& m_sequenceGeneration = request.sequenceGeneration;
-    quint64& m_nextRequestId = request.nextRequestId;
-    quint64& m_activeRequestId = request.activeRequest.identity.id;
-    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequest.identity.id;
-    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequest.identity.origin;
-    int& m_displayedFrame = display.displayedFrame;
-    int& m_displayedPosition = display.displayedPosition;
-    quint64& m_displayedGeneration = display.displayedGeneration;
-    quint64& m_displayedRequestId = display.displayedRequestId;
-    quint64& m_displayedPreparedPayloadId = display.displayedPreparedPayloadId;
     QSizeF& m_displayedImageSize = display.displayedImageSize;
     QImage& m_displayedImage = display.displayedImage;
     QImage& m_pendingDisplayImage = display.pendingDisplayImage;
@@ -271,12 +255,6 @@ public:
     quint64& m_pendingRenderRequestId = display.pendingRenderRequestId;
     quint64& m_pendingPreparedPayloadId = display.pendingPreparedPayloadId;
     bool& m_renderFailureRetainedDisplayValid = display.renderFailureRetainedDisplayValid;
-    int& m_renderFailureRetainedFrame = display.renderFailureRetainedFrame;
-    int& m_renderFailureRetainedPosition = display.renderFailureRetainedPosition;
-    quint64& m_renderFailureRetainedGeneration = display.renderFailureRetainedGeneration;
-    quint64& m_renderFailureRetainedRequestId = display.renderFailureRetainedRequestId;
-    quint64& m_renderFailureRetainedPreparedPayloadId
-        = display.renderFailureRetainedPreparedPayloadId;
     QSizeF& m_renderFailureRetainedImageSize = display.renderFailureRetainedImageSize;
     QImage& m_renderFailureRetainedImage = display.renderFailureRetainedImage;
     uint& m_displayRevision = display.revision;

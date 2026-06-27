@@ -228,8 +228,8 @@ bool ViewportProviderBridge::openSession()
 
     if (viewport.m_providerMetadataReady) {
         viewport.discardPendingRenderCommit();
-        viewport.startProviderFrameRequest(
-            viewport.m_currentFrame, viewport.m_currentProviderTargetKind);
+        viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
+            viewport.request.activeRequest.target.providerTargetKind);
     } else {
         viewport.m_activeProviderMetadataToken = nextRequestToken();
         if (!viewport.m_activeProviderMetadataToken.isValid()) {

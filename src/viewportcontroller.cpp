@@ -45,9 +45,9 @@ void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& res
 DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
     DisplayRequestTarget target;
-    target.frame = viewport.m_latestNonPlaybackFrame;
-    target.position = viewport.m_latestNonPlaybackPosition;
-    target.providerTargetKind = viewport.m_latestNonPlaybackProviderTargetKind;
+    target.frame = viewport.request.latestNonPlaybackRequest.target.frame;
+    target.position = viewport.request.latestNonPlaybackRequest.target.position;
+    target.providerTargetKind = viewport.request.latestNonPlaybackRequest.target.providerTargetKind;
     return target;
 }
 
@@ -57,8 +57,9 @@ DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
     if (target.frame < 0 && target.position >= 0) {
         target.frame = viewport.providerFrameIndexForPosition(target.position);
     }
-    if (target.frame < 0 && target.position < 0 && viewport.m_currentFrame >= 0) {
-        target.frame = viewport.m_currentFrame;
+    if (target.frame < 0 && target.position < 0
+        && viewport.request.activeRequest.target.frame >= 0) {
+        target.frame = viewport.request.activeRequest.target.frame;
         target.position = viewport.providerFrameStartPosition(target.frame);
     }
     if (target.position < 0 && target.frame >= 0) {
@@ -74,23 +75,25 @@ DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
 void applyStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
-    viewport.m_playbackPosition = viewport.m_requestedPosition;
+    viewport.request.activeRequest.target.frame = target.frame;
+    viewport.request.activeRequest.target.position = target.position;
+    viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
 }
 
 void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     applyStopRestoreTarget(viewport, target);
-    viewport.m_currentProviderTargetKind = target.providerTargetKind;
+    viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
 }
 
 bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 {
     return viewport.hasReadyDisplay()
-        && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
-        && viewport.m_displayedFrame == viewport.m_currentFrame
-        && viewport.m_displayedPosition == viewport.m_requestedPosition;
+        && viewport.request.displayedRequest.generation == viewport.request.sequenceGeneration
+        && viewport.request.displayedRequest.request.target.frame
+            == viewport.request.activeRequest.target.frame
+        && viewport.request.displayedRequest.request.target.position
+            == viewport.request.activeRequest.target.position;
 }
 
 void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
@@ -102,20 +105,23 @@ void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, DisplayRequestTarg
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
     viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
-    viewport.m_playbackPosition = target.position;
+    viewport.request.activeRequest.target.frame = target.frame;
+    viewport.request.activeRequest.target.position = target.position;
+    viewport.request.playbackPosition = target.position;
     if (target.providerTargetKind != ImageViewportInternal::ProviderRequestTargetKind::Unknown) {
-        viewport.m_currentProviderTargetKind = target.providerTargetKind;
-        viewport.m_latestNonPlaybackProviderTargetKind = target.providerTargetKind;
+        viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
+        viewport.request.latestNonPlaybackRequest.target.providerTargetKind
+            = target.providerTargetKind;
     }
-    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+    viewport.request.latestNonPlaybackRequest.target.frame
+        = viewport.request.activeRequest.target.frame;
+    viewport.request.latestNonPlaybackRequest.target.position
+        = viewport.request.activeRequest.target.position;
 }
 
 DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
 {
-    int selectedFrame = viewport.m_currentFrame;
+    int selectedFrame = viewport.request.activeRequest.target.frame;
     if (selectedFrame < 0 || selectedFrame >= viewport.m_providerTimingIntervals.frameCount()) {
         selectedFrame = 0;
     }
@@ -126,10 +132,10 @@ DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
 void applyProviderPlaybackStartTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
-    viewport.m_playbackPosition = target.position;
-    viewport.m_currentProviderTargetKind = target.providerTargetKind;
+    viewport.request.activeRequest.target.frame = target.frame;
+    viewport.request.activeRequest.target.position = target.position;
+    viewport.request.playbackPosition = target.position;
+    viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
 }
 
 DisplayRequestTarget pendingProviderPlaybackTarget()
@@ -141,23 +147,23 @@ DisplayRequestTarget pendingProviderPlaybackTarget()
 void applyPendingProviderPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.m_providerPlaybackStartPending = true;
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
-    viewport.m_playbackPosition = target.position;
-    viewport.m_currentProviderTargetKind = target.providerTargetKind;
+    viewport.request.activeRequest.target.frame = target.frame;
+    viewport.request.activeRequest.target.position = target.position;
+    viewport.request.playbackPosition = target.position;
+    viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
 }
 
 template <typename FrameStartFor>
 int playbackStartPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
 {
-    return viewport.m_requestedPosition >= 0 ? viewport.m_requestedPosition
-                                             : frameStartFor(viewport.m_currentFrame);
+    const auto& target = viewport.request.activeRequest.target;
+    return target.position >= 0 ? target.position : frameStartFor(target.frame);
 }
 
 template <typename FrameStartFor>
 void seedPlaybackPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
 {
-    viewport.m_playbackPosition = playbackStartPosition(viewport, frameStartFor);
+    viewport.request.playbackPosition = playbackStartPosition(viewport, frameStartFor);
 }
 
 ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ImageViewportPrivate& viewport)
@@ -265,24 +271,18 @@ ViewportCommandResult ViewportController::clear()
     viewport.closeProviderSession();
     viewport.m_sequence = nullptr;
     viewport.m_sequenceOwner.reset();
-    ++viewport.m_sequenceGeneration;
+    ++viewport.request.sequenceGeneration;
     viewport.clearRequestIdentity();
-    viewport.m_currentFrame = -1;
-    viewport.m_requestedPosition = -1;
-    viewport.m_playbackPosition = -1;
-    viewport.m_latestNonPlaybackFrame = -1;
-    viewport.m_latestNonPlaybackPosition = -1;
-    viewport.m_currentProviderTargetKind
+    viewport.request.activeRequest.target.frame = -1;
+    viewport.request.activeRequest.target.position = -1;
+    viewport.request.playbackPosition = -1;
+    viewport.request.latestNonPlaybackRequest.target.frame = -1;
+    viewport.request.latestNonPlaybackRequest.target.position = -1;
+    viewport.request.activeRequest.target.providerTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    viewport.m_latestNonPlaybackProviderTargetKind
+    viewport.request.latestNonPlaybackRequest.target.providerTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    viewport.m_displayedFrame = -1;
-    viewport.m_displayedPosition = -1;
-    viewport.m_displayedGeneration = 0;
-    viewport.m_displayedRequestId = 0;
-    viewport.m_displayedPreparedPayloadId = 0;
-    viewport.m_displayedImageSize = {};
-    viewport.m_displayedImage = {};
+    viewport.clearDisplayedDisplay();
     viewport.m_pendingDisplayImage = {};
     viewport.m_renderCommitPending = false;
     viewport.m_nextPreparedPayloadId = 0;
@@ -344,7 +344,7 @@ ViewportCommandResult ViewportController::play()
         const bool preservePlaybackPosition
             = shouldPreservePlaybackPositionOnPlay(
                   viewport.m_playbackPhase, viewport.m_stopPlaybackWhenRequestReady)
-            && viewport.m_playbackPosition >= 0;
+            && viewport.request.playbackPosition >= 0;
         viewport.m_stopPlaybackWhenRequestReady = false;
         if (viewport.m_requestStatus == ImageViewport::RequestStatus::Unsupported
             || viewport.m_requestStatus == ImageViewport::RequestStatus::Error) {
@@ -403,7 +403,7 @@ ViewportCommandResult ViewportController::play()
         const bool preservePlaybackPosition
             = shouldPreservePlaybackPositionOnPlay(
                   viewport.m_playbackPhase, viewport.m_stopPlaybackWhenRequestReady)
-            && viewport.m_playbackPosition >= 0;
+            && viewport.request.playbackPosition >= 0;
         clearCommandDiagnosticForAcceptedCommand(viewport, result);
         viewport.m_stopPlaybackWhenRequestReady = false;
         if (viewport.m_requestStatus == ImageViewport::RequestStatus::Unsupported
@@ -483,7 +483,8 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
         && (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
             || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Paused)
-        && viewport.m_currentFrame < 0 && viewport.m_requestedPosition < 0) {
+        && viewport.request.activeRequest.target.frame < 0
+        && viewport.request.activeRequest.target.position < 0) {
         applyProviderStopRestoreTarget(viewport, providerLatestNonPlaybackTarget(viewport));
         viewport.m_providerPlaybackStartPending = false;
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
@@ -502,9 +503,9 @@ ViewportCommandResult ViewportController::stop()
             viewport.publishReadyDisplayState();
         } else {
             publishProviderStopRestoreLoading(viewport);
-            if (viewport.m_providerSession && viewport.m_currentFrame >= 0
-                && !viewport.startProviderFrameRequest(
-                    viewport.m_currentFrame, viewport.m_latestNonPlaybackProviderTargetKind)) {
+            if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0
+                && !viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
+                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind)) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;
@@ -531,7 +532,7 @@ ViewportCommandResult ViewportController::stop()
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
         if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
-            viewport.m_playbackPosition = viewport.m_requestedPosition;
+            viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
             viewport.publishReadyDisplayState();
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
@@ -544,9 +545,9 @@ ViewportCommandResult ViewportController::stop()
         }
         publishProviderStopRestoreLoading(viewport);
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-        if (viewport.m_providerSession && viewport.m_currentFrame >= 0) {
-            if (!viewport.startProviderFrameRequest(
-                    viewport.m_currentFrame, viewport.m_latestNonPlaybackProviderTargetKind)) {
+        if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0) {
+            if (!viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
+                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind)) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;
@@ -564,14 +565,19 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting
         && (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
             || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Paused)
-        && viewport.m_latestNonPlaybackFrame >= 0
-        && viewport.m_currentFrame != viewport.m_latestNonPlaybackFrame) {
+        && viewport.request.latestNonPlaybackRequest.target.frame >= 0
+        && viewport.request.activeRequest.target.frame
+            != viewport.request.latestNonPlaybackRequest.target.frame) {
         const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
         applyStopRestoreTarget(viewport,
             DisplayRequestTarget {
-                viewport.m_latestNonPlaybackFrame, viewport.m_latestNonPlaybackPosition });
-        if (viewport.hasReadyDisplay() && viewport.m_displayedFrame == viewport.m_currentFrame
-            && viewport.m_displayedPosition == viewport.m_requestedPosition) {
+                viewport.request.latestNonPlaybackRequest.target.frame,
+                viewport.request.latestNonPlaybackRequest.target.position });
+        if (viewport.hasReadyDisplay()
+            && viewport.request.displayedRequest.request.target.frame
+                == viewport.request.activeRequest.target.frame
+            && viewport.request.displayedRequest.request.target.position
+                == viewport.request.activeRequest.target.position) {
             viewport.publishReadyDisplayState();
         } else {
             viewport.publishRenderWaitingState();

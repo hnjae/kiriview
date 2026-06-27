@@ -23,7 +23,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     closeProviderSession();
     m_sequence = sequence;
     m_sequenceOwner = std::move(sequenceOwner);
-    ++m_sequenceGeneration;
+    ++request.sequenceGeneration;
     clearRequestIdentity();
     m_nextPreparedPayloadId = 0;
     clearPendingRenderIdentity();
@@ -61,22 +61,25 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 && m_sequence->m_providerKnownTimingIntervals
                 ? *m_sequence->m_providerKnownTimingIntervals
                 : TimingIntervals();
-            m_currentFrame = 0;
-            m_requestedPosition = m_providerTimedMetadata ? 0 : -1;
-            m_playbackPosition = m_requestedPosition;
-            m_latestNonPlaybackFrame = m_currentFrame;
-            m_latestNonPlaybackPosition = m_requestedPosition;
-            m_currentProviderTargetKind = ProviderRequestTargetKind::Frame;
-            m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Frame;
+            request.activeRequest.target.frame = 0;
+            request.activeRequest.target.position = m_providerTimedMetadata ? 0 : -1;
+            request.playbackPosition = request.activeRequest.target.position;
+            request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
+            request.latestNonPlaybackRequest.target.position
+                = request.activeRequest.target.position;
+            request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Frame;
+            request.latestNonPlaybackRequest.target.providerTargetKind
+                = ProviderRequestTargetKind::Frame;
             beginInitialDisplayRequest(true);
         } else {
-            m_currentFrame = -1;
-            m_requestedPosition = -1;
-            m_playbackPosition = -1;
-            m_latestNonPlaybackFrame = -1;
-            m_latestNonPlaybackPosition = -1;
-            m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
-            m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
+            request.activeRequest.target.frame = -1;
+            request.activeRequest.target.position = -1;
+            request.playbackPosition = -1;
+            request.latestNonPlaybackRequest.target.frame = -1;
+            request.latestNonPlaybackRequest.target.position = -1;
+            request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
+            request.latestNonPlaybackRequest.target.providerTargetKind
+                = ProviderRequestTargetKind::Unknown;
             beginInitialDisplayRequest(true);
         }
         m_requestStatus = RequestStatus::Loading;
@@ -89,13 +92,14 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             m_errorString = QStringLiteral("provider session creation failed");
         }
     } else if (hasDisplayableSequence()) {
-        m_currentFrame = 0;
-        m_requestedPosition = hasTimedSequence() ? 0 : -1;
-        m_playbackPosition = hasTimedSequence() ? 0 : -1;
-        m_latestNonPlaybackFrame = m_currentFrame;
-        m_latestNonPlaybackPosition = m_requestedPosition;
-        m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
-        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
+        request.activeRequest.target.frame = 0;
+        request.activeRequest.target.position = hasTimedSequence() ? 0 : -1;
+        request.playbackPosition = hasTimedSequence() ? 0 : -1;
+        request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
+        request.latestNonPlaybackRequest.target.position = request.activeRequest.target.position;
+        request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
+        request.latestNonPlaybackRequest.target.providerTargetKind
+            = ProviderRequestTargetKind::Unknown;
         beginInitialDisplayRequest(true);
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
@@ -103,20 +107,15 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             publishRenderWaitingState();
         }
     } else {
-        m_currentFrame = -1;
-        m_requestedPosition = -1;
-        m_playbackPosition = -1;
-        m_latestNonPlaybackFrame = -1;
-        m_latestNonPlaybackPosition = -1;
-        m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
-        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
-        m_displayedFrame = -1;
-        m_displayedPosition = -1;
-        m_displayedGeneration = 0;
-        m_displayedRequestId = 0;
-        m_displayedPreparedPayloadId = 0;
-        m_displayedImageSize = {};
-        m_displayedImage = {};
+        request.activeRequest.target.frame = -1;
+        request.activeRequest.target.position = -1;
+        request.playbackPosition = -1;
+        request.latestNonPlaybackRequest.target.frame = -1;
+        request.latestNonPlaybackRequest.target.position = -1;
+        request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
+        request.latestNonPlaybackRequest.target.providerTargetKind
+            = ProviderRequestTargetKind::Unknown;
+        clearDisplayedDisplay();
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
@@ -178,7 +177,7 @@ ImageViewportPrivate::PlaybackPhase ImageViewportPrivate::playbackPhase() const
 int ImageViewportPrivate::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return m_displayedFrame;
+        return request.displayedRequest.request.target.frame;
     }
 
     return -1;
@@ -187,7 +186,7 @@ int ImageViewportPrivate::displayedFrame() const
 int ImageViewportPrivate::requestedFrame() const
 {
     if (hasDisplayableSequence()) {
-        return m_currentFrame;
+        return request.activeRequest.target.frame;
     }
 
     return -1;
@@ -196,7 +195,7 @@ int ImageViewportPrivate::requestedFrame() const
 int ImageViewportPrivate::displayedPosition() const
 {
     if (hasReadyDisplay()) {
-        return m_displayedPosition;
+        return request.displayedRequest.request.target.position;
     }
 
     return -1;
@@ -204,11 +203,12 @@ int ImageViewportPrivate::displayedPosition() const
 
 int ImageViewportPrivate::requestedPosition() const
 {
-    if (hasProviderSequence() && (m_providerTimedMetadata || m_requestedPosition >= 0)) {
-        return m_requestedPosition;
+    if (hasProviderSequence()
+        && (m_providerTimedMetadata || request.activeRequest.target.position >= 0)) {
+        return request.activeRequest.target.position;
     }
     if (hasTimedSequence()) {
-        return m_requestedPosition;
+        return request.activeRequest.target.position;
     }
 
     return -1;

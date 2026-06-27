@@ -57,7 +57,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         && m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready;
     if (!image.isNull()) {
         if (renderMatchesPending) {
-            commitDisplayedRequestIdentity();
+            commitDisplayedRequestSnapshot();
             m_renderCommitPending = false;
             clearPendingRenderIdentity();
         }
@@ -146,22 +146,12 @@ void ImageViewportPrivate::reportRenderFailure()
     clearPendingRenderIdentity();
     if (m_renderFailureRetainedDisplayValid) {
         m_displayStatus = DisplayStatus::Retained;
-        m_displayedFrame = m_renderFailureRetainedFrame;
-        m_displayedPosition = m_renderFailureRetainedPosition;
-        m_displayedGeneration = m_renderFailureRetainedGeneration;
-        m_displayedRequestId = m_renderFailureRetainedRequestId;
-        m_displayedPreparedPayloadId = m_renderFailureRetainedPreparedPayloadId;
+        request.displayedRequest = request.renderFailureRetainedRequest;
         m_displayedImageSize = m_renderFailureRetainedImageSize;
         m_displayedImage = m_renderFailureRetainedImage;
     } else {
         m_displayStatus = DisplayStatus::Empty;
-        m_displayedFrame = -1;
-        m_displayedPosition = -1;
-        m_displayedGeneration = 0;
-        m_displayedRequestId = 0;
-        m_displayedPreparedPayloadId = 0;
-        m_displayedImageSize = {};
-        m_displayedImage = {};
+        clearDisplayedDisplay();
     }
     m_pendingDisplayImage = {};
     clearRenderFailureRetainedDisplay();
@@ -189,11 +179,7 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
     }
 
     m_renderFailureRetainedDisplayValid = true;
-    m_renderFailureRetainedFrame = m_displayedFrame;
-    m_renderFailureRetainedPosition = m_displayedPosition;
-    m_renderFailureRetainedGeneration = m_displayedGeneration;
-    m_renderFailureRetainedRequestId = m_displayedRequestId;
-    m_renderFailureRetainedPreparedPayloadId = m_displayedPreparedPayloadId;
+    request.renderFailureRetainedRequest = request.displayedRequest;
     m_renderFailureRetainedImageSize = m_displayedImageSize;
     m_renderFailureRetainedImage = m_displayedImage;
 }
@@ -201,11 +187,7 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
 void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 {
     m_renderFailureRetainedDisplayValid = false;
-    m_renderFailureRetainedFrame = -1;
-    m_renderFailureRetainedPosition = -1;
-    m_renderFailureRetainedGeneration = 0;
-    m_renderFailureRetainedRequestId = 0;
-    m_renderFailureRetainedPreparedPayloadId = 0;
+    request.renderFailureRetainedRequest = {};
     m_renderFailureRetainedImageSize = {};
     m_renderFailureRetainedImage = {};
 }
