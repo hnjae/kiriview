@@ -87,6 +87,13 @@ struct ViewportProviderAcceptedMetadataFacts
     TimingIntervals timingIntervals;
 };
 
+struct ViewportProviderWaitingEvent
+{
+    ImageSequenceProviderRequestToken token;
+    bool progress = false;
+    double progressValue = 0.0;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
@@ -189,6 +196,8 @@ public:
         ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
+    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
+        ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);

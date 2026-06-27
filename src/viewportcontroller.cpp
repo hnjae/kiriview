@@ -2,6 +2,7 @@
 
 #include "imageviewport_p.h"
 
+#include <cmath>
 #include <limits>
 
 namespace {
@@ -31,6 +32,15 @@ bool shouldPreservePlaybackPositionOnPlay(
         && (phase == ImageViewport::PlaybackPhase::Playing
             || phase == ImageViewport::PlaybackPhase::Paused
             || phase == ImageViewport::PlaybackPhase::Waiting);
+}
+
+bool activeProviderFrameTokenMatchesActiveRequest(
+    const ImageViewportPrivate& viewport, ImageSequenceProviderRequestToken token)
+{
+    return viewport.m_activeProviderFrameToken.isValid()
+        && token == viewport.m_activeProviderFrameToken
+        && token == viewport.request.activeRequest.providerFrameToken
+        && viewport.m_activeProviderFrameRequestId == viewport.request.activeRequest.identity.id;
 }
 
 void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& result,
@@ -1049,6 +1059,29 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAccep
     viewport.m_providerLogicalSize = facts.logicalSize;
     viewport.m_providerTimingIntervals = facts.timingIntervals;
     return {};
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
+    ViewportProviderWaitingEvent event)
+{
+    if (!viewport.hasProviderSequence() || !viewport.m_providerSession) {
+        return {};
+    }
+    if (event.progress
+        && (!std::isfinite(event.progressValue) || event.progressValue < 0.0
+            || event.progressValue > 1.0)) {
+        return {};
+    }
+
+    const bool activeMetadataToken = !viewport.m_providerMetadataReady
+        && viewport.m_activeProviderMetadataToken.isValid()
+        && event.token == viewport.m_activeProviderMetadataToken;
+    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(viewport, event.token);
+    if (!activeMetadataToken && !activeFrameToken) {
+        return {};
+    }
+
+    return handleProviderWaiting();
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()

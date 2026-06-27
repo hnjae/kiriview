@@ -448,28 +448,13 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
 
 void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestToken token)
 {
-    if (!hasProviderSequence() || !m_providerSession) {
-        return;
-    }
-
-    const bool activeMetadataToken = !m_providerMetadataReady
-        && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(*this, token);
-    if (!activeMetadataToken && !activeFrameToken) {
-        return;
-    }
-
-    applyControllerChanges(controller.handleProviderWaiting());
+    applyControllerChanges(controller.handleProviderWaitingEvent({token, false, 0.0}));
 }
 
 void ImageViewportPrivate::handleProviderProgress(
     ImageSequenceProviderRequestToken token, double progress)
 {
-    if (!std::isfinite(progress) || progress < 0.0 || progress > 1.0) {
-        return;
-    }
-
-    handleProviderWaiting(token);
+    applyControllerChanges(controller.handleProviderWaitingEvent({token, true, progress}));
 }
 
 void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequestToken token)
