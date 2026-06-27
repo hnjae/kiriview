@@ -6,6 +6,62 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+struct PlaybackAdvanceTarget {
+    int frame = -1;
+    int requestedPosition = -1;
+    int playbackPosition = -1;
+    bool reachedEnd = false;
+    bool looped = false;
+    bool valid = false;
+};
+
+template <typename FrameStartFor, typename FrameIndexFor>
+PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int currentFrame,
+    int currentPlaybackPosition, bool looping, int totalDuration, int frameCount,
+    FrameStartFor frameStartFor, FrameIndexFor frameIndexFor)
+{
+    PlaybackAdvanceTarget target;
+    int nextPlaybackPosition
+        = currentPlaybackPosition < 0 ? frameStartFor(currentFrame) : currentPlaybackPosition;
+    nextPlaybackPosition += elapsedMilliseconds;
+
+    if (nextPlaybackPosition >= totalDuration) {
+        if (looping) {
+            const int wrappedPosition = totalDuration > 0 ? nextPlaybackPosition % totalDuration : 0;
+            const int wrappedFrame = frameIndexFor(wrappedPosition);
+            if (wrappedFrame < 0) {
+                return target;
+            }
+            target.frame = wrappedFrame;
+            target.playbackPosition = wrappedPosition;
+            target.requestedPosition = frameStartFor(wrappedFrame);
+            target.looped = true;
+            target.valid = true;
+            return target;
+        }
+
+        const int finalFrame = frameCount - 1;
+        target.frame = finalFrame;
+        target.requestedPosition = frameStartFor(finalFrame);
+        target.playbackPosition = totalDuration;
+        target.reachedEnd = true;
+        target.valid = true;
+        return target;
+    }
+
+    const int nextFrame = frameIndexFor(nextPlaybackPosition);
+    if (nextFrame < 0) {
+        return target;
+    }
+    target.frame = nextFrame;
+    target.requestedPosition = frameStartFor(nextFrame);
+    target.playbackPosition = nextPlaybackPosition;
+    target.valid = true;
+    return target;
+}
+}
+
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     if (m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
@@ -15,38 +71,19 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
         const int duration = totalDuration();
         const int previousFrame = m_currentFrame;
-        int nextPlaybackPosition = m_playbackPosition < 0
-            ? providerFrameStartPosition(m_currentFrame)
-            : m_playbackPosition;
-        nextPlaybackPosition += elapsedMilliseconds;
-
-        int nextFrame = -1;
-        int nextRequestedPosition = -1;
-        if (nextPlaybackPosition >= duration) {
-            if (m_looping) {
-                const int wrappedPosition = duration > 0 ? nextPlaybackPosition % duration : 0;
-                nextFrame = providerFrameIndexForPosition(wrappedPosition);
-                if (nextFrame < 0) {
-                    return;
-                }
-                nextPlaybackPosition = wrappedPosition;
-                nextRequestedPosition = providerFrameStartPosition(nextFrame);
-            } else {
-                nextFrame = frameCount() - 1;
-                nextRequestedPosition = providerFrameStartPosition(nextFrame);
-                nextPlaybackPosition = duration;
-                m_stopPlaybackWhenRequestReady = true;
-            }
-        } else {
-            nextFrame = providerFrameIndexForPosition(nextPlaybackPosition);
-            if (nextFrame < 0) {
-                return;
-            }
-            nextRequestedPosition = providerFrameStartPosition(nextFrame);
+        const PlaybackAdvanceTarget target = playbackAdvanceTarget(
+            elapsedMilliseconds, m_currentFrame, m_playbackPosition, m_looping, duration,
+            frameCount(), [this](int frame) { return providerFrameStartPosition(frame); },
+            [this](int position) { return providerFrameIndexForPosition(position); });
+        if (!target.valid) {
+            return;
+        }
+        if (target.reachedEnd) {
+            m_stopPlaybackWhenRequestReady = true;
         }
 
-        m_playbackPosition = nextPlaybackPosition;
-        if (nextFrame == previousFrame && m_requestStatus == RequestStatus::Ready) {
+        m_playbackPosition = target.playbackPosition;
+        if (target.frame == previousFrame && m_requestStatus == RequestStatus::Ready) {
             if (m_stopPlaybackWhenRequestReady) {
                 setPlaybackPhase(PlaybackPhase::Stopped);
                 m_stopPlaybackWhenRequestReady = false;
@@ -55,8 +92,8 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         }
 
         beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-        m_currentFrame = nextFrame;
-        m_requestedPosition = nextRequestedPosition;
+        m_currentFrame = target.frame;
+        m_requestedPosition = target.requestedPosition;
         m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
@@ -65,8 +102,8 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         discardPendingRenderCommit();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (m_activeProviderFrameToken.isValid()) {
-            queueProviderFrameRequest(nextFrame, ProviderRequestTargetKind::Playback);
-        } else if (!startProviderFrameRequest(nextFrame, ProviderRequestTargetKind::Playback)) {
+            queueProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback);
+        } else if (!startProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
             incrementRequestRevision();
             if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
                 incrementDisplayRevision();
@@ -97,88 +134,37 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 
     const int totalDuration = m_sequence->totalDuration();
     const int previousFrame = m_currentFrame;
-    int nextPlaybackPosition = m_playbackPosition < 0
-        ? m_sequence->frameStartPosition(m_currentFrame)
-        : m_playbackPosition;
-    nextPlaybackPosition += elapsedMilliseconds;
-
-    if (nextPlaybackPosition >= totalDuration) {
-        if (m_looping) {
-            const int wrappedPosition
-                = totalDuration > 0 ? nextPlaybackPosition % totalDuration : 0;
-            const int wrappedFrame = m_sequence->frameIndexForPosition(wrappedPosition);
-            if (wrappedFrame < 0) {
-                return;
-            }
-
-            beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-            m_currentFrame = wrappedFrame;
-            m_requestedPosition = m_sequence->frameStartPosition(wrappedFrame);
-            m_playbackPosition = wrappedPosition;
-            const QRectF oldContentRect = contentRect();
-            const QRectF oldVisibleImageRect = visibleImageRect();
-            publishAcceptedTargetState();
-            setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting
-                                                                       : PlaybackPhase::Playing);
-            incrementRequestRevision();
-            if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
-                incrementDisplayRevision();
-            }
-            emit q->requestStateChanged();
-            emit q->displayStateChanged();
-            if (rectsDifferExactly(contentRect(), oldContentRect)
-                || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-                emit q->geometryStateChanged();
-            }
-            update();
-            return;
-        }
-
-        const int finalFrame = m_sequence->frameCount() - 1;
-        beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-        m_currentFrame = finalFrame;
-        m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
-        m_playbackPosition = totalDuration;
-        const QRectF oldContentRect = contentRect();
-        const QRectF oldVisibleImageRect = visibleImageRect();
-        publishAcceptedTargetState();
-        m_stopPlaybackWhenRequestReady = m_requestStatus == RequestStatus::Loading;
-        setPlaybackPhase(
-            m_stopPlaybackWhenRequestReady ? PlaybackPhase::Waiting : PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
-            incrementDisplayRevision();
-        }
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
-        if (rectsDifferExactly(contentRect(), oldContentRect)
-            || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-            emit q->geometryStateChanged();
-        }
-        update();
+    const PlaybackAdvanceTarget target = playbackAdvanceTarget(
+        elapsedMilliseconds, m_currentFrame, m_playbackPosition, m_looping, totalDuration,
+        m_sequence->frameCount(), [this](int frame) { return m_sequence->frameStartPosition(frame); },
+        [this](int position) { return m_sequence->frameIndexForPosition(position); });
+    if (!target.valid) {
         return;
     }
 
-    const int nextFrame = m_sequence->frameIndexForPosition(nextPlaybackPosition);
-    if (nextFrame < 0) {
-        return;
-    }
-
-    m_playbackPosition = nextPlaybackPosition;
-    if (nextFrame == m_currentFrame) {
+    m_playbackPosition = target.playbackPosition;
+    if (!target.reachedEnd && !target.looped && target.frame == m_currentFrame) {
         return;
     }
 
     beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-    m_currentFrame = nextFrame;
-    m_requestedPosition = m_sequence->frameStartPosition(nextFrame);
+    m_currentFrame = target.frame;
+    m_requestedPosition = target.requestedPosition;
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState();
-    setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting
-                                                               : PlaybackPhase::Playing);
+    if (target.reachedEnd) {
+        m_stopPlaybackWhenRequestReady = m_requestStatus == RequestStatus::Loading;
+        setPlaybackPhase(
+            m_stopPlaybackWhenRequestReady ? PlaybackPhase::Waiting : PlaybackPhase::Stopped);
+    } else {
+        setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting
+                                                                   : PlaybackPhase::Playing);
+    }
     incrementRequestRevision();
-    incrementDisplayRevision();
+    if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
+        incrementDisplayRevision();
+    }
     emit q->requestStateChanged();
     emit q->displayStateChanged();
     if (rectsDifferExactly(contentRect(), oldContentRect)
