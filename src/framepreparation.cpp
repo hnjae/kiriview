@@ -1,6 +1,7 @@
 #include "framepreparation_p.h"
 
 #include "imageviewporthelpers_p.h"
+#include "timingintervals_p.h"
 
 #include <utility>
 
@@ -157,47 +158,18 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
 
 int FramePreparation::providerFrameStartPosition(const QVector<int>& frameDurations, int frame)
 {
-    if (frameDurations.isEmpty() || frame < 0 || frame >= frameDurations.size()) {
-        return -1;
-    }
-
-    int position = 0;
-    for (int index = 0; index < frame; ++index) {
-        position += frameDurations.at(index);
-    }
-    return position;
+    return TimingIntervals::fromFrameDurations(frameDurations).frameStartPosition(frame);
 }
 
 int FramePreparation::providerFrameIndexForPosition(
     const QVector<int>& frameDurations, int position)
 {
-    const int duration = totalDuration(frameDurations);
-    if (frameDurations.isEmpty() || position < 0 || position > duration) {
-        return -1;
-    }
-    if (position == duration) {
-        return frameDurations.size() - 1;
-    }
-
-    int frameStart = 0;
-    for (int index = 0; index < frameDurations.size(); ++index) {
-        const int frameEnd = frameStart + frameDurations.at(index);
-        if (position >= frameStart && position < frameEnd) {
-            return index;
-        }
-        frameStart = frameEnd;
-    }
-
-    return -1;
+    return TimingIntervals::fromFrameDurations(frameDurations).frameIndexForPosition(position);
 }
 
 int FramePreparation::totalDuration(const QVector<int>& frameDurations)
 {
-    int total = 0;
-    for (int duration : frameDurations) {
-        total += duration;
-    }
-    return total;
+    return TimingIntervals::fromFrameDurations(frameDurations).totalDuration();
 }
 
 QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback)

@@ -56,6 +56,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
     m_providerFrameDurations.clear();
+    m_providerTimingIntervals = {};
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};
     m_activeProviderFrameFromPlayback = false;
@@ -112,7 +113,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
         if (m_requestStatus == RequestStatus::Unsupported
             || m_requestStatus == RequestStatus::Error) {
             int selectedFrame = m_currentFrame;
-            if (selectedFrame < 0 || selectedFrame >= m_providerFrameDurations.size()) {
+            if (selectedFrame < 0 || selectedFrame >= m_providerTimingIntervals.frameCount()) {
                 selectedFrame = 0;
             }
             const int selectedPosition = providerFrameStartPosition(selectedFrame);
@@ -433,7 +434,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
                 return CommandOutcome::Unsupported;
             }
             const int maximumFrame
-                = m_providerTimedMetadata ? m_providerFrameDurations.size() - 1 : 0;
+                = m_providerTimedMetadata ? m_providerTimingIntervals.frameCount() - 1 : 0;
             if (frame > maximumFrame) {
                 setCommandDiagnostic(CommandReason::InvalidRequest);
                 return CommandOutcome::Invalid;
@@ -972,11 +973,11 @@ int ImageViewportPrivate::playbackTimerInterval() const
     int frameStart = -1;
     int frameDuration = -1;
     if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
-        if (m_currentFrame < 0 || m_currentFrame >= m_providerFrameDurations.size()) {
+        if (m_currentFrame < 0 || m_currentFrame >= m_providerTimingIntervals.frameCount()) {
             return -1;
         }
         frameStart = providerFrameStartPosition(m_currentFrame);
-        frameDuration = m_providerFrameDurations.at(m_currentFrame);
+        frameDuration = m_providerTimingIntervals.frameDuration(m_currentFrame);
     } else if (hasTimedSequence()) {
         if (m_currentFrame < 0 || m_currentFrame >= m_sequence->frameCount()) {
             return -1;

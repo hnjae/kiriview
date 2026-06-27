@@ -230,6 +230,9 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     m_providerPositionSeekSupport = metadata.positionSeekSupport();
     m_providerLogicalSize = metadata.logicalSize();
     m_providerFrameDurations = isTimedMetadata ? metadata.frameDurations() : QVector<int>();
+    m_providerTimingIntervals = isTimedMetadata
+        ? TimingIntervals::fromFrameDurations(m_providerFrameDurations)
+        : TimingIntervals();
     const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && m_currentProviderTargetKind == ProviderRequestTargetKind::Playback;
     const bool selectedFromPosition
@@ -239,7 +242,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         : (selectedFromPosition ? ProviderRequestTargetKind::Position
                                 : ProviderRequestTargetKind::Frame);
     int selectedFrame = m_currentFrame >= 0 ? m_currentFrame : 0;
-    const int providerFrameCount = isTimedMetadata ? m_providerFrameDurations.size() : 1;
+    const int providerFrameCount = isTimedMetadata ? m_providerTimingIntervals.frameCount() : 1;
     if (selectedFromPlaybackStart && (!isTimedMetadata || !m_providerTimedPlaybackSupport)) {
         m_requestStatus = RequestStatus::Unsupported;
         m_requestReason = RequestReason::UnsupportedRequest;
@@ -679,7 +682,7 @@ int ImageViewportPrivate::providerFrameStartPosition(int frame) const
     if (!m_providerTimedMetadata) {
         return -1;
     }
-    return FramePreparation::providerFrameStartPosition(m_providerFrameDurations, frame);
+    return m_providerTimingIntervals.frameStartPosition(frame);
 }
 
 int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
@@ -687,5 +690,5 @@ int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
     if (!m_providerTimedMetadata) {
         return -1;
     }
-    return FramePreparation::providerFrameIndexForPosition(m_providerFrameDurations, position);
+    return m_providerTimingIntervals.frameIndexForPosition(position);
 }

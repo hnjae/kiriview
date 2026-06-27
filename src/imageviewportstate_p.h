@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "timingintervals_p.h"
 
 #include <QtCore/QPointer>
 #include <QtCore/QVector>
@@ -117,6 +118,7 @@ struct ProviderGenerationState
     bool positionSeekSupport = false;
     QSizeF logicalSize;
     QVector<int> frameDurations;
+    TimingIntervals timingIntervals;
 };
 
 }

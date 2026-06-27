@@ -1,4 +1,5 @@
 #include "imageviewport_test_support.h"
+#include "timingintervals_p.h"
 
 class ImageSequenceFactoryTest : public QObject
 {
@@ -28,6 +29,8 @@ private slots:
     void imageFrameExposesPayloadMetadata();
     void imageFrameOrientationPoliciesNormalizePayload();
     void imageFrameUsesDeviceIndependentLogicalSize();
+    void timingIntervalsResolveHalfOpenBoundaries();
+    void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
     void timedFrameListSequenceRetainsFactoryPayloads();
     void commandsWithoutRequestAreIgnoredDiagnostics();
@@ -671,6 +674,39 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     fractionalLogicalImage.fill(Qt::transparent);
     ImageFrame fractionalLogicalFrame(fractionalLogicalImage);
     QCOMPARE(fractionalLogicalFrame.isValid(), false);
+}
+
+void ImageSequenceFactoryTest::timingIntervalsResolveHalfOpenBoundaries()
+{
+    const TimingIntervals timing = TimingIntervals::fromFrameDurations({ 100, 250, 50 });
+
+    QVERIFY(timing.isValid());
+    QCOMPARE(timing.frameCount(), 3);
+    QCOMPARE(timing.totalDuration(), 400);
+    QCOMPARE(timing.frameStartPosition(0), 0);
+    QCOMPARE(timing.frameStartPosition(1), 100);
+    QCOMPARE(timing.frameStartPosition(2), 350);
+    QCOMPARE(timing.frameStartPosition(3), -1);
+    QCOMPARE(timing.frameDuration(0), 100);
+    QCOMPARE(timing.frameDuration(1), 250);
+    QCOMPARE(timing.frameDuration(2), 50);
+    QCOMPARE(timing.frameDuration(3), -1);
+    QCOMPARE(timing.frameIndexForPosition(-1), -1);
+    QCOMPARE(timing.frameIndexForPosition(0), 0);
+    QCOMPARE(timing.frameIndexForPosition(99), 0);
+    QCOMPARE(timing.frameIndexForPosition(100), 1);
+    QCOMPARE(timing.frameIndexForPosition(349), 1);
+    QCOMPARE(timing.frameIndexForPosition(350), 2);
+    QCOMPARE(timing.frameIndexForPosition(399), 2);
+    QCOMPARE(timing.frameIndexForPosition(400), 2);
+    QCOMPARE(timing.frameIndexForPosition(401), -1);
+}
+
+void ImageSequenceFactoryTest::timingIntervalsRejectInvalidDurations()
+{
+    QVERIFY(!TimingIntervals::fromFrameDurations({}).isValid());
+    QVERIFY(!TimingIntervals::fromFrameDurations({ 100, 0 }).isValid());
+    QVERIFY(!TimingIntervals::fromFrameDurations({ -1 }).isValid());
 }
 
 void ImageSequenceFactoryTest::stillImageSequenceRetainsFactoryPayload()

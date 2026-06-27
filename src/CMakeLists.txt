@@ -33,6 +33,8 @@ qt_add_qml_module(
     presentationgeometry_p.h
     renderadapter.cpp
     renderadapter_p.h
+    timingintervals.cpp
+    timingintervals_p.h
     viewportcontroller.cpp
     viewportcontroller_p.h
     viewportproviderbridge.cpp

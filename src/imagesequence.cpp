@@ -1,4 +1,5 @@
 #include "imageviewporthelpers_p.h"
+#include "timingintervals_p.h"
 
 #include <QtGui/QTransform>
 
@@ -116,45 +117,25 @@ int ImageSequence::totalDuration() const
         return -1;
     }
 
-    int total = 0;
-    for (int duration : m_frameDurations) {
-        total += duration;
-    }
-    return total;
+    return TimingIntervals::fromFrameDurations(m_frameDurations).totalDuration();
 }
 
 int ImageSequence::frameStartPosition(int frame) const
 {
-    if (!isTimedList() || frame < 0 || frame >= m_frameDurations.size()) {
+    if (!isTimedList()) {
         return -1;
     }
 
-    int position = 0;
-    for (int index = 0; index < frame; ++index) {
-        position += m_frameDurations.at(index);
-    }
-    return position;
+    return TimingIntervals::fromFrameDurations(m_frameDurations).frameStartPosition(frame);
 }
 
 int ImageSequence::frameIndexForPosition(int position) const
 {
-    if (!isTimedList() || position < 0 || position > totalDuration()) {
+    if (!isTimedList()) {
         return -1;
     }
-    if (position == totalDuration()) {
-        return m_frameDurations.size() - 1;
-    }
 
-    int frameStart = 0;
-    for (int index = 0; index < m_frameDurations.size(); ++index) {
-        const int frameEnd = frameStart + m_frameDurations.at(index);
-        if (position >= frameStart && position < frameEnd) {
-            return index;
-        }
-        frameStart = frameEnd;
-    }
-
-    return -1;
+    return TimingIntervals::fromFrameDurations(m_frameDurations).frameIndexForPosition(position);
 }
 
 QImage ImageSequence::frameImage(int frame) const
@@ -368,11 +349,8 @@ QVector<QImage> TimedImageFrameList::frameImages() const { return m_frameImages;
 
 int TimedImageFrameList::totalDuration() const
 {
-    int total = 0;
-    for (int duration : m_frameDurations) {
-        total += duration;
-    }
-    return total;
+    const TimingIntervals timing = TimingIntervals::fromFrameDurations(m_frameDurations);
+    return timing.isValid() ? timing.totalDuration() : 0;
 }
 
 void TimedImageFrameList::setErrorString(const QString& errorString)
