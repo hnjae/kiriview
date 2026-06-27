@@ -346,30 +346,22 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
         return;
     }
 
-    if (m_providerMetadataReady && FramePreparation::exceedsPayloadLimit(frame)) {
+    const auto admission = FramePreparation::admitProviderFrame(frame, metadata,
+        {
+            m_providerMetadataReady,
+            m_providerTimedMetadata,
+            m_providerLogicalSize,
+            m_providerFrameDurations,
+            m_currentFrame,
+        });
+    if (!admission.accepted()) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameFromPlayback = false;
         m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString
-            = QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame");
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
-        return;
-    }
-
-    if (!validateProviderFrame(frame, metadata)) {
-        clearQueuedProviderFrameRequest();
-        m_activeProviderFrameToken = {};
-        m_activeProviderFrameFromPlayback = false;
-        m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider frame payload is invalid");
+        m_requestStatus = admission.status;
+        m_requestReason = admission.reason;
+        m_errorString = admission.diagnostic;
         setPlaybackPhase(PlaybackPhase::Stopped);
         incrementRequestRevision();
         emit q->requestStateChanged();
@@ -666,19 +658,6 @@ bool ImageViewportPrivate::validateProviderTimedMetadata(
     const ImageSequenceProviderMetadata& metadata)
 {
     return FramePreparation::validateProviderTimedMetadata(metadata);
-}
-
-bool ImageViewportPrivate::validateProviderFrame(
-    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) const
-{
-    return FramePreparation::validateProviderFrame(frame, metadata,
-        {
-            m_providerMetadataReady,
-            m_providerTimedMetadata,
-            m_providerLogicalSize,
-            m_providerFrameDurations,
-            m_currentFrame,
-        });
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory>

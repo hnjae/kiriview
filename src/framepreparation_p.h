@@ -14,10 +14,32 @@ public:
         int currentFrame = -1;
     };
 
+    struct ProviderFrameAdmissionResult
+    {
+        enum class Cause {
+            Accepted,
+            InvalidFramePayload,
+            MetadataNotReady,
+            LogicalSizeMismatch,
+            InvalidPayloadByteSize,
+            PayloadTooLarge,
+            InvalidFrameMetadata,
+            ResolvedFrameMismatch,
+            FrameStartMismatch,
+            FrameDurationMismatch,
+        };
+
+        Cause cause = Cause::Accepted;
+        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
+        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        QString diagnostic;
+
+        bool accepted() const;
+    };
+
     static bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);
     static bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata);
-    static bool exceedsPayloadLimit(const ImageFrame* frame);
-    static bool validateProviderFrame(ImageFrame* frame,
+    static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
     static int providerFrameStartPosition(const QVector<int>& frameDurations, int frame);
     static int providerFrameIndexForPosition(const QVector<int>& frameDurations, int position);

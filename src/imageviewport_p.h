@@ -158,8 +158,6 @@ public:
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);
     bool validateProviderTimedMetadata(const ImageSequenceProviderMetadata& metadata);
-    bool validateProviderFrame(
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) const;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;

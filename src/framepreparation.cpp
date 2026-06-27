@@ -6,6 +6,34 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+
+FramePreparation::ProviderFrameAdmissionResult providerFrameRejection(
+    FramePreparation::ProviderFrameAdmissionResult::Cause cause,
+    ImageViewport::RequestStatus status, QString diagnostic)
+{
+    return {
+        cause,
+        status,
+        ImageViewport::RequestReason::PayloadRejection,
+        std::move(diagnostic),
+    };
+}
+
+FramePreparation::ProviderFrameAdmissionResult providerFrameError(
+    FramePreparation::ProviderFrameAdmissionResult::Cause cause, QString diagnostic)
+{
+    return providerFrameRejection(
+        cause, ImageViewport::RequestStatus::Error, std::move(diagnostic));
+}
+
+} // namespace
+
+bool FramePreparation::ProviderFrameAdmissionResult::accepted() const
+{
+    return cause == Cause::Accepted;
+}
+
 bool FramePreparation::validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata)
 {
     if (!metadata.isStill() || !metadata.isValid()) {
@@ -63,37 +91,68 @@ bool FramePreparation::validateProviderTimedMetadata(const ImageSequenceProvider
     return true;
 }
 
-bool FramePreparation::exceedsPayloadLimit(const ImageFrame* frame)
-{
-    return frame && frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame();
-}
-
-bool FramePreparation::validateProviderFrame(
+FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFrame(
     ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state)
 {
-    if (!frame || !frame->isValid() || !state.metadataReady
-        || frame->logicalSize() != state.logicalSize || frame->payloadByteSize() <= 0
-        || frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()
-        || !metadata.isValid()) {
-        return false;
+    using Cause = ProviderFrameAdmissionResult::Cause;
+
+    if (!frame || !frame->isValid()) {
+        return providerFrameError(
+            Cause::InvalidFramePayload, QStringLiteral("provider frame payload is invalid"));
+    }
+    if (!state.metadataReady) {
+        return providerFrameError(
+            Cause::MetadataNotReady, QStringLiteral("provider frame metadata is not ready"));
+    }
+    if (frame->logicalSize() != state.logicalSize) {
+        return providerFrameError(
+            Cause::LogicalSizeMismatch, QStringLiteral("provider frame logical size mismatch"));
+    }
+    if (frame->payloadByteSize() <= 0) {
+        return providerFrameError(Cause::InvalidPayloadByteSize,
+            QStringLiteral("provider frame payload byte size is invalid"));
+    }
+    if (frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+        return providerFrameRejection(Cause::PayloadTooLarge,
+            ImageViewport::RequestStatus::Unsupported,
+            QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame"));
+    }
+    if (!metadata.isValid()) {
+        return providerFrameError(
+            Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
 
     if (state.timedMetadata) {
         if (!metadata.isTimedFrame() || metadata.frame() != state.currentFrame) {
-            return false;
+            if (!metadata.isTimedFrame()) {
+                return providerFrameError(Cause::InvalidFrameMetadata,
+                    QStringLiteral("provider frame metadata is invalid"));
+            }
+            return providerFrameError(Cause::ResolvedFrameMismatch,
+                QStringLiteral("provider frame resolved frame mismatch"));
         }
         if (metadata.frameStartPosition()
             != providerFrameStartPosition(state.frameDurations, state.currentFrame)) {
-            return false;
+            return providerFrameError(Cause::FrameStartMismatch,
+                QStringLiteral("provider frame start position mismatch"));
         }
         if (metadata.frameDuration() != -1
             && metadata.frameDuration() != state.frameDurations.at(state.currentFrame)) {
-            return false;
+            return providerFrameError(
+                Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
-        return true;
+        return {};
     }
 
-    return metadata.isStillFrame() && metadata.frame() == 0;
+    if (!metadata.isStillFrame()) {
+        return providerFrameError(
+            Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
+    }
+    if (metadata.frame() != 0) {
+        return providerFrameError(
+            Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
+    }
+    return {};
 }
 
 int FramePreparation::providerFrameStartPosition(const QVector<int>& frameDurations, int frame)

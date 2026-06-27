@@ -99,6 +99,7 @@ private slots:
     void providerStillFrameUsesDeviceIndependentPayloadSize();
     void providerOrientedFramePayloadCommitsNormalizedLogicalSize();
     void providerTimedFrameReadyCommitsTimedDisplay();
+    void providerFrameRejectsLogicalSizeMismatch();
     void providerTimedFrameEnvelopeMismatchRejectsPayload();
     void providerTotalDurationSeekRejectsPublicPositionEnvelope();
     void providerFrameEnvelopeMismatchKeepsGenerationPositionSeekable();
@@ -4584,6 +4585,51 @@ void ImageViewportProviderTest::providerTimedFrameReadyCommitsTimedDisplay()
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
 }
 
+void ImageViewportProviderTest::providerFrameRejectsLogicalSizeMismatch()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    drainQueuedProviderResults();
+    QCOMPARE(*frameRequestCount, 1);
+
+    QImage image(8, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+    QVERIFY(item.property("errorString")
+            .toString()
+            .contains(QStringLiteral("provider frame logical size mismatch")));
+}
+
 void ImageViewportProviderTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
 {
     ImageSequenceFactory factory;
@@ -4625,7 +4671,7 @@ void ImageViewportProviderTest::providerTimedFrameEnvelopeMismatchRejectsPayload
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame resolved frame mismatch")));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 0, 0);
 
@@ -4709,7 +4755,7 @@ void ImageViewportProviderTest::providerTotalDurationSeekRejectsPublicPositionEn
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame start position mismatch")));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 1, 100);
     drainQueuedProviderResults();
@@ -4766,7 +4812,7 @@ void ImageViewportProviderTest::providerFrameEnvelopeMismatchKeepsGenerationPosi
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame resolved frame mismatch")));
 
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
 
@@ -4829,7 +4875,7 @@ void ImageViewportProviderTest::providerStillFrameEnvelopeMismatchRejectsPayload
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame metadata is invalid")));
 }
 
 void ImageViewportProviderTest::providerTimedFrameRejectsStillEnvelope()
@@ -4875,7 +4921,7 @@ void ImageViewportProviderTest::providerTimedFrameRejectsStillEnvelope()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame metadata is invalid")));
 }
 
 void ImageViewportProviderTest::providerTimedFrameDurationMismatchRejectsPayload()
@@ -4921,7 +4967,7 @@ void ImageViewportProviderTest::providerTimedFrameDurationMismatchRejectsPayload
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame duration mismatch")));
 }
 
 void ImageViewportProviderTest::providerTimedFramePayloadLimitReportsUnsupportedPayload()
@@ -5093,7 +5139,7 @@ void ImageViewportProviderTest::providerFrameRejectsInvalidPayloadByteSize()
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QVERIFY(item.property("errorString")
             .toString()
-            .contains(QStringLiteral("provider frame payload is invalid")));
+            .contains(QStringLiteral("provider frame payload byte size is invalid")));
 }
 
 void ImageViewportProviderTest::providerRejectedOwnedFramePayloadReleasesOnce()
