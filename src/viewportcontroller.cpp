@@ -3,6 +3,8 @@
 #include "imageviewport_p.h"
 
 namespace {
+using ImageViewportInternal::DisplayRequestTarget;
+
 void setCommandDiagnostic(ImageViewportPrivate& viewport, ViewportCommandResult& result,
     ImageViewport::CommandReason reason)
 {
@@ -40,25 +42,18 @@ void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& res
     result.changes.playbackPhase = true;
 }
 
-struct ProviderStopRestoreTarget {
-    int frame = -1;
-    int position = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
-ProviderStopRestoreTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
+DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
-    ProviderStopRestoreTarget target;
+    DisplayRequestTarget target;
     target.frame = viewport.m_latestNonPlaybackFrame;
     target.position = viewport.m_latestNonPlaybackPosition;
-    target.targetKind = viewport.m_latestNonPlaybackProviderTargetKind;
+    target.providerTargetKind = viewport.m_latestNonPlaybackProviderTargetKind;
     return target;
 }
 
-ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
+DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
 {
-    ProviderStopRestoreTarget target = providerLatestNonPlaybackTarget(viewport);
+    DisplayRequestTarget target = providerLatestNonPlaybackTarget(viewport);
     if (target.frame < 0 && target.position >= 0) {
         target.frame = viewport.providerFrameIndexForPosition(target.position);
     }
@@ -69,30 +64,31 @@ ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewpo
     if (target.position < 0 && target.frame >= 0) {
         target.position = viewport.providerFrameStartPosition(target.frame);
     }
-    if (target.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
+    if (target.providerTargetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
         && target.frame >= 0) {
-        target.targetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
+        target.providerTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
     }
     return target;
 }
 
-void applyStopRestoreTarget(ImageViewportPrivate& viewport, int frame, int position)
+void applyStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = position;
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
     viewport.m_playbackPosition = viewport.m_requestedPosition;
 }
 
-void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, ProviderStopRestoreTarget target)
+void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
-    applyStopRestoreTarget(viewport, target.frame, target.position);
-    viewport.m_currentProviderTargetKind = target.targetKind;
+    applyStopRestoreTarget(viewport, target);
+    viewport.m_currentProviderTargetKind = target.providerTargetKind;
 }
 
 bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 {
-    return viewport.hasReadyDisplay() && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
+    return viewport.hasReadyDisplay()
+        && viewport.m_displayedGeneration == viewport.m_sequenceGeneration
         && viewport.m_displayedFrame == viewport.m_currentFrame
         && viewport.m_displayedPosition == viewport.m_requestedPosition;
 }
@@ -102,18 +98,16 @@ void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
     viewport.publishProviderFrameLoadingState();
 }
 
-void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, int frame, int position,
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-    = ImageViewportInternal::ProviderRequestTargetKind::Unknown)
+void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
     viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = position;
-    viewport.m_playbackPosition = position;
-    if (targetKind != ImageViewportInternal::ProviderRequestTargetKind::Unknown) {
-        viewport.m_currentProviderTargetKind = targetKind;
-        viewport.m_latestNonPlaybackProviderTargetKind = targetKind;
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
+    viewport.m_playbackPosition = target.position;
+    if (target.providerTargetKind != ImageViewportInternal::ProviderRequestTargetKind::Unknown) {
+        viewport.m_currentProviderTargetKind = target.providerTargetKind;
+        viewport.m_latestNonPlaybackProviderTargetKind = target.providerTargetKind;
     }
     viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
     viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
@@ -125,7 +119,7 @@ ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport,
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, frame, position, targetKind);
+    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position, targetKind });
     viewport.publishProviderFrameLoadingState();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
     if (!viewport.dispatchProviderFrameRequest(frame, targetKind)) {
@@ -155,7 +149,7 @@ ViewportCommandResult acceptProviderPendingMetadataSeek(ImageViewportPrivate& vi
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, frame, position, targetKind);
+    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position, targetKind });
     viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
     viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
     viewport.discardPendingRenderCommit();
@@ -172,7 +166,7 @@ ViewportCommandResult acceptBuiltInExplicitSeek(ImageViewportPrivate& viewport, 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, frame, position);
+    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position });
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
@@ -474,7 +468,7 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_queuedProviderFrameRequest && viewport.m_queuedProviderFrameFromPlayback) {
         viewport.clearQueuedProviderFrameRequest();
 
-        const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
+        const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
         if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
@@ -506,7 +500,7 @@ ViewportCommandResult ViewportController::stop()
         viewport.m_activeProviderFrameTargetKind
             = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 
-        const ProviderStopRestoreTarget restoredTarget = providerStopRestoreTarget(viewport);
+        const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
         if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
@@ -546,8 +540,9 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_latestNonPlaybackFrame >= 0
         && viewport.m_currentFrame != viewport.m_latestNonPlaybackFrame) {
         const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
-        applyStopRestoreTarget(
-            viewport, viewport.m_latestNonPlaybackFrame, viewport.m_latestNonPlaybackPosition);
+        applyStopRestoreTarget(viewport,
+            DisplayRequestTarget {
+                viewport.m_latestNonPlaybackFrame, viewport.m_latestNonPlaybackPosition });
         if (viewport.hasReadyDisplay() && viewport.m_displayedFrame == viewport.m_currentFrame
             && viewport.m_displayedPosition == viewport.m_requestedPosition) {
             viewport.publishReadyDisplayState();
