@@ -201,10 +201,8 @@ bool ViewportProviderBridge::openSession()
             if (!acceptsSessionResult(viewport, sessionSerial)) {
                 return;
             }
-            const auto cause = token == viewport.m_activeProviderMetadataToken
-                ? ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-                : ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-            viewport.handleProviderUnsupported(token, cause, diagnostic);
+            viewport.handleProviderUnsupported(token,
+                ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic);
         },
         Qt::QueuedConnection);
     QObject::connect(
