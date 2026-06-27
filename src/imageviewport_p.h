@@ -71,7 +71,6 @@ public:
     quint64 displayedRequestIdForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
 #endif
-    CommandOutcome stopCommandImpl();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTestImpl(quint64 token);
