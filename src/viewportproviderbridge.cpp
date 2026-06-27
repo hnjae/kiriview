@@ -5,7 +5,6 @@
 #include <QtCore/QMetaObject>
 #include <QtCore/QThread>
 
-#include <limits>
 #include <memory>
 #include <utility>
 
@@ -223,7 +222,7 @@ bool ViewportProviderBridge::openSession()
         viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
             viewport.request.activeRequest.target.providerTargetKind);
     } else {
-        viewport.m_activeProviderMetadataToken = nextRequestToken();
+        viewport.m_activeProviderMetadataToken = viewport.nextProviderRequestToken();
         if (!viewport.m_activeProviderMetadataToken.isValid()) {
             viewport.publishProviderTokenExhaustion();
             return true;
@@ -231,16 +230,6 @@ bool ViewportProviderBridge::openSession()
         requestMetadata(viewport.m_activeProviderMetadataToken);
     }
     return true;
-}
-
-ImageSequenceProviderRequestToken ViewportProviderBridge::nextRequestToken()
-{
-    if (viewport.m_nextProviderRequestToken == std::numeric_limits<quint64>::max()) {
-        viewport.closeProviderSession();
-        return {};
-    }
-    ++viewport.m_nextProviderRequestToken;
-    return ImageSequenceProviderRequestToken(viewport.m_nextProviderRequestToken);
 }
 
 void ViewportProviderBridge::requestMetadata(ImageSequenceProviderRequestToken token)

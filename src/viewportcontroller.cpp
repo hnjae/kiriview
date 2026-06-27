@@ -2,6 +2,8 @@
 
 #include "imageviewport_p.h"
 
+#include <limits>
+
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;
 
@@ -1170,6 +1172,20 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_nextProviderRequestToken = 0;
     return sessionClose;
+}
+
+ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken()
+{
+    ViewportProviderRequestTokenAllocation allocation;
+    if (viewport.m_nextProviderRequestToken == std::numeric_limits<quint64>::max()) {
+        allocation.closeSession = viewport.m_providerSession != nullptr;
+        allocation.sessionClose = handleProviderSessionClose();
+        return allocation;
+    }
+
+    ++viewport.m_nextProviderRequestToken;
+    allocation.token = ImageSequenceProviderRequestToken(viewport.m_nextProviderRequestToken);
+    return allocation;
 }
 
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()

@@ -99,6 +99,13 @@ struct ViewportProviderSessionClose
     ImageSequenceProviderRequestToken frameToken;
 };
 
+struct ViewportProviderRequestTokenAllocation
+{
+    ImageSequenceProviderRequestToken token;
+    bool closeSession = false;
+    ViewportProviderSessionClose sessionClose;
+};
+
 class ViewportController
 {
 public:
@@ -133,6 +140,7 @@ public:
         ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
     ViewportProviderSessionClose handleProviderSessionClose();
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

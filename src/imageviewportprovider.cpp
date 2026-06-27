@@ -94,7 +94,13 @@ bool ImageViewportPrivate::openProviderSession() { return providerBridge.openSes
 
 ImageSequenceProviderRequestToken ImageViewportPrivate::nextProviderRequestToken()
 {
-    return providerBridge.nextRequestToken();
+    const ViewportProviderRequestTokenAllocation allocation
+        = controller.allocateProviderRequestToken();
+    if (allocation.closeSession) {
+        providerBridge.closeSession(
+            allocation.sessionClose.metadataToken, allocation.sessionClose.frameToken);
+    }
+    return allocation.token;
 }
 
 void ImageViewportPrivate::requestProviderMetadata(ImageSequenceProviderRequestToken token)

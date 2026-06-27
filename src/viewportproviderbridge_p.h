@@ -12,7 +12,6 @@ public:
     void closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     bool openSession();
-    ImageSequenceProviderRequestToken nextRequestToken();
     void requestMetadata(ImageSequenceProviderRequestToken token);
     void requestFrame(ImageSequenceProviderRequestToken token, int frame);
     void requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
