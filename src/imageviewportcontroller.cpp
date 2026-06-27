@@ -350,6 +350,7 @@ void ImageViewportPrivate::beginDisplayRequest(
 {
     m_activeRequestId = ++m_nextRequestId;
     m_activeRequestOrigin = origin;
+    request.activeRequest.providerFrameToken = {};
     if (rememberAsLatestNonPlayback) {
         request.latestNonPlaybackRequest.identity = request.activeRequest.identity;
     }

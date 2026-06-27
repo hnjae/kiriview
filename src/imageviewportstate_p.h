@@ -60,6 +60,7 @@ struct DisplayRequest
 {
     DisplayRequestIdentity identity;
     DisplayRequestTarget target;
+    ImageSequenceProviderRequestToken providerFrameToken;
 };
 
 struct PresentationState

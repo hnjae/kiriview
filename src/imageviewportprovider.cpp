@@ -7,6 +7,17 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+bool activeProviderFrameTokenMatchesActiveRequest(
+    const ImageViewportPrivate& viewport, ImageSequenceProviderRequestToken token)
+{
+    return viewport.m_activeProviderFrameToken.isValid()
+        && token == viewport.m_activeProviderFrameToken
+        && token == viewport.request.activeRequest.providerFrameToken
+        && viewport.m_activeProviderFrameRequestId == viewport.m_activeRequestId;
+}
+}
+
 void ImageViewportPrivate::closeProviderSession()
 {
     clearQueuedProviderFrameRequest();
@@ -137,6 +148,7 @@ bool ImageViewportPrivate::startProviderFrameRequest(
         return false;
     }
 
+    request.activeRequest.providerFrameToken = m_activeProviderFrameToken;
     m_activeProviderFrameTargetKind = targetKind;
     m_activeProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
     if (m_providerSession) {
@@ -354,9 +366,8 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    if (!hasProviderSequence() || !m_providerSession || !m_activeProviderFrameToken.isValid()
-        || token != m_activeProviderFrameToken
-        || m_activeProviderFrameRequestId != m_activeRequestId) {
+    if (!hasProviderSequence() || !m_providerSession
+        || !activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
         return;
     }
 
@@ -420,9 +431,7 @@ void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestTok
 
     const bool activeMetadataToken = !m_providerMetadataReady
         && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken
-        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
-        && m_activeProviderFrameRequestId == m_activeRequestId;
+    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(*this, token);
     if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
         return;
     }
@@ -454,9 +463,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     const bool activeMetadataToken = !m_providerMetadataReady
         && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken
-        = m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
-        && m_activeProviderFrameRequestId == m_activeRequestId;
+    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(*this, token);
     if (!activeMetadataToken && !activeFrameToken) {
         return;
     }
@@ -549,8 +556,7 @@ void ImageViewportPrivate::handleProviderFailure(
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
-        && m_activeProviderFrameRequestId == m_activeRequestId) {
+    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameRequestId = 0;
@@ -590,8 +596,7 @@ void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderReques
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
-        && m_activeProviderFrameRequestId == m_activeRequestId) {
+    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameRequestId = 0;
@@ -634,8 +639,7 @@ void ImageViewportPrivate::handleProviderCancellation(
         return;
     }
 
-    if (m_activeProviderFrameToken.isValid() && token == m_activeProviderFrameToken
-        && m_activeProviderFrameRequestId == m_activeRequestId) {
+    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
         clearQueuedProviderFrameRequest();
         m_activeProviderFrameToken = {};
         m_activeProviderFrameRequestId = 0;
