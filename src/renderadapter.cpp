@@ -9,15 +9,16 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 {
     delete oldNode;
 
+    const auto& payload = input.preparedPayload;
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, input.generation, input.requestId,
-            input.preparedPayloadId };
+        return { nullptr, RenderAdapter::CommitResult::Empty, payload.generation, payload.requestId,
+            payload.payloadId };
     }
 
     const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
-    if (!hasBackground && input.image.isNull()) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, input.generation, input.requestId,
-            input.preparedPayloadId };
+    if (!hasBackground && payload.image.isNull()) {
+        return { nullptr, RenderAdapter::CommitResult::Empty, payload.generation, payload.requestId,
+            payload.payloadId };
     }
 
     auto* root = new QSGNode;
@@ -45,35 +46,35 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         }
     }
 
-    if (input.image.isNull()) {
-        return { root, CommitResult::Empty, input.generation, input.requestId,
-            input.preparedPayloadId };
+    if (payload.image.isNull()) {
+        return { root, CommitResult::Empty, payload.generation, payload.requestId,
+            payload.payloadId };
     }
 
     if (!input.window) {
         delete root;
-        return { nullptr, CommitResult::Failed, input.generation, input.requestId,
-            input.preparedPayloadId };
+        return { nullptr, CommitResult::Failed, payload.generation, payload.requestId,
+            payload.payloadId };
     }
 
     QQuickWindow::CreateTextureOptions textureOptions;
     if (input.mipmap) {
         textureOptions |= QQuickWindow::TextureHasMipmaps;
     }
-    QSGTexture* texture = input.window->createTextureFromImage(input.image, textureOptions);
+    QSGTexture* texture = input.window->createTextureFromImage(payload.image, textureOptions);
     QSGImageNode* imageNode = input.window->createImageNode();
     if (!texture || !imageNode) {
         delete texture;
         delete imageNode;
         delete root;
-        return { nullptr, CommitResult::Failed, input.generation, input.requestId,
-            input.preparedPayloadId };
+        return { nullptr, CommitResult::Failed, payload.generation, payload.requestId,
+            payload.payloadId };
     }
 
     imageNode->setTexture(texture);
     imageNode->setOwnsTexture(true);
     imageNode->setRect(input.targetRect);
-    const qreal devicePixelRatio = input.image.devicePixelRatio();
+    const qreal devicePixelRatio = payload.image.devicePixelRatio();
     const QRectF physicalSourceRect(input.sourceRect.x() * devicePixelRatio,
         input.sourceRect.y() * devicePixelRatio, input.sourceRect.width() * devicePixelRatio,
         input.sourceRect.height() * devicePixelRatio);
@@ -89,6 +90,6 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
     imageNode->setTextureCoordinatesTransform(transform);
     root->appendChildNode(imageNode);
-    return { root, CommitResult::Committed, input.generation, input.requestId,
-        input.preparedPayloadId };
+    return { root, CommitResult::Committed, payload.generation, payload.requestId,
+        payload.payloadId };
 }

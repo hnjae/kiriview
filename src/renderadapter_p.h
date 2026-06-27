@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportstate_p.h"
 
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGImageNode>
@@ -21,16 +22,13 @@ public:
         QSizeF itemSize;
         ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
         QColor backgroundColor = Qt::transparent;
-        QImage image;
+        ImageViewportInternal::PreparedPayload preparedPayload;
         QRectF targetRect;
         QRectF sourceRect;
         bool smoothing = true;
         bool mipmap = false;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
-        quint64 generation = 0;
-        quint64 requestId = 0;
-        quint64 preparedPayloadId = 0;
         QQuickWindow* window = nullptr;
     };
 

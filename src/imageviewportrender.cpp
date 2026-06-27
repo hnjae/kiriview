@@ -8,32 +8,24 @@ using namespace ImageViewportInternal;
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
-    const bool renderCommitPending = synchronization.preparedPayload.commitPending;
-    const QImage image
-        = renderCommitPending ? synchronization.preparedPayload.image
-                              : (hasReadyDisplay() ? m_displayedImage : QImage());
-    const quint64 renderGeneration
-        = renderCommitPending ? synchronization.preparedPayload.generation : 0;
-    const quint64 renderRequestId
-        = renderCommitPending ? synchronization.preparedPayload.requestId : 0;
-    const quint64 renderPreparedPayloadId
-        = renderCommitPending ? synchronization.preparedPayload.payloadId : 0;
+    auto preparedPayload = synchronization.preparedPayload;
+    if (!preparedPayload.commitPending && hasReadyDisplay()) {
+        preparedPayload.image = m_displayedImage;
+    }
+    const bool imagePresent = !preparedPayload.image.isNull();
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {
             QSizeF(width(), height()),
             m_backgroundMode,
             m_backgroundColor,
-            image,
+            preparedPayload,
             currentContentRect().intersected(itemBounds()),
             visibleImageRect(),
             m_smoothing,
             m_mipmap,
             m_mirrorHorizontally,
             m_mirrorVertically,
-            renderGeneration,
-            renderRequestId,
-            renderPreparedPayloadId,
             window(),
         });
     if (render.result == RenderAdapter::CommitResult::Failed) {
@@ -47,7 +39,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     }
 
     const auto changes = controller.acknowledgeRenderCommit(
-        { render.generation, render.requestId, render.preparedPayloadId }, !image.isNull(),
+        { render.generation, render.requestId, render.preparedPayloadId }, imagePresent,
         synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
