@@ -23,6 +23,7 @@ struct ViewportRenderAcknowledgement
 struct ViewportRenderSynchronization
 {
     bool pendingProviderCommit = false;
+    ImageViewportInternal::PreparedPayload preparedPayload;
     ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;

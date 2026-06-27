@@ -8,14 +8,16 @@ using namespace ImageViewportInternal;
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
-    const QImage image = synchronization.pendingProviderCommit
-        ? m_displayedImage
-        : (hasReadyDisplay() ? m_displayedImage : QImage());
-    const bool renderCommitPending = m_pendingRenderPayload.commitPending;
-    const quint64 renderGeneration = renderCommitPending ? m_pendingRenderPayload.generation : 0;
-    const quint64 renderRequestId = renderCommitPending ? m_pendingRenderPayload.requestId : 0;
+    const bool renderCommitPending = synchronization.preparedPayload.commitPending;
+    const QImage image
+        = renderCommitPending ? synchronization.preparedPayload.image
+                              : (hasReadyDisplay() ? m_displayedImage : QImage());
+    const quint64 renderGeneration
+        = renderCommitPending ? synchronization.preparedPayload.generation : 0;
+    const quint64 renderRequestId
+        = renderCommitPending ? synchronization.preparedPayload.requestId : 0;
     const quint64 renderPreparedPayloadId
-        = renderCommitPending ? m_pendingRenderPayload.payloadId : 0;
+        = renderCommitPending ? synchronization.preparedPayload.payloadId : 0;
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {

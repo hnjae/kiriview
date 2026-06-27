@@ -854,6 +854,10 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
     if (synchronization.pendingProviderCommit) {
         viewport.publishSequenceReadyState(viewport.m_pendingRenderPayload.image);
     }
+    if (viewport.m_pendingRenderPayload.commitPending && viewport.hasReadyDisplay()) {
+        synchronization.preparedPayload = viewport.m_pendingRenderPayload;
+        synchronization.preparedPayload.image = viewport.m_displayedImage;
+    }
     return synchronization;
 }
 
