@@ -1188,6 +1188,23 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
     return allocation;
 }
 
+ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest()
+{
+    ViewportProviderMetadataRequestStartResult result;
+    const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken();
+    result.closeSession = allocation.closeSession;
+    result.sessionClose = allocation.sessionClose;
+    viewport.m_activeProviderMetadataToken = allocation.token;
+    if (!viewport.m_activeProviderMetadataToken.isValid()) {
+        viewport.publishProviderTokenExhaustion();
+        return result;
+    }
+
+    result.sendCommand = viewport.m_providerSession != nullptr;
+    result.token = viewport.m_activeProviderMetadataToken;
+    return result;
+}
+
 ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
     ViewportProviderFrameQueueRequest request)
 {

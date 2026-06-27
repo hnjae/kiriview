@@ -106,6 +106,14 @@ struct ViewportProviderRequestTokenAllocation
     ViewportProviderSessionClose sessionClose;
 };
 
+struct ViewportProviderMetadataRequestStartResult
+{
+    bool closeSession = false;
+    ViewportProviderSessionClose sessionClose;
+    bool sendCommand = false;
+    ImageSequenceProviderRequestToken token;
+};
+
 struct ViewportProviderFrameQueueRequest
 {
     int frame = -1;
@@ -187,6 +195,7 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
+    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();

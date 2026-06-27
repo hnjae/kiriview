@@ -217,18 +217,6 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
 
-    if (viewport.m_providerMetadataReady) {
-        viewport.discardPendingRenderCommit();
-        viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
-            viewport.request.activeRequest.target.providerTargetKind);
-    } else {
-        viewport.m_activeProviderMetadataToken = viewport.nextProviderRequestToken();
-        if (!viewport.m_activeProviderMetadataToken.isValid()) {
-            viewport.publishProviderTokenExhaustion();
-            return true;
-        }
-        requestMetadata(viewport.m_activeProviderMetadataToken);
-    }
     return true;
 }
 

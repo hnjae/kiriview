@@ -131,7 +131,7 @@ public:
 
     void closeProviderSession();
     bool openProviderSession();
-    ImageSequenceProviderRequestToken nextProviderRequestToken();
+    void startProviderMetadataRequest();
     void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);

@@ -90,17 +90,33 @@ void ImageViewportPrivate::closeProviderSession()
     providerBridge.closeSession(sessionClose.metadataToken, sessionClose.frameToken);
 }
 
-bool ImageViewportPrivate::openProviderSession() { return providerBridge.openSession(); }
-
-ImageSequenceProviderRequestToken ImageViewportPrivate::nextProviderRequestToken()
+bool ImageViewportPrivate::openProviderSession()
 {
-    const ViewportProviderRequestTokenAllocation allocation
-        = controller.allocateProviderRequestToken();
-    if (allocation.closeSession) {
-        providerBridge.closeSession(
-            allocation.sessionClose.metadataToken, allocation.sessionClose.frameToken);
+    if (!providerBridge.openSession()) {
+        return false;
     }
-    return allocation.token;
+
+    if (m_providerMetadataReady) {
+        discardPendingRenderCommit();
+        startProviderFrameRequest(
+            request.activeRequest.target.frame, request.activeRequest.target.providerTargetKind);
+    } else {
+        startProviderMetadataRequest();
+    }
+    return true;
+}
+
+void ImageViewportPrivate::startProviderMetadataRequest()
+{
+    const ViewportProviderMetadataRequestStartResult result
+        = controller.startProviderMetadataRequest();
+    if (result.closeSession) {
+        providerBridge.closeSession(
+            result.sessionClose.metadataToken, result.sessionClose.frameToken);
+    }
+    if (result.sendCommand) {
+        requestProviderMetadata(result.token);
+    }
 }
 
 void ImageViewportPrivate::requestProviderMetadata(ImageSequenceProviderRequestToken token)
