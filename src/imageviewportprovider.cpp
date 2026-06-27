@@ -510,9 +510,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     if (!m_looping && hasReadyDisplay() && m_displayedGeneration == m_sequenceGeneration
         && m_displayedFrame == selectedFrame && m_displayedPosition == selectedPosition) {
-        m_requestStatus = RequestStatus::Ready;
-        m_requestReason = RequestReason::Ready;
-        m_displayStatus = DisplayStatus::Ready;
+        publishReadyDisplayState();
         setPlaybackPhase(PlaybackPhase::Stopped);
         m_stopPlaybackWhenRequestReady = false;
         incrementRequestRevision();

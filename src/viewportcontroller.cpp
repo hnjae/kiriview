@@ -478,9 +478,7 @@ ViewportCommandResult ViewportController::stop()
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
         if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
-            viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
-            viewport.m_requestReason = ImageViewport::RequestReason::Ready;
-            viewport.m_displayStatus = ImageViewport::DisplayStatus::Ready;
+            viewport.publishReadyDisplayState();
         } else {
             publishProviderStopRestoreLoading(viewport);
             if (viewport.m_providerSession && viewport.m_currentFrame >= 0
@@ -513,9 +511,7 @@ ViewportCommandResult ViewportController::stop()
         applyProviderStopRestoreTarget(viewport, restoredTarget);
         if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.m_playbackPosition = viewport.m_requestedPosition;
-            viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
-            viewport.m_requestReason = ImageViewport::RequestReason::Ready;
-            viewport.m_displayStatus = ImageViewport::DisplayStatus::Ready;
+            viewport.publishReadyDisplayState();
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
             result.changes.requestRevision = true;
@@ -554,9 +550,7 @@ ViewportCommandResult ViewportController::stop()
             viewport, viewport.m_latestNonPlaybackFrame, viewport.m_latestNonPlaybackPosition);
         if (viewport.hasReadyDisplay() && viewport.m_displayedFrame == viewport.m_currentFrame
             && viewport.m_displayedPosition == viewport.m_requestedPosition) {
-            viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
-            viewport.m_requestReason = ImageViewport::RequestReason::Ready;
-            viewport.m_displayStatus = ImageViewport::DisplayStatus::Ready;
+            viewport.publishReadyDisplayState();
         } else {
             viewport.publishRenderWaitingState();
         }

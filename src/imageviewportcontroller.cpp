@@ -485,12 +485,17 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
     }
 }
 
-void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage)
+void ImageViewportPrivate::publishReadyDisplayState()
 {
-    captureRenderFailureRetainedDisplay();
     m_requestStatus = RequestStatus::Ready;
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
+}
+
+void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage)
+{
+    captureRenderFailureRetainedDisplay();
+    publishReadyDisplayState();
     m_renderCommitPending = true;
     beginPreparedPayloadIdentity();
     m_displayedFrame = m_currentFrame;
