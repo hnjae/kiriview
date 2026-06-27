@@ -432,13 +432,14 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    if (!hasProviderSequence() || !m_providerSession
-        || !activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
+    const ViewportProviderFrameEventAcceptance frameEvent
+        = controller.acceptProviderFrameEvent({token});
+    if (!frameEvent.accepted) {
         return;
     }
 
     const auto admission = FramePreparation::admitProviderFrame(
-        frame, metadata, controller.providerFramePreparationState());
+        frame, metadata, frameEvent.preparationState);
     const auto changes = controller.handleProviderFrameAdmission(admission);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {

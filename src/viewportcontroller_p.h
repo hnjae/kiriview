@@ -40,6 +40,17 @@ struct ViewportProviderFrameTerminalResult
     QString fallbackDiagnostic;
 };
 
+struct ViewportProviderFrameEvent
+{
+    ImageSequenceProviderRequestToken token;
+};
+
+struct ViewportProviderFrameEventAcceptance
+{
+    bool accepted = false;
+    FramePreparation::ProviderFrameState preparationState;
+};
+
 struct ViewportProviderMetadataTerminalResult
 {
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
@@ -179,7 +190,8 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
-    FramePreparation::ProviderFrameState providerFramePreparationState() const;
+    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
+        ViewportProviderFrameEvent event) const;
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
@@ -228,5 +240,7 @@ public:
 #endif
 
 private:
+    FramePreparation::ProviderFrameState providerFramePreparationState() const;
+
     ImageViewportPrivate& viewport;
 };

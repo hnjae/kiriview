@@ -867,6 +867,17 @@ FramePreparation::ProviderFrameState ViewportController::providerFramePreparatio
     };
 }
 
+ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
+    ViewportProviderFrameEvent event) const
+{
+    if (!viewport.hasProviderSequence() || !viewport.m_providerSession
+        || !activeProviderFrameTokenMatchesActiveRequest(viewport, event.token)) {
+        return {};
+    }
+
+    return {true, providerFramePreparationState()};
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
