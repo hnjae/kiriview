@@ -139,6 +139,40 @@ ViewportCommandResult acceptProviderPendingMetadataSeek(ImageViewportPrivate& vi
     result.changes.diagnostics = diagnosticsValueChanged;
     return result;
 }
+
+ViewportCommandResult acceptBuiltInExplicitSeek(ImageViewportPrivate& viewport, int frame,
+    int position)
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_currentFrame = frame;
+    viewport.m_requestedPosition = position;
+    viewport.m_playbackPosition = position;
+    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
+    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+    const QRectF oldContentRect = viewport.contentRect();
+    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+    viewport.publishAcceptedTargetState();
+    if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
+        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+    }
+    result.changes.requestRevision = true;
+    result.changes.displayRevision = true;
+    result.changes.requestState = true;
+    result.changes.displayState = true;
+    result.changes.geometryState
+        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    result.changes.diagnostics = diagnosticsValueChanged;
+    result.changes.scheduleUpdate = true;
+    return result;
+}
 }
 
 ViewportController::ViewportController(ImageViewportPrivate& viewport)
@@ -637,37 +671,8 @@ ViewportCommandResult ViewportController::seek(int frame)
             return result;
         }
 
-        ViewportCommandResult result;
-        result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
-        viewport.m_providerPlaybackStartPending = false;
-        viewport.m_currentFrame = frame;
-        viewport.m_requestedPosition
-            = viewport.hasTimedSequence() ? viewport.sequenceFrameStartPosition(frame) : -1;
-        viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-        viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
-        const QRectF oldContentRect = viewport.contentRect();
-        const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-        viewport.publishAcceptedTargetState();
-        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
-            && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
-            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
-        }
-        result.changes.requestRevision = true;
-        result.changes.displayRevision = true;
-        result.changes.requestState = true;
-        result.changes.displayState = true;
-        result.changes.geometryState
-            = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-            || ImageViewportInternal::rectsDifferExactly(
-                viewport.visibleImageRect(), oldVisibleImageRect);
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
-        return result;
+        return acceptBuiltInExplicitSeek(viewport, frame,
+            viewport.hasTimedSequence() ? viewport.sequenceFrameStartPosition(frame) : -1);
     }
 
     ViewportCommandResult result;
@@ -740,36 +745,7 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
             return result;
         }
 
-        ViewportCommandResult result;
-        result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
-        viewport.m_providerPlaybackStartPending = false;
-        viewport.m_currentFrame = frame;
-        viewport.m_requestedPosition = milliseconds;
-        viewport.m_playbackPosition = milliseconds;
-        viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-        viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
-        const QRectF oldContentRect = viewport.contentRect();
-        const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-        viewport.publishAcceptedTargetState();
-        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
-            && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
-            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
-        }
-        result.changes.requestRevision = true;
-        result.changes.displayRevision = true;
-        result.changes.requestState = true;
-        result.changes.displayState = true;
-        result.changes.geometryState
-            = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-            || ImageViewportInternal::rectsDifferExactly(
-                viewport.visibleImageRect(), oldVisibleImageRect);
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
-        return result;
+        return acceptBuiltInExplicitSeek(viewport, frame, milliseconds);
     }
 
     ViewportCommandResult result;
