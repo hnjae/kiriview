@@ -944,6 +944,20 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (viewport.m_requestStatus != ImageViewport::RequestStatus::Loading
+        || viewport.m_requestReason == ImageViewport::RequestReason::ProviderWaiting) {
+        return changes;
+    }
+
+    viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+    changes.requestRevision = true;
+    changes.requestState = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

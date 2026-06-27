@@ -414,17 +414,11 @@ void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestTok
     const bool activeMetadataToken = !m_providerMetadataReady
         && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
     const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(*this, token);
-    if ((!activeMetadataToken && !activeFrameToken) || m_requestStatus != RequestStatus::Loading) {
+    if (!activeMetadataToken && !activeFrameToken) {
         return;
     }
 
-    if (m_requestReason == RequestReason::ProviderWaiting) {
-        return;
-    }
-
-    m_requestReason = RequestReason::ProviderWaiting;
-    incrementRequestRevision();
-    emit q->requestStateChanged();
+    applyControllerChanges(controller.handleProviderWaiting());
 }
 
 void ImageViewportPrivate::handleProviderProgress(

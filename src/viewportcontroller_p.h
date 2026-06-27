@@ -66,6 +66,7 @@ public:
         const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
         const ViewportProviderMetadataTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();
