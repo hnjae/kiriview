@@ -152,8 +152,8 @@ public:
     void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
     void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
     void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    void handleProviderUnsupported(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic);
+    void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
     bool validateProviderStillMetadata(const ImageSequenceProviderMetadata& metadata);

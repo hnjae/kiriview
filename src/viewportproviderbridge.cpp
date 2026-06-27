@@ -193,12 +193,26 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
+        viewport.m_providerSession, &ImageSequenceProviderSession::providerUnsupportedWithCause,
+        viewport.q,
+        [this, sessionSerial](ImageSequenceProviderRequestToken token,
+            ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) {
+            if (!acceptsSessionResult(viewport, sessionSerial)) {
+                return;
+            }
+            viewport.handleProviderUnsupported(token, cause, diagnostic);
+        },
+        Qt::QueuedConnection);
+    QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerUnsupported, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
             if (!acceptsSessionResult(viewport, sessionSerial)) {
                 return;
             }
-            viewport.handleProviderUnsupported(token, diagnostic);
+            const auto cause = token == viewport.m_activeProviderMetadataToken
+                ? ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
+                : ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+            viewport.handleProviderUnsupported(token, cause, diagnostic);
         },
         Qt::QueuedConnection);
     QObject::connect(

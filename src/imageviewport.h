@@ -377,6 +377,12 @@ class ImageSequenceProviderSession : public QObject
     Q_OBJECT
 
 public:
+    enum class UnsupportedCause {
+        UnsupportedRequest,
+        PayloadRejection,
+    };
+    Q_ENUM(UnsupportedCause)
+
     explicit ImageSequenceProviderSession(QObject* parent = nullptr);
     ~ImageSequenceProviderSession() override = default;
 
@@ -403,6 +409,8 @@ signals:
     void providerProgress(const ImageSequenceProviderRequestToken& token, double progress);
     void endOfSequence(const ImageSequenceProviderRequestToken& token);
     void providerFailed(const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
+    void providerUnsupportedWithCause(const ImageSequenceProviderRequestToken& token,
+        UnsupportedCause cause, const QString& diagnostic);
     void providerUnsupported(
         const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
     void providerCancelled(
