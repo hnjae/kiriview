@@ -43,6 +43,12 @@ enum class DisplayRequestOrigin {
     StopRestore,
 };
 
+struct DisplayRequestIdentity
+{
+    quint64 id = 0;
+    DisplayRequestOrigin origin = DisplayRequestOrigin::None;
+};
+
 struct PresentationState
 {
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
@@ -107,9 +113,8 @@ struct RequestState
         = ProviderRequestTargetKind::Unknown;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
-    quint64 activeRequestId = 0;
-    quint64 latestNonPlaybackRequestId = 0;
-    DisplayRequestOrigin activeRequestOrigin = DisplayRequestOrigin::None;
+    DisplayRequestIdentity activeRequest;
+    DisplayRequestIdentity latestNonPlaybackRequest;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

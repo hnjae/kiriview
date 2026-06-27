@@ -254,9 +254,9 @@ public:
         = request.latestNonPlaybackProviderTargetKind;
     quint64& m_sequenceGeneration = request.sequenceGeneration;
     quint64& m_nextRequestId = request.nextRequestId;
-    quint64& m_activeRequestId = request.activeRequestId;
-    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequestId;
-    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequestOrigin;
+    quint64& m_activeRequestId = request.activeRequest.id;
+    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequest.id;
+    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequest.origin;
     int& m_displayedFrame = display.displayedFrame;
     int& m_displayedPosition = display.displayedPosition;
     quint64& m_displayedGeneration = display.displayedGeneration;

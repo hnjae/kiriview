@@ -329,9 +329,8 @@ bool ImageViewportPrivate::clearDiagnostics()
 void ImageViewportPrivate::clearRequestIdentity()
 {
     m_nextRequestId = 0;
-    m_activeRequestId = 0;
-    m_latestNonPlaybackRequestId = 0;
-    m_activeRequestOrigin = DisplayRequestOrigin::None;
+    request.activeRequest = {};
+    request.latestNonPlaybackRequest = {};
 }
 
 void ImageViewportPrivate::beginDisplayRequest(
@@ -340,7 +339,7 @@ void ImageViewportPrivate::beginDisplayRequest(
     m_activeRequestId = ++m_nextRequestId;
     m_activeRequestOrigin = origin;
     if (rememberAsLatestNonPlayback) {
-        m_latestNonPlaybackRequestId = m_activeRequestId;
+        request.latestNonPlaybackRequest = request.activeRequest;
     }
 }
 
