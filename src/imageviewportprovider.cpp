@@ -106,6 +106,29 @@ bool ImageViewportPrivate::openProviderSession()
     return true;
 }
 
+quint64 ImageViewportPrivate::installProviderSession(ImageSequenceProviderSession* session)
+{
+    m_providerSession = session;
+    if (!m_providerSession) {
+        return 0;
+    }
+
+    ++m_providerSessionSerial;
+    return m_providerSessionSerial;
+}
+
+ImageSequenceProviderSession* ImageViewportPrivate::takeProviderSession()
+{
+    ImageSequenceProviderSession* session = m_providerSession;
+    m_providerSession.clear();
+    return session;
+}
+
+ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession() const
+{
+    return m_providerSession;
+}
+
 bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
     return m_providerSession && m_providerSessionSerial == sessionSerial;

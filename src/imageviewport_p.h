@@ -131,6 +131,9 @@ public:
 
     void closeProviderSession();
     bool openProviderSession();
+    quint64 installProviderSession(ImageSequenceProviderSession* session);
+    ImageSequenceProviderSession* takeProviderSession();
+    ImageSequenceProviderSession* currentProviderSession() const;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     void startProviderMetadataRequest();
     void publishProviderFrameLoadingState();

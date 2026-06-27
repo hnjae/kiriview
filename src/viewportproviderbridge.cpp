@@ -64,12 +64,11 @@ ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate& viewport)
 void ViewportProviderBridge::closeSession(ImageSequenceProviderRequestToken metadataToken,
     ImageSequenceProviderRequestToken frameToken)
 {
-    if (!viewport.m_providerSession) {
+    ImageSequenceProviderSession* session = viewport.takeProviderSession();
+    if (!session) {
         return;
     }
 
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
-    viewport.m_providerSession.clear();
     queueSessionCleanup(session, metadataToken, frameToken);
 }
 
@@ -81,15 +80,17 @@ bool ViewportProviderBridge::openSession()
         return false;
     }
 
-    viewport.m_providerSession = sessionFactory->createSession(viewport.q);
-    if (!viewport.m_providerSession) {
+    ImageSequenceProviderSession* session = sessionFactory->createSession(viewport.q);
+    if (!session) {
         return false;
     }
-    ++viewport.m_providerSessionSerial;
-    const quint64 sessionSerial = viewport.m_providerSessionSerial;
+    const quint64 sessionSerial = viewport.installProviderSession(session);
+    if (sessionSerial == 0) {
+        return false;
+    }
 
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::metadataReady, viewport.q,
+        session, &ImageSequenceProviderSession::metadataReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             const ImageSequenceProviderMetadata& metadata) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
@@ -99,7 +100,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::imageFrameReady, viewport.q,
+        session, &ImageSequenceProviderSession::imageFrameReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -108,8 +109,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::imageFrameWithMetadataReady,
-        viewport.q,
+        session, &ImageSequenceProviderSession::imageFrameWithMetadataReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame,
             ImageSequenceProviderFrameMetadata metadata) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
@@ -119,7 +119,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::frameHandleReady, viewport.q,
+        session, &ImageSequenceProviderSession::frameHandleReady, viewport.q,
         [this, sessionSerial](
             ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
@@ -131,8 +131,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::frameHandleWithMetadataReady,
-        viewport.q,
+        session, &ImageSequenceProviderSession::frameHandleWithMetadataReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
@@ -144,7 +143,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerWaiting, viewport.q,
+        session, &ImageSequenceProviderSession::providerWaiting, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -153,7 +152,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerProgress, viewport.q,
+        session, &ImageSequenceProviderSession::providerProgress, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, double progress) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -162,7 +161,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::endOfSequence, viewport.q,
+        session, &ImageSequenceProviderSession::endOfSequence, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -171,7 +170,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerFailed, viewport.q,
+        session, &ImageSequenceProviderSession::providerFailed, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -180,8 +179,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerUnsupportedWithCause,
-        viewport.q,
+        session, &ImageSequenceProviderSession::providerUnsupportedWithCause, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
@@ -191,7 +189,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerUnsupported, viewport.q,
+        session, &ImageSequenceProviderSession::providerUnsupported, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -201,7 +199,7 @@ bool ViewportProviderBridge::openSession()
         },
         Qt::QueuedConnection);
     QObject::connect(
-        viewport.m_providerSession, &ImageSequenceProviderSession::providerCancelled, viewport.q,
+        session, &ImageSequenceProviderSession::providerCancelled, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
             if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
@@ -218,7 +216,7 @@ void ViewportProviderBridge::requestMetadata(ImageSequenceProviderRequestToken t
     if (!token.isValid()) {
         return;
     }
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    ImageSequenceProviderSession* session = viewport.currentProviderSession();
     invokeSessionCommand(session, threadingContract(),
         [session, token]() { session->requestMetadata(token); });
 }
@@ -228,7 +226,7 @@ void ViewportProviderBridge::requestFrame(ImageSequenceProviderRequestToken toke
     if (!token.isValid()) {
         return;
     }
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    ImageSequenceProviderSession* session = viewport.currentProviderSession();
     invokeSessionCommand(session, threadingContract(),
         [session, token, frame]() { session->requestFrame(token, frame); });
 }
@@ -239,7 +237,7 @@ void ViewportProviderBridge::requestPosition(
     if (!token.isValid()) {
         return;
     }
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    ImageSequenceProviderSession* session = viewport.currentProviderSession();
     invokeSessionCommand(session, threadingContract(),
         [session, token, frame, position]() { session->requestPosition(token, frame, position); });
 }
@@ -250,7 +248,7 @@ void ViewportProviderBridge::requestPlayback(
     if (!token.isValid()) {
         return;
     }
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    ImageSequenceProviderSession* session = viewport.currentProviderSession();
     invokeSessionCommand(session, threadingContract(),
         [session, token, frame, position]() { session->requestPlayback(token, frame, position); });
 }
@@ -260,7 +258,7 @@ void ViewportProviderBridge::cancelRequest(ImageSequenceProviderRequestToken tok
     if (!token.isValid()) {
         return;
     }
-    ImageSequenceProviderSession* session = viewport.m_providerSession;
+    ImageSequenceProviderSession* session = viewport.currentProviderSession();
     invokeSessionCommand(session, threadingContract(),
         [session, token]() { session->cancelRequest(token); });
 }
