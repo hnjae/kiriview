@@ -43,6 +43,69 @@ bool activeProviderFrameTokenMatchesActiveRequest(
         && viewport.m_activeProviderFrameRequestId == viewport.request.activeRequest.identity.id;
 }
 
+ViewportProviderFrameTerminalResult frameTerminalResultFor(
+    const ViewportProviderTerminalEvent& event)
+{
+    switch (event.kind) {
+    case ViewportProviderTerminalEvent::Kind::Unsupported:
+        return {
+            ImageViewport::RequestStatus::Unsupported,
+            event.unsupportedCause
+                    == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
+                ? ImageViewport::RequestReason::UnsupportedRequest
+                : ImageViewport::RequestReason::PayloadRejection,
+            event.diagnostic,
+            QStringLiteral("provider unsupported"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Cancellation:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider cancelled request"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Failure:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider failure"),
+        };
+    }
+
+    return {};
+}
+
+ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
+    const ViewportProviderTerminalEvent& event)
+{
+    switch (event.kind) {
+    case ViewportProviderTerminalEvent::Kind::Unsupported:
+        return {
+            ImageViewport::RequestStatus::Unsupported,
+            ImageViewport::RequestReason::UnsupportedRequest,
+            event.diagnostic,
+            QStringLiteral("provider unsupported"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Cancellation:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider cancelled request"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Failure:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider failure"),
+        };
+    }
+
+    return {};
+}
+
 void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& result,
     ImageViewport::PlaybackPhase phase)
 {
@@ -927,6 +990,25 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     changes.diagnostics = diagnosticsValueChanged;
     changes.scheduleUpdate = true;
     return changes;
+}
+
+ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
+    const ViewportProviderTerminalEvent& event)
+{
+    if (!viewport.hasProviderSequence() || !viewport.m_providerSession) {
+        return {};
+    }
+
+    if (activeProviderFrameTokenMatchesActiveRequest(viewport, event.token)) {
+        return {handleProviderFrameTerminalResult(frameTerminalResultFor(event)), false};
+    }
+
+    if (viewport.m_providerMetadataReady || !viewport.m_activeProviderMetadataToken.isValid()
+        || event.token != viewport.m_activeProviderMetadataToken) {
+        return {};
+    }
+
+    return {handleProviderMetadataTerminalResult(metadataTerminalResultFor(event)), true};
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(

@@ -59,6 +59,27 @@ struct ViewportProviderMetadataTerminalResult
     QString fallbackDiagnostic;
 };
 
+struct ViewportProviderTerminalEvent
+{
+    enum class Kind {
+        Failure,
+        Unsupported,
+        Cancellation,
+    };
+
+    ImageSequenceProviderRequestToken token;
+    Kind kind = Kind::Failure;
+    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
+        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+    QString diagnostic;
+};
+
+struct ViewportProviderTerminalEventResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    bool closeSession = false;
+};
+
 struct ViewportProviderMetadataContradiction
 {
     QString diagnostic;
@@ -205,10 +226,8 @@ public:
         ViewportProviderFrameEvent event) const;
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
-        const ViewportProviderFrameTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
-        const ViewportProviderMetadataTerminalResult& result);
+    ViewportProviderTerminalEventResult handleProviderTerminalEvent(
+        const ViewportProviderTerminalEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
         const ViewportProviderMetadataContradiction& contradiction);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
@@ -251,6 +270,10 @@ public:
 
 private:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
+        const ViewportProviderFrameTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
+        const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();

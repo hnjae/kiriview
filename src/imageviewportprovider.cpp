@@ -17,23 +17,17 @@ bool activeProviderFrameTokenMatchesActiveRequest(
         && viewport.m_activeProviderFrameRequestId == viewport.request.activeRequest.identity.id;
 }
 
-void applyProviderFrameTerminalResult(
-    ImageViewportPrivate& viewport, const ViewportProviderFrameTerminalResult& result)
+void applyProviderTerminalEvent(
+    ImageViewportPrivate& viewport, const ViewportProviderTerminalEvent& event)
 {
-    const auto changes = viewport.controller.handleProviderFrameTerminalResult(result);
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
+    const ViewportProviderTerminalEventResult result
+        = viewport.controller.handleProviderTerminalEvent(event);
+    viewport.applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
         viewport.syncPlaybackTimer();
     }
-}
-
-void applyProviderMetadataTerminalResult(
-    ImageViewportPrivate& viewport, const ViewportProviderMetadataTerminalResult& result)
-{
-    const auto changes = viewport.controller.handleProviderMetadataTerminalResult(result);
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+    if (result.closeSession) {
+        viewport.closeProviderSession();
     }
 }
 
@@ -474,102 +468,24 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 void ImageViewportPrivate::handleProviderFailure(
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession) {
-        return;
-    }
-
-    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        applyProviderFrameTerminalResult(*this,
-            {
-                RequestStatus::Error,
-                RequestReason::ProviderFailure,
-                diagnostic,
-                QStringLiteral("provider failure"),
-            });
-        return;
-    }
-
-    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
-        || token != m_activeProviderMetadataToken) {
-        return;
-    }
-
-    applyProviderMetadataTerminalResult(*this,
-        {
-            RequestStatus::Error,
-            RequestReason::ProviderFailure,
-            diagnostic,
-            QStringLiteral("provider failure"),
-        });
-    closeProviderSession();
+    applyProviderTerminalEvent(
+        *this, {token, ViewportProviderTerminalEvent::Kind::Failure,
+                   ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic});
 }
 
 void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderRequestToken token,
     ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession) {
-        return;
-    }
-
-    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        applyProviderFrameTerminalResult(*this,
-            {
-                RequestStatus::Unsupported,
-                cause == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-                    ? RequestReason::UnsupportedRequest
-                    : RequestReason::PayloadRejection,
-                diagnostic,
-                QStringLiteral("provider unsupported"),
-            });
-        return;
-    }
-
-    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
-        || token != m_activeProviderMetadataToken) {
-        return;
-    }
-
-    applyProviderMetadataTerminalResult(*this,
-        {
-            RequestStatus::Unsupported,
-            RequestReason::UnsupportedRequest,
-            diagnostic,
-            QStringLiteral("provider unsupported"),
-        });
-    closeProviderSession();
+    applyProviderTerminalEvent(
+        *this, {token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic});
 }
 
 void ImageViewportPrivate::handleProviderCancellation(
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
-    if (!hasProviderSequence() || !m_providerSession) {
-        return;
-    }
-
-    if (activeProviderFrameTokenMatchesActiveRequest(*this, token)) {
-        applyProviderFrameTerminalResult(*this,
-            {
-                RequestStatus::Error,
-                RequestReason::ProviderFailure,
-                diagnostic,
-                QStringLiteral("provider cancelled request"),
-            });
-        return;
-    }
-
-    if (m_providerMetadataReady || !m_activeProviderMetadataToken.isValid()
-        || token != m_activeProviderMetadataToken) {
-        return;
-    }
-
-    applyProviderMetadataTerminalResult(*this,
-        {
-            RequestStatus::Error,
-            RequestReason::ProviderFailure,
-            diagnostic,
-            QStringLiteral("provider cancelled request"),
-        });
-    closeProviderSession();
+    applyProviderTerminalEvent(
+        *this, {token, ViewportProviderTerminalEvent::Kind::Cancellation,
+                   ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic});
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory>
