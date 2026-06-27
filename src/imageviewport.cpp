@@ -35,7 +35,6 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     m_providerFrameSeekSupport = false;
     m_providerPositionSeekSupport = false;
     m_providerLogicalSize = {};
-    m_providerFrameDurations.clear();
     m_providerTimingIntervals = {};
     discardPendingRenderCommit();
     m_activeProviderMetadataToken = {};
@@ -54,9 +53,9 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             m_providerPositionSeekSupport = providerResolvedCapability(
                 m_sequence->m_providerPositionSeekCapability, m_providerTimedMetadata);
             m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
-            m_providerFrameDurations = m_sequence->m_providerKnownFrameDurations;
             m_providerTimingIntervals = m_providerTimedMetadata
-                ? TimingIntervals::fromFrameDurations(m_providerFrameDurations)
+                && m_sequence->m_providerKnownTimingIntervals
+                ? *m_sequence->m_providerKnownTimingIntervals
                 : TimingIntervals();
             m_currentFrame = 0;
             m_requestedPosition = m_providerTimedMetadata ? 0 : -1;

@@ -55,7 +55,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_providerMetadataReady = false;
     m_providerTimedMetadata = false;
     m_providerLogicalSize = {};
-    m_providerFrameDurations.clear();
     m_providerTimingIntervals = {};
     m_activeProviderMetadataToken = {};
     m_activeProviderFrameToken = {};

@@ -214,8 +214,6 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     m_providerFrameSeekSupport = metadata.frameSeekSupport();
     m_providerPositionSeekSupport = metadata.positionSeekSupport();
     m_providerLogicalSize = metadataAdmission.logicalSize;
-    m_providerFrameDurations = metadataAdmission.timedMetadata ? metadata.frameDurations()
-                                                              : QVector<int>();
     m_providerTimingIntervals = metadataAdmission.timingIntervals;
     const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && m_currentProviderTargetKind == ProviderRequestTargetKind::Playback;

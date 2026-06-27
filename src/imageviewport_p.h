@@ -270,6 +270,5 @@ public:
     bool& m_providerFrameSeekSupport = provider.frameSeekSupport;
     bool& m_providerPositionSeekSupport = provider.positionSeekSupport;
     QSizeF& m_providerLogicalSize = provider.logicalSize;
-    QVector<int>& m_providerFrameDurations = provider.frameDurations;
     TimingIntervals& m_providerTimingIntervals = provider.timingIntervals;
 };

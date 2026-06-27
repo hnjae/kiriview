@@ -117,7 +117,6 @@ struct ProviderGenerationState
     bool frameSeekSupport = false;
     bool positionSeekSupport = false;
     QSizeF logicalSize;
-    QVector<int> frameDurations;
     TimingIntervals timingIntervals;
 };
 

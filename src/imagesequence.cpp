@@ -74,7 +74,10 @@ ImageSequence::ImageSequence(
     , m_providerKnownLogicalSize(
           m_providerKnownFacts.isSpecified() ? m_providerKnownFacts.logicalSize() : QSizeF())
     , m_providerKnownFrameCount(m_providerKnownFacts.frameCount())
-    , m_providerKnownFrameDurations(m_providerKnownFacts.frameDurations())
+    , m_providerKnownTimingIntervals(m_providerKnownFacts.isTimedFrameList()
+              ? std::make_shared<TimingIntervals>(
+                    TimingIntervals::fromFrameDurations(m_providerKnownFacts.frameDurations()))
+              : nullptr)
     , m_providerTimedPlaybackCapability(timedPlaybackCapability)
     , m_providerFrameSeekCapability(frameSeekCapability)
     , m_providerPositionSeekCapability(positionSeekCapability)

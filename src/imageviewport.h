@@ -129,7 +129,7 @@ private:
     bool m_hasCompleteProviderKnownMetadata = false;
     QSizeF m_providerKnownLogicalSize;
     int m_providerKnownFrameCount = -1;
-    QVector<int> m_providerKnownFrameDurations;
+    std::shared_ptr<const TimingIntervals> m_providerKnownTimingIntervals;
     ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability
         = ImageSequenceProviderCapabilitySupport::Unavailable;
     ImageSequenceProviderCapabilitySupport m_providerFrameSeekCapability
