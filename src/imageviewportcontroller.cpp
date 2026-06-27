@@ -67,6 +67,17 @@ void applyPlaybackTarget(ImageViewportPrivate& viewport, int frame, int requeste
     viewport.m_currentFrame = frame;
     viewport.m_requestedPosition = requestedPosition;
 }
+
+void publishPlaybackRequestChange(ImageViewportPrivate& viewport, int previousFrame)
+{
+    viewport.incrementRequestRevision();
+    if (viewport.m_currentFrame != previousFrame
+        || viewport.m_displayStatus != ImageViewport::DisplayStatus::Ready) {
+        viewport.incrementDisplayRevision();
+    }
+    emit viewport.q->requestStateChanged();
+    emit viewport.q->displayStateChanged();
+}
 }
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
@@ -109,23 +120,13 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         if (m_activeProviderFrameToken.isValid()) {
             queueProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback);
         } else if (!startProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
-            incrementRequestRevision();
-            if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
-                incrementDisplayRevision();
-            }
-            emit q->requestStateChanged();
-            emit q->displayStateChanged();
+            publishPlaybackRequestChange(*this, previousFrame);
             emit q->diagnosticsChanged();
             update();
             return;
         }
         setPlaybackPhase(PlaybackPhase::Waiting);
-        incrementRequestRevision();
-        if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
-            incrementDisplayRevision();
-        }
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
+        publishPlaybackRequestChange(*this, previousFrame);
         if (diagnosticsValueChanged) {
             emit q->diagnosticsChanged();
         }
@@ -164,12 +165,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting
                                                                    : PlaybackPhase::Playing);
     }
-    incrementRequestRevision();
-    if (m_currentFrame != previousFrame || m_displayStatus != DisplayStatus::Ready) {
-        incrementDisplayRevision();
-    }
-    emit q->requestStateChanged();
-    emit q->displayStateChanged();
+    publishPlaybackRequestChange(*this, previousFrame);
     if (rectsDifferExactly(contentRect(), oldContentRect)
         || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
