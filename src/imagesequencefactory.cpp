@@ -135,16 +135,19 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     const ImageSequenceProviderCapabilitySupport positionSeekCapability
         = adapter->positionSeekCapability();
     const ImageSequenceProviderThreadingContract threadingContract = adapter->threadingContract();
-    const QString metadataViolation = providerMetadataLimitViolation(knownMetadata);
-    if (!metadataViolation.isEmpty()) {
-        return new ImageSequenceFactoryResult(
-            nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, metadataViolation);
+    if (knownMetadata.isSpecified()) {
+        const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
+        if (!metadataAdmission.accepted()) {
+            return new ImageSequenceFactoryResult(nullptr,
+                ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+                metadataAdmission.diagnostic);
+        }
     }
 
-    const QString factsViolation = providerKnownFactsLimitViolation(knownFacts);
-    if (!factsViolation.isEmpty()) {
+    const auto factsAdmission = FramePreparation::admitProviderKnownFacts(knownFacts);
+    if (!factsAdmission.accepted()) {
         return new ImageSequenceFactoryResult(
-            nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, factsViolation);
+            nullptr, factsAdmission.outcome, factsAdmission.diagnostic);
     }
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();

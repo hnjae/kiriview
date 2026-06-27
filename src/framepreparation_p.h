@@ -31,6 +31,30 @@ public:
         bool accepted() const;
     };
 
+    struct ProviderKnownFactsAdmissionResult
+    {
+        enum class Cause {
+            Accepted,
+            InvalidFacts,
+            LogicalWidthTooLarge,
+            LogicalHeightTooLarge,
+            PixelCountTooLarge,
+            FrameCountTooLarge,
+            FrameDurationTooLarge,
+            TotalDurationTooLarge,
+        };
+
+        Cause cause = Cause::Accepted;
+        ImageSequenceFactoryResult::FactoryOutcome outcome
+            = ImageSequenceFactoryResult::FactoryOutcome::Created;
+        QString diagnostic;
+        QSizeF logicalSize;
+        int frameCount = -1;
+        TimingIntervals timingIntervals;
+
+        bool accepted() const;
+    };
+
     struct ProviderFrameState
     {
         bool metadataReady = false;
@@ -65,6 +89,8 @@ public:
 
     static ProviderMetadataAdmissionResult admitProviderMetadata(
         const ImageSequenceProviderMetadata& metadata);
+    static ProviderKnownFactsAdmissionResult admitProviderKnownFacts(
+        const ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
     static int providerFrameStartPosition(const QVector<int>& frameDurations, int frame);

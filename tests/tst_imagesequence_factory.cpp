@@ -32,6 +32,8 @@ private slots:
     void imageFrameUsesDeviceIndependentLogicalSize();
     void providerMetadataAdmissionAcceptsTimedMetadata();
     void providerMetadataAdmissionRejectsInvalidTiming();
+    void providerKnownFactsAdmissionAcceptsTimedFacts();
+    void providerKnownFactsAdmissionRejectsDurationLimits();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
@@ -339,6 +341,35 @@ void ImageSequenceFactoryTest::providerMetadataAdmissionRejectsInvalidTiming()
     QCOMPARE(admission.timedMetadata, false);
     QVERIFY(!admission.timingIntervals.isValid());
     QVERIFY(admission.diagnostic.contains(QStringLiteral("duration")));
+}
+
+void ImageSequenceFactoryTest::providerKnownFactsAdmissionAcceptsTimedFacts()
+{
+    const auto admission = FramePreparation::admitProviderKnownFacts(
+        ImageSequenceProviderKnownFacts::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+
+    QVERIFY(admission.accepted());
+    QCOMPARE(admission.cause, FramePreparation::ProviderKnownFactsAdmissionResult::Cause::Accepted);
+    QCOMPARE(admission.outcome, ImageSequenceFactoryResult::FactoryOutcome::Created);
+    QCOMPARE(admission.logicalSize, QSizeF(16.0, 8.0));
+    QCOMPARE(admission.frameCount, 2);
+    QVERIFY(admission.timingIntervals.isValid());
+    QCOMPARE(admission.timingIntervals.totalDuration(), 350);
+    QCOMPARE(admission.diagnostic, QString());
+}
+
+void ImageSequenceFactoryTest::providerKnownFactsAdmissionRejectsDurationLimits()
+{
+    const auto admission = FramePreparation::admitProviderKnownFacts(
+        ImageSequenceProviderKnownFacts::fixedDurationFrames(
+            QSizeF(16.0, 8.0), 1, ImageSequenceLimits::maximumFrameDuration() + 1));
+
+    QVERIFY(!admission.accepted());
+    QCOMPARE(admission.cause,
+        FramePreparation::ProviderKnownFactsAdmissionResult::Cause::FrameDurationTooLarge);
+    QCOMPARE(admission.outcome, ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(!admission.timingIntervals.isValid());
+    QVERIFY(admission.diagnostic.contains(QStringLiteral("maximumFrameDuration")));
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()

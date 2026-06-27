@@ -20,6 +20,16 @@ FramePreparation::ProviderMetadataAdmissionResult providerMetadataRejection(
     };
 }
 
+FramePreparation::ProviderKnownFactsAdmissionResult providerKnownFactsRejection(
+    FramePreparation::ProviderKnownFactsAdmissionResult::Cause cause, QString diagnostic)
+{
+    return {
+        cause,
+        ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+        std::move(diagnostic),
+    };
+}
+
 FramePreparation::ProviderFrameAdmissionResult providerFrameRejection(
     FramePreparation::ProviderFrameAdmissionResult::Cause cause,
     ImageViewport::RequestStatus status, QString diagnostic)
@@ -42,6 +52,11 @@ FramePreparation::ProviderFrameAdmissionResult providerFrameError(
 } // namespace
 
 bool FramePreparation::ProviderMetadataAdmissionResult::accepted() const
+{
+    return cause == Cause::Accepted;
+}
+
+bool FramePreparation::ProviderKnownFactsAdmissionResult::accepted() const
 {
     return cause == Cause::Accepted;
 }
@@ -132,6 +147,78 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
         {},
         true,
         size,
+        TimingIntervals::fromFrameDurations(durations),
+    };
+}
+
+FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProviderKnownFacts(
+    const ImageSequenceProviderKnownFacts& facts)
+{
+    using Cause = ProviderKnownFactsAdmissionResult::Cause;
+
+    if (!facts.isSpecified()) {
+        return {};
+    }
+    if (!facts.isValid()) {
+        return providerKnownFactsRejection(
+            Cause::InvalidFacts, QStringLiteral("provider known facts are invalid"));
+    }
+
+    const QSizeF size = facts.logicalSize();
+    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+        return providerKnownFactsRejection(Cause::LogicalWidthTooLarge,
+            QStringLiteral("provider known facts logical width exceeds maximumLogicalWidth"));
+    }
+    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+        return providerKnownFactsRejection(Cause::LogicalHeightTooLarge,
+            QStringLiteral("provider known facts logical height exceeds maximumLogicalHeight"));
+    }
+
+    const qint64 width = static_cast<qint64>(size.width());
+    const qint64 height = static_cast<qint64>(size.height());
+    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+        return providerKnownFactsRejection(Cause::PixelCountTooLarge,
+            QStringLiteral("provider known facts logical size exceeds maximumPixelsPerFrame"));
+    }
+
+    const int frameCount = facts.frameCount();
+    if (frameCount > ImageSequenceLimits::maximumTimedListFrameCount()) {
+        return providerKnownFactsRejection(Cause::FrameCountTooLarge,
+            QStringLiteral("provider known facts frame count exceeds maximumTimedListFrameCount"));
+    }
+
+    if (!facts.isTimedFrameList()) {
+        return {
+            Cause::Accepted,
+            ImageSequenceFactoryResult::FactoryOutcome::Created,
+            {},
+            size,
+            frameCount,
+        };
+    }
+
+    const QVector<int> durations = facts.frameDurations();
+    qint64 totalDuration = 0;
+    for (int duration : durations) {
+        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+            return providerKnownFactsRejection(Cause::FrameDurationTooLarge,
+                QStringLiteral(
+                    "provider known facts frame duration exceeds maximumFrameDuration"));
+        }
+        totalDuration += duration;
+        if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+            return providerKnownFactsRejection(Cause::TotalDurationTooLarge,
+                QStringLiteral(
+                    "provider known facts total duration exceeds maximumTotalSequenceDuration"));
+        }
+    }
+
+    return {
+        Cause::Accepted,
+        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        {},
+        size,
+        frameCount,
         TimingIntervals::fromFrameDurations(durations),
     };
 }
