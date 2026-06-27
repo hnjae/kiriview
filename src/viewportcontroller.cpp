@@ -306,7 +306,6 @@ ViewportCommandResult ViewportController::clear()
     viewport.request.latestNonPlaybackRequest.target.providerTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.clearDisplayedDisplay();
-    viewport.m_pendingDisplayImage = {};
     viewport.m_renderCommitPending = false;
     viewport.m_nextPreparedPayloadId = 0;
     viewport.clearPendingRenderIdentity();
@@ -803,13 +802,13 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
         && (viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
             || viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting)
-        && viewport.m_renderCommitPending && !viewport.m_pendingDisplayImage.isNull()
+        && viewport.m_renderCommitPending && !viewport.m_pendingRenderPayload.image.isNull()
         && !viewport.itemBounds().isEmpty();
     synchronization.oldContentRect = viewport.contentRect();
     synchronization.oldVisibleImageRect = viewport.visibleImageRect();
     synchronization.oldDisplayStatus = viewport.m_displayStatus;
     if (synchronization.pendingProviderCommit) {
-        viewport.publishSequenceReadyState(viewport.m_pendingDisplayImage);
+        viewport.publishSequenceReadyState(viewport.m_pendingRenderPayload.image);
     }
     return synchronization;
 }
@@ -878,7 +877,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
         viewport.m_displayStatus = ImageViewport::DisplayStatus::Empty;
         viewport.clearDisplayedDisplay();
     }
-    viewport.m_pendingDisplayImage = {};
     viewport.clearRenderFailureRetainedDisplay();
     viewport.m_errorString = QStringLiteral("render commit failed");
     setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);

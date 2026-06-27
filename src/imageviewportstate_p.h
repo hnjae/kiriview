@@ -70,11 +70,12 @@ struct DisplayRequestSnapshot
     DisplayRequest request;
 };
 
-struct PreparedPayloadIdentity
+struct PreparedPayload
 {
     quint64 generation = 0;
     quint64 requestId = 0;
     quint64 payloadId = 0;
+    QImage image;
 };
 
 struct PresentationState
@@ -99,10 +100,9 @@ struct DisplayState
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     QSizeF displayedImageSize;
     QImage displayedImage;
-    QImage pendingDisplayImage;
     bool renderCommitPending = false;
     quint64 nextPreparedPayloadId = 0;
-    PreparedPayloadIdentity pendingRenderPayload;
+    PreparedPayload pendingRenderPayload;
     bool renderFailureRetainedDisplayValid = false;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;

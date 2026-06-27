@@ -506,7 +506,7 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
 {
     if (hasProviderSequence() && !providerImage.isNull()) {
         captureRenderFailureRetainedDisplay();
-        m_pendingDisplayImage = providerImage;
+        m_pendingRenderPayload.image = providerImage;
         beginPreparedPayloadIdentity();
         if (itemBounds().isEmpty()) {
             publishRenderWaitingState();
@@ -553,15 +553,14 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
     if (hasProviderSequence()) {
         if (!providerImage.isNull()) {
             m_displayedImage = providerImage;
-        } else if (!m_pendingDisplayImage.isNull()) {
-            m_displayedImage = m_pendingDisplayImage;
+        } else if (!m_pendingRenderPayload.image.isNull()) {
+            m_displayedImage = m_pendingRenderPayload.image;
         }
-        m_pendingDisplayImage = {};
+        m_pendingRenderPayload.image = {};
     } else {
         m_displayedImage = m_sequence
             ? m_sequence->frameImage(request.displayedRequest.request.target.frame)
             : QImage();
-        m_pendingDisplayImage = {};
     }
 }
 

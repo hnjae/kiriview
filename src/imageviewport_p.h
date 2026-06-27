@@ -248,11 +248,9 @@ public:
     bool& m_providerPlaybackStartPending = request.providerPlaybackStartPending;
     QSizeF& m_displayedImageSize = display.displayedImageSize;
     QImage& m_displayedImage = display.displayedImage;
-    QImage& m_pendingDisplayImage = display.pendingDisplayImage;
     bool& m_renderCommitPending = display.renderCommitPending;
     quint64& m_nextPreparedPayloadId = display.nextPreparedPayloadId;
-    ImageViewportInternal::PreparedPayloadIdentity& m_pendingRenderPayload
-        = display.pendingRenderPayload;
+    ImageViewportInternal::PreparedPayload& m_pendingRenderPayload = display.pendingRenderPayload;
     bool& m_renderFailureRetainedDisplayValid = display.renderFailureRetainedDisplayValid;
     QSizeF& m_renderFailureRetainedImageSize = display.renderFailureRetainedImageSize;
     QImage& m_renderFailureRetainedImage = display.renderFailureRetainedImage;

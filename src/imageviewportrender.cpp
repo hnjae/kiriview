@@ -66,7 +66,7 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         && (m_requestReason == RequestReason::UploadPending
             || m_requestReason == RequestReason::RenderWaiting)
         && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
-        if (hasProviderSequence() && !m_pendingDisplayImage.isNull()) {
+        if (hasProviderSequence() && !m_pendingRenderPayload.image.isNull()) {
             update();
             return;
         }
@@ -84,7 +84,7 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
     } else if (hasProviderSequence() && m_requestStatus == RequestStatus::Loading
         && m_requestReason == RequestReason::UploadPending
         && (newGeometry.width() <= 0.0 || newGeometry.height() <= 0.0)
-        && !m_pendingDisplayImage.isNull()) {
+        && !m_pendingRenderPayload.image.isNull()) {
         m_requestReason = RequestReason::RenderWaiting;
         incrementRequestRevision();
         emit q->requestStateChanged();
@@ -127,7 +127,6 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 
 void ImageViewportPrivate::discardPendingRenderCommit()
 {
-    m_pendingDisplayImage = {};
     m_renderCommitPending = false;
     clearPendingRenderIdentity();
     clearRenderFailureRetainedDisplay();
