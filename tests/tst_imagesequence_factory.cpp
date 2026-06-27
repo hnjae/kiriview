@@ -385,12 +385,18 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesAcceptedTimingIntervals
     state.logicalSize = QSizeF(16.0, 8.0);
     state.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
     state.currentFrame = 1;
+    state.preparedPayload.generation = 7;
+    state.preparedPayload.requestId = 11;
+    state.preparedPayload.payloadId = 13;
 
     const auto admission = FramePreparation::admitProviderFrame(
         &frame, ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 250), state);
 
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
+    QCOMPARE(admission.preparedPayload.generation, 7);
+    QCOMPARE(admission.preparedPayload.requestId, 11);
+    QCOMPARE(admission.preparedPayload.payloadId, 13);
     QCOMPARE(admission.preparedPayload.image.size(), image.size());
     QCOMPARE(admission.preparedPayload.image.format(), image.format());
     QCOMPARE(admission.preparedPayload.image.pixelColor(0, 0), image.pixelColor(0, 0));

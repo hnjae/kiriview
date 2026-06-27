@@ -404,6 +404,16 @@ void ImageViewportPrivate::beginPreparedPayloadIdentity()
     request.activeRequest.preparedPayloadId = m_pendingRenderPayload.payloadId;
 }
 
+void commitPreparedPayloadIdentity(
+    ImageViewportPrivate& viewport, const ImageViewportInternal::PreparedPayload& preparedPayload)
+{
+    viewport.m_pendingRenderPayload = preparedPayload;
+    viewport.request.activeRequest.preparedPayloadId = preparedPayload.payloadId;
+    if (preparedPayload.payloadId > viewport.m_nextPreparedPayloadId) {
+        viewport.m_nextPreparedPayloadId = preparedPayload.payloadId;
+    }
+}
+
 void ImageViewportPrivate::clearPendingRenderIdentity()
 {
     m_pendingRenderPayload = {};
@@ -527,6 +537,27 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
     }
 }
 
+void ImageViewportPrivate::publishAcceptedTargetState(
+    const ImageViewportInternal::PreparedPayload& providerPayload)
+{
+    if (hasProviderSequence() && !providerPayload.image.isNull()) {
+        captureRenderFailureRetainedDisplay();
+        commitPreparedPayloadIdentity(*this, providerPayload);
+        if (itemBounds().isEmpty()) {
+            publishRenderWaitingState();
+        } else {
+            m_requestStatus = RequestStatus::Loading;
+            m_requestReason = RequestReason::UploadPending;
+            m_displayStatus
+                = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+            m_pendingRenderPayload.commitPending = false;
+        }
+        m_pendingRenderPayload.commitPending = true;
+        return;
+    }
+    publishAcceptedTargetState(providerPayload.image);
+}
+
 void ImageViewportPrivate::publishReadyDisplayState()
 {
     m_requestStatus = RequestStatus::Ready;
@@ -562,6 +593,26 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
             ? m_sequence->frameImage(request.displayedRequest.request.target.frame)
             : QImage();
     }
+}
+
+void ImageViewportPrivate::publishSequenceReadyState(
+    const ImageViewportInternal::PreparedPayload& providerPayload)
+{
+    if (!hasProviderSequence() || providerPayload.image.isNull()) {
+        publishSequenceReadyState(providerPayload.image);
+        return;
+    }
+
+    captureRenderFailureRetainedDisplay();
+    publishReadyDisplayState();
+    commitPreparedPayloadIdentity(*this, providerPayload);
+    m_pendingRenderPayload.commitPending = true;
+    const int currentFrame = request.activeRequest.target.frame;
+    request.displayedRequest
+        = activeDisplayRequestSnapshot(providerFrameStartPosition(currentFrame));
+    m_displayedImageSize = m_providerLogicalSize;
+    m_displayedImage = providerPayload.image;
+    m_pendingRenderPayload.image = {};
 }
 
 void ImageViewportPrivate::publishRenderWaitingState()

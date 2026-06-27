@@ -62,6 +62,7 @@ public:
         QSizeF logicalSize;
         TimingIntervals timingIntervals;
         int currentFrame = -1;
+        ImageViewportInternal::PreparedPayload preparedPayload;
     };
 
     struct ProviderFrameAdmissionResult

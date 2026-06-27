@@ -376,14 +376,8 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
         return;
     }
 
-    const auto admission = FramePreparation::admitProviderFrame(frame, metadata,
-        {
-            m_providerMetadataReady,
-            m_providerTimedMetadata,
-            m_providerLogicalSize,
-            m_providerTimingIntervals,
-            request.activeRequest.target.frame,
-        });
+    const auto admission = FramePreparation::admitProviderFrame(
+        frame, metadata, controller.providerFramePreparationState());
     const auto changes = controller.handleProviderFrameAdmission(admission);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {

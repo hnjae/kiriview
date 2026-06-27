@@ -279,7 +279,9 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             ImageViewport::RequestStatus::Ready,
             ImageViewport::RequestReason::Ready,
             {},
-            { false, 0, 0, 0, frame->imagePayload() },
+            { state.preparedPayload.commitPending, state.preparedPayload.generation,
+                state.preparedPayload.requestId, state.preparedPayload.payloadId,
+                frame->imagePayload() },
         };
     }
 
@@ -296,7 +298,9 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         ImageViewport::RequestStatus::Ready,
         ImageViewport::RequestReason::Ready,
         {},
-        { false, 0, 0, 0, frame->imagePayload() },
+        { state.preparedPayload.commitPending, state.preparedPayload.generation,
+            state.preparedPayload.requestId, state.preparedPayload.payloadId,
+            frame->imagePayload() },
     };
 }
 

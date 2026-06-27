@@ -165,8 +165,10 @@ public:
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageSequenceProviderThreadingContract providerThreadingContract() const;
     void publishAcceptedTargetState(const QImage& providerImage = {});
+    void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishReadyDisplayState();
     void publishSequenceReadyState(const QImage& providerImage = {});
+    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishRenderWaitingState();
 
     void incrementDisplayRevision();

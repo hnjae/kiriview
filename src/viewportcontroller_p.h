@@ -42,6 +42,7 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
+    FramePreparation::ProviderFrameState providerFramePreparationState() const;
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(

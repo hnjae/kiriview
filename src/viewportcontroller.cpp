@@ -838,6 +838,23 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
     return changes;
 }
 
+FramePreparation::ProviderFrameState ViewportController::providerFramePreparationState() const
+{
+    ImageViewportInternal::PreparedPayload preparedPayload;
+    preparedPayload.generation = viewport.request.sequenceGeneration;
+    preparedPayload.requestId = viewport.request.activeRequest.identity.id;
+    preparedPayload.payloadId
+        = preparedPayload.requestId == 0 ? 0 : viewport.m_nextPreparedPayloadId + 1;
+    return {
+        viewport.m_providerMetadataReady,
+        viewport.m_providerTimedMetadata,
+        viewport.m_providerLogicalSize,
+        viewport.m_providerTimingIntervals,
+        viewport.request.activeRequest.target.frame,
+        preparedPayload,
+    };
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
@@ -867,7 +884,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    viewport.publishAcceptedTargetState(admission.preparedPayload.image);
+    viewport.publishAcceptedTargetState(admission.preparedPayload);
     if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready
         && !viewport.m_pendingRenderPayload.commitPending) {
@@ -903,7 +920,7 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
     synchronization.oldVisibleImageRect = viewport.visibleImageRect();
     synchronization.oldDisplayStatus = viewport.m_displayStatus;
     if (synchronization.pendingProviderCommit) {
-        viewport.publishSequenceReadyState(viewport.m_pendingRenderPayload.image);
+        viewport.publishSequenceReadyState(viewport.m_pendingRenderPayload);
     }
     if (viewport.m_pendingRenderPayload.commitPending && viewport.hasReadyDisplay()) {
         synchronization.preparedPayload = viewport.m_pendingRenderPayload;
