@@ -274,7 +274,13 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
-        return {};
+        return {
+            Cause::Accepted,
+            ImageViewport::RequestStatus::Ready,
+            ImageViewport::RequestReason::Ready,
+            {},
+            frame->imagePayload(),
+        };
     }
 
     if (!metadata.isStillFrame()) {
@@ -285,7 +291,13 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
-    return {};
+    return {
+        Cause::Accepted,
+        ImageViewport::RequestStatus::Ready,
+        ImageViewport::RequestReason::Ready,
+        {},
+        frame->imagePayload(),
+    };
 }
 
 QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback)

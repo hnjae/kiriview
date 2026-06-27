@@ -407,7 +407,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
-    publishAcceptedTargetState(frame->imagePayload());
+    publishAcceptedTargetState(admission.uploadReadyPayload);
     if (m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready
         && !m_pendingRenderPayload.commitPending) {
         setPlaybackPhase(

@@ -83,6 +83,7 @@ public:
         ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
         ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
         QString diagnostic;
+        QImage uploadReadyPayload;
 
         bool accepted() const;
     };
