@@ -70,21 +70,30 @@ ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewpo
     return target;
 }
 
+void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, int frame, int position,
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+    = ImageViewportInternal::ProviderRequestTargetKind::Unknown)
+{
+    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_currentFrame = frame;
+    viewport.m_requestedPosition = position;
+    viewport.m_playbackPosition = position;
+    if (targetKind != ImageViewportInternal::ProviderRequestTargetKind::Unknown) {
+        viewport.m_currentProviderTargetKind = targetKind;
+        viewport.m_latestNonPlaybackProviderTargetKind = targetKind;
+    }
+    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
+    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+}
+
 ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport, int frame,
     int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
-    viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = position;
-    viewport.m_playbackPosition = position;
-    viewport.m_currentProviderTargetKind = targetKind;
-    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
-    viewport.m_latestNonPlaybackProviderTargetKind = targetKind;
+    acceptExplicitSeekTarget(viewport, frame, position, targetKind);
     viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
     viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
     viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
@@ -121,15 +130,7 @@ ViewportCommandResult acceptProviderPendingMetadataSeek(ImageViewportPrivate& vi
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
-    viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = position;
-    viewport.m_playbackPosition = position;
-    viewport.m_currentProviderTargetKind = targetKind;
-    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
-    viewport.m_latestNonPlaybackProviderTargetKind = targetKind;
+    acceptExplicitSeekTarget(viewport, frame, position, targetKind);
     viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
     viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
     viewport.discardPendingRenderCommit();
@@ -146,13 +147,7 @@ ViewportCommandResult acceptBuiltInExplicitSeek(ImageViewportPrivate& viewport, 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
-    viewport.m_providerPlaybackStartPending = false;
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = position;
-    viewport.m_playbackPosition = position;
-    viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
-    viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+    acceptExplicitSeekTarget(viewport, frame, position);
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
