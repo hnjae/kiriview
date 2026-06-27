@@ -8,8 +8,7 @@ using namespace ImageViewportInternal;
 
 namespace {
 struct PlaybackAdvanceTarget {
-    int frame = -1;
-    int requestedPosition = -1;
+    DisplayRequestTarget displayTarget;
     int playbackPosition = -1;
     bool reachedEnd = false;
     bool looped = false;
@@ -33,17 +32,17 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
             if (wrappedFrame < 0) {
                 return target;
             }
-            target.frame = wrappedFrame;
+            target.displayTarget.frame = wrappedFrame;
             target.playbackPosition = wrappedPosition;
-            target.requestedPosition = frameStartFor(wrappedFrame);
+            target.displayTarget.position = frameStartFor(wrappedFrame);
             target.looped = true;
             target.valid = true;
             return target;
         }
 
         const int finalFrame = frameCount - 1;
-        target.frame = finalFrame;
-        target.requestedPosition = frameStartFor(finalFrame);
+        target.displayTarget.frame = finalFrame;
+        target.displayTarget.position = frameStartFor(finalFrame);
         target.playbackPosition = totalDuration;
         target.reachedEnd = true;
         target.valid = true;
@@ -54,18 +53,18 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
     if (nextFrame < 0) {
         return target;
     }
-    target.frame = nextFrame;
-    target.requestedPosition = frameStartFor(nextFrame);
+    target.displayTarget.frame = nextFrame;
+    target.displayTarget.position = frameStartFor(nextFrame);
     target.playbackPosition = nextPlaybackPosition;
     target.valid = true;
     return target;
 }
 
-void applyPlaybackTarget(ImageViewportPrivate& viewport, int frame, int requestedPosition)
+void applyPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-    viewport.m_currentFrame = frame;
-    viewport.m_requestedPosition = requestedPosition;
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
 }
 
 void publishPlaybackRequestChange(ImageViewportPrivate& viewport, int previousFrame)
@@ -101,7 +100,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         }
 
         m_playbackPosition = target.playbackPosition;
-        if (target.frame == previousFrame && m_requestStatus == RequestStatus::Ready) {
+        if (target.displayTarget.frame == previousFrame && m_requestStatus == RequestStatus::Ready) {
             if (m_stopPlaybackWhenRequestReady) {
                 setPlaybackPhase(PlaybackPhase::Stopped);
                 m_stopPlaybackWhenRequestReady = false;
@@ -109,11 +108,12 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             return;
         }
 
-        applyPlaybackTarget(*this, target.frame, target.requestedPosition);
+        applyPlaybackTarget(*this, target.displayTarget);
         m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
         publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = clearDiagnostics();
-        if (!dispatchProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
+        if (!dispatchProviderFrameRequest(
+                target.displayTarget.frame, ProviderRequestTargetKind::Playback)) {
             publishPlaybackRequestChange(*this, previousFrame);
             emit q->diagnosticsChanged();
             update();
@@ -143,11 +143,11 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     }
 
     m_playbackPosition = target.playbackPosition;
-    if (!target.reachedEnd && !target.looped && target.frame == m_currentFrame) {
+    if (!target.reachedEnd && !target.looped && target.displayTarget.frame == m_currentFrame) {
         return;
     }
 
-    applyPlaybackTarget(*this, target.frame, target.requestedPosition);
+    applyPlaybackTarget(*this, target.displayTarget);
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState();
