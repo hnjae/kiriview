@@ -47,7 +47,11 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const bool resumePlaybackAfterCommit = !image.isNull() && m_renderCommitPending
         && m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready;
     if (!image.isNull()) {
-        m_renderCommitPending = false;
+        if (m_renderCommitPending) {
+            commitDisplayedRequestIdentity();
+            m_renderCommitPending = false;
+            clearPendingRenderIdentity();
+        }
         clearRenderFailureRetainedDisplay();
         if (resumePlaybackAfterCommit) {
             setPlaybackPhase(
@@ -130,11 +134,14 @@ void ImageViewportPrivate::reportRenderFailure()
     m_requestStatus = RequestStatus::Error;
     m_requestReason = RequestReason::RenderFailure;
     m_renderCommitPending = false;
+    clearPendingRenderIdentity();
     if (m_renderFailureRetainedDisplayValid) {
         m_displayStatus = DisplayStatus::Retained;
         m_displayedFrame = m_renderFailureRetainedFrame;
         m_displayedPosition = m_renderFailureRetainedPosition;
         m_displayedGeneration = m_renderFailureRetainedGeneration;
+        m_displayedRequestId = m_renderFailureRetainedRequestId;
+        m_displayedPreparedPayloadId = m_renderFailureRetainedPreparedPayloadId;
         m_displayedImageSize = m_renderFailureRetainedImageSize;
         m_displayedImage = m_renderFailureRetainedImage;
     } else {
@@ -142,6 +149,8 @@ void ImageViewportPrivate::reportRenderFailure()
         m_displayedFrame = -1;
         m_displayedPosition = -1;
         m_displayedGeneration = 0;
+        m_displayedRequestId = 0;
+        m_displayedPreparedPayloadId = 0;
         m_displayedImageSize = {};
         m_displayedImage = {};
     }
@@ -174,6 +183,8 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
     m_renderFailureRetainedFrame = m_displayedFrame;
     m_renderFailureRetainedPosition = m_displayedPosition;
     m_renderFailureRetainedGeneration = m_displayedGeneration;
+    m_renderFailureRetainedRequestId = m_displayedRequestId;
+    m_renderFailureRetainedPreparedPayloadId = m_displayedPreparedPayloadId;
     m_renderFailureRetainedImageSize = m_displayedImageSize;
     m_renderFailureRetainedImage = m_displayedImage;
 }
@@ -184,6 +195,8 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
     m_renderFailureRetainedFrame = -1;
     m_renderFailureRetainedPosition = -1;
     m_renderFailureRetainedGeneration = 0;
+    m_renderFailureRetainedRequestId = 0;
+    m_renderFailureRetainedPreparedPayloadId = 0;
     m_renderFailureRetainedImageSize = {};
     m_renderFailureRetainedImage = {};
 }
@@ -192,5 +205,6 @@ void ImageViewportPrivate::discardPendingRenderCommit()
 {
     m_pendingDisplayImage = {};
     m_renderCommitPending = false;
+    clearPendingRenderIdentity();
     clearRenderFailureRetainedDisplay();
 }

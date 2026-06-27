@@ -24,6 +24,9 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     m_sequence = sequence;
     m_sequenceOwner = std::move(sequenceOwner);
     ++m_sequenceGeneration;
+    clearRequestIdentity();
+    m_nextPreparedPayloadId = 0;
+    clearPendingRenderIdentity();
     m_errorString.clear();
     m_warningString.clear();
     m_playbackPhase = PlaybackPhase::Stopped;
@@ -64,6 +67,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             m_latestNonPlaybackPosition = m_requestedPosition;
             m_currentProviderTargetKind = ProviderRequestTargetKind::Frame;
             m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Frame;
+            beginInitialDisplayRequest(true);
         } else {
             m_currentFrame = -1;
             m_requestedPosition = -1;
@@ -72,6 +76,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             m_latestNonPlaybackPosition = -1;
             m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
             m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
+            beginInitialDisplayRequest(true);
         }
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
@@ -90,6 +95,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_latestNonPlaybackPosition = m_requestedPosition;
         m_currentProviderTargetKind = ProviderRequestTargetKind::Unknown;
         m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Unknown;
+        beginInitialDisplayRequest(true);
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {
@@ -106,12 +112,15 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_displayedFrame = -1;
         m_displayedPosition = -1;
         m_displayedGeneration = 0;
+        m_displayedRequestId = 0;
+        m_displayedPreparedPayloadId = 0;
         m_displayedImageSize = {};
         m_displayedImage = {};
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
         m_renderCommitPending = false;
+        clearPendingRenderIdentity();
         clearRenderFailureRetainedDisplay();
     }
 

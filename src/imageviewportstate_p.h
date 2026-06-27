@@ -34,6 +34,15 @@ enum class ProviderRequestTargetKind {
     Playback,
 };
 
+enum class DisplayRequestOrigin {
+    None,
+    Initial,
+    ExplicitSeek,
+    Playback,
+    MetadataBoundSelection,
+    StopRestore,
+};
+
 struct PresentationState
 {
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
@@ -57,14 +66,21 @@ struct DisplayState
     int displayedFrame = -1;
     int displayedPosition = -1;
     quint64 displayedGeneration = 0;
+    quint64 displayedRequestId = 0;
+    quint64 displayedPreparedPayloadId = 0;
     QSizeF displayedImageSize;
     QImage displayedImage;
     QImage pendingDisplayImage;
     bool renderCommitPending = false;
+    quint64 nextPreparedPayloadId = 0;
+    quint64 pendingRenderRequestId = 0;
+    quint64 pendingPreparedPayloadId = 0;
     bool renderFailureRetainedDisplayValid = false;
     int renderFailureRetainedFrame = -1;
     int renderFailureRetainedPosition = -1;
     quint64 renderFailureRetainedGeneration = 0;
+    quint64 renderFailureRetainedRequestId = 0;
+    quint64 renderFailureRetainedPreparedPayloadId = 0;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;
     uint revision = 0;
@@ -90,6 +106,10 @@ struct RequestState
     ProviderRequestTargetKind latestNonPlaybackProviderTargetKind
         = ProviderRequestTargetKind::Unknown;
     quint64 sequenceGeneration = 0;
+    quint64 nextRequestId = 0;
+    quint64 activeRequestId = 0;
+    quint64 latestNonPlaybackRequestId = 0;
+    DisplayRequestOrigin activeRequestOrigin = DisplayRequestOrigin::None;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

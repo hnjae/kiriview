@@ -31,6 +31,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_sequence = nullptr;
     m_sequenceOwner.reset();
     ++m_sequenceGeneration;
+    clearRequestIdentity();
     m_currentFrame = -1;
     m_requestedPosition = -1;
     m_playbackPosition = -1;
@@ -41,10 +42,14 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::clearCommandImpl()
     m_displayedFrame = -1;
     m_displayedPosition = -1;
     m_displayedGeneration = 0;
+    m_displayedRequestId = 0;
+    m_displayedPreparedPayloadId = 0;
     m_displayedImageSize = {};
     m_displayedImage = {};
     m_pendingDisplayImage = {};
     m_renderCommitPending = false;
+    m_nextPreparedPayloadId = 0;
+    clearPendingRenderIdentity();
     clearRenderFailureRetainedDisplay();
     m_requestStatus = RequestStatus::NoRequest;
     m_requestReason = RequestReason::NoRequest;
@@ -440,6 +445,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
             }
 
             clearCommandDiagnosticForAcceptedCommand();
+            beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
             m_providerPlaybackStartPending = false;
             m_currentFrame = frame;
             m_requestedPosition = providerFrameStartPosition(frame);
@@ -495,6 +501,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
             }
 
             clearCommandDiagnosticForAcceptedCommand();
+            beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
             m_providerPlaybackStartPending = false;
             m_currentFrame = frame;
             m_requestedPosition = -1;
@@ -521,6 +528,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekCommandImpl(int f
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
         m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = hasTimedSequence() ? m_sequence->frameStartPosition(frame) : -1;
@@ -578,6 +586,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
         m_providerPlaybackStartPending = false;
         m_currentFrame = -1;
         m_requestedPosition = milliseconds;
@@ -610,6 +619,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
         m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
@@ -657,6 +667,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
         }
 
         clearCommandDiagnosticForAcceptedCommand();
+        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
         m_providerPlaybackStartPending = false;
         m_currentFrame = frame;
         m_requestedPosition = milliseconds;
@@ -896,6 +907,18 @@ bool ImageViewportPrivate::hasPendingRenderCommitForTestImpl() const
 {
     return m_renderCommitPending;
 }
+
+quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const { return m_activeRequestId; }
+
+quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
+{
+    return m_displayedRequestId;
+}
+
+quint64 ImageViewportPrivate::pendingRenderPayloadIdForTestImpl() const
+{
+    return m_pendingPreparedPayloadId;
+}
 #endif
 
 void ImageViewportPrivate::incrementDisplayRevision()
@@ -1027,6 +1050,47 @@ bool ImageViewportPrivate::clearDiagnostics()
     return true;
 }
 
+void ImageViewportPrivate::clearRequestIdentity()
+{
+    m_nextRequestId = 0;
+    m_activeRequestId = 0;
+    m_latestNonPlaybackRequestId = 0;
+    m_activeRequestOrigin = DisplayRequestOrigin::None;
+}
+
+void ImageViewportPrivate::beginDisplayRequest(
+    DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
+{
+    m_activeRequestId = ++m_nextRequestId;
+    m_activeRequestOrigin = origin;
+    if (rememberAsLatestNonPlayback) {
+        m_latestNonPlaybackRequestId = m_activeRequestId;
+    }
+}
+
+void ImageViewportPrivate::beginInitialDisplayRequest(bool rememberAsLatestNonPlayback)
+{
+    beginDisplayRequest(DisplayRequestOrigin::Initial, rememberAsLatestNonPlayback);
+}
+
+void ImageViewportPrivate::commitDisplayedRequestIdentity()
+{
+    m_displayedRequestId = m_activeRequestId;
+    m_displayedPreparedPayloadId = m_pendingPreparedPayloadId;
+}
+
+void ImageViewportPrivate::beginPreparedPayloadIdentity()
+{
+    m_pendingRenderRequestId = m_activeRequestId;
+    m_pendingPreparedPayloadId = m_activeRequestId == 0 ? 0 : ++m_nextPreparedPayloadId;
+}
+
+void ImageViewportPrivate::clearPendingRenderIdentity()
+{
+    m_pendingRenderRequestId = 0;
+    m_pendingPreparedPayloadId = 0;
+}
+
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::ignoredNoRequest()
 {
     setCommandDiagnostic(CommandReason::IgnoredNoRequest);
@@ -1079,6 +1143,7 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
     if (hasProviderSequence() && !providerImage.isNull()) {
         captureRenderFailureRetainedDisplay();
         m_pendingDisplayImage = providerImage;
+        beginPreparedPayloadIdentity();
         if (itemBounds().isEmpty()) {
             publishRenderWaitingState();
         } else {
@@ -1105,6 +1170,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
     m_requestReason = RequestReason::Ready;
     m_displayStatus = DisplayStatus::Ready;
     m_renderCommitPending = true;
+    beginPreparedPayloadIdentity();
     m_displayedFrame = m_currentFrame;
     m_displayedGeneration = m_sequenceGeneration;
     if (hasProviderSequence()) {

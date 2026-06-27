@@ -20,6 +20,9 @@ public:
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
     bool hasPendingRenderCommitForTest() const;
+    quint64 activeRequestIdForTest() const;
+    quint64 displayedRequestIdForTest() const;
+    quint64 pendingRenderPayloadIdForTest() const;
 #endif
 
 private:

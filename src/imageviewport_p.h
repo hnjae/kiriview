@@ -24,6 +24,7 @@ public:
     using RequestStatus = ImageViewport::RequestStatus;
     using TriState = ImageViewport::TriState;
     using VerticalAlignment = ImageViewport::VerticalAlignment;
+    using DisplayRequestOrigin = ImageViewportInternal::DisplayRequestOrigin;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
 
     explicit ImageViewportPrivate(ImageViewport* viewport);
@@ -66,6 +67,9 @@ public:
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
     bool hasPendingRenderCommitForTest() const;
+    quint64 activeRequestIdForTest() const;
+    quint64 displayedRequestIdForTest() const;
+    quint64 pendingRenderPayloadIdForTest() const;
 #endif
     CommandOutcome clearCommandImpl();
     CommandOutcome playCommandImpl();
@@ -78,6 +82,9 @@ public:
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTestImpl(quint64 token);
     bool hasPendingRenderCommitForTestImpl() const;
+    quint64 activeRequestIdForTestImpl() const;
+    quint64 displayedRequestIdForTestImpl() const;
+    quint64 pendingRenderPayloadIdForTestImpl() const;
 #endif
 
     QRectF contentRect() const;
@@ -178,6 +185,13 @@ public:
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
+    void clearRequestIdentity();
+    void beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
+        bool rememberAsLatestNonPlayback);
+    void beginInitialDisplayRequest(bool rememberAsLatestNonPlayback);
+    void commitDisplayedRequestIdentity();
+    void beginPreparedPayloadIdentity();
+    void clearPendingRenderIdentity();
     CommandOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;
@@ -233,17 +247,29 @@ public:
     ProviderRequestTargetKind& m_latestNonPlaybackProviderTargetKind
         = request.latestNonPlaybackProviderTargetKind;
     quint64& m_sequenceGeneration = request.sequenceGeneration;
+    quint64& m_nextRequestId = request.nextRequestId;
+    quint64& m_activeRequestId = request.activeRequestId;
+    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequestId;
+    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequestOrigin;
     int& m_displayedFrame = display.displayedFrame;
     int& m_displayedPosition = display.displayedPosition;
     quint64& m_displayedGeneration = display.displayedGeneration;
+    quint64& m_displayedRequestId = display.displayedRequestId;
+    quint64& m_displayedPreparedPayloadId = display.displayedPreparedPayloadId;
     QSizeF& m_displayedImageSize = display.displayedImageSize;
     QImage& m_displayedImage = display.displayedImage;
     QImage& m_pendingDisplayImage = display.pendingDisplayImage;
     bool& m_renderCommitPending = display.renderCommitPending;
+    quint64& m_nextPreparedPayloadId = display.nextPreparedPayloadId;
+    quint64& m_pendingRenderRequestId = display.pendingRenderRequestId;
+    quint64& m_pendingPreparedPayloadId = display.pendingPreparedPayloadId;
     bool& m_renderFailureRetainedDisplayValid = display.renderFailureRetainedDisplayValid;
     int& m_renderFailureRetainedFrame = display.renderFailureRetainedFrame;
     int& m_renderFailureRetainedPosition = display.renderFailureRetainedPosition;
     quint64& m_renderFailureRetainedGeneration = display.renderFailureRetainedGeneration;
+    quint64& m_renderFailureRetainedRequestId = display.renderFailureRetainedRequestId;
+    quint64& m_renderFailureRetainedPreparedPayloadId
+        = display.renderFailureRetainedPreparedPayloadId;
     QSizeF& m_renderFailureRetainedImageSize = display.renderFailureRetainedImageSize;
     QImage& m_renderFailureRetainedImage = display.renderFailureRetainedImage;
     uint& m_displayRevision = display.revision;

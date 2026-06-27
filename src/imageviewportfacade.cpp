@@ -111,6 +111,21 @@ bool ImageViewport::hasPendingRenderCommitForTest() const
 {
     return d->hasPendingRenderCommitForTest();
 }
+
+quint64 ImageViewport::activeRequestIdForTest() const
+{
+    return d->activeRequestIdForTest();
+}
+
+quint64 ImageViewport::displayedRequestIdForTest() const
+{
+    return d->displayedRequestIdForTest();
+}
+
+quint64 ImageViewport::pendingRenderPayloadIdForTest() const
+{
+    return d->pendingRenderPayloadIdForTest();
+}
 #endif
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)

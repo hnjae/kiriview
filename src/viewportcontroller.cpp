@@ -45,6 +45,21 @@ bool ViewportController::hasPendingRenderCommitForTest() const
 {
     return viewport.hasPendingRenderCommitForTestImpl();
 }
+
+quint64 ViewportController::activeRequestIdForTest() const
+{
+    return viewport.activeRequestIdForTestImpl();
+}
+
+quint64 ViewportController::displayedRequestIdForTest() const
+{
+    return viewport.displayedRequestIdForTestImpl();
+}
+
+quint64 ViewportController::pendingRenderPayloadIdForTest() const
+{
+    return viewport.pendingRenderPayloadIdForTestImpl();
+}
 #endif
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
@@ -111,5 +126,20 @@ void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
     return controller.hasPendingRenderCommitForTest();
+}
+
+quint64 ImageViewportPrivate::activeRequestIdForTest() const
+{
+    return controller.activeRequestIdForTest();
+}
+
+quint64 ImageViewportPrivate::displayedRequestIdForTest() const
+{
+    return controller.displayedRequestIdForTest();
+}
+
+quint64 ImageViewportPrivate::pendingRenderPayloadIdForTest() const
+{
+    return controller.pendingRenderPayloadIdForTest();
 }
 #endif
