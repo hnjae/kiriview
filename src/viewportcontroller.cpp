@@ -99,12 +99,7 @@ bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 
 void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
 {
-    viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-    viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-    viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
-    viewport.discardPendingRenderCommit();
+    viewport.publishProviderFrameLoadingState();
 }
 
 void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, int frame, int position,
@@ -131,12 +126,7 @@ ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport,
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
     acceptExplicitSeekTarget(viewport, frame, position, targetKind);
-    viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-    viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-    viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
-    viewport.discardPendingRenderCommit();
+    viewport.publishProviderFrameLoadingState();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
     if (!viewport.dispatchProviderFrameRequest(frame, targetKind)) {
         result.changes.requestRevision = true;
@@ -324,12 +314,7 @@ ViewportCommandResult ViewportController::play()
             viewport.m_playbackPosition = selectedPosition;
             viewport.m_currentProviderTargetKind
                 = ImageViewportInternal::ProviderRequestTargetKind::Playback;
-            viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-            viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-            viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
-                ? ImageViewport::DisplayStatus::Retained
-                : ImageViewport::DisplayStatus::Empty;
-            viewport.discardPendingRenderCommit();
+            viewport.publishProviderFrameLoadingState();
             if (!viewport.dispatchProviderFrameRequest(
                     selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
                 result.changes.requestRevision = true;

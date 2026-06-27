@@ -130,6 +130,7 @@ public:
     void closeProviderSession();
     bool openProviderSession();
     ImageSequenceProviderRequestToken nextProviderRequestToken();
+    void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
     void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);

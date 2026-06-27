@@ -111,11 +111,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 
         applyPlaybackTarget(*this, target.frame, target.requestedPosition);
         m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
-        m_requestStatus = RequestStatus::Loading;
-        m_requestReason = RequestReason::ProviderWaiting;
-        m_displayStatus
-            = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        discardPendingRenderCommit();
+        publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = clearDiagnostics();
         if (!dispatchProviderFrameRequest(target.frame, ProviderRequestTargetKind::Playback)) {
             publishPlaybackRequestChange(*this, previousFrame);

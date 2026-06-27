@@ -58,6 +58,14 @@ void ImageViewportPrivate::clearQueuedProviderFrameRequest()
     m_queuedProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
 }
 
+void ImageViewportPrivate::publishProviderFrameLoadingState()
+{
+    m_requestStatus = RequestStatus::Loading;
+    m_requestReason = RequestReason::ProviderWaiting;
+    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    discardPendingRenderCommit();
+}
+
 void ImageViewportPrivate::queueProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
@@ -306,11 +314,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         m_latestNonPlaybackPosition = m_requestedPosition;
         m_latestNonPlaybackProviderTargetKind = requestTargetKind;
     }
-    m_requestStatus = RequestStatus::Loading;
-    m_requestReason = RequestReason::ProviderWaiting;
-    m_displayStatus
-        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    discardPendingRenderCommit();
+    publishProviderFrameLoadingState();
 
     m_providerPlaybackStartPending = false;
     if (!startProviderFrameRequest(selectedFrame, requestTargetKind)) {
@@ -522,11 +526,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
         return;
     }
 
-    m_requestStatus = RequestStatus::Loading;
-    m_requestReason = RequestReason::ProviderWaiting;
-    m_displayStatus
-        = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    discardPendingRenderCommit();
+    publishProviderFrameLoadingState();
     if (!startProviderFrameRequest(selectedFrame, ProviderRequestTargetKind::Playback)) {
         incrementRequestRevision();
         emit q->requestStateChanged();
