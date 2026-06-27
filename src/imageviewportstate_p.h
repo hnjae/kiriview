@@ -61,6 +61,7 @@ struct DisplayRequest
     DisplayRequestIdentity identity;
     DisplayRequestTarget target;
     ImageSequenceProviderRequestToken providerFrameToken;
+    quint64 preparedPayloadId = 0;
 };
 
 struct PresentationState

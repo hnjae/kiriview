@@ -351,6 +351,7 @@ void ImageViewportPrivate::beginDisplayRequest(
     m_activeRequestId = ++m_nextRequestId;
     m_activeRequestOrigin = origin;
     request.activeRequest.providerFrameToken = {};
+    request.activeRequest.preparedPayloadId = 0;
     if (rememberAsLatestNonPlayback) {
         request.latestNonPlaybackRequest.identity = request.activeRequest.identity;
     }
@@ -371,6 +372,7 @@ void ImageViewportPrivate::beginPreparedPayloadIdentity()
 {
     m_pendingRenderRequestId = m_activeRequestId;
     m_pendingPreparedPayloadId = m_activeRequestId == 0 ? 0 : ++m_nextPreparedPayloadId;
+    request.activeRequest.preparedPayloadId = m_pendingPreparedPayloadId;
 }
 
 void ImageViewportPrivate::clearPendingRenderIdentity()

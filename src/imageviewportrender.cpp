@@ -44,7 +44,8 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         });
     const bool renderMatchesPending = m_renderCommitPending
         && render.requestId == m_pendingRenderRequestId
-        && render.preparedPayloadId == m_pendingPreparedPayloadId;
+        && render.preparedPayloadId == m_pendingPreparedPayloadId
+        && render.preparedPayloadId == request.activeRequest.preparedPayloadId;
     if (render.result == RenderAdapter::CommitResult::Failed) {
         if (m_displayStatus == DisplayStatus::Ready && renderMatchesPending) {
             reportRenderFailure();
