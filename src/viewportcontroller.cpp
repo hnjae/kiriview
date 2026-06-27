@@ -147,6 +147,19 @@ void applyPendingProviderPlaybackTarget(ImageViewportPrivate& viewport, DisplayR
     viewport.m_currentProviderTargetKind = target.providerTargetKind;
 }
 
+template <typename FrameStartFor>
+int playbackStartPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
+{
+    return viewport.m_requestedPosition >= 0 ? viewport.m_requestedPosition
+                                             : frameStartFor(viewport.m_currentFrame);
+}
+
+template <typename FrameStartFor>
+void seedPlaybackPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
+{
+    viewport.m_playbackPosition = playbackStartPosition(viewport, frameStartFor);
+}
+
 ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport, int frame,
     int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
 {
@@ -349,9 +362,8 @@ ViewportCommandResult ViewportController::play()
 
         clearCommandDiagnosticForAcceptedCommand(viewport, result);
         if (!preservePlaybackPosition) {
-            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
-                ? viewport.m_requestedPosition
-                : viewport.providerFrameStartPosition(viewport.m_currentFrame);
+            seedPlaybackPosition(viewport,
+                [this](int frame) { return viewport.providerFrameStartPosition(frame); });
         }
         setPlaybackPhase(viewport, result,
             viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
@@ -397,9 +409,8 @@ ViewportCommandResult ViewportController::play()
             const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             viewport.publishAcceptedTargetState();
-            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
-                ? viewport.m_requestedPosition
-                : viewport.sequenceFrameStartPosition(viewport.m_currentFrame);
+            seedPlaybackPosition(viewport,
+                [this](int frame) { return viewport.sequenceFrameStartPosition(frame); });
             setPlaybackPhase(viewport, result,
                 viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
                     ? ImageViewport::PlaybackPhase::Waiting
@@ -421,9 +432,8 @@ ViewportCommandResult ViewportController::play()
             return result;
         }
         if (!preservePlaybackPosition) {
-            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
-                ? viewport.m_requestedPosition
-                : viewport.sequenceFrameStartPosition(viewport.m_currentFrame);
+            seedPlaybackPosition(viewport,
+                [this](int frame) { return viewport.sequenceFrameStartPosition(frame); });
         }
         setPlaybackPhase(viewport, result,
             viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
