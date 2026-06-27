@@ -56,6 +56,12 @@ struct DisplayRequestTarget
     ProviderRequestTargetKind providerTargetKind = ProviderRequestTargetKind::Unknown;
 };
 
+struct DisplayRequest
+{
+    DisplayRequestIdentity identity;
+    DisplayRequestTarget target;
+};
+
 struct PresentationState
 {
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
@@ -110,13 +116,11 @@ struct RequestState
     bool looping = false;
     bool stopPlaybackWhenRequestReady = false;
     bool providerPlaybackStartPending = false;
-    DisplayRequestTarget activeTarget;
+    DisplayRequest activeRequest;
     int playbackPosition = -1;
-    DisplayRequestTarget latestNonPlaybackTarget;
+    DisplayRequest latestNonPlaybackRequest;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
-    DisplayRequestIdentity activeRequest;
-    DisplayRequestIdentity latestNonPlaybackRequest;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

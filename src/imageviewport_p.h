@@ -244,20 +244,20 @@ public:
     bool& m_looping = request.looping;
     bool& m_stopPlaybackWhenRequestReady = request.stopPlaybackWhenRequestReady;
     bool& m_providerPlaybackStartPending = request.providerPlaybackStartPending;
-    int& m_currentFrame = request.activeTarget.frame;
-    int& m_requestedPosition = request.activeTarget.position;
+    int& m_currentFrame = request.activeRequest.target.frame;
+    int& m_requestedPosition = request.activeRequest.target.position;
     int& m_playbackPosition = request.playbackPosition;
-    int& m_latestNonPlaybackFrame = request.latestNonPlaybackTarget.frame;
-    int& m_latestNonPlaybackPosition = request.latestNonPlaybackTarget.position;
+    int& m_latestNonPlaybackFrame = request.latestNonPlaybackRequest.target.frame;
+    int& m_latestNonPlaybackPosition = request.latestNonPlaybackRequest.target.position;
     ProviderRequestTargetKind& m_currentProviderTargetKind
-        = request.activeTarget.providerTargetKind;
+        = request.activeRequest.target.providerTargetKind;
     ProviderRequestTargetKind& m_latestNonPlaybackProviderTargetKind
-        = request.latestNonPlaybackTarget.providerTargetKind;
+        = request.latestNonPlaybackRequest.target.providerTargetKind;
     quint64& m_sequenceGeneration = request.sequenceGeneration;
     quint64& m_nextRequestId = request.nextRequestId;
-    quint64& m_activeRequestId = request.activeRequest.id;
-    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequest.id;
-    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequest.origin;
+    quint64& m_activeRequestId = request.activeRequest.identity.id;
+    quint64& m_latestNonPlaybackRequestId = request.latestNonPlaybackRequest.identity.id;
+    DisplayRequestOrigin& m_activeRequestOrigin = request.activeRequest.identity.origin;
     int& m_displayedFrame = display.displayedFrame;
     int& m_displayedPosition = display.displayedPosition;
     quint64& m_displayedGeneration = display.displayedGeneration;
