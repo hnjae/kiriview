@@ -28,17 +28,31 @@ void invokeSessionCommand(ImageSequenceProviderSession* session,
     QMetaObject::invokeMethod(session, std::move(function), Qt::BlockingQueuedConnection);
 }
 
-void releaseSession(ImageSequenceProviderSession* session)
+void queueSessionCleanup(ImageSequenceProviderSession* session,
+    ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
 {
     if (!session) {
         return;
     }
     if (session->thread() == QThread::currentThread()) {
-        delete session;
-        return;
+        session->setParent(nullptr);
     }
-    QMetaObject::invokeMethod(
-        session, [session]() { delete session; }, Qt::BlockingQueuedConnection);
+    const bool queued = QMetaObject::invokeMethod(
+        session,
+        [session, metadataToken, frameToken]() {
+            if (metadataToken.isValid()) {
+                session->cancelRequest(metadataToken);
+            }
+            if (frameToken.isValid() && frameToken != metadataToken) {
+                session->cancelRequest(frameToken);
+            }
+            session->close();
+            delete session;
+        },
+        Qt::QueuedConnection);
+    if (!queued) {
+        qWarning("ImageViewport provider cleanup could not be queued");
+    }
 }
 
 bool acceptsSessionResult(const ImageViewportPrivate& viewport, quint64 sessionSerial)
@@ -68,17 +82,7 @@ void ViewportProviderBridge::closeSession()
     viewport.m_activeProviderFrameTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_providerSession.clear();
-    if (metadataToken.isValid()) {
-        invokeSessionCommand(session, threadingContract(),
-            [session, metadataToken]() { session->cancelRequest(metadataToken); });
-    }
-    if (frameToken.isValid()) {
-        invokeSessionCommand(session, threadingContract(),
-            [session, frameToken]() { session->cancelRequest(frameToken); });
-    }
-    invokeSessionCommand(
-        session, threadingContract(), [session]() { session->close(); });
-    releaseSession(session);
+    queueSessionCleanup(session, metadataToken, frameToken);
     viewport.m_nextProviderRequestToken = 0;
 }
 

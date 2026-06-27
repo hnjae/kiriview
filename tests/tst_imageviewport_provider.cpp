@@ -1,5 +1,7 @@
 #include "imageviewport_test_support.h"
 
+#include <QtCore/QElapsedTimer>
+
 class ImageViewportProviderTest : public QObject
 {
     Q_OBJECT
@@ -31,6 +33,7 @@ private slots:
     void providerDestructionCancelsActiveFrameRequestBeforeClose();
     void providerReplacementCancelsActiveFrameRequestBeforeClose();
     void providerClearCancelsActiveFrameRequestBeforeClose();
+    void providerClearDoesNotBlockOnSessionCleanup();
     void providerNullSequenceCancelsActiveFrameRequestBeforeClose();
     void providerReplacementIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledMetadataAcknowledgement();
@@ -646,7 +649,7 @@ void ImageViewportProviderTest::providerThreadSafeSessionEntryPointsUseControlle
         QCOMPARE(*cancelRequestThread, controllerThread);
     }
 
-    QCOMPARE(*closeThread, controllerThread);
+    QTRY_COMPARE(*closeThread, &workerThread);
 }
 
 void ImageViewportProviderTest::providerSequenceOpensSessionAfterAdapterDestruction()
@@ -750,6 +753,7 @@ void ImageViewportProviderTest::providerTokenOverflowClosesSessionWithoutInvalid
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
+    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -784,6 +788,7 @@ void ImageViewportProviderTest::providerKnownMetadataTokenOverflowClosesSessionW
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*lastRequestedFrame, -1);
+    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -820,6 +825,7 @@ void ImageViewportProviderTest::providerTokenOverflowDoesNotPoisonReplacementSes
 
     QCOMPARE(*firstSessionCount, 1);
     QCOMPARE(*firstMetadataRequestCount, 0);
+    drainQueuedProviderResults();
     QCOMPARE(*firstCloseCount, 1);
     QCOMPARE(firstSessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -901,6 +907,7 @@ void ImageViewportProviderTest::providerTokenOverflowDuringSeekFailsAcceptedRequ
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 1);
+    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -1084,6 +1091,7 @@ void ImageViewportProviderTest::reassigningSameProviderSequenceStartsNewGenerati
     QCOMPARE(*sessionCount, 2);
     QCOMPARE(*metadataRequestCount, 2);
     QCOMPARE(*frameRequestCount, 0);
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
@@ -1128,6 +1136,7 @@ void ImageViewportProviderTest::providerSessionClosesWhenViewportIsDestroyed()
         QCOMPARE(*closeCount, 0);
     }
 
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, metadataToken.id());
     QCOMPARE(*closeCount, 1);
@@ -1169,6 +1178,7 @@ void ImageViewportProviderTest::providerDestructionCancelsActiveFrameRequestBefo
         QCOMPARE(*closeCount, 0);
     }
 
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, frameToken.id());
     QCOMPARE(*closeCount, 1);
@@ -1215,6 +1225,7 @@ void ImageViewportProviderTest::providerReplacementCancelsActiveFrameRequestBefo
 
     item.setSequence(replacementResult->sequence());
 
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, frameToken.id());
     QCOMPARE(*closeCount, 1);
@@ -1262,6 +1273,7 @@ void ImageViewportProviderTest::providerClearCancelsActiveFrameRequestBeforeClos
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, frameToken.id());
     QCOMPARE(*closeCount, 1);
@@ -1271,6 +1283,40 @@ void ImageViewportProviderTest::providerClearCancelsActiveFrameRequestBeforeClos
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
+}
+
+void ImageViewportProviderTest::providerClearDoesNotBlockOnSessionCleanup()
+{
+    QThread workerThread;
+    workerThread.start();
+    const auto workerCleanup = qScopeGuard([&workerThread]() {
+        workerThread.quit();
+        workerThread.wait(1000);
+    });
+
+    ImageSequenceFactory factory;
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<SlowCleanupProviderSessionFactory>(
+        &workerThread, cancelRequestCount, closeCount, 250);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    QVERIFY(sessionFactory->lastSession());
+    QVERIFY(sessionFactory->lastSession()->lastMetadataToken().isValid());
+
+    QElapsedTimer elapsed;
+    elapsed.start();
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    const qint64 clearElapsedMilliseconds = elapsed.elapsed();
+
+    QVERIFY2(clearElapsedMilliseconds < 100,
+        qPrintable(QStringLiteral("clear() blocked for %1 ms").arg(clearElapsedMilliseconds)));
+    QTRY_COMPARE(*cancelRequestCount, 1);
+    QTRY_COMPARE(*closeCount, 1);
 }
 
 void ImageViewportProviderTest::providerNullSequenceCancelsActiveFrameRequestBeforeClose()
@@ -1306,6 +1352,7 @@ void ImageViewportProviderTest::providerNullSequenceCancelsActiveFrameRequestBef
 
     item.setSequence(nullptr);
 
+    drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, frameToken.id());
     QCOMPARE(*closeCount, 1);
@@ -1363,8 +1410,6 @@ void ImageViewportProviderTest::providerReplacementIgnoresCancelledMetadataAckno
     item.setSequence(replacementResult->sequence());
     const uint replacementRequestRevision = item.property("requestRevision").toUInt();
 
-    QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.sequence(), replacementResult->sequence());
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1376,6 +1421,8 @@ void ImageViewportProviderTest::providerReplacementIgnoresCancelledMetadataAckno
 
     drainQueuedProviderResults();
 
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("requestRevision").toUInt(), replacementRequestRevision);
     QCOMPARE(item.sequence(), replacementResult->sequence());
     QCOMPARE(
@@ -1418,8 +1465,6 @@ void ImageViewportProviderTest::providerClearIgnoresCancelledMetadataAcknowledge
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     const uint clearedRequestRevision = item.property("requestRevision").toUInt();
 
-    QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1430,6 +1475,8 @@ void ImageViewportProviderTest::providerClearIgnoresCancelledMetadataAcknowledge
 
     drainQueuedProviderResults();
 
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("requestRevision").toUInt(), clearedRequestRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
@@ -1481,8 +1528,6 @@ void ImageViewportProviderTest::providerClosedGenerationTokenCollisionIsIgnoredA
     QCOMPARE(*staleMetadataRequestCount, 1);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(*staleCancelRequestCount, 1);
-    QCOMPARE(*staleCloseCount, 1);
 
     item.setNextProviderRequestTokenForTest(staleToken.id() - 1);
     item.setSequence(replacementResult->sequence());
@@ -1493,6 +1538,8 @@ void ImageViewportProviderTest::providerClosedGenerationTokenCollisionIsIgnoredA
 
     drainQueuedProviderResults();
 
+    QCOMPARE(*staleCancelRequestCount, 1);
+    QCOMPARE(*staleCloseCount, 1);
     QCOMPARE(*replacementSessionCount, 1);
     QCOMPARE(*replacementMetadataRequestCount, 1);
     QCOMPARE(*replacementFrameRequestCount, 0);
@@ -1545,8 +1592,6 @@ void ImageViewportProviderTest::providerClearIgnoresCancelledFrameAcknowledgemen
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     const uint clearedRequestRevision = item.property("requestRevision").toUInt();
 
-    QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1557,6 +1602,8 @@ void ImageViewportProviderTest::providerClearIgnoresCancelledFrameAcknowledgemen
 
     drainQueuedProviderResults();
 
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
     QCOMPARE(item.property("requestRevision").toUInt(), clearedRequestRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));

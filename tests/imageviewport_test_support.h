@@ -473,6 +473,76 @@ private:
     QPointer<AffinityProviderSession> m_lastSession;
 };
 
+class SlowCleanupProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SlowCleanupProviderSession(const std::shared_ptr<int>& cancelRequestCount,
+        const std::shared_ptr<int>& closeCount, int cleanupDelayMilliseconds,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+    }
+
+    void cancelRequest(ImageSequenceProviderRequestToken) override
+    {
+        ++*m_cancelRequestCount;
+    }
+
+    void close() override
+    {
+        QTest::qSleep(m_cleanupDelayMilliseconds);
+        ++*m_closeCount;
+    }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+private:
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class SlowCleanupProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SlowCleanupProviderSessionFactory(QThread* thread,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount,
+        int cleanupDelayMilliseconds)
+        : m_thread(thread)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        auto* session = new SlowCleanupProviderSession(
+            m_cancelRequestCount, m_closeCount, m_cleanupDelayMilliseconds);
+        session->moveToThread(m_thread);
+        m_lastSession = session;
+        return session;
+    }
+
+    SlowCleanupProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    QThread* m_thread = nullptr;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    QPointer<SlowCleanupProviderSession> m_lastSession;
+};
+
 class FailingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
 {
 public:
