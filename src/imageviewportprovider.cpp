@@ -280,6 +280,9 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
 
+    beginDisplayRequest(
+        DisplayRequestOrigin::MetadataBoundSelection,
+        requestTargetKind != ProviderRequestTargetKind::Playback);
     m_currentFrame = selectedFrame;
     if (!selectedFromPosition) {
         m_requestedPosition
