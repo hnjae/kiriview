@@ -2,6 +2,25 @@
 
 #include "imageviewport_p.h"
 
+namespace {
+void setCommandDiagnostic(ImageViewportPrivate& viewport, ViewportCommandResult& result,
+    ImageViewport::CommandReason reason)
+{
+    viewport.m_commandReason = reason;
+    result.changes.commandRevision = true;
+}
+
+void clearCommandDiagnosticForAcceptedCommand(
+    ImageViewportPrivate& viewport, ViewportCommandResult& result)
+{
+    if (viewport.m_commandReason == ImageViewport::CommandReason::NoCommand) {
+        return;
+    }
+
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::NoCommand);
+}
+}
+
 ViewportController::ViewportController(ImageViewportPrivate& viewport)
     : viewport(viewport)
 {
@@ -65,10 +84,7 @@ ViewportCommandResult ViewportController::clear()
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_errorString.clear();
     viewport.m_warningString.clear();
-    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
-        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
-        result.changes.commandRevision = true;
-    }
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
     result.changes.requestRevision = requestChanged;
     result.changes.displayRevision = displayChanged;
     result.changes.sequence = sequenceValueChanged;
@@ -89,15 +105,15 @@ ViewportCommandResult ViewportController::play() { return { viewport.playCommand
 ViewportCommandResult ViewportController::pause()
 {
     if (!viewport.hasActiveRequest()) {
-        return { viewport.ignoredNoRequest(), {} };
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
     }
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
-        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
-        result.changes.commandRevision = true;
-    }
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
     if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
         || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting) {
         viewport.m_playbackPhase = ImageViewport::PlaybackPhase::Paused;
@@ -132,10 +148,7 @@ ViewportCommandResult ViewportController::resetView()
         result.changes.geometryState = viewport.hasReadyDisplay() && !viewport.itemBounds().isEmpty();
         result.changes.scheduleUpdate = true;
     }
-    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
-        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
-        result.changes.commandRevision = true;
-    }
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
     return result;
 }
 
