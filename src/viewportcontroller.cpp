@@ -986,6 +986,67 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderPlaybackEndOfSequence()
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+
+    int selectedFrame = 0;
+    int selectedPosition = 0;
+    if (viewport.m_looping) {
+        viewport.m_stopPlaybackWhenRequestReady = false;
+        viewport.request.playbackPosition = 0;
+    } else {
+        selectedFrame = viewport.frameCount() - 1;
+        selectedPosition = viewport.providerFrameStartPosition(selectedFrame);
+        viewport.request.playbackPosition = viewport.totalDuration();
+        viewport.m_stopPlaybackWhenRequestReady = true;
+    }
+
+    viewport.request.activeRequest.target.frame = selectedFrame;
+    viewport.request.activeRequest.target.position = selectedPosition;
+    viewport.request.activeRequest.target.providerTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+
+    if (!viewport.m_looping && viewport.hasReadyDisplay()
+        && viewport.request.displayedRequest.generation == viewport.request.sequenceGeneration
+        && viewport.request.displayedRequest.request.target.frame == selectedFrame
+        && viewport.request.displayedRequest.request.target.position == selectedPosition) {
+        viewport.publishReadyDisplayState();
+        setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+        viewport.m_stopPlaybackWhenRequestReady = false;
+        changes.requestRevision = true;
+        changes.displayRevision = true;
+        changes.requestState = true;
+        changes.displayState = true;
+        changes.diagnostics = diagnosticsValueChanged;
+        changes.scheduleUpdate = true;
+        return changes;
+    }
+
+    viewport.publishProviderFrameLoadingState();
+    if (!viewport.startProviderFrameRequest(
+            selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
+        changes.requestRevision = true;
+        changes.requestState = true;
+        changes.diagnostics = true;
+        return changes;
+    }
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Waiting);
+    changes.requestRevision = true;
+    changes.displayRevision = true;
+    changes.requestState = true;
+    changes.displayState = true;
+    changes.diagnostics = diagnosticsValueChanged;
+    changes.scheduleUpdate = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

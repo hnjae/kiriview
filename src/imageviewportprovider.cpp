@@ -456,62 +456,11 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
         return;
     }
 
-    m_activeProviderFrameToken = {};
-    m_activeProviderFrameRequestId = 0;
-    m_activeProviderFrameFromPlayback = false;
-    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-    const bool diagnosticsValueChanged = clearDiagnostics();
-
-    int selectedFrame = 0;
-    int selectedPosition = 0;
-    if (m_looping) {
-        m_stopPlaybackWhenRequestReady = false;
-        request.playbackPosition = 0;
-    } else {
-        selectedFrame = frameCount() - 1;
-        selectedPosition = providerFrameStartPosition(selectedFrame);
-        request.playbackPosition = totalDuration();
-        m_stopPlaybackWhenRequestReady = true;
+    const auto changes = controller.handleProviderPlaybackEndOfSequence();
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
     }
-
-    request.activeRequest.target.frame = selectedFrame;
-    request.activeRequest.target.position = selectedPosition;
-    request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Playback;
-
-    if (!m_looping && hasReadyDisplay()
-        && request.displayedRequest.generation == request.sequenceGeneration
-        && request.displayedRequest.request.target.frame == selectedFrame
-        && request.displayedRequest.request.target.position == selectedPosition) {
-        publishReadyDisplayState();
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        m_stopPlaybackWhenRequestReady = false;
-        incrementRequestRevision();
-        incrementDisplayRevision();
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
-        update();
-        return;
-    }
-
-    publishProviderFrameLoadingState();
-    if (!startProviderFrameRequest(selectedFrame, ProviderRequestTargetKind::Playback)) {
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
-        return;
-    }
-    setPlaybackPhase(PlaybackPhase::Waiting);
-    incrementRequestRevision();
-    incrementDisplayRevision();
-    emit q->requestStateChanged();
-    emit q->displayStateChanged();
-    if (diagnosticsValueChanged) {
-        emit q->diagnosticsChanged();
-    }
-    update();
 }
 
 void ImageViewportPrivate::handleProviderFailure(

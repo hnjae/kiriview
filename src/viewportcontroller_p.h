@@ -75,6 +75,7 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
+    ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();
