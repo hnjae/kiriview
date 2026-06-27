@@ -7,8 +7,10 @@ ViewportController::ViewportController(ImageViewportPrivate& viewport)
 {
 }
 
-ImageViewport::CommandOutcome ViewportController::clear()
+ViewportCommandResult ViewportController::clear()
 {
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
     const bool sequenceValueChanged = viewport.m_sequence != nullptr;
     const bool requestChanged = viewport.hasActiveRequest() || viewport.m_sequence;
     const bool displayChanged = viewport.m_displayStatus != ImageViewport::DisplayStatus::Empty
@@ -63,77 +65,78 @@ ImageViewport::CommandOutcome ViewportController::clear()
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_errorString.clear();
     viewport.m_warningString.clear();
-    viewport.clearCommandDiagnosticForAcceptedCommand();
-    if (requestChanged) {
-        viewport.incrementRequestRevision();
+    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
+        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
+        result.changes.commandRevision = true;
     }
-    if (displayChanged) {
-        viewport.incrementDisplayRevision();
-    }
-
-    if (sequenceValueChanged) {
-        emit viewport.q->sequenceChanged();
-    }
-    if (requestChanged) {
-        emit viewport.q->requestStateChanged();
-    }
-    if (displayChanged) {
-        emit viewport.q->displayStateChanged();
-    }
-    if (ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+    result.changes.requestRevision = requestChanged;
+    result.changes.displayRevision = displayChanged;
+    result.changes.sequence = sequenceValueChanged;
+    result.changes.requestState = requestChanged;
+    result.changes.displayState = displayChanged;
+    result.changes.geometryState
+        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
         || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect)) {
-        emit viewport.q->geometryStateChanged();
-    }
-    if (playbackChanged) {
-        emit viewport.q->playbackPhaseChanged();
-    }
-    if (diagnosticsValueChanged) {
-        emit viewport.q->diagnosticsChanged();
-    }
-    viewport.update();
-    return ImageViewport::CommandOutcome::Accepted;
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    result.changes.playbackPhase = playbackChanged;
+    result.changes.diagnostics = diagnosticsValueChanged;
+    result.changes.scheduleUpdate = true;
+    return result;
 }
 
-ImageViewport::CommandOutcome ViewportController::play() { return viewport.playCommandImpl(); }
+ViewportCommandResult ViewportController::play() { return { viewport.playCommandImpl(), {} }; }
 
-ImageViewport::CommandOutcome ViewportController::pause()
+ViewportCommandResult ViewportController::pause()
 {
     if (!viewport.hasActiveRequest()) {
-        return viewport.ignoredNoRequest();
+        return { viewport.ignoredNoRequest(), {} };
     }
 
-    viewport.clearCommandDiagnosticForAcceptedCommand();
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
+        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
+        result.changes.commandRevision = true;
+    }
     if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
         || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting) {
-        viewport.setPlaybackPhase(ImageViewport::PlaybackPhase::Paused);
+        viewport.m_playbackPhase = ImageViewport::PlaybackPhase::Paused;
+        result.changes.playbackPhase = true;
     }
-    return ImageViewport::CommandOutcome::Accepted;
+    return result;
 }
 
-ImageViewport::CommandOutcome ViewportController::stop() { return viewport.stopCommandImpl(); }
+ViewportCommandResult ViewportController::stop() { return { viewport.stopCommandImpl(), {} }; }
 
-ImageViewport::CommandOutcome ViewportController::seek(int frame)
+ViewportCommandResult ViewportController::seek(int frame)
 {
-    return viewport.seekCommandImpl(frame);
+    return { viewport.seekCommandImpl(frame), {} };
 }
 
-ImageViewport::CommandOutcome ViewportController::seekToPosition(int milliseconds)
+ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
 {
-    return viewport.seekToPositionCommandImpl(milliseconds);
+    return { viewport.seekToPositionCommandImpl(milliseconds), {} };
 }
 
-ImageViewport::CommandOutcome ViewportController::resetView()
+ViewportCommandResult ViewportController::resetView()
 {
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
     const bool changed = viewport.m_zoom != 1.0 || viewport.m_pan.x() != 0.0
         || viewport.m_pan.y() != 0.0;
     viewport.m_zoom = 1.0;
     viewport.m_pan = {};
     if (changed) {
-        viewport.notifyPresentationChanged(true);
+        result.changes.presentation = true;
+        result.changes.displayRevision = true;
+        result.changes.geometryState = viewport.hasReadyDisplay() && !viewport.itemBounds().isEmpty();
+        result.changes.scheduleUpdate = true;
     }
-    viewport.clearCommandDiagnosticForAcceptedCommand();
-    return ImageViewport::CommandOutcome::Accepted;
+    if (viewport.m_commandReason != ImageViewport::CommandReason::NoCommand) {
+        viewport.m_commandReason = ImageViewport::CommandReason::NoCommand;
+        result.changes.commandRevision = true;
+    }
+    return result;
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -168,55 +171,106 @@ quint64 ViewportController::pendingRenderPayloadIdForTest() const
 }
 #endif
 
+void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes)
+{
+    if (changes.displayRevision) {
+        incrementDisplayRevision();
+    }
+    if (changes.requestRevision) {
+        incrementRequestRevision();
+    }
+    if (changes.commandRevision) {
+        ++m_commandRevision;
+        emit q->commandRevisionChanged();
+        emit q->commandStateChanged();
+    }
+
+    if (changes.sequence) {
+        emit q->sequenceChanged();
+    }
+    if (changes.requestState) {
+        emit q->requestStateChanged();
+    }
+    if (changes.displayState) {
+        emit q->displayStateChanged();
+    }
+    if (changes.geometryState) {
+        emit q->geometryStateChanged();
+    }
+    if (changes.playbackPhase) {
+        emit q->playbackPhaseChanged();
+    }
+    if (changes.diagnostics) {
+        emit q->diagnosticsChanged();
+    }
+    if (changes.presentation) {
+        emit q->presentationChanged();
+    }
+    if (changes.scheduleUpdate) {
+        update();
+    }
+}
+
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.clear();
+    const ViewportCommandResult result = controller.clear();
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::play()
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.play();
+    const ViewportCommandResult result = controller.play();
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.pause();
+    const ViewportCommandResult result = controller.pause();
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.stop();
+    const ViewportCommandResult result = controller.stop();
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.seek(frame);
+    const ViewportCommandResult result = controller.seek(frame);
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
 {
     flushPlaybackTimerElapsed();
-    const ImageViewport::CommandOutcome outcome = controller.seekToPosition(milliseconds);
+    const ViewportCommandResult result = controller.seekToPosition(milliseconds);
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return outcome;
+    return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::resetView() { return controller.resetView(); }
+ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
+{
+    const ViewportCommandResult result = controller.resetView();
+    applyControllerChanges(result.changes);
+    return result.outcome;
+}
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)

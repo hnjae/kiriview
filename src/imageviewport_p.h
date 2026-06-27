@@ -115,6 +115,7 @@ public:
     bool containsVisibleImagePoint(double x, double y) const;
     static QVariantMap invalidRange();
     static QVariantMap invalidCoordinateResult();
+    void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
     void notifyPresentationChanged(bool affectsGeometry);
     QRectF currentContentRect() const;
     QRectF itemBounds() const;

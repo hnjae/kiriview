@@ -1,21 +1,28 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportstate_p.h"
 
 class ImageViewportPrivate;
+
+struct ViewportCommandResult
+{
+    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
+    ImageViewportInternal::ViewportChangeSet changes;
+};
 
 class ViewportController
 {
 public:
     explicit ViewportController(ImageViewportPrivate& viewport);
 
-    ImageViewport::CommandOutcome clear();
-    ImageViewport::CommandOutcome play();
-    ImageViewport::CommandOutcome pause();
-    ImageViewport::CommandOutcome stop();
-    ImageViewport::CommandOutcome seek(int frame);
-    ImageViewport::CommandOutcome seekToPosition(int milliseconds);
-    ImageViewport::CommandOutcome resetView();
+    ViewportCommandResult clear();
+    ViewportCommandResult play();
+    ViewportCommandResult pause();
+    ViewportCommandResult stop();
+    ViewportCommandResult seek(int frame);
+    ViewportCommandResult seekToPosition(int milliseconds);
+    ViewportCommandResult resetView();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
