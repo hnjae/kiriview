@@ -20,6 +20,8 @@ flowchart LR
 
 The item owns public properties, command outcomes, QML notifications, geometry conversion, and presentation state. It should not decode files, probe URLs, inspect archives, or expose scene graph resources through public API.
 
+Controller transitions report observable changes and external effects as typed outputs. The item applies those outputs by incrementing revisions, emitting QML notifications, scheduling render updates, and synchronizing Qt timers; the controller does not emit QML signals or call scene graph update entry points directly.
+
 ## Sequence Boundary
 
 `ImageSequence` is the immutable or provider-backed content handle accepted by the viewport. It carries enough construction-time data to open independent display generations without tying correctness to QObject parent ownership.
