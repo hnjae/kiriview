@@ -6,6 +6,34 @@
 
 class QObject;
 
+struct ViewportProviderEvent
+{
+    enum class Kind {
+        MetadataReady,
+        ImageFrameReady,
+        ImageFrameWithMetadataReady,
+        FrameHandleReady,
+        FrameHandleWithMetadataReady,
+        Waiting,
+        Progress,
+        EndOfSequence,
+        Failure,
+        Unsupported,
+        Cancellation
+    };
+
+    Kind kind = Kind::Waiting;
+    ImageSequenceProviderRequestToken token;
+    ImageSequenceProviderMetadata metadata;
+    ImageFrame* imageFrame = nullptr;
+    ImageSequenceProviderFrameHandle* frameHandle = nullptr;
+    ImageSequenceProviderFrameMetadata frameMetadata;
+    double progress = 0.0;
+    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
+        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
+    QString diagnostic;
+};
+
 class ViewportProviderBridgeClient
 {
 public:
@@ -21,30 +49,7 @@ public:
     virtual ImageSequenceProviderSession* currentProviderSession() const = 0;
     virtual bool acceptsProviderSessionResult(quint64 sessionSerial) const = 0;
     virtual ImageSequenceProviderThreadingContract providerThreadingContract() const = 0;
-
-    virtual void handleProviderMetadataReady(
-        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata) = 0;
-    virtual void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame)
-        = 0;
-    virtual void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata)
-        = 0;
-    virtual void handleProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame)
-        = 0;
-    virtual void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata)
-        = 0;
-    virtual void handleProviderWaiting(ImageSequenceProviderRequestToken token) = 0;
-    virtual void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress) = 0;
-    virtual void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token) = 0;
-    virtual void handleProviderFailure(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic) = 0;
-    virtual void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic)
-        = 0;
-    virtual void handleProviderCancellation(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic) = 0;
+    virtual void handleProviderEvent(const ViewportProviderEvent& event) = 0;
 };
 
 class ViewportProviderBridge

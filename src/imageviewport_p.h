@@ -149,24 +149,23 @@ public:
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     bool dispatchProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void publishProviderTokenExhaustion();
+    void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(ImageSequenceProviderRequestToken token,
-        const ImageSequenceProviderMetadata& metadata) override;
-    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame) override;
+        const ImageSequenceProviderMetadata& metadata);
+    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) override;
+        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
     void handleProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame) override;
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata) override;
-    void handleProviderWaiting(ImageSequenceProviderRequestToken token) override;
-    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress) override;
-    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token) override;
-    void handleProviderFailure(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic) override;
+        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
+    void handleProviderWaiting(ImageSequenceProviderRequestToken token);
+    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
+    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
+    void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) override;
-    void handleProviderCancellation(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic) override;
+        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
+    void handleProviderCancellation(ImageSequenceProviderRequestToken token, const QString& diagnostic);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const override;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;

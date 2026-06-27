@@ -139,6 +139,45 @@ bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) c
     return m_providerSession && m_providerSessionSerial == sessionSerial;
 }
 
+void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
+{
+    switch (event.kind) {
+    case ViewportProviderEvent::Kind::MetadataReady:
+        handleProviderMetadataReady(event.token, event.metadata);
+        break;
+    case ViewportProviderEvent::Kind::ImageFrameReady:
+        handleProviderFrameReady(event.token, event.imageFrame);
+        break;
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
+        handleProviderFrameReadyWithMetadata(event.token, event.imageFrame, event.frameMetadata);
+        break;
+    case ViewportProviderEvent::Kind::FrameHandleReady:
+        handleProviderFrameReady(event.token, event.frameHandle);
+        break;
+    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
+        handleProviderFrameReadyWithMetadata(event.token, event.frameHandle, event.frameMetadata);
+        break;
+    case ViewportProviderEvent::Kind::Waiting:
+        handleProviderWaiting(event.token);
+        break;
+    case ViewportProviderEvent::Kind::Progress:
+        handleProviderProgress(event.token, event.progress);
+        break;
+    case ViewportProviderEvent::Kind::EndOfSequence:
+        handleProviderEndOfSequence(event.token);
+        break;
+    case ViewportProviderEvent::Kind::Failure:
+        handleProviderFailure(event.token, event.diagnostic);
+        break;
+    case ViewportProviderEvent::Kind::Unsupported:
+        handleProviderUnsupported(event.token, event.unsupportedCause, event.diagnostic);
+        break;
+    case ViewportProviderEvent::Kind::Cancellation:
+        handleProviderCancellation(event.token, event.diagnostic);
+        break;
+    }
+}
+
 void ImageViewportPrivate::startProviderMetadataRequest()
 {
     const ViewportProviderMetadataRequestStartResult result
