@@ -181,145 +181,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
     return CommandOutcome::Accepted;
 }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommandImpl(
-    int milliseconds)
-{
-    if (!hasActiveRequest()) {
-        return ignoredNoRequest();
-    }
-
-    if (milliseconds < 0) {
-        setCommandDiagnostic(CommandReason::InvalidRequest);
-        return CommandOutcome::Invalid;
-    }
-    if (hasGenerationTerminalProviderFailure()) {
-        setCommandDiagnostic(CommandReason::UnsupportedRequest);
-        return CommandOutcome::Unsupported;
-    }
-
-    if (hasProviderSequence() && !m_providerMetadataReady
-        && m_requestStatus == RequestStatus::Loading) {
-        if (providerCapabilityKnownFalse(m_sequence->m_providerPositionSeekCapability)) {
-            setCommandDiagnostic(CommandReason::UnsupportedRequest);
-            return CommandOutcome::Unsupported;
-        }
-
-        clearCommandDiagnosticForAcceptedCommand();
-        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
-        m_providerPlaybackStartPending = false;
-        m_currentFrame = -1;
-        m_requestedPosition = milliseconds;
-        m_playbackPosition = milliseconds;
-        m_currentProviderTargetKind = ProviderRequestTargetKind::Position;
-        m_latestNonPlaybackFrame = m_currentFrame;
-        m_latestNonPlaybackPosition = m_requestedPosition;
-        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Position;
-        m_requestStatus = RequestStatus::Loading;
-        m_requestReason = RequestReason::ProviderWaiting;
-        discardPendingRenderCommit();
-        const bool diagnosticsValueChanged = clearDiagnostics();
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
-        return CommandOutcome::Accepted;
-    }
-
-    if (hasProviderSequence() && m_providerMetadataReady && m_providerTimedMetadata) {
-        if (!m_providerPositionSeekSupport) {
-            setCommandDiagnostic(CommandReason::UnsupportedRequest);
-            return CommandOutcome::Unsupported;
-        }
-        const int frame = providerFrameIndexForPosition(milliseconds);
-        if (frame < 0) {
-            setCommandDiagnostic(CommandReason::InvalidRequest);
-            return CommandOutcome::Invalid;
-        }
-
-        clearCommandDiagnosticForAcceptedCommand();
-        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
-        m_providerPlaybackStartPending = false;
-        m_currentFrame = frame;
-        m_requestedPosition = milliseconds;
-        m_playbackPosition = milliseconds;
-        m_currentProviderTargetKind = ProviderRequestTargetKind::Position;
-        m_latestNonPlaybackFrame = m_currentFrame;
-        m_latestNonPlaybackPosition = m_requestedPosition;
-        m_latestNonPlaybackProviderTargetKind = ProviderRequestTargetKind::Position;
-        m_requestStatus = RequestStatus::Loading;
-        m_requestReason = RequestReason::ProviderWaiting;
-        m_displayStatus
-            = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        discardPendingRenderCommit();
-        const bool diagnosticsValueChanged = clearDiagnostics();
-        if (m_activeProviderFrameToken.isValid()) {
-            queueProviderFrameRequest(frame, ProviderRequestTargetKind::Position);
-        } else if (!startProviderFrameRequest(frame, ProviderRequestTargetKind::Position)) {
-            incrementRequestRevision();
-            incrementDisplayRevision();
-            emit q->requestStateChanged();
-            emit q->displayStateChanged();
-            emit q->diagnosticsChanged();
-            update();
-            return CommandOutcome::Accepted;
-        }
-        if (m_playbackPhase == PlaybackPhase::Playing) {
-            setPlaybackPhase(PlaybackPhase::Waiting);
-        }
-        incrementRequestRevision();
-        incrementDisplayRevision();
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
-        update();
-        return CommandOutcome::Accepted;
-    }
-
-    if (hasTimedSequence()) {
-        const int frame = m_sequence->frameIndexForPosition(milliseconds);
-        if (frame < 0) {
-            setCommandDiagnostic(CommandReason::InvalidRequest);
-            return CommandOutcome::Invalid;
-        }
-
-        clearCommandDiagnosticForAcceptedCommand();
-        beginDisplayRequest(DisplayRequestOrigin::ExplicitSeek, true);
-        m_providerPlaybackStartPending = false;
-        m_currentFrame = frame;
-        m_requestedPosition = milliseconds;
-        m_playbackPosition = milliseconds;
-        m_latestNonPlaybackFrame = m_currentFrame;
-        m_latestNonPlaybackPosition = m_requestedPosition;
-        const QRectF oldContentRect = contentRect();
-        const QRectF oldVisibleImageRect = visibleImageRect();
-        const bool diagnosticsValueChanged = clearDiagnostics();
-        publishAcceptedTargetState();
-        if (m_playbackPhase == PlaybackPhase::Playing
-            && m_requestStatus == RequestStatus::Loading) {
-            setPlaybackPhase(PlaybackPhase::Waiting);
-        }
-        incrementRequestRevision();
-        incrementDisplayRevision();
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
-        if (rectsDifferExactly(contentRect(), oldContentRect)
-            || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-            emit q->geometryStateChanged();
-        }
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
-        update();
-        return CommandOutcome::Accepted;
-    }
-
-    setCommandDiagnostic(CommandReason::UnsupportedRequest);
-    return CommandOutcome::Unsupported;
-}
-
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     if (m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {
@@ -761,6 +622,11 @@ bool ImageViewportPrivate::providerFrameSeekCapabilityKnownTrue() const
     return m_sequence && providerCapabilityKnownTrue(m_sequence->m_providerFrameSeekCapability);
 }
 
+bool ImageViewportPrivate::providerPositionSeekCapabilityKnownFalse() const
+{
+    return m_sequence && providerCapabilityKnownFalse(m_sequence->m_providerPositionSeekCapability);
+}
+
 bool ImageViewportPrivate::providerKnownFactsTimedFrameCount() const
 {
     return m_sequence && m_sequence->m_providerKnownFacts.isTimedFrameCount();
@@ -774,6 +640,11 @@ int ImageViewportPrivate::providerKnownFactsFrameCount() const
 int ImageViewportPrivate::sequenceFrameCount() const
 {
     return m_sequence ? m_sequence->frameCount() : 0;
+}
+
+int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
+{
+    return m_sequence ? m_sequence->frameIndexForPosition(position) : -1;
 }
 
 int ImageViewportPrivate::sequenceFrameStartPosition(int frame) const

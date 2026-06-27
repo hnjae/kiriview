@@ -484,7 +484,168 @@ ViewportCommandResult ViewportController::seek(int frame)
 
 ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
 {
-    return { viewport.seekToPositionCommandImpl(milliseconds), {} };
+    if (!viewport.hasActiveRequest()) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+
+    if (milliseconds < 0) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Invalid;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        return result;
+    }
+    if (viewport.hasGenerationTerminalProviderFailure()) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Unsupported;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        return result;
+    }
+
+    if (viewport.hasProviderSequence() && !viewport.m_providerMetadataReady
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
+        if (viewport.providerPositionSeekCapabilityKnownFalse()) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewport.beginDisplayRequest(
+            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+        viewport.m_providerPlaybackStartPending = false;
+        viewport.m_currentFrame = -1;
+        viewport.m_requestedPosition = milliseconds;
+        viewport.m_playbackPosition = milliseconds;
+        viewport.m_currentProviderTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Position;
+        viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
+        viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+        viewport.m_latestNonPlaybackProviderTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Position;
+        viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+        viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+        viewport.discardPendingRenderCommit();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = diagnosticsValueChanged;
+        return result;
+    }
+
+    if (viewport.hasProviderSequence() && viewport.m_providerMetadataReady
+        && viewport.m_providerTimedMetadata) {
+        if (!viewport.m_providerPositionSeekSupport) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+        const int frame = viewport.providerFrameIndexForPosition(milliseconds);
+        if (frame < 0) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Invalid;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            return result;
+        }
+
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewport.beginDisplayRequest(
+            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+        viewport.m_providerPlaybackStartPending = false;
+        viewport.m_currentFrame = frame;
+        viewport.m_requestedPosition = milliseconds;
+        viewport.m_playbackPosition = milliseconds;
+        viewport.m_currentProviderTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Position;
+        viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
+        viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+        viewport.m_latestNonPlaybackProviderTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Position;
+        viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+        viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+        viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
+            ? ImageViewport::DisplayStatus::Retained
+            : ImageViewport::DisplayStatus::Empty;
+        viewport.discardPendingRenderCommit();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        if (viewport.m_activeProviderFrameToken.isValid()) {
+            viewport.queueProviderFrameRequest(
+                frame, ImageViewportInternal::ProviderRequestTargetKind::Position);
+        } else if (!viewport.startProviderFrameRequest(
+                       frame, ImageViewportInternal::ProviderRequestTargetKind::Position)) {
+            result.changes.requestRevision = true;
+            result.changes.displayRevision = true;
+            result.changes.requestState = true;
+            result.changes.displayState = true;
+            result.changes.diagnostics = true;
+            result.changes.scheduleUpdate = true;
+            return result;
+        }
+        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing) {
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        }
+        result.changes.requestRevision = true;
+        result.changes.displayRevision = true;
+        result.changes.requestState = true;
+        result.changes.displayState = true;
+        result.changes.diagnostics = diagnosticsValueChanged;
+        result.changes.scheduleUpdate = true;
+        return result;
+    }
+
+    if (viewport.hasTimedSequence()) {
+        const int frame = viewport.sequenceFrameIndexForPosition(milliseconds);
+        if (frame < 0) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Invalid;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            return result;
+        }
+
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewport.beginDisplayRequest(
+            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+        viewport.m_providerPlaybackStartPending = false;
+        viewport.m_currentFrame = frame;
+        viewport.m_requestedPosition = milliseconds;
+        viewport.m_playbackPosition = milliseconds;
+        viewport.m_latestNonPlaybackFrame = viewport.m_currentFrame;
+        viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
+        const QRectF oldContentRect = viewport.contentRect();
+        const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        viewport.publishAcceptedTargetState();
+        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
+            && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        }
+        result.changes.requestRevision = true;
+        result.changes.displayRevision = true;
+        result.changes.requestState = true;
+        result.changes.displayState = true;
+        result.changes.geometryState
+            = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+            || ImageViewportInternal::rectsDifferExactly(
+                viewport.visibleImageRect(), oldVisibleImageRect);
+        result.changes.diagnostics = diagnosticsValueChanged;
+        result.changes.scheduleUpdate = true;
+        return result;
+    }
+
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Unsupported;
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    return result;
 }
 
 ViewportCommandResult ViewportController::resetView()
