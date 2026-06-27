@@ -409,7 +409,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState(frame->imagePayload());
     if (m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready
-        && !m_renderCommitPending) {
+        && !m_pendingRenderPayload.commitPending) {
         setPlaybackPhase(
             m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
         m_stopPlaybackWhenRequestReady = false;

@@ -99,7 +99,7 @@ bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
-    return viewport.m_renderCommitPending
+    return viewport.m_pendingRenderPayload.commitPending
         && acknowledgement.generation == viewport.m_pendingRenderPayload.generation
         && acknowledgement.generation == viewport.request.sequenceGeneration
         && acknowledgement.requestId == viewport.m_pendingRenderPayload.requestId
@@ -306,7 +306,6 @@ ViewportCommandResult ViewportController::clear()
     viewport.request.latestNonPlaybackRequest.target.providerTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.clearDisplayedDisplay();
-    viewport.m_renderCommitPending = false;
     viewport.m_nextPreparedPayloadId = 0;
     viewport.clearPendingRenderIdentity();
     viewport.clearRenderFailureRetainedDisplay();
@@ -802,7 +801,8 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
         && (viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
             || viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting)
-        && viewport.m_renderCommitPending && !viewport.m_pendingRenderPayload.image.isNull()
+        && viewport.m_pendingRenderPayload.commitPending
+        && !viewport.m_pendingRenderPayload.image.isNull()
         && !viewport.itemBounds().isEmpty();
     synchronization.oldContentRect = viewport.contentRect();
     synchronization.oldVisibleImageRect = viewport.visibleImageRect();
@@ -828,7 +828,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready;
     if (renderMatchesPending) {
         viewport.commitDisplayedRequestSnapshot();
-        viewport.m_renderCommitPending = false;
         viewport.clearPendingRenderIdentity();
     }
     viewport.clearRenderFailureRetainedDisplay();
@@ -866,7 +865,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
 
     viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
     viewport.m_requestReason = ImageViewport::RequestReason::RenderFailure;
-    viewport.m_renderCommitPending = false;
     viewport.clearPendingRenderIdentity();
     if (viewport.m_renderFailureRetainedDisplayValid) {
         viewport.m_displayStatus = ImageViewport::DisplayStatus::Retained;

@@ -11,10 +11,11 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const QImage image = synchronization.pendingProviderCommit
         ? m_displayedImage
         : (hasReadyDisplay() ? m_displayedImage : QImage());
-    const quint64 renderGeneration = m_renderCommitPending ? m_pendingRenderPayload.generation : 0;
-    const quint64 renderRequestId = m_renderCommitPending ? m_pendingRenderPayload.requestId : 0;
+    const bool renderCommitPending = m_pendingRenderPayload.commitPending;
+    const quint64 renderGeneration = renderCommitPending ? m_pendingRenderPayload.generation : 0;
+    const quint64 renderRequestId = renderCommitPending ? m_pendingRenderPayload.requestId : 0;
     const quint64 renderPreparedPayloadId
-        = m_renderCommitPending ? m_pendingRenderPayload.payloadId : 0;
+        = renderCommitPending ? m_pendingRenderPayload.payloadId : 0;
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {
@@ -127,7 +128,6 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 
 void ImageViewportPrivate::discardPendingRenderCommit()
 {
-    m_renderCommitPending = false;
     clearPendingRenderIdentity();
     clearRenderFailureRetainedDisplay();
 }

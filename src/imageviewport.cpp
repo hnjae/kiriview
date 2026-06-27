@@ -119,7 +119,6 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_requestStatus = RequestStatus::NoRequest;
         m_requestReason = RequestReason::NoRequest;
         m_displayStatus = DisplayStatus::Empty;
-        m_renderCommitPending = false;
         clearPendingRenderIdentity();
         clearRenderFailureRetainedDisplay();
     }

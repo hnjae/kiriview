@@ -195,7 +195,7 @@ void ImageViewportPrivate::setNextProviderRequestTokenForTestImpl(quint64 token)
 
 bool ImageViewportPrivate::hasPendingRenderCommitForTestImpl() const
 {
-    return m_renderCommitPending;
+    return m_pendingRenderPayload.commitPending;
 }
 
 quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const
@@ -515,9 +515,9 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
             m_requestReason = RequestReason::UploadPending;
             m_displayStatus
                 = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-            m_renderCommitPending = false;
+            m_pendingRenderPayload.commitPending = false;
         }
-        m_renderCommitPending = true;
+        m_pendingRenderPayload.commitPending = true;
         return;
     }
     if (itemBounds().isEmpty()) {
@@ -538,7 +538,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
 {
     captureRenderFailureRetainedDisplay();
     publishReadyDisplayState();
-    m_renderCommitPending = true;
+    m_pendingRenderPayload.commitPending = true;
     beginPreparedPayloadIdentity();
     int displayedPosition = -1;
     const int currentFrame = request.activeRequest.target.frame;
@@ -570,5 +570,5 @@ void ImageViewportPrivate::publishRenderWaitingState()
     m_requestReason = RequestReason::RenderWaiting;
     m_displayStatus
         = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    m_renderCommitPending = false;
+    m_pendingRenderPayload.commitPending = false;
 }
