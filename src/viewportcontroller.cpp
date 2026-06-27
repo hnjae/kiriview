@@ -999,6 +999,43 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetSelection(
+    ViewportProviderMetadataTargetSelection selection)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.beginDisplayRequest(
+        ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
+        selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback);
+    viewport.request.activeRequest.target.frame = selection.selectedFrame;
+    if (!selection.selectedFromPosition) {
+        viewport.request.activeRequest.target.position
+            = selection.timedMetadata ? viewport.providerFrameStartPosition(selection.selectedFrame)
+                                      : -1;
+    }
+    viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
+    viewport.request.activeRequest.target.providerTargetKind = selection.targetKind;
+    if (selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback) {
+        viewport.request.latestNonPlaybackRequest.target.frame
+            = viewport.request.activeRequest.target.frame;
+        viewport.request.latestNonPlaybackRequest.target.position
+            = viewport.request.activeRequest.target.position;
+        viewport.request.latestNonPlaybackRequest.target.providerTargetKind = selection.targetKind;
+    }
+    viewport.publishProviderFrameLoadingState();
+
+    viewport.m_providerPlaybackStartPending = false;
+    if (!viewport.startProviderFrameRequest(selection.selectedFrame, selection.targetKind)) {
+        changes.requestRevision = true;
+        changes.requestState = true;
+        changes.diagnostics = true;
+        return changes;
+    }
+
+    changes.requestRevision = true;
+    changes.requestState = true;
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
 {
     ImageViewportInternal::ViewportChangeSet changes;

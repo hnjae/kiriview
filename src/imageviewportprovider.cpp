@@ -66,6 +66,16 @@ void applyProviderMetadataTargetRejection(
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderMetadataTargetSelection(
+    ImageViewportPrivate& viewport, ViewportProviderMetadataTargetSelection selection)
+{
+    const auto changes = viewport.controller.handleProviderMetadataTargetSelection(selection);
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -326,32 +336,9 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
 
-    beginDisplayRequest(
-        DisplayRequestOrigin::MetadataBoundSelection,
-        requestTargetKind != ProviderRequestTargetKind::Playback);
-    request.activeRequest.target.frame = selectedFrame;
-    if (!selectedFromPosition) {
-        request.activeRequest.target.position
-            = metadataAdmission.timedMetadata ? providerFrameStartPosition(selectedFrame) : -1;
-    }
-    request.playbackPosition = request.activeRequest.target.position;
-    request.activeRequest.target.providerTargetKind = requestTargetKind;
-    if (requestTargetKind != ProviderRequestTargetKind::Playback) {
-        request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
-        request.latestNonPlaybackRequest.target.position = request.activeRequest.target.position;
-        request.latestNonPlaybackRequest.target.providerTargetKind = requestTargetKind;
-    }
-    publishProviderFrameLoadingState();
-
-    m_providerPlaybackStartPending = false;
-    if (!startProviderFrameRequest(selectedFrame, requestTargetKind)) {
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
-        return;
-    }
-    incrementRequestRevision();
-    emit q->requestStateChanged();
+    applyProviderMetadataTargetSelection(
+        *this,
+        {requestTargetKind, selectedFrame, selectedFromPosition, metadataAdmission.timedMetadata});
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(

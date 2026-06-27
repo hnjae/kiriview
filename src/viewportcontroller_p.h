@@ -67,6 +67,15 @@ struct ViewportProviderMetadataTargetRejection
     bool clearPlaybackStartPending = false;
 };
 
+struct ViewportProviderMetadataTargetSelection
+{
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    int selectedFrame = -1;
+    bool selectedFromPosition = false;
+    bool timedMetadata = false;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
@@ -98,6 +107,8 @@ public:
         const ViewportProviderMetadataAdmissionRejection& rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
         ViewportProviderMetadataTargetRejection rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetSelection(
+        ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
