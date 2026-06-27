@@ -264,12 +264,13 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
                 QStringLiteral("provider frame resolved frame mismatch"));
         }
         if (metadata.frameStartPosition()
-            != providerFrameStartPosition(state.frameDurations, state.currentFrame)) {
+            != state.timingIntervals.frameStartPosition(state.currentFrame)) {
             return providerFrameError(Cause::FrameStartMismatch,
                 QStringLiteral("provider frame start position mismatch"));
         }
+        const int expectedFrameDuration = state.timingIntervals.frameDuration(state.currentFrame);
         if (metadata.frameDuration() != -1
-            && metadata.frameDuration() != state.frameDurations.at(state.currentFrame)) {
+            && metadata.frameDuration() != expectedFrameDuration) {
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
@@ -285,22 +286,6 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
     return {};
-}
-
-int FramePreparation::providerFrameStartPosition(const QVector<int>& frameDurations, int frame)
-{
-    return TimingIntervals::fromFrameDurations(frameDurations).frameStartPosition(frame);
-}
-
-int FramePreparation::providerFrameIndexForPosition(
-    const QVector<int>& frameDurations, int position)
-{
-    return TimingIntervals::fromFrameDurations(frameDurations).frameIndexForPosition(position);
-}
-
-int FramePreparation::totalDuration(const QVector<int>& frameDurations)
-{
-    return TimingIntervals::fromFrameDurations(frameDurations).totalDuration();
 }
 
 QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback)

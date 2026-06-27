@@ -341,7 +341,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
             m_providerMetadataReady,
             m_providerTimedMetadata,
             m_providerLogicalSize,
-            m_providerFrameDurations,
+            m_providerTimingIntervals,
             m_currentFrame,
         });
     if (!admission.accepted()) {

@@ -60,7 +60,7 @@ public:
         bool metadataReady = false;
         bool timedMetadata = false;
         QSizeF logicalSize;
-        QVector<int> frameDurations;
+        TimingIntervals timingIntervals;
         int currentFrame = -1;
     };
 
@@ -93,8 +93,5 @@ public:
         const ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
-    static int providerFrameStartPosition(const QVector<int>& frameDurations, int frame);
-    static int providerFrameIndexForPosition(const QVector<int>& frameDurations, int position);
-    static int totalDuration(const QVector<int>& frameDurations);
     static QString boundedDiagnostic(QString diagnostic, QString fallback);
 };

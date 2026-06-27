@@ -34,6 +34,7 @@ private slots:
     void providerMetadataAdmissionRejectsInvalidTiming();
     void providerKnownFactsAdmissionAcceptsTimedFacts();
     void providerKnownFactsAdmissionRejectsDurationLimits();
+    void providerFrameAdmissionUsesAcceptedTimingIntervals();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
@@ -370,6 +371,26 @@ void ImageSequenceFactoryTest::providerKnownFactsAdmissionRejectsDurationLimits(
     QCOMPARE(admission.outcome, ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(!admission.timingIntervals.isValid());
     QVERIFY(admission.diagnostic.contains(QStringLiteral("maximumFrameDuration")));
+}
+
+void ImageSequenceFactoryTest::providerFrameAdmissionUsesAcceptedTimingIntervals()
+{
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+
+    FramePreparation::ProviderFrameState state;
+    state.metadataReady = true;
+    state.timedMetadata = true;
+    state.logicalSize = QSizeF(16.0, 8.0);
+    state.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
+    state.currentFrame = 1;
+
+    const auto admission = FramePreparation::admitProviderFrame(
+        &frame, ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 250), state);
+
+    QVERIFY(admission.accepted());
+    QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
