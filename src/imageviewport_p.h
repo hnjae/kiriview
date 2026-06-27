@@ -71,7 +71,6 @@ public:
     quint64 displayedRequestIdForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
 #endif
-    CommandOutcome clearCommandImpl();
     CommandOutcome playCommandImpl();
     CommandOutcome stopCommandImpl();
     CommandOutcome seekCommandImpl(int frame);

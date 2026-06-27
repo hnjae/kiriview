@@ -7,7 +7,93 @@ ViewportController::ViewportController(ImageViewportPrivate& viewport)
 {
 }
 
-ImageViewport::CommandOutcome ViewportController::clear() { return viewport.clearCommandImpl(); }
+ImageViewport::CommandOutcome ViewportController::clear()
+{
+    const bool sequenceValueChanged = viewport.m_sequence != nullptr;
+    const bool requestChanged = viewport.hasActiveRequest() || viewport.m_sequence;
+    const bool displayChanged = viewport.m_displayStatus != ImageViewport::DisplayStatus::Empty
+        || viewport.m_displayedImageSize.isValid();
+    const bool playbackChanged
+        = viewport.m_playbackPhase != ImageViewport::PlaybackPhase::Stopped;
+    const bool diagnosticsValueChanged
+        = !viewport.m_errorString.isEmpty() || !viewport.m_warningString.isEmpty();
+    const QRectF oldContentRect = viewport.contentRect();
+    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+    viewport.closeProviderSession();
+    viewport.m_sequence = nullptr;
+    viewport.m_sequenceOwner.reset();
+    ++viewport.m_sequenceGeneration;
+    viewport.clearRequestIdentity();
+    viewport.m_currentFrame = -1;
+    viewport.m_requestedPosition = -1;
+    viewport.m_playbackPosition = -1;
+    viewport.m_latestNonPlaybackFrame = -1;
+    viewport.m_latestNonPlaybackPosition = -1;
+    viewport.m_currentProviderTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_latestNonPlaybackProviderTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_displayedFrame = -1;
+    viewport.m_displayedPosition = -1;
+    viewport.m_displayedGeneration = 0;
+    viewport.m_displayedRequestId = 0;
+    viewport.m_displayedPreparedPayloadId = 0;
+    viewport.m_displayedImageSize = {};
+    viewport.m_displayedImage = {};
+    viewport.m_pendingDisplayImage = {};
+    viewport.m_renderCommitPending = false;
+    viewport.m_nextPreparedPayloadId = 0;
+    viewport.clearPendingRenderIdentity();
+    viewport.clearRenderFailureRetainedDisplay();
+    viewport.m_requestStatus = ImageViewport::RequestStatus::NoRequest;
+    viewport.m_requestReason = ImageViewport::RequestReason::NoRequest;
+    viewport.m_displayStatus = ImageViewport::DisplayStatus::Empty;
+    viewport.m_playbackPhase = ImageViewport::PlaybackPhase::Stopped;
+    viewport.m_stopPlaybackWhenRequestReady = false;
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_providerMetadataReady = false;
+    viewport.m_providerTimedMetadata = false;
+    viewport.m_providerLogicalSize = {};
+    viewport.m_providerTimingIntervals = {};
+    viewport.m_activeProviderMetadataToken = {};
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_errorString.clear();
+    viewport.m_warningString.clear();
+    viewport.clearCommandDiagnosticForAcceptedCommand();
+    if (requestChanged) {
+        viewport.incrementRequestRevision();
+    }
+    if (displayChanged) {
+        viewport.incrementDisplayRevision();
+    }
+
+    if (sequenceValueChanged) {
+        emit viewport.q->sequenceChanged();
+    }
+    if (requestChanged) {
+        emit viewport.q->requestStateChanged();
+    }
+    if (displayChanged) {
+        emit viewport.q->displayStateChanged();
+    }
+    if (ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect)) {
+        emit viewport.q->geometryStateChanged();
+    }
+    if (playbackChanged) {
+        emit viewport.q->playbackPhaseChanged();
+    }
+    if (diagnosticsValueChanged) {
+        emit viewport.q->diagnosticsChanged();
+    }
+    viewport.update();
+    return ImageViewport::CommandOutcome::Accepted;
+}
 
 ImageViewport::CommandOutcome ViewportController::play() { return viewport.playCommandImpl(); }
 
