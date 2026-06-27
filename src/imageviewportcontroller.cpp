@@ -77,6 +77,27 @@ void publishPlaybackRequestChange(ImageViewportPrivate& viewport, int previousFr
     emit viewport.q->requestStateChanged();
     emit viewport.q->displayStateChanged();
 }
+
+ImageViewport::PlaybackPhase playbackAdvancePhaseForRequest(
+    ImageViewport::RequestStatus requestStatus, bool reachedEnd)
+{
+    if (reachedEnd && requestStatus != ImageViewport::RequestStatus::Loading) {
+        return ImageViewport::PlaybackPhase::Stopped;
+    }
+    return requestStatus == ImageViewport::RequestStatus::Loading
+        ? ImageViewport::PlaybackPhase::Waiting
+        : ImageViewport::PlaybackPhase::Playing;
+}
+
+void applyPlaybackAdvancePhase(ImageViewportPrivate& viewport, const PlaybackAdvanceTarget& target)
+{
+    if (target.reachedEnd) {
+        viewport.m_stopPlaybackWhenRequestReady
+            = viewport.m_requestStatus == ImageViewport::RequestStatus::Loading;
+    }
+    viewport.setPlaybackPhase(
+        playbackAdvancePhaseForRequest(viewport.m_requestStatus, target.reachedEnd));
+}
 }
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
@@ -95,15 +116,13 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         if (!target.valid) {
             return;
         }
-        if (target.reachedEnd) {
-            m_stopPlaybackWhenRequestReady = true;
-        }
-
         m_playbackPosition = target.playbackPosition;
         if (target.displayTarget.frame == previousFrame && m_requestStatus == RequestStatus::Ready) {
             if (m_stopPlaybackWhenRequestReady) {
                 setPlaybackPhase(PlaybackPhase::Stopped);
                 m_stopPlaybackWhenRequestReady = false;
+            } else {
+                applyPlaybackAdvancePhase(*this, target);
             }
             return;
         }
@@ -119,7 +138,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             update();
             return;
         }
-        setPlaybackPhase(PlaybackPhase::Waiting);
+        applyPlaybackAdvancePhase(*this, target);
         publishPlaybackRequestChange(*this, previousFrame);
         if (diagnosticsValueChanged) {
             emit q->diagnosticsChanged();
@@ -151,14 +170,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState();
-    if (target.reachedEnd) {
-        m_stopPlaybackWhenRequestReady = m_requestStatus == RequestStatus::Loading;
-        setPlaybackPhase(
-            m_stopPlaybackWhenRequestReady ? PlaybackPhase::Waiting : PlaybackPhase::Stopped);
-    } else {
-        setPlaybackPhase(m_requestStatus == RequestStatus::Loading ? PlaybackPhase::Waiting
-                                                                   : PlaybackPhase::Playing);
-    }
+    applyPlaybackAdvancePhase(*this, target);
     publishPlaybackRequestChange(*this, previousFrame);
     if (rectsDifferExactly(contentRect(), oldContentRect)
         || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
