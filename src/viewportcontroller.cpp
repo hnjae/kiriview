@@ -1220,6 +1220,39 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
     return result;
 }
 
+ViewportProviderFrameQueueFlush ViewportController::flushQueuedProviderFrameRequest()
+{
+    ViewportProviderFrameQueueFlush flush;
+    if (!viewport.m_queuedProviderFrameRequest || !viewport.hasProviderSequence()
+        || !viewport.m_providerSession) {
+        viewport.clearQueuedProviderFrameRequest();
+        return flush;
+    }
+
+    const int queuedFrame = viewport.m_queuedProviderFrame;
+    const int queuedPosition = viewport.m_queuedProviderPosition;
+    const quint64 queuedRequestId = viewport.m_queuedProviderFrameRequestId;
+    const ImageViewportInternal::ProviderRequestTargetKind queuedTargetKind
+        = viewport.m_queuedProviderFrameTargetKind;
+    const bool stillCurrent
+        = viewport.m_queuedProviderFrameGeneration == viewport.request.sequenceGeneration
+        && queuedRequestId == viewport.request.activeRequest.identity.id
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        && viewport.m_requestReason == ImageViewport::RequestReason::RequestQueued
+        && viewport.request.activeRequest.target.frame == queuedFrame
+        && viewport.request.activeRequest.target.position == queuedPosition
+        && viewport.request.activeRequest.target.providerTargetKind == queuedTargetKind;
+    viewport.clearQueuedProviderFrameRequest();
+    if (!stillCurrent) {
+        return flush;
+    }
+
+    flush.startRequest = true;
+    flush.frame = queuedFrame;
+    flush.targetKind = queuedTargetKind;
+    return flush;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

@@ -165,28 +165,12 @@ void ImageViewportPrivate::queueProviderFrameRequest(
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 {
-    if (!m_queuedProviderFrameRequest || !hasProviderSequence() || !m_providerSession) {
-        clearQueuedProviderFrameRequest();
+    const ViewportProviderFrameQueueFlush flush = controller.flushQueuedProviderFrameRequest();
+    if (!flush.startRequest) {
         return;
     }
 
-    const int queuedFrame = m_queuedProviderFrame;
-    const int queuedPosition = m_queuedProviderPosition;
-    const quint64 queuedRequestId = m_queuedProviderFrameRequestId;
-    const ProviderRequestTargetKind queuedTargetKind = m_queuedProviderFrameTargetKind;
-    const bool stillCurrent = m_queuedProviderFrameGeneration == request.sequenceGeneration
-        && queuedRequestId == request.activeRequest.identity.id
-        && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::RequestQueued
-        && request.activeRequest.target.frame == queuedFrame
-        && request.activeRequest.target.position == queuedPosition
-        && request.activeRequest.target.providerTargetKind == queuedTargetKind;
-    clearQueuedProviderFrameRequest();
-    if (!stillCurrent) {
-        return;
-    }
-
-    startProviderFrameRequest(queuedFrame, queuedTargetKind);
+    startProviderFrameRequest(flush.frame, flush.targetKind);
     incrementRequestRevision();
     emit q->requestStateChanged();
     if (m_requestStatus == RequestStatus::Error
