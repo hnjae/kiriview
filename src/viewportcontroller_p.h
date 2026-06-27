@@ -93,6 +93,12 @@ struct ViewportProviderEndOfSequenceProtocolViolation
     bool activeFrameToken = false;
 };
 
+struct ViewportProviderSessionClose
+{
+    ImageSequenceProviderRequestToken metadataToken;
+    ImageSequenceProviderRequestToken frameToken;
+};
+
 class ViewportController
 {
 public:
@@ -126,6 +132,7 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
+    ViewportProviderSessionClose handleProviderSessionClose();
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

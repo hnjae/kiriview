@@ -67,24 +67,16 @@ ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate& viewport)
 {
 }
 
-void ViewportProviderBridge::closeSession()
+void ViewportProviderBridge::closeSession(ImageSequenceProviderRequestToken metadataToken,
+    ImageSequenceProviderRequestToken frameToken)
 {
     if (!viewport.m_providerSession) {
         return;
     }
 
     ImageSequenceProviderSession* session = viewport.m_providerSession;
-    const ImageSequenceProviderRequestToken metadataToken = viewport.m_activeProviderMetadataToken;
-    const ImageSequenceProviderRequestToken frameToken = viewport.m_activeProviderFrameToken;
-    viewport.m_activeProviderMetadataToken = {};
-    viewport.m_activeProviderFrameToken = {};
-    viewport.m_activeProviderFrameRequestId = 0;
-    viewport.m_activeProviderFrameFromPlayback = false;
-    viewport.m_activeProviderFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.m_providerSession.clear();
     queueSessionCleanup(session, metadataToken, frameToken);
-    viewport.m_nextProviderRequestToken = 0;
 }
 
 bool ViewportProviderBridge::openSession()
@@ -244,7 +236,7 @@ bool ViewportProviderBridge::openSession()
 ImageSequenceProviderRequestToken ViewportProviderBridge::nextRequestToken()
 {
     if (viewport.m_nextProviderRequestToken == std::numeric_limits<quint64>::max()) {
-        closeSession();
+        viewport.closeProviderSession();
         return {};
     }
     ++viewport.m_nextProviderRequestToken;

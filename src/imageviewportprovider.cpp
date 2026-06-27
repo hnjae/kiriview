@@ -86,8 +86,8 @@ void applyProviderAcceptedMetadataFacts(
 
 void ImageViewportPrivate::closeProviderSession()
 {
-    clearQueuedProviderFrameRequest();
-    providerBridge.closeSession();
+    const ViewportProviderSessionClose sessionClose = controller.handleProviderSessionClose();
+    providerBridge.closeSession(sessionClose.metadataToken, sessionClose.frameToken);
 }
 
 bool ImageViewportPrivate::openProviderSession() { return providerBridge.openSession(); }

@@ -1152,6 +1152,26 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderPlayb
     return changes;
 }
 
+ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
+{
+    ViewportProviderSessionClose sessionClose;
+    viewport.clearQueuedProviderFrameRequest();
+    if (!viewport.m_providerSession) {
+        return sessionClose;
+    }
+
+    sessionClose.metadataToken = viewport.m_activeProviderMetadataToken;
+    sessionClose.frameToken = viewport.m_activeProviderFrameToken;
+    viewport.m_activeProviderMetadataToken = {};
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_nextProviderRequestToken = 0;
+    return sessionClose;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

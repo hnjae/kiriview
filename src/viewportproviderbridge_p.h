@@ -9,7 +9,8 @@ class ViewportProviderBridge
 public:
     explicit ViewportProviderBridge(ImageViewportPrivate& viewport);
 
-    void closeSession();
+    void closeSession(ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken);
     bool openSession();
     ImageSequenceProviderRequestToken nextRequestToken();
     void requestMetadata(ImageSequenceProviderRequestToken token);
