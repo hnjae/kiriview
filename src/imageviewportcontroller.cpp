@@ -235,19 +235,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::playCommandImpl()
     return CommandOutcome::Unsupported;
 }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::pauseCommandImpl()
-{
-    if (!hasActiveRequest()) {
-        return ignoredNoRequest();
-    }
-
-    clearCommandDiagnosticForAcceptedCommand();
-    if (m_playbackPhase == PlaybackPhase::Playing || m_playbackPhase == PlaybackPhase::Waiting) {
-        setPlaybackPhase(PlaybackPhase::Paused);
-    }
-    return CommandOutcome::Accepted;
-}
-
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
 {
     if (!hasActiveRequest()) {

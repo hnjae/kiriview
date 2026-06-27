@@ -73,7 +73,6 @@ public:
 #endif
     CommandOutcome clearCommandImpl();
     CommandOutcome playCommandImpl();
-    CommandOutcome pauseCommandImpl();
     CommandOutcome stopCommandImpl();
     CommandOutcome seekCommandImpl(int frame);
     CommandOutcome seekToPositionCommandImpl(int milliseconds);

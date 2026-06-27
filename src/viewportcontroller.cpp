@@ -11,7 +11,19 @@ ImageViewport::CommandOutcome ViewportController::clear() { return viewport.clea
 
 ImageViewport::CommandOutcome ViewportController::play() { return viewport.playCommandImpl(); }
 
-ImageViewport::CommandOutcome ViewportController::pause() { return viewport.pauseCommandImpl(); }
+ImageViewport::CommandOutcome ViewportController::pause()
+{
+    if (!viewport.hasActiveRequest()) {
+        return viewport.ignoredNoRequest();
+    }
+
+    viewport.clearCommandDiagnosticForAcceptedCommand();
+    if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
+        || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting) {
+        viewport.setPlaybackPhase(ImageViewport::PlaybackPhase::Paused);
+    }
+    return ImageViewport::CommandOutcome::Accepted;
+}
 
 ImageViewport::CommandOutcome ViewportController::stop() { return viewport.stopCommandImpl(); }
 
