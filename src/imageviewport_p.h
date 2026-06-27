@@ -10,7 +10,7 @@
 #include <QtCore/QTimer>
 #include <QtQuick/QSGNode>
 
-class ImageViewportPrivate
+class ImageViewportPrivate : public ViewportProviderBridgeClient
 {
 public:
     using BackgroundMode = ImageViewport::BackgroundMode;
@@ -131,10 +131,11 @@ public:
 
     void closeProviderSession();
     bool openProviderSession();
-    quint64 installProviderSession(ImageSequenceProviderSession* session);
-    ImageSequenceProviderSession* takeProviderSession();
-    ImageSequenceProviderSession* currentProviderSession() const;
-    bool acceptsProviderSessionResult(quint64 sessionSerial) const;
+    QObject* providerCallbackTarget() const override;
+    quint64 installProviderSession(ImageSequenceProviderSession* session) override;
+    ImageSequenceProviderSession* takeProviderSession() override;
+    ImageSequenceProviderSession* currentProviderSession() const override;
+    bool acceptsProviderSessionResult(quint64 sessionSerial) const override;
     void startProviderMetadataRequest();
     void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
@@ -148,28 +149,29 @@ public:
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     bool dispatchProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void publishProviderTokenExhaustion();
-    void handleProviderMetadataReady(
-        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
-    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
+    void handleProviderMetadataReady(ImageSequenceProviderRequestToken token,
+        const ImageSequenceProviderMetadata& metadata) override;
+    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame) override;
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
+        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata) override;
     void handleProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame) override;
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
-    void handleProviderWaiting(ImageSequenceProviderRequestToken token);
-    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
-    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
-    void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
+        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata) override;
+    void handleProviderWaiting(ImageSequenceProviderRequestToken token) override;
+    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress) override;
+    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token) override;
+    void handleProviderFailure(
+        ImageSequenceProviderRequestToken token, const QString& diagnostic) override;
     void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
+        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) override;
     void handleProviderCancellation(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const;
+        ImageSequenceProviderRequestToken token, const QString& diagnostic) override;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const override;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
-    ImageSequenceProviderThreadingContract providerThreadingContract() const;
+    ImageSequenceProviderThreadingContract providerThreadingContract() const override;
     void publishAcceptedTargetState(const QImage& providerImage = {});
     void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishReadyDisplayState();

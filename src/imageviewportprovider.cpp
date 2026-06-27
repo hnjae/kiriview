@@ -106,6 +106,11 @@ bool ImageViewportPrivate::openProviderSession()
     return true;
 }
 
+QObject* ImageViewportPrivate::providerCallbackTarget() const
+{
+    return q;
+}
+
 quint64 ImageViewportPrivate::installProviderSession(ImageSequenceProviderSession* session)
 {
     m_providerSession = session;
