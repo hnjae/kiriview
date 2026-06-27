@@ -867,7 +867,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    viewport.publishAcceptedTargetState(admission.uploadReadyPayload);
+    viewport.publishAcceptedTargetState(admission.preparedPayload.image);
     if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready
         && !viewport.m_pendingRenderPayload.commitPending) {

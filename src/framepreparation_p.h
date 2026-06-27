@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include "imageviewportstate_p.h"
 #include "timingintervals_p.h"
 
 class FramePreparation
@@ -83,7 +83,7 @@ public:
         ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
         ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
         QString diagnostic;
-        QImage uploadReadyPayload;
+        ImageViewportInternal::PreparedPayload preparedPayload;
 
         bool accepted() const;
     };

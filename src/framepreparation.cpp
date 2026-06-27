@@ -279,7 +279,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             ImageViewport::RequestStatus::Ready,
             ImageViewport::RequestReason::Ready,
             {},
-            frame->imagePayload(),
+            { false, 0, 0, 0, frame->imagePayload() },
         };
     }
 
@@ -296,7 +296,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         ImageViewport::RequestStatus::Ready,
         ImageViewport::RequestReason::Ready,
         {},
-        frame->imagePayload(),
+        { false, 0, 0, 0, frame->imagePayload() },
     };
 }
 

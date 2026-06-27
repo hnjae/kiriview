@@ -391,9 +391,9 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesAcceptedTimingIntervals
 
     QVERIFY(admission.accepted());
     QCOMPARE(admission.cause, FramePreparation::ProviderFrameAdmissionResult::Cause::Accepted);
-    QCOMPARE(admission.uploadReadyPayload.size(), image.size());
-    QCOMPARE(admission.uploadReadyPayload.format(), image.format());
-    QCOMPARE(admission.uploadReadyPayload.pixelColor(0, 0), image.pixelColor(0, 0));
+    QCOMPARE(admission.preparedPayload.image.size(), image.size());
+    QCOMPARE(admission.preparedPayload.image.format(), image.format());
+    QCOMPARE(admission.preparedPayload.image.pixelColor(0, 0), image.pixelColor(0, 0));
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
