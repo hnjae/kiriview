@@ -397,9 +397,11 @@ public:
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken& token,
         const ImageSequenceProviderMetadata& metadata);
+    // Compatibility borrowed-frame results. The provider retains ownership until delivery returns.
     void imageFrameReady(const ImageSequenceProviderRequestToken& token, ImageFrame* frame);
     void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken& token,
         ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata);
+    // Transfer results. The viewport releases the handle exactly once after accepting or dropping it.
     void frameHandleReady(
         const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame);
     void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken& token,

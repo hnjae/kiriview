@@ -465,7 +465,7 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
         && session.lastFrame() == 3;
 }
 
-bool canUseInstalledProviderRawFrameSignalSurface()
+bool canUseInstalledProviderBorrowedRawFrameSignalSurface()
 {
     ConsumerSession session;
     const ImageSequenceProviderRequestToken token(11);
@@ -690,7 +690,7 @@ int main(int argc, char** argv)
             && installedQmlOpaqueTypesAreNotCreatable() && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
             && canUseInstalledProviderPlaybackFallbackSurface()
-            && canUseInstalledProviderRawFrameSignalSurface()
+            && canUseInstalledProviderBorrowedRawFrameSignalSurface()
         ? 0
         : 1;
 }
