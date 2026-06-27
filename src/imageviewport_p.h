@@ -72,7 +72,6 @@ public:
     quint64 pendingRenderPayloadIdForTest() const;
 #endif
     CommandOutcome stopCommandImpl();
-    CommandOutcome seekCommandImpl(int frame);
     CommandOutcome seekToPositionCommandImpl(int milliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
@@ -198,6 +197,11 @@ public:
     bool hasProviderSequence() const;
     bool hasGenerationTerminalProviderFailure() const;
     bool providerTimedPlaybackCapabilityKnownFalse() const;
+    bool providerFrameSeekCapabilityKnownFalse() const;
+    bool providerFrameSeekCapabilityKnownTrue() const;
+    bool providerKnownFactsTimedFrameCount() const;
+    int providerKnownFactsFrameCount() const;
+    int sequenceFrameCount() const;
     int sequenceFrameStartPosition(int frame) const;
 
     double width() const;
