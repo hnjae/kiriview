@@ -975,6 +975,30 @@ ViewportController::handleProviderMetadataAdmissionRejection(
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetRejection(
+    ViewportProviderMetadataTargetRejection rejection)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (rejection.updateActiveTarget) {
+        viewport.request.activeRequest.target.frame = rejection.selectedFrame;
+        if (!rejection.selectedFromPosition) {
+            viewport.request.activeRequest.target.position = -1;
+        }
+        viewport.request.playbackPosition = -1;
+    }
+    viewport.m_requestStatus = rejection.status;
+    viewport.m_requestReason = rejection.reason;
+    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+    if (rejection.clearPlaybackStartPending) {
+        viewport.m_providerPlaybackStartPending = false;
+    }
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = diagnosticsValueChanged;
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
 {
     ImageViewportInternal::ViewportChangeSet changes;

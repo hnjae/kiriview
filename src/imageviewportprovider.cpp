@@ -56,6 +56,16 @@ void applyProviderMetadataAdmissionRejection(
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderMetadataTargetRejection(
+    ImageViewportPrivate& viewport, ViewportProviderMetadataTargetRejection rejection)
+{
+    const auto changes = viewport.controller.handleProviderMetadataTargetRejection(rejection);
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -292,48 +302,27 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         = metadataAdmission.timedMetadata ? m_providerTimingIntervals.frameCount() : 1;
     if (selectedFromPlaybackStart
         && (!metadataAdmission.timedMetadata || !m_providerTimedPlaybackSupport)) {
-        m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason = RequestReason::UnsupportedRequest;
-        const bool diagnosticsValueChanged = clearDiagnostics();
-        m_providerPlaybackStartPending = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
+        applyProviderMetadataTargetRejection(
+            *this,
+            {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false, false,
+                true});
         return;
     }
     if (selectedFromPosition) {
         if (!metadataAdmission.timedMetadata || !m_providerPositionSeekSupport) {
-            m_requestStatus = RequestStatus::Unsupported;
-            m_requestReason = RequestReason::UnsupportedRequest;
-            const bool diagnosticsValueChanged = clearDiagnostics();
-            setPlaybackPhase(PlaybackPhase::Stopped);
-            incrementRequestRevision();
-            emit q->requestStateChanged();
-            if (diagnosticsValueChanged) {
-                emit q->diagnosticsChanged();
-            }
+            applyProviderMetadataTargetRejection(
+                *this,
+                {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false,
+                    false, false});
             return;
         }
         selectedFrame = providerFrameIndexForPosition(request.activeRequest.target.position);
     }
     if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
-        request.activeRequest.target.frame = selectedFrame;
-        if (!selectedFromPosition) {
-            request.activeRequest.target.position = -1;
-        }
-        request.playbackPosition = -1;
-        m_requestStatus = RequestStatus::Unsupported;
-        m_requestReason = RequestReason::InvalidRequest;
-        const bool diagnosticsValueChanged = clearDiagnostics();
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        if (diagnosticsValueChanged) {
-            emit q->diagnosticsChanged();
-        }
+        applyProviderMetadataTargetRejection(
+            *this,
+            {RequestStatus::Unsupported, RequestReason::InvalidRequest, selectedFrame, true,
+                selectedFromPosition, false});
         return;
     }
 

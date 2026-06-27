@@ -57,6 +57,16 @@ struct ViewportProviderMetadataAdmissionRejection
     QString diagnostic;
 };
 
+struct ViewportProviderMetadataTargetRejection
+{
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Unsupported;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::UnsupportedRequest;
+    int selectedFrame = -1;
+    bool updateActiveTarget = false;
+    bool selectedFromPosition = false;
+    bool clearPlaybackStartPending = false;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
@@ -86,6 +96,8 @@ public:
         const ViewportProviderMetadataContradiction& contradiction);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
         const ViewportProviderMetadataAdmissionRejection& rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
+        ViewportProviderMetadataTargetRejection rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
