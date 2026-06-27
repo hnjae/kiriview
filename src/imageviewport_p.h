@@ -71,7 +71,6 @@ public:
     quint64 displayedRequestIdForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
 #endif
-    CommandOutcome playCommandImpl();
     CommandOutcome stopCommandImpl();
     CommandOutcome seekCommandImpl(int frame);
     CommandOutcome seekToPositionCommandImpl(int milliseconds);
@@ -198,6 +197,8 @@ public:
     bool hasTimedSequence() const;
     bool hasProviderSequence() const;
     bool hasGenerationTerminalProviderFailure() const;
+    bool providerTimedPlaybackCapabilityKnownFalse() const;
+    int sequenceFrameStartPosition(int frame) const;
 
     double width() const;
     double height() const;

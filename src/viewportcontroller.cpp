@@ -19,6 +19,26 @@ void clearCommandDiagnosticForAcceptedCommand(
 
     setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::NoCommand);
 }
+
+bool shouldPreservePlaybackPositionOnPlay(
+    ImageViewport::PlaybackPhase phase, bool stopWhenRequestReady)
+{
+    return !stopWhenRequestReady
+        && (phase == ImageViewport::PlaybackPhase::Playing
+            || phase == ImageViewport::PlaybackPhase::Paused
+            || phase == ImageViewport::PlaybackPhase::Waiting);
+}
+
+void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& result,
+    ImageViewport::PlaybackPhase phase)
+{
+    if (viewport.m_playbackPhase == phase) {
+        return;
+    }
+
+    viewport.m_playbackPhase = phase;
+    result.changes.playbackPhase = true;
+}
 }
 
 ViewportController::ViewportController(ImageViewportPrivate& viewport)
@@ -100,7 +120,165 @@ ViewportCommandResult ViewportController::clear()
     return result;
 }
 
-ViewportCommandResult ViewportController::play() { return { viewport.playCommandImpl(), {} }; }
+ViewportCommandResult ViewportController::play()
+{
+    if (!viewport.hasActiveRequest()) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+    if (viewport.hasGenerationTerminalProviderFailure()) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Unsupported;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        return result;
+    }
+
+    if (viewport.hasProviderSequence() && viewport.m_providerMetadataReady
+        && viewport.m_providerTimedMetadata && viewport.m_providerTimedPlaybackSupport) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        const bool preservePlaybackPosition
+            = shouldPreservePlaybackPositionOnPlay(
+                  viewport.m_playbackPhase, viewport.m_stopPlaybackWhenRequestReady)
+            && viewport.m_playbackPosition >= 0;
+        viewport.m_stopPlaybackWhenRequestReady = false;
+        if (viewport.m_requestStatus == ImageViewport::RequestStatus::Unsupported
+            || viewport.m_requestStatus == ImageViewport::RequestStatus::Error) {
+            int selectedFrame = viewport.m_currentFrame;
+            if (selectedFrame < 0
+                || selectedFrame >= viewport.m_providerTimingIntervals.frameCount()) {
+                selectedFrame = 0;
+            }
+            const int selectedPosition = viewport.providerFrameStartPosition(selectedFrame);
+            clearCommandDiagnosticForAcceptedCommand(viewport, result);
+            const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+            viewport.m_providerPlaybackStartPending = false;
+            viewport.m_currentFrame = selectedFrame;
+            viewport.m_requestedPosition = selectedPosition;
+            viewport.m_playbackPosition = selectedPosition;
+            viewport.m_currentProviderTargetKind
+                = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+            viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+            viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+            viewport.m_displayStatus = viewport.m_displayedImageSize.isValid()
+                ? ImageViewport::DisplayStatus::Retained
+                : ImageViewport::DisplayStatus::Empty;
+            viewport.discardPendingRenderCommit();
+            if (viewport.m_activeProviderFrameToken.isValid()) {
+                viewport.queueProviderFrameRequest(
+                    selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback);
+            } else if (!viewport.startProviderFrameRequest(
+                           selectedFrame,
+                           ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
+                result.changes.requestRevision = true;
+                result.changes.requestState = true;
+                result.changes.diagnostics = true;
+                return result;
+            }
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+            result.changes.requestRevision = true;
+            result.changes.requestState = true;
+            result.changes.diagnostics = diagnosticsValueChanged;
+            return result;
+        }
+
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        if (!preservePlaybackPosition) {
+            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
+                ? viewport.m_requestedPosition
+                : viewport.providerFrameStartPosition(viewport.m_currentFrame);
+        }
+        setPlaybackPhase(viewport, result,
+            viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+                ? ImageViewport::PlaybackPhase::Waiting
+                : ImageViewport::PlaybackPhase::Playing);
+        return result;
+    }
+
+    if (viewport.hasProviderSequence() && !viewport.m_providerMetadataReady
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
+        if (viewport.providerTimedPlaybackCapabilityKnownFalse()) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(
+                viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewport.m_stopPlaybackWhenRequestReady = false;
+        viewport.m_providerPlaybackStartPending = true;
+        viewport.m_currentFrame = -1;
+        viewport.m_requestedPosition = -1;
+        viewport.m_playbackPosition = -1;
+        viewport.m_currentProviderTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        return result;
+    }
+
+    if (viewport.hasTimedSequence()) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        const bool preservePlaybackPosition
+            = shouldPreservePlaybackPositionOnPlay(
+                  viewport.m_playbackPhase, viewport.m_stopPlaybackWhenRequestReady)
+            && viewport.m_playbackPosition >= 0;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewport.m_stopPlaybackWhenRequestReady = false;
+        if (viewport.m_requestStatus == ImageViewport::RequestStatus::Unsupported
+            || viewport.m_requestStatus == ImageViewport::RequestStatus::Error) {
+            const QRectF oldContentRect = viewport.contentRect();
+            const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+            const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
+            const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+            viewport.publishAcceptedTargetState();
+            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
+                ? viewport.m_requestedPosition
+                : viewport.sequenceFrameStartPosition(viewport.m_currentFrame);
+            setPlaybackPhase(viewport, result,
+                viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+                    ? ImageViewport::PlaybackPhase::Waiting
+                    : ImageViewport::PlaybackPhase::Playing);
+            result.changes.requestRevision = true;
+            const bool displayValueChanged
+                = viewport.m_displayStatus != oldDisplayStatus
+                || viewport.m_displayStatus == ImageViewport::DisplayStatus::Ready;
+            result.changes.displayRevision = displayValueChanged;
+            result.changes.requestState = true;
+            result.changes.displayState = displayValueChanged;
+            result.changes.geometryState
+                = ImageViewportInternal::rectsDifferExactly(
+                      viewport.contentRect(), oldContentRect)
+                || ImageViewportInternal::rectsDifferExactly(
+                    viewport.visibleImageRect(), oldVisibleImageRect);
+            result.changes.diagnostics = diagnosticsValueChanged;
+            result.changes.scheduleUpdate = true;
+            return result;
+        }
+        if (!preservePlaybackPosition) {
+            viewport.m_playbackPosition = viewport.m_requestedPosition >= 0
+                ? viewport.m_requestedPosition
+                : viewport.sequenceFrameStartPosition(viewport.m_currentFrame);
+        }
+        setPlaybackPhase(viewport, result,
+            viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+                ? ImageViewport::PlaybackPhase::Waiting
+                : ImageViewport::PlaybackPhase::Playing);
+        return result;
+    }
+
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Unsupported;
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    return result;
+}
 
 ViewportCommandResult ViewportController::pause()
 {
