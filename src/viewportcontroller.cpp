@@ -160,6 +160,13 @@ void seedPlaybackPosition(ImageViewportPrivate& viewport, FrameStartFor frameSta
     viewport.m_playbackPosition = playbackStartPosition(viewport, frameStartFor);
 }
 
+ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ImageViewportPrivate& viewport)
+{
+    return viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        ? ImageViewport::PlaybackPhase::Waiting
+        : ImageViewport::PlaybackPhase::Playing;
+}
+
 ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport, int frame,
     int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
 {
@@ -365,10 +372,7 @@ ViewportCommandResult ViewportController::play()
             seedPlaybackPosition(viewport,
                 [this](int frame) { return viewport.providerFrameStartPosition(frame); });
         }
-        setPlaybackPhase(viewport, result,
-            viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
-                ? ImageViewport::PlaybackPhase::Waiting
-                : ImageViewport::PlaybackPhase::Playing);
+        setPlaybackPhase(viewport, result, playbackPhaseForCurrentRequest(viewport));
         return result;
     }
 
@@ -411,10 +415,7 @@ ViewportCommandResult ViewportController::play()
             viewport.publishAcceptedTargetState();
             seedPlaybackPosition(viewport,
                 [this](int frame) { return viewport.sequenceFrameStartPosition(frame); });
-            setPlaybackPhase(viewport, result,
-                viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
-                    ? ImageViewport::PlaybackPhase::Waiting
-                    : ImageViewport::PlaybackPhase::Playing);
+            setPlaybackPhase(viewport, result, playbackPhaseForCurrentRequest(viewport));
             result.changes.requestRevision = true;
             const bool displayValueChanged
                 = viewport.m_displayStatus != oldDisplayStatus
@@ -435,10 +436,7 @@ ViewportCommandResult ViewportController::play()
             seedPlaybackPosition(viewport,
                 [this](int frame) { return viewport.sequenceFrameStartPosition(frame); });
         }
-        setPlaybackPhase(viewport, result,
-            viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
-                ? ImageViewport::PlaybackPhase::Waiting
-                : ImageViewport::PlaybackPhase::Playing);
+        setPlaybackPhase(viewport, result, playbackPhaseForCurrentRequest(viewport));
         return result;
     }
 
