@@ -27,7 +27,15 @@ ImageViewport::CommandOutcome ViewportController::seekToPosition(int millisecond
 
 ImageViewport::CommandOutcome ViewportController::resetView()
 {
-    return viewport.resetViewCommandImpl();
+    const bool changed = viewport.m_zoom != 1.0 || viewport.m_pan.x() != 0.0
+        || viewport.m_pan.y() != 0.0;
+    viewport.m_zoom = 1.0;
+    viewport.m_pan = {};
+    if (changed) {
+        viewport.notifyPresentationChanged(true);
+    }
+    viewport.clearCommandDiagnosticForAcceptedCommand();
+    return ImageViewport::CommandOutcome::Accepted;
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

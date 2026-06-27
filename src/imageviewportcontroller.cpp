@@ -707,18 +707,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::seekToPositionCommand
     return CommandOutcome::Unsupported;
 }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::resetViewCommandImpl()
-{
-    const bool changed = m_zoom != 1.0 || m_pan.x() != 0.0 || m_pan.y() != 0.0;
-    m_zoom = 1.0;
-    m_pan = {};
-    if (changed) {
-        notifyPresentationChanged(true);
-    }
-    clearCommandDiagnosticForAcceptedCommand();
-    return CommandOutcome::Accepted;
-}
-
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     if (m_playbackPhase != PlaybackPhase::Playing || elapsedMilliseconds <= 0) {

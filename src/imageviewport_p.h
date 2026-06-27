@@ -77,7 +77,6 @@ public:
     CommandOutcome stopCommandImpl();
     CommandOutcome seekCommandImpl(int frame);
     CommandOutcome seekToPositionCommandImpl(int milliseconds);
-    CommandOutcome resetViewCommandImpl();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTestImpl(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTestImpl(quint64 token);
