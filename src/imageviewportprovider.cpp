@@ -460,33 +460,14 @@ void ImageViewportPrivate::handleProviderProgress(
 
 void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequestToken token)
 {
-    if (!hasProviderSequence() || !m_providerSession) {
-        return;
-    }
-
-    const bool activeMetadataToken = !m_providerMetadataReady
-        && m_activeProviderMetadataToken.isValid() && token == m_activeProviderMetadataToken;
-    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(*this, token);
-    if (!activeMetadataToken && !activeFrameToken) {
-        return;
-    }
-
-    if (activeMetadataToken || !m_providerMetadataReady || !m_providerTimedMetadata
-        || !m_activeProviderFrameFromPlayback) {
-        const auto changes = controller.handleProviderEndOfSequenceProtocolViolation(
-            {activeMetadataToken, activeFrameToken});
-        applyControllerChanges(changes);
-        if (changes.playbackPhase) {
-            syncPlaybackTimer();
-        }
-        closeProviderSession();
-        return;
-    }
-
-    const auto changes = controller.handleProviderPlaybackEndOfSequence();
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
+    const ViewportProviderEndOfSequenceResult result
+        = controller.handleProviderEndOfSequenceEvent({token});
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
         syncPlaybackTimer();
+    }
+    if (result.closeSession) {
+        closeProviderSession();
     }
 }
 

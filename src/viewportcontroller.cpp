@@ -1109,6 +1109,31 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
     return changes;
 }
 
+ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
+    ViewportProviderEndOfSequenceEvent event)
+{
+    if (!viewport.hasProviderSequence() || !viewport.m_providerSession) {
+        return {};
+    }
+
+    const bool activeMetadataToken = !viewport.m_providerMetadataReady
+        && viewport.m_activeProviderMetadataToken.isValid()
+        && event.token == viewport.m_activeProviderMetadataToken;
+    const bool activeFrameToken = activeProviderFrameTokenMatchesActiveRequest(viewport, event.token);
+    if (!activeMetadataToken && !activeFrameToken) {
+        return {};
+    }
+
+    if (activeMetadataToken || !viewport.m_providerMetadataReady || !viewport.m_providerTimedMetadata
+        || !viewport.m_activeProviderFrameFromPlayback) {
+        return {handleProviderEndOfSequenceProtocolViolation(
+                    {activeMetadataToken, activeFrameToken}),
+            true};
+    }
+
+    return {handleProviderPlaybackEndOfSequence(), false};
+}
+
 ImageViewportInternal::ViewportChangeSet
 ViewportController::handleProviderEndOfSequenceProtocolViolation(
     ViewportProviderEndOfSequenceProtocolViolation violation)

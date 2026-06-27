@@ -105,10 +105,21 @@ struct ViewportProviderWaitingEvent
     double progressValue = 0.0;
 };
 
+struct ViewportProviderEndOfSequenceEvent
+{
+    ImageSequenceProviderRequestToken token;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
     bool activeFrameToken = false;
+};
+
+struct ViewportProviderEndOfSequenceResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    bool closeSession = false;
 };
 
 struct ViewportProviderSessionClose
@@ -211,9 +222,8 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
-    ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
-        ViewportProviderEndOfSequenceProtocolViolation violation);
-    ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
+    ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
+        ViewportProviderEndOfSequenceEvent event);
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
@@ -241,6 +251,9 @@ public:
 
 private:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
+    ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
+        ViewportProviderEndOfSequenceProtocolViolation violation);
+    ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
 
     ImageViewportPrivate& viewport;
 };
