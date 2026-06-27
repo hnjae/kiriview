@@ -410,7 +410,7 @@ signals:
     void endOfSequence(const ImageSequenceProviderRequestToken& token);
     void providerFailed(const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
     void providerUnsupportedWithCause(const ImageSequenceProviderRequestToken& token,
-        UnsupportedCause cause, const QString& diagnostic);
+        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
     void providerUnsupported(
         const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
     void providerCancelled(

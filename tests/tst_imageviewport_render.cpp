@@ -969,8 +969,9 @@ void ImageViewportRenderTest::providerTimedPlaybackUnsupportedReportsUnsupported
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
 
-    emit sessionFactory->lastSession()->providerUnsupported(
-        playbackToken, QStringLiteral("playback request unsupported"));
+    emit sessionFactory->lastSession()->providerUnsupportedWithCause(playbackToken,
+        ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
+        QStringLiteral("playback request unsupported"));
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);
@@ -1054,8 +1055,9 @@ void ImageViewportRenderTest::providerTimedPlayAfterPlaybackUnsupportedRestartsP
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
 
-    emit sessionFactory->lastSession()->providerUnsupported(
-        unsupportedToken, QStringLiteral("playback request unsupported"));
+    emit sessionFactory->lastSession()->providerUnsupportedWithCause(unsupportedToken,
+        ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
+        QStringLiteral("playback request unsupported"));
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);
