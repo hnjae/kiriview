@@ -113,6 +113,40 @@ void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, DisplayRequestTarg
     viewport.m_latestNonPlaybackPosition = viewport.m_requestedPosition;
 }
 
+DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
+{
+    int selectedFrame = viewport.m_currentFrame;
+    if (selectedFrame < 0 || selectedFrame >= viewport.m_providerTimingIntervals.frameCount()) {
+        selectedFrame = 0;
+    }
+    return DisplayRequestTarget { selectedFrame, viewport.providerFrameStartPosition(selectedFrame),
+        ImageViewportInternal::ProviderRequestTargetKind::Playback };
+}
+
+void applyProviderPlaybackStartTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+{
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
+    viewport.m_playbackPosition = target.position;
+    viewport.m_currentProviderTargetKind = target.providerTargetKind;
+}
+
+DisplayRequestTarget pendingProviderPlaybackTarget()
+{
+    return DisplayRequestTarget { -1, -1,
+        ImageViewportInternal::ProviderRequestTargetKind::Playback };
+}
+
+void applyPendingProviderPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+{
+    viewport.m_providerPlaybackStartPending = true;
+    viewport.m_currentFrame = target.frame;
+    viewport.m_requestedPosition = target.position;
+    viewport.m_playbackPosition = target.position;
+    viewport.m_currentProviderTargetKind = target.providerTargetKind;
+}
+
 ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport, int frame,
     int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
 {
@@ -294,23 +328,13 @@ ViewportCommandResult ViewportController::play()
         viewport.m_stopPlaybackWhenRequestReady = false;
         if (viewport.m_requestStatus == ImageViewport::RequestStatus::Unsupported
             || viewport.m_requestStatus == ImageViewport::RequestStatus::Error) {
-            int selectedFrame = viewport.m_currentFrame;
-            if (selectedFrame < 0
-                || selectedFrame >= viewport.m_providerTimingIntervals.frameCount()) {
-                selectedFrame = 0;
-            }
-            const int selectedPosition = viewport.providerFrameStartPosition(selectedFrame);
+            const DisplayRequestTarget target = providerPlaybackStartTarget(viewport);
             clearCommandDiagnosticForAcceptedCommand(viewport, result);
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-            viewport.m_providerPlaybackStartPending = false;
-            viewport.m_currentFrame = selectedFrame;
-            viewport.m_requestedPosition = selectedPosition;
-            viewport.m_playbackPosition = selectedPosition;
-            viewport.m_currentProviderTargetKind
-                = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+            applyProviderPlaybackStartTarget(viewport, target);
             viewport.publishProviderFrameLoadingState();
             if (!viewport.dispatchProviderFrameRequest(
-                    selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
+                    target.frame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;
@@ -350,12 +374,7 @@ ViewportCommandResult ViewportController::play()
         result.outcome = ImageViewport::CommandOutcome::Accepted;
         clearCommandDiagnosticForAcceptedCommand(viewport, result);
         viewport.m_stopPlaybackWhenRequestReady = false;
-        viewport.m_providerPlaybackStartPending = true;
-        viewport.m_currentFrame = -1;
-        viewport.m_requestedPosition = -1;
-        viewport.m_playbackPosition = -1;
-        viewport.m_currentProviderTargetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+        applyPendingProviderPlaybackTarget(viewport, pendingProviderPlaybackTarget());
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
         result.changes.requestRevision = true;
         result.changes.requestState = true;
