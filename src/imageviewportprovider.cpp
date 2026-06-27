@@ -76,6 +76,12 @@ void applyProviderMetadataTargetSelection(
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderAcceptedMetadataFacts(
+    ImageViewportPrivate& viewport, const ViewportProviderAcceptedMetadataFacts& facts)
+{
+    viewport.applyControllerChanges(viewport.controller.handleProviderAcceptedMetadataFacts(facts));
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -291,13 +297,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
 
-    m_providerMetadataReady = true;
-    m_providerTimedMetadata = metadataAdmission.timedMetadata;
-    m_providerTimedPlaybackSupport = metadata.timedPlaybackSupport();
-    m_providerFrameSeekSupport = metadata.frameSeekSupport();
-    m_providerPositionSeekSupport = metadata.positionSeekSupport();
-    m_providerLogicalSize = metadataAdmission.logicalSize;
-    m_providerTimingIntervals = metadataAdmission.timingIntervals;
+    applyProviderAcceptedMetadataFacts(
+        *this,
+        {metadataAdmission.timedMetadata, metadata.timedPlaybackSupport(),
+            metadata.frameSeekSupport(), metadata.positionSeekSupport(),
+            metadataAdmission.logicalSize, metadataAdmission.timingIntervals});
     const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && request.activeRequest.target.providerTargetKind == ProviderRequestTargetKind::Playback;
     const bool selectedFromPosition

@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 
 #include <QtCore/QRectF>
+#include <QtCore/QSizeF>
 #include <QtCore/QString>
 
 class ImageViewportPrivate;
@@ -76,6 +77,16 @@ struct ViewportProviderMetadataTargetSelection
     bool timedMetadata = false;
 };
 
+struct ViewportProviderAcceptedMetadataFacts
+{
+    bool timedMetadata = false;
+    bool timedPlaybackSupport = false;
+    bool frameSeekSupport = false;
+    bool positionSeekSupport = false;
+    QSizeF logicalSize;
+    TimingIntervals timingIntervals;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
@@ -109,6 +120,8 @@ public:
         ViewportProviderMetadataTargetRejection rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetSelection(
         ViewportProviderMetadataTargetSelection selection);
+    ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
+        const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);

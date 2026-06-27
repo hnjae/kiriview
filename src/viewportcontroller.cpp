@@ -1036,6 +1036,19 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
+    const ViewportProviderAcceptedMetadataFacts& facts)
+{
+    viewport.m_providerMetadataReady = true;
+    viewport.m_providerTimedMetadata = facts.timedMetadata;
+    viewport.m_providerTimedPlaybackSupport = facts.timedPlaybackSupport;
+    viewport.m_providerFrameSeekSupport = facts.frameSeekSupport;
+    viewport.m_providerPositionSeekSupport = facts.positionSeekSupport;
+    viewport.m_providerLogicalSize = facts.logicalSize;
+    viewport.m_providerTimingIntervals = facts.timingIntervals;
+    return {};
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
 {
     ImageViewportInternal::ViewportChangeSet changes;
