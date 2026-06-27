@@ -47,6 +47,11 @@ struct ViewportProviderMetadataTerminalResult
     QString fallbackDiagnostic;
 };
 
+struct ViewportProviderMetadataContradiction
+{
+    QString diagnostic;
+};
+
 struct ViewportProviderEndOfSequenceProtocolViolation
 {
     bool activeMetadataToken = false;
@@ -72,6 +77,8 @@ public:
         const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
         const ViewportProviderMetadataTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
+        const ViewportProviderMetadataContradiction& contradiction);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);

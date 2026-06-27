@@ -36,6 +36,15 @@ void applyProviderMetadataTerminalResult(
         viewport.syncPlaybackTimer();
     }
 }
+
+void applyProviderMetadataContradiction(ImageViewportPrivate& viewport, const QString& diagnostic)
+{
+    const auto changes = viewport.controller.handleProviderMetadataContradiction({ diagnostic });
+    viewport.applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        viewport.syncPlaybackTimer();
+    }
+}
 }
 
 void ImageViewportPrivate::closeProviderSession()
@@ -244,28 +253,16 @@ void ImageViewportPrivate::handleProviderMetadataReady(
             m_sequence->m_providerFrameSeekCapability, metadata.frameSeekSupport())
         || providerCapabilityContradictsMetadata(
             m_sequence->m_providerPositionSeekCapability, metadata.positionSeekSupport())) {
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString
-            = QStringLiteral("provider metadata contradicts construction-time capabilities");
-        m_providerPlaybackStartPending = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderMetadataContradiction(
+            *this,
+            QStringLiteral("provider metadata contradicts construction-time capabilities"));
         closeProviderSession();
         return;
     }
 
     if (providerFactsContradictMetadata(m_sequence->m_providerKnownFacts, metadata)) {
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider metadata contradicts construction-time facts");
-        m_providerPlaybackStartPending = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
+        applyProviderMetadataContradiction(
+            *this, QStringLiteral("provider metadata contradicts construction-time facts"));
         closeProviderSession();
         return;
     }
