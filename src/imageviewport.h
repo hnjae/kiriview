@@ -120,7 +120,6 @@ private:
     TimingModel m_timingModel = TimingModel::None;
     QSizeF m_logicalSize;
     QImage m_stillImage;
-    QVector<int> m_frameDurations;
     std::shared_ptr<const TimingIntervals> m_timingIntervals;
     QVector<QImage> m_frameImages;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;

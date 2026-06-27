@@ -51,9 +51,8 @@ ImageSequence::ImageSequence(
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
-    , m_frameDurations(std::move(frameDurations))
     , m_timingIntervals(
-          std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(m_frameDurations)))
+          std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations)))
     , m_frameImages(std::move(frameImages))
 {
 }
