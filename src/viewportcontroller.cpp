@@ -76,12 +76,17 @@ ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewpo
     return target;
 }
 
-void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, ProviderStopRestoreTarget target)
+void applyStopRestoreTarget(ImageViewportPrivate& viewport, int frame, int position)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-    viewport.m_currentFrame = target.frame;
-    viewport.m_requestedPosition = target.position;
+    viewport.m_currentFrame = frame;
+    viewport.m_requestedPosition = position;
     viewport.m_playbackPosition = viewport.m_requestedPosition;
+}
+
+void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, ProviderStopRestoreTarget target)
+{
+    applyStopRestoreTarget(viewport, target.frame, target.position);
     viewport.m_currentProviderTargetKind = target.targetKind;
 }
 
@@ -566,11 +571,8 @@ ViewportCommandResult ViewportController::stop()
         && viewport.m_latestNonPlaybackFrame >= 0
         && viewport.m_currentFrame != viewport.m_latestNonPlaybackFrame) {
         const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = viewport.m_latestNonPlaybackFrame;
-        viewport.m_requestedPosition = viewport.m_latestNonPlaybackPosition;
-        viewport.m_playbackPosition = viewport.m_requestedPosition;
+        applyStopRestoreTarget(
+            viewport, viewport.m_latestNonPlaybackFrame, viewport.m_latestNonPlaybackPosition);
         if (viewport.hasReadyDisplay() && viewport.m_displayedFrame == viewport.m_currentFrame
             && viewport.m_displayedPosition == viewport.m_requestedPosition) {
             viewport.m_requestStatus = ImageViewport::RequestStatus::Ready;
