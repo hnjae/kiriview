@@ -8,7 +8,7 @@ Prepared frame payloads carry public logical image size, physical payload size, 
 
 The adapter should create or update scene graph resources only on the appropriate Qt Quick synchronization/render path. GUI-side cleanup should invalidate logical render state without dereferencing raw scene graph pointers after ownership has moved to the render side.
 
-Render data is immutable for the duration of one synchronization attempt. Payload data and presentation data have separate identities. Payload changes require a new prepared payload identity and payload commit acknowledgement; presentation-only changes reuse the latest committed payload identity and advance presentation/display revision without resetting request readiness.
+Render data is immutable for the duration of one synchronization attempt. Payload data and presentation data have separate identities. Payload changes require a new prepared payload identity and payload commit acknowledgement; presentation-only changes reuse the latest committed payload identity and advance presentation/display revision without resetting request readiness. A pending provider payload may be rendered from a synchronization snapshot before it is public display content; only the accepted render commit acknowledgement promotes that payload to ready request/display ownership.
 
 ## Geometry
 
