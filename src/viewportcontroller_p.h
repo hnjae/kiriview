@@ -127,6 +127,31 @@ struct ViewportProviderFrameQueueFlush
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 };
 
+struct ViewportProviderFrameRequestStart
+{
+    int frame = -1;
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+};
+
+struct ViewportProviderFrameCommand
+{
+    ImageSequenceProviderRequestToken token;
+    int frame = -1;
+    int position = -1;
+    ImageViewportInternal::ProviderRequestTargetKind targetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+};
+
+struct ViewportProviderFrameRequestStartResult
+{
+    bool accepted = false;
+    bool closeSession = false;
+    ViewportProviderSessionClose sessionClose;
+    bool sendCommand = false;
+    ViewportProviderFrameCommand command;
+};
+
 class ViewportController
 {
 public:
@@ -165,6 +190,8 @@ public:
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
+    ViewportProviderFrameRequestStartResult startProviderFrameRequest(
+        ViewportProviderFrameRequestStart request);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

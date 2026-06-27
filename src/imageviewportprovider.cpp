@@ -182,28 +182,24 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 bool ImageViewportPrivate::startProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
-    clearQueuedProviderFrameRequest();
-    m_requestStatus = RequestStatus::Loading;
-    m_requestReason = RequestReason::ProviderWaiting;
-    m_activeProviderFrameToken = nextProviderRequestToken();
-    m_activeProviderFrameRequestId = request.activeRequest.identity.id;
-    if (!m_activeProviderFrameToken.isValid()) {
-        publishProviderTokenExhaustion();
+    const ViewportProviderFrameRequestStartResult result
+        = controller.startProviderFrameRequest({ frame, targetKind });
+    if (result.closeSession) {
+        providerBridge.closeSession(
+            result.sessionClose.metadataToken, result.sessionClose.frameToken);
+    }
+    if (!result.accepted) {
         return false;
     }
-
-    request.activeRequest.providerFrameToken = m_activeProviderFrameToken;
-    m_activeProviderFrameTargetKind = targetKind;
-    m_activeProviderFrameFromPlayback = targetKind == ProviderRequestTargetKind::Playback;
-    if (m_providerSession) {
-        if (targetKind == ProviderRequestTargetKind::Playback) {
+    if (result.sendCommand) {
+        if (result.command.targetKind == ProviderRequestTargetKind::Playback) {
             requestProviderPlayback(
-                m_activeProviderFrameToken, frame, request.activeRequest.target.position);
-        } else if (targetKind == ProviderRequestTargetKind::Position) {
+                result.command.token, result.command.frame, result.command.position);
+        } else if (result.command.targetKind == ProviderRequestTargetKind::Position) {
             requestProviderPosition(
-                m_activeProviderFrameToken, frame, request.activeRequest.target.position);
+                result.command.token, result.command.frame, result.command.position);
         } else {
-            requestProviderFrame(m_activeProviderFrameToken, frame);
+            requestProviderFrame(result.command.token, result.command.frame);
         }
     }
     return true;
