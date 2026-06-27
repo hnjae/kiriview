@@ -131,6 +131,7 @@ public:
 
     void closeProviderSession();
     bool openProviderSession();
+    bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     void startProviderMetadataRequest();
     void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);

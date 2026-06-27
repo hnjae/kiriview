@@ -54,11 +54,6 @@ void queueSessionCleanup(ImageSequenceProviderSession* session,
     }
 }
 
-bool acceptsSessionResult(const ImageViewportPrivate& viewport, quint64 sessionSerial)
-{
-    return viewport.m_providerSession && viewport.m_providerSessionSerial == sessionSerial;
-}
-
 }
 
 ViewportProviderBridge::ViewportProviderBridge(ImageViewportPrivate& viewport)
@@ -97,7 +92,7 @@ bool ViewportProviderBridge::openSession()
         viewport.m_providerSession, &ImageSequenceProviderSession::metadataReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             const ImageSequenceProviderMetadata& metadata) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderMetadataReady(token, metadata);
@@ -106,7 +101,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::imageFrameReady, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderFrameReady(token, frame);
@@ -117,7 +112,7 @@ bool ViewportProviderBridge::openSession()
         viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame,
             ImageSequenceProviderFrameMetadata metadata) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderFrameReadyWithMetadata(token, frame, metadata);
@@ -128,7 +123,7 @@ bool ViewportProviderBridge::openSession()
         [this, sessionSerial](
             ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 staleFrame.reset(frame);
                 return;
             }
@@ -141,7 +136,7 @@ bool ViewportProviderBridge::openSession()
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata) {
             std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame;
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 staleFrame.reset(frame);
                 return;
             }
@@ -151,7 +146,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerWaiting, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderWaiting(token);
@@ -160,7 +155,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerProgress, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, double progress) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderProgress(token, progress);
@@ -169,7 +164,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::endOfSequence, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderEndOfSequence(token);
@@ -178,7 +173,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerFailed, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderFailure(token, diagnostic);
@@ -189,7 +184,7 @@ bool ViewportProviderBridge::openSession()
         viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderUnsupported(token, cause, diagnostic);
@@ -198,7 +193,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerUnsupported, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderUnsupported(token,
@@ -208,7 +203,7 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         viewport.m_providerSession, &ImageSequenceProviderSession::providerCancelled, viewport.q,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
-            if (!acceptsSessionResult(viewport, sessionSerial)) {
+            if (!viewport.acceptsProviderSessionResult(sessionSerial)) {
                 return;
             }
             viewport.handleProviderCancellation(token, diagnostic);

@@ -106,6 +106,11 @@ bool ImageViewportPrivate::openProviderSession()
     return true;
 }
 
+bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) const
+{
+    return m_providerSession && m_providerSessionSerial == sessionSerial;
+}
+
 void ImageViewportPrivate::startProviderMetadataRequest()
 {
     const ViewportProviderMetadataRequestStartResult result
