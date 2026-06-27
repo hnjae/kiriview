@@ -13,6 +13,12 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         preparedPayload.image = m_displayedImage;
     }
     const bool imagePresent = !preparedPayload.image.isNull();
+    QRectF targetRect = currentContentRect().intersected(itemBounds());
+    QRectF sourceRect = visibleImageRect();
+    if (synchronization.pendingProviderCommit) {
+        targetRect = contentRectForImageSize(m_providerLogicalSize).intersected(itemBounds());
+        sourceRect = visibleImageRectForImageSize(m_providerLogicalSize);
+    }
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {
@@ -20,8 +26,8 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             m_backgroundMode,
             m_backgroundColor,
             preparedPayload,
-            currentContentRect().intersected(itemBounds()),
-            visibleImageRect(),
+            targetRect,
+            sourceRect,
             m_smoothing,
             m_mipmap,
             m_mirrorHorizontally,

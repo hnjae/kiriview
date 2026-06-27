@@ -31,6 +31,15 @@ PresentationGeometry::State geometryStateForItemBounds(
     return state;
 }
 
+PresentationGeometry::State geometryStateForImageSize(
+    const ImageViewportPrivate& viewport, QSizeF imageSize)
+{
+    PresentationGeometry::State state = geometryState(viewport);
+    state.hasReadyDisplay = !imageSize.isEmpty();
+    state.imageSize = imageSize;
+    return state;
+}
+
 }
 
 QRectF ImageViewportPrivate::contentRect() const
@@ -41,6 +50,16 @@ QRectF ImageViewportPrivate::contentRect() const
 QRectF ImageViewportPrivate::visibleImageRect() const
 {
     return PresentationGeometry::visibleImageRect(geometryState(*this));
+}
+
+QRectF ImageViewportPrivate::contentRectForImageSize(QSizeF imageSize) const
+{
+    return PresentationGeometry::contentRect(geometryStateForImageSize(*this, imageSize));
+}
+
+QRectF ImageViewportPrivate::visibleImageRectForImageSize(QSizeF imageSize) const
+{
+    return PresentationGeometry::visibleImageRect(geometryStateForImageSize(*this, imageSize));
 }
 
 ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const { return m_fillMode; }

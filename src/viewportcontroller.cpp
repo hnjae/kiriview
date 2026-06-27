@@ -920,9 +920,8 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
     synchronization.oldVisibleImageRect = viewport.visibleImageRect();
     synchronization.oldDisplayStatus = viewport.m_displayStatus;
     if (synchronization.pendingProviderCommit) {
-        viewport.publishSequenceReadyState(viewport.m_pendingRenderPayload);
-    }
-    if (viewport.m_pendingRenderPayload.commitPending && viewport.hasReadyDisplay()) {
+        synchronization.preparedPayload = viewport.m_pendingRenderPayload;
+    } else if (viewport.m_pendingRenderPayload.commitPending && viewport.hasReadyDisplay()) {
         synchronization.preparedPayload = viewport.m_pendingRenderPayload;
         synchronization.preparedPayload.image = viewport.m_displayedImage;
     }
@@ -939,6 +938,9 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
     }
 
     const bool renderMatchesPending = renderAcknowledgementMatchesPending(viewport, acknowledgement);
+    if (renderMatchesPending && synchronization.pendingProviderCommit) {
+        viewport.publishSequenceReadyState(synchronization.preparedPayload);
+    }
     const bool resumePlaybackAfterCommit = renderMatchesPending
         && viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready;
@@ -970,8 +972,16 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
     ViewportRenderAcknowledgement acknowledgement)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    if (viewport.m_displayStatus != ImageViewport::DisplayStatus::Ready
-        || !renderAcknowledgementMatchesPending(viewport, acknowledgement)) {
+    const bool renderMatchesPending = renderAcknowledgementMatchesPending(viewport, acknowledgement);
+    const bool pendingProviderCommit = viewport.hasProviderSequence()
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        && (viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
+            || viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting)
+        && viewport.m_pendingRenderPayload.commitPending
+        && !viewport.m_pendingRenderPayload.image.isNull();
+    if (!renderMatchesPending
+        || (viewport.m_displayStatus != ImageViewport::DisplayStatus::Ready
+            && !pendingProviderCommit)) {
         return changes;
     }
 

@@ -115,6 +115,8 @@ public:
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
     void notifyPresentationChanged(bool affectsGeometry);
     QRectF currentContentRect() const;
+    QRectF contentRectForImageSize(QSizeF imageSize) const;
+    QRectF visibleImageRectForImageSize(QSizeF imageSize) const;
     QRectF itemBounds() const;
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
