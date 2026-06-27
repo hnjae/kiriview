@@ -3754,6 +3754,8 @@ void ImageViewportProviderTest::providerFrameSeekBeforeMetadataResolvesAfterMeta
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    const quint64 preMetadataRequestId = item.activeRequestIdForTest();
+    QVERIFY(preMetadataRequestId > 0);
     const uint preMetadataRequestRevision = item.property("requestRevision").toUInt();
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
@@ -3771,6 +3773,7 @@ void ImageViewportProviderTest::providerFrameSeekBeforeMetadataResolvesAfterMeta
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QVERIFY(item.activeRequestIdForTest() > preMetadataRequestId);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
     QVERIFY(item.property("requestRevision").toUInt() > preMetadataRequestRevision);
