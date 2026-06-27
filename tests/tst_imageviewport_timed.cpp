@@ -586,9 +586,12 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesDeterministically()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
+    const quint64 initialRequestId = item.activeRequestIdForTest();
+    QVERIFY(initialRequestId > 0);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(99);
+    QCOMPARE(item.activeRequestIdForTest(), initialRequestId);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
@@ -598,6 +601,8 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesDeterministically()
 
     item.setSize(QSizeF(0.0, 100.0));
     item.advancePlaybackForTest(1);
+    const quint64 playbackRequestId = item.activeRequestIdForTest();
+    QVERIFY(playbackRequestId > initialRequestId);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(

@@ -763,6 +763,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             return;
         }
 
+        beginDisplayRequest(DisplayRequestOrigin::Playback, false);
         m_currentFrame = nextFrame;
         m_requestedPosition = nextRequestedPosition;
         m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
@@ -819,6 +820,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
                 return;
             }
 
+            beginDisplayRequest(DisplayRequestOrigin::Playback, false);
             m_currentFrame = wrappedFrame;
             m_requestedPosition = m_sequence->frameStartPosition(wrappedFrame);
             m_playbackPosition = wrappedPosition;
@@ -842,6 +844,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         }
 
         const int finalFrame = m_sequence->frameCount() - 1;
+        beginDisplayRequest(DisplayRequestOrigin::Playback, false);
         m_currentFrame = finalFrame;
         m_requestedPosition = m_sequence->frameStartPosition(finalFrame);
         m_playbackPosition = totalDuration;
@@ -875,6 +878,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         return;
     }
 
+    beginDisplayRequest(DisplayRequestOrigin::Playback, false);
     m_currentFrame = nextFrame;
     m_requestedPosition = m_sequence->frameStartPosition(nextFrame);
     const QRectF oldContentRect = contentRect();
