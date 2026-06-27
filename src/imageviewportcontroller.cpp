@@ -260,6 +260,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         && m_requestStatus == RequestStatus::Loading
         && (m_playbackPhase == PlaybackPhase::Waiting || m_playbackPhase == PlaybackPhase::Paused)
         && m_currentFrame < 0 && m_requestedPosition < 0) {
+        beginDisplayRequest(DisplayRequestOrigin::StopRestore, true);
         m_currentFrame = m_latestNonPlaybackFrame;
         m_requestedPosition = m_latestNonPlaybackPosition;
         m_playbackPosition = m_requestedPosition;
@@ -291,6 +292,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
             restoredTargetKind = ProviderRequestTargetKind::Frame;
         }
 
+        beginDisplayRequest(DisplayRequestOrigin::StopRestore, true);
         m_currentFrame = restoredFrame;
         m_requestedPosition = restoredPosition;
         m_playbackPosition = m_requestedPosition;
@@ -346,6 +348,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
             restoredTargetKind = ProviderRequestTargetKind::Frame;
         }
 
+        beginDisplayRequest(DisplayRequestOrigin::StopRestore, true);
         m_currentFrame = restoredFrame;
         m_requestedPosition = restoredPosition;
         m_playbackPosition = m_requestedPosition;
@@ -394,6 +397,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::stopCommandImpl()
         && (m_playbackPhase == PlaybackPhase::Waiting || m_playbackPhase == PlaybackPhase::Paused)
         && m_latestNonPlaybackFrame >= 0 && m_currentFrame != m_latestNonPlaybackFrame) {
         const DisplayStatus oldDisplayStatus = m_displayStatus;
+        beginDisplayRequest(DisplayRequestOrigin::StopRestore, true);
         m_currentFrame = m_latestNonPlaybackFrame;
         m_requestedPosition = m_latestNonPlaybackPosition;
         m_playbackPosition = m_requestedPosition;
