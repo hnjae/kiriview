@@ -47,6 +47,12 @@ struct ViewportProviderMetadataTerminalResult
     QString fallbackDiagnostic;
 };
 
+struct ViewportProviderEndOfSequenceProtocolViolation
+{
+    bool activeMetadataToken = false;
+    bool activeFrameToken = false;
+};
+
 class ViewportController
 {
 public:
@@ -67,6 +73,8 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
         const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
+    ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
+        ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();

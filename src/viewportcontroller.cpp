@@ -958,6 +958,34 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet
+ViewportController::handleProviderEndOfSequenceProtocolViolation(
+    ViewportProviderEndOfSequenceProtocolViolation violation)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewport.clearQueuedProviderFrameRequest();
+    if (violation.activeMetadataToken) {
+        viewport.m_activeProviderMetadataToken = {};
+    }
+    if (violation.activeFrameToken) {
+        viewport.m_activeProviderFrameToken = {};
+        viewport.m_activeProviderFrameRequestId = 0;
+        viewport.m_activeProviderFrameFromPlayback = false;
+        viewport.m_activeProviderFrameTargetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    }
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
+    viewport.m_requestReason = ImageViewport::RequestReason::PayloadRejection;
+    viewport.m_errorString = QStringLiteral("provider protocol violation");
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_stopPlaybackWhenRequestReady = false;
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

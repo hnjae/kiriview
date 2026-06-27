@@ -446,25 +446,12 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 
     if (activeMetadataToken || !m_providerMetadataReady || !m_providerTimedMetadata
         || !m_activeProviderFrameFromPlayback) {
-        clearQueuedProviderFrameRequest();
-        if (activeMetadataToken) {
-            m_activeProviderMetadataToken = {};
+        const auto changes = controller.handleProviderEndOfSequenceProtocolViolation(
+            {activeMetadataToken, activeFrameToken});
+        applyControllerChanges(changes);
+        if (changes.playbackPhase) {
+            syncPlaybackTimer();
         }
-        if (activeFrameToken) {
-            m_activeProviderFrameToken = {};
-            m_activeProviderFrameRequestId = 0;
-            m_activeProviderFrameFromPlayback = false;
-            m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-        }
-        m_requestStatus = RequestStatus::Error;
-        m_requestReason = RequestReason::PayloadRejection;
-        m_errorString = QStringLiteral("provider protocol violation");
-        m_providerPlaybackStartPending = false;
-        m_stopPlaybackWhenRequestReady = false;
-        setPlaybackPhase(PlaybackPhase::Stopped);
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-        emit q->diagnosticsChanged();
         closeProviderSession();
         return;
     }
