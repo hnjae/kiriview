@@ -794,6 +794,50 @@ ViewportCommandResult ViewportController::resetView()
     return result;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChanged(
+    const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (viewport.hasDisplayableSequence()
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        && (viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
+            || viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting)
+        && !viewport.itemBounds().isEmpty()) {
+        if (viewport.hasProviderSequence() && !viewport.m_pendingRenderPayload.image.isNull()) {
+            changes.scheduleUpdate = true;
+            return changes;
+        }
+        viewport.publishSequenceReadyState();
+        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting) {
+            setPlaybackPhase(viewport, changes,
+                viewport.m_stopPlaybackWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
+                                                        : ImageViewport::PlaybackPhase::Playing);
+            viewport.m_stopPlaybackWhenRequestReady = false;
+        }
+        changes.requestRevision = true;
+        changes.displayRevision = true;
+        changes.requestState = true;
+        changes.displayState = true;
+    } else if (viewport.hasProviderSequence()
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        && viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
+        && viewport.itemBounds().isEmpty() && !viewport.m_pendingRenderPayload.image.isNull()) {
+        viewport.m_requestReason = ImageViewport::RequestReason::RenderWaiting;
+        changes.requestRevision = true;
+        changes.requestState = true;
+        changes.displayRevision = true;
+    } else {
+        changes.displayRevision = true;
+    }
+
+    changes.geometryState = ImageViewportInternal::rectsDifferExactly(
+        viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    changes.scheduleUpdate = true;
+    return changes;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;

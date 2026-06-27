@@ -62,47 +62,11 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         return;
     }
 
-    bool displayRevisionChanged = false;
-    if (hasDisplayableSequence() && m_requestStatus == RequestStatus::Loading
-        && (m_requestReason == RequestReason::UploadPending
-            || m_requestReason == RequestReason::RenderWaiting)
-        && newGeometry.width() > 0.0 && newGeometry.height() > 0.0) {
-        if (hasProviderSequence() && !m_pendingRenderPayload.image.isNull()) {
-            update();
-            return;
-        }
-        publishSequenceReadyState();
-        if (m_playbackPhase == PlaybackPhase::Waiting) {
-            setPlaybackPhase(
-                m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
-            m_stopPlaybackWhenRequestReady = false;
-        }
-        incrementRequestRevision();
-        incrementDisplayRevision();
-        displayRevisionChanged = true;
-        emit q->requestStateChanged();
-        emit q->displayStateChanged();
-    } else if (hasProviderSequence() && m_requestStatus == RequestStatus::Loading
-        && m_requestReason == RequestReason::UploadPending
-        && (newGeometry.width() <= 0.0 || newGeometry.height() <= 0.0)
-        && !m_pendingRenderPayload.image.isNull()) {
-        m_requestReason = RequestReason::RenderWaiting;
-        incrementRequestRevision();
-        emit q->requestStateChanged();
-    } else if (hasReadyDisplay()) {
-        incrementDisplayRevision();
-        displayRevisionChanged = true;
+    const auto changes = controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
     }
-
-    if (!displayRevisionChanged) {
-        incrementDisplayRevision();
-    }
-
-    if (rectsDifferExactly(contentRect(), oldContentRect)
-        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-        emit q->geometryStateChanged();
-    }
-    update();
 }
 
 void ImageViewportPrivate::captureRenderFailureRetainedDisplay()

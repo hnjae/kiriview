@@ -40,6 +40,8 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
+    ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
+        const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization();
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
         ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
