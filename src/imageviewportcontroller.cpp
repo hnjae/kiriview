@@ -60,6 +60,13 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
     target.valid = true;
     return target;
 }
+
+void applyPlaybackTarget(ImageViewportPrivate& viewport, int frame, int requestedPosition)
+{
+    viewport.beginDisplayRequest(DisplayRequestOrigin::Playback, false);
+    viewport.m_currentFrame = frame;
+    viewport.m_requestedPosition = requestedPosition;
+}
 }
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
@@ -91,9 +98,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
             return;
         }
 
-        beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-        m_currentFrame = target.frame;
-        m_requestedPosition = target.requestedPosition;
+        applyPlaybackTarget(*this, target.frame, target.requestedPosition);
         m_currentProviderTargetKind = ProviderRequestTargetKind::Playback;
         m_requestStatus = RequestStatus::Loading;
         m_requestReason = RequestReason::ProviderWaiting;
@@ -147,9 +152,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         return;
     }
 
-    beginDisplayRequest(DisplayRequestOrigin::Playback, false);
-    m_currentFrame = target.frame;
-    m_requestedPosition = target.requestedPosition;
+    applyPlaybackTarget(*this, target.frame, target.requestedPosition);
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     publishAcceptedTargetState();
