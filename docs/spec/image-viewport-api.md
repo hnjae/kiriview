@@ -129,6 +129,8 @@ Factory helpers reject construction input outside the published limits with sync
 | Metadata accurately describes an unsupported operation or capability for otherwise valid content | `Unsupported` | `UnsupportedRequest` for the active operation or display request only |
 | Metadata is malformed, internally inconsistent, contradicts construction-time facts, violates timing or dimension rules, or exceeds published metadata limits | `Error` | `PayloadRejection` |
 | Provider fails while producing metadata for otherwise supported content | `Error` | `ProviderFailure` |
+| Provider reports unsupported operation for an active display request or playback advancement | `Unsupported` | `UnsupportedRequest` |
+| Provider reports unsupported payload for an active display request or playback advancement | `Unsupported` | `PayloadRejection` |
 | Frame payload exceeds published size or byte limits | `Unsupported` | `PayloadRejection` |
 | Frame payload metadata does not match validated sequence metadata, including sequence-wide public logical image size | `Error` | `PayloadRejection` |
 | Frame payload omits required byte-size metadata when the viewport cannot derive a conservative byte size before retention or upload | `Error` | `PayloadRejection` |
