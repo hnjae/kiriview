@@ -47,11 +47,18 @@ struct ProviderStopRestoreTarget {
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 };
 
-ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
+ProviderStopRestoreTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
     ProviderStopRestoreTarget target;
     target.frame = viewport.m_latestNonPlaybackFrame;
     target.position = viewport.m_latestNonPlaybackPosition;
+    target.targetKind = viewport.m_latestNonPlaybackProviderTargetKind;
+    return target;
+}
+
+ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
+{
+    ProviderStopRestoreTarget target = providerLatestNonPlaybackTarget(viewport);
     if (target.frame < 0 && target.position >= 0) {
         target.frame = viewport.providerFrameIndexForPosition(target.position);
     }
@@ -62,7 +69,6 @@ ProviderStopRestoreTarget providerStopRestoreTarget(ImageViewportPrivate& viewpo
     if (target.position < 0 && target.frame >= 0) {
         target.position = viewport.providerFrameStartPosition(target.frame);
     }
-    target.targetKind = viewport.m_latestNonPlaybackProviderTargetKind;
     if (target.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Unknown
         && target.frame >= 0) {
         target.targetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
@@ -473,12 +479,7 @@ ViewportCommandResult ViewportController::stop()
         && (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
             || viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Paused)
         && viewport.m_currentFrame < 0 && viewport.m_requestedPosition < 0) {
-        viewport.beginDisplayRequest(
-            ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-        viewport.m_currentFrame = viewport.m_latestNonPlaybackFrame;
-        viewport.m_requestedPosition = viewport.m_latestNonPlaybackPosition;
-        viewport.m_playbackPosition = viewport.m_requestedPosition;
-        viewport.m_currentProviderTargetKind = viewport.m_latestNonPlaybackProviderTargetKind;
+        applyProviderStopRestoreTarget(viewport, providerLatestNonPlaybackTarget(viewport));
         viewport.m_providerPlaybackStartPending = false;
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
         result.changes.requestRevision = true;
