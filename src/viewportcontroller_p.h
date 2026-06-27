@@ -3,12 +3,28 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 
+#include <QtCore/QRectF>
+
 class ImageViewportPrivate;
 
 struct ViewportCommandResult
 {
     ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::ViewportChangeSet changes;
+};
+
+struct ViewportRenderAcknowledgement
+{
+    quint64 requestId = 0;
+    quint64 preparedPayloadId = 0;
+};
+
+struct ViewportRenderSynchronization
+{
+    bool pendingProviderCommit = false;
+    ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
+    QRectF oldContentRect;
+    QRectF oldVisibleImageRect;
 };
 
 class ViewportController
@@ -23,6 +39,12 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
+    ViewportRenderSynchronization beginRenderSynchronization();
+    ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
+        ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
+        const ViewportRenderSynchronization& synchronization);
+    ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
+        ViewportRenderAcknowledgement acknowledgement);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);

@@ -123,7 +123,6 @@ public:
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
-    void reportRenderFailure();
     void captureRenderFailureRetainedDisplay();
     void clearRenderFailureRetainedDisplay();
     void discardPendingRenderCommit();

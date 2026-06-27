@@ -7,21 +7,10 @@ using namespace ImageViewportInternal;
 
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
-    const bool hasPendingProviderCommit = hasProviderSequence()
-        && m_requestStatus == RequestStatus::Loading
-        && (m_requestReason == RequestReason::UploadPending
-            || m_requestReason == RequestReason::RenderWaiting)
-        && m_renderCommitPending && !m_pendingDisplayImage.isNull() && !itemBounds().isEmpty();
-    const QImage image = hasPendingProviderCommit
-        ? m_pendingDisplayImage
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const QImage image = synchronization.pendingProviderCommit
+        ? m_displayedImage
         : (hasReadyDisplay() ? m_displayedImage : QImage());
-
-    const QRectF oldContentRect = contentRect();
-    const QRectF oldVisibleImageRect = visibleImageRect();
-    const DisplayStatus oldDisplayStatus = m_displayStatus;
-    if (hasPendingProviderCommit) {
-        publishSequenceReadyState(m_pendingDisplayImage);
-    }
     const quint64 renderRequestId = m_renderCommitPending ? m_pendingRenderRequestId : 0;
     const quint64 renderPreparedPayloadId
         = m_renderCommitPending ? m_pendingPreparedPayloadId : 0;
@@ -42,43 +31,21 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             renderPreparedPayloadId,
             window(),
         });
-    const bool renderMatchesPending = m_renderCommitPending
-        && render.requestId == m_pendingRenderRequestId
-        && render.preparedPayloadId == m_pendingPreparedPayloadId
-        && render.preparedPayloadId == request.activeRequest.preparedPayloadId;
     if (render.result == RenderAdapter::CommitResult::Failed) {
-        if (m_displayStatus == DisplayStatus::Ready && renderMatchesPending) {
-            reportRenderFailure();
+        const auto changes = controller.acknowledgeRenderFailure(
+            { render.requestId, render.preparedPayloadId });
+        applyControllerChanges(changes);
+        if (changes.playbackPhase) {
+            syncPlaybackTimer();
         }
         return nullptr;
     }
 
-    const bool resumePlaybackAfterCommit = !image.isNull() && renderMatchesPending
-        && m_playbackPhase == PlaybackPhase::Waiting && m_requestStatus == RequestStatus::Ready;
-    if (!image.isNull()) {
-        if (renderMatchesPending) {
-            commitDisplayedRequestSnapshot();
-            m_renderCommitPending = false;
-            clearPendingRenderIdentity();
-        }
-        clearRenderFailureRetainedDisplay();
-        if (resumePlaybackAfterCommit) {
-            setPlaybackPhase(
-                m_stopPlaybackWhenRequestReady ? PlaybackPhase::Stopped : PlaybackPhase::Playing);
-            m_stopPlaybackWhenRequestReady = false;
-        }
-        if (hasPendingProviderCommit) {
-            incrementRequestRevision();
-            incrementDisplayRevision();
-            emit q->requestStateChanged();
-            if (m_displayStatus != oldDisplayStatus) {
-                emit q->displayStateChanged();
-            }
-            if (rectsDifferExactly(contentRect(), oldContentRect)
-                || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-                emit q->geometryStateChanged();
-            }
-        }
+    const auto changes = controller.acknowledgeRenderCommit(
+        { render.requestId, render.preparedPayloadId }, !image.isNull(), synchronization);
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
     }
     return render.node;
 }
@@ -132,43 +99,6 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         emit q->geometryStateChanged();
     }
     update();
-}
-
-void ImageViewportPrivate::reportRenderFailure()
-{
-    const QRectF oldContentRect = contentRect();
-    const QRectF oldVisibleImageRect = visibleImageRect();
-    const DisplayStatus oldDisplayStatus = m_displayStatus;
-
-    m_requestStatus = RequestStatus::Error;
-    m_requestReason = RequestReason::RenderFailure;
-    m_renderCommitPending = false;
-    clearPendingRenderIdentity();
-    if (m_renderFailureRetainedDisplayValid) {
-        m_displayStatus = DisplayStatus::Retained;
-        request.displayedRequest = request.renderFailureRetainedRequest;
-        m_displayedImageSize = m_renderFailureRetainedImageSize;
-        m_displayedImage = m_renderFailureRetainedImage;
-    } else {
-        m_displayStatus = DisplayStatus::Empty;
-        clearDisplayedDisplay();
-    }
-    m_pendingDisplayImage = {};
-    clearRenderFailureRetainedDisplay();
-    m_errorString = QStringLiteral("render commit failed");
-    setPlaybackPhase(PlaybackPhase::Stopped);
-
-    incrementRequestRevision();
-    incrementDisplayRevision();
-    emit q->requestStateChanged();
-    if (m_displayStatus != oldDisplayStatus) {
-        emit q->displayStateChanged();
-    }
-    if (rectsDifferExactly(contentRect(), oldContentRect)
-        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-        emit q->geometryStateChanged();
-    }
-    emit q->diagnosticsChanged();
 }
 
 void ImageViewportPrivate::captureRenderFailureRetainedDisplay()

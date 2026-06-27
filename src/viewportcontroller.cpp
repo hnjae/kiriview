@@ -96,6 +96,27 @@ bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
             == viewport.request.activeRequest.target.position;
 }
 
+bool renderAcknowledgementMatchesPending(
+    ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
+{
+    return viewport.m_renderCommitPending
+        && acknowledgement.requestId == viewport.m_pendingRenderRequestId
+        && acknowledgement.preparedPayloadId == viewport.m_pendingPreparedPayloadId
+        && acknowledgement.preparedPayloadId == viewport.request.activeRequest.preparedPayloadId;
+}
+
+void setPlaybackPhase(
+    ImageViewportPrivate& viewport, ImageViewportInternal::ViewportChangeSet& changes,
+    ImageViewport::PlaybackPhase phase)
+{
+    if (viewport.m_playbackPhase == phase) {
+        return;
+    }
+
+    viewport.m_playbackPhase = phase;
+    changes.playbackPhase = true;
+}
+
 void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
 {
     viewport.publishProviderFrameLoadingState();
@@ -771,6 +792,105 @@ ViewportCommandResult ViewportController::resetView()
     }
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
     return result;
+}
+
+ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
+{
+    ViewportRenderSynchronization synchronization;
+    synchronization.pendingProviderCommit = viewport.hasProviderSequence()
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading
+        && (viewport.m_requestReason == ImageViewport::RequestReason::UploadPending
+            || viewport.m_requestReason == ImageViewport::RequestReason::RenderWaiting)
+        && viewport.m_renderCommitPending && !viewport.m_pendingDisplayImage.isNull()
+        && !viewport.itemBounds().isEmpty();
+    synchronization.oldContentRect = viewport.contentRect();
+    synchronization.oldVisibleImageRect = viewport.visibleImageRect();
+    synchronization.oldDisplayStatus = viewport.m_displayStatus;
+    if (synchronization.pendingProviderCommit) {
+        viewport.publishSequenceReadyState(viewport.m_pendingDisplayImage);
+    }
+    return synchronization;
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCommit(
+    ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
+    const ViewportRenderSynchronization& synchronization)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (!renderedImagePresent) {
+        return changes;
+    }
+
+    const bool renderMatchesPending = renderAcknowledgementMatchesPending(viewport, acknowledgement);
+    const bool resumePlaybackAfterCommit = renderMatchesPending
+        && viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Waiting
+        && viewport.m_requestStatus == ImageViewport::RequestStatus::Ready;
+    if (renderMatchesPending) {
+        viewport.commitDisplayedRequestSnapshot();
+        viewport.m_renderCommitPending = false;
+        viewport.clearPendingRenderIdentity();
+    }
+    viewport.clearRenderFailureRetainedDisplay();
+    if (resumePlaybackAfterCommit) {
+        setPlaybackPhase(viewport, changes,
+            viewport.m_stopPlaybackWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
+                                                    : ImageViewport::PlaybackPhase::Playing);
+        viewport.m_stopPlaybackWhenRequestReady = false;
+    }
+    if (synchronization.pendingProviderCommit) {
+        changes.requestRevision = true;
+        changes.displayRevision = true;
+        changes.requestState = true;
+        changes.displayState = viewport.m_displayStatus != synchronization.oldDisplayStatus;
+        changes.geometryState = ImageViewportInternal::rectsDifferExactly(
+            viewport.contentRect(), synchronization.oldContentRect)
+            || ImageViewportInternal::rectsDifferExactly(
+                viewport.visibleImageRect(), synchronization.oldVisibleImageRect);
+    }
+    return changes;
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFailure(
+    ViewportRenderAcknowledgement acknowledgement)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (viewport.m_displayStatus != ImageViewport::DisplayStatus::Ready
+        || !renderAcknowledgementMatchesPending(viewport, acknowledgement)) {
+        return changes;
+    }
+
+    const QRectF oldContentRect = viewport.contentRect();
+    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+    const ImageViewport::DisplayStatus oldDisplayStatus = viewport.m_displayStatus;
+
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
+    viewport.m_requestReason = ImageViewport::RequestReason::RenderFailure;
+    viewport.m_renderCommitPending = false;
+    viewport.clearPendingRenderIdentity();
+    if (viewport.m_renderFailureRetainedDisplayValid) {
+        viewport.m_displayStatus = ImageViewport::DisplayStatus::Retained;
+        viewport.request.displayedRequest = viewport.request.renderFailureRetainedRequest;
+        viewport.m_displayedImageSize = viewport.m_renderFailureRetainedImageSize;
+        viewport.m_displayedImage = viewport.m_renderFailureRetainedImage;
+    } else {
+        viewport.m_displayStatus = ImageViewport::DisplayStatus::Empty;
+        viewport.clearDisplayedDisplay();
+    }
+    viewport.m_pendingDisplayImage = {};
+    viewport.clearRenderFailureRetainedDisplay();
+    viewport.m_errorString = QStringLiteral("render commit failed");
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+
+    changes.requestRevision = true;
+    changes.displayRevision = true;
+    changes.requestState = true;
+    changes.displayState = viewport.m_displayStatus != oldDisplayStatus;
+    changes.geometryState = ImageViewportInternal::rectsDifferExactly(
+        viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    changes.diagnostics = true;
+    return changes;
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
