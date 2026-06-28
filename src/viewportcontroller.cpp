@@ -1361,9 +1361,12 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
 
     if (activeMetadataToken || !viewport.m_providerMetadataReady || !viewport.m_providerTimedMetadata
         || !viewport.m_activeProviderFrameFromPlayback) {
-        return {handleProviderEndOfSequenceProtocolViolation(
-                    {activeMetadataToken, activeFrameToken}),
-            true};
+        ViewportProviderEndOfSequenceResult result;
+        result.changes = handleProviderEndOfSequenceProtocolViolation(
+            {activeMetadataToken, activeFrameToken});
+        result.providerFrameTransport.closeSession = viewport.m_providerSession != nullptr;
+        result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+        return result;
     }
 
     return handleProviderPlaybackEndOfSequence();

@@ -235,7 +235,6 @@ struct ViewportProviderMetadataAdmissionResult
 struct ViewportProviderEndOfSequenceResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    bool closeSession = false;
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 

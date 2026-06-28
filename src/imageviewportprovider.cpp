@@ -377,13 +377,15 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 {
     const ViewportProviderEndOfSequenceResult result
         = controller.handleProviderEndOfSequenceEvent({token});
-    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    if (!result.providerFrameTransport.closeSession) {
+        applyProviderFrameTransportEffect(result.providerFrameTransport);
+    }
     applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
         syncPlaybackTimer();
     }
-    if (result.closeSession) {
-        closeProviderSession();
+    if (result.providerFrameTransport.closeSession) {
+        applyProviderFrameTransportEffect(result.providerFrameTransport);
     }
 }
 
