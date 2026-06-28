@@ -129,6 +129,13 @@ struct ViewportProviderAcceptedMetadataFacts
     TimingIntervals timingIntervals;
 };
 
+struct ViewportProviderMetadataAdmissionResult
+{
+    bool accepted = false;
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderAcceptedMetadataFacts facts;
+};
+
 struct ViewportProviderWaitingEvent
 {
     ImageSequenceProviderRequestToken token;
@@ -236,6 +243,8 @@ public:
         ViewportProviderFrameEvent event) const;
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
+    ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
+        const ImageSequenceProviderMetadata& metadata);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(

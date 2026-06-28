@@ -954,6 +954,31 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
     return {true};
 }
 
+ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
+    const ImageSequenceProviderMetadata& metadata)
+{
+    const auto admission = FramePreparation::admitProviderMetadata(metadata);
+    if (!admission.accepted()) {
+        return {
+            false,
+            handleProviderMetadataAdmissionRejection({admission.diagnostic}),
+            {},
+        };
+    }
+
+    ViewportProviderMetadataAdmissionResult result;
+    result.accepted = true;
+    result.facts = {
+        admission.timedMetadata,
+        metadata.timedPlaybackSupport(),
+        metadata.frameSeekSupport(),
+        metadata.positionSeekSupport(),
+        admission.logicalSize,
+        admission.timingIntervals,
+    };
+    return result;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {

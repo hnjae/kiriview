@@ -40,17 +40,6 @@ void applyProviderMetadataContradiction(ImageViewportPrivate& viewport, const QS
     }
 }
 
-void applyProviderMetadataAdmissionRejection(
-    ImageViewportPrivate& viewport, const QString& diagnostic)
-{
-    const auto changes
-        = viewport.controller.handleProviderMetadataAdmissionRejection({ diagnostic });
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
-    }
-}
-
 void applyProviderMetadataTargetRejection(
     ImageViewportPrivate& viewport, ViewportProviderMetadataTargetRejection rejection)
 {
@@ -323,12 +312,17 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
 
-    const auto metadataAdmission = FramePreparation::admitProviderMetadata(metadata);
-    if (!metadataAdmission.accepted()) {
-        applyProviderMetadataAdmissionRejection(*this, metadataAdmission.diagnostic);
+    const ViewportProviderMetadataAdmissionResult metadataAdmission
+        = controller.handleProviderMetadataAdmission(metadata);
+    if (!metadataAdmission.accepted) {
+        applyControllerChanges(metadataAdmission.changes);
+        if (metadataAdmission.changes.playbackPhase) {
+            syncPlaybackTimer();
+        }
         closeProviderSession();
         return;
     }
+    const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
 
     if (providerCapabilityContradictsMetadata(
             m_sequence->m_providerTimedPlaybackCapability, metadata.timedPlaybackSupport())
@@ -351,10 +345,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     }
 
     applyProviderAcceptedMetadataFacts(
-        *this,
-        {metadataAdmission.timedMetadata, metadata.timedPlaybackSupport(),
-            metadata.frameSeekSupport(), metadata.positionSeekSupport(),
-            metadataAdmission.logicalSize, metadataAdmission.timingIntervals});
+        *this, metadataFacts);
     const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
         && request.activeRequest.target.providerTargetKind == ProviderRequestTargetKind::Playback;
     const bool selectedFromPosition
@@ -366,9 +357,9 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     int selectedFrame
         = request.activeRequest.target.frame >= 0 ? request.activeRequest.target.frame : 0;
     const int providerFrameCount
-        = metadataAdmission.timedMetadata ? m_providerTimingIntervals.frameCount() : 1;
+        = metadataFacts.timedMetadata ? m_providerTimingIntervals.frameCount() : 1;
     if (selectedFromPlaybackStart
-        && (!metadataAdmission.timedMetadata || !m_providerTimedPlaybackSupport)) {
+        && (!metadataFacts.timedMetadata || !m_providerTimedPlaybackSupport)) {
         applyProviderMetadataTargetRejection(
             *this,
             {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false, false,
@@ -376,7 +367,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
     if (selectedFromPosition) {
-        if (!metadataAdmission.timedMetadata || !m_providerPositionSeekSupport) {
+        if (!metadataFacts.timedMetadata || !m_providerPositionSeekSupport) {
             applyProviderMetadataTargetRejection(
                 *this,
                 {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false,
@@ -395,7 +386,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     applyProviderMetadataTargetSelection(
         *this,
-        {requestTargetKind, selectedFrame, selectedFromPosition, metadataAdmission.timedMetadata});
+        {requestTargetKind, selectedFrame, selectedFromPosition, metadataFacts.timedMetadata});
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(
