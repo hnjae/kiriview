@@ -8,6 +8,12 @@
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;
 
+enum class ExplicitSeekMaterialization {
+    ProviderReady,
+    ProviderPendingMetadata,
+    BuiltIn,
+};
+
 void setCommandDiagnostic(ImageViewportPrivate& viewport, ViewportCommandResult& result,
     ImageViewport::CommandReason reason)
 {
@@ -325,82 +331,75 @@ ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ImageViewportPrivate
         : ImageViewport::PlaybackPhase::Playing;
 }
 
-ViewportCommandResult acceptProviderExplicitSeek(ViewportController& controller,
-    ImageViewportPrivate& viewport, int frame, int position,
-    ImageViewportInternal::ProviderRequestTargetKind targetKind)
+ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
+    ImageViewportPrivate& viewport, DisplayRequestTarget target,
+    ExplicitSeekMaterialization materialization)
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position, targetKind });
-    viewport.publishProviderFrameLoadingState();
-    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-    const ViewportProviderFrameDispatchResult dispatch
-        = controller.dispatchProviderFrameRequest({ frame, targetKind });
-    result.providerFrameTransport = dispatch.transport;
-    if (!dispatch.accepted) {
+    acceptExplicitSeekTarget(viewport, target);
+
+    switch (materialization) {
+    case ExplicitSeekMaterialization::ProviderReady: {
+        viewport.publishProviderFrameLoadingState();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        const ViewportProviderFrameDispatchResult dispatch
+            = controller.dispatchProviderFrameRequest({ target.frame, target.providerTargetKind });
+        result.providerFrameTransport = dispatch.transport;
+        if (!dispatch.accepted) {
+            result.changes.requestRevision = true;
+            result.changes.displayRevision = true;
+            result.changes.requestState = true;
+            result.changes.displayState = true;
+            result.changes.diagnostics = true;
+            result.changes.scheduleUpdate = true;
+            return result;
+        }
+        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing) {
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        }
         result.changes.requestRevision = true;
         result.changes.displayRevision = true;
         result.changes.requestState = true;
         result.changes.displayState = true;
-        result.changes.diagnostics = true;
+        result.changes.diagnostics = diagnosticsValueChanged;
         result.changes.scheduleUpdate = true;
         return result;
     }
-    if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing) {
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+    case ExplicitSeekMaterialization::ProviderPendingMetadata: {
+        viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
+        viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
+        viewport.discardPendingRenderCommit();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = diagnosticsValueChanged;
+        return result;
     }
-    result.changes.requestRevision = true;
-    result.changes.displayRevision = true;
-    result.changes.requestState = true;
-    result.changes.displayState = true;
-    result.changes.diagnostics = diagnosticsValueChanged;
-    result.changes.scheduleUpdate = true;
-    return result;
-}
-
-ViewportCommandResult acceptProviderPendingMetadataSeek(ImageViewportPrivate& viewport, int frame,
-    int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
-{
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position, targetKind });
-    viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
-    viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
-    viewport.discardPendingRenderCommit();
-    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
-    result.changes.diagnostics = diagnosticsValueChanged;
-    return result;
-}
-
-ViewportCommandResult acceptBuiltInExplicitSeek(ImageViewportPrivate& viewport, int frame,
-    int position)
-{
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position });
-    const QRectF oldContentRect = viewport.contentRect();
-    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-    viewport.publishAcceptedTargetState();
-    if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
-        && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+    case ExplicitSeekMaterialization::BuiltIn: {
+        const QRectF oldContentRect = viewport.contentRect();
+        const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+        const bool diagnosticsValueChanged = viewport.clearDiagnostics();
+        viewport.publishAcceptedTargetState();
+        if (viewport.m_playbackPhase == ImageViewport::PlaybackPhase::Playing
+            && viewport.m_requestStatus == ImageViewport::RequestStatus::Loading) {
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        }
+        result.changes.requestRevision = true;
+        result.changes.displayRevision = true;
+        result.changes.requestState = true;
+        result.changes.displayState = true;
+        result.changes.geometryState
+            = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+            || ImageViewportInternal::rectsDifferExactly(
+                viewport.visibleImageRect(), oldVisibleImageRect);
+        result.changes.diagnostics = diagnosticsValueChanged;
+        result.changes.scheduleUpdate = true;
+        return result;
     }
-    result.changes.requestRevision = true;
-    result.changes.displayRevision = true;
-    result.changes.requestState = true;
-    result.changes.displayState = true;
-    result.changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    result.changes.diagnostics = diagnosticsValueChanged;
-    result.changes.scheduleUpdate = true;
+    }
+
     return result;
 }
 }
@@ -802,9 +801,10 @@ ViewportCommandResult ViewportController::seek(int frame)
                 return result;
             }
 
-            return acceptProviderExplicitSeek(*this, viewport, frame,
-                viewport.providerFrameStartPosition(frame),
-                ImageViewportInternal::ProviderRequestTargetKind::Frame);
+            return acceptExplicitSeek(*this, viewport,
+                DisplayRequestTarget { frame, viewport.providerFrameStartPosition(frame),
+                    ImageViewportInternal::ProviderRequestTargetKind::Frame },
+                ExplicitSeekMaterialization::ProviderReady);
         }
 
         if (viewport.hasProviderSequence() && !viewport.m_providerMetadataReady
@@ -828,8 +828,10 @@ ViewportCommandResult ViewportController::seek(int frame)
                 }
             }
 
-            return acceptProviderPendingMetadataSeek(
-                viewport, frame, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame);
+            return acceptExplicitSeek(*this, viewport,
+                DisplayRequestTarget {
+                    frame, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame },
+                ExplicitSeekMaterialization::ProviderPendingMetadata);
         }
 
         if (frame >= viewport.sequenceFrameCount()) {
@@ -839,8 +841,10 @@ ViewportCommandResult ViewportController::seek(int frame)
             return result;
         }
 
-        return acceptBuiltInExplicitSeek(viewport, frame,
-            viewport.hasTimedSequence() ? viewport.sequenceFrameStartPosition(frame) : -1);
+        return acceptExplicitSeek(*this, viewport,
+            DisplayRequestTarget { frame,
+                viewport.hasTimedSequence() ? viewport.sequenceFrameStartPosition(frame) : -1 },
+            ExplicitSeekMaterialization::BuiltIn);
     }
 
     ViewportCommandResult result;
@@ -880,8 +884,10 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
             return result;
         }
 
-        return acceptProviderPendingMetadataSeek(viewport, -1, milliseconds,
-            ImageViewportInternal::ProviderRequestTargetKind::Position);
+        return acceptExplicitSeek(*this, viewport,
+            DisplayRequestTarget {
+                -1, milliseconds, ImageViewportInternal::ProviderRequestTargetKind::Position },
+            ExplicitSeekMaterialization::ProviderPendingMetadata);
     }
 
     if (viewport.hasProviderSequence() && viewport.m_providerMetadataReady
@@ -900,8 +906,10 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
             return result;
         }
 
-        return acceptProviderExplicitSeek(*this, viewport, frame, milliseconds,
-            ImageViewportInternal::ProviderRequestTargetKind::Position);
+        return acceptExplicitSeek(*this, viewport,
+            DisplayRequestTarget {
+                frame, milliseconds, ImageViewportInternal::ProviderRequestTargetKind::Position },
+            ExplicitSeekMaterialization::ProviderReady);
     }
 
     if (viewport.hasTimedSequence()) {
@@ -913,7 +921,8 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
             return result;
         }
 
-        return acceptBuiltInExplicitSeek(viewport, frame, milliseconds);
+        return acceptExplicitSeek(*this, viewport, DisplayRequestTarget { frame, milliseconds },
+            ExplicitSeekMaterialization::BuiltIn);
     }
 
     ViewportCommandResult result;
@@ -1009,7 +1018,7 @@ ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEven
         return {};
     }
 
-    return {true, providerFramePreparationState()};
+    return { true, providerFramePreparationState() };
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
@@ -1034,7 +1043,7 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
     }
 
     viewport.m_activeProviderMetadataToken = {};
-    return {true};
+    return { true };
 }
 
 void ViewportController::handleProviderSessionOpenFailure(const QString& diagnostic)
@@ -1050,8 +1059,8 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     if (viewport.m_providerMetadataReady) {
         viewport.discardPendingRenderCommit();
         appendProviderFrameStartResult(result.providerFrameTransport,
-            startProviderFrameRequest({viewport.request.activeRequest.target.frame,
-                viewport.request.activeRequest.target.providerTargetKind}));
+            startProviderFrameRequest({ viewport.request.activeRequest.target.frame,
+                viewport.request.activeRequest.target.providerTargetKind }));
         return result;
     }
 
@@ -1103,7 +1112,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
     const auto admission = FramePreparation::admitProviderMetadata(metadata);
     if (!admission.accepted()) {
         return generationTerminalResult(
-            handleProviderMetadataAdmissionRejection({admission.diagnostic}));
+            handleProviderMetadataAdmissionRejection({ admission.diagnostic }));
     }
     if (ImageViewportInternal::providerCapabilityContradictsMetadata(
             viewport.providerTimedPlaybackCapability(), metadata.timedPlaybackSupport())
@@ -1112,12 +1121,12 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
         || ImageViewportInternal::providerCapabilityContradictsMetadata(
             viewport.providerPositionSeekCapability(), metadata.positionSeekSupport())) {
         return generationTerminalResult(handleProviderMetadataContradiction(
-            {QStringLiteral("provider metadata contradicts construction-time capabilities")}));
+            { QStringLiteral("provider metadata contradicts construction-time capabilities") }));
     }
     if (ImageViewportInternal::providerFactsContradictMetadata(
             viewport.providerKnownFacts(), metadata)) {
         return generationTerminalResult(handleProviderMetadataContradiction(
-            {QStringLiteral("provider metadata contradicts construction-time facts")}));
+            { QStringLiteral("provider metadata contradicts construction-time facts") }));
     }
 
     ViewportProviderMetadataAdmissionResult result;
@@ -1192,7 +1201,7 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(viewport, event.token)) {
-        return {handleProviderFrameTerminalResult(frameTerminalResultFor(event)), {}};
+        return { handleProviderFrameTerminalResult(frameTerminalResultFor(event)), {} };
     }
 
     if (viewport.m_providerMetadataReady || !viewport.m_activeProviderMetadataToken.isValid()
@@ -1325,9 +1334,9 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
     }
     if (selectedFromPosition) {
         if (!facts.timedMetadata || !viewport.m_providerPositionSeekSupport) {
-            return {handleProviderMetadataTargetRejection(
-                {ImageViewport::RequestStatus::Unsupported,
-                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false})};
+            return { handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false }) };
         }
         selectedFrame = viewport.providerFrameIndexForPosition(
             viewport.request.activeRequest.target.position);
@@ -1340,7 +1349,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
     }
 
     return handleProviderMetadataTargetSelection(
-        {requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata});
+        { requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata });
 }
 
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetSelection(
@@ -1369,7 +1378,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
 
     viewport.m_providerPlaybackStartPending = false;
     const ViewportProviderFrameRequestStartResult start
-        = startProviderFrameRequest({selection.selectedFrame, selection.targetKind});
+        = startProviderFrameRequest({ selection.selectedFrame, selection.targetKind });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;
@@ -1452,7 +1461,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
         || !viewport.m_activeProviderFrameFromPlayback) {
         ViewportProviderEndOfSequenceResult result;
         result.changes = handleProviderEndOfSequenceProtocolViolation(
-            {activeMetadataToken, activeFrameToken});
+            { activeMetadataToken, activeFrameToken });
         result.providerFrameTransport.closeSession = viewport.m_providerSession != nullptr;
         result.providerFrameTransport.sessionClose = handleProviderSessionClose();
         return result;
@@ -1534,7 +1543,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
 
     viewport.publishProviderFrameLoadingState();
     const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
-        {selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback});
+        { selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;
@@ -1778,7 +1787,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
         changes.requestState = true;
         changes.displayState = viewport.m_displayStatus != synchronization.oldDisplayStatus;
         changes.geometryState = ImageViewportInternal::rectsDifferExactly(
-            viewport.contentRect(), synchronization.oldContentRect)
+                                    viewport.contentRect(), synchronization.oldContentRect)
             || ImageViewportInternal::rectsDifferExactly(
                 viewport.visibleImageRect(), synchronization.oldVisibleImageRect);
     }
