@@ -197,6 +197,7 @@ in
                 printf '[%d/%d] Processing file %s.\n' "$((index + 1))" "$source_count" "$source"
                 clazy_args=(
                     --checks="$checks"
+                    --extra-arg=-Werror
                     -p "$compile_db"
                 )
                 if [[ -n $ignore_dirs ]]; then
@@ -257,6 +258,7 @@ in
   tasks = {
     "dev:fix:cpp" = {
       description = "Apply clazy C++ fixits";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -291,6 +293,7 @@ in
 
     "dev:lsp:refresh" = {
       description = "Refresh generated LSP metadata for rust-analyzer and clangd";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -305,6 +308,7 @@ in
 
     "ci:test:rust" = {
       description = "Run host Rust library and doc tests";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -336,10 +340,10 @@ in
 
     "ci:test:cpp" = {
       description = "Run host C++ tests against the Cargo-owned KiriView app library";
+      showOutput = true;
       after = [
         "ci:test:rust@succeeded"
       ];
-      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -375,6 +379,7 @@ in
 
     "ci:lint:rust" = {
       description = "Run Rust clippy";
+      showOutput = true;
       after = [
         "ci:test:cpp@succeeded"
       ];
@@ -400,6 +405,7 @@ in
 
     "ci:lint:qml" = {
       description = "Run qmllint against QML sources";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -417,6 +423,7 @@ in
 
     "ci:lint:flatpak" = {
       description = "Check Flatpak manifest permission policy";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -462,6 +469,7 @@ in
 
     "ci:lint:compile-db" = {
       description = "Check compile_commands.json shape";
+      showOutput = true;
       after = [
         "ci:lint:cpp@succeeded"
       ];
@@ -494,6 +502,7 @@ in
 
     "ci:lint:desktop" = {
       description = "Validate desktop metadata";
+      showOutput = true;
       exec = # sh
         ''
           ${baseTaskPrelude}
@@ -504,6 +513,7 @@ in
 
     "ci:lint:cpp" = {
       description = "Run clang-tidy and clazy against C++ sources";
+      showOutput = true;
       after = [
         "ci:lint:rust@succeeded"
       ];
