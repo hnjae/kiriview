@@ -284,6 +284,10 @@ public:
         ViewportProviderMetadataEvent event);
     void handleProviderSessionOpenFailure(const QString& diagnostic);
     ViewportProviderSessionOpenResult handleProviderSessionOpened();
+    quint64 installProviderSession(ImageSequenceProviderSession* session);
+    ImageSequenceProviderSession* takeProviderSession();
+    ImageSequenceProviderSession* currentProviderSession() const;
+    bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(

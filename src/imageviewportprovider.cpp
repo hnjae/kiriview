@@ -45,30 +45,22 @@ QObject* ImageViewportPrivate::providerCallbackTarget() const
 
 quint64 ImageViewportPrivate::installProviderSession(ImageSequenceProviderSession* session)
 {
-    m_providerSession = session;
-    if (!m_providerSession) {
-        return 0;
-    }
-
-    ++m_providerSessionSerial;
-    return m_providerSessionSerial;
+    return controller.installProviderSession(session);
 }
 
 ImageSequenceProviderSession* ImageViewportPrivate::takeProviderSession()
 {
-    ImageSequenceProviderSession* session = m_providerSession;
-    m_providerSession.clear();
-    return session;
+    return controller.takeProviderSession();
 }
 
 ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession() const
 {
-    return m_providerSession;
+    return controller.currentProviderSession();
 }
 
 bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
-    return m_providerSession && m_providerSessionSerial == sessionSerial;
+    return controller.acceptsProviderSessionResult(sessionSerial);
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
