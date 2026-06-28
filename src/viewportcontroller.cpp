@@ -1495,6 +1495,14 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     return result;
 }
 
+ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
+{
+    ViewportProviderFrameTransportEffect effect;
+    effect.closeSession = viewport.m_providerSession != nullptr;
+    effect.sessionClose = handleProviderSessionClose();
+    return effect;
+}
+
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
 {
     ViewportProviderSessionClose sessionClose;

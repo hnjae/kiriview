@@ -12,7 +12,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
 ImageViewportPrivate::~ImageViewportPrivate()
 {
     stopPlaybackTimer();
-    closeProviderSession();
+    applyProviderFrameTransportEffect(controller.closeProviderSession());
 }
 
 double ImageViewportPrivate::width() const { return q->width(); }

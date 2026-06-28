@@ -129,7 +129,6 @@ public:
     void clearRenderFailureRetainedDisplay();
     void discardPendingRenderCommit();
 
-    void closeProviderSession();
     bool openProviderSession();
     QObject* providerCallbackTarget() const override;
     quint64 installProviderSession(ImageSequenceProviderSession* session) override;

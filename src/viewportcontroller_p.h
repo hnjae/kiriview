@@ -297,6 +297,7 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ViewportProviderEndOfSequenceEvent event);
+    ViewportProviderFrameTransportEffect closeProviderSession();
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();

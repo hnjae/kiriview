@@ -20,7 +20,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     std::shared_ptr<ImageSequence> sequenceOwner = factorySequenceOwner(sequence);
-    closeProviderSession();
+    applyProviderFrameTransportEffect(controller.closeProviderSession());
     m_sequence = sequence;
     m_sequenceOwner = std::move(sequenceOwner);
     ++request.sequenceGeneration;
