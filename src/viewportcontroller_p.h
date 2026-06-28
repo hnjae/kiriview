@@ -148,12 +148,6 @@ struct ViewportProviderEndOfSequenceProtocolViolation
     bool activeFrameToken = false;
 };
 
-struct ViewportProviderEndOfSequenceResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    bool closeSession = false;
-};
-
 struct ViewportProviderSessionClose
 {
     ImageSequenceProviderRequestToken metadataToken;
@@ -237,6 +231,19 @@ struct ViewportProviderFrameDispatchResult
     ViewportProviderFrameTransportEffect transport;
 };
 
+struct ViewportProviderEndOfSequenceResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    bool closeSession = false;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
+struct ViewportProviderMetadataTargetPolicyResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
 struct ViewportCommandResult
 {
     ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
@@ -267,7 +274,7 @@ public:
         const ViewportProviderTerminalEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetPolicy(
+    ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
@@ -317,11 +324,11 @@ private:
         const ViewportProviderMetadataAdmissionRejection& rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
         ViewportProviderMetadataTargetRejection rejection);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetSelection(
+    ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetSelection(
         ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
-    ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();
+    ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
 
     ImageViewportPrivate& viewport;
 };

@@ -1207,7 +1207,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetPolicy(
+ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
     const ViewportProviderAcceptedMetadataFacts& facts)
 {
     const bool selectedFromPlaybackStart = viewport.m_providerPlaybackStartPending
@@ -1226,34 +1226,34 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
     if (selectedFromPlaybackStart
         && (!facts.timedMetadata || !viewport.m_providerTimedPlaybackSupport)) {
-        return handleProviderMetadataTargetRejection(
+        return {handleProviderMetadataTargetRejection(
             {ImageViewport::RequestStatus::Unsupported,
-                ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true});
+                ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true})};
     }
     if (selectedFromPosition) {
         if (!facts.timedMetadata || !viewport.m_providerPositionSeekSupport) {
-            return handleProviderMetadataTargetRejection(
+            return {handleProviderMetadataTargetRejection(
                 {ImageViewport::RequestStatus::Unsupported,
-                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false});
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false})};
         }
         selectedFrame = viewport.providerFrameIndexForPosition(
             viewport.request.activeRequest.target.position);
     }
     if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
-        return handleProviderMetadataTargetRejection(
+        return {handleProviderMetadataTargetRejection(
             {ImageViewport::RequestStatus::Unsupported,
                 ImageViewport::RequestReason::InvalidRequest, selectedFrame, true,
-                selectedFromPosition, false});
+                selectedFromPosition, false})};
     }
 
     return handleProviderMetadataTargetSelection(
         {requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata});
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetSelection(
+ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetSelection(
     ViewportProviderMetadataTargetSelection selection)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderMetadataTargetPolicyResult result;
     viewport.beginDisplayRequest(
         ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
         selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback);
@@ -1275,16 +1275,19 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     viewport.publishProviderFrameLoadingState();
 
     viewport.m_providerPlaybackStartPending = false;
-    if (!viewport.startProviderFrameRequest(selection.selectedFrame, selection.targetKind)) {
-        changes.requestRevision = true;
-        changes.requestState = true;
-        changes.diagnostics = true;
-        return changes;
+    const ViewportProviderFrameRequestStartResult start
+        = startProviderFrameRequest({selection.selectedFrame, selection.targetKind});
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    if (!start.accepted) {
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = true;
+        return result;
     }
 
-    changes.requestRevision = true;
-    changes.requestState = true;
-    return changes;
+    result.changes.requestRevision = true;
+    result.changes.requestState = true;
+    return result;
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
@@ -1359,7 +1362,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
             true};
     }
 
-    return {handleProviderPlaybackEndOfSequence(), false};
+    return handleProviderPlaybackEndOfSequence();
 }
 
 ImageViewportInternal::ViewportChangeSet
@@ -1390,9 +1393,9 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     return changes;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderPlaybackEndOfSequence()
+ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEndOfSequence()
 {
-    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderEndOfSequenceResult result;
     viewport.m_activeProviderFrameToken = {};
     viewport.m_activeProviderFrameRequestId = 0;
     viewport.m_activeProviderFrameFromPlayback = false;
@@ -1422,33 +1425,35 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderPlayb
         && viewport.request.displayedRequest.request.target.frame == selectedFrame
         && viewport.request.displayedRequest.request.target.position == selectedPosition) {
         viewport.publishReadyDisplayState();
-        setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+        setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Stopped);
         viewport.m_stopPlaybackWhenRequestReady = false;
-        changes.requestRevision = true;
-        changes.displayRevision = true;
-        changes.requestState = true;
-        changes.displayState = true;
-        changes.diagnostics = diagnosticsValueChanged;
-        changes.scheduleUpdate = true;
-        return changes;
+        result.changes.requestRevision = true;
+        result.changes.displayRevision = true;
+        result.changes.requestState = true;
+        result.changes.displayState = true;
+        result.changes.diagnostics = diagnosticsValueChanged;
+        result.changes.scheduleUpdate = true;
+        return result;
     }
 
     viewport.publishProviderFrameLoadingState();
-    if (!viewport.startProviderFrameRequest(
-            selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
-        changes.requestRevision = true;
-        changes.requestState = true;
-        changes.diagnostics = true;
-        return changes;
+    const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
+        {selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback});
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    if (!start.accepted) {
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = true;
+        return result;
     }
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Waiting);
-    changes.requestRevision = true;
-    changes.displayRevision = true;
-    changes.requestState = true;
-    changes.displayState = true;
-    changes.diagnostics = diagnosticsValueChanged;
-    changes.scheduleUpdate = true;
-    return changes;
+    setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Waiting);
+    result.changes.requestRevision = true;
+    result.changes.displayRevision = true;
+    result.changes.requestState = true;
+    result.changes.displayState = true;
+    result.changes.diagnostics = diagnosticsValueChanged;
+    result.changes.scheduleUpdate = true;
+    return result;
 }
 
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()

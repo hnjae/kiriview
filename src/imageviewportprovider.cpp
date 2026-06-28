@@ -321,9 +321,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     applyProviderAcceptedMetadataFacts(
         *this, metadataFacts);
-    const auto targetChanges = controller.handleProviderMetadataTargetPolicy(metadataFacts);
-    applyControllerChanges(targetChanges);
-    if (targetChanges.playbackPhase) {
+    const ViewportProviderMetadataTargetPolicyResult targetResult
+        = controller.handleProviderMetadataTargetPolicy(metadataFacts);
+    applyProviderFrameTransportEffect(targetResult.providerFrameTransport);
+    applyControllerChanges(targetResult.changes);
+    if (targetResult.changes.playbackPhase) {
         syncPlaybackTimer();
     }
 }
@@ -377,6 +379,7 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 {
     const ViewportProviderEndOfSequenceResult result
         = controller.handleProviderEndOfSequenceEvent({token});
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
         syncPlaybackTimer();
