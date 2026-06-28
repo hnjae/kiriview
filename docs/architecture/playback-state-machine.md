@@ -38,6 +38,8 @@ If a pending display request commits after the caller has paused, the display ma
 
 Provider stop restoration uses one backend materialization step for frame work after the controller chooses the restored target: if a live provider session and resolved frame exist, the controller starts a non-playback provider frame request for that restored target and returns the resulting transport effect.
 
+Ready-display promotion during stop restoration uses one same-generation target match predicate for provider-backed and built-in sequences before the controller publishes restored content as ready for the fresh accepted request identity.
+
 ## Requests
 
 Playback target advancement should use the same request path as explicit seeking so status, retention, provider waiting, render waiting, and errors remain consistent. The request path records request origin so `stop()` can cancel playback-generated requests without cancelling explicit seek requests.
