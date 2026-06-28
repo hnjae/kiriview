@@ -279,10 +279,7 @@ bool ImageViewportPrivate::startProviderFrameRequest(
     effect.sendCommand = result.sendCommand;
     effect.command = result.command;
     applyProviderFrameTransportEffect(effect);
-    if (!result.accepted) {
-        return false;
-    }
-    return true;
+    return result.accepted;
 }
 
 void ImageViewportPrivate::publishProviderTokenExhaustion()

@@ -118,7 +118,7 @@ void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& res
 }
 
 void appendProviderFrameQueueResult(
-    ViewportProviderFrameTransportEffect& effect, const ViewportProviderFrameQueueResult& queue)
+    ViewportProviderFrameTransportEffect& effect, ViewportProviderFrameQueueResult queue)
 {
     effect.cancelToken = queue.cancelToken;
     effect.scheduleFlush = queue.scheduleFlush;
