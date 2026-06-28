@@ -941,6 +941,18 @@ ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEven
     return {true, providerFramePreparationState()};
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
+    ViewportProviderFrameEvent event, ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata)
+{
+    const ViewportProviderFrameEventAcceptance frameEvent = acceptProviderFrameEvent(event);
+    if (!frameEvent.accepted) {
+        return {};
+    }
+
+    return handleProviderFrameAdmission(
+        FramePreparation::admitProviderFrame(frame, metadata, frameEvent.preparationState));
+}
+
 ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
     ViewportProviderMetadataEvent event)
 {

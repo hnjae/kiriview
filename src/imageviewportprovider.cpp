@@ -1,4 +1,3 @@
-#include "framepreparation_p.h"
 #include "imageviewport_p.h"
 
 #include <QtCore/QMetaObject>
@@ -354,15 +353,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    const ViewportProviderFrameEventAcceptance frameEvent
-        = controller.acceptProviderFrameEvent({token});
-    if (!frameEvent.accepted) {
-        return;
-    }
-
-    const auto admission = FramePreparation::admitProviderFrame(
-        frame, metadata, frameEvent.preparationState);
-    const auto changes = controller.handleProviderFrameAdmission(admission);
+    const auto changes = controller.handleProviderFrameEvent({token}, frame, metadata);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

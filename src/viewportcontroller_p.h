@@ -239,14 +239,13 @@ public:
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult resetView();
-    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
-        ViewportProviderFrameEvent event) const;
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
+        ViewportProviderFrameEvent event, ImageFrame* frame,
+        ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
-        const FramePreparation::ProviderFrameAdmissionResult& admission);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
         const ViewportProviderTerminalEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
@@ -285,6 +284,10 @@ public:
 
 private:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
+    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
+        ViewportProviderFrameEvent event) const;
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
+        const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
         const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
