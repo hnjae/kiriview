@@ -51,6 +51,16 @@ struct ViewportProviderFrameEventAcceptance
     FramePreparation::ProviderFrameState preparationState;
 };
 
+struct ViewportProviderMetadataEvent
+{
+    ImageSequenceProviderRequestToken token;
+};
+
+struct ViewportProviderMetadataEventAcceptance
+{
+    bool accepted = false;
+};
+
 struct ViewportProviderMetadataTerminalResult
 {
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
@@ -224,6 +234,8 @@ public:
     ViewportCommandResult resetView();
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
         ViewportProviderFrameEvent event) const;
+    ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
+        ViewportProviderMetadataEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(

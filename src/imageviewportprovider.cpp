@@ -317,12 +317,11 @@ void ImageViewportPrivate::publishProviderTokenExhaustion()
 void ImageViewportPrivate::handleProviderMetadataReady(
     ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
 {
-    if (!hasProviderSequence() || !m_providerSession || !m_activeProviderMetadataToken.isValid()
-        || token != m_activeProviderMetadataToken) {
+    const ViewportProviderMetadataEventAcceptance metadataEvent
+        = controller.acceptProviderMetadataEvent({token});
+    if (!metadataEvent.accepted) {
         return;
     }
-
-    m_activeProviderMetadataToken = {};
 
     const auto metadataAdmission = FramePreparation::admitProviderMetadata(metadata);
     if (!metadataAdmission.accepted()) {

@@ -941,6 +941,19 @@ ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEven
     return {true, providerFramePreparationState()};
 }
 
+ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
+    ViewportProviderMetadataEvent event)
+{
+    if (!viewport.hasProviderSequence() || !viewport.m_providerSession
+        || !viewport.m_activeProviderMetadataToken.isValid()
+        || event.token != viewport.m_activeProviderMetadataToken) {
+        return {};
+    }
+
+    viewport.m_activeProviderMetadataToken = {};
+    return {true};
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
