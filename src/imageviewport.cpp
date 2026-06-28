@@ -87,9 +87,8 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         m_displayStatus
             = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         if (!openProviderSession()) {
-            m_requestStatus = RequestStatus::Error;
-            m_requestReason = RequestReason::ProviderFailure;
-            m_errorString = QStringLiteral("provider session creation failed");
+            controller.handleProviderSessionOpenFailure(
+                QStringLiteral("provider session creation failed"));
         }
     } else if (hasDisplayableSequence()) {
         request.activeRequest.target.frame = 0;

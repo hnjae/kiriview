@@ -268,6 +268,7 @@ public:
         ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
+    void handleProviderSessionOpenFailure(const QString& diagnostic);
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(

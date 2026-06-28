@@ -999,6 +999,13 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
     return {true};
 }
 
+void ViewportController::handleProviderSessionOpenFailure(const QString& diagnostic)
+{
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
+    viewport.m_requestReason = ImageViewport::RequestReason::ProviderFailure;
+    viewport.m_errorString = diagnostic;
+}
+
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     const ImageSequenceProviderMetadata& metadata)
 {
