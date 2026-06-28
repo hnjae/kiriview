@@ -386,7 +386,9 @@ ViewportCommandResult ViewportController::clear()
         = !viewport.m_errorString.isEmpty() || !viewport.m_warningString.isEmpty();
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    viewport.closeProviderSession();
+    const bool closeProviderSession = viewport.m_providerSession != nullptr;
+    result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+    result.providerFrameTransport.closeSession = closeProviderSession;
     viewport.m_sequence = nullptr;
     viewport.m_sequenceOwner.reset();
     ++viewport.request.sequenceGeneration;
