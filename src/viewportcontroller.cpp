@@ -221,7 +221,7 @@ void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayReque
     viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
 }
 
-bool providerStopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
+bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 {
     return viewport.hasReadyDisplay()
         && viewport.request.displayedRequest.generation == viewport.request.sequenceGeneration
@@ -679,7 +679,7 @@ ViewportCommandResult ViewportController::stop()
         const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
-        if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
+        if (stopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.publishReadyDisplayState();
         } else {
             publishProviderStopRestoreLoading(viewport);
@@ -706,7 +706,7 @@ ViewportCommandResult ViewportController::stop()
         const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
         applyProviderStopRestoreTarget(viewport, restoredTarget);
-        if (providerStopRestoreTargetIsReadyDisplay(viewport)) {
+        if (stopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
             viewport.publishReadyDisplayState();
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
@@ -742,11 +742,7 @@ ViewportCommandResult ViewportController::stop()
             DisplayRequestTarget {
                 viewport.request.latestNonPlaybackRequest.target.frame,
                 viewport.request.latestNonPlaybackRequest.target.position });
-        if (viewport.hasReadyDisplay()
-            && viewport.request.displayedRequest.request.target.frame
-                == viewport.request.activeRequest.target.frame
-            && viewport.request.displayedRequest.request.target.position
-                == viewport.request.activeRequest.target.position) {
+        if (stopRestoreTargetIsReadyDisplay(viewport)) {
             viewport.publishReadyDisplayState();
         } else {
             viewport.publishRenderWaitingState();
