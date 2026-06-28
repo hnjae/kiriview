@@ -1105,7 +1105,7 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(viewport, event.token)) {
-        return {handleProviderFrameTerminalResult(frameTerminalResultFor(event)), false};
+        return {handleProviderFrameTerminalResult(frameTerminalResultFor(event)), {}};
     }
 
     if (viewport.m_providerMetadataReady || !viewport.m_activeProviderMetadataToken.isValid()
@@ -1113,7 +1113,11 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
         return {};
     }
 
-    return {handleProviderMetadataTerminalResult(metadataTerminalResultFor(event)), true};
+    ViewportProviderTerminalEventResult result;
+    result.changes = handleProviderMetadataTerminalResult(metadataTerminalResultFor(event));
+    result.providerFrameTransport.closeSession = true;
+    result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+    return result;
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(

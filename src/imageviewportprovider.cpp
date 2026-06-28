@@ -25,9 +25,7 @@ void applyProviderTerminalEvent(
     if (result.changes.playbackPhase) {
         viewport.syncPlaybackTimer();
     }
-    if (result.closeSession) {
-        viewport.closeProviderSession();
-    }
+    viewport.applyProviderFrameTransportEffect(result.providerFrameTransport);
 }
 
 void applyProviderAcceptedMetadataFacts(

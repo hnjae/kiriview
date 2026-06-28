@@ -78,12 +78,6 @@ struct ViewportProviderTerminalEvent
     QString diagnostic;
 };
 
-struct ViewportProviderTerminalEventResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    bool closeSession = false;
-};
-
 struct ViewportProviderMetadataContradiction
 {
     QString diagnostic;
@@ -229,6 +223,12 @@ struct ViewportProviderFrameDispatchResult
 {
     bool accepted = false;
     ViewportProviderFrameTransportEffect transport;
+};
+
+struct ViewportProviderTerminalEventResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
 struct ViewportProviderEndOfSequenceResult
