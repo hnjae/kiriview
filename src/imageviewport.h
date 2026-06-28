@@ -88,7 +88,7 @@ private:
 
     explicit ImageSequence(QObject* parent = nullptr);
     explicit ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent = nullptr);
-    explicit ImageSequence(QSizeF logicalSize, QVector<int> frameDurations,
+    explicit ImageSequence(QSizeF logicalSize, const QVector<int>& frameDurations,
         QVector<QImage> frameImages, QObject* parent = nullptr);
     explicit ImageSequence(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,

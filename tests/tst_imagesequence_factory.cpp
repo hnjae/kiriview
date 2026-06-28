@@ -669,17 +669,17 @@ void ImageSequenceFactoryTest::imageFrameOrientationPoliciesNormalizePayload()
         case ImageFrame::OrientationPolicy::Identity:
             return image;
         case ImageFrame::OrientationPolicy::MirrorHorizontally:
-            return image.mirrored(true, false);
+            return image.flipped(Qt::Horizontal);
         case ImageFrame::OrientationPolicy::MirrorVertically:
-            return image.mirrored(false, true);
+            return image.flipped(Qt::Vertical);
         case ImageFrame::OrientationPolicy::Rotate180:
             return image.transformed(QTransform().rotate(180));
         case ImageFrame::OrientationPolicy::Rotate90:
             return image.transformed(QTransform().rotate(90));
         case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
-            return image.mirrored(true, false).transformed(QTransform().rotate(90));
+            return image.flipped(Qt::Horizontal).transformed(QTransform().rotate(90));
         case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
-            return image.mirrored(false, true).transformed(QTransform().rotate(90));
+            return image.flipped(Qt::Vertical).transformed(QTransform().rotate(90));
         case ImageFrame::OrientationPolicy::Rotate270:
             return image.transformed(QTransform().rotate(270));
         }

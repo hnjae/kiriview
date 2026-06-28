@@ -24,9 +24,11 @@ format:
 
 lint: configure
     qt_headers=$(qmake6 -query QT_INSTALL_HEADERS); \
+    cpu_count=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1); \
+    lint_jobs=${LINT_JOBS:-$((cpu_count / 2 + 1))}; \
     status=0; \
-    run-clang-tidy -p {{ build_dir }} -source-filter="$PWD/(src|tests|examples)/.*[.]cpp" -extra-arg=-I"$qt_headers" || status=$?; \
-    clazy-standalone -p {{ build_dir }} --header-filter="$PWD/src/.*" --ignore-dirs="$qt_headers" --extra-arg=-I"$qt_headers" $(git ls-files '*.cpp' ':!tests/install_consumer/*.cpp') || status=$?; \
+    run-clang-tidy -p {{ build_dir }} -j "$lint_jobs" -source-filter="$PWD/(src|tests|examples)/.*[.]cpp" -extra-arg=-I"$qt_headers" || status=$?; \
+    git ls-files -z '*.cpp' ':!tests/install_consumer/*.cpp' | xargs -0 -n 1 -P "$lint_jobs" clazy-standalone -p {{ build_dir }} --header-filter="$PWD/src/.*" --ignore-dirs="$qt_headers" --extra-arg=-I"$qt_headers" --extra-arg=-Werror || status=$?; \
     cmake-lint {{ cmake_files }} || status=$?; \
     exit "$status"
 
