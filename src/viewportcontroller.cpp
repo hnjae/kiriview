@@ -965,6 +965,28 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
             {},
         };
     }
+    if (ImageViewportInternal::providerCapabilityContradictsMetadata(
+            viewport.providerTimedPlaybackCapability(), metadata.timedPlaybackSupport())
+        || ImageViewportInternal::providerCapabilityContradictsMetadata(
+            viewport.providerFrameSeekCapability(), metadata.frameSeekSupport())
+        || ImageViewportInternal::providerCapabilityContradictsMetadata(
+            viewport.providerPositionSeekCapability(), metadata.positionSeekSupport())) {
+        return {
+            false,
+            handleProviderMetadataContradiction(
+                {QStringLiteral("provider metadata contradicts construction-time capabilities")}),
+            {},
+        };
+    }
+    if (ImageViewportInternal::providerFactsContradictMetadata(
+            viewport.providerKnownFacts(), metadata)) {
+        return {
+            false,
+            handleProviderMetadataContradiction(
+                {QStringLiteral("provider metadata contradicts construction-time facts")}),
+            {},
+        };
+    }
 
     ViewportProviderMetadataAdmissionResult result;
     result.accepted = true;

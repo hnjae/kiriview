@@ -136,6 +136,10 @@ public:
     ImageSequenceProviderSession* takeProviderSession() override;
     ImageSequenceProviderSession* currentProviderSession() const override;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const override;
+    ImageSequenceProviderKnownFacts providerKnownFacts() const;
+    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
+    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
+    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
     void startProviderMetadataRequest();
     void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);

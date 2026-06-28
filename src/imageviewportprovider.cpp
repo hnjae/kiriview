@@ -31,15 +31,6 @@ void applyProviderTerminalEvent(
     }
 }
 
-void applyProviderMetadataContradiction(ImageViewportPrivate& viewport, const QString& diagnostic)
-{
-    const auto changes = viewport.controller.handleProviderMetadataContradiction({ diagnostic });
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
-    }
-}
-
 void applyProviderMetadataTargetRejection(
     ImageViewportPrivate& viewport, ViewportProviderMetadataTargetRejection rejection)
 {
@@ -120,6 +111,29 @@ ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession() con
 bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
     return m_providerSession && m_providerSessionSerial == sessionSerial;
+}
+
+ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
+{
+    return m_sequence ? m_sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
+}
+
+ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
+{
+    return m_sequence ? m_sequence->m_providerTimedPlaybackCapability
+                      : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
+{
+    return m_sequence ? m_sequence->m_providerFrameSeekCapability
+                      : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
+{
+    return m_sequence ? m_sequence->m_providerPositionSeekCapability
+                      : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
@@ -323,26 +337,6 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         return;
     }
     const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
-
-    if (providerCapabilityContradictsMetadata(
-            m_sequence->m_providerTimedPlaybackCapability, metadata.timedPlaybackSupport())
-        || providerCapabilityContradictsMetadata(
-            m_sequence->m_providerFrameSeekCapability, metadata.frameSeekSupport())
-        || providerCapabilityContradictsMetadata(
-            m_sequence->m_providerPositionSeekCapability, metadata.positionSeekSupport())) {
-        applyProviderMetadataContradiction(
-            *this,
-            QStringLiteral("provider metadata contradicts construction-time capabilities"));
-        closeProviderSession();
-        return;
-    }
-
-    if (providerFactsContradictMetadata(m_sequence->m_providerKnownFacts, metadata)) {
-        applyProviderMetadataContradiction(
-            *this, QStringLiteral("provider metadata contradicts construction-time facts"));
-        closeProviderSession();
-        return;
-    }
 
     applyProviderAcceptedMetadataFacts(
         *this, metadataFacts);
