@@ -47,13 +47,9 @@ bool ImageViewportPrivate::openProviderSession()
         return false;
     }
 
-    if (m_providerMetadataReady) {
-        discardPendingRenderCommit();
-        startProviderFrameRequest(
-            request.activeRequest.target.frame, request.activeRequest.target.providerTargetKind);
-    } else {
-        startProviderMetadataRequest();
-    }
+    const ViewportProviderSessionOpenResult result = controller.handleProviderSessionOpened();
+    applyProviderMetadataTransportEffect(result.providerMetadataTransport);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     return true;
 }
 
@@ -190,6 +186,18 @@ void ImageViewportPrivate::requestProviderPlayback(
 void ImageViewportPrivate::cancelProviderRequest(ImageSequenceProviderRequestToken token)
 {
     providerBridge.cancelRequest(token);
+}
+
+void ImageViewportPrivate::applyProviderMetadataTransportEffect(
+    const ViewportProviderMetadataTransportEffect& effect)
+{
+    if (effect.closeSession) {
+        providerBridge.closeSession(
+            effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+    }
+    if (effect.sendCommand) {
+        requestProviderMetadata(effect.token);
+    }
 }
 
 void ImageViewportPrivate::applyProviderFrameTransportEffect(

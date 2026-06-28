@@ -156,6 +156,14 @@ struct ViewportProviderMetadataRequestStartResult
     ImageSequenceProviderRequestToken token;
 };
 
+struct ViewportProviderMetadataTransportEffect
+{
+    bool closeSession = false;
+    ViewportProviderSessionClose sessionClose;
+    bool sendCommand = false;
+    ImageSequenceProviderRequestToken token;
+};
+
 struct ViewportProviderFrameQueueRequest
 {
     int frame = -1;
@@ -218,6 +226,12 @@ struct ViewportProviderFrameDispatchResult
     ViewportProviderFrameTransportEffect transport;
 };
 
+struct ViewportProviderSessionOpenResult
+{
+    ViewportProviderMetadataTransportEffect providerMetadataTransport;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
 struct ViewportProviderTerminalEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
@@ -269,6 +283,7 @@ public:
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
     void handleProviderSessionOpenFailure(const QString& diagnostic);
+    ViewportProviderSessionOpenResult handleProviderSessionOpened();
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(

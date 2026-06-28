@@ -147,6 +147,8 @@ public:
     void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelProviderRequest(ImageSequenceProviderRequestToken token);
+    void applyProviderMetadataTransportEffect(
+        const ViewportProviderMetadataTransportEffect& effect);
     void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect);
     void clearQueuedProviderFrameRequest();
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);

@@ -133,6 +133,15 @@ void appendProviderFrameStartResult(ViewportProviderFrameTransportEffect& effect
     effect.command = start.command;
 }
 
+void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& effect,
+    const ViewportProviderMetadataRequestStartResult& start)
+{
+    effect.closeSession = start.closeSession;
+    effect.sessionClose = start.sessionClose;
+    effect.sendCommand = start.sendCommand;
+    effect.token = start.token;
+}
+
 DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
     DisplayRequestTarget target;
@@ -1004,6 +1013,22 @@ void ViewportController::handleProviderSessionOpenFailure(const QString& diagnos
     viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
     viewport.m_requestReason = ImageViewport::RequestReason::ProviderFailure;
     viewport.m_errorString = diagnostic;
+}
+
+ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened()
+{
+    ViewportProviderSessionOpenResult result;
+    if (viewport.m_providerMetadataReady) {
+        viewport.discardPendingRenderCommit();
+        appendProviderFrameStartResult(result.providerFrameTransport,
+            startProviderFrameRequest({viewport.request.activeRequest.target.frame,
+                viewport.request.activeRequest.target.providerTargetKind}));
+        return result;
+    }
+
+    appendProviderMetadataStartResult(
+        result.providerMetadataTransport, startProviderMetadataRequest());
+    return result;
 }
 
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
