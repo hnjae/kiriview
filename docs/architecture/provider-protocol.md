@@ -36,7 +36,7 @@ Progress backpressure is lossy and request-scoped. The controller may coalesce o
 
 ## Shutdown
 
-Generation close should be idempotent from the viewport's perspective. Clear, replacement, generation-terminal provider failure, provider-owned external resource invalidation, item destruction, and overflow defense should all converge on the same close path and ignore later results for the closed generation. Closing first clears controller-owned provider-generation token and queued-request state, then hands the former active metadata and frame tokens to the transport bridge for best-effort cancellation and session shutdown.
+Generation close should be idempotent from the viewport's perspective. Clear, replacement, generation-terminal provider failure, provider-owned external resource invalidation, item destruction, and overflow defense should all converge on the same close path and ignore later results for the closed generation. Closing first clears controller-owned provider-generation token and queued-request state, then returns close-session transport effects with the former active metadata and frame tokens so the item-side transport adapter can request best-effort cancellation and session shutdown.
 
 Cancellation acknowledgement is not required for the viewport to proceed. Closing a generation publishes the local closed state, releases viewport-owned handles, sends best-effort cancellation to the session, and prevents subsequent session output from reaching public state. A cancellation result for a controller-cancelled or closed token is cleanup acknowledgement only; a cancellation result for a still-active token that the controller did not cancel is provider failure.
 

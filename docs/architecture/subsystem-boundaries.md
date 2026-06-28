@@ -20,7 +20,7 @@ flowchart LR
 
 The item owns public properties, command outcomes, QML notifications, geometry conversion, and presentation state. It should not decode files, probe URLs, inspect archives, or expose scene graph resources through public API.
 
-Controller transitions report observable changes and external effects as typed outputs. The item applies those outputs by incrementing revisions, emitting QML notifications, scheduling render updates, and synchronizing Qt timers; the controller does not emit QML signals or call scene graph update entry points directly.
+Controller transitions report observable changes and external effects as typed outputs. The item applies those outputs by incrementing revisions, emitting QML notifications, scheduling render updates, synchronizing Qt timers, and executing provider transport effects such as command delivery or session close; the controller does not emit QML signals, call scene graph update entry points, or invoke provider transport helpers directly.
 
 ## Sequence Boundary
 
