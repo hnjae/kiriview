@@ -142,6 +142,35 @@ void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& 
     effect.token = start.token;
 }
 
+void clearQueuedProviderFrameRequest(ImageViewportPrivate& viewport)
+{
+    viewport.m_queuedProviderFrameRequest = false;
+    viewport.m_queuedProviderFrameGeneration = 0;
+    viewport.m_queuedProviderFrameRequestId = 0;
+    viewport.m_queuedProviderFrame = -1;
+    viewport.m_queuedProviderPosition = -1;
+    viewport.m_queuedProviderFrameFromPlayback = false;
+    viewport.m_queuedProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+}
+
+void publishProviderTokenExhaustion(ImageViewportPrivate& viewport)
+{
+    clearQueuedProviderFrameRequest(viewport);
+    viewport.m_activeProviderMetadataToken = {};
+    viewport.m_activeProviderFrameToken = {};
+    viewport.m_activeProviderFrameRequestId = 0;
+    viewport.m_activeProviderFrameFromPlayback = false;
+    viewport.m_activeProviderFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.m_providerPlaybackStartPending = false;
+    viewport.m_stopPlaybackWhenRequestReady = false;
+    viewport.m_requestStatus = ImageViewport::RequestStatus::Error;
+    viewport.m_requestReason = ImageViewport::RequestReason::ProviderFailure;
+    viewport.m_errorString = QStringLiteral("provider request token exhausted");
+    viewport.m_playbackPhase = ImageViewport::PlaybackPhase::Stopped;
+}
+
 DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
     DisplayRequestTarget target;
@@ -625,7 +654,7 @@ ViewportCommandResult ViewportController::stop()
     }
     if (viewport.hasProviderSequence() && viewport.m_providerTimedMetadata
         && viewport.m_queuedProviderFrameRequest && viewport.m_queuedProviderFrameFromPlayback) {
-        viewport.clearQueuedProviderFrameRequest();
+        clearQueuedProviderFrameRequest(viewport);
 
         const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
@@ -1081,7 +1110,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
 {
     ImageViewportInternal::ViewportChangeSet changes;
     if (!admission.accepted()) {
-        viewport.clearQueuedProviderFrameRequest();
+        clearQueuedProviderFrameRequest(viewport);
         viewport.m_activeProviderFrameToken = {};
         viewport.m_activeProviderFrameRequestId = 0;
         viewport.m_activeProviderFrameFromPlayback = false;
@@ -1154,7 +1183,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     const ViewportProviderFrameTerminalResult& result)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    viewport.clearQueuedProviderFrameRequest();
+    clearQueuedProviderFrameRequest(viewport);
     viewport.m_activeProviderFrameToken = {};
     viewport.m_activeProviderFrameRequestId = 0;
     viewport.m_activeProviderFrameFromPlayback = false;
@@ -1409,7 +1438,7 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     ViewportProviderEndOfSequenceProtocolViolation violation)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    viewport.clearQueuedProviderFrameRequest();
+    clearQueuedProviderFrameRequest(viewport);
     if (violation.activeMetadataToken) {
         viewport.m_activeProviderMetadataToken = {};
     }
@@ -1506,7 +1535,7 @@ ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
 {
     ViewportProviderSessionClose sessionClose;
-    viewport.clearQueuedProviderFrameRequest();
+    clearQueuedProviderFrameRequest(viewport);
     if (!viewport.m_providerSession) {
         return sessionClose;
     }
@@ -1545,7 +1574,7 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
     result.sessionClose = allocation.sessionClose;
     viewport.m_activeProviderMetadataToken = allocation.token;
     if (!viewport.m_activeProviderMetadataToken.isValid()) {
-        viewport.publishProviderTokenExhaustion();
+        publishProviderTokenExhaustion(viewport);
         return result;
     }
 
@@ -1591,7 +1620,7 @@ ViewportProviderFrameQueueFlush ViewportController::flushQueuedProviderFrameRequ
     ViewportProviderFrameQueueFlush flush;
     if (!viewport.m_queuedProviderFrameRequest || !viewport.hasProviderSequence()
         || !viewport.m_providerSession) {
-        viewport.clearQueuedProviderFrameRequest();
+        clearQueuedProviderFrameRequest(viewport);
         return flush;
     }
 
@@ -1608,7 +1637,7 @@ ViewportProviderFrameQueueFlush ViewportController::flushQueuedProviderFrameRequ
         && viewport.request.activeRequest.target.frame == queuedFrame
         && viewport.request.activeRequest.target.position == queuedPosition
         && viewport.request.activeRequest.target.providerTargetKind == queuedTargetKind;
-    viewport.clearQueuedProviderFrameRequest();
+    clearQueuedProviderFrameRequest(viewport);
     if (!stillCurrent) {
         return flush;
     }
@@ -1623,7 +1652,7 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     ViewportProviderFrameRequestStart request)
 {
     ViewportProviderFrameRequestStartResult result;
-    viewport.clearQueuedProviderFrameRequest();
+    clearQueuedProviderFrameRequest(viewport);
     viewport.m_requestStatus = ImageViewport::RequestStatus::Loading;
     viewport.m_requestReason = ImageViewport::RequestReason::ProviderWaiting;
     const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken();
@@ -1632,7 +1661,7 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     viewport.m_activeProviderFrameToken = allocation.token;
     viewport.m_activeProviderFrameRequestId = viewport.request.activeRequest.identity.id;
     if (!viewport.m_activeProviderFrameToken.isValid()) {
-        viewport.publishProviderTokenExhaustion();
+        publishProviderTokenExhaustion(viewport);
         return result;
     }
 

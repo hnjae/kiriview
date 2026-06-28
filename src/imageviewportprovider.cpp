@@ -7,15 +7,6 @@
 using namespace ImageViewportInternal;
 
 namespace {
-bool activeProviderFrameTokenMatchesActiveRequest(
-    const ImageViewportPrivate& viewport, ImageSequenceProviderRequestToken token)
-{
-    return viewport.m_activeProviderFrameToken.isValid()
-        && token == viewport.m_activeProviderFrameToken
-        && token == viewport.request.activeRequest.providerFrameToken
-        && viewport.m_activeProviderFrameRequestId == viewport.request.activeRequest.identity.id;
-}
-
 void applyProviderTerminalEvent(
     ImageViewportPrivate& viewport, const ViewportProviderTerminalEvent& event)
 {
@@ -222,17 +213,6 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     }
 }
 
-void ImageViewportPrivate::clearQueuedProviderFrameRequest()
-{
-    m_queuedProviderFrameRequest = false;
-    m_queuedProviderFrameGeneration = 0;
-    m_queuedProviderFrameRequestId = 0;
-    m_queuedProviderFrame = -1;
-    m_queuedProviderPosition = -1;
-    m_queuedProviderFrameFromPlayback = false;
-    m_queuedProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-}
-
 void ImageViewportPrivate::publishProviderFrameLoadingState()
 {
     m_requestStatus = RequestStatus::Loading;
@@ -280,22 +260,6 @@ bool ImageViewportPrivate::startProviderFrameRequest(
     effect.command = result.command;
     applyProviderFrameTransportEffect(effect);
     return result.accepted;
-}
-
-void ImageViewportPrivate::publishProviderTokenExhaustion()
-{
-    clearQueuedProviderFrameRequest();
-    m_activeProviderMetadataToken = {};
-    m_activeProviderFrameToken = {};
-    m_activeProviderFrameRequestId = 0;
-    m_activeProviderFrameFromPlayback = false;
-    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
-    m_providerPlaybackStartPending = false;
-    m_stopPlaybackWhenRequestReady = false;
-    m_requestStatus = RequestStatus::Error;
-    m_requestReason = RequestReason::ProviderFailure;
-    m_errorString = QStringLiteral("provider request token exhausted");
-    setPlaybackPhase(PlaybackPhase::Stopped);
 }
 
 void ImageViewportPrivate::handleProviderMetadataReady(

@@ -128,6 +128,7 @@ public:
     void captureRenderFailureRetainedDisplay();
     void clearRenderFailureRetainedDisplay();
     void discardPendingRenderCommit();
+    void publishProviderFrameLoadingState();
 
     bool openProviderSession();
     QObject* providerCallbackTarget() const override;
@@ -140,7 +141,6 @@ public:
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
     void startProviderMetadataRequest();
-    void publishProviderFrameLoadingState();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
     void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);
@@ -149,11 +149,9 @@ public:
     void applyProviderMetadataTransportEffect(
         const ViewportProviderMetadataTransportEffect& effect);
     void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect);
-    void clearQueuedProviderFrameRequest();
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
-    void publishProviderTokenExhaustion();
     void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(ImageSequenceProviderRequestToken token,
         const ImageSequenceProviderMetadata& metadata);
