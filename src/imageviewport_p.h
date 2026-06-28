@@ -147,11 +147,11 @@ public:
     void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     void cancelProviderRequest(ImageSequenceProviderRequestToken token);
+    void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect);
     void clearQueuedProviderFrameRequest();
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
-    bool dispatchProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void publishProviderTokenExhaustion();
     void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(ImageSequenceProviderRequestToken token,

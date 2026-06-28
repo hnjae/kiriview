@@ -10,12 +10,6 @@
 
 class ImageViewportPrivate;
 
-struct ViewportCommandResult
-{
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewportInternal::ViewportChangeSet changes;
-};
-
 struct ViewportRenderAcknowledgement
 {
     quint64 generation = 0;
@@ -227,6 +221,29 @@ struct ViewportProviderFrameRequestStartResult
     ViewportProviderFrameCommand command;
 };
 
+struct ViewportProviderFrameTransportEffect
+{
+    ImageSequenceProviderRequestToken cancelToken;
+    bool scheduleFlush = false;
+    bool closeSession = false;
+    ViewportProviderSessionClose sessionClose;
+    bool sendCommand = false;
+    ViewportProviderFrameCommand command;
+};
+
+struct ViewportProviderFrameDispatchResult
+{
+    bool accepted = false;
+    ViewportProviderFrameTransportEffect transport;
+};
+
+struct ViewportCommandResult
+{
+    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
 class ViewportController
 {
 public:
@@ -264,6 +281,8 @@ public:
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
     ViewportProviderFrameRequestStartResult startProviderFrameRequest(
+        ViewportProviderFrameRequestStart request);
+    ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
         ViewportProviderFrameRequestStart request);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);

@@ -117,6 +117,22 @@ void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& res
     result.changes.playbackPhase = true;
 }
 
+void appendProviderFrameQueueResult(
+    ViewportProviderFrameTransportEffect& effect, const ViewportProviderFrameQueueResult& queue)
+{
+    effect.cancelToken = queue.cancelToken;
+    effect.scheduleFlush = queue.scheduleFlush;
+}
+
+void appendProviderFrameStartResult(ViewportProviderFrameTransportEffect& effect,
+    const ViewportProviderFrameRequestStartResult& start)
+{
+    effect.closeSession = start.closeSession;
+    effect.sessionClose = start.sessionClose;
+    effect.sendCommand = start.sendCommand;
+    effect.command = start.command;
+}
+
 DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
 {
     DisplayRequestTarget target;
@@ -271,8 +287,9 @@ ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ImageViewportPrivate
         : ImageViewport::PlaybackPhase::Playing;
 }
 
-ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport, int frame,
-    int position, ImageViewportInternal::ProviderRequestTargetKind targetKind)
+ViewportCommandResult acceptProviderExplicitSeek(ViewportController& controller,
+    ImageViewportPrivate& viewport, int frame, int position,
+    ImageViewportInternal::ProviderRequestTargetKind targetKind)
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
@@ -280,7 +297,10 @@ ViewportCommandResult acceptProviderExplicitSeek(ImageViewportPrivate& viewport,
     acceptExplicitSeekTarget(viewport, DisplayRequestTarget { frame, position, targetKind });
     viewport.publishProviderFrameLoadingState();
     const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-    if (!viewport.dispatchProviderFrameRequest(frame, targetKind)) {
+    const ViewportProviderFrameDispatchResult dispatch
+        = controller.dispatchProviderFrameRequest({ frame, targetKind });
+    result.providerFrameTransport = dispatch.transport;
+    if (!dispatch.accepted) {
         result.changes.requestRevision = true;
         result.changes.displayRevision = true;
         result.changes.requestState = true;
@@ -449,8 +469,12 @@ ViewportCommandResult ViewportController::play()
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             applyProviderPlaybackStartTarget(viewport, target);
             viewport.publishProviderFrameLoadingState();
-            if (!viewport.dispatchProviderFrameRequest(
-                    target.frame, ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
+            const ViewportProviderFrameDispatchResult dispatch
+                = dispatchProviderFrameRequest(
+                    { target.frame,
+                        ImageViewportInternal::ProviderRequestTargetKind::Playback });
+            result.providerFrameTransport = dispatch.transport;
+            if (!dispatch.accepted) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;
@@ -599,13 +623,17 @@ ViewportCommandResult ViewportController::stop()
             viewport.publishReadyDisplayState();
         } else {
             publishProviderStopRestoreLoading(viewport);
-            if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0
-                && !viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
-                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind)) {
-                result.changes.requestRevision = true;
-                result.changes.requestState = true;
-                result.changes.diagnostics = true;
-                return result;
+            if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0) {
+                const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
+                    {viewport.request.activeRequest.target.frame,
+                        viewport.request.latestNonPlaybackRequest.target.providerTargetKind});
+                appendProviderFrameStartResult(result.providerFrameTransport, start);
+                if (!start.accepted) {
+                    result.changes.requestRevision = true;
+                    result.changes.requestState = true;
+                    result.changes.diagnostics = true;
+                    return result;
+                }
             }
         }
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
@@ -616,7 +644,7 @@ ViewportCommandResult ViewportController::stop()
     if (viewport.hasProviderSequence() && viewport.m_providerTimedMetadata
         && viewport.m_activeProviderFrameFromPlayback) {
         if (viewport.m_providerSession) {
-            viewport.cancelProviderRequest(viewport.m_activeProviderFrameToken);
+            result.providerFrameTransport.cancelToken = viewport.m_activeProviderFrameToken;
         }
         viewport.m_activeProviderFrameToken = {};
         viewport.m_activeProviderFrameRequestId = 0;
@@ -642,8 +670,11 @@ ViewportCommandResult ViewportController::stop()
         publishProviderStopRestoreLoading(viewport);
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
         if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0) {
-            if (!viewport.startProviderFrameRequest(viewport.request.activeRequest.target.frame,
-                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind)) {
+            const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
+                {viewport.request.activeRequest.target.frame,
+                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind});
+            appendProviderFrameStartResult(result.providerFrameTransport, start);
+            if (!start.accepted) {
                 result.changes.requestRevision = true;
                 result.changes.requestState = true;
                 result.changes.diagnostics = true;
@@ -731,7 +762,7 @@ ViewportCommandResult ViewportController::seek(int frame)
                 return result;
             }
 
-            return acceptProviderExplicitSeek(viewport, frame,
+            return acceptProviderExplicitSeek(*this, viewport, frame,
                 viewport.providerFrameStartPosition(frame),
                 ImageViewportInternal::ProviderRequestTargetKind::Frame);
         }
@@ -829,7 +860,7 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
             return result;
         }
 
-        return acceptProviderExplicitSeek(viewport, frame, milliseconds,
+        return acceptProviderExplicitSeek(*this, viewport, frame, milliseconds,
             ImageViewportInternal::ProviderRequestTargetKind::Position);
     }
 
@@ -1566,6 +1597,23 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     return result;
 }
 
+ViewportProviderFrameDispatchResult ViewportController::dispatchProviderFrameRequest(
+    ViewportProviderFrameRequestStart request)
+{
+    ViewportProviderFrameDispatchResult result;
+    if (viewport.m_activeProviderFrameToken.isValid()) {
+        result.accepted = true;
+        appendProviderFrameQueueResult(
+            result.transport, queueProviderFrameRequest({ request.frame, request.targetKind }));
+        return result;
+    }
+
+    const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(request);
+    result.accepted = start.accepted;
+    appendProviderFrameStartResult(result.transport, start);
+    return result;
+}
+
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
 {
     ViewportRenderSynchronization synchronization;
@@ -1753,6 +1801,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.clear();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1762,6 +1811,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play()
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.play();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1771,6 +1821,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.pause();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1780,6 +1831,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.stop();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1789,6 +1841,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.seek(frame);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1798,6 +1851,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
 {
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.seekToPosition(milliseconds);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
@@ -1806,6 +1860,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 {
     const ViewportCommandResult result = controller.resetView();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     return result.outcome;
 }

@@ -194,6 +194,34 @@ void ImageViewportPrivate::cancelProviderRequest(ImageSequenceProviderRequestTok
     providerBridge.cancelRequest(token);
 }
 
+void ImageViewportPrivate::applyProviderFrameTransportEffect(
+    const ViewportProviderFrameTransportEffect& effect)
+{
+    if (effect.cancelToken.isValid()) {
+        cancelProviderRequest(effect.cancelToken);
+    }
+    if (effect.scheduleFlush) {
+        QMetaObject::invokeMethod(
+            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+    }
+    if (effect.closeSession) {
+        providerBridge.closeSession(
+            effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+    }
+    if (!effect.sendCommand) {
+        return;
+    }
+    if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
+        requestProviderPlayback(
+            effect.command.token, effect.command.frame, effect.command.position);
+    } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
+        requestProviderPosition(
+            effect.command.token, effect.command.frame, effect.command.position);
+    } else {
+        requestProviderFrame(effect.command.token, effect.command.frame);
+    }
+}
+
 void ImageViewportPrivate::clearQueuedProviderFrameRequest()
 {
     m_queuedProviderFrameRequest = false;
@@ -218,13 +246,10 @@ void ImageViewportPrivate::queueProviderFrameRequest(
 {
     const ViewportProviderFrameQueueResult result = controller.queueProviderFrameRequest(
         { frame, targetKind });
-    if (result.cancelToken.isValid()) {
-        cancelProviderRequest(result.cancelToken);
-    }
-    if (result.scheduleFlush) {
-        QMetaObject::invokeMethod(
-            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
-    }
+    ViewportProviderFrameTransportEffect effect;
+    effect.cancelToken = result.cancelToken;
+    effect.scheduleFlush = result.scheduleFlush;
+    applyProviderFrameTransportEffect(effect);
 }
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()
@@ -248,36 +273,16 @@ bool ImageViewportPrivate::startProviderFrameRequest(
 {
     const ViewportProviderFrameRequestStartResult result
         = controller.startProviderFrameRequest({ frame, targetKind });
-    if (result.closeSession) {
-        providerBridge.closeSession(
-            result.sessionClose.metadataToken, result.sessionClose.frameToken);
-    }
+    ViewportProviderFrameTransportEffect effect;
+    effect.closeSession = result.closeSession;
+    effect.sessionClose = result.sessionClose;
+    effect.sendCommand = result.sendCommand;
+    effect.command = result.command;
+    applyProviderFrameTransportEffect(effect);
     if (!result.accepted) {
         return false;
     }
-    if (result.sendCommand) {
-        if (result.command.targetKind == ProviderRequestTargetKind::Playback) {
-            requestProviderPlayback(
-                result.command.token, result.command.frame, result.command.position);
-        } else if (result.command.targetKind == ProviderRequestTargetKind::Position) {
-            requestProviderPosition(
-                result.command.token, result.command.frame, result.command.position);
-        } else {
-            requestProviderFrame(result.command.token, result.command.frame);
-        }
-    }
     return true;
-}
-
-bool ImageViewportPrivate::dispatchProviderFrameRequest(
-    int frame, ProviderRequestTargetKind targetKind)
-{
-    if (m_activeProviderFrameToken.isValid()) {
-        queueProviderFrameRequest(frame, targetKind);
-        return true;
-    }
-
-    return startProviderFrameRequest(frame, targetKind);
 }
 
 void ImageViewportPrivate::publishProviderTokenExhaustion()

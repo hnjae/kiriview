@@ -132,8 +132,11 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
         request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Playback;
         publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = clearDiagnostics();
-        if (!dispatchProviderFrameRequest(
-                target.displayTarget.frame, ProviderRequestTargetKind::Playback)) {
+        const ViewportProviderFrameDispatchResult dispatch
+            = controller.dispatchProviderFrameRequest(
+                {target.displayTarget.frame, ProviderRequestTargetKind::Playback});
+        applyProviderFrameTransportEffect(dispatch.transport);
+        if (!dispatch.accepted) {
             publishPlaybackRequestChange(*this, previousFrame);
             emit q->diagnosticsChanged();
             update();
