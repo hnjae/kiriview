@@ -31,26 +31,6 @@ void applyProviderTerminalEvent(
     }
 }
 
-void applyProviderMetadataTargetRejection(
-    ImageViewportPrivate& viewport, ViewportProviderMetadataTargetRejection rejection)
-{
-    const auto changes = viewport.controller.handleProviderMetadataTargetRejection(rejection);
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
-    }
-}
-
-void applyProviderMetadataTargetSelection(
-    ImageViewportPrivate& viewport, ViewportProviderMetadataTargetSelection selection)
-{
-    const auto changes = viewport.controller.handleProviderMetadataTargetSelection(selection);
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
-    }
-}
-
 void applyProviderAcceptedMetadataFacts(
     ImageViewportPrivate& viewport, const ViewportProviderAcceptedMetadataFacts& facts)
 {
@@ -340,47 +320,11 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 
     applyProviderAcceptedMetadataFacts(
         *this, metadataFacts);
-    const bool selectedFromPlaybackStart = m_providerPlaybackStartPending
-        && request.activeRequest.target.providerTargetKind == ProviderRequestTargetKind::Playback;
-    const bool selectedFromPosition
-        = request.activeRequest.target.providerTargetKind == ProviderRequestTargetKind::Position;
-    ProviderRequestTargetKind requestTargetKind = selectedFromPlaybackStart
-        ? ProviderRequestTargetKind::Playback
-        : (selectedFromPosition ? ProviderRequestTargetKind::Position
-                                : ProviderRequestTargetKind::Frame);
-    int selectedFrame
-        = request.activeRequest.target.frame >= 0 ? request.activeRequest.target.frame : 0;
-    const int providerFrameCount
-        = metadataFacts.timedMetadata ? m_providerTimingIntervals.frameCount() : 1;
-    if (selectedFromPlaybackStart
-        && (!metadataFacts.timedMetadata || !m_providerTimedPlaybackSupport)) {
-        applyProviderMetadataTargetRejection(
-            *this,
-            {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false, false,
-                true});
-        return;
+    const auto targetChanges = controller.handleProviderMetadataTargetPolicy(metadataFacts);
+    applyControllerChanges(targetChanges);
+    if (targetChanges.playbackPhase) {
+        syncPlaybackTimer();
     }
-    if (selectedFromPosition) {
-        if (!metadataFacts.timedMetadata || !m_providerPositionSeekSupport) {
-            applyProviderMetadataTargetRejection(
-                *this,
-                {RequestStatus::Unsupported, RequestReason::UnsupportedRequest, -1, false,
-                    false, false});
-            return;
-        }
-        selectedFrame = providerFrameIndexForPosition(request.activeRequest.target.position);
-    }
-    if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
-        applyProviderMetadataTargetRejection(
-            *this,
-            {RequestStatus::Unsupported, RequestReason::InvalidRequest, selectedFrame, true,
-                selectedFromPosition, false});
-        return;
-    }
-
-    applyProviderMetadataTargetSelection(
-        *this,
-        {requestTargetKind, selectedFrame, selectedFromPosition, metadataFacts.timedMetadata});
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(

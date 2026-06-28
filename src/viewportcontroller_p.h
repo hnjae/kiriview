@@ -249,11 +249,9 @@ public:
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
         const ViewportProviderTerminalEvent& event);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
-        ViewportProviderMetadataTargetRejection rejection);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetSelection(
-        ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
+        const ViewportProviderAcceptedMetadataFacts& facts);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetPolicy(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
@@ -295,6 +293,10 @@ private:
         const ViewportProviderMetadataContradiction& contradiction);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
         const ViewportProviderMetadataAdmissionRejection& rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
+        ViewportProviderMetadataTargetRejection rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetSelection(
+        ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleProviderPlaybackEndOfSequence();

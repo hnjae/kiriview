@@ -1164,6 +1164,49 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetPolicy(
+    const ViewportProviderAcceptedMetadataFacts& facts)
+{
+    const bool selectedFromPlaybackStart = viewport.m_providerPlaybackStartPending
+        && viewport.request.activeRequest.target.providerTargetKind
+            == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    const bool selectedFromPosition
+        = viewport.request.activeRequest.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Position;
+    ImageViewportInternal::ProviderRequestTargetKind requestTargetKind = selectedFromPlaybackStart
+        ? ImageViewportInternal::ProviderRequestTargetKind::Playback
+        : (selectedFromPosition ? ImageViewportInternal::ProviderRequestTargetKind::Position
+                                : ImageViewportInternal::ProviderRequestTargetKind::Frame);
+    int selectedFrame = viewport.request.activeRequest.target.frame >= 0
+        ? viewport.request.activeRequest.target.frame
+        : 0;
+    const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
+    if (selectedFromPlaybackStart
+        && (!facts.timedMetadata || !viewport.m_providerTimedPlaybackSupport)) {
+        return handleProviderMetadataTargetRejection(
+            {ImageViewport::RequestStatus::Unsupported,
+                ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true});
+    }
+    if (selectedFromPosition) {
+        if (!facts.timedMetadata || !viewport.m_providerPositionSeekSupport) {
+            return handleProviderMetadataTargetRejection(
+                {ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false});
+        }
+        selectedFrame = viewport.providerFrameIndexForPosition(
+            viewport.request.activeRequest.target.position);
+    }
+    if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
+        return handleProviderMetadataTargetRejection(
+            {ImageViewport::RequestStatus::Unsupported,
+                ImageViewport::RequestReason::InvalidRequest, selectedFrame, true,
+                selectedFromPosition, false});
+    }
+
+    return handleProviderMetadataTargetSelection(
+        {requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata});
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetSelection(
     ViewportProviderMetadataTargetSelection selection)
 {
