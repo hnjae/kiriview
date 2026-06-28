@@ -312,7 +312,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
         if (metadataAdmission.changes.playbackPhase) {
             syncPlaybackTimer();
         }
-        closeProviderSession();
+        applyProviderFrameTransportEffect(metadataAdmission.providerFrameTransport);
         return;
     }
     const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;

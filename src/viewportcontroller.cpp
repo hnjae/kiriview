@@ -1002,13 +1002,19 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     const ImageSequenceProviderMetadata& metadata)
 {
+    const auto generationTerminalResult
+        = [this](ImageViewportInternal::ViewportChangeSet changes) {
+        ViewportProviderMetadataAdmissionResult result;
+        result.changes = changes;
+        result.providerFrameTransport.closeSession = viewport.m_providerSession != nullptr;
+        result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+        return result;
+    };
+
     const auto admission = FramePreparation::admitProviderMetadata(metadata);
     if (!admission.accepted()) {
-        return {
-            false,
-            handleProviderMetadataAdmissionRejection({admission.diagnostic}),
-            {},
-        };
+        return generationTerminalResult(
+            handleProviderMetadataAdmissionRejection({admission.diagnostic}));
     }
     if (ImageViewportInternal::providerCapabilityContradictsMetadata(
             viewport.providerTimedPlaybackCapability(), metadata.timedPlaybackSupport())
@@ -1016,21 +1022,13 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
             viewport.providerFrameSeekCapability(), metadata.frameSeekSupport())
         || ImageViewportInternal::providerCapabilityContradictsMetadata(
             viewport.providerPositionSeekCapability(), metadata.positionSeekSupport())) {
-        return {
-            false,
-            handleProviderMetadataContradiction(
-                {QStringLiteral("provider metadata contradicts construction-time capabilities")}),
-            {},
-        };
+        return generationTerminalResult(handleProviderMetadataContradiction(
+            {QStringLiteral("provider metadata contradicts construction-time capabilities")}));
     }
     if (ImageViewportInternal::providerFactsContradictMetadata(
             viewport.providerKnownFacts(), metadata)) {
-        return {
-            false,
-            handleProviderMetadataContradiction(
-                {QStringLiteral("provider metadata contradicts construction-time facts")}),
-            {},
-        };
+        return generationTerminalResult(handleProviderMetadataContradiction(
+            {QStringLiteral("provider metadata contradicts construction-time facts")}));
     }
 
     ViewportProviderMetadataAdmissionResult result;
