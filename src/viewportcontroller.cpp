@@ -259,6 +259,27 @@ void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
     viewport.publishProviderFrameLoadingState();
 }
 
+bool appendProviderStopRestoreFrameStart(
+    ViewportController& controller, ImageViewportPrivate& viewport, ViewportCommandResult& result)
+{
+    if (!viewport.m_providerSession || viewport.request.activeRequest.target.frame < 0) {
+        return true;
+    }
+
+    const ViewportProviderFrameRequestStartResult start = controller.startProviderFrameRequest(
+        {viewport.request.activeRequest.target.frame,
+            viewport.request.latestNonPlaybackRequest.target.providerTargetKind});
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    if (start.accepted) {
+        return true;
+    }
+
+    result.changes.requestRevision = true;
+    result.changes.requestState = true;
+    result.changes.diagnostics = true;
+    return false;
+}
+
 void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
@@ -662,17 +683,8 @@ ViewportCommandResult ViewportController::stop()
             viewport.publishReadyDisplayState();
         } else {
             publishProviderStopRestoreLoading(viewport);
-            if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0) {
-                const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
-                    {viewport.request.activeRequest.target.frame,
-                        viewport.request.latestNonPlaybackRequest.target.providerTargetKind});
-                appendProviderFrameStartResult(result.providerFrameTransport, start);
-                if (!start.accepted) {
-                    result.changes.requestRevision = true;
-                    result.changes.requestState = true;
-                    result.changes.diagnostics = true;
-                    return result;
-                }
+            if (!appendProviderStopRestoreFrameStart(*this, viewport, result)) {
+                return result;
             }
         }
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
@@ -708,17 +720,8 @@ ViewportCommandResult ViewportController::stop()
         }
         publishProviderStopRestoreLoading(viewport);
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-        if (viewport.m_providerSession && viewport.request.activeRequest.target.frame >= 0) {
-            const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
-                {viewport.request.activeRequest.target.frame,
-                    viewport.request.latestNonPlaybackRequest.target.providerTargetKind});
-            appendProviderFrameStartResult(result.providerFrameTransport, start);
-            if (!start.accepted) {
-                result.changes.requestRevision = true;
-                result.changes.requestState = true;
-                result.changes.diagnostics = true;
-                return result;
-            }
+        if (!appendProviderStopRestoreFrameStart(*this, viewport, result)) {
+            return result;
         }
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
         result.changes.requestRevision = true;
