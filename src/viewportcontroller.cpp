@@ -262,18 +262,21 @@ DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
     return target;
 }
 
-void applyStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+void beginStopRestoreDisplayRequest(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
     viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-    viewport.request.activeRequest.target.frame = target.frame;
-    viewport.request.activeRequest.target.position = target.position;
-    viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
+    viewport.request.activeRequest.target = target;
+    viewport.request.playbackPosition = target.position;
+}
+
+void applyStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+{
+    beginStopRestoreDisplayRequest(viewport, target);
 }
 
 void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
-    applyStopRestoreTarget(viewport, target);
-    viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
+    beginStopRestoreDisplayRequest(viewport, target);
 }
 
 void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
