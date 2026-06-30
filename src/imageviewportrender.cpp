@@ -10,28 +10,28 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
     auto preparedPayload = synchronization.preparedPayload;
     if (!preparedPayload.commitPending && hasReadyDisplay()) {
-        preparedPayload.image = m_displayedImage;
+        preparedPayload.image = display.displayedImage;
     }
     const bool imagePresent = !preparedPayload.image.isNull();
     QRectF targetRect = currentContentRect().intersected(itemBounds());
     QRectF sourceRect = visibleImageRect();
     if (synchronization.pendingProviderCommit) {
-        targetRect = contentRectForImageSize(m_providerLogicalSize).intersected(itemBounds());
-        sourceRect = visibleImageRectForImageSize(m_providerLogicalSize);
+        targetRect = contentRectForImageSize(provider.logicalSize).intersected(itemBounds());
+        sourceRect = visibleImageRectForImageSize(provider.logicalSize);
     }
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
         {
             QSizeF(width(), height()),
-            m_backgroundMode,
-            m_backgroundColor,
+            presentation.backgroundMode,
+            presentation.backgroundColor,
             preparedPayload,
             targetRect,
             sourceRect,
-            m_smoothing,
-            m_mipmap,
-            m_mirrorHorizontally,
-            m_mirrorVertically,
+            presentation.smoothing,
+            presentation.mipmap,
+            presentation.mirrorHorizontally,
+            presentation.mirrorVertically,
             window(),
         });
     if (render.result == RenderAdapter::CommitResult::Failed) {
@@ -76,18 +76,18 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
         return;
     }
 
-    m_renderFailureRetainedDisplayValid = true;
+    display.renderFailureRetainedDisplayValid = true;
     request.renderFailureRetainedRequest = request.displayedRequest;
-    m_renderFailureRetainedImageSize = m_displayedImageSize;
-    m_renderFailureRetainedImage = m_displayedImage;
+    display.renderFailureRetainedImageSize = display.displayedImageSize;
+    display.renderFailureRetainedImage = display.displayedImage;
 }
 
 void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 {
-    m_renderFailureRetainedDisplayValid = false;
+    display.renderFailureRetainedDisplayValid = false;
     request.renderFailureRetainedRequest = {};
-    m_renderFailureRetainedImageSize = {};
-    m_renderFailureRetainedImage = {};
+    display.renderFailureRetainedImageSize = {};
+    display.renderFailureRetainedImage = {};
 }
 
 void ImageViewportPrivate::discardPendingRenderCommit()

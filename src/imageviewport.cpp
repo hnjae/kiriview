@@ -5,64 +5,64 @@
 
 using namespace ImageViewportInternal;
 
-ImageSequence* ImageViewportPrivate::sequence() const { return m_sequence; }
+ImageSequence* ImageViewportPrivate::sequence() const { return request.sequence; }
 
 void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 {
-    if (!m_sequence && !sequence) {
+    if (!request.sequence && !sequence) {
         return;
     }
 
-    const DisplayStatus oldDisplayStatus = m_displayStatus;
-    const PlaybackPhase oldPlaybackPhase = m_playbackPhase;
-    const QString oldErrorString = m_errorString;
-    const QString oldWarningString = m_warningString;
+    const DisplayStatus oldDisplayStatus = display.status;
+    const PlaybackPhase oldPlaybackPhase = request.playbackPhase;
+    const QString oldErrorString = request.errorString;
+    const QString oldWarningString = request.warningString;
     const QRectF oldContentRect = contentRect();
     const QRectF oldVisibleImageRect = visibleImageRect();
     std::shared_ptr<ImageSequence> sequenceOwner = factorySequenceOwner(sequence);
     applyProviderFrameTransportEffect(controller.closeProviderSession());
-    m_sequence = sequence;
-    m_sequenceOwner = std::move(sequenceOwner);
+    request.sequence = sequence;
+    request.sequenceOwner = std::move(sequenceOwner);
     ++request.sequenceGeneration;
     clearRequestIdentity();
-    m_nextPreparedPayloadId = 0;
+    display.nextPreparedPayloadId = 0;
     clearPendingRenderIdentity();
-    m_errorString.clear();
-    m_warningString.clear();
-    m_playbackPhase = PlaybackPhase::Stopped;
-    m_stopPlaybackWhenRequestReady = false;
-    m_providerPlaybackStartPending = false;
-    m_providerMetadataReady = false;
-    m_providerTimedMetadata = false;
-    m_providerTimedPlaybackSupport = false;
-    m_providerFrameSeekSupport = false;
-    m_providerPositionSeekSupport = false;
-    m_providerLogicalSize = {};
-    m_providerTimingIntervals = {};
+    request.errorString.clear();
+    request.warningString.clear();
+    request.playbackPhase = PlaybackPhase::Stopped;
+    request.stopPlaybackWhenRequestReady = false;
+    request.providerPlaybackStartPending = false;
+    provider.metadataReady = false;
+    provider.timedMetadata = false;
+    provider.timedPlaybackSupport = false;
+    provider.frameSeekSupport = false;
+    provider.positionSeekSupport = false;
+    provider.logicalSize = {};
+    provider.timingIntervals = {};
     discardPendingRenderCommit();
-    m_activeProviderMetadataToken = {};
-    m_activeProviderFrameToken = {};
-    m_activeProviderFrameRequestId = 0;
-    m_activeProviderFrameFromPlayback = false;
-    m_activeProviderFrameTargetKind = ProviderRequestTargetKind::Unknown;
+    provider.activeMetadataToken = {};
+    provider.activeFrameToken = {};
+    provider.activeFrameRequestId = 0;
+    provider.activeFrameFromPlayback = false;
+    provider.activeFrameTargetKind = ProviderRequestTargetKind::Unknown;
 
     if (hasProviderSequence()) {
-        if (m_sequence->m_hasCompleteProviderKnownMetadata) {
-            m_providerMetadataReady = true;
-            m_providerTimedMetadata = m_sequence->m_providerKnownFacts.isTimedFrameList();
-            m_providerTimedPlaybackSupport = providerResolvedCapability(
-                m_sequence->m_providerTimedPlaybackCapability, m_providerTimedMetadata);
-            m_providerFrameSeekSupport
-                = providerResolvedCapability(m_sequence->m_providerFrameSeekCapability, true);
-            m_providerPositionSeekSupport = providerResolvedCapability(
-                m_sequence->m_providerPositionSeekCapability, m_providerTimedMetadata);
-            m_providerLogicalSize = m_sequence->m_providerKnownLogicalSize;
-            m_providerTimingIntervals = m_providerTimedMetadata
-                && m_sequence->m_providerKnownTimingIntervals
-                ? *m_sequence->m_providerKnownTimingIntervals
+        if (request.sequence->m_hasCompleteProviderKnownMetadata) {
+            provider.metadataReady = true;
+            provider.timedMetadata = request.sequence->m_providerKnownFacts.isTimedFrameList();
+            provider.timedPlaybackSupport = providerResolvedCapability(
+                request.sequence->m_providerTimedPlaybackCapability, provider.timedMetadata);
+            provider.frameSeekSupport
+                = providerResolvedCapability(request.sequence->m_providerFrameSeekCapability, true);
+            provider.positionSeekSupport = providerResolvedCapability(
+                request.sequence->m_providerPositionSeekCapability, provider.timedMetadata);
+            provider.logicalSize = request.sequence->m_providerKnownLogicalSize;
+            provider.timingIntervals = provider.timedMetadata
+                && request.sequence->m_providerKnownTimingIntervals
+                ? *request.sequence->m_providerKnownTimingIntervals
                 : TimingIntervals();
             request.activeRequest.target.frame = 0;
-            request.activeRequest.target.position = m_providerTimedMetadata ? 0 : -1;
+            request.activeRequest.target.position = provider.timedMetadata ? 0 : -1;
             request.playbackPosition = request.activeRequest.target.position;
             request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
             request.latestNonPlaybackRequest.target.position
@@ -82,10 +82,10 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 = ProviderRequestTargetKind::Unknown;
             beginInitialDisplayRequest(true);
         }
-        m_requestStatus = RequestStatus::Loading;
-        m_requestReason = RequestReason::ProviderWaiting;
-        m_displayStatus
-            = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+        request.status = RequestStatus::Loading;
+        request.reason = RequestReason::ProviderWaiting;
+        display.status
+            = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
         if (!openProviderSession()) {
             controller.handleProviderSessionOpenFailure(
                 QStringLiteral("provider session creation failed"));
@@ -115,16 +115,16 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         request.latestNonPlaybackRequest.target.providerTargetKind
             = ProviderRequestTargetKind::Unknown;
         clearDisplayedDisplay();
-        m_requestStatus = RequestStatus::NoRequest;
-        m_requestReason = RequestReason::NoRequest;
-        m_displayStatus = DisplayStatus::Empty;
+        request.status = RequestStatus::NoRequest;
+        request.reason = RequestReason::NoRequest;
+        display.status = DisplayStatus::Empty;
         clearPendingRenderIdentity();
         clearRenderFailureRetainedDisplay();
     }
 
     incrementRequestRevision();
     const bool displayValueChanged
-        = m_displayStatus != oldDisplayStatus || m_displayStatus == DisplayStatus::Ready;
+        = display.status != oldDisplayStatus || display.status == DisplayStatus::Ready;
     if (displayValueChanged) {
         incrementDisplayRevision();
     }
@@ -137,10 +137,10 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
         emit q->geometryStateChanged();
     }
-    if (m_playbackPhase != oldPlaybackPhase) {
+    if (request.playbackPhase != oldPlaybackPhase) {
         emit q->playbackPhaseChanged();
     }
-    if (m_errorString != oldErrorString || m_warningString != oldWarningString) {
+    if (request.errorString != oldErrorString || request.warningString != oldWarningString) {
         emit q->diagnosticsChanged();
     }
     syncPlaybackTimer();
@@ -149,27 +149,27 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 
 ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const
 {
-    return m_requestStatus;
+    return request.status;
 }
 
 ImageViewportPrivate::RequestReason ImageViewportPrivate::requestReason() const
 {
-    return m_requestReason;
+    return request.reason;
 }
 
 ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
 {
-    return m_commandReason;
+    return request.commandReason;
 }
 
 ImageViewportPrivate::DisplayStatus ImageViewportPrivate::displayStatus() const
 {
-    return m_displayStatus;
+    return display.status;
 }
 
 ImageViewportPrivate::PlaybackPhase ImageViewportPrivate::playbackPhase() const
 {
-    return m_playbackPhase;
+    return request.playbackPhase;
 }
 
 int ImageViewportPrivate::displayedFrame() const
@@ -202,7 +202,7 @@ int ImageViewportPrivate::displayedPosition() const
 int ImageViewportPrivate::requestedPosition() const
 {
     if (hasProviderSequence()
-        && (m_providerTimedMetadata || request.activeRequest.target.position >= 0)) {
+        && (provider.timedMetadata || request.activeRequest.target.position >= 0)) {
         return request.activeRequest.target.position;
     }
     if (hasTimedSequence()) {
@@ -214,16 +214,16 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerTimedMetadata ? m_providerTimingIntervals.frameCount() : 1;
+    if (hasProviderSequence() && provider.metadataReady) {
+        return provider.timedMetadata ? provider.timingIntervals.frameCount() : 1;
     }
-    if (hasProviderSequence() && !m_providerMetadataReady
-        && m_sequence->m_providerKnownFacts.isTimedFrameCount()
-        && providerCapabilityKnownTrue(m_sequence->m_providerFrameSeekCapability)) {
-        return m_sequence->m_providerKnownFacts.frameCount();
+    if (hasProviderSequence() && !provider.metadataReady
+        && request.sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(request.sequence->m_providerFrameSeekCapability)) {
+        return request.sequence->m_providerKnownFacts.frameCount();
     }
     if (hasDisplayableSequence()) {
-        return m_sequence->frameCount();
+        return request.sequence->frameCount();
     }
 
     return -1;
@@ -231,11 +231,11 @@ int ImageViewportPrivate::frameCount() const
 
 int ImageViewportPrivate::totalDuration() const
 {
-    if (hasProviderSequence() && m_providerTimedMetadata) {
-        return m_providerTimingIntervals.totalDuration();
+    if (hasProviderSequence() && provider.timedMetadata) {
+        return provider.timingIntervals.totalDuration();
     }
     if (hasTimedSequence()) {
-        return m_sequence->totalDuration();
+        return request.sequence->totalDuration();
     }
 
     return -1;
@@ -243,28 +243,28 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
-        if (!m_providerFrameSeekSupport) {
+    if (hasProviderSequence() && provider.metadataReady) {
+        if (!provider.frameSeekSupport) {
             return invalidRange();
         }
         return {
             { QStringLiteral("minimum"), 0 },
             { QStringLiteral("maximum"),
-                m_providerTimedMetadata ? m_providerTimingIntervals.frameCount() - 1 : 0 },
+                provider.timedMetadata ? provider.timingIntervals.frameCount() - 1 : 0 },
         };
     }
-    if (hasProviderSequence() && !m_providerMetadataReady
-        && m_sequence->m_providerKnownFacts.isTimedFrameCount()
-        && providerCapabilityKnownTrue(m_sequence->m_providerFrameSeekCapability)) {
+    if (hasProviderSequence() && !provider.metadataReady
+        && request.sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(request.sequence->m_providerFrameSeekCapability)) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), m_sequence->m_providerKnownFacts.frameCount() - 1 },
+            { QStringLiteral("maximum"), request.sequence->m_providerKnownFacts.frameCount() - 1 },
         };
     }
     if (hasStillSequence() || hasTimedSequence()) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), m_sequence->frameCount() - 1 },
+            { QStringLiteral("maximum"), request.sequence->frameCount() - 1 },
         };
     }
 
@@ -273,16 +273,16 @@ QVariantMap ImageViewportPrivate::frameSeekBounds() const
 
 QVariantMap ImageViewportPrivate::positionSeekBounds() const
 {
-    if (hasProviderSequence() && m_providerTimedMetadata && m_providerPositionSeekSupport) {
+    if (hasProviderSequence() && provider.timedMetadata && provider.positionSeekSupport) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), m_providerTimingIntervals.totalDuration() },
+            { QStringLiteral("maximum"), provider.timingIntervals.totalDuration() },
         };
     }
     if (hasTimedSequence()) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), m_sequence->totalDuration() },
+            { QStringLiteral("maximum"), request.sequence->totalDuration() },
         };
     }
 
@@ -291,11 +291,11 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerTimedPlaybackSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && provider.metadataReady) {
+        return provider.timedPlaybackSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(m_sequence->m_providerTimedPlaybackCapability);
+        return capabilitySupportToTriState(request.sequence->m_providerTimedPlaybackCapability);
     }
     if (hasTimedSequence()) {
         return TriState::True;
@@ -309,11 +309,11 @@ ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() cons
 
 ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerFrameSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && provider.metadataReady) {
+        return provider.frameSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(m_sequence->m_providerFrameSeekCapability);
+        return capabilitySupportToTriState(request.sequence->m_providerFrameSeekCapability);
     }
     if (hasStillSequence() || hasTimedSequence()) {
         return TriState::True;
@@ -324,11 +324,11 @@ ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 {
-    if (hasProviderSequence() && m_providerMetadataReady) {
-        return m_providerPositionSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && provider.metadataReady) {
+        return provider.positionSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(m_sequence->m_providerPositionSeekCapability);
+        return capabilitySupportToTriState(request.sequence->m_providerPositionSeekCapability);
     }
     if (hasTimedSequence()) {
         return TriState::True;
@@ -343,18 +343,18 @@ ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 QSizeF ImageViewportPrivate::displayedImageSize() const
 {
     if (hasReadyDisplay()) {
-        return m_displayedImageSize;
+        return display.displayedImageSize;
     }
 
     return QSizeF(0.0, 0.0);
 }
 
-uint ImageViewportPrivate::displayRevision() const { return m_displayRevision; }
+uint ImageViewportPrivate::displayRevision() const { return display.revision; }
 
-uint ImageViewportPrivate::requestRevision() const { return m_requestRevision; }
+uint ImageViewportPrivate::requestRevision() const { return request.requestRevision; }
 
-uint ImageViewportPrivate::commandRevision() const { return m_commandRevision; }
+uint ImageViewportPrivate::commandRevision() const { return request.commandRevision; }
 
-QString ImageViewportPrivate::errorString() const { return m_errorString; }
+QString ImageViewportPrivate::errorString() const { return request.errorString; }
 
-QString ImageViewportPrivate::warningString() const { return m_warningString; }
+QString ImageViewportPrivate::warningString() const { return request.warningString; }

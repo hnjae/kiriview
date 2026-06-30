@@ -65,24 +65,24 @@ bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) c
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
 {
-    return m_sequence ? m_sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
+    return request.sequence ? request.sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
 {
-    return m_sequence ? m_sequence->m_providerTimedPlaybackCapability
+    return request.sequence ? request.sequence->m_providerTimedPlaybackCapability
                       : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
 {
-    return m_sequence ? m_sequence->m_providerFrameSeekCapability
+    return request.sequence ? request.sequence->m_providerFrameSeekCapability
                       : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
 {
-    return m_sequence ? m_sequence->m_providerPositionSeekCapability
+    return request.sequence ? request.sequence->m_providerPositionSeekCapability
                       : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
@@ -207,9 +207,9 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
 
 void ImageViewportPrivate::publishProviderFrameLoadingState()
 {
-    m_requestStatus = RequestStatus::Loading;
-    m_requestReason = RequestReason::ProviderWaiting;
-    m_displayStatus = m_displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    request.status = RequestStatus::Loading;
+    request.reason = RequestReason::ProviderWaiting;
+    display.status = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
 }
 
@@ -234,8 +234,8 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
     startProviderFrameRequest(flush.frame, flush.targetKind);
     incrementRequestRevision();
     emit q->requestStateChanged();
-    if (m_requestStatus == RequestStatus::Error
-        && m_requestReason == RequestReason::ProviderFailure) {
+    if (request.status == RequestStatus::Error
+        && request.reason == RequestReason::ProviderFailure) {
         emit q->diagnosticsChanged();
     }
 }
@@ -373,29 +373,29 @@ void ImageViewportPrivate::handleProviderCancellation(
 std::shared_ptr<ImageSequenceProviderSessionFactory>
 ImageViewportPrivate::providerSessionFactory() const
 {
-    return hasProviderSequence() ? m_sequence->m_providerSessionFactory : nullptr;
+    return hasProviderSequence() ? request.sequence->m_providerSessionFactory : nullptr;
 }
 
 ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract() const
 {
     if (hasProviderSequence()) {
-        return m_sequence->m_providerThreadingContract;
+        return request.sequence->m_providerThreadingContract;
     }
     return ImageSequenceProviderThreadingContract::AffinityBound;
 }
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
 {
-    if (!m_providerTimedMetadata) {
+    if (!provider.timedMetadata) {
         return -1;
     }
-    return m_providerTimingIntervals.frameStartPosition(frame);
+    return provider.timingIntervals.frameStartPosition(frame);
 }
 
 int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
 {
-    if (!m_providerTimedMetadata) {
+    if (!provider.timedMetadata) {
         return -1;
     }
-    return m_providerTimingIntervals.frameIndexForPosition(position);
+    return provider.timingIntervals.frameIndexForPosition(position);
 }

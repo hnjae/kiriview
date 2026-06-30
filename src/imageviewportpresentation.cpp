@@ -13,13 +13,13 @@ PresentationGeometry::State geometryState(const ImageViewportPrivate& viewport)
         viewport.hasReadyDisplay(),
         viewport.itemBounds(),
         viewport.currentImageSize(),
-        viewport.m_fillMode,
-        viewport.m_horizontalAlignment,
-        viewport.m_verticalAlignment,
-        viewport.m_mirrorHorizontally,
-        viewport.m_mirrorVertically,
-        viewport.m_zoom,
-        viewport.m_pan,
+        viewport.presentation.fillMode,
+        viewport.presentation.horizontalAlignment,
+        viewport.presentation.verticalAlignment,
+        viewport.presentation.mirrorHorizontally,
+        viewport.presentation.mirrorVertically,
+        viewport.presentation.zoom,
+        viewport.presentation.pan,
     };
 }
 
@@ -62,157 +62,160 @@ QRectF ImageViewportPrivate::visibleImageRectForImageSize(QSizeF imageSize) cons
     return PresentationGeometry::visibleImageRect(geometryStateForImageSize(*this, imageSize));
 }
 
-ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const { return m_fillMode; }
+ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const
+{
+    return presentation.fillMode;
+}
 
 void ImageViewportPrivate::setFillMode(FillMode mode)
 {
-    if (!isValidFillMode(mode) || m_fillMode == mode) {
+    if (!isValidFillMode(mode) || presentation.fillMode == mode) {
         return;
     }
 
-    m_fillMode = mode;
+    presentation.fillMode = mode;
     notifyPresentationChanged(true);
 }
 
 ImageViewportPrivate::HorizontalAlignment ImageViewportPrivate::horizontalAlignment() const
 {
-    return m_horizontalAlignment;
+    return presentation.horizontalAlignment;
 }
 
 void ImageViewportPrivate::setHorizontalAlignment(HorizontalAlignment alignment)
 {
-    if (!isValidHorizontalAlignment(alignment) || m_horizontalAlignment == alignment) {
+    if (!isValidHorizontalAlignment(alignment) || presentation.horizontalAlignment == alignment) {
         return;
     }
 
-    m_horizontalAlignment = alignment;
+    presentation.horizontalAlignment = alignment;
     notifyPresentationChanged(true);
 }
 
 ImageViewportPrivate::VerticalAlignment ImageViewportPrivate::verticalAlignment() const
 {
-    return m_verticalAlignment;
+    return presentation.verticalAlignment;
 }
 
 void ImageViewportPrivate::setVerticalAlignment(VerticalAlignment alignment)
 {
-    if (!isValidVerticalAlignment(alignment) || m_verticalAlignment == alignment) {
+    if (!isValidVerticalAlignment(alignment) || presentation.verticalAlignment == alignment) {
         return;
     }
 
-    m_verticalAlignment = alignment;
+    presentation.verticalAlignment = alignment;
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::smoothing() const { return m_smoothing; }
+bool ImageViewportPrivate::smoothing() const { return presentation.smoothing; }
 
 void ImageViewportPrivate::setSmoothing(bool smoothing)
 {
-    if (m_smoothing == smoothing) {
+    if (presentation.smoothing == smoothing) {
         return;
     }
 
-    m_smoothing = smoothing;
+    presentation.smoothing = smoothing;
     notifyPresentationChanged(false);
 }
 
-bool ImageViewportPrivate::mipmap() const { return m_mipmap; }
+bool ImageViewportPrivate::mipmap() const { return presentation.mipmap; }
 
 void ImageViewportPrivate::setMipmap(bool mipmap)
 {
-    if (m_mipmap == mipmap) {
+    if (presentation.mipmap == mipmap) {
         return;
     }
 
-    m_mipmap = mipmap;
+    presentation.mipmap = mipmap;
     notifyPresentationChanged(false);
 }
 
-bool ImageViewportPrivate::mirrorHorizontally() const { return m_mirrorHorizontally; }
+bool ImageViewportPrivate::mirrorHorizontally() const { return presentation.mirrorHorizontally; }
 
 void ImageViewportPrivate::setMirrorHorizontally(bool mirror)
 {
-    if (m_mirrorHorizontally == mirror) {
+    if (presentation.mirrorHorizontally == mirror) {
         return;
     }
 
-    m_mirrorHorizontally = mirror;
+    presentation.mirrorHorizontally = mirror;
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::mirrorVertically() const { return m_mirrorVertically; }
+bool ImageViewportPrivate::mirrorVertically() const { return presentation.mirrorVertically; }
 
 void ImageViewportPrivate::setMirrorVertically(bool mirror)
 {
-    if (m_mirrorVertically == mirror) {
+    if (presentation.mirrorVertically == mirror) {
         return;
     }
 
-    m_mirrorVertically = mirror;
+    presentation.mirrorVertically = mirror;
     notifyPresentationChanged(true);
 }
 
 ImageViewportPrivate::BackgroundMode ImageViewportPrivate::backgroundMode() const
 {
-    return m_backgroundMode;
+    return presentation.backgroundMode;
 }
 
 void ImageViewportPrivate::setBackgroundMode(BackgroundMode mode)
 {
-    if (!isValidBackgroundMode(mode) || m_backgroundMode == mode) {
+    if (!isValidBackgroundMode(mode) || presentation.backgroundMode == mode) {
         return;
     }
 
-    m_backgroundMode = mode;
+    presentation.backgroundMode = mode;
     notifyPresentationChanged(false);
 }
 
-QColor ImageViewportPrivate::backgroundColor() const { return m_backgroundColor; }
+QColor ImageViewportPrivate::backgroundColor() const { return presentation.backgroundColor; }
 
 void ImageViewportPrivate::setBackgroundColor(const QColor& color)
 {
-    if (m_backgroundColor == color) {
+    if (presentation.backgroundColor == color) {
         return;
     }
 
-    m_backgroundColor = color;
+    presentation.backgroundColor = color;
     notifyPresentationChanged(false);
 }
 
-double ImageViewportPrivate::zoom() const { return m_zoom; }
+double ImageViewportPrivate::zoom() const { return presentation.zoom; }
 
 void ImageViewportPrivate::setZoom(double zoom)
 {
-    if (!isFinitePositive(zoom) || m_zoom == zoom) {
+    if (!isFinitePositive(zoom) || presentation.zoom == zoom) {
         return;
     }
 
-    m_zoom = zoom;
+    presentation.zoom = zoom;
     notifyPresentationChanged(true);
 }
 
-QPointF ImageViewportPrivate::pan() const { return m_pan; }
+QPointF ImageViewportPrivate::pan() const { return presentation.pan; }
 
 void ImageViewportPrivate::setPan(QPointF pan)
 {
-    const bool unchanged = m_pan.x() == pan.x() && m_pan.y() == pan.y();
+    const bool unchanged = presentation.pan.x() == pan.x() && presentation.pan.y() == pan.y();
     if (!isFinitePoint(pan) || unchanged) {
         return;
     }
 
-    m_pan = pan;
+    presentation.pan = pan;
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::looping() const { return m_looping; }
+bool ImageViewportPrivate::looping() const { return request.looping; }
 
 void ImageViewportPrivate::setLooping(bool looping)
 {
-    if (m_looping == looping) {
+    if (request.looping == looping) {
         return;
     }
 
-    m_looping = looping;
+    request.looping = looping;
     emit q->loopingChanged();
 }
 
@@ -284,5 +287,5 @@ QSizeF ImageViewportPrivate::currentImageSize() const
         return {};
     }
 
-    return m_displayedImageSize;
+    return display.displayedImageSize;
 }
