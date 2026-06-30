@@ -12,9 +12,7 @@ class ImageViewportPrivate;
 
 struct ViewportRenderAcknowledgement
 {
-    quint64 generation = 0;
-    quint64 requestId = 0;
-    quint64 preparedPayloadId = 0;
+    ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
 };
 
 struct ViewportRenderSynchronization

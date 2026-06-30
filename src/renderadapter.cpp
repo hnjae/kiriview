@@ -10,15 +10,18 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     delete oldNode;
 
     const auto& payload = input.preparedPayload;
+    const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
+        payload.generation,
+        payload.requestId,
+        payload.payloadId,
+    };
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, payload.generation, payload.requestId,
-            payload.payloadId };
+        return { nullptr, RenderAdapter::CommitResult::Empty, payloadIdentity };
     }
 
     const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
     if (!hasBackground && payload.image.isNull()) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, payload.generation, payload.requestId,
-            payload.payloadId };
+        return { nullptr, RenderAdapter::CommitResult::Empty, payloadIdentity };
     }
 
     auto* root = new QSGNode;
@@ -47,14 +50,12 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
 
     if (payload.image.isNull()) {
-        return { root, CommitResult::Empty, payload.generation, payload.requestId,
-            payload.payloadId };
+        return { root, CommitResult::Empty, payloadIdentity };
     }
 
     if (!input.window) {
         delete root;
-        return { nullptr, CommitResult::Failed, payload.generation, payload.requestId,
-            payload.payloadId };
+        return { nullptr, CommitResult::Failed, payloadIdentity };
     }
 
     QQuickWindow::CreateTextureOptions textureOptions;
@@ -67,8 +68,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         delete texture;
         delete imageNode;
         delete root;
-        return { nullptr, CommitResult::Failed, payload.generation, payload.requestId,
-            payload.payloadId };
+        return { nullptr, CommitResult::Failed, payloadIdentity };
     }
 
     imageNode->setTexture(texture);
@@ -90,6 +90,5 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
     imageNode->setTextureCoordinatesTransform(transform);
     root->appendChildNode(imageNode);
-    return { root, CommitResult::Committed, payload.generation, payload.requestId,
-        payload.payloadId };
+    return { root, CommitResult::Committed, payloadIdentity };
 }

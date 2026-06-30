@@ -36,9 +36,7 @@ public:
     {
         QSGNode* node = nullptr;
         CommitResult result = CommitResult::Empty;
-        quint64 generation = 0;
-        quint64 requestId = 0;
-        quint64 preparedPayloadId = 0;
+        ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     };
 
     Output createNode(QSGNode* oldNode, const Input& input) const;

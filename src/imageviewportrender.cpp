@@ -35,8 +35,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             window(),
         });
     if (render.result == RenderAdapter::CommitResult::Failed) {
-        const auto changes = controller.acknowledgeRenderFailure(
-            { render.generation, render.requestId, render.preparedPayloadId });
+        const auto changes = controller.acknowledgeRenderFailure({ render.preparedPayload });
         applyControllerChanges(changes);
         if (changes.playbackPhase) {
             syncPlaybackTimer();
@@ -45,8 +44,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     }
 
     const auto changes = controller.acknowledgeRenderCommit(
-        { render.generation, render.requestId, render.preparedPayloadId }, imagePresent,
-        synchronization);
+        { render.preparedPayload }, imagePresent, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

@@ -394,11 +394,15 @@ bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
     return viewport.display.pendingRenderPayload.commitPending
-        && acknowledgement.generation == viewport.display.pendingRenderPayload.generation
-        && acknowledgement.generation == viewport.request.sequenceGeneration
-        && acknowledgement.requestId == viewport.display.pendingRenderPayload.requestId
-        && acknowledgement.preparedPayloadId == viewport.display.pendingRenderPayload.payloadId
-        && acknowledgement.preparedPayloadId == viewport.request.activeRequest.preparedPayloadId;
+        && acknowledgement.preparedPayload.generation
+        == viewport.display.pendingRenderPayload.generation
+        && acknowledgement.preparedPayload.generation == viewport.request.sequenceGeneration
+        && acknowledgement.preparedPayload.requestId
+        == viewport.display.pendingRenderPayload.requestId
+        && acknowledgement.preparedPayload.payloadId
+        == viewport.display.pendingRenderPayload.payloadId
+        && acknowledgement.preparedPayload.payloadId
+        == viewport.request.activeRequest.preparedPayloadId;
 }
 
 void setPlaybackPhase(ImageViewportPrivate& viewport,
@@ -2276,7 +2280,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
 {
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
     const auto changes = controller.acknowledgeRenderCommit(
-        { generation, requestId, preparedPayloadId }, true, synchronization);
+        { { generation, requestId, preparedPayloadId } }, true, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();
@@ -2287,7 +2291,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     const auto changes
-        = controller.acknowledgeRenderFailure({ generation, requestId, preparedPayloadId });
+        = controller.acknowledgeRenderFailure({ { generation, requestId, preparedPayloadId } });
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

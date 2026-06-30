@@ -70,6 +70,13 @@ struct DisplayRequestSnapshot
     DisplayRequest request;
 };
 
+struct PreparedPayloadIdentity
+{
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    quint64 payloadId = 0;
+};
+
 struct PreparedPayload
 {
     bool commitPending = false;
