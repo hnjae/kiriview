@@ -105,6 +105,34 @@ struct PresentationState
 
 struct DisplayState
 {
+    DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
+        const DisplayRequest& activeRequest, int displayedPosition) const
+    {
+        DisplayRequestSnapshot snapshot = displayedRequest;
+        snapshot.generation = sequenceGeneration;
+        snapshot.request.target = activeRequest.target;
+        snapshot.request.target.frame = activeRequest.target.frame;
+        snapshot.request.target.position = displayedPosition;
+        return snapshot;
+    }
+
+    void commitDisplayedRequestSnapshot(
+        quint64 sequenceGeneration, const DisplayRequest& activeRequest, quint64 preparedPayloadId)
+    {
+        const auto displayedTarget = displayedRequest.request.target;
+        displayedRequest.generation = sequenceGeneration;
+        displayedRequest.request = activeRequest;
+        displayedRequest.request.target = displayedTarget;
+        displayedRequest.request.preparedPayloadId = preparedPayloadId;
+    }
+
+    void clearDisplayedDisplay()
+    {
+        displayedRequest = {};
+        displayedImageSize = {};
+        displayedImage = {};
+    }
+
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     DisplayRequestSnapshot displayedRequest;
     QSizeF displayedImageSize;

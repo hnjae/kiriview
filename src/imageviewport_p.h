@@ -201,9 +201,6 @@ public:
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
-    DisplayRequestSnapshot activeDisplayRequestSnapshot(int displayedPosition) const;
-    void commitDisplayedRequestSnapshot();
-    void clearDisplayedDisplay();
     void beginPreparedPayloadIdentity();
     void clearPendingRenderIdentity();
     CommandOutcome ignoredNoRequest();

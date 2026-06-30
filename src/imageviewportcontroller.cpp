@@ -182,33 +182,6 @@ bool ImageViewportPrivate::clearDiagnostics()
     return true;
 }
 
-ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplayRequestSnapshot(
-    int displayedPosition) const
-{
-    DisplayRequestSnapshot snapshot = display.displayedRequest;
-    snapshot.generation = request.sequenceGeneration;
-    snapshot.request.target = request.activeRequest.target;
-    snapshot.request.target.frame = request.activeRequest.target.frame;
-    snapshot.request.target.position = displayedPosition;
-    return snapshot;
-}
-
-void ImageViewportPrivate::commitDisplayedRequestSnapshot()
-{
-    const auto displayedTarget = display.displayedRequest.request.target;
-    display.displayedRequest.generation = request.sequenceGeneration;
-    display.displayedRequest.request = request.activeRequest;
-    display.displayedRequest.request.target = displayedTarget;
-    display.displayedRequest.request.preparedPayloadId = display.pendingRenderPayload.payloadId;
-}
-
-void ImageViewportPrivate::clearDisplayedDisplay()
-{
-    display.displayedRequest = {};
-    display.displayedImageSize = {};
-    display.displayedImage = {};
-}
-
 void ImageViewportPrivate::beginPreparedPayloadIdentity()
 {
     display.pendingRenderPayload.generation = request.sequenceGeneration;
@@ -396,7 +369,8 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
         displayedPosition
             = hasTimedSequence() ? request.sequence->frameStartPosition(currentFrame) : -1;
     }
-    display.displayedRequest = activeDisplayRequestSnapshot(displayedPosition);
+    display.displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.activeRequest, displayedPosition);
     display.displayedImageSize
         = hasProviderSequence() ? provider.logicalSize : request.sequence->logicalSize();
     if (hasProviderSequence()) {
@@ -426,8 +400,8 @@ void ImageViewportPrivate::publishSequenceReadyState(
     commitPreparedPayloadIdentity(*this, providerPayload);
     display.pendingRenderPayload.commitPending = true;
     const int currentFrame = request.activeRequest.target.frame;
-    display.displayedRequest
-        = activeDisplayRequestSnapshot(providerFrameStartPosition(currentFrame));
+    display.displayedRequest = display.activeRequestSnapshot(request.sequenceGeneration,
+        request.activeRequest, providerFrameStartPosition(currentFrame));
     display.displayedImageSize = provider.logicalSize;
     display.displayedImage = providerPayload.image;
     display.pendingRenderPayload.image = {};

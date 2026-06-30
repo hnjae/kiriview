@@ -107,7 +107,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
         request.latestNonPlaybackRequest.target.providerTargetKind
             = ProviderRequestTargetKind::Unknown;
-        clearDisplayedDisplay();
+        display.clearDisplayedDisplay();
         request.status = RequestStatus::NoRequest;
         request.reason = RequestReason::NoRequest;
         display.status = DisplayStatus::Empty;
