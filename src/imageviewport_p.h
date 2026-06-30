@@ -159,8 +159,8 @@ public:
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void handleProviderEvent(const ViewportProviderEvent& event) override;
-    void handleProviderMetadataReady(ImageSequenceProviderRequestToken token,
-        const ImageSequenceProviderMetadata& metadata);
+    void handleProviderMetadataReady(
+        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
     void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
         ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
@@ -174,7 +174,8 @@ public:
     void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
         ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
-    void handleProviderCancellation(ImageSequenceProviderRequestToken token, const QString& diagnostic);
+    void handleProviderCancellation(
+        ImageSequenceProviderRequestToken token, const QString& diagnostic);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const override;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
@@ -201,9 +202,10 @@ public:
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
     void clearRequestIdentity();
-    void beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
-        bool rememberAsLatestNonPlayback);
-    void beginInitialDisplayRequest(bool rememberAsLatestNonPlayback);
+    void beginDisplayRequest(
+        ImageViewportInternal::DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback);
+    void beginInitialDisplayRequest(
+        ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
     DisplayRequestSnapshot activeDisplayRequestSnapshot(int displayedPosition) const;
     void commitDisplayedRequestSnapshot();
     void clearDisplayedDisplay();
@@ -242,5 +244,4 @@ public:
     ImageViewportInternal::ProviderGenerationState provider;
     QTimer playbackTimer;
     QElapsedTimer playbackElapsedTimer;
-
 };

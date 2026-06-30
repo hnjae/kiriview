@@ -61,26 +61,21 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 = provider.timedMetadata && request.sequence->m_providerKnownTimingIntervals
                 ? *request.sequence->m_providerKnownTimingIntervals
                 : TimingIntervals();
-            request.activeRequest.target.frame = 0;
-            request.activeRequest.target.position = provider.timedMetadata ? 0 : -1;
-            request.playbackPosition = request.activeRequest.target.position;
-            request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
-            request.latestNonPlaybackRequest.target.position
-                = request.activeRequest.target.position;
-            request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Frame;
-            request.latestNonPlaybackRequest.target.providerTargetKind
-                = ProviderRequestTargetKind::Frame;
-            beginInitialDisplayRequest(true);
+            const DisplayRequestTarget initialTarget {
+                0,
+                provider.timedMetadata ? 0 : -1,
+                ProviderRequestTargetKind::Frame,
+            };
+            beginInitialDisplayRequest(initialTarget, true);
+            request.playbackPosition = initialTarget.position;
         } else {
-            request.activeRequest.target.frame = -1;
-            request.activeRequest.target.position = -1;
-            request.playbackPosition = -1;
-            request.latestNonPlaybackRequest.target.frame = -1;
-            request.latestNonPlaybackRequest.target.position = -1;
-            request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
-            request.latestNonPlaybackRequest.target.providerTargetKind
-                = ProviderRequestTargetKind::Unknown;
-            beginInitialDisplayRequest(true);
+            const DisplayRequestTarget initialTarget {
+                -1,
+                -1,
+                ProviderRequestTargetKind::Unknown,
+            };
+            beginInitialDisplayRequest(initialTarget, true);
+            request.playbackPosition = initialTarget.position;
         }
         request.status = RequestStatus::Loading;
         request.reason = RequestReason::ProviderWaiting;
@@ -91,15 +86,13 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 QStringLiteral("provider session creation failed"));
         }
     } else if (hasDisplayableSequence()) {
-        request.activeRequest.target.frame = 0;
-        request.activeRequest.target.position = hasTimedSequence() ? 0 : -1;
-        request.playbackPosition = hasTimedSequence() ? 0 : -1;
-        request.latestNonPlaybackRequest.target.frame = request.activeRequest.target.frame;
-        request.latestNonPlaybackRequest.target.position = request.activeRequest.target.position;
-        request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
-        request.latestNonPlaybackRequest.target.providerTargetKind
-            = ProviderRequestTargetKind::Unknown;
-        beginInitialDisplayRequest(true);
+        const DisplayRequestTarget initialTarget {
+            0,
+            hasTimedSequence() ? 0 : -1,
+            ProviderRequestTargetKind::Unknown,
+        };
+        beginInitialDisplayRequest(initialTarget, true);
+        request.playbackPosition = initialTarget.position;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
         } else {

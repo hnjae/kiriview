@@ -201,9 +201,14 @@ void ImageViewportPrivate::beginDisplayRequest(
     }
 }
 
-void ImageViewportPrivate::beginInitialDisplayRequest(bool rememberAsLatestNonPlayback)
+void ImageViewportPrivate::beginInitialDisplayRequest(
+    DisplayRequestTarget target, bool rememberAsLatestNonPlayback)
 {
     beginDisplayRequest(DisplayRequestOrigin::Initial, rememberAsLatestNonPlayback);
+    request.activeRequest.target = target;
+    if (rememberAsLatestNonPlayback) {
+        request.latestNonPlaybackRequest.target = target;
+    }
 }
 
 ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplayRequestSnapshot(
