@@ -201,8 +201,6 @@ public:
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
-    void beginPreparedPayloadIdentity();
-    void clearPendingRenderIdentity();
     CommandOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;

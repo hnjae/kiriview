@@ -133,6 +133,27 @@ struct DisplayState
         displayedImage = {};
     }
 
+    void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
+    {
+        pendingRenderPayload.generation = sequenceGeneration;
+        pendingRenderPayload.requestId = activeRequest.identity.id;
+        pendingRenderPayload.payloadId
+            = activeRequest.identity.id == 0 ? 0 : ++nextPreparedPayloadId;
+        activeRequest.preparedPayloadId = pendingRenderPayload.payloadId;
+    }
+
+    void commitPreparedPayloadIdentity(
+        DisplayRequest& activeRequest, const PreparedPayload& preparedPayload)
+    {
+        pendingRenderPayload = preparedPayload;
+        activeRequest.preparedPayloadId = preparedPayload.payloadId;
+        if (preparedPayload.payloadId > nextPreparedPayloadId) {
+            nextPreparedPayloadId = preparedPayload.payloadId;
+        }
+    }
+
+    void clearPendingRenderPayload() { pendingRenderPayload = {}; }
+
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     DisplayRequestSnapshot displayedRequest;
     QSizeF displayedImageSize;

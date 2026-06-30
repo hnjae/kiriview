@@ -26,7 +26,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     ++request.sequenceGeneration;
     request.clearDisplayRequestIdentity();
     display.nextPreparedPayloadId = 0;
-    clearPendingRenderIdentity();
+    display.clearPendingRenderPayload();
     request.errorString.clear();
     request.warningString.clear();
     request.playbackPhase = PlaybackPhase::Stopped;
@@ -111,7 +111,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         request.status = RequestStatus::NoRequest;
         request.reason = RequestReason::NoRequest;
         display.status = DisplayStatus::Empty;
-        clearPendingRenderIdentity();
+        display.clearPendingRenderPayload();
         clearRenderFailureRetainedDisplay();
     }
 

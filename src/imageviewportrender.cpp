@@ -90,6 +90,6 @@ void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 
 void ImageViewportPrivate::discardPendingRenderCommit()
 {
-    clearPendingRenderIdentity();
+    display.clearPendingRenderPayload();
     clearRenderFailureRetainedDisplay();
 }

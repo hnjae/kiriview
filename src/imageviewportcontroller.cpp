@@ -182,27 +182,6 @@ bool ImageViewportPrivate::clearDiagnostics()
     return true;
 }
 
-void ImageViewportPrivate::beginPreparedPayloadIdentity()
-{
-    display.pendingRenderPayload.generation = request.sequenceGeneration;
-    display.pendingRenderPayload.requestId = request.activeRequest.identity.id;
-    display.pendingRenderPayload.payloadId
-        = request.activeRequest.identity.id == 0 ? 0 : ++display.nextPreparedPayloadId;
-    request.activeRequest.preparedPayloadId = display.pendingRenderPayload.payloadId;
-}
-
-void commitPreparedPayloadIdentity(
-    ImageViewportPrivate& viewport, const ImageViewportInternal::PreparedPayload& preparedPayload)
-{
-    viewport.display.pendingRenderPayload = preparedPayload;
-    viewport.request.activeRequest.preparedPayloadId = preparedPayload.payloadId;
-    if (preparedPayload.payloadId > viewport.display.nextPreparedPayloadId) {
-        viewport.display.nextPreparedPayloadId = preparedPayload.payloadId;
-    }
-}
-
-void ImageViewportPrivate::clearPendingRenderIdentity() { display.pendingRenderPayload = {}; }
-
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::ignoredNoRequest()
 {
     setCommandDiagnostic(CommandReason::IgnoredNoRequest);
@@ -307,7 +286,7 @@ void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImag
     if (hasProviderSequence() && !providerImage.isNull()) {
         captureRenderFailureRetainedDisplay();
         display.pendingRenderPayload.image = providerImage;
-        beginPreparedPayloadIdentity();
+        display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
         if (itemBounds().isEmpty()) {
             publishRenderWaitingState();
         } else {
@@ -332,7 +311,7 @@ void ImageViewportPrivate::publishAcceptedTargetState(
 {
     if (hasProviderSequence() && !providerPayload.image.isNull()) {
         captureRenderFailureRetainedDisplay();
-        commitPreparedPayloadIdentity(*this, providerPayload);
+        display.commitPreparedPayloadIdentity(request.activeRequest, providerPayload);
         if (itemBounds().isEmpty()) {
             publishRenderWaitingState();
         } else {
@@ -360,7 +339,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
     captureRenderFailureRetainedDisplay();
     publishReadyDisplayState();
     display.pendingRenderPayload.commitPending = true;
-    beginPreparedPayloadIdentity();
+    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
     int displayedPosition = -1;
     const int currentFrame = request.activeRequest.target.frame;
     if (hasProviderSequence()) {
@@ -397,7 +376,7 @@ void ImageViewportPrivate::publishSequenceReadyState(
 
     captureRenderFailureRetainedDisplay();
     publishReadyDisplayState();
-    commitPreparedPayloadIdentity(*this, providerPayload);
+    display.commitPreparedPayloadIdentity(request.activeRequest, providerPayload);
     display.pendingRenderPayload.commitPending = true;
     const int currentFrame = request.activeRequest.target.frame;
     display.displayedRequest = display.activeRequestSnapshot(request.sequenceGeneration,

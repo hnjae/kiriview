@@ -716,7 +716,7 @@ ViewportCommandResult ViewportController::clear()
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.display.clearDisplayedDisplay();
     viewport.display.nextPreparedPayloadId = 0;
-    viewport.clearPendingRenderIdentity();
+    viewport.display.clearPendingRenderPayload();
     viewport.clearRenderFailureRetainedDisplay();
     viewport.request.status = ImageViewport::RequestStatus::NoRequest;
     viewport.request.reason = ImageViewport::RequestReason::NoRequest;
@@ -1929,7 +1929,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
     if (renderMatchesPending) {
         viewport.display.commitDisplayedRequestSnapshot(viewport.request.sequenceGeneration,
             viewport.request.activeRequest, viewport.display.pendingRenderPayload.payloadId);
-        viewport.clearPendingRenderIdentity();
+        viewport.display.clearPendingRenderPayload();
     }
     viewport.clearRenderFailureRetainedDisplay();
     if (resumePlaybackAfterCommit) {
@@ -1975,7 +1975,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
 
     viewport.request.status = ImageViewport::RequestStatus::Error;
     viewport.request.reason = ImageViewport::RequestReason::RenderFailure;
-    viewport.clearPendingRenderIdentity();
+    viewport.display.clearPendingRenderPayload();
     if (viewport.display.renderFailureRetainedDisplayValid) {
         viewport.display.status = ImageViewport::DisplayStatus::Retained;
         viewport.display.displayedRequest = viewport.display.renderFailureRetainedRequest;
