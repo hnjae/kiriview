@@ -77,7 +77,7 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
     }
 
     display.renderFailureRetainedDisplayValid = true;
-    request.renderFailureRetainedRequest = request.displayedRequest;
+    display.renderFailureRetainedRequest = display.displayedRequest;
     display.renderFailureRetainedImageSize = display.displayedImageSize;
     display.renderFailureRetainedImage = display.displayedImage;
 }
@@ -85,7 +85,7 @@ void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
 void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
 {
     display.renderFailureRetainedDisplayValid = false;
-    request.renderFailureRetainedRequest = {};
+    display.renderFailureRetainedRequest = {};
     display.renderFailureRetainedImageSize = {};
     display.renderFailureRetainedImage = {};
 }

@@ -99,10 +99,12 @@ struct PresentationState
 struct DisplayState
 {
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
+    DisplayRequestSnapshot displayedRequest;
     QSizeF displayedImageSize;
     QImage displayedImage;
     quint64 nextPreparedPayloadId = 0;
     PreparedPayload pendingRenderPayload;
+    DisplayRequestSnapshot renderFailureRetainedRequest;
     bool renderFailureRetainedDisplayValid = false;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;
@@ -123,8 +125,6 @@ struct RequestState
     DisplayRequest activeRequest;
     int playbackPosition = -1;
     DisplayRequest latestNonPlaybackRequest;
-    DisplayRequestSnapshot displayedRequest;
-    DisplayRequestSnapshot renderFailureRetainedRequest;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     uint requestRevision = 0;

@@ -279,10 +279,10 @@ void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayReque
 bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 {
     return viewport.hasReadyDisplay()
-        && viewport.request.displayedRequest.generation == viewport.request.sequenceGeneration
-        && viewport.request.displayedRequest.request.target.frame
+        && viewport.display.displayedRequest.generation == viewport.request.sequenceGeneration
+        && viewport.display.displayedRequest.request.target.frame
         == viewport.request.activeRequest.target.frame
-        && viewport.request.displayedRequest.request.target.position
+        && viewport.display.displayedRequest.request.target.position
         == viewport.request.activeRequest.target.position;
 }
 
@@ -1685,9 +1685,9 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         = ImageViewportInternal::ProviderRequestTargetKind::Playback;
 
     if (!viewport.request.looping && viewport.hasReadyDisplay()
-        && viewport.request.displayedRequest.generation == viewport.request.sequenceGeneration
-        && viewport.request.displayedRequest.request.target.frame == selectedFrame
-        && viewport.request.displayedRequest.request.target.position == selectedPosition) {
+        && viewport.display.displayedRequest.generation == viewport.request.sequenceGeneration
+        && viewport.display.displayedRequest.request.target.frame == selectedFrame
+        && viewport.display.displayedRequest.request.target.position == selectedPosition) {
         viewport.publishReadyDisplayState();
         setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Stopped);
         viewport.request.stopPlaybackWhenRequestReady = false;
@@ -1981,7 +1981,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
     viewport.clearPendingRenderIdentity();
     if (viewport.display.renderFailureRetainedDisplayValid) {
         viewport.display.status = ImageViewport::DisplayStatus::Retained;
-        viewport.request.displayedRequest = viewport.request.renderFailureRetainedRequest;
+        viewport.display.displayedRequest = viewport.display.renderFailureRetainedRequest;
         viewport.display.displayedImageSize = viewport.display.renderFailureRetainedImageSize;
         viewport.display.displayedImage = viewport.display.renderFailureRetainedImage;
     } else {

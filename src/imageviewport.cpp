@@ -57,8 +57,8 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             provider.positionSeekSupport = providerResolvedCapability(
                 request.sequence->m_providerPositionSeekCapability, provider.timedMetadata);
             provider.logicalSize = request.sequence->m_providerKnownLogicalSize;
-            provider.timingIntervals = provider.timedMetadata
-                && request.sequence->m_providerKnownTimingIntervals
+            provider.timingIntervals
+                = provider.timedMetadata && request.sequence->m_providerKnownTimingIntervals
                 ? *request.sequence->m_providerKnownTimingIntervals
                 : TimingIntervals();
             request.activeRequest.target.frame = 0;
@@ -175,7 +175,7 @@ ImageViewportPrivate::PlaybackPhase ImageViewportPrivate::playbackPhase() const
 int ImageViewportPrivate::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return request.displayedRequest.request.target.frame;
+        return display.displayedRequest.request.target.frame;
     }
 
     return -1;
@@ -193,7 +193,7 @@ int ImageViewportPrivate::requestedFrame() const
 int ImageViewportPrivate::displayedPosition() const
 {
     if (hasReadyDisplay()) {
-        return request.displayedRequest.request.target.position;
+        return display.displayedRequest.request.target.position;
     }
 
     return -1;

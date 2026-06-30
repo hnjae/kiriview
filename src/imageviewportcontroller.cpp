@@ -37,7 +37,7 @@ quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const
 
 quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
 {
-    return request.displayedRequest.request.identity.id;
+    return display.displayedRequest.request.identity.id;
 }
 
 quint64 ImageViewportPrivate::pendingRenderGenerationForTestImpl() const
@@ -209,7 +209,7 @@ void ImageViewportPrivate::beginInitialDisplayRequest(bool rememberAsLatestNonPl
 ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplayRequestSnapshot(
     int displayedPosition) const
 {
-    DisplayRequestSnapshot snapshot = request.displayedRequest;
+    DisplayRequestSnapshot snapshot = display.displayedRequest;
     snapshot.generation = request.sequenceGeneration;
     snapshot.request.target = request.activeRequest.target;
     snapshot.request.target.frame = request.activeRequest.target.frame;
@@ -219,16 +219,16 @@ ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplay
 
 void ImageViewportPrivate::commitDisplayedRequestSnapshot()
 {
-    const auto displayedTarget = request.displayedRequest.request.target;
-    request.displayedRequest.generation = request.sequenceGeneration;
-    request.displayedRequest.request = request.activeRequest;
-    request.displayedRequest.request.target = displayedTarget;
-    request.displayedRequest.request.preparedPayloadId = display.pendingRenderPayload.payloadId;
+    const auto displayedTarget = display.displayedRequest.request.target;
+    display.displayedRequest.generation = request.sequenceGeneration;
+    display.displayedRequest.request = request.activeRequest;
+    display.displayedRequest.request.target = displayedTarget;
+    display.displayedRequest.request.preparedPayloadId = display.pendingRenderPayload.payloadId;
 }
 
 void ImageViewportPrivate::clearDisplayedDisplay()
 {
-    request.displayedRequest = {};
+    display.displayedRequest = {};
     display.displayedImageSize = {};
     display.displayedImage = {};
 }
@@ -420,7 +420,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
         displayedPosition
             = hasTimedSequence() ? request.sequence->frameStartPosition(currentFrame) : -1;
     }
-    request.displayedRequest = activeDisplayRequestSnapshot(displayedPosition);
+    display.displayedRequest = activeDisplayRequestSnapshot(displayedPosition);
     display.displayedImageSize
         = hasProviderSequence() ? provider.logicalSize : request.sequence->logicalSize();
     if (hasProviderSequence()) {
@@ -432,7 +432,7 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
         display.pendingRenderPayload.image = {};
     } else {
         display.displayedImage = request.sequence
-            ? request.sequence->frameImage(request.displayedRequest.request.target.frame)
+            ? request.sequence->frameImage(display.displayedRequest.request.target.frame)
             : QImage();
     }
 }
@@ -450,7 +450,7 @@ void ImageViewportPrivate::publishSequenceReadyState(
     commitPreparedPayloadIdentity(*this, providerPayload);
     display.pendingRenderPayload.commitPending = true;
     const int currentFrame = request.activeRequest.target.frame;
-    request.displayedRequest
+    display.displayedRequest
         = activeDisplayRequestSnapshot(providerFrameStartPosition(currentFrame));
     display.displayedImageSize = provider.logicalSize;
     display.displayedImage = providerPayload.image;
