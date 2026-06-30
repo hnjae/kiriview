@@ -1,7 +1,22 @@
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+
+namespace {
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+void acknowledgePendingRenderFailure(ImageViewport& item)
+{
+    item.acknowledgeRenderFailureForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageViewportRenderCommitTest : public QObject
 {
@@ -41,7 +56,7 @@ void ImageViewportRenderCommitTest::stillImagePaintFailureReportsRenderFailure()
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
 
-    PaintProbeViewport item;
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -49,9 +64,7 @@ void ImageViewportRenderCommitTest::stillImagePaintFailureReportsRenderFailure()
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
 
-    QScopedPointer<QSGNode> root(item.takePaintNode());
-
-    QVERIFY(!root);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -87,7 +100,7 @@ void ImageViewportRenderCommitTest::timedFrameListPaintFailureRetainsPreviousDis
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
     QVERIFY(result->sequence());
 
-    PaintProbeViewport item;
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -116,9 +129,7 @@ void ImageViewportRenderCommitTest::timedFrameListPaintFailureRetainsPreviousDis
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
 
-    QScopedPointer<QSGNode> root(item.takePaintNode());
-
-    QVERIFY(!root);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -148,7 +159,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlaybackPaintFailureStopsPlayb
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
     QVERIFY(result->sequence());
 
-    PaintProbeViewport item;
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -181,9 +192,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlaybackPaintFailureStopsPlayb
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
 
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
@@ -215,7 +224,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlayAfterPaintFailureRestartsD
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
     QVERIFY(result->sequence());
 
-    PaintProbeViewport item;
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -223,8 +232,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlayAfterPaintFailureRestartsD
     item.setSize(QSizeF(0.0, 20.0));
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(40.0, 20.0));
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -261,16 +269,15 @@ void ImageViewportRenderCommitTest::successfulPaintClearsRenderFailureInterest()
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    QScopedPointer<QSGNode> root(item.takePaintNode());
-    QVERIFY(root);
+    const quint64 generation = item.pendingRenderGenerationForTest();
+    const quint64 requestId = item.activeRequestIdForTest();
+    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -278,10 +285,7 @@ void ImageViewportRenderCommitTest::successfulPaintClearsRenderFailureInterest()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    item.setParentItem(nullptr);
-    QScopedPointer<QSGNode> detachedRoot(item.takePaintNode());
-
-    QVERIFY(!detachedRoot);
+    item.acknowledgeRenderFailureForTest(generation, requestId, payloadId);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -301,10 +305,7 @@ void ImageViewportRenderCommitTest::builtInSameFrameSeekCreatesFreshRequestIdent
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
 
@@ -313,7 +314,7 @@ void ImageViewportRenderCommitTest::builtInSameFrameSeekCreatesFreshRequestIdent
     QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
     QCOMPARE(item.displayedRequestIdForTest(), 0U);
 
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(item.displayedRequestIdForTest(), initialRequestId);
     QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
 
@@ -324,7 +325,7 @@ void ImageViewportRenderCommitTest::builtInSameFrameSeekCreatesFreshRequestIdent
     QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
     QCOMPARE(item.displayedRequestIdForTest(), initialRequestId);
 
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(item.displayedRequestIdForTest(), seekRequestId);
     QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
 }
@@ -343,10 +344,7 @@ void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviou
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -361,7 +359,7 @@ void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviou
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -388,10 +386,7 @@ void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviou
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
-    item.setParentItem(nullptr);
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -426,10 +421,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -444,7 +436,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -482,10 +474,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
-    item.setParentItem(nullptr);
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
@@ -522,10 +511,7 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -540,14 +526,12 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
 
-    item.setParentItem(nullptr);
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -558,7 +542,6 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
 
-    item.setParentItem(window.contentItem());
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*playbackRequestCount, 1);
@@ -577,7 +560,7 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     QCOMPARE(item.property("errorString").toString(), QString());
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -608,10 +591,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -627,7 +607,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     QVERIFY(item.hasPendingRenderCommitForTest());
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -671,10 +651,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(40, 20);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -689,7 +666,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
@@ -718,10 +695,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.setParentItem(nullptr);
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
