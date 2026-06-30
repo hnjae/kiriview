@@ -54,7 +54,7 @@ target_compile_options(ImageViewport
 target_compile_definitions(
     ImageViewport
     PRIVATE
-        $<$<BOOL:${IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES}>:IMAGE_VIEWPORT_PRIVATE_TEST_PROBES=1>
+        $<$<BOOL:${IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES}>:IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1>
 )
 
 set_target_properties(ImageViewport PROPERTIES EXPORT_NAME ImageViewport)

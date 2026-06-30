@@ -1,7 +1,22 @@
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+
+namespace {
+
+void acknowledgePendingRenderFailure(ImageViewport& item)
+{
+    item.acknowledgeRenderFailureForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageViewportProviderLifecycleTest : public QObject
 {
@@ -62,7 +77,7 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromProvider(&adapter));
     QVERIFY(replacementResult->sequence());
 
-    PaintProbeViewport item;
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(firstResult->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -75,8 +90,7 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     item.setSize(QSizeF(0.0, 100.0));
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(100.0, 100.0));
-    QScopedPointer<QSGNode> failedRoot(item.takePaintNode());
-    QVERIFY(!failedRoot);
+    acknowledgePendingRenderFailure(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -261,10 +275,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -279,7 +290,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(

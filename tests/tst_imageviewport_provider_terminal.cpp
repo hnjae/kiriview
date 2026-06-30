@@ -1,7 +1,16 @@
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+
+namespace {
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageViewportProviderTerminalTest : public QObject
 {
@@ -115,10 +124,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -133,7 +139,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -772,10 +778,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureRetainsDisplayAndCle
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -790,7 +793,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureRetainsDisplayAndCle
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken failedToken
@@ -854,10 +857,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureKeepsGenerationPosit
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -872,7 +872,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureKeepsGenerationPosit
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken failedToken
@@ -928,10 +928,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlayAfterFrameFailureRestar
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -946,7 +943,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlayAfterFrameFailureRestar
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken failedToken
@@ -989,7 +986,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlayAfterFrameFailureRestar
     QCOMPARE(item.property("errorString").toString(), QString());
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), playbackToken, &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1423,10 +1420,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedRetainsDisplayAn
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1441,7 +1435,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedRetainsDisplayAn
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken unsupportedToken
@@ -1506,10 +1500,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedKeepsGenerationP
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1524,7 +1515,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedKeepsGenerationP
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken unsupportedToken
@@ -1676,10 +1667,7 @@ void ImageViewportProviderTerminalTest::providerFrameCancellationRetainsDisplayA
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1694,7 +1682,7 @@ void ImageViewportProviderTerminalTest::providerFrameCancellationRetainsDisplayA
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken cancelledToken
@@ -1962,10 +1950,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackStopsOnFrameFailure
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1980,7 +1965,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackStopsOnFrameFailure
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2041,10 +2026,7 @@ void ImageViewportProviderTerminalTest::
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2059,7 +2041,7 @@ void ImageViewportProviderTerminalTest::
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2120,7 +2102,7 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(item.property("errorString").toString(), QString());
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), retryToken, &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -2153,10 +2135,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackCancellationReports
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2171,7 +2150,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackCancellationReports
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2237,10 +2216,7 @@ void ImageViewportProviderTerminalTest::
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2255,7 +2231,7 @@ void ImageViewportProviderTerminalTest::
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2317,7 +2293,7 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(item.property("errorString").toString(), QString());
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), retryToken, &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -2346,10 +2322,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackUnsupportedReportsU
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2364,7 +2337,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackUnsupportedReportsU
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2427,10 +2400,7 @@ void ImageViewportProviderTerminalTest::
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -2445,7 +2415,7 @@ void ImageViewportProviderTerminalTest::
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
@@ -2508,7 +2478,7 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(item.property("errorString").toString(), QString());
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), retryToken, &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));

@@ -1,6 +1,8 @@
 add_library(imageviewport_test_support INTERFACE)
 
-target_compile_definitions(ImageViewport PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
+if(NOT IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES)
+    message(FATAL_ERROR "IMAGEVIEWPORT_BUILD_TESTS requires IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES")
+endif()
 
 target_link_libraries(imageviewport_test_support INTERFACE ImageViewport ImageViewportplugin
                                                            Qt6::Qml Qt6::Quick Qt6::Test)

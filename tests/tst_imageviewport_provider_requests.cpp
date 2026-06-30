@@ -1,7 +1,16 @@
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+
+namespace {
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageViewportProviderRequestsTest : public QObject
 {
@@ -544,10 +553,7 @@ void ImageViewportProviderRequestsTest::providerTotalDurationSeekBeforeMetadataR
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -592,7 +598,7 @@ void ImageViewportProviderRequestsTest::providerTotalDurationSeekBeforeMetadataR
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -683,10 +689,7 @@ void ImageViewportProviderRequestsTest::providerPlaybackBeforeStillMetadataKeeps
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -747,7 +750,7 @@ void ImageViewportProviderRequestsTest::providerPlaybackBeforeStillMetadataKeeps
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -777,10 +780,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -877,10 +877,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -976,7 +973,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QVERIFY(item.hasPendingRenderCommitForTest());
 
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1005,10 +1002,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1023,7 +1017,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     const uint readyDisplayRevision = item.property("displayRevision").toUInt();
@@ -1060,10 +1054,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekWithoutDiagnostics
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
 
@@ -1077,7 +1068,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekWithoutDiagnostics
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
 
@@ -1105,10 +1096,7 @@ void ImageViewportProviderRequestsTest::
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
 
@@ -1122,7 +1110,7 @@ void ImageViewportProviderRequestsTest::
     firstImage.fill(Qt::transparent);
     ImageFrame firstFrame(firstImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
 
@@ -1135,7 +1123,7 @@ void ImageViewportProviderRequestsTest::
     secondImage.fill(Qt::black);
     ImageFrame secondFrame(secondImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondFrame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
@@ -1159,10 +1147,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1177,7 +1162,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
@@ -1257,10 +1242,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    QQuickWindow window;
-    window.resize(100, 100);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -1275,7 +1257,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 
@@ -1300,7 +1282,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
 
@@ -1320,7 +1302,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));

@@ -1,7 +1,16 @@
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+
+namespace {
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageViewportProviderContractTest : public QObject
 {
@@ -376,10 +385,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
     QVERIFY(result->sequence());
 
     {
-        QQuickWindow window;
-        window.resize(100, 100);
-        PaintProbeViewport item;
-        item.setParentItem(window.contentItem());
+        ImageViewport item;
         item.setSize(QSizeF(100.0, 100.0));
         item.setSequence(result->sequence());
 
@@ -398,7 +404,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
             ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
         drainQueuedProviderResults();
-        QVERIFY(commitPaintNode(item));
+        acknowledgePendingRenderCommit(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
         item.advancePlaybackForTest(100);
@@ -440,10 +446,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
     QVERIFY(result->sequence());
 
     {
-        QQuickWindow window;
-        window.resize(100, 100);
-        PaintProbeViewport item;
-        item.setParentItem(window.contentItem());
+        ImageViewport item;
         item.setSize(QSizeF(100.0, 100.0));
         item.setSequence(result->sequence());
 
@@ -463,7 +466,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
             ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
         drainQueuedProviderResults();
-        QVERIFY(commitPaintNode(item));
+        acknowledgePendingRenderCommit(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
         item.advancePlaybackForTest(100);

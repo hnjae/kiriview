@@ -15,12 +15,25 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Qml Quick Test)
 qt_standard_project_setup(REQUIRES 6.5)
 
 option(IMAGEVIEWPORT_BUILD_EXAMPLES "Build ImageViewport examples" ON)
-option(IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES "Enable private ImageViewport test probes" OFF)
+option(IMAGEVIEWPORT_BUILD_TESTS "Build ImageViewport tests" ON)
+option(IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES "Enable private ImageViewport test probes"
+       ${IMAGEVIEWPORT_BUILD_TESTS})
 
-enable_testing()
+if(IMAGEVIEWPORT_BUILD_TESTS AND NOT IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES)
+    set(IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES
+        ON
+        CACHE BOOL "Enable private ImageViewport test probes" FORCE)
+endif()
+
+if(IMAGEVIEWPORT_BUILD_TESTS)
+    enable_testing()
+endif()
 
 add_subdirectory(src)
-add_subdirectory(tests)
+
+if(IMAGEVIEWPORT_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
 
 if(IMAGEVIEWPORT_BUILD_EXAMPLES)
     add_subdirectory(examples)

@@ -1,8 +1,17 @@
 #include "framepreparation_p.h"
-#include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 #include "timingintervals_p.h"
+
+namespace {
+
+void acknowledgePendingRenderCommit(ImageViewport& item)
+{
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+}
+
+}
 
 class ImageSequenceFactoryTest : public QObject
 {
@@ -487,10 +496,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
     QVERIFY(result->sequence());
     QPointer<ImageSequence> observedSequence = result->sequence();
 
-    QQuickWindow window;
-    window.resize(100, 50);
-    PaintProbeViewport item;
-    item.setParentItem(window.contentItem());
+    ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -525,7 +531,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    QVERIFY(commitPaintNode(item));
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
