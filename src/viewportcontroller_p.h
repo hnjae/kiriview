@@ -265,6 +265,12 @@ struct ViewportCommandResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
+struct ViewportPlaybackAdvanceResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
 class ViewportController
 {
 public:
@@ -320,6 +326,7 @@ public:
         const ViewportRenderSynchronization& synchronization);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
         ViewportRenderAcknowledgement acknowledgement);
+    ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
