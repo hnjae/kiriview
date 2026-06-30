@@ -243,8 +243,9 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 bool ImageViewportPrivate::startProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
+    const DisplayRequestTarget target { frame, request.activeRequest.target.position, targetKind };
     const ViewportProviderFrameRequestStartResult result
-        = controller.startProviderFrameRequest({ frame, targetKind });
+        = controller.startProviderFrameRequest({ target });
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession = result.closeSession;
     effect.sessionClose = result.sessionClose;

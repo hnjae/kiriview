@@ -187,9 +187,7 @@ struct ViewportProviderFrameQueueFlush
 
 struct ViewportProviderFrameRequestStart
 {
-    int frame = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    ImageViewportInternal::DisplayRequestTarget target;
 };
 
 struct ViewportProviderFrameCommand

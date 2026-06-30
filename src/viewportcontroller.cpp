@@ -424,9 +424,10 @@ bool appendProviderStopRestoreFrameStart(
         return true;
     }
 
+    DisplayRequestTarget target = viewport.request.activeRequest.target;
+    target.providerTargetKind = viewport.request.latestNonPlaybackRequest.target.providerTargetKind;
     const ViewportProviderFrameRequestStartResult start
-        = controller.startProviderFrameRequest({ viewport.request.activeRequest.target.frame,
-            viewport.request.latestNonPlaybackRequest.target.providerTargetKind });
+        = controller.startProviderFrameRequest({ target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (start.accepted) {
         return true;
@@ -619,7 +620,7 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
         viewport.publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
         const ViewportProviderFrameDispatchResult dispatch
-            = controller.dispatchProviderFrameRequest({ target.frame, target.providerTargetKind });
+            = controller.dispatchProviderFrameRequest({ target });
         result.providerFrameTransport = dispatch.transport;
         if (!dispatch.accepted) {
             result.changes.requestRevision = true;
@@ -782,8 +783,8 @@ ViewportCommandResult ViewportController::play()
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             applyProviderPlaybackStartTarget(viewport, target);
             viewport.publishProviderFrameLoadingState();
-            const ViewportProviderFrameDispatchResult dispatch = dispatchProviderFrameRequest(
-                { target.frame, ImageViewportInternal::ProviderRequestTargetKind::Playback });
+            const ViewportProviderFrameDispatchResult dispatch
+                = dispatchProviderFrameRequest({ target });
             result.providerFrameTransport = dispatch.transport;
             if (!dispatch.accepted) {
                 result.changes.requestRevision = true;
@@ -1222,8 +1223,7 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     if (viewport.provider.metadataReady) {
         viewport.discardPendingRenderCommit();
         appendProviderFrameStartResult(result.providerFrameTransport,
-            startProviderFrameRequest({ viewport.request.activeRequest.target.frame,
-                viewport.request.activeRequest.target.providerTargetKind }));
+            startProviderFrameRequest({ viewport.request.activeRequest.target }));
         return result;
     }
 
@@ -1531,7 +1531,7 @@ ViewportController::handleProviderMetadataTargetSelection(
 
     viewport.request.providerPlaybackStartPending = false;
     const ViewportProviderFrameRequestStartResult start
-        = startProviderFrameRequest({ selection.selectedFrame, selection.targetKind });
+        = startProviderFrameRequest({ viewport.request.activeRequest.target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;
@@ -1697,8 +1697,8 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     }
 
     viewport.publishProviderFrameLoadingState();
-    const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest(
-        { selectedFrame, ImageViewportInternal::ProviderRequestTargetKind::Playback });
+    const ViewportProviderFrameRequestStartResult start
+        = startProviderFrameRequest({ viewport.request.activeRequest.target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;
@@ -1858,15 +1858,15 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     }
 
     viewport.request.activeRequest.providerFrameToken = viewport.provider.activeFrameToken;
-    viewport.provider.activeFrameTargetKind = request.targetKind;
-    viewport.provider.activeFrameFromPlayback
-        = request.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    viewport.provider.activeFrameTargetKind = request.target.providerTargetKind;
+    viewport.provider.activeFrameFromPlayback = request.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Playback;
     result.accepted = true;
     result.sendCommand = viewport.provider.session != nullptr;
     result.command.token = viewport.provider.activeFrameToken;
-    result.command.frame = request.frame;
-    result.command.position = viewport.request.activeRequest.target.position;
-    result.command.targetKind = request.targetKind;
+    result.command.frame = request.target.frame;
+    result.command.position = request.target.position;
+    result.command.targetKind = request.target.providerTargetKind;
     return result;
 }
 
@@ -1876,8 +1876,8 @@ ViewportProviderFrameDispatchResult ViewportController::dispatchProviderFrameReq
     ViewportProviderFrameDispatchResult result;
     if (viewport.provider.activeFrameToken.isValid()) {
         result.accepted = true;
-        appendProviderFrameQueueResult(
-            result.transport, queueProviderFrameRequest({ request.frame, request.targetKind }));
+        appendProviderFrameQueueResult(result.transport,
+            queueProviderFrameRequest({ request.target.frame, request.target.providerTargetKind }));
         return result;
     }
 
@@ -2040,8 +2040,7 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
         viewport.publishProviderFrameLoadingState();
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
         const ViewportProviderFrameDispatchResult dispatch
-            = dispatchProviderFrameRequest({ target.displayTarget.frame,
-                ImageViewportInternal::ProviderRequestTargetKind::Playback });
+            = dispatchProviderFrameRequest({ viewport.request.activeRequest.target });
         result.providerFrameTransport = dispatch.transport;
         appendPlaybackRequestChange(viewport, result.changes, previousFrame);
         if (!dispatch.accepted) {
