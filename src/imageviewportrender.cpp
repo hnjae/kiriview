@@ -67,29 +67,8 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
     }
 }
 
-void ImageViewportPrivate::captureRenderFailureRetainedDisplay()
-{
-    if (!hasReadyDisplay()) {
-        clearRenderFailureRetainedDisplay();
-        return;
-    }
-
-    display.renderFailureRetainedDisplayValid = true;
-    display.renderFailureRetainedRequest = display.displayedRequest;
-    display.renderFailureRetainedImageSize = display.displayedImageSize;
-    display.renderFailureRetainedImage = display.displayedImage;
-}
-
-void ImageViewportPrivate::clearRenderFailureRetainedDisplay()
-{
-    display.renderFailureRetainedDisplayValid = false;
-    display.renderFailureRetainedRequest = {};
-    display.renderFailureRetainedImageSize = {};
-    display.renderFailureRetainedImage = {};
-}
-
 void ImageViewportPrivate::discardPendingRenderCommit()
 {
     display.clearPendingRenderPayload();
-    clearRenderFailureRetainedDisplay();
+    display.clearRenderFailureRetainedDisplay();
 }

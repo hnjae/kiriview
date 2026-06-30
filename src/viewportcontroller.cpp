@@ -717,7 +717,7 @@ ViewportCommandResult ViewportController::clear()
     viewport.display.clearDisplayedDisplay();
     viewport.display.nextPreparedPayloadId = 0;
     viewport.display.clearPendingRenderPayload();
-    viewport.clearRenderFailureRetainedDisplay();
+    viewport.display.clearRenderFailureRetainedDisplay();
     viewport.request.status = ImageViewport::RequestStatus::NoRequest;
     viewport.request.reason = ImageViewport::RequestReason::NoRequest;
     viewport.display.status = ImageViewport::DisplayStatus::Empty;
@@ -1931,7 +1931,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
             viewport.request.activeRequest, viewport.display.pendingRenderPayload.payloadId);
         viewport.display.clearPendingRenderPayload();
     }
-    viewport.clearRenderFailureRetainedDisplay();
+    viewport.display.clearRenderFailureRetainedDisplay();
     if (resumePlaybackAfterCommit) {
         setPlaybackPhase(viewport, changes,
             viewport.request.stopPlaybackWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
@@ -1985,7 +1985,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
         viewport.display.status = ImageViewport::DisplayStatus::Empty;
         viewport.display.clearDisplayedDisplay();
     }
-    viewport.clearRenderFailureRetainedDisplay();
+    viewport.display.clearRenderFailureRetainedDisplay();
     viewport.request.errorString = QStringLiteral("render commit failed");
     setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
 

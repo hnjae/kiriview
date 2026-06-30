@@ -112,7 +112,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         request.reason = RequestReason::NoRequest;
         display.status = DisplayStatus::Empty;
         display.clearPendingRenderPayload();
-        clearRenderFailureRetainedDisplay();
+        display.clearRenderFailureRetainedDisplay();
     }
 
     incrementRequestRevision();

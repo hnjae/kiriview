@@ -195,10 +195,7 @@ bool ImageViewportPrivate::hasActiveRequest() const
 
 bool ImageViewportPrivate::hasReadyDisplay() const
 {
-    return hasDisplayableSequence()
-        && (display.status == DisplayStatus::Ready || display.status == DisplayStatus::Retained)
-        && display.displayedImageSize.isValid() && display.displayedImageSize.width() > 0.0
-        && display.displayedImageSize.height() > 0.0;
+    return display.hasReadyDisplay(hasDisplayableSequence());
 }
 
 bool ImageViewportPrivate::hasDisplayableSequence() const
@@ -284,7 +281,7 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
 void ImageViewportPrivate::publishAcceptedTargetState(const QImage& providerImage)
 {
     if (hasProviderSequence() && !providerImage.isNull()) {
-        captureRenderFailureRetainedDisplay();
+        display.captureRenderFailureRetainedDisplay(hasDisplayableSequence());
         display.pendingRenderPayload.image = providerImage;
         display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
         if (itemBounds().isEmpty()) {
@@ -310,7 +307,7 @@ void ImageViewportPrivate::publishAcceptedTargetState(
     const ImageViewportInternal::PreparedPayload& providerPayload)
 {
     if (hasProviderSequence() && !providerPayload.image.isNull()) {
-        captureRenderFailureRetainedDisplay();
+        display.captureRenderFailureRetainedDisplay(hasDisplayableSequence());
         display.commitPreparedPayloadIdentity(request.activeRequest, providerPayload);
         if (itemBounds().isEmpty()) {
             publishRenderWaitingState();
@@ -336,7 +333,7 @@ void ImageViewportPrivate::publishReadyDisplayState()
 
 void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage)
 {
-    captureRenderFailureRetainedDisplay();
+    display.captureRenderFailureRetainedDisplay(hasDisplayableSequence());
     publishReadyDisplayState();
     display.pendingRenderPayload.commitPending = true;
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
@@ -374,7 +371,7 @@ void ImageViewportPrivate::publishSequenceReadyState(
         return;
     }
 
-    captureRenderFailureRetainedDisplay();
+    display.captureRenderFailureRetainedDisplay(hasDisplayableSequence());
     publishReadyDisplayState();
     display.commitPreparedPayloadIdentity(request.activeRequest, providerPayload);
     display.pendingRenderPayload.commitPending = true;

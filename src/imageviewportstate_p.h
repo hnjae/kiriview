@@ -154,6 +154,36 @@ struct DisplayState
 
     void clearPendingRenderPayload() { pendingRenderPayload = {}; }
 
+    bool hasReadyDisplay(bool hasDisplayableSequence) const
+    {
+        return hasDisplayableSequence
+            && (status == ImageViewport::DisplayStatus::Ready
+                || status == ImageViewport::DisplayStatus::Retained)
+            && displayedImageSize.isValid() && displayedImageSize.width() > 0.0
+            && displayedImageSize.height() > 0.0;
+    }
+
+    void captureRenderFailureRetainedDisplay(bool hasDisplayableSequence)
+    {
+        if (!hasReadyDisplay(hasDisplayableSequence)) {
+            clearRenderFailureRetainedDisplay();
+            return;
+        }
+
+        renderFailureRetainedDisplayValid = true;
+        renderFailureRetainedRequest = displayedRequest;
+        renderFailureRetainedImageSize = displayedImageSize;
+        renderFailureRetainedImage = displayedImage;
+    }
+
+    void clearRenderFailureRetainedDisplay()
+    {
+        renderFailureRetainedDisplayValid = false;
+        renderFailureRetainedRequest = {};
+        renderFailureRetainedImageSize = {};
+        renderFailureRetainedImage = {};
+    }
+
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     DisplayRequestSnapshot displayedRequest;
     QSizeF displayedImageSize;
