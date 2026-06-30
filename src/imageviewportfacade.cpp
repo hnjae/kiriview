@@ -122,9 +122,26 @@ quint64 ImageViewport::displayedRequestIdForTest() const
     return d->displayedRequestIdForTest();
 }
 
+quint64 ImageViewport::pendingRenderGenerationForTest() const
+{
+    return d->pendingRenderGenerationForTest();
+}
+
 quint64 ImageViewport::pendingRenderPayloadIdForTest() const
 {
     return d->pendingRenderPayloadIdForTest();
+}
+
+void ImageViewport::acknowledgeRenderCommitForTest(
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    d->acknowledgeRenderCommitForTest(generation, requestId, preparedPayloadId);
+}
+
+void ImageViewport::acknowledgeRenderFailureForTest(
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    d->acknowledgeRenderFailureForTest(generation, requestId, preparedPayloadId);
 }
 #endif
 

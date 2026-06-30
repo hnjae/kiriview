@@ -1868,6 +1868,11 @@ quint64 ViewportController::displayedRequestIdForTest() const
     return viewport.displayedRequestIdForTestImpl();
 }
 
+quint64 ViewportController::pendingRenderGenerationForTest() const
+{
+    return viewport.pendingRenderGenerationForTestImpl();
+}
+
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
     return viewport.pendingRenderPayloadIdForTestImpl();
@@ -2008,8 +2013,36 @@ quint64 ImageViewportPrivate::displayedRequestIdForTest() const
     return controller.displayedRequestIdForTest();
 }
 
+quint64 ImageViewportPrivate::pendingRenderGenerationForTest() const
+{
+    return controller.pendingRenderGenerationForTest();
+}
+
 quint64 ImageViewportPrivate::pendingRenderPayloadIdForTest() const
 {
     return controller.pendingRenderPayloadIdForTest();
+}
+
+void ImageViewportPrivate::acknowledgeRenderCommitForTest(
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const auto changes = controller.acknowledgeRenderCommit(
+        { generation, requestId, preparedPayloadId }, true, synchronization);
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
+}
+
+void ImageViewportPrivate::acknowledgeRenderFailureForTest(
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    const auto changes = controller.acknowledgeRenderFailure(
+        { generation, requestId, preparedPayloadId });
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
 }
 #endif

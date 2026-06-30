@@ -741,7 +741,12 @@ public:
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;
+    quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
+    void acknowledgeRenderCommitForTest(
+        quint64 generation, quint64 requestId, quint64 preparedPayloadId);
+    void acknowledgeRenderFailureForTest(
+        quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 #endif
 
 signals:

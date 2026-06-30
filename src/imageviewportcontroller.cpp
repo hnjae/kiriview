@@ -211,6 +211,11 @@ quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
     return request.displayedRequest.request.identity.id;
 }
 
+quint64 ImageViewportPrivate::pendingRenderGenerationForTestImpl() const
+{
+    return m_pendingRenderPayload.generation;
+}
+
 quint64 ImageViewportPrivate::pendingRenderPayloadIdForTestImpl() const
 {
     return m_pendingRenderPayload.payloadId;
