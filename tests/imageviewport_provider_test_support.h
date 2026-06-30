@@ -1,0 +1,760 @@
+#pragma once
+
+#include "imageviewport_test_support.h"
+
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
+#include <QtCore/QPointer>
+#include <QtCore/QThread>
+#include <QtTest/QTest>
+
+namespace {
+
+class CountingProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit CountingProviderSession(const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& lastRequestedFrame, const std::shared_ptr<int>& closeCount,
+        const std::shared_ptr<int>& playbackRequestCount = {},
+        const std::shared_ptr<int>& lastPlaybackFrame = {},
+        const std::shared_ptr<int>& lastPlaybackPosition = {},
+        const std::shared_ptr<int>& cancelRequestCount = {},
+        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<int>& positionRequestCount = {},
+        const std::shared_ptr<int>& lastPositionFrame = {},
+        const std::shared_ptr<int>& lastRequestedPosition = {}, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_lastRequestedFrame(lastRequestedFrame)
+        , m_closeCount(closeCount)
+        , m_playbackRequestCount(playbackRequestCount)
+        , m_lastPlaybackFrame(lastPlaybackFrame)
+        , m_lastPlaybackPosition(lastPlaybackPosition)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_positionRequestCount(positionRequestCount)
+        , m_lastPositionFrame(lastPositionFrame)
+        , m_lastRequestedPosition(lastRequestedPosition)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+        ++*m_metadataRequestCount;
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
+    {
+        m_lastFrameToken = token;
+        *m_lastRequestedFrame = frame;
+        ++*m_frameRequestCount;
+    }
+
+    void requestPosition(
+        ImageSequenceProviderRequestToken token, int resolvedFrame, int requestedPosition) override
+    {
+        if (!m_positionRequestCount && !m_lastPositionFrame && !m_lastRequestedPosition) {
+            ImageSequenceProviderSession::requestPosition(token, resolvedFrame, requestedPosition);
+            return;
+        }
+        m_lastPositionToken = token;
+        if (m_positionRequestCount) {
+            ++*m_positionRequestCount;
+        }
+        if (m_lastPositionFrame) {
+            *m_lastPositionFrame = resolvedFrame;
+        }
+        if (m_lastRequestedPosition) {
+            *m_lastRequestedPosition = requestedPosition;
+        }
+    }
+
+    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position) override
+    {
+        if (m_playbackRequestCount) {
+            ++*m_playbackRequestCount;
+        }
+        if (m_lastPlaybackFrame) {
+            *m_lastPlaybackFrame = frame;
+        }
+        if (m_lastPlaybackPosition) {
+            *m_lastPlaybackPosition = position;
+        }
+        ImageSequenceProviderSession::requestPlayback(token, frame, position);
+    }
+
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastCancelledToken = token;
+        if (m_cancelRequestCount) {
+            ++*m_cancelRequestCount;
+        }
+        if (m_lastCancelledTokenId) {
+            *m_lastCancelledTokenId = token.id();
+        }
+    }
+
+    void close() override { ++*m_closeCount; }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+    ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
+
+    ImageSequenceProviderRequestToken lastPositionToken() const { return m_lastPositionToken; }
+
+    ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_lastRequestedFrame;
+    std::shared_ptr<int> m_closeCount;
+    std::shared_ptr<int> m_playbackRequestCount;
+    std::shared_ptr<int> m_lastPlaybackFrame;
+    std::shared_ptr<int> m_lastPlaybackPosition;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<int> m_positionRequestCount;
+    std::shared_ptr<int> m_lastPositionFrame;
+    std::shared_ptr<int> m_lastRequestedPosition;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+    ImageSequenceProviderRequestToken m_lastFrameToken;
+    ImageSequenceProviderRequestToken m_lastPositionToken;
+    ImageSequenceProviderRequestToken m_lastCancelledToken;
+};
+
+class CountingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit CountingProviderSessionFactory(const std::shared_ptr<int>& sessionCount,
+        const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& lastRequestedFrame, const std::shared_ptr<int>& closeCount,
+        const std::shared_ptr<int>& playbackRequestCount = {},
+        const std::shared_ptr<int>& lastPlaybackFrame = {},
+        const std::shared_ptr<int>& lastPlaybackPosition = {},
+        const std::shared_ptr<int>& cancelRequestCount = {},
+        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<int>& positionRequestCount = {},
+        const std::shared_ptr<int>& lastPositionFrame = {},
+        const std::shared_ptr<int>& lastRequestedPosition = {})
+        : m_sessionCount(sessionCount)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_lastRequestedFrame(lastRequestedFrame)
+        , m_closeCount(closeCount)
+        , m_playbackRequestCount(playbackRequestCount)
+        , m_lastPlaybackFrame(lastPlaybackFrame)
+        , m_lastPlaybackPosition(lastPlaybackPosition)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_positionRequestCount(positionRequestCount)
+        , m_lastPositionFrame(lastPositionFrame)
+        , m_lastRequestedPosition(lastRequestedPosition)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        ++*m_sessionCount;
+        CountingProviderSession* session
+            = new CountingProviderSession(m_metadataRequestCount, m_frameRequestCount,
+                m_lastRequestedFrame, m_closeCount, m_playbackRequestCount, m_lastPlaybackFrame,
+                m_lastPlaybackPosition, m_cancelRequestCount, m_lastCancelledTokenId,
+                m_positionRequestCount, m_lastPositionFrame, m_lastRequestedPosition, parent);
+        m_lastSession = session;
+        m_sessions.append(session);
+        return session;
+    }
+
+    CountingProviderSession* lastSession() const { return m_lastSession; }
+
+    CountingProviderSession* sessionAt(qsizetype index) const { return m_sessions.at(index); }
+
+private:
+    std::shared_ptr<int> m_sessionCount;
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_lastRequestedFrame;
+    std::shared_ptr<int> m_closeCount;
+    std::shared_ptr<int> m_playbackRequestCount;
+    std::shared_ptr<int> m_lastPlaybackFrame;
+    std::shared_ptr<int> m_lastPlaybackPosition;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<int> m_positionRequestCount;
+    std::shared_ptr<int> m_lastPositionFrame;
+    std::shared_ptr<int> m_lastRequestedPosition;
+    QPointer<CountingProviderSession> m_lastSession;
+    QList<QPointer<CountingProviderSession>> m_sessions;
+};
+
+class CountingProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
+        ImageSequenceProviderMetadata knownMetadata = {},
+        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
+        ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_factory(std::move(factory))
+        , m_knownMetadata(std::move(knownMetadata))
+        , m_timedPlaybackSupport(timedPlaybackSupport)
+        , m_frameSeekSupport(frameSeekSupport)
+        , m_positionSeekSupport(positionSeekSupport)
+        , m_threadingContract(threadingContract)
+    {
+    }
+
+    explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
+        ImageSequenceProviderKnownFacts knownFacts,
+        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
+        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
+        ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_factory(std::move(factory))
+        , m_knownFacts(std::move(knownFacts))
+        , m_timedPlaybackSupport(timedPlaybackSupport)
+        , m_frameSeekSupport(frameSeekSupport)
+        , m_positionSeekSupport(positionSeekSupport)
+        , m_threadingContract(threadingContract)
+    {
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return m_factory;
+    }
+
+    ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
+
+    ImageSequenceProviderKnownFacts knownFacts() const override
+    {
+        if (m_knownFacts.isSpecified()) {
+            return m_knownFacts;
+        }
+        return ImageSequenceProviderAdapter::knownFacts();
+    }
+
+    CapabilitySupport timedPlaybackCapability() const override { return m_timedPlaybackSupport; }
+
+    CapabilitySupport frameSeekCapability() const override { return m_frameSeekSupport; }
+
+    CapabilitySupport positionSeekCapability() const override { return m_positionSeekSupport; }
+
+    ImageSequenceProviderThreadingContract threadingContract() const override
+    {
+        return m_threadingContract;
+    }
+
+private:
+    std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
+    ImageSequenceProviderMetadata m_knownMetadata;
+    ImageSequenceProviderKnownFacts m_knownFacts;
+    CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
+    CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
+    CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+    ImageSequenceProviderThreadingContract m_threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
+};
+
+class AffinityProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit AffinityProviderSession(const std::shared_ptr<QThread*>& metadataRequestThread,
+        const std::shared_ptr<QThread*>& frameRequestThread,
+        const std::shared_ptr<QThread*>& playbackRequestThread,
+        const std::shared_ptr<QThread*>& cancelRequestThread,
+        const std::shared_ptr<QThread*>& closeThread, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestThread(metadataRequestThread)
+        , m_frameRequestThread(frameRequestThread)
+        , m_playbackRequestThread(playbackRequestThread)
+        , m_cancelRequestThread(cancelRequestThread)
+        , m_closeThread(closeThread)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        *m_metadataRequestThread = QThread::currentThread();
+        m_lastMetadataToken = token;
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken token, int) override
+    {
+        *m_frameRequestThread = QThread::currentThread();
+        m_lastFrameToken = token;
+    }
+
+    void requestPosition(ImageSequenceProviderRequestToken token, int, int) override
+    {
+        *m_frameRequestThread = QThread::currentThread();
+        m_lastFrameToken = token;
+    }
+
+    void requestPlayback(ImageSequenceProviderRequestToken token, int, int) override
+    {
+        *m_playbackRequestThread = QThread::currentThread();
+        m_lastPlaybackToken = token;
+    }
+
+    void cancelRequest(ImageSequenceProviderRequestToken) override
+    {
+        *m_cancelRequestThread = QThread::currentThread();
+    }
+
+    void close() override { *m_closeThread = QThread::currentThread(); }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+    ImageSequenceProviderRequestToken lastFrameToken() const { return m_lastFrameToken; }
+
+    ImageSequenceProviderRequestToken lastPlaybackToken() const { return m_lastPlaybackToken; }
+
+private:
+    std::shared_ptr<QThread*> m_metadataRequestThread;
+    std::shared_ptr<QThread*> m_frameRequestThread;
+    std::shared_ptr<QThread*> m_playbackRequestThread;
+    std::shared_ptr<QThread*> m_cancelRequestThread;
+    std::shared_ptr<QThread*> m_closeThread;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+    ImageSequenceProviderRequestToken m_lastFrameToken;
+    ImageSequenceProviderRequestToken m_lastPlaybackToken;
+};
+
+class AffinityProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit AffinityProviderSessionFactory(QThread* thread,
+        const std::shared_ptr<QThread*>& metadataRequestThread,
+        const std::shared_ptr<QThread*>& frameRequestThread,
+        const std::shared_ptr<QThread*>& playbackRequestThread,
+        const std::shared_ptr<QThread*>& cancelRequestThread,
+        const std::shared_ptr<QThread*>& closeThread)
+        : m_thread(thread)
+        , m_metadataRequestThread(metadataRequestThread)
+        , m_frameRequestThread(frameRequestThread)
+        , m_playbackRequestThread(playbackRequestThread)
+        , m_cancelRequestThread(cancelRequestThread)
+        , m_closeThread(closeThread)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        auto* session = new AffinityProviderSession(m_metadataRequestThread, m_frameRequestThread,
+            m_playbackRequestThread, m_cancelRequestThread, m_closeThread);
+        session->moveToThread(m_thread);
+        m_lastSession = session;
+        return session;
+    }
+
+    AffinityProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    QThread* m_thread = nullptr;
+    std::shared_ptr<QThread*> m_metadataRequestThread;
+    std::shared_ptr<QThread*> m_frameRequestThread;
+    std::shared_ptr<QThread*> m_playbackRequestThread;
+    std::shared_ptr<QThread*> m_cancelRequestThread;
+    std::shared_ptr<QThread*> m_closeThread;
+    QPointer<AffinityProviderSession> m_lastSession;
+};
+
+class SlowCleanupProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SlowCleanupProviderSession(const std::shared_ptr<int>& cancelRequestCount,
+        const std::shared_ptr<int>& closeCount, int cleanupDelayMilliseconds,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+    }
+
+    void cancelRequest(ImageSequenceProviderRequestToken) override { ++*m_cancelRequestCount; }
+
+    void close() override
+    {
+        QTest::qSleep(m_cleanupDelayMilliseconds);
+        ++*m_closeCount;
+    }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+private:
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class SlowCleanupProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SlowCleanupProviderSessionFactory(QThread* thread,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount,
+        int cleanupDelayMilliseconds)
+        : m_thread(thread)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        auto* session = new SlowCleanupProviderSession(
+            m_cancelRequestCount, m_closeCount, m_cleanupDelayMilliseconds);
+        session->moveToThread(m_thread);
+        m_lastSession = session;
+        return session;
+    }
+
+    SlowCleanupProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    QThread* m_thread = nullptr;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    QPointer<SlowCleanupProviderSession> m_lastSession;
+};
+
+class FailingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit FailingProviderSessionFactory(const std::shared_ptr<int>& sessionCount)
+        : m_sessionCount(sessionCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        ++*m_sessionCount;
+        return nullptr;
+    }
+
+private:
+    std::shared_ptr<int> m_sessionCount;
+};
+
+class CancellingAcknowledgementProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit CancellingAcknowledgementProviderSession(
+        const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+        ++*m_metadataRequestCount;
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
+
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
+    {
+        ++*m_cancelRequestCount;
+        emit providerCancelled(token, QStringLiteral("request cleanup complete"));
+    }
+
+    void close() override { ++*m_closeCount; }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class CancellingAcknowledgementProviderSessionFactory final
+    : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit CancellingAcknowledgementProviderSessionFactory(
+        const std::shared_ptr<int>& sessionCount, const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount)
+        : m_sessionCount(sessionCount)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        ++*m_sessionCount;
+        auto* session = new CancellingAcknowledgementProviderSession(m_metadataRequestCount,
+            m_frameRequestCount, m_cancelRequestCount, m_closeCount, parent);
+        m_lastSession = session;
+        return session;
+    }
+
+    CancellingAcknowledgementProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    std::shared_ptr<int> m_sessionCount;
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    QPointer<CancellingAcknowledgementProviderSession> m_lastSession;
+};
+
+class NullSessionFactoryProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit NullSessionFactoryProviderAdapter(QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return {};
+    }
+};
+
+class PlaybackFallbackSession final : public ImageSequenceProviderSession
+{
+public:
+    void requestMetadata(ImageSequenceProviderRequestToken) override { }
+
+    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
+    {
+        lastFrameToken = token;
+        lastFrame = frame;
+        ++frameRequestCount;
+    }
+
+    ImageSequenceProviderRequestToken lastFrameToken;
+    int lastFrame = -1;
+    int frameRequestCount = 0;
+};
+
+class SynchronousMetadataProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousMetadataProviderSession(const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        ++*m_metadataRequestCount;
+        emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+};
+
+class SynchronousMetadataProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousMetadataProviderSessionFactory(
+        const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount)
+        : m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new SynchronousMetadataProviderSession(
+            m_metadataRequestCount, m_frameRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+};
+
+class SynchronousFrameProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousFrameProviderSession(
+        const std::shared_ptr<int>& frameRequestCount, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_frameRequestCount(frameRequestCount)
+    {
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        m_frame = std::make_unique<ImageFrame>(image);
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken) override
+    {
+        QFAIL("complete construction metadata should not request runtime metadata");
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken token, int) override
+    {
+        ++*m_frameRequestCount;
+        emit imageFrameReady(token, m_frame.get());
+    }
+
+private:
+    std::shared_ptr<int> m_frameRequestCount;
+    std::unique_ptr<ImageFrame> m_frame;
+};
+
+class SynchronousFrameProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousFrameProviderSessionFactory(const std::shared_ptr<int>& frameRequestCount)
+        : m_frameRequestCount(frameRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new SynchronousFrameProviderSession(m_frameRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_frameRequestCount;
+};
+
+class SynchronousFailureProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousFailureProviderSession(
+        const std::shared_ptr<int>& metadataRequestCount, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        ++*m_metadataRequestCount;
+        emit providerFailed(token, QStringLiteral("metadata failed synchronously"));
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousFailureProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousFailureProviderSessionFactory(
+        const std::shared_ptr<int>& metadataRequestCount)
+        : m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new SynchronousFailureProviderSession(m_metadataRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousUnsupportedProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SynchronousUnsupportedProviderSession(
+        const std::shared_ptr<int>& metadataRequestCount, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        ++*m_metadataRequestCount;
+        emit providerUnsupported(token, QStringLiteral("metadata unsupported synchronously"));
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class SynchronousUnsupportedProviderSessionFactory final
+    : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SynchronousUnsupportedProviderSessionFactory(
+        const std::shared_ptr<int>& metadataRequestCount)
+        : m_metadataRequestCount(metadataRequestCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new SynchronousUnsupportedProviderSession(m_metadataRequestCount, parent);
+    }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+};
+
+void drainQueuedProviderResults()
+{
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
+    QCoreApplication::processEvents();
+}
+
+void emitTimedProviderFrameReady(CountingProviderSession* session,
+    ImageSequenceProviderRequestToken token, ImageFrame* frame, int frameIndex,
+    int frameStartPosition)
+{
+    emit session->imageFrameWithMetadataReady(token, frame,
+        ImageSequenceProviderFrameMetadata::timedFrame(frameIndex, frameStartPosition));
+    drainQueuedProviderResults();
+}
+
+void emitTimedProviderFrameReady(
+    CountingProviderSession* session, ImageFrame* frame, int frameIndex, int frameStartPosition)
+{
+    emitTimedProviderFrameReady(
+        session, session->lastFrameToken(), frame, frameIndex, frameStartPosition);
+}
+
+}

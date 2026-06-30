@@ -1,4 +1,4 @@
-#include "imageviewport_test_support.h"
+#include "imageviewport_provider_test_support.h"
 
 class ImageViewportStillTest : public QObject
 {

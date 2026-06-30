@@ -1,5 +1,7 @@
-#include "imageviewport_test_support.h"
 #include "framepreparation_p.h"
+#include "imageviewport_paint_test_support.h"
+#include "imageviewport_provider_test_support.h"
+#include "imageviewport_qml_test_support.h"
 #include "timingintervals_p.h"
 
 class ImageSequenceFactoryTest : public QObject
