@@ -276,6 +276,17 @@ void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayReque
     viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
 }
 
+void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
+    ImageViewportInternal::DisplayRequestOrigin origin, DisplayRequestTarget target,
+    bool rememberAsLatestNonPlayback)
+{
+    viewport.beginDisplayRequest(origin, rememberAsLatestNonPlayback);
+    viewport.request.activeRequest.target = target;
+    if (rememberAsLatestNonPlayback) {
+        viewport.request.latestNonPlaybackRequest.target = target;
+    }
+}
+
 bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
 {
     return viewport.hasReadyDisplay()
@@ -491,20 +502,10 @@ bool applyStopRestorePlan(ViewportController& controller, ImageViewportPrivate& 
 
 void acceptExplicitSeekTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, true);
+    beginAcceptedDisplayRequest(
+        viewport, ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, target, true);
     viewport.request.providerPlaybackStartPending = false;
-    viewport.request.activeRequest.target.frame = target.frame;
-    viewport.request.activeRequest.target.position = target.position;
     viewport.request.playbackPosition = target.position;
-    if (target.providerTargetKind != ImageViewportInternal::ProviderRequestTargetKind::Unknown) {
-        viewport.request.activeRequest.target.providerTargetKind = target.providerTargetKind;
-        viewport.request.latestNonPlaybackRequest.target.providerTargetKind
-            = target.providerTargetKind;
-    }
-    viewport.request.latestNonPlaybackRequest.target.frame
-        = viewport.request.activeRequest.target.frame;
-    viewport.request.latestNonPlaybackRequest.target.position
-        = viewport.request.activeRequest.target.position;
 }
 
 DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
@@ -574,9 +575,8 @@ ImageViewport::PlaybackPhase playbackAdvancePhaseForRequest(
 
 void applyPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback, false);
-    viewport.request.activeRequest.target.frame = target.frame;
-    viewport.request.activeRequest.target.position = target.position;
+    beginAcceptedDisplayRequest(
+        viewport, ImageViewportInternal::DisplayRequestOrigin::Playback, target, false);
 }
 
 void applyPlaybackAdvancePhase(ImageViewportPrivate& viewport,
@@ -1513,24 +1513,17 @@ ViewportController::handleProviderMetadataTargetSelection(
     ViewportProviderMetadataTargetSelection selection)
 {
     ViewportProviderMetadataTargetPolicyResult result;
-    viewport.beginDisplayRequest(
+    const bool rememberAsLatestNonPlayback
+        = selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    const int selectedPosition = selection.selectedFromPosition
+        ? viewport.request.activeRequest.target.position
+        : selection.timedMetadata ? viewport.providerFrameStartPosition(selection.selectedFrame)
+                                  : -1;
+    beginAcceptedDisplayRequest(viewport,
         ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
-        selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback);
-    viewport.request.activeRequest.target.frame = selection.selectedFrame;
-    if (!selection.selectedFromPosition) {
-        viewport.request.activeRequest.target.position = selection.timedMetadata
-            ? viewport.providerFrameStartPosition(selection.selectedFrame)
-            : -1;
-    }
+        { selection.selectedFrame, selectedPosition, selection.targetKind },
+        rememberAsLatestNonPlayback);
     viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
-    viewport.request.activeRequest.target.providerTargetKind = selection.targetKind;
-    if (selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback) {
-        viewport.request.latestNonPlaybackRequest.target.frame
-            = viewport.request.activeRequest.target.frame;
-        viewport.request.latestNonPlaybackRequest.target.position
-            = viewport.request.activeRequest.target.position;
-        viewport.request.latestNonPlaybackRequest.target.providerTargetKind = selection.targetKind;
-    }
     viewport.publishProviderFrameLoadingState();
 
     viewport.request.providerPlaybackStartPending = false;
