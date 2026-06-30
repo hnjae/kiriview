@@ -321,6 +321,13 @@ StopRestorePublication publishStopRestoreTarget(ImageViewportPrivate& viewport,
     return publication;
 }
 
+void completeStopRestoreRequest(ImageViewportPrivate& viewport, ViewportCommandResult& result)
+{
+    setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
+    result.changes.requestRevision = true;
+    result.changes.requestState = true;
+}
+
 bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
@@ -793,9 +800,7 @@ ViewportCommandResult ViewportController::stop()
         && viewport.request.activeRequest.target.position < 0) {
         applyProviderStopRestoreTarget(viewport, providerLatestNonPlaybackTarget(viewport));
         viewport.request.providerPlaybackStartPending = false;
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
+        completeStopRestoreRequest(viewport, result);
         return result;
     }
     if (viewport.hasProviderSequence() && viewport.provider.timedMetadata
@@ -811,9 +816,7 @@ ViewportCommandResult ViewportController::stop()
                 return result;
             }
         }
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
+        completeStopRestoreRequest(viewport, result);
         return result;
     }
     if (viewport.hasProviderSequence() && viewport.provider.timedMetadata
@@ -833,10 +836,8 @@ ViewportCommandResult ViewportController::stop()
             viewport, restoredTarget, StopRestoreWaitingState::ProviderLoading);
         if (publication.readyDisplay) {
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
-            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
-            result.changes.requestRevision = true;
+            completeStopRestoreRequest(viewport, result);
             result.changes.displayRevision = true;
-            result.changes.requestState = true;
             result.changes.displayState = true;
             result.changes.diagnostics = diagnosticsValueChanged;
             return result;
@@ -845,9 +846,7 @@ ViewportCommandResult ViewportController::stop()
         if (!appendProviderStopRestoreFrameStart(*this, viewport, result)) {
             return result;
         }
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
+        completeStopRestoreRequest(viewport, result);
         result.changes.diagnostics = diagnosticsValueChanged;
         return result;
     }
@@ -863,10 +862,8 @@ ViewportCommandResult ViewportController::stop()
             DisplayRequestTarget { viewport.request.latestNonPlaybackRequest.target.frame,
                 viewport.request.latestNonPlaybackRequest.target.position },
             StopRestoreWaitingState::RenderWaiting);
-        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
-        result.changes.requestRevision = true;
+        completeStopRestoreRequest(viewport, result);
         result.changes.displayRevision = viewport.display.status != publication.oldDisplayStatus;
-        result.changes.requestState = true;
         result.changes.displayState = result.changes.displayRevision;
         result.changes.scheduleUpdate = true;
         return result;
