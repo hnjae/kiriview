@@ -120,6 +120,34 @@ struct DisplayState
 
 struct RequestState
 {
+    void clearDisplayRequestIdentity()
+    {
+        nextRequestId = 0;
+        activeRequest.identity = {};
+        latestNonPlaybackRequest.identity = {};
+    }
+
+    void beginDisplayRequest(DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
+    {
+        activeRequest.identity.id = ++nextRequestId;
+        activeRequest.identity.origin = origin;
+        activeRequest.providerFrameToken = {};
+        activeRequest.preparedPayloadId = 0;
+        if (rememberAsLatestNonPlayback) {
+            latestNonPlaybackRequest.identity = activeRequest.identity;
+        }
+    }
+
+    void beginDisplayRequest(
+        DisplayRequestOrigin origin, DisplayRequestTarget target, bool rememberAsLatestNonPlayback)
+    {
+        beginDisplayRequest(origin, rememberAsLatestNonPlayback);
+        activeRequest.target = target;
+        if (rememberAsLatestNonPlayback) {
+            latestNonPlaybackRequest.target = target;
+        }
+    }
+
     QPointer<ImageSequence> sequence;
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;

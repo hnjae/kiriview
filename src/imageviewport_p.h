@@ -201,11 +201,6 @@ public:
     void setCommandDiagnostic(CommandReason reason);
     void clearCommandDiagnosticForAcceptedCommand();
     bool clearDiagnostics();
-    void clearRequestIdentity();
-    void beginDisplayRequest(
-        ImageViewportInternal::DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback);
-    void beginInitialDisplayRequest(
-        ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
     DisplayRequestSnapshot activeDisplayRequestSnapshot(int displayedPosition) const;
     void commitDisplayedRequestSnapshot();
     void clearDisplayedDisplay();

@@ -182,35 +182,6 @@ bool ImageViewportPrivate::clearDiagnostics()
     return true;
 }
 
-void ImageViewportPrivate::clearRequestIdentity()
-{
-    request.nextRequestId = 0;
-    request.activeRequest.identity = {};
-    request.latestNonPlaybackRequest.identity = {};
-}
-
-void ImageViewportPrivate::beginDisplayRequest(
-    DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
-{
-    request.activeRequest.identity.id = ++request.nextRequestId;
-    request.activeRequest.identity.origin = origin;
-    request.activeRequest.providerFrameToken = {};
-    request.activeRequest.preparedPayloadId = 0;
-    if (rememberAsLatestNonPlayback) {
-        request.latestNonPlaybackRequest.identity = request.activeRequest.identity;
-    }
-}
-
-void ImageViewportPrivate::beginInitialDisplayRequest(
-    DisplayRequestTarget target, bool rememberAsLatestNonPlayback)
-{
-    beginDisplayRequest(DisplayRequestOrigin::Initial, rememberAsLatestNonPlayback);
-    request.activeRequest.target = target;
-    if (rememberAsLatestNonPlayback) {
-        request.latestNonPlaybackRequest.target = target;
-    }
-}
-
 ImageViewportPrivate::DisplayRequestSnapshot ImageViewportPrivate::activeDisplayRequestSnapshot(
     int displayedPosition) const
 {

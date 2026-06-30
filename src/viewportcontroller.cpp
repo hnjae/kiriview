@@ -264,8 +264,8 @@ DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
 
 void beginStopRestoreDisplayRequest(ImageViewportPrivate& viewport, DisplayRequestTarget target)
 {
-    viewport.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::StopRestore, true);
-    viewport.request.activeRequest.target = target;
+    viewport.request.beginDisplayRequest(
+        ImageViewportInternal::DisplayRequestOrigin::StopRestore, target, true);
     viewport.request.playbackPosition = target.position;
 }
 
@@ -283,11 +283,7 @@ void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
     ImageViewportInternal::DisplayRequestOrigin origin, DisplayRequestTarget target,
     bool rememberAsLatestNonPlayback)
 {
-    viewport.beginDisplayRequest(origin, rememberAsLatestNonPlayback);
-    viewport.request.activeRequest.target = target;
-    if (rememberAsLatestNonPlayback) {
-        viewport.request.latestNonPlaybackRequest.target = target;
-    }
+    viewport.request.beginDisplayRequest(origin, target, rememberAsLatestNonPlayback);
 }
 
 bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
@@ -708,7 +704,7 @@ ViewportCommandResult ViewportController::clear()
     viewport.request.sequence = nullptr;
     viewport.request.sequenceOwner.reset();
     ++viewport.request.sequenceGeneration;
-    viewport.clearRequestIdentity();
+    viewport.request.clearDisplayRequestIdentity();
     viewport.request.activeRequest.target.frame = -1;
     viewport.request.activeRequest.target.position = -1;
     viewport.request.playbackPosition = -1;

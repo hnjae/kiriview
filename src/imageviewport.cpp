@@ -24,7 +24,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     request.sequence = sequence;
     request.sequenceOwner = std::move(sequenceOwner);
     ++request.sequenceGeneration;
-    clearRequestIdentity();
+    request.clearDisplayRequestIdentity();
     display.nextPreparedPayloadId = 0;
     clearPendingRenderIdentity();
     request.errorString.clear();
@@ -66,7 +66,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 provider.timedMetadata ? 0 : -1,
                 ProviderRequestTargetKind::Frame,
             };
-            beginInitialDisplayRequest(initialTarget, true);
+            request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
             request.playbackPosition = initialTarget.position;
         } else {
             const DisplayRequestTarget initialTarget {
@@ -74,7 +74,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
                 -1,
                 ProviderRequestTargetKind::Unknown,
             };
-            beginInitialDisplayRequest(initialTarget, true);
+            request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
             request.playbackPosition = initialTarget.position;
         }
         request.status = RequestStatus::Loading;
@@ -91,7 +91,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             hasTimedSequence() ? 0 : -1,
             ProviderRequestTargetKind::Unknown,
         };
-        beginInitialDisplayRequest(initialTarget, true);
+        request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
         request.playbackPosition = initialTarget.position;
         if (width() > 0.0 && height() > 0.0) {
             publishSequenceReadyState();
