@@ -286,6 +286,41 @@ bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
         == viewport.request.activeRequest.target.position;
 }
 
+void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport);
+
+enum class StopRestoreWaitingState {
+    ProviderLoading,
+    RenderWaiting,
+};
+
+struct StopRestorePublication
+{
+    bool readyDisplay = false;
+    ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
+};
+
+StopRestorePublication publishStopRestoreTarget(ImageViewportPrivate& viewport,
+    DisplayRequestTarget target, StopRestoreWaitingState waitingState)
+{
+    StopRestorePublication publication;
+    publication.oldDisplayStatus = viewport.display.status;
+    if (waitingState == StopRestoreWaitingState::ProviderLoading) {
+        applyProviderStopRestoreTarget(viewport, target);
+    } else {
+        applyStopRestoreTarget(viewport, target);
+    }
+
+    publication.readyDisplay = stopRestoreTargetIsReadyDisplay(viewport);
+    if (publication.readyDisplay) {
+        viewport.publishReadyDisplayState();
+    } else if (waitingState == StopRestoreWaitingState::ProviderLoading) {
+        publishProviderStopRestoreLoading(viewport);
+    } else {
+        viewport.publishRenderWaitingState();
+    }
+    return publication;
+}
+
 bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
@@ -769,11 +804,9 @@ ViewportCommandResult ViewportController::stop()
 
         const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
-        applyProviderStopRestoreTarget(viewport, restoredTarget);
-        if (stopRestoreTargetIsReadyDisplay(viewport)) {
-            viewport.publishReadyDisplayState();
-        } else {
-            publishProviderStopRestoreLoading(viewport);
+        const StopRestorePublication publication = publishStopRestoreTarget(
+            viewport, restoredTarget, StopRestoreWaitingState::ProviderLoading);
+        if (!publication.readyDisplay) {
             if (!appendProviderStopRestoreFrameStart(*this, viewport, result)) {
                 return result;
             }
@@ -796,10 +829,9 @@ ViewportCommandResult ViewportController::stop()
 
         const DisplayRequestTarget restoredTarget = providerStopRestoreTarget(viewport);
 
-        applyProviderStopRestoreTarget(viewport, restoredTarget);
-        if (stopRestoreTargetIsReadyDisplay(viewport)) {
-            viewport.request.playbackPosition = viewport.request.activeRequest.target.position;
-            viewport.publishReadyDisplayState();
+        const StopRestorePublication publication = publishStopRestoreTarget(
+            viewport, restoredTarget, StopRestoreWaitingState::ProviderLoading);
+        if (publication.readyDisplay) {
             const bool diagnosticsValueChanged = viewport.clearDiagnostics();
             setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
             result.changes.requestRevision = true;
@@ -809,7 +841,6 @@ ViewportCommandResult ViewportController::stop()
             result.changes.diagnostics = diagnosticsValueChanged;
             return result;
         }
-        publishProviderStopRestoreLoading(viewport);
         const bool diagnosticsValueChanged = viewport.clearDiagnostics();
         if (!appendProviderStopRestoreFrameStart(*this, viewport, result)) {
             return result;
@@ -828,18 +859,13 @@ ViewportCommandResult ViewportController::stop()
         && viewport.request.latestNonPlaybackRequest.target.frame >= 0
         && viewport.request.activeRequest.target.frame
             != viewport.request.latestNonPlaybackRequest.target.frame) {
-        const ImageViewport::DisplayStatus oldDisplayStatus = viewport.display.status;
-        applyStopRestoreTarget(viewport,
+        const StopRestorePublication publication = publishStopRestoreTarget(viewport,
             DisplayRequestTarget { viewport.request.latestNonPlaybackRequest.target.frame,
-                viewport.request.latestNonPlaybackRequest.target.position });
-        if (stopRestoreTargetIsReadyDisplay(viewport)) {
-            viewport.publishReadyDisplayState();
-        } else {
-            viewport.publishRenderWaitingState();
-        }
+                viewport.request.latestNonPlaybackRequest.target.position },
+            StopRestoreWaitingState::RenderWaiting);
         setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
         result.changes.requestRevision = true;
-        result.changes.displayRevision = viewport.display.status != oldDisplayStatus;
+        result.changes.displayRevision = viewport.display.status != publication.oldDisplayStatus;
         result.changes.requestState = true;
         result.changes.displayState = result.changes.displayRevision;
         result.changes.scheduleUpdate = true;
