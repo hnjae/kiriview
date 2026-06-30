@@ -704,16 +704,7 @@ ViewportCommandResult ViewportController::clear()
     viewport.request.sequence = nullptr;
     viewport.request.sequenceOwner.reset();
     ++viewport.request.sequenceGeneration;
-    viewport.request.clearDisplayRequestIdentity();
-    viewport.request.activeRequest.target.frame = -1;
-    viewport.request.activeRequest.target.position = -1;
-    viewport.request.playbackPosition = -1;
-    viewport.request.latestNonPlaybackRequest.target.frame = -1;
-    viewport.request.latestNonPlaybackRequest.target.position = -1;
-    viewport.request.activeRequest.target.providerTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    viewport.request.latestNonPlaybackRequest.target.providerTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    viewport.request.clearDisplayRequests();
     viewport.display.clearDisplayedDisplay();
     viewport.display.nextPreparedPayloadId = 0;
     viewport.display.clearPendingRenderPayload();

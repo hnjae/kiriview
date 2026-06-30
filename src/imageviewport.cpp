@@ -24,7 +24,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     request.sequence = sequence;
     request.sequenceOwner = std::move(sequenceOwner);
     ++request.sequenceGeneration;
-    request.clearDisplayRequestIdentity();
+    request.clearDisplayRequests();
     display.nextPreparedPayloadId = 0;
     display.clearPendingRenderPayload();
     request.errorString.clear();
@@ -99,14 +99,6 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
             publishRenderWaitingState();
         }
     } else {
-        request.activeRequest.target.frame = -1;
-        request.activeRequest.target.position = -1;
-        request.playbackPosition = -1;
-        request.latestNonPlaybackRequest.target.frame = -1;
-        request.latestNonPlaybackRequest.target.position = -1;
-        request.activeRequest.target.providerTargetKind = ProviderRequestTargetKind::Unknown;
-        request.latestNonPlaybackRequest.target.providerTargetKind
-            = ProviderRequestTargetKind::Unknown;
         display.clearDisplayedDisplay();
         request.status = RequestStatus::NoRequest;
         request.reason = RequestReason::NoRequest;

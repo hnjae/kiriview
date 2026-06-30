@@ -199,11 +199,12 @@ struct DisplayState
 
 struct RequestState
 {
-    void clearDisplayRequestIdentity()
+    void clearDisplayRequests()
     {
         nextRequestId = 0;
-        activeRequest.identity = {};
-        latestNonPlaybackRequest.identity = {};
+        activeRequest = {};
+        latestNonPlaybackRequest = {};
+        playbackPosition = -1;
     }
 
     void beginDisplayRequest(DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
