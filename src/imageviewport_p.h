@@ -196,10 +196,6 @@ public:
     void flushPlaybackTimerElapsed();
     int playbackTimerInterval() const;
     void advancePlayback(int elapsedMilliseconds);
-    void setCommandDiagnostic(CommandReason reason);
-    void clearCommandDiagnosticForAcceptedCommand();
-    bool clearDiagnostics();
-    CommandOutcome ignoredNoRequest();
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;
     bool hasDisplayableSequence() const;

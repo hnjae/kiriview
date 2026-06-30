@@ -154,40 +154,6 @@ int ImageViewportPrivate::playbackTimerInterval() const
     return std::max(1, remaining);
 }
 
-void ImageViewportPrivate::setCommandDiagnostic(CommandReason reason)
-{
-    request.commandReason = reason;
-    ++request.commandRevision;
-    emit q->commandRevisionChanged();
-    emit q->commandStateChanged();
-}
-
-void ImageViewportPrivate::clearCommandDiagnosticForAcceptedCommand()
-{
-    if (request.commandReason == CommandReason::NoCommand) {
-        return;
-    }
-
-    setCommandDiagnostic(CommandReason::NoCommand);
-}
-
-bool ImageViewportPrivate::clearDiagnostics()
-{
-    if (request.errorString.isEmpty() && request.warningString.isEmpty()) {
-        return false;
-    }
-
-    request.errorString.clear();
-    request.warningString.clear();
-    return true;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::ignoredNoRequest()
-{
-    setCommandDiagnostic(CommandReason::IgnoredNoRequest);
-    return CommandOutcome::IgnoredNoRequest;
-}
-
 bool ImageViewportPrivate::hasActiveRequest() const
 {
     return request.status != RequestStatus::NoRequest;

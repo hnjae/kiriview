@@ -228,6 +228,29 @@ struct RequestState
         }
     }
 
+    void setCommandDiagnostic(ImageViewport::CommandReason reason) { commandReason = reason; }
+
+    bool clearCommandDiagnosticForAcceptedCommand()
+    {
+        if (commandReason == ImageViewport::CommandReason::NoCommand) {
+            return false;
+        }
+
+        setCommandDiagnostic(ImageViewport::CommandReason::NoCommand);
+        return true;
+    }
+
+    bool clearDiagnostics()
+    {
+        if (errorString.isEmpty() && warningString.isEmpty()) {
+            return false;
+        }
+
+        errorString.clear();
+        warningString.clear();
+        return true;
+    }
+
     QPointer<ImageSequence> sequence;
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
