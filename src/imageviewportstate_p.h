@@ -101,6 +101,8 @@ struct PreparedPayload
 
 struct PresentationState
 {
+    ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
+    ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
     ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
     ImageViewport::HorizontalAlignment horizontalAlignment
         = ImageViewport::HorizontalAlignment::AlignHCenter;
@@ -109,6 +111,8 @@ struct PresentationState
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
     QColor backgroundColor = Qt::transparent;
     double zoom = 1.0;
+    double pageGap = 0.0;
+    int rotationDegrees = 0;
     QPointF pan;
     bool smoothing = true;
     bool mipmap = false;

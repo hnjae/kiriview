@@ -5,6 +5,7 @@
 #include <QtCore/QPointer>
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
+#include <QtCore/QVariant>
 #include <QtCore/QVariantMap>
 #include <QtCore/QVector>
 #include <QtGui/QColor>
@@ -403,7 +404,8 @@ signals:
     void imageFrameReady(const ImageSequenceProviderRequestToken& token, ImageFrame* frame);
     void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken& token,
         ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata);
-    // Transfer results. The viewport releases the handle exactly once after accepting or dropping it.
+    // Transfer results. The viewport releases the handle exactly once after accepting or dropping
+    // it.
     void frameHandleReady(
         const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame);
     void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken& token,
@@ -528,12 +530,161 @@ public:
     static int maximumDiagnosticStringLength();
 };
 
+class ImageViewportRange
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageViewportRange)
+    Q_PROPERTY(int minimum READ minimum CONSTANT)
+    Q_PROPERTY(int maximum READ maximum CONSTANT)
+
+public:
+    ImageViewportRange() = default;
+    ImageViewportRange(int minimum, int maximum)
+        : m_minimum(minimum)
+        , m_maximum(maximum)
+    {
+    }
+
+    int minimum() const { return m_minimum; }
+    int maximum() const { return m_maximum; }
+
+private:
+    int m_minimum = -1;
+    int m_maximum = -1;
+};
+
+class CoordinateResult
+{
+    Q_GADGET
+    QML_VALUE_TYPE(coordinateResult)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+    Q_PROPERTY(double x READ x CONSTANT)
+    Q_PROPERTY(double y READ y CONSTANT)
+
+public:
+    CoordinateResult() = default;
+    CoordinateResult(bool valid, double x, double y)
+        : m_valid(valid)
+        , m_x(x)
+        , m_y(y)
+    {
+    }
+
+    bool isValid() const { return m_valid; }
+    double x() const { return m_x; }
+    double y() const { return m_y; }
+
+private:
+    bool m_valid = false;
+    double m_x = 0.0;
+    double m_y = 0.0;
+};
+
+class RevisionToken
+{
+    Q_GADGET
+    QML_VALUE_TYPE(revisionToken)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+    Q_PROPERTY(uint value READ value CONSTANT)
+
+public:
+    RevisionToken() = default;
+    explicit RevisionToken(uint value)
+        : m_value(value)
+    {
+    }
+
+    bool isValid() const { return m_value != 0; }
+    uint value() const { return m_value; }
+
+private:
+    uint m_value = 0;
+};
+
+class PageSetTransitionPolicy
+{
+    Q_GADGET
+    QML_VALUE_TYPE(pageSetTransitionPolicy)
+    Q_PROPERTY(DisplayTransition displayTransition READ displayTransition CONSTANT)
+    Q_PROPERTY(ZoomTransition zoomTransition READ zoomTransition CONSTANT)
+    Q_PROPERTY(
+        ContentPositionTransition contentPositionTransition READ contentPositionTransition CONSTANT)
+    Q_PROPERTY(RotationTransition rotationTransition READ rotationTransition CONSTANT)
+    Q_PROPERTY(MirrorTransition mirrorTransition READ mirrorTransition CONSTANT)
+    Q_PROPERTY(ReplacementIntent replacementIntent READ replacementIntent CONSTANT)
+
+public:
+    enum class DisplayTransition {
+        RetainPrevious,
+        ClearBeforeLoad,
+    };
+    Q_ENUM(DisplayTransition)
+
+    enum class ZoomTransition {
+        Preserve,
+        ResetToContain,
+        PreserveManualPercent,
+    };
+    Q_ENUM(ZoomTransition)
+
+    enum class ContentPositionTransition {
+        Preserve,
+        Clamp,
+        ScanStart,
+        ScanEnd,
+    };
+    Q_ENUM(ContentPositionTransition)
+
+    enum class RotationTransition {
+        Preserve,
+        Reset,
+    };
+    Q_ENUM(RotationTransition)
+
+    enum class MirrorTransition {
+        Preserve,
+        Reset,
+    };
+    Q_ENUM(MirrorTransition)
+
+    enum class ReplacementIntent {
+        NewTarget,
+        SameTargetRefinement,
+    };
+    Q_ENUM(ReplacementIntent)
+
+    PageSetTransitionPolicy() = default;
+
+    DisplayTransition displayTransition() const { return m_displayTransition; }
+    ZoomTransition zoomTransition() const { return m_zoomTransition; }
+    ContentPositionTransition contentPositionTransition() const
+    {
+        return m_contentPositionTransition;
+    }
+    RotationTransition rotationTransition() const { return m_rotationTransition; }
+    MirrorTransition mirrorTransition() const { return m_mirrorTransition; }
+    ReplacementIntent replacementIntent() const { return m_replacementIntent; }
+
+private:
+    DisplayTransition m_displayTransition = DisplayTransition::RetainPrevious;
+    ZoomTransition m_zoomTransition = ZoomTransition::Preserve;
+    ContentPositionTransition m_contentPositionTransition = ContentPositionTransition::Clamp;
+    RotationTransition m_rotationTransition = RotationTransition::Preserve;
+    MirrorTransition m_mirrorTransition = MirrorTransition::Preserve;
+    ReplacementIntent m_replacementIntent = ReplacementIntent::NewTarget;
+};
+
 class ImageViewport : public QQuickItem
 {
     Q_OBJECT
     Q_CLASSINFO("RegisterEnumClassesUnscoped", "false")
     QML_ELEMENT
     Q_PROPERTY(ImageSequence* sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
+    Q_PROPERTY(ImageSequence* primarySequence READ primarySequence NOTIFY sequenceChanged)
+    Q_PROPERTY(ImageSequence* secondarySequence READ secondarySequence NOTIFY sequenceChanged)
+    Q_PROPERTY(SpreadDirection spreadDirection READ spreadDirection WRITE setSpreadDirectionProperty
+            NOTIFY presentationChanged)
+    Q_PROPERTY(double pageGap READ pageGap WRITE setPageGapProperty NOTIFY presentationChanged)
     Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
     Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
     Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
@@ -541,23 +692,83 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(PlaybackPhase playbackPhase READ playbackPhase NOTIFY playbackPhaseChanged)
     Q_PROPERTY(int displayedFrame READ displayedFrame NOTIFY displayStateChanged)
     Q_PROPERTY(int requestedFrame READ requestedFrame NOTIFY requestStateChanged)
+    Q_PROPERTY(int primaryDisplayedFrame READ primaryDisplayedFrame NOTIFY displayStateChanged)
+    Q_PROPERTY(int primaryRequestedFrame READ primaryRequestedFrame NOTIFY requestStateChanged)
+    Q_PROPERTY(int secondaryDisplayedFrame READ secondaryDisplayedFrame NOTIFY displayStateChanged)
+    Q_PROPERTY(int secondaryRequestedFrame READ secondaryRequestedFrame NOTIFY requestStateChanged)
     Q_PROPERTY(int displayedPosition READ displayedPosition NOTIFY displayStateChanged)
     Q_PROPERTY(int requestedPosition READ requestedPosition NOTIFY requestStateChanged)
+    Q_PROPERTY(
+        int primaryDisplayedPosition READ primaryDisplayedPosition NOTIFY displayStateChanged)
+    Q_PROPERTY(
+        int primaryRequestedPosition READ primaryRequestedPosition NOTIFY requestStateChanged)
+    Q_PROPERTY(
+        int secondaryDisplayedPosition READ secondaryDisplayedPosition NOTIFY displayStateChanged)
+    Q_PROPERTY(
+        int secondaryRequestedPosition READ secondaryRequestedPosition NOTIFY requestStateChanged)
     Q_PROPERTY(int frameCount READ frameCount NOTIFY requestStateChanged)
     Q_PROPERTY(int totalDuration READ totalDuration NOTIFY requestStateChanged)
     Q_PROPERTY(QVariantMap frameSeekBounds READ frameSeekBounds NOTIFY requestStateChanged)
     Q_PROPERTY(QVariantMap positionSeekBounds READ positionSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(int primaryFrameCount READ primaryFrameCount NOTIFY requestStateChanged)
+    Q_PROPERTY(int secondaryFrameCount READ secondaryFrameCount NOTIFY requestStateChanged)
+    Q_PROPERTY(int primaryTotalDuration READ primaryTotalDuration NOTIFY requestStateChanged)
+    Q_PROPERTY(int secondaryTotalDuration READ secondaryTotalDuration NOTIFY requestStateChanged)
+    Q_PROPERTY(
+        QVariantMap primaryFrameSeekBounds READ primaryFrameSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(QVariantMap secondaryFrameSeekBounds READ secondaryFrameSeekBounds NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(QVariantMap primaryPositionSeekBounds READ primaryPositionSeekBounds NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(QVariantMap secondaryPositionSeekBounds READ secondaryPositionSeekBounds NOTIFY
+            requestStateChanged)
     Q_PROPERTY(TriState timedPlaybackSupport READ timedPlaybackSupport NOTIFY requestStateChanged)
     Q_PROPERTY(TriState frameSeekSupport READ frameSeekSupport NOTIFY requestStateChanged)
     Q_PROPERTY(TriState positionSeekSupport READ positionSeekSupport NOTIFY requestStateChanged)
+    Q_PROPERTY(TriState primaryTimedPlaybackSupport READ primaryTimedPlaybackSupport NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(TriState secondaryTimedPlaybackSupport READ secondaryTimedPlaybackSupport NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(
+        TriState primaryFrameSeekSupport READ primaryFrameSeekSupport NOTIFY requestStateChanged)
+    Q_PROPERTY(TriState secondaryFrameSeekSupport READ secondaryFrameSeekSupport NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(TriState primaryPositionSeekSupport READ primaryPositionSeekSupport NOTIFY
+            requestStateChanged)
+    Q_PROPERTY(TriState secondaryPositionSeekSupport READ secondaryPositionSeekSupport NOTIFY
+            requestStateChanged)
     Q_PROPERTY(QSizeF displayedImageSize READ displayedImageSize NOTIFY displayStateChanged)
+    Q_PROPERTY(QSizeF displayedSpreadSize READ displayedSpreadSize NOTIFY displayStateChanged)
+    Q_PROPERTY(
+        QSizeF primaryDisplayedImageSize READ primaryDisplayedImageSize NOTIFY displayStateChanged)
+    Q_PROPERTY(QSizeF secondaryDisplayedImageSize READ secondaryDisplayedImageSize NOTIFY
+            displayStateChanged)
     Q_PROPERTY(QRectF contentRect READ contentRect NOTIFY geometryStateChanged)
     Q_PROPERTY(QRectF visibleImageRect READ visibleImageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF visibleSpreadRect READ visibleSpreadRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF primaryPageRect READ primaryPageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF secondaryPageRect READ secondaryPageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF primaryItemRect READ primaryItemRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QRectF secondaryItemRect READ secondaryItemRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(
+        QRectF visiblePrimaryPageRect READ visiblePrimaryPageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(
+        QRectF visibleSecondaryPageRect READ visibleSecondaryPageRect NOTIFY geometryStateChanged)
+    Q_PROPERTY(QSizeF contentSize READ contentSize NOTIFY geometryStateChanged)
+    Q_PROPERTY(QPointF contentPosition READ contentPosition NOTIFY geometryStateChanged)
+    Q_PROPERTY(
+        QPointF maximumContentPosition READ maximumContentPosition NOTIFY geometryStateChanged)
+    Q_PROPERTY(bool horizontalPannable READ horizontalPannable NOTIFY geometryStateChanged)
+    Q_PROPERTY(bool verticalPannable READ verticalPannable NOTIFY geometryStateChanged)
     Q_PROPERTY(uint displayRevision READ displayRevision NOTIFY displayRevisionChanged)
     Q_PROPERTY(uint requestRevision READ requestRevision NOTIFY requestRevisionChanged)
     Q_PROPERTY(uint commandRevision READ commandRevision NOTIFY commandRevisionChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
+    Q_PROPERTY(FitMode fitMode READ fitMode WRITE setFitModeProperty NOTIFY presentationChanged)
+    Q_PROPERTY(
+        double zoomPercent READ zoomPercent WRITE setZoomPercentProperty NOTIFY presentationChanged)
+    Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY presentationChanged)
     Q_PROPERTY(FillMode fillMode READ fillMode WRITE setFillMode NOTIFY presentationChanged)
     Q_PROPERTY(HorizontalAlignment horizontalAlignment READ horizontalAlignment WRITE
             setHorizontalAlignment NOTIFY presentationChanged)
@@ -578,6 +789,26 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
 
 public:
+    enum class PageRole {
+        Primary,
+        Secondary,
+    };
+    Q_ENUM(PageRole)
+
+    enum class SpreadDirection {
+        LeftToRight,
+        RightToLeft,
+    };
+    Q_ENUM(SpreadDirection)
+
+    enum class FitMode {
+        Contain,
+        FitWidth,
+        FitHeight,
+        Manual,
+    };
+    Q_ENUM(FitMode)
+
     enum class RequestStatus {
         NoRequest,
         Loading,
@@ -674,6 +905,12 @@ public:
 
     ImageSequence* sequence() const;
     void setSequence(ImageSequence* sequence);
+    ImageSequence* primarySequence() const;
+    ImageSequence* secondarySequence() const;
+    SpreadDirection spreadDirection() const;
+    void setSpreadDirectionProperty(SpreadDirection direction);
+    double pageGap() const;
+    void setPageGapProperty(double gap);
 
     RequestStatus requestStatus() const;
     RequestReason requestReason() const;
@@ -682,24 +919,66 @@ public:
     PlaybackPhase playbackPhase() const;
     int displayedFrame() const;
     int requestedFrame() const;
+    int primaryDisplayedFrame() const;
+    int primaryRequestedFrame() const;
+    int secondaryDisplayedFrame() const;
+    int secondaryRequestedFrame() const;
     int displayedPosition() const;
     int requestedPosition() const;
+    int primaryDisplayedPosition() const;
+    int primaryRequestedPosition() const;
+    int secondaryDisplayedPosition() const;
+    int secondaryRequestedPosition() const;
     int frameCount() const;
     int totalDuration() const;
     QVariantMap frameSeekBounds() const;
     QVariantMap positionSeekBounds() const;
+    int primaryFrameCount() const;
+    int secondaryFrameCount() const;
+    int primaryTotalDuration() const;
+    int secondaryTotalDuration() const;
+    QVariantMap primaryFrameSeekBounds() const;
+    QVariantMap secondaryFrameSeekBounds() const;
+    QVariantMap primaryPositionSeekBounds() const;
+    QVariantMap secondaryPositionSeekBounds() const;
     TriState timedPlaybackSupport() const;
     TriState frameSeekSupport() const;
     TriState positionSeekSupport() const;
+    TriState primaryTimedPlaybackSupport() const;
+    TriState secondaryTimedPlaybackSupport() const;
+    TriState primaryFrameSeekSupport() const;
+    TriState secondaryFrameSeekSupport() const;
+    TriState primaryPositionSeekSupport() const;
+    TriState secondaryPositionSeekSupport() const;
     QSizeF displayedImageSize() const;
+    QSizeF displayedSpreadSize() const;
+    QSizeF primaryDisplayedImageSize() const;
+    QSizeF secondaryDisplayedImageSize() const;
     QRectF contentRect() const;
     QRectF visibleImageRect() const;
+    QRectF visibleSpreadRect() const;
+    QRectF primaryPageRect() const;
+    QRectF secondaryPageRect() const;
+    QRectF primaryItemRect() const;
+    QRectF secondaryItemRect() const;
+    QRectF visiblePrimaryPageRect() const;
+    QRectF visibleSecondaryPageRect() const;
+    QSizeF contentSize() const;
+    QPointF contentPosition() const;
+    QPointF maximumContentPosition() const;
+    bool horizontalPannable() const;
+    bool verticalPannable() const;
     uint displayRevision() const;
     uint requestRevision() const;
     uint commandRevision() const;
     QString errorString() const;
     QString warningString() const;
 
+    FitMode fitMode() const;
+    void setFitModeProperty(FitMode mode);
+    double zoomPercent() const;
+    void setZoomPercentProperty(double percent);
+    int rotationDegrees() const;
     FillMode fillMode() const;
     void setFillMode(FillMode mode);
     HorizontalAlignment horizontalAlignment() const;
@@ -727,11 +1006,37 @@ public:
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();
+    Q_INVOKABLE ImageViewport::CommandOutcome play(PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome pause();
+    Q_INVOKABLE ImageViewport::CommandOutcome pause(PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome stop();
+    Q_INVOKABLE ImageViewport::CommandOutcome stop(PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome seek(int frame);
+    Q_INVOKABLE ImageViewport::CommandOutcome seek(PageRole role, int frame);
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
+    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(PageRole role, int milliseconds);
+    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
+        const QVariant& primary, const QVariant& secondary, const QVariant& policy = {});
+    Q_INVOKABLE ImageViewport::CommandOutcome setSpreadDirection(SpreadDirection direction);
+    Q_INVOKABLE ImageViewport::CommandOutcome setPageGap(double gap);
+    Q_INVOKABLE ImageViewport::CommandOutcome setFitMode(FitMode mode, QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
+    Q_INVOKABLE ImageViewport::CommandOutcome panToStart();
+    Q_INVOKABLE ImageViewport::CommandOutcome panToEnd();
+    Q_INVOKABLE ImageViewport::CommandOutcome scanNext();
+    Q_INVOKABLE ImageViewport::CommandOutcome scanPrevious();
+    Q_INVOKABLE ImageViewport::CommandOutcome rotateClockwise(QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome rotateCounterClockwise(QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome setMirrorHorizontally(bool enabled, QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome setMirrorVertically(bool enabled, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
+    Q_INVOKABLE QVariantMap itemToSpread(double x, double y) const;
+    Q_INVOKABLE QVariantMap spreadToItem(double x, double y) const;
+    Q_INVOKABLE QVariantMap itemToPage(PageRole role, double x, double y) const;
+    Q_INVOKABLE QVariantMap pageToItem(PageRole role, double x, double y) const;
+    Q_INVOKABLE bool containsVisibleSpreadPoint(double x, double y) const;
+    Q_INVOKABLE bool containsVisiblePagePoint(PageRole role, double x, double y) const;
     Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
     Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
@@ -776,3 +1081,7 @@ private:
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
 Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
 Q_DECLARE_METATYPE(ImageSequenceProviderFrameMetadata)
+Q_DECLARE_METATYPE(ImageViewportRange)
+Q_DECLARE_METATYPE(CoordinateResult)
+Q_DECLARE_METATYPE(RevisionToken)
+Q_DECLARE_METATYPE(PageSetTransitionPolicy)

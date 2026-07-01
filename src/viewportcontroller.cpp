@@ -2853,6 +2853,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play()
     return result.outcome;
 }
 
+ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
+{
+    if (!ImageViewportInternal::isValidPageRole(role)) {
+        return CommandOutcome::Invalid;
+    }
+    if (role == PageRole::Secondary) {
+        return CommandOutcome::IgnoredNoRequest;
+    }
+
+    return play();
+}
+
 ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 {
     flushPlaybackTimerElapsed();
@@ -2861,6 +2873,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause()
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
+}
+
+ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
+{
+    if (!ImageViewportInternal::isValidPageRole(role)) {
+        return CommandOutcome::Invalid;
+    }
+    if (role == PageRole::Secondary) {
+        return CommandOutcome::IgnoredNoRequest;
+    }
+
+    return pause();
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop()
@@ -2873,6 +2897,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop()
     return result.outcome;
 }
 
+ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
+{
+    if (!ImageViewportInternal::isValidPageRole(role)) {
+        return CommandOutcome::Invalid;
+    }
+    if (role == PageRole::Secondary) {
+        return CommandOutcome::IgnoredNoRequest;
+    }
+
+    return stop();
+}
+
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 {
     flushPlaybackTimerElapsed();
@@ -2883,6 +2919,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
     return result.outcome;
 }
 
+ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
+{
+    if (!ImageViewportInternal::isValidPageRole(role)) {
+        return CommandOutcome::Invalid;
+    }
+    if (role == PageRole::Secondary) {
+        return CommandOutcome::IgnoredNoRequest;
+    }
+
+    return seek(frame);
+}
+
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
 {
     flushPlaybackTimerElapsed();
@@ -2891,6 +2939,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
+}
+
+ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
+{
+    if (!ImageViewportInternal::isValidPageRole(role)) {
+        return CommandOutcome::Invalid;
+    }
+    if (role == PageRole::Secondary) {
+        return CommandOutcome::IgnoredNoRequest;
+    }
+
+    return seekToPosition(milliseconds);
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()

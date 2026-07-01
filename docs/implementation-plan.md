@@ -44,7 +44,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M1 Final Public API Scaffolding
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M1 is an additive public-surface scaffold only; primary-role observations alias the existing compatibility state, secondary-role observations expose documented unavailable defaults, and M2 owns accepting and storing a real two-role page set.
+- Verification: added public API/QML scaffold coverage, confirmed generated `ImageViewport.qmltypes` exports the new value types and API entries, ran `ctest --test-dir build-ninja --output-on-failure -R '^imageviewport_public_api$'`, `git diff --check`, and `just test`.
 - Dependencies: M0.
 - Acceptance criteria: `ImageViewport` metaobject exposes documented enums, public value types, properties, role-scoped commands, page-set replacement commands, compatibility aliases, and default/unavailable values; unsupported raw values through `sequence` or page-set arguments preserve request and display state; legacy public API remains only as an explicitly documented compatibility layer or is left untouched until a separate approval.
 - Relevant references: [ImageViewport API](spec/image-viewport-api.md), [ImageViewport Behavior](spec/image-viewport.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).

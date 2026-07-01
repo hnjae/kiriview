@@ -21,6 +21,36 @@ void mergeControllerChanges(ViewportChangeSet& target, ViewportChangeSet source)
     target.commandRevision = target.commandRevision || source.commandRevision;
     target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
 }
+
+ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
+{
+    if (!value.isValid() || value.isNull()) {
+        ok = true;
+        return nullptr;
+    }
+
+    if (value.canConvert<ImageSequence*>()) {
+        if (ImageSequence* sequence = value.value<ImageSequence*>()) {
+            ok = true;
+            return sequence;
+        }
+    }
+
+    if (value.canConvert<QObject*>()) {
+        QObject* object = value.value<QObject*>();
+        if (!object && value.isNull()) {
+            ok = true;
+            return nullptr;
+        }
+        if (ImageSequence* sequence = qobject_cast<ImageSequence*>(object)) {
+            ok = true;
+            return sequence;
+        }
+    }
+
+    ok = false;
+    return nullptr;
+}
 }
 
 ImageSequence* ImageViewportPrivate::sequence() const { return controller.requestState().sequence; }
@@ -43,6 +73,24 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
 }
+
+ImageSequence* ImageViewportPrivate::primarySequence() const { return sequence(); }
+
+ImageSequence* ImageViewportPrivate::secondarySequence() const { return nullptr; }
+
+ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() const
+{
+    return presentation.spreadDirection;
+}
+
+void ImageViewportPrivate::setSpreadDirectionProperty(SpreadDirection direction)
+{
+    setSpreadDirection(direction);
+}
+
+double ImageViewportPrivate::pageGap() const { return presentation.pageGap; }
+
+void ImageViewportPrivate::setPageGapProperty(double gap) { setPageGap(gap); }
 
 ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const
 {
@@ -87,6 +135,14 @@ int ImageViewportPrivate::requestedFrame() const
     return -1;
 }
 
+int ImageViewportPrivate::primaryDisplayedFrame() const { return displayedFrame(); }
+
+int ImageViewportPrivate::primaryRequestedFrame() const { return requestedFrame(); }
+
+int ImageViewportPrivate::secondaryDisplayedFrame() const { return -1; }
+
+int ImageViewportPrivate::secondaryRequestedFrame() const { return -1; }
+
 int ImageViewportPrivate::displayedPosition() const
 {
     if (hasReadyDisplay()) {
@@ -109,6 +165,14 @@ int ImageViewportPrivate::requestedPosition() const
 
     return -1;
 }
+
+int ImageViewportPrivate::primaryDisplayedPosition() const { return displayedPosition(); }
+
+int ImageViewportPrivate::primaryRequestedPosition() const { return requestedPosition(); }
+
+int ImageViewportPrivate::secondaryDisplayedPosition() const { return -1; }
+
+int ImageViewportPrivate::secondaryRequestedPosition() const { return -1; }
 
 int ImageViewportPrivate::frameCount() const
 {
@@ -191,6 +255,22 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
     return invalidRange();
 }
 
+int ImageViewportPrivate::primaryFrameCount() const { return frameCount(); }
+
+int ImageViewportPrivate::secondaryFrameCount() const { return -1; }
+
+int ImageViewportPrivate::primaryTotalDuration() const { return totalDuration(); }
+
+int ImageViewportPrivate::secondaryTotalDuration() const { return -1; }
+
+QVariantMap ImageViewportPrivate::primaryFrameSeekBounds() const { return frameSeekBounds(); }
+
+QVariantMap ImageViewportPrivate::secondaryFrameSeekBounds() const { return invalidRange(); }
+
+QVariantMap ImageViewportPrivate::primaryPositionSeekBounds() const { return positionSeekBounds(); }
+
+QVariantMap ImageViewportPrivate::secondaryPositionSeekBounds() const { return invalidRange(); }
+
 ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
 {
     if (hasProviderSequence() && controller.providerMetadataReady()) {
@@ -245,6 +325,36 @@ ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
     return TriState::Unavailable;
 }
 
+ImageViewportPrivate::TriState ImageViewportPrivate::primaryTimedPlaybackSupport() const
+{
+    return timedPlaybackSupport();
+}
+
+ImageViewportPrivate::TriState ImageViewportPrivate::secondaryTimedPlaybackSupport() const
+{
+    return TriState::Unavailable;
+}
+
+ImageViewportPrivate::TriState ImageViewportPrivate::primaryFrameSeekSupport() const
+{
+    return frameSeekSupport();
+}
+
+ImageViewportPrivate::TriState ImageViewportPrivate::secondaryFrameSeekSupport() const
+{
+    return TriState::Unavailable;
+}
+
+ImageViewportPrivate::TriState ImageViewportPrivate::primaryPositionSeekSupport() const
+{
+    return positionSeekSupport();
+}
+
+ImageViewportPrivate::TriState ImageViewportPrivate::secondaryPositionSeekSupport() const
+{
+    return TriState::Unavailable;
+}
+
 QSizeF ImageViewportPrivate::displayedImageSize() const
 {
     if (hasReadyDisplay()) {
@@ -253,6 +363,12 @@ QSizeF ImageViewportPrivate::displayedImageSize() const
 
     return QSizeF(0.0, 0.0);
 }
+
+QSizeF ImageViewportPrivate::displayedSpreadSize() const { return displayedImageSize(); }
+
+QSizeF ImageViewportPrivate::primaryDisplayedImageSize() const { return displayedImageSize(); }
+
+QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const { return QSizeF(0.0, 0.0); }
 
 uint ImageViewportPrivate::displayRevision() const { return controller.displayState().revision; }
 
@@ -271,4 +387,24 @@ QString ImageViewportPrivate::errorString() const { return controller.requestSta
 QString ImageViewportPrivate::warningString() const
 {
     return controller.requestState().warningString;
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    const QVariant& primary, const QVariant& secondary, const QVariant&)
+{
+    bool primaryValid = false;
+    bool secondaryValid = false;
+    ImageSequence* primarySequence = sequenceFromPageSetValue(primary, primaryValid);
+    sequenceFromPageSetValue(secondary, secondaryValid);
+
+    if (!primaryValid || !secondaryValid) {
+        return CommandOutcome::Invalid;
+    }
+
+    if (!primarySequence) {
+        return clear();
+    }
+
+    setSequence(primarySequence);
+    return CommandOutcome::Accepted;
 }

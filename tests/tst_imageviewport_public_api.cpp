@@ -19,7 +19,9 @@ private slots:
     void qmlUnsupportedSequenceAssignmentsPreserveState();
     void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void exposesDocumentedQmlSurface();
+    void exposesFinalApiScaffold();
     void hasDocumentedDefaultState();
+    void qmlFinalApiScaffoldDefaultsAndCommands();
     void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
@@ -499,6 +501,97 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     }
 }
 
+void ImageViewportPublicApiTest::exposesFinalApiScaffold()
+{
+    ImageViewport item;
+    const QMetaObject* metaObject = item.metaObject();
+
+    const QList<QByteArray> properties = {
+        "primarySequence",
+        "secondarySequence",
+        "spreadDirection",
+        "pageGap",
+        "primaryDisplayedFrame",
+        "primaryRequestedFrame",
+        "secondaryDisplayedFrame",
+        "secondaryRequestedFrame",
+        "primaryDisplayedPosition",
+        "primaryRequestedPosition",
+        "secondaryDisplayedPosition",
+        "secondaryRequestedPosition",
+        "primaryFrameCount",
+        "secondaryFrameCount",
+        "primaryTotalDuration",
+        "secondaryTotalDuration",
+        "primaryFrameSeekBounds",
+        "secondaryFrameSeekBounds",
+        "primaryPositionSeekBounds",
+        "secondaryPositionSeekBounds",
+        "primaryTimedPlaybackSupport",
+        "secondaryTimedPlaybackSupport",
+        "primaryFrameSeekSupport",
+        "secondaryFrameSeekSupport",
+        "primaryPositionSeekSupport",
+        "secondaryPositionSeekSupport",
+        "displayedSpreadSize",
+        "primaryDisplayedImageSize",
+        "secondaryDisplayedImageSize",
+        "visibleSpreadRect",
+        "primaryPageRect",
+        "secondaryPageRect",
+        "primaryItemRect",
+        "secondaryItemRect",
+        "visiblePrimaryPageRect",
+        "visibleSecondaryPageRect",
+        "contentSize",
+        "contentPosition",
+        "maximumContentPosition",
+        "horizontalPannable",
+        "verticalPannable",
+        "fitMode",
+        "zoomPercent",
+        "rotationDegrees",
+    };
+
+    for (const QByteArray& property : properties) {
+        QVERIFY2(metaObject->indexOfProperty(property.constData()) >= 0, property.constData());
+    }
+
+    const QList<QByteArray> enumerators = {
+        "PageRole",
+        "SpreadDirection",
+        "FitMode",
+    };
+
+    for (const QByteArray& enumerator : enumerators) {
+        QVERIFY2(
+            metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
+    }
+
+    verifyEnumValues(metaObject, "PageRole", { "Primary", "Secondary" });
+    verifyEnumValues(metaObject, "SpreadDirection", { "LeftToRight", "RightToLeft" });
+    verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
+
+    const QList<QByteArray> methods = {
+        "setPageSet(QVariant,QVariant,QVariant)",
+        "setSpreadDirection(SpreadDirection)",
+        "setPageGap(double)",
+        "panToStart()",
+        "panToEnd()",
+        "scanNext()",
+        "scanPrevious()",
+        "itemToSpread(double,double)",
+        "spreadToItem(double,double)",
+        "containsVisibleSpreadPoint(double,double)",
+    };
+
+    for (const QByteArray& method : methods) {
+        QVERIFY2(
+            metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) >= 0,
+            method.constData());
+    }
+}
+
 void ImageViewportPublicApiTest::hasDocumentedDefaultState()
 {
     ImageViewport item;
@@ -560,6 +653,112 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
         enumValue(metaObject, "BackgroundMode", "Transparent"));
     QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
     QCOMPARE(item.property("looping").toBool(), false);
+}
+
+void ImageViewportPublicApiTest::qmlFinalApiScaffoldDefaultsAndCommands()
+{
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    id: viewport
+
+    property bool defaultsValid: false
+    property bool roleCommandsReachViewport: false
+    property bool pageSetValidationPreservedState: false
+    property bool presentationCommandsReachViewport: false
+    property bool coordinateAliasesAvailable: false
+
+    Component.onCompleted: {
+        defaultsValid = sequence === null
+            && primarySequence === null
+            && secondarySequence === null
+            && spreadDirection === ImageViewport.SpreadDirection.LeftToRight
+            && pageGap === 0
+            && primaryDisplayedFrame === -1
+            && secondaryDisplayedFrame === -1
+            && primaryRequestedPosition === -1
+            && secondaryRequestedPosition === -1
+            && primaryFrameCount === -1
+            && secondaryFrameCount === -1
+            && primaryFrameSeekBounds.minimum === -1
+            && secondaryFrameSeekBounds.maximum === -1
+            && primaryTimedPlaybackSupport === ImageViewport.TriState.Unavailable
+            && secondaryTimedPlaybackSupport === ImageViewport.TriState.Unavailable
+            && displayedSpreadSize.width === 0
+            && primaryDisplayedImageSize.height === 0
+            && secondaryDisplayedImageSize.width === 0
+            && visibleSpreadRect.width === 0
+            && primaryPageRect.height === 0
+            && secondaryItemRect.width === 0
+            && visiblePrimaryPageRect.height === 0
+            && contentSize.width === 0
+            && contentPosition.x === 0
+            && maximumContentPosition.y === 0
+            && horizontalPannable === false
+            && verticalPannable === false
+            && fitMode === ImageViewport.FitMode.Contain
+            && zoomPercent === 100
+            && rotationDegrees === 0
+
+        const requestRevisionBefore = requestRevision
+        const displayRevisionBefore = displayRevision
+        const invalidPageSetOutcome = setPageSet("image.png", null)
+        pageSetValidationPreservedState = invalidPageSetOutcome === ImageViewport.CommandOutcome.Invalid
+            && sequence === null
+            && primarySequence === null
+            && secondarySequence === null
+            && requestStatus === ImageViewport.RequestStatus.NoRequest
+            && displayStatus === ImageViewport.DisplayStatus.Empty
+            && requestRevision === requestRevisionBefore
+            && displayRevision === displayRevisionBefore
+
+        roleCommandsReachViewport = play(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && pause(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && stop(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && seek(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
+
+        presentationCommandsReachViewport = setSpreadDirection(ImageViewport.SpreadDirection.LeftToRight) === ImageViewport.CommandOutcome.Accepted
+            && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
+            && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && panBy(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && panToStart() === ImageViewport.CommandOutcome.Accepted
+            && panToEnd() === ImageViewport.CommandOutcome.Accepted
+            && scanNext() === ImageViewport.CommandOutcome.Accepted
+            && scanPrevious() === ImageViewport.CommandOutcome.Accepted
+            && rotateClockwise(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && rotateCounterClockwise(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setMirrorHorizontally(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setMirrorVertically(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && resetView() === ImageViewport.CommandOutcome.Accepted
+
+        coordinateAliasesAvailable = itemToSpread(1, 1).valid === false
+            && spreadToItem(1, 1).valid === false
+            && itemToPage(ImageViewport.PageRole.Primary, 1, 1).valid === false
+            && pageToItem(ImageViewport.PageRole.Primary, 1, 1).valid === false
+            && containsVisibleSpreadPoint(1, 1) === false
+            && containsVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1) === false
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QScopedPointer<QObject> object(component.create());
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+
+    QCOMPARE(object->property("defaultsValid").toBool(), true);
+    QCOMPARE(object->property("pageSetValidationPreservedState").toBool(), true);
+    QCOMPARE(object->property("roleCommandsReachViewport").toBool(), true);
+    QCOMPARE(object->property("presentationCommandsReachViewport").toBool(), true);
+    QCOMPARE(object->property("coordinateAliasesAvailable").toBool(), true);
 }
 
 void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()

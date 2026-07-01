@@ -177,6 +177,41 @@ inline bool isValidFillMode(ImageViewport::FillMode mode)
     return false;
 }
 
+inline bool isValidFitMode(ImageViewport::FitMode mode)
+{
+    switch (mode) {
+    case ImageViewport::FitMode::Contain:
+    case ImageViewport::FitMode::FitWidth:
+    case ImageViewport::FitMode::FitHeight:
+    case ImageViewport::FitMode::Manual:
+        return true;
+    }
+
+    return false;
+}
+
+inline bool isValidSpreadDirection(ImageViewport::SpreadDirection direction)
+{
+    switch (direction) {
+    case ImageViewport::SpreadDirection::LeftToRight:
+    case ImageViewport::SpreadDirection::RightToLeft:
+        return true;
+    }
+
+    return false;
+}
+
+inline bool isValidPageRole(ImageViewport::PageRole role)
+{
+    switch (role) {
+    case ImageViewport::PageRole::Primary:
+    case ImageViewport::PageRole::Secondary:
+        return true;
+    }
+
+    return false;
+}
+
 inline bool isValidHorizontalAlignment(ImageViewport::HorizontalAlignment alignment)
 {
     switch (alignment) {
