@@ -152,6 +152,8 @@ struct DisplayState
         displayedRequest = {};
         displayedImageSize = {};
         displayedImage = {};
+        secondaryDisplayedImageSize = {};
+        secondaryDisplayedImage = {};
     }
 
     void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
@@ -173,7 +175,11 @@ struct DisplayState
         }
     }
 
-    void clearPendingRenderPayload() { pendingRenderPayload = {}; }
+    void clearPendingRenderPayload()
+    {
+        pendingRenderPayload = {};
+        secondaryPendingRenderPayload = {};
+    }
 
     bool pendingRenderPayloadMatches(const PreparedPayloadIdentity& identity) const
     {
@@ -218,8 +224,11 @@ struct DisplayState
     DisplayRequestSnapshot displayedRequest;
     QSizeF displayedImageSize;
     QImage displayedImage;
+    QSizeF secondaryDisplayedImageSize;
+    QImage secondaryDisplayedImage;
     quint64 nextPreparedPayloadId = 0;
     PreparedPayload pendingRenderPayload;
+    PreparedPayload secondaryPendingRenderPayload;
     DisplayRequestSnapshot renderFailureRetainedRequest;
     bool renderFailureRetainedDisplayValid = false;
     QSizeF renderFailureRetainedImageSize;
@@ -306,6 +315,7 @@ struct RequestState
     std::shared_ptr<ImageSequence> sequenceOwner;
     QPointer<ImageSequence> secondarySequence;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
+    bool secondarySequenceIsProvider = false;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;

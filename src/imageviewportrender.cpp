@@ -1,4 +1,5 @@
 #include "imageviewport_p.h"
+#include "presentationgeometry_p.h"
 
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGNode>
@@ -6,6 +7,49 @@
 #include <algorithm>
 
 using namespace ImageViewportInternal;
+
+namespace {
+
+bool isPositiveSize(QSizeF size)
+{
+    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+}
+
+double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
+{
+    QQuickWindow* window = viewport.window();
+    return window ? window->effectiveDevicePixelRatio() : 1.0;
+}
+
+QSizeF imageLogicalSize(const QImage& image)
+{
+    return image.isNull() ? QSizeF() : image.deviceIndependentSize();
+}
+
+PresentationGeometry::State renderGeometryState(
+    const ImageViewportPrivate& viewport, QSizeF primarySize, QSizeF secondarySize)
+{
+    return {
+        isPositiveSize(primarySize),
+        viewport.itemBounds(),
+        primarySize,
+        secondarySize,
+        viewport.presentation.pageGap,
+        viewport.presentation.spreadDirection,
+        viewport.presentation.fitMode,
+        viewport.presentation.fillMode,
+        viewport.presentation.horizontalAlignment,
+        viewport.presentation.verticalAlignment,
+        viewport.presentation.rotationDegrees,
+        viewport.presentation.mirrorHorizontally,
+        viewport.presentation.mirrorVertically,
+        viewport.presentation.zoom,
+        effectiveDevicePixelRatio(viewport),
+        viewport.presentation.pan,
+    };
+}
+
+}
 
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
@@ -15,32 +59,75 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         preparedPayload.image = controller.displayState().displayedImage;
     }
     const bool imagePresent = !preparedPayload.image.isNull();
+    const bool pendingSpreadGeometry
+        = synchronization.pendingProviderCommit || synchronization.pendingSecondaryCommit;
+    QSizeF primaryRenderSize;
+    QSizeF secondaryRenderSize;
+    if (pendingSpreadGeometry) {
+        primaryRenderSize = synchronization.pendingProviderCommit
+            ? controller.providerLogicalSize()
+            : imageLogicalSize(preparedPayload.image);
+        if (ImageSequence* sequence = secondarySequence(); sequence && sequence->isValid()) {
+            if (sequence->isProvider()) {
+                secondaryRenderSize = controller.secondaryProviderLogicalSize();
+                if (!isPositiveSize(secondaryRenderSize)) {
+                    secondaryRenderSize = imageLogicalSize(
+                        controller.displayState().secondaryPendingRenderPayload.image);
+                }
+            } else {
+                secondaryRenderSize = sequence->logicalSize();
+            }
+        }
+    }
+    const PresentationGeometry::State pendingGeometry
+        = renderGeometryState(*this, primaryRenderSize, secondaryRenderSize);
     QRectF targetRect = primaryItemRect().intersected(itemBounds());
     QRectF sourceRect = visibleImageRect();
-    if (synchronization.pendingProviderCommit) {
-        targetRect
-            = contentRectForImageSize(controller.providerLogicalSize()).intersected(itemBounds());
-        sourceRect = visibleImageRectForImageSize(controller.providerLogicalSize());
+    if (pendingSpreadGeometry) {
+        targetRect = PresentationGeometry::pageItemRect(pendingGeometry, PageRole::Primary)
+                         .intersected(itemBounds());
+        sourceRect = PresentationGeometry::visiblePageRect(pendingGeometry, PageRole::Primary);
     }
 
     QVector<RenderAdapter::Input::ImageLayer> imageLayers;
     if (imagePresent) {
-        imageLayers.append({ preparedPayload, targetRect, sourceRect, presentation.mirrorHorizontally,
-            presentation.mirrorVertically });
+        imageLayers.append({ preparedPayload, targetRect, sourceRect,
+            presentation.mirrorHorizontally, presentation.mirrorVertically });
     }
-    if (!synchronization.pendingProviderCommit && hasReadyDisplay()) {
-        if (ImageSequence* sequence = secondarySequence();
-            sequence && sequence->isValid() && !sequence->isProvider()) {
-            const int frame = sequence->frameCount() > 0
-                ? std::clamp(displayedFrame(), 0, sequence->frameCount() - 1)
-                : -1;
-            QImage secondaryImage = frame >= 0 ? sequence->frameImage(frame) : QImage();
-            const QRectF secondaryTargetRect = secondaryItemRect().intersected(itemBounds());
-            const QRectF secondarySourceRect = visibleSecondaryPageRect();
+    const bool hasDisplayOrPendingSpread = hasReadyDisplay()
+        || synchronization.pendingProviderCommit || synchronization.pendingSecondaryCommit;
+    if (hasDisplayOrPendingSpread) {
+        if (ImageSequence* sequence = secondarySequence(); sequence && sequence->isValid()) {
+            auto secondaryPayload = preparedPayload;
+            QImage secondaryImage;
+            if (sequence->isProvider()) {
+                if (!controller.displayState().secondaryPendingRenderPayload.image.isNull()) {
+                    secondaryPayload = controller.displayState().secondaryPendingRenderPayload;
+                    secondaryImage = secondaryPayload.image;
+                } else {
+                    secondaryImage = controller.displayState().secondaryDisplayedImage;
+                    secondaryPayload.image = secondaryImage;
+                }
+            } else {
+                const int roleFrame = synchronization.pendingProviderCommit
+                        || synchronization.pendingSecondaryCommit
+                    ? requestedFrame()
+                    : displayedFrame();
+                const int frame = sequence->frameCount() > 0
+                    ? std::clamp(roleFrame, 0, sequence->frameCount() - 1)
+                    : -1;
+                secondaryImage = frame >= 0 ? sequence->frameImage(frame) : QImage();
+                secondaryPayload.image = secondaryImage;
+            }
+            const QRectF secondaryTargetRect = pendingSpreadGeometry
+                ? PresentationGeometry::pageItemRect(pendingGeometry, PageRole::Secondary)
+                      .intersected(itemBounds())
+                : secondaryItemRect().intersected(itemBounds());
+            const QRectF secondarySourceRect = pendingSpreadGeometry
+                ? PresentationGeometry::visiblePageRect(pendingGeometry, PageRole::Secondary)
+                : visibleSecondaryPageRect();
             if (!secondaryImage.isNull() && !secondaryTargetRect.isEmpty()
                 && !secondarySourceRect.isEmpty()) {
-                auto secondaryPayload = preparedPayload;
-                secondaryPayload.image = secondaryImage;
                 imageLayers.append({ secondaryPayload, secondaryTargetRect, secondarySourceRect,
                     presentation.mirrorHorizontally, presentation.mirrorVertically });
             }

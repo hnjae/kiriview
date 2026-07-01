@@ -20,6 +20,8 @@ private slots:
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
     void twoPageStillSpreadCreatesRoleTextureNodes();
+    void secondaryProviderFrameCompletesSpreadTextureNodes();
+    void primaryAndSecondaryProviderFramesCommitOneSpread();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void solidBackgroundRendersBehindImageNode();
     void qualityAndMirroringConfigureTextureNode();
@@ -217,6 +219,187 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     QVERIFY(secondaryNode->texture());
     QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
     QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
+}
+
+void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTextureNodes()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(255, 0, 0, 255));
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
+    QVERIFY(secondaryResult->sequence());
+
+    QQuickWindow window;
+    window.resize(88, 44);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame secondaryFrame(secondaryImage);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "UploadPending"));
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(root->childCount(), 2);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
+    QVERIFY(primaryNode);
+    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
+
+    auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
+    QVERIFY(secondaryNode);
+    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
+}
+
+void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitOneSpread()
+{
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
+        primaryLastRequestedFrame, primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    QQuickWindow window;
+    window.resize(88, 44);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(*primarySessionCount, 1);
+    QCOMPARE(*secondarySessionCount, 1);
+    QCOMPARE(*primaryMetadataRequestCount, 1);
+    QCOMPARE(*secondaryMetadataRequestCount, 1);
+
+    emit primarySessionFactory->lastSession()->metadataReady(
+        primarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*primaryLastRequestedFrame, 0);
+
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(255, 0, 0, 255));
+    ImageFrame primaryFrame(primaryImage);
+    emit primarySessionFactory->lastSession()->imageFrameReady(
+        primarySessionFactory->lastSession()->lastFrameToken(), &primaryFrame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QVERIFY(item.hasPendingRenderCommitForTest());
+    QScopedPointer<QSGNode> partialRoot(item.takePaintNode());
+    QVERIFY(partialRoot.isNull());
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+
+    emit secondarySessionFactory->lastSession()->metadataReady(
+        secondarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryLastRequestedFrame, 0);
+
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame secondaryFrame(secondaryImage);
+    emit secondarySessionFactory->lastSession()->imageFrameReady(
+        secondarySessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "UploadPending"));
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(root->childCount(), 2);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalTextureSourceRect()

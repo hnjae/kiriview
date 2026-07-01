@@ -233,6 +233,10 @@ public:
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
     void handleSecondaryProviderMetadataReady(
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
+    void handleSecondaryProviderFrameReady(
+        ImageSequenceProviderRequestToken token, ImageFrame* frame);
+    void handleSecondaryProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
+        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
     void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
         ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);

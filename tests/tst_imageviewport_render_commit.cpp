@@ -41,6 +41,7 @@ private slots:
     void providerSupersededRenderWaitingClearsPendingRenderCommit();
     void providerSupersededRenderFailureIsIgnored();
     void providerRenderCommitAcknowledgementPromotesPendingFrameWithoutSceneGraph();
+    void secondaryProviderSpreadRenderFailureRetainsPreviousDisplay();
     void staleRenderCommitAcknowledgementIsIgnoredWithoutSceneGraph();
     void staleRenderFailureAcknowledgementIsIgnoredWithoutSceneGraph();
     void activeRenderFailureAcknowledgementReportsFailureWithoutSceneGraph();
@@ -769,6 +770,98 @@ void ImageViewportRenderCommitTest::
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.displayedRequestIdForTest(), requestId);
+    QVERIFY(!item.hasPendingRenderCommitForTest());
+}
+
+void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsPreviousDisplay()
+{
+    ImageSequenceFactory factory;
+    QImage previousImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    previousImage.fill(QColor(255, 0, 0, 255));
+    ImageFrame previousFrame(previousImage);
+    QScopedPointer<ImageSequenceFactoryResult> previousResult(factory.fromFrame(&previousFrame));
+    QVERIFY(previousResult->sequence());
+
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(88.0, 44.0));
+    item.setSequence(previousResult->sequence());
+    acknowledgePendingRenderCommit(item);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
+
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 0, 255, 255));
+    ImageFrame secondaryFrame(secondaryImage);
+    emit sessionFactory->lastSession()->imageFrameReady(
+        sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
+    drainQueuedProviderResults();
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
+    QVERIFY(item.hasPendingRenderCommitForTest());
+
+    acknowledgePendingRenderFailure(item);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
+    QVERIFY(
+        item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
     QVERIFY(!item.hasPendingRenderCommitForTest());
 }
 

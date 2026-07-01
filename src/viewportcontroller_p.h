@@ -21,6 +21,7 @@ struct ViewportRenderAcknowledgement
 struct ViewportRenderSynchronization
 {
     bool pendingProviderCommit = false;
+    bool pendingSecondaryCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
     ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
     QRectF oldContentRect;
@@ -447,6 +448,9 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameEvent(
+        ViewportProviderFrameEvent event, ImageFrame* frame,
+        ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
@@ -488,6 +492,7 @@ public:
     ViewportProviderRequestTokenAllocation allocateSecondaryProviderRequestToken();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
     ViewportProviderMetadataRequestStartResult startSecondaryProviderMetadataRequest();
+    ViewportProviderFrameRequestStartResult startSecondaryProviderFrameRequest(int frame);
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
@@ -518,7 +523,11 @@ private:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
         ViewportProviderFrameEvent event) const;
+    ViewportProviderFrameEventAcceptance acceptSecondaryProviderFrameEvent(
+        ViewportProviderFrameEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
+        const FramePreparation::ProviderFrameAdmissionResult& admission);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
         const ViewportProviderFrameTerminalResult& result);

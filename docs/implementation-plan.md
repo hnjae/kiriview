@@ -104,7 +104,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M6 Complete-Spread Render Synchronization
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M6 synchronizes the render payload set for the active target spread and keeps provider-backed secondary roles from publishing partial primary-only displays; M7 remains responsible for role-scoped playback advancement, timed secondary driver selection, and authored animation policy.
+- Verification: added scenegraph coverage for built-in/built-in spreads, built-in primary plus secondary provider spreads, and primary-plus-secondary provider spreads; added render-commit coverage for secondary spread render failure retaining the previous complete display; confirmed focused `imageviewport_render_scenegraph`, `imageviewport_render_commit`, and `imageviewport_public_api` tests, full `just test`, and `git diff --check` pass.
 - Dependencies: M4, M5.
 - Acceptance criteria: render snapshots carry prepared payload identity, target spread data, role payload set, and presentation mapping; complete two-role spreads commit atomically only after all required roles are prepared and acknowledged; render failures are scoped to active role, generation, request, payload, and spread identity; presentation-only changes reuse committed payloads and advance display revisions without changing request readiness.
 - Relevant references: [Rendering](architecture/rendering.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md), [ImageViewport Behavior](spec/image-viewport.md).
