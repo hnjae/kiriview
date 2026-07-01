@@ -27,7 +27,7 @@ void ImageViewportPrivate::incrementRequestRevision()
 
 void ImageViewportPrivate::syncPlaybackTimer()
 {
-    const int interval = playbackTimerInterval();
+    const int interval = controller.playbackTimerInterval();
     if (interval <= 0) {
         stopPlaybackTimer();
         return;
@@ -65,48 +65,6 @@ void ImageViewportPrivate::flushPlaybackTimerElapsed()
     }
 
     advancePlayback(takePlaybackTimerElapsed());
-}
-
-int ImageViewportPrivate::playbackTimerInterval() const
-{
-    if (controller.requestState().playbackPhase != PlaybackPhase::Playing
-        || controller.requestState().status != RequestStatus::Ready) {
-        return -1;
-    }
-
-    int frameStart = -1;
-    int frameDuration = -1;
-    const int currentFrame = controller.requestState().activeRequest.target.frame;
-    if (hasProviderSequence() && controller.providerMetadataReady()
-        && controller.providerTimedMetadata()) {
-        if (currentFrame < 0 || currentFrame >= controller.providerFrameCount()) {
-            return -1;
-        }
-        frameStart = providerFrameStartPosition(currentFrame);
-        frameDuration = controller.providerFrameDuration(currentFrame);
-    } else if (hasTimedSequence()) {
-        if (currentFrame < 0 || currentFrame >= controller.requestState().sequence->frameCount()) {
-            return -1;
-        }
-        frameStart = controller.requestState().sequence->frameStartPosition(currentFrame);
-        const int nextFrameStart
-            = currentFrame + 1 < controller.requestState().sequence->frameCount()
-            ? controller.requestState().sequence->frameStartPosition(currentFrame + 1)
-            : controller.requestState().sequence->totalDuration();
-        frameDuration = nextFrameStart - frameStart;
-    } else {
-        return -1;
-    }
-
-    if (frameStart < 0 || frameDuration <= 0) {
-        return -1;
-    }
-
-    const int playbackPosition = controller.requestState().playbackPosition >= 0
-        ? controller.requestState().playbackPosition
-        : frameStart;
-    const int remaining = frameStart + frameDuration - playbackPosition;
-    return std::max(1, remaining);
 }
 
 bool ImageViewportPrivate::hasActiveRequest() const

@@ -176,7 +176,6 @@ public:
     void handlePlaybackTimer();
     int takePlaybackTimerElapsed();
     void flushPlaybackTimerElapsed();
-    int playbackTimerInterval() const;
     void advancePlayback(int elapsedMilliseconds);
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;

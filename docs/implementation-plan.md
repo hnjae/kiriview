@@ -89,7 +89,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M5: Playback Clock Port and Pure Controller Coverage
 
-- Status: Not started.
+- Status: In progress.
 - Priority: P1.
 - Goal: Make playback timing deterministic through an explicit clock/timer port and move core playback coverage to controller-level tests.
 - Dependencies: M2 controller-owned state boundary; M3 provider effects for playback-backed provider requests where applicable.
@@ -98,6 +98,7 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: Playback timer scheduling, elapsed time capture, controller playback advancement input, controller tests, private test probes.
 - Acceptance criteria: Controller playback transitions accept explicit elapsed/clock inputs and return timer/effect changes; production implements the clock/timer port with Qt timers; tests use a fake monotonic clock; playback waiting on metadata, provider work, request queueing, upload pending, non-positive geometry, or render commit does not accumulate catch-up time; `pause()`, `stop()`, explicit seek while playing, loop wrap, play-once terminal final-frame promotion, and unsupported capability resolution are covered without constructing `ImageViewport`, `QQuickWindow`, `QSGNode`, `QTimer`, or relying on `QCoreApplication::processEvents()`.
 - Expected tests/checks: Pure controller playback tests for play before metadata, metadata resolves playable/unplayable, frame and position seek while playing, pause during pending request, stop restoration, loop wrap, play-once final frame pending/promotable, zero-size geometry waiting, stale playback-token results, and invalid/unsupported commands preserving playback phase.
+- Progress evidence: Moved playback timer interval policy from `ImageViewportPrivate` into `ViewportController::playbackTimerInterval()` so the item-side Qt timer path only starts, stops, and samples elapsed time while the controller owns timing eligibility and frame-duration calculations. Verified focused `imageviewport_timed`, `imageviewport_provider_playback`, `imageviewport_provider_terminal`, and `imageviewport_render_commit`.
 - Stop conditions: Stop if controller correctness depends on wall-clock sleeps or event-loop draining; stop if playback advancement can skip over blocked display requests; stop if tests require private item probes for core state-machine behavior after controller coverage exists.
 
 ### M6: Boundary Cleanup and Feature Modularity Gate

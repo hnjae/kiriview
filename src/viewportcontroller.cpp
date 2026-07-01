@@ -2,6 +2,7 @@
 
 #include "imageviewport_p.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -2598,6 +2599,47 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
             viewport.visibleImageRect(), oldVisibleImageRect);
     changes.diagnostics = true;
     return changes;
+}
+
+int ViewportController::playbackTimerInterval() const
+{
+    if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Playing
+        || viewportRequestState(viewport).status != ImageViewport::RequestStatus::Ready) {
+        return -1;
+    }
+
+    int frameStart = -1;
+    int frameDuration = -1;
+    const int currentFrame = viewportRequestState(viewport).activeRequest.target.frame;
+    if (viewport.hasProviderSequence() && viewportProviderState(viewport).metadataReady
+        && viewportProviderState(viewport).timedMetadata) {
+        if (currentFrame < 0 || currentFrame >= viewport.frameCount()) {
+            return -1;
+        }
+        frameStart = viewport.providerFrameStartPosition(currentFrame);
+        frameDuration = viewportProviderState(viewport).timingIntervals.frameDuration(currentFrame);
+    } else if (viewport.hasTimedSequence()) {
+        if (currentFrame < 0 || currentFrame >= viewport.sequenceFrameCount()) {
+            return -1;
+        }
+        frameStart = viewport.sequenceFrameStartPosition(currentFrame);
+        const int nextFrameStart = currentFrame + 1 < viewport.sequenceFrameCount()
+            ? viewport.sequenceFrameStartPosition(currentFrame + 1)
+            : viewport.totalDuration();
+        frameDuration = nextFrameStart - frameStart;
+    } else {
+        return -1;
+    }
+
+    if (frameStart < 0 || frameDuration <= 0) {
+        return -1;
+    }
+
+    const int playbackPosition = viewportRequestState(viewport).playbackPosition >= 0
+        ? viewportRequestState(viewport).playbackPosition
+        : frameStart;
+    const int remaining = frameStart + frameDuration - playbackPosition;
+    return std::max(1, remaining);
 }
 
 ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMilliseconds)

@@ -424,6 +424,7 @@ public:
         const ViewportRenderSynchronization& synchronization);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
         ViewportRenderAcknowledgement acknowledgement);
+    int playbackTimerInterval() const;
     ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
