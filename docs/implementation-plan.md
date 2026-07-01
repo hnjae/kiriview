@@ -116,8 +116,8 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M7 Playback And Authored Animation Conformance
 
-- Status: In progress.
-- Progress: secondary `pause(role)` and `stop(role)` now admit present non-driver roles as accepted no-ops without mutating the active primary playback driver; negative and out-of-range secondary frame and position seek commands now use present-role invalid-command precedence; secondary still-image `play(role)` and position seek now report unsupported capability rather than no-request; secondary timed `play(role)`, valid secondary `seek(role, frame)`, valid `seekToPosition(role, milliseconds)`, provider role-driver advancement, and authored animation policy remain.
+- Status: Complete.
+- Progress: role-scoped playback command admission is implemented for present and absent roles; secondary still-image playback and position seeking report unsupported capability; secondary timed playback, frame seeking, position seeking, non-driver pause/stop no-ops, active-driver stop restoration, provider role-driver playback dispatch, authored autoplay, and authored finite/infinite loop policy are covered.
 - Dependencies: M4, M5, M6.
 - Acceptance criteria: role-scoped `play`, `pause`, `stop`, `seek`, and `seekToPosition` follow command admission precedence; exactly one active playback driver exists per viewport; non-driver pause/stop commands are accepted no-ops; waiting pauses elapsed time; stop restores the latest non-playback target for the addressed active driver; end-of-sequence handling never publishes beyond-final targets; authored autoplay, progressive animation readiness, authored finite loops, and authored infinite loops are supported through the viewport request path.
 - Relevant references: [Playback State Machine](architecture/playback-state-machine.md), [ImageViewport Behavior](spec/image-viewport.md), [ImageViewport API](spec/image-viewport-api.md), [Provider Protocol](architecture/provider-protocol.md).
