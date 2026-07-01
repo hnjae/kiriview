@@ -276,6 +276,7 @@ struct ViewportSequenceAssignment
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageSequence* secondarySequence = nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
+    bool retainPreviousDisplay = true;
 };
 
 struct ViewportSequenceAssignmentResult
@@ -421,6 +422,7 @@ public:
     void incrementCommandRevision();
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
+    ViewportCommandResult rejectInvalidCommand();
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult pause();

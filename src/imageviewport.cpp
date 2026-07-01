@@ -1,6 +1,8 @@
 #include "imagesequenceownership_p.h"
 #include "imageviewport_p.h"
 
+#include <cmath>
+#include <optional>
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -50,6 +52,268 @@ ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
 
     ok = false;
     return nullptr;
+}
+
+struct NormalizedPageSetTransitionPolicy
+{
+    PageSetTransitionPolicy::DisplayTransition displayTransition
+        = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+    PageSetTransitionPolicy::ZoomTransition zoomTransition
+        = PageSetTransitionPolicy::ZoomTransition::Preserve;
+    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
+        = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
+    PageSetTransitionPolicy::RotationTransition rotationTransition
+        = PageSetTransitionPolicy::RotationTransition::Preserve;
+    PageSetTransitionPolicy::MirrorTransition mirrorTransition
+        = PageSetTransitionPolicy::MirrorTransition::Preserve;
+    PageSetTransitionPolicy::ReplacementIntent replacementIntent
+        = PageSetTransitionPolicy::ReplacementIntent::NewTarget;
+    std::optional<ImageViewport::FitMode> explicitFitMode;
+    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
+    std::optional<double> explicitPageGap;
+};
+
+bool enumIntValue(const QVariant& value, int& result)
+{
+    if (!value.isValid() || value.isNull()) {
+        return false;
+    }
+
+    bool ok = false;
+    result = value.toInt(&ok);
+    return ok;
+}
+
+bool updateDisplayTransition(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::DisplayTransition>(numericValue)) {
+    case PageSetTransitionPolicy::DisplayTransition::RetainPrevious:
+    case PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad:
+        policy.displayTransition
+            = static_cast<PageSetTransitionPolicy::DisplayTransition>(numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateZoomTransition(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::ZoomTransition>(numericValue)) {
+    case PageSetTransitionPolicy::ZoomTransition::Preserve:
+    case PageSetTransitionPolicy::ZoomTransition::ResetToContain:
+    case PageSetTransitionPolicy::ZoomTransition::PreserveManualPercent:
+        policy.zoomTransition = static_cast<PageSetTransitionPolicy::ZoomTransition>(numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateContentPositionTransition(
+    const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::ContentPositionTransition>(numericValue)) {
+    case PageSetTransitionPolicy::ContentPositionTransition::Preserve:
+    case PageSetTransitionPolicy::ContentPositionTransition::Clamp:
+    case PageSetTransitionPolicy::ContentPositionTransition::ScanStart:
+    case PageSetTransitionPolicy::ContentPositionTransition::ScanEnd:
+        policy.contentPositionTransition
+            = static_cast<PageSetTransitionPolicy::ContentPositionTransition>(numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateRotationTransition(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::RotationTransition>(numericValue)) {
+    case PageSetTransitionPolicy::RotationTransition::Preserve:
+    case PageSetTransitionPolicy::RotationTransition::Reset:
+        policy.rotationTransition
+            = static_cast<PageSetTransitionPolicy::RotationTransition>(numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateMirrorTransition(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::MirrorTransition>(numericValue)) {
+    case PageSetTransitionPolicy::MirrorTransition::Preserve:
+    case PageSetTransitionPolicy::MirrorTransition::Reset:
+        policy.mirrorTransition = static_cast<PageSetTransitionPolicy::MirrorTransition>(
+            numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateReplacementIntent(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    switch (static_cast<PageSetTransitionPolicy::ReplacementIntent>(numericValue)) {
+    case PageSetTransitionPolicy::ReplacementIntent::NewTarget:
+    case PageSetTransitionPolicy::ReplacementIntent::SameTargetRefinement:
+        policy.replacementIntent
+            = static_cast<PageSetTransitionPolicy::ReplacementIntent>(numericValue);
+        return true;
+    }
+
+    return false;
+}
+
+bool updateExplicitFitMode(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    const ImageViewport::FitMode mode = static_cast<ImageViewport::FitMode>(numericValue);
+    if (!isValidFitMode(mode)) {
+        return false;
+    }
+
+    policy.explicitFitMode = mode;
+    return true;
+}
+
+bool updateExplicitSpreadDirection(
+    const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    int numericValue = 0;
+    if (!enumIntValue(value, numericValue)) {
+        return false;
+    }
+
+    const ImageViewport::SpreadDirection direction
+        = static_cast<ImageViewport::SpreadDirection>(numericValue);
+    if (!isValidSpreadDirection(direction)) {
+        return false;
+    }
+
+    policy.explicitSpreadDirection = direction;
+    return true;
+}
+
+bool updateExplicitPageGap(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+{
+    bool ok = false;
+    const double pageGap = value.toDouble(&ok);
+    if (!ok || !std::isfinite(pageGap) || pageGap < 0.0) {
+        return false;
+    }
+
+    policy.explicitPageGap = pageGap;
+    return true;
+}
+
+std::optional<NormalizedPageSetTransitionPolicy> pageSetTransitionPolicyFromMap(
+    const QVariantMap& map)
+{
+    NormalizedPageSetTransitionPolicy policy;
+    for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        if (it.key() == QStringLiteral("displayTransition")) {
+            if (!updateDisplayTransition(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("zoomTransition")) {
+            if (!updateZoomTransition(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("contentPositionTransition")) {
+            if (!updateContentPositionTransition(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("rotationTransition")) {
+            if (!updateRotationTransition(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("mirrorTransition")) {
+            if (!updateMirrorTransition(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("replacementIntent")) {
+            if (!updateReplacementIntent(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("fitMode")) {
+            if (!updateExplicitFitMode(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("spreadDirection")) {
+            if (!updateExplicitSpreadDirection(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else if (it.key() == QStringLiteral("pageGap")) {
+            if (!updateExplicitPageGap(it.value(), policy)) {
+                return std::nullopt;
+            }
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    if (policy.zoomTransition == PageSetTransitionPolicy::ZoomTransition::ResetToContain
+        && policy.explicitFitMode && *policy.explicitFitMode != ImageViewport::FitMode::Contain) {
+        return std::nullopt;
+    }
+
+    return policy;
+}
+
+std::optional<NormalizedPageSetTransitionPolicy> pageSetTransitionPolicyFromVariant(
+    const QVariant& value)
+{
+    if (!value.isValid() || value.isNull()) {
+        return NormalizedPageSetTransitionPolicy {};
+    }
+
+    if (value.canConvert<PageSetTransitionPolicy>()) {
+        const PageSetTransitionPolicy policy = value.value<PageSetTransitionPolicy>();
+        return NormalizedPageSetTransitionPolicy { policy.displayTransition(),
+            policy.zoomTransition(), policy.contentPositionTransition(),
+            policy.rotationTransition(), policy.mirrorTransition(), policy.replacementIntent() };
+    }
+
+    if (value.canConvert<QVariantMap>()) {
+        return pageSetTransitionPolicyFromMap(value.toMap());
+    }
+
+    return std::nullopt;
 }
 }
 
@@ -552,7 +816,7 @@ QString ImageViewportPrivate::warningString() const
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    const QVariant& primary, const QVariant& secondary, const QVariant&)
+    const QVariant& primary, const QVariant& secondary, const QVariant& policy)
 {
     bool primaryValid = false;
     bool secondaryValid = false;
@@ -563,20 +827,75 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         return CommandOutcome::Invalid;
     }
 
+    const std::optional<NormalizedPageSetTransitionPolicy> transitionPolicy
+        = pageSetTransitionPolicyFromVariant(policy);
+    if (!transitionPolicy) {
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+
     if (!primarySequence) {
         return clear();
+    }
+
+    ViewportChangeSet transitionChanges;
+    auto markPresentationChanged = [&](bool affectsGeometry) {
+        transitionChanges.presentation = true;
+        transitionChanges.displayRevision = true;
+        transitionChanges.geometryState = transitionChanges.geometryState
+            || (affectsGeometry && hasReadyDisplay() && !itemBounds().isEmpty());
+        transitionChanges.scheduleUpdate = true;
+    };
+
+    if (transitionPolicy->zoomTransition
+        == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
+        if (presentation.fitMode != FitMode::Contain || presentation.zoom != 1.0) {
+            presentation.fitMode = FitMode::Contain;
+            presentation.zoom = 1.0;
+            markPresentationChanged(true);
+        }
+    }
+    if (transitionPolicy->explicitFitMode
+        && presentation.fitMode != *transitionPolicy->explicitFitMode) {
+        presentation.fitMode = *transitionPolicy->explicitFitMode;
+        markPresentationChanged(true);
+    }
+    if (transitionPolicy->rotationTransition == PageSetTransitionPolicy::RotationTransition::Reset
+        && presentation.rotationDegrees != 0) {
+        presentation.rotationDegrees = 0;
+        markPresentationChanged(true);
+    }
+    if (transitionPolicy->mirrorTransition == PageSetTransitionPolicy::MirrorTransition::Reset
+        && (presentation.mirrorHorizontally || presentation.mirrorVertically)) {
+        presentation.mirrorHorizontally = false;
+        presentation.mirrorVertically = false;
+        markPresentationChanged(true);
+    }
+    if (transitionPolicy->explicitSpreadDirection
+        && presentation.spreadDirection != *transitionPolicy->explicitSpreadDirection) {
+        presentation.spreadDirection = *transitionPolicy->explicitSpreadDirection;
+        markPresentationChanged(true);
+    }
+    if (transitionPolicy->explicitPageGap
+        && presentation.pageGap != *transitionPolicy->explicitPageGap) {
+        presentation.pageGap = *transitionPolicy->explicitPageGap;
+        markPresentationChanged(true);
     }
 
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
     ViewportSequenceAssignmentResult result = controller.assignSequence({ primarySequence,
-        std::move(primaryOwner), secondarySequence, std::move(secondaryOwner) });
+        std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
+        transitionPolicy->displayTransition
+            == PageSetTransitionPolicy::DisplayTransition::RetainPrevious });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     if (result.openProviderSession && !openProviderSession()) {
         mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(
                 QStringLiteral("provider session creation failed")));
     }
+    mergeControllerChanges(result.changes, transitionChanges);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return CommandOutcome::Accepted;

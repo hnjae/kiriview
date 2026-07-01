@@ -26,6 +26,9 @@ private slots:
     void compatibilitySequenceAssignmentClearsSecondaryRole();
     void clearStylePageSetWithSecondaryClearsAcceptedRoles();
     void invalidPageSetSecondaryPreservesAcceptedRoles();
+    void pageSetTransitionClearBeforeLoadClearsRetainedDisplay();
+    void invalidPageSetTransitionPolicyPreservesState();
+    void invalidClearStyleTransitionPolicyPreservesState();
     void emptyGeometryChangeIncrementsDisplayRevision();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
@@ -900,6 +903,131 @@ void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()
         item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+}
+
+void ImageViewportPublicApiTest::pageSetTransitionClearBeforeLoadClearsRetainedDisplay()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> readyResult(factory.fromFrame(&frame));
+    QVERIFY(readyResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> loadingResult(factory.fromProvider(&adapter));
+    QVERIFY(loadingResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(readyResult->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+
+    QVariantMap policy;
+    policy.insert(QStringLiteral("displayTransition"),
+        static_cast<int>(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad));
+
+    const auto outcome
+        = item.setPageSet(QVariant::fromValue<QObject*>(loadingResult->sequence()), {}, policy);
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), loadingResult->sequence());
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportPublicApiTest::invalidPageSetTransitionPolicyPreservesState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame firstFrame(image);
+    ImageFrame replacementFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
+    QVERIFY(firstResult->sequence());
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(firstResult->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    const uint commandRevision = item.property("commandRevision").toUInt();
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+
+    QVariantMap invalidPolicy;
+    invalidPolicy.insert(QStringLiteral("displayTransition"), 999);
+
+    const auto outcome = item.setPageSet(
+        QVariant::fromValue<QObject*>(replacementResult->sequence()), {}, invalidPolicy);
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.sequence(), firstResult->sequence());
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QVERIFY(item.property("commandRevision").toUInt() > commandRevision);
+    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportPublicApiTest::invalidClearStyleTransitionPolicyPreservesState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame primaryFrame(image);
+    ImageFrame secondaryFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+
+    QVariantMap invalidPolicy;
+    invalidPolicy.insert(QStringLiteral("pageGap"), -1.0);
+
+    const auto outcome = item.setPageSet(QVariant(), QVariant(), invalidPolicy);
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("primarySequence").value<ImageSequence*>(), primaryResult->sequence());
+    QCOMPARE(
+        item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
 
 void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()

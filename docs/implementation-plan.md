@@ -68,7 +68,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M3 Transition Policy And Retained Display Semantics
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M3 establishes the page-set transition command boundary, policy validation, default retain behavior, clear-before-load display clearing, and basic presentation reset/explicit-field application; later spread geometry and complete-spread render milestones own the full content-position, scan, and per-role commit geometry behavior.
+- Verification: added public API transition-policy coverage for `ClearBeforeLoad`, invalid non-empty replacement policies, and invalid clear-style policies; confirmed the focused `imageviewport_public_api` test passes, ran `just test`, and ran `git diff --check`.
 - Dependencies: M2.
 - Acceptance criteria: default page-set policy retains previous display, preserves fit/zoom intent, clamps content position, preserves rotation, mirror flags, spread direction, and page gap; invalid policy fields return `Invalid` with no partial application; `RetainPrevious` and `ClearBeforeLoad` produce documented display status; same-target refinement creates a new accepted request and never overrides explicit fields; clear-style operations validate policy but do not mutate presentation state.
 - Relevant references: [ImageViewport Behavior](spec/image-viewport.md), [ImageViewport API](spec/image-viewport-api.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).

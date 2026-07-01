@@ -1206,6 +1206,10 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
     viewportDisplayState(viewport).clearPendingRenderPayload();
+    if (!assignment.retainPreviousDisplay) {
+        viewportDisplayState(viewport).clearDisplayedDisplay();
+        viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
+    }
     viewportRequestState(viewport).errorString.clear();
     viewportRequestState(viewport).warningString.clear();
     viewportRequestState(viewport).playbackPhase = ImageViewport::PlaybackPhase::Stopped;
@@ -1306,6 +1310,15 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     result.changes.diagnostics = viewportRequestState(viewport).errorString != oldErrorString
         || viewportRequestState(viewport).warningString != oldWarningString;
     result.changes.scheduleUpdate = true;
+    return result;
+}
+
+ViewportCommandResult ViewportController::rejectInvalidCommand()
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Invalid;
+    state.request.setCommandDiagnostic(ImageViewport::CommandReason::InvalidRequest);
+    result.changes.commandRevision = true;
     return result;
 }
 
