@@ -3396,6 +3396,15 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
         return CommandOutcome::Invalid;
     }
     if (role == PageRole::Secondary) {
+        ImageSequence* sequence = secondarySequence();
+        if (!sequence || !sequence->isValid()) {
+            return CommandOutcome::IgnoredNoRequest;
+        }
+        if (frame < 0) {
+            const ViewportCommandResult result = controller.rejectInvalidCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
+        }
         return CommandOutcome::IgnoredNoRequest;
     }
 
@@ -3418,6 +3427,15 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
         return CommandOutcome::Invalid;
     }
     if (role == PageRole::Secondary) {
+        ImageSequence* sequence = secondarySequence();
+        if (!sequence || !sequence->isValid()) {
+            return CommandOutcome::IgnoredNoRequest;
+        }
+        if (milliseconds < 0) {
+            const ViewportCommandResult result = controller.rejectInvalidCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
+        }
         return CommandOutcome::IgnoredNoRequest;
     }
 

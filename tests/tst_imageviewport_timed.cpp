@@ -23,6 +23,7 @@ private slots:
     void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
     void timedFrameListSecondaryPauseStopNoopWhenPrimaryPlaying();
+    void timedFrameListSecondaryInvalidSeekUsesPresentRolePrecedence();
     void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
     void timedFrameListPlayCommandPreservesElapsedPosition();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
@@ -458,6 +459,53 @@ void ImageViewportTimedTest::timedFrameListSecondaryPauseStopNoopWhenPrimaryPlay
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportTimedTest::timedFrameListSecondaryInvalidSeekUsesPresentRolePrecedence()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList primaryList;
+    QVERIFY(primaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(primaryList.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(
+        factory.fromTimedFrameList(&primaryList));
+    QVERIFY(primaryResult->sequence());
+
+    TimedImageFrameList secondaryList;
+    QVERIFY(secondaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(secondaryList.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromTimedFrameList(&secondaryList));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+
+    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, -1),
+        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Secondary, -1),
+        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
 }
 
 void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest()
