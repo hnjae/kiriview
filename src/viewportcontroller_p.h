@@ -282,6 +282,12 @@ struct ViewportSequenceAssignmentResult
     bool openProviderSession = false;
 };
 
+struct ViewportPresentationReset
+{
+    bool changed = false;
+    bool geometryState = false;
+};
+
 struct ViewportControllerState
 {
     ImageViewportInternal::DisplayState display;
@@ -313,7 +319,7 @@ public:
     ViewportCommandResult stop();
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
-    ViewportCommandResult resetView();
+    ViewportCommandResult resetView(ViewportPresentationReset reset);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);

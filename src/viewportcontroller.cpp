@@ -1489,19 +1489,14 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
     return result;
 }
 
-ViewportCommandResult ViewportController::resetView()
+ViewportCommandResult ViewportController::resetView(ViewportPresentationReset reset)
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    const bool changed = viewport.presentation.zoom != 1.0 || viewport.presentation.pan.x() != 0.0
-        || viewport.presentation.pan.y() != 0.0;
-    viewport.presentation.zoom = 1.0;
-    viewport.presentation.pan = {};
-    if (changed) {
+    if (reset.changed) {
         result.changes.presentation = true;
         result.changes.displayRevision = true;
-        result.changes.geometryState
-            = viewport.hasReadyDisplay() && !viewport.itemBounds().isEmpty();
+        result.changes.geometryState = reset.geometryState;
         result.changes.scheduleUpdate = true;
     }
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
@@ -2647,7 +2642,12 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 {
-    const ViewportCommandResult result = controller.resetView();
+    const bool changed
+        = presentation.zoom != 1.0 || presentation.pan.x() != 0.0 || presentation.pan.y() != 0.0;
+    presentation.zoom = 1.0;
+    presentation.pan = {};
+    const ViewportCommandResult result = controller.resetView(
+        { changed, changed && hasReadyDisplay() && !itemBounds().isEmpty() });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     return result.outcome;
