@@ -207,16 +207,11 @@ void ImageViewportPrivate::setPan(QPointF pan)
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::looping() const { return controller.requestState().looping; }
+bool ImageViewportPrivate::looping() const { return controller.looping(); }
 
 void ImageViewportPrivate::setLooping(bool looping)
 {
-    if (controller.requestState().looping == looping) {
-        return;
-    }
-
-    controller.requestState().looping = looping;
-    emit q->loopingChanged();
+    applyControllerChanges(controller.setLooping(looping));
 }
 
 QVariantMap ImageViewportPrivate::itemToImage(double x, double y) const

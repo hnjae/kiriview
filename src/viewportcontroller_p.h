@@ -300,6 +300,11 @@ public:
     const ImageViewportInternal::RequestState& requestState() const;
     ImageViewportInternal::ProviderGenerationState& providerState();
     const ImageViewportInternal::ProviderGenerationState& providerState() const;
+    bool looping() const;
+    ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
+    void incrementDisplayRevision();
+    void incrementRequestRevision();
+    void incrementCommandRevision();
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult clear();

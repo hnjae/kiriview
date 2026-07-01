@@ -946,6 +946,26 @@ const ImageViewportInternal::ProviderGenerationState& ViewportController::provid
     return state.provider;
 }
 
+bool ViewportController::looping() const { return state.request.looping; }
+
+ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool looping)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (state.request.looping == looping) {
+        return changes;
+    }
+
+    state.request.looping = looping;
+    changes.looping = true;
+    return changes;
+}
+
+void ViewportController::incrementDisplayRevision() { ++state.display.revision; }
+
+void ViewportController::incrementRequestRevision() { ++state.request.requestRevision; }
+
+void ViewportController::incrementCommandRevision() { ++state.request.commandRevision; }
+
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {
@@ -2531,7 +2551,7 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
         incrementRequestRevision();
     }
     if (changes.commandRevision) {
-        ++controller.requestState().commandRevision;
+        controller.incrementCommandRevision();
         emit q->commandRevisionChanged();
         emit q->commandStateChanged();
     }
@@ -2556,6 +2576,9 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
     }
     if (changes.presentation) {
         emit q->presentationChanged();
+    }
+    if (changes.looping) {
+        emit q->loopingChanged();
     }
     if (changes.scheduleUpdate) {
         update();

@@ -172,7 +172,6 @@ public:
     ImageSequenceProviderThreadingContract providerThreadingContract() const override;
     void incrementDisplayRevision();
     void incrementRequestRevision();
-    void setPlaybackPhase(PlaybackPhase phase);
     void syncPlaybackTimer();
     void stopPlaybackTimer();
     void handlePlaybackTimer();

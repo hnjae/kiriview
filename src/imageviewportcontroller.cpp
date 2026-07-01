@@ -15,25 +15,14 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 
 void ImageViewportPrivate::incrementDisplayRevision()
 {
-    ++controller.displayState().revision;
+    controller.incrementDisplayRevision();
     emit q->displayRevisionChanged();
 }
 
 void ImageViewportPrivate::incrementRequestRevision()
 {
-    ++controller.requestState().requestRevision;
+    controller.incrementRequestRevision();
     emit q->requestRevisionChanged();
-}
-
-void ImageViewportPrivate::setPlaybackPhase(PlaybackPhase phase)
-{
-    if (controller.requestState().playbackPhase == phase) {
-        return;
-    }
-
-    controller.requestState().playbackPhase = phase;
-    emit q->playbackPhaseChanged();
-    syncPlaybackTimer();
 }
 
 void ImageViewportPrivate::syncPlaybackTimer()
