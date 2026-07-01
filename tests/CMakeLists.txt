@@ -14,6 +14,24 @@ target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
                                          IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
+# M0 baseline conformance anchors before controller ownership refactors:
+# - retained display after failed replacement:
+#   imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek.
+# - command failure preservation:
+#   imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek.
+# - request/display revision behavior:
+#   imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision.
+# - provider stale results:
+#   imageviewport_provider_requests/providerTimedFrameSeekCancelsSupersededRequest.
+# - render acknowledgement identity:
+#   imageviewport_render_commit/providerSupersededRenderFailureIsIgnored.
+# - stop restoration:
+#   imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay.
+# - metadata-bound target selection:
+#   imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest.
+# - playback waiting:
+#   imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata.
+
 # Add a Qt test executable with shared ImageViewport test wiring.
 function(add_imageviewport_qt_test target source)
     add_executable(${target} ${source})

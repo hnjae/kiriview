@@ -18,7 +18,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M0: Baseline Conformance Harness
 
-- Status: Not started.
+- Status: Completed 2026-07-01.
 - Priority: P1.
 - Goal: Establish a behavioral and architectural regression harness before ownership changes begin.
 - Dependencies: None.
@@ -27,6 +27,8 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: Existing viewport public tests, provider adapter tests, render tests, controller-adjacent private tests, test utility/probe wiring mentioned by `DESIGN_REVIEW_CORRECT_END_STATE.md`.
 - Acceptance criteria: Existing public behavior tests are green before refactoring; a conformance checklist exists in test names or test comments for retained display, command failure preservation, request/display revision changes, provider stale results, render acknowledgement identity, stop restoration, metadata-bound target selection, and playback waiting; no test weakens public behavior to match current implementation shortcuts.
 - Expected tests/checks: Run the repository lint and test commands used for CI; run focused viewport/provider/render tests if the full suite is too slow during iteration; record any currently failing unrelated tests before making ownership changes.
+- Completion evidence: Re-read the M0 spec and architecture references, added a baseline conformance checklist comment in `tests/CMakeLists.txt`, strengthened `providerFrameFailureRetainsDisplayAndClearsOnSeek()` to prove invalid command diagnostics preserve a retained failed replacement without changing request or display revisions, and verified the focused provider terminal test, full CTest suite, `devenv shell -- just test`, and `devenv shell -- just lint` all pass.
+- Check note: `devenv tasks run --mode single ci:test` and `devenv tasks run --mode single ci:lint` are not defined in the current repo task graph; the checked-in `just test` and `just lint` recipes were used as the repository CI-style entry points.
 - Stop conditions: Stop if a proposed baseline test contradicts `docs/spec/**` or `docs/architecture/**`; stop if a test encodes current incomplete implementation as desired behavior; stop if the baseline requires editing authoritative docs.
 
 ### M1: First-Class Controller DisplayRequest Model

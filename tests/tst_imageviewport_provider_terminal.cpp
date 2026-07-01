@@ -826,7 +826,29 @@ void ImageViewportProviderTerminalTest::providerFrameFailureRetainsDisplayAndCle
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
 
+    const uint failedRequestRevision = item.property("requestRevision").toUInt();
+    const uint retainedDisplayRevision = item.property("displayRevision").toUInt();
+    const uint failedCommandRevision = item.property("commandRevision").toUInt();
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QVERIFY(item.property("commandRevision").toUInt() > failedCommandRevision);
+    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), retainedDisplayRevision);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "NoCommand"));
 
     QCOMPARE(*frameRequestCount, 3);
     QCOMPARE(*lastRequestedFrame, 0);
