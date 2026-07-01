@@ -220,15 +220,6 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     }
 }
 
-void ImageViewportPrivate::publishProviderFrameLoadingState()
-{
-    request.status = RequestStatus::Loading;
-    request.reason = RequestReason::ProviderWaiting;
-    display.status
-        = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-    discardPendingRenderCommit();
-}
-
 void ImageViewportPrivate::queueProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {

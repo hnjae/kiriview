@@ -131,8 +131,6 @@ public:
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
-    void discardPendingRenderCommit();
-    void publishProviderFrameLoadingState();
 
     bool openProviderSession();
     QObject* providerCallbackTarget() const override;
@@ -182,13 +180,6 @@ public:
     int providerFrameIndexForPosition(int position) const;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageSequenceProviderThreadingContract providerThreadingContract() const override;
-    void publishAcceptedTargetState(const QImage& providerImage = {});
-    void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
-    void publishReadyDisplayState();
-    void publishSequenceReadyState(const QImage& providerImage = {});
-    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
-    void publishRenderWaitingState();
-
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void setPlaybackPhase(PlaybackPhase phase);
@@ -215,6 +206,8 @@ public:
     int sequenceFrameCount() const;
     int sequenceFrameIndexForPosition(int position) const;
     int sequenceFrameStartPosition(int frame) const;
+    QSizeF sequenceLogicalSize() const;
+    QImage sequenceFrameImage(int frame) const;
 
     double width() const;
     double height() const;

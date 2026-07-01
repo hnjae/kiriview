@@ -66,9 +66,3 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         syncPlaybackTimer();
     }
 }
-
-void ImageViewportPrivate::discardPendingRenderCommit()
-{
-    display.clearPendingRenderPayload();
-    display.clearRenderFailureRetainedDisplay();
-}
