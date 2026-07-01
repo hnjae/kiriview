@@ -104,9 +104,8 @@ bool ViewportProviderBridge::openSession()
         session, &ImageSequenceProviderSession::metadataReady, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             const ImageSequenceProviderMetadata& metadata) {
-            ViewportProviderEvent event
-                = providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::MetadataReady,
-                    token);
+            ViewportProviderEvent event = providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::MetadataReady, token);
             event.metadata = metadata;
             client.handleProviderEvent(event);
         },
@@ -114,9 +113,8 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         session, &ImageSequenceProviderSession::imageFrameReady, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame) {
-            ViewportProviderEvent event
-                = providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::ImageFrameReady,
-                    token);
+            ViewportProviderEvent event = providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::ImageFrameReady, token);
             event.imageFrame = frame;
             client.handleProviderEvent(event);
         },
@@ -125,9 +123,8 @@ bool ViewportProviderBridge::openSession()
         session, &ImageSequenceProviderSession::imageFrameWithMetadataReady, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, ImageFrame* frame,
             ImageSequenceProviderFrameMetadata metadata) {
-            ViewportProviderEvent event = providerEvent(
-                role, sessionSerial, ViewportProviderEvent::Kind::ImageFrameWithMetadataReady,
-                token);
+            ViewportProviderEvent event = providerEvent(role, sessionSerial,
+                ViewportProviderEvent::Kind::ImageFrameWithMetadataReady, token);
             event.imageFrame = frame;
             event.frameMetadata = metadata;
             client.handleProviderEvent(event);
@@ -147,9 +144,8 @@ bool ViewportProviderBridge::openSession()
         session, &ImageSequenceProviderSession::frameHandleWithMetadataReady, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata) {
-            ViewportProviderEvent event = providerEvent(
-                role, sessionSerial, ViewportProviderEvent::Kind::FrameHandleWithMetadataReady,
-                token);
+            ViewportProviderEvent event = providerEvent(role, sessionSerial,
+                ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, token);
             event.frameHandle = frame;
             event.frameMetadata = metadata;
             client.handleProviderEvent(event);
@@ -174,9 +170,8 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         session, &ImageSequenceProviderSession::endOfSequence, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token) {
-            client.handleProviderEvent(
-                providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::EndOfSequence,
-                    token));
+            client.handleProviderEvent(providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::EndOfSequence, token));
         },
         Qt::QueuedConnection);
     QObject::connect(
@@ -192,9 +187,8 @@ bool ViewportProviderBridge::openSession()
         session, &ImageSequenceProviderSession::providerUnsupportedWithCause, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token,
             ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic) {
-            ViewportProviderEvent event
-                = providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::Unsupported,
-                    token);
+            ViewportProviderEvent event = providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::Unsupported, token);
             event.unsupportedCause = cause;
             event.diagnostic = diagnostic;
             client.handleProviderEvent(event);
@@ -203,9 +197,8 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         session, &ImageSequenceProviderSession::providerUnsupported, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
-            ViewportProviderEvent event
-                = providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::Unsupported,
-                    token);
+            ViewportProviderEvent event = providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::Unsupported, token);
             event.diagnostic = diagnostic;
             client.handleProviderEvent(event);
         },
@@ -213,9 +206,8 @@ bool ViewportProviderBridge::openSession()
     QObject::connect(
         session, &ImageSequenceProviderSession::providerCancelled, callbackTarget,
         [this, sessionSerial](ImageSequenceProviderRequestToken token, const QString& diagnostic) {
-            ViewportProviderEvent event
-                = providerEvent(role, sessionSerial, ViewportProviderEvent::Kind::Cancellation,
-                    token);
+            ViewportProviderEvent event = providerEvent(
+                role, sessionSerial, ViewportProviderEvent::Kind::Cancellation, token);
             event.diagnostic = diagnostic;
             client.handleProviderEvent(event);
         },

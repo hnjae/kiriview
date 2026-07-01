@@ -326,8 +326,8 @@ void ImageViewportTimedTest::timedFrameListSecondarySeekCommandsSelectRoleTarget
     QCOMPARE(item.property("secondaryDisplayedPosition").toInt(), 0);
 
     const uint initialRequestRevision = item.property("requestRevision").toUInt();
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 1),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
     QVERIFY(item.property("requestRevision").toUInt() > initialRequestRevision);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
@@ -383,8 +383,8 @@ void ImageViewportTimedTest::timedFrameListSecondaryPlaybackAdvancesRoleTarget()
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
@@ -628,8 +628,8 @@ void ImageViewportTimedTest::timedFrameListSecondaryStopRestoresRoleTarget()
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
     item.advancePlaybackForTest(100);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -696,15 +696,15 @@ void ImageViewportTimedTest::timedFrameListSecondaryInvalidSeekUsesPresentRolePr
     const uint requestRevision = item.property("requestRevision").toUInt();
     const uint displayRevision = item.property("displayRevision").toUInt();
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, -1),
-        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, -1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 2),
-        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 2), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);

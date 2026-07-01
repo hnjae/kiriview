@@ -316,9 +316,8 @@ void ImageViewportPrivate::handleSecondaryProviderMetadataReady(
         metadata.positionSeekSupport(),
         admission.logicalSize,
         admission.timingIntervals,
-        metadata.hasAuthoredAnimationFacts()
-            ? metadata.authoredAnimationFacts()
-            : secondarySequence()->m_authoredAnimationFacts,
+        metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
+                                             : secondarySequence()->m_authoredAnimationFacts,
     };
     applyControllerChanges(controller.handleSecondaryProviderAcceptedMetadataFacts(metadataFacts));
     const ViewportProviderFrameRequestStartResult frameRequest

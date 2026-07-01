@@ -103,9 +103,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList must contain at least one frame"));
     }
 
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages(),
-            list->authoredAnimationFacts()));
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(list->logicalSize(),
+        list->frameDurations(), list->frameImages(), list->authoredAnimationFacts()));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
@@ -142,8 +141,7 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
         const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
         if (!metadataAdmission.accepted()) {
             return new ImageSequenceFactoryResult(nullptr,
-                ImageSequenceFactoryResult::FactoryOutcome::Invalid,
-                metadataAdmission.diagnostic);
+                ImageSequenceFactoryResult::FactoryOutcome::Invalid, metadataAdmission.diagnostic);
         }
     }
 
@@ -185,10 +183,9 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
             QStringLiteral("provider construction facts contradict declared capabilities"));
     }
 
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(std::move(sessionFactory), knownFacts, effectiveTimedPlaybackCapability,
-            effectiveFrameSeekCapability, effectivePositionSeekCapability, authoredAnimationFacts,
-            threadingContract));
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(std::move(sessionFactory), knownFacts,
+        effectiveTimedPlaybackCapability, effectiveFrameSeekCapability,
+        effectivePositionSeekCapability, authoredAnimationFacts, threadingContract));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});

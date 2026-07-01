@@ -1069,20 +1069,23 @@ public:
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();
-    Q_INVOKABLE ImageViewport::CommandOutcome play(PageRole role);
+    Q_INVOKABLE ImageViewport::CommandOutcome play(ImageViewport::PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome pause();
-    Q_INVOKABLE ImageViewport::CommandOutcome pause(PageRole role);
+    Q_INVOKABLE ImageViewport::CommandOutcome pause(ImageViewport::PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome stop();
-    Q_INVOKABLE ImageViewport::CommandOutcome stop(PageRole role);
+    Q_INVOKABLE ImageViewport::CommandOutcome stop(ImageViewport::PageRole role);
     Q_INVOKABLE ImageViewport::CommandOutcome seek(int frame);
-    Q_INVOKABLE ImageViewport::CommandOutcome seek(PageRole role, int frame);
+    Q_INVOKABLE ImageViewport::CommandOutcome seek(ImageViewport::PageRole role, int frame);
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
-    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(PageRole role, int milliseconds);
+    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(
+        ImageViewport::PageRole role, int milliseconds);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary, const QVariant& policy = {});
-    Q_INVOKABLE ImageViewport::CommandOutcome setSpreadDirection(SpreadDirection direction);
+    Q_INVOKABLE ImageViewport::CommandOutcome setSpreadDirection(
+        ImageViewport::SpreadDirection direction);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageGap(double gap);
-    Q_INVOKABLE ImageViewport::CommandOutcome setFitMode(FitMode mode, QPointF anchor);
+    Q_INVOKABLE ImageViewport::CommandOutcome setFitMode(
+        ImageViewport::FitMode mode, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
     Q_INVOKABLE ImageViewport::CommandOutcome panToStart();
@@ -1096,10 +1099,11 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE QVariantMap itemToSpread(double x, double y) const;
     Q_INVOKABLE QVariantMap spreadToItem(double x, double y) const;
-    Q_INVOKABLE QVariantMap itemToPage(PageRole role, double x, double y) const;
-    Q_INVOKABLE QVariantMap pageToItem(PageRole role, double x, double y) const;
+    Q_INVOKABLE QVariantMap itemToPage(ImageViewport::PageRole role, double x, double y) const;
+    Q_INVOKABLE QVariantMap pageToItem(ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE bool containsVisibleSpreadPoint(double x, double y) const;
-    Q_INVOKABLE bool containsVisiblePagePoint(PageRole role, double x, double y) const;
+    Q_INVOKABLE bool containsVisiblePagePoint(
+        ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
     Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;

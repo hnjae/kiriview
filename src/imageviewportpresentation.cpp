@@ -149,7 +149,8 @@ QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
     return spreadSize;
 }
 
-ImageViewportPrivate::CommandOutcome rejectInvalidPresentationCommand(ImageViewportPrivate& viewport)
+ImageViewportPrivate::CommandOutcome rejectInvalidPresentationCommand(
+    ImageViewportPrivate& viewport)
 {
     const ViewportCommandResult result = viewport.controller.rejectInvalidCommand();
     viewport.applyControllerChanges(result.changes);
@@ -457,7 +458,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setFitMode(FitMode mo
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
     double percent, QPointF anchor)
 {
-    if (!isFinitePositive(percent) || percent > ImageViewportDisplayLimits::maximumManualZoomPercent()
+    if (!isFinitePositive(percent)
+        || percent > ImageViewportDisplayLimits::maximumManualZoomPercent()
         || !isFinitePoint(anchor)) {
         return rejectInvalidPresentationCommand(*this);
     }

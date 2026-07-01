@@ -68,7 +68,8 @@ int ViewportControllerContext::providerFrameStartPosition(int) const { return -1
 
 int ViewportControllerContext::providerFrameIndexForPosition(int) const { return -1; }
 
-ImageSequenceAuthoredAnimationFacts ViewportControllerContext::providerAuthoredAnimationFacts() const
+ImageSequenceAuthoredAnimationFacts
+ViewportControllerContext::providerAuthoredAnimationFacts() const
 {
     return {};
 }
@@ -83,7 +84,8 @@ int ViewportControllerContext::sequenceFrameIndexForPosition(int) const { return
 
 int ViewportControllerContext::sequenceFrameStartPosition(int) const { return -1; }
 
-ImageSequenceAuthoredAnimationFacts ViewportControllerContext::sequenceAuthoredAnimationFacts() const
+ImageSequenceAuthoredAnimationFacts
+ViewportControllerContext::sequenceAuthoredAnimationFacts() const
 {
     return {};
 }
@@ -706,8 +708,8 @@ void setSecondaryActiveRequest(ViewportControllerPort& viewport, DisplayRequestT
     }
 }
 
-void initializeSecondaryActiveRequest(ViewportControllerPort& viewport,
-    DisplayRequestTarget target, ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
+void initializeSecondaryActiveRequest(ViewportControllerPort& viewport, DisplayRequestTarget target,
+    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
     setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
 }
@@ -1501,9 +1503,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     viewportProviderState(viewport).timedPlaybackSupport = false;
     viewportProviderState(viewport).frameSeekSupport = false;
     viewportProviderState(viewport).positionSeekSupport = false;
-    viewportProviderState(viewport).authoredAnimationFacts
-        = viewport.hasProviderSequence() ? viewport.providerAuthoredAnimationFacts()
-                                         : ImageSequenceAuthoredAnimationFacts {};
+    viewportProviderState(viewport).authoredAnimationFacts = viewport.hasProviderSequence()
+        ? viewport.providerAuthoredAnimationFacts()
+        : ImageSequenceAuthoredAnimationFacts {};
     viewportProviderState(viewport).logicalSize = {};
     viewportProviderState(viewport).timingIntervals = {};
     discardPendingRenderCommit(viewport);
@@ -1551,8 +1553,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             viewportRequestState(viewport).beginDisplayRequest(
                 ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
             viewportRequestState(viewport).playbackPosition = initialTarget.position;
-            initializeSecondaryActiveRequest(
-                viewport, assignment.secondaryInitialTarget,
+            initializeSecondaryActiveRequest(viewport, assignment.secondaryInitialTarget,
                 assignment.secondaryInitialResolvedFrame);
         } else {
             const DisplayRequestTarget initialTarget {
@@ -1563,8 +1564,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             viewportRequestState(viewport).beginDisplayRequest(
                 ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
             viewportRequestState(viewport).playbackPosition = initialTarget.position;
-            initializeSecondaryActiveRequest(
-                viewport, assignment.secondaryInitialTarget,
+            initializeSecondaryActiveRequest(viewport, assignment.secondaryInitialTarget,
                 assignment.secondaryInitialResolvedFrame);
         }
         viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
@@ -1584,8 +1584,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
         viewportRequestState(viewport).playbackPosition = initialTarget.position;
         initializeSecondaryActiveRequest(
-            viewport, assignment.secondaryInitialTarget,
-            assignment.secondaryInitialResolvedFrame);
+            viewport, assignment.secondaryInitialTarget, assignment.secondaryInitialResolvedFrame);
         if (assignment.secondaryIsProvider) {
             stageBuiltInPrimarySpreadPayload(viewport);
         } else if (viewport.width() > 0.0 && viewport.height() > 0.0) {
@@ -1944,10 +1943,7 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
     return result;
 }
 
-ViewportCommandResult ViewportController::stop()
-{
-    return stop(ImageViewport::PageRole::Primary);
-}
+ViewportCommandResult ViewportController::stop() { return stop(ImageViewport::PageRole::Primary); }
 
 ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
 {
@@ -2128,9 +2124,8 @@ ViewportCommandResult ViewportController::seekSecondaryBuiltIn(
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
     const ImageViewportInternal::DisplayRequest primaryRequest
         = viewportRequestState(viewport).activeRequest;
-    beginAcceptedDisplayRequest(viewport,
-        ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, primaryRequest.target,
-        primaryRequest.resolvedFrame, true);
+    beginAcceptedDisplayRequest(viewport, ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        primaryRequest.target, primaryRequest.resolvedFrame, true);
     setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
     publishAcceptedTargetState(viewport);
     if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Playing
@@ -3525,8 +3520,7 @@ int ViewportController::playbackTimerInterval() const
         if (!viewport.hasSecondaryTimedSequence()) {
             return -1;
         }
-        const int currentFrame
-            = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
+        const int currentFrame = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
         if (currentFrame < 0 || currentFrame >= viewport.secondarySequenceFrameCount()) {
             return -1;
         }
@@ -3595,12 +3589,11 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
                 = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
             const int currentFrame
                 = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
-            const PlaybackAdvanceTarget target = playbackAdvanceTarget(elapsedMilliseconds,
-                currentFrame, viewportRequestState(viewport).playbackPosition,
+            const PlaybackAdvanceTarget target = playbackAdvanceTarget(
+                elapsedMilliseconds, currentFrame, viewportRequestState(viewport).playbackPosition,
                 effectiveLoopingForPlayback(
                     viewport, state.secondaryProvider.authoredAnimationFacts),
-                totalDuration,
-                state.secondaryProvider.timingIntervals.frameCount(),
+                totalDuration, state.secondaryProvider.timingIntervals.frameCount(),
                 [this](int frame) {
                     return state.secondaryProvider.timingIntervals.frameStartPosition(frame);
                 },
@@ -3666,14 +3659,12 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
         const int totalDuration = viewport.secondaryTotalDuration();
         const int previousFrame
             = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
-        const int currentFrame
-            = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
-        const PlaybackAdvanceTarget target = playbackAdvanceTarget(elapsedMilliseconds,
-            currentFrame, viewportRequestState(viewport).playbackPosition,
+        const int currentFrame = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
+        const PlaybackAdvanceTarget target = playbackAdvanceTarget(
+            elapsedMilliseconds, currentFrame, viewportRequestState(viewport).playbackPosition,
             effectiveLoopingForPlayback(
                 viewport, viewport.secondarySequenceAuthoredAnimationFacts()),
-            totalDuration,
-            viewport.secondarySequenceFrameCount(),
+            totalDuration, viewport.secondarySequenceFrameCount(),
             [this](int frame) { return viewport.secondarySequenceFrameStartPosition(frame); },
             [this](int position) {
                 return viewport.secondarySequenceFrameIndexForPosition(position);
@@ -3691,9 +3682,8 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
         const QRectF oldVisibleImageRect = viewport.visibleImageRect();
         const ImageViewportInternal::DisplayRequest primaryRequest
             = viewportRequestState(viewport).activeRequest;
-        beginAcceptedDisplayRequest(viewport,
-            ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
-            primaryRequest.resolvedFrame, false);
+        beginAcceptedDisplayRequest(viewport, ImageViewportInternal::DisplayRequestOrigin::Playback,
+            primaryRequest.target, primaryRequest.resolvedFrame, false);
         setSecondaryActiveRequest(viewport, target.displayTarget,
             { target.displayTarget.frame, target.displayTarget.position });
         publishAcceptedTargetState(viewport);

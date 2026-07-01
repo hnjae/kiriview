@@ -1051,17 +1051,15 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
     ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
     if (secondarySequence && secondarySequence->isValid() && !secondarySequence->isProvider()) {
-        const int position = secondarySequence->isTimedList()
-            ? secondarySequence->frameStartPosition(0)
-            : -1;
-        secondaryInitialTarget = {
-            0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown
-        };
+        const int position
+            = secondarySequence->isTimedList() ? secondarySequence->frameStartPosition(0) : -1;
+        secondaryInitialTarget
+            = { 0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
         secondaryInitialResolvedFrame = { 0, position };
     }
-    ViewportSequenceAssignmentResult result = controller.assignSequence(
-        { primarySequence, std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
-            secondaryInitialTarget, secondaryInitialResolvedFrame,
+    ViewportSequenceAssignmentResult result
+        = controller.assignSequence({ primarySequence, std::move(primaryOwner), secondarySequence,
+            std::move(secondaryOwner), secondaryInitialTarget, secondaryInitialResolvedFrame,
             transitionPolicy->displayTransition
                 == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
             secondarySequence && secondarySequence->isProvider() });

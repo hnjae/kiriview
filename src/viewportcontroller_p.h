@@ -471,8 +471,7 @@ public:
     ViewportCommandResult stop(ImageViewport::PageRole role);
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
-    ViewportCommandResult seekSecondaryBuiltIn(
-        ImageViewportInternal::DisplayRequestTarget target,
+    ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
     ViewportCommandResult resetView(ViewportPresentationReset reset);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(

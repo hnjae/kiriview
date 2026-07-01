@@ -50,10 +50,7 @@ ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::infinit
 
 bool ImageSequenceAuthoredAnimationFacts::autoplay() const { return m_autoplay; }
 
-void ImageSequenceAuthoredAnimationFacts::setAutoplay(bool autoplay)
-{
-    m_autoplay = autoplay;
-}
+void ImageSequenceAuthoredAnimationFacts::setAutoplay(bool autoplay) { m_autoplay = autoplay; }
 
 bool ImageSequenceAuthoredAnimationFacts::progressiveAnimationReadiness() const
 {
@@ -97,9 +94,9 @@ ImageSequence::ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* par
 {
 }
 
-ImageSequence::ImageSequence(
-    QSizeF logicalSize, const QVector<int>& frameDurations, QVector<QImage> frameImages,
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts, QObject* parent)
+ImageSequence::ImageSequence(QSizeF logicalSize, const QVector<int>& frameDurations,
+    QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+    QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)

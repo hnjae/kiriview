@@ -572,8 +572,8 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
 
-    QCOMPARE(item.setZoomPercent(ImageViewportDisplayLimits::maximumManualZoomPercent() + 1.0,
-                 QPointF(40.0, 50.0)),
+    QCOMPARE(item.setZoomPercent(
+                 ImageViewportDisplayLimits::maximumManualZoomPercent() + 1.0, QPointF(40.0, 50.0)),
         ImageViewport::CommandOutcome::Invalid);
 
     QCOMPARE(item.property("fitMode").toInt(), fitMode);

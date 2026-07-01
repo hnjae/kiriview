@@ -1650,8 +1650,8 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackUsesRoleLo
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
     acknowledgePendingRenderCommit(item);
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
 

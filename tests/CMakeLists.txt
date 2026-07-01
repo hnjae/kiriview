@@ -1,41 +1,37 @@
 add_library(imageviewport_core_test_support INTERFACE)
 
 if(NOT IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES)
-    message(FATAL_ERROR "IMAGEVIEWPORT_BUILD_TESTS requires IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES")
+    message(
+        FATAL_ERROR "IMAGEVIEWPORT_BUILD_TESTS requires IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES")
 endif()
 
 target_link_libraries(imageviewport_core_test_support INTERFACE ImageViewport Qt6::Test)
 
-target_include_directories(imageviewport_core_test_support
-                           INTERFACE ${CMAKE_CURRENT_SOURCE_DIR} ${OPENGL_INCLUDE_DIR})
+target_include_directories(imageviewport_core_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+                                                                     ${OPENGL_INCLUDE_DIR})
 
 add_library(imageviewport_test_support INTERFACE)
 
-target_link_libraries(imageviewport_test_support
-                      INTERFACE imageviewport_core_test_support ImageViewportplugin Qt6::Qml
-                                Qt6::Quick)
+target_link_libraries(imageviewport_test_support INTERFACE imageviewport_core_test_support
+                                                           ImageViewportplugin Qt6::Qml Qt6::Quick)
 
 target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
                                          IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
-# M0 baseline conformance anchors before controller ownership refactors:
-# - retained display after failed replacement:
-#   imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek.
-# - command failure preservation:
-#   imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek.
-# - request/display revision behavior:
-#   imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision.
-# - provider stale results:
-#   imageviewport_provider_requests/providerTimedFrameSeekCancelsSupersededRequest.
-# - render acknowledgement identity:
-#   imageviewport_render_commit/providerSupersededRenderFailureIsIgnored.
-# - stop restoration:
-#   imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay.
+# M0 baseline conformance anchors before controller ownership refactors: - retained display after
+# failed replacement:
+# imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek. - command
+# failure preservation:
+# imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek. -
+# request/display revision behavior:
+# imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision. - provider stale results:
+# imageviewport_provider_requests/providerTimedFrameSeekCancelsSupersededRequest. - render
+# acknowledgement identity: imageviewport_render_commit/providerSupersededRenderFailureIsIgnored. -
+# stop restoration: imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay.
 # - metadata-bound target selection:
-#   imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest.
-# - playback waiting:
-#   imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata.
+# imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest. - playback
+# waiting: imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata.
 
 # Add a Qt test executable without private probe declarations.
 function(add_imageviewport_core_qt_test target source)

@@ -686,8 +686,8 @@ void ImageViewportStillTest::secondaryStillImagePlayReportsUnsupported()
     const uint requestRevision = item.property("requestRevision").toUInt();
     const uint displayRevision = item.property("displayRevision").toUInt();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
-        ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);

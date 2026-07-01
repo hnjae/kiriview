@@ -46,13 +46,13 @@ public:
 
     virtual QObject* providerCallbackTarget() const = 0;
     virtual std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
-        ImageViewport::PageRole role) const = 0;
+        ImageViewport::PageRole role) const
+        = 0;
     virtual quint64 installProviderSession(
         ImageViewport::PageRole role, ImageSequenceProviderSession* session)
         = 0;
     virtual ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role) = 0;
-    virtual ImageSequenceProviderSession* currentProviderSession(
-        ImageViewport::PageRole role) const
+    virtual ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const
         = 0;
     virtual ImageSequenceProviderThreadingContract providerThreadingContract(
         ImageViewport::PageRole role) const

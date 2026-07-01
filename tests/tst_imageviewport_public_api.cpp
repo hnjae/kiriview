@@ -583,7 +583,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
 
     const QList<QByteArray> methods = {
         "setPageSet(QVariant,QVariant,QVariant)",
-        "setSpreadDirection(SpreadDirection)",
+        "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "panToStart()",
         "panToEnd()",
@@ -789,8 +789,7 @@ void ImageViewportPublicApiTest::setPageSetAcceptsPrimaryAndSecondaryAtomically(
     item.setSize(QSizeF(100.0, 100.0));
     ImageSequence* secondaryObservedDuringSignal = nullptr;
     connect(&item, &ImageViewport::sequenceChanged, &item, [&] {
-        secondaryObservedDuringSignal
-            = item.property("secondarySequence").value<ImageSequence*>();
+        secondaryObservedDuringSignal = item.property("secondarySequence").value<ImageSequence*>();
     });
 
     const auto outcome = item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
@@ -804,7 +803,8 @@ void ImageViewportPublicApiTest::setPageSetAcceptsPrimaryAndSecondaryAtomically(
     QCOMPARE(secondaryObservedDuringSignal, secondaryResult->sequence());
     QCOMPARE(item.property("primaryFrameCount").toInt(), 1);
     QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(item.property("primaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
+    QCOMPARE(
+        item.property("primaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
         0);
     QCOMPARE(
         item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(),
@@ -827,7 +827,8 @@ void ImageViewportPublicApiTest::compatibilitySequenceAssignmentClearsSecondaryR
     ImageFrame replacementFrame(image);
     QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
     QScopedPointer<ImageSequenceFactoryResult> secondResult(factory.fromFrame(&secondFrame));
-    QScopedPointer<ImageSequenceFactoryResult> replacementResult(factory.fromFrame(&replacementFrame));
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
     QVERIFY(firstResult->sequence());
     QVERIFY(secondResult->sequence());
     QVERIFY(replacementResult->sequence());
@@ -863,8 +864,8 @@ void ImageViewportPublicApiTest::clearStylePageSetWithSecondaryClearsAcceptedRol
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
 
-    const auto outcome = item.setPageSet(QVariant(), QVariant::fromValue<QObject*>(
-                                                       secondaryResult->sequence()));
+    const auto outcome
+        = item.setPageSet(QVariant(), QVariant::fromValue<QObject*>(secondaryResult->sequence()));
 
     QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.sequence(), nullptr);
@@ -1103,9 +1104,11 @@ void ImageViewportPublicApiTest::secondaryProviderMetadataUpdatesRoleObservation
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
+    QCOMPARE(
+        item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
         0);
-    QCOMPARE(item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(),
+    QCOMPARE(
+        item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(),
         0);
     QCOMPARE(item.property("secondaryFrameSeekSupport").toInt(),
         enumValue(item.metaObject(), "TriState", "True"));
