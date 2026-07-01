@@ -1,9 +1,6 @@
 #include "framepreparation_p.h"
 #include "imageviewport_p.h"
 
-#include <algorithm>
-#include <limits>
-
 using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
@@ -33,14 +30,14 @@ void ImageViewportPrivate::syncPlaybackTimer()
         return;
     }
 
-    playbackElapsedTimer.restart();
+    playbackClock.restart(playbackClockTimebase.elapsed());
     playbackTimer.start(interval);
 }
 
 void ImageViewportPrivate::stopPlaybackTimer()
 {
     playbackTimer.stop();
-    playbackElapsedTimer.invalidate();
+    playbackClock.invalidate();
 }
 
 void ImageViewportPrivate::handlePlaybackTimer()
@@ -51,16 +48,14 @@ void ImageViewportPrivate::handlePlaybackTimer()
 
 int ImageViewportPrivate::takePlaybackTimerElapsed()
 {
-    const qint64 elapsedMilliseconds
-        = playbackElapsedTimer.isValid() ? playbackElapsedTimer.elapsed() : 0;
+    const int elapsedMilliseconds = playbackClock.takeElapsed(playbackClockTimebase.elapsed());
     playbackTimer.stop();
-    playbackElapsedTimer.invalidate();
-    return static_cast<int>(std::min<qint64>(elapsedMilliseconds, std::numeric_limits<int>::max()));
+    return elapsedMilliseconds;
 }
 
 void ImageViewportPrivate::flushPlaybackTimerElapsed()
 {
-    if (!playbackElapsedTimer.isValid()) {
+    if (!playbackClock.isValid()) {
         return;
     }
 

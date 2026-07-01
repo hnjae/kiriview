@@ -5,6 +5,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     , controller(*this)
     , providerBridge(*this)
 {
+    playbackClockTimebase.start();
     playbackTimer.setSingleShot(true);
     QObject::connect(&playbackTimer, &QTimer::timeout, q, [this]() { handlePlaybackTimer(); });
 }

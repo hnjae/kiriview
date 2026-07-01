@@ -2,6 +2,7 @@
 
 #include "imageviewporthelpers_p.h"
 #include "imageviewportstate_p.h"
+#include "playbackclock_p.h"
 #include "renderadapter_p.h"
 #include "viewportcontroller_p.h"
 #include "viewportproviderbridge_p.h"
@@ -207,5 +208,6 @@ public:
     RenderAdapter renderAdapter;
     ImageViewportInternal::PresentationState presentation;
     QTimer playbackTimer;
-    QElapsedTimer playbackElapsedTimer;
+    QElapsedTimer playbackClockTimebase;
+    ImageViewportInternal::PlaybackClock playbackClock;
 };

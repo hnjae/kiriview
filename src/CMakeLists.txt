@@ -29,6 +29,8 @@ qt_add_qml_module(
     imageviewport.h
     imageviewport_p.h
     imageviewportstate_p.h
+    playbackclock_p.h
+    playbacktimeline_p.h
     presentationgeometry.cpp
     presentationgeometry_p.h
     renderadapter.cpp
