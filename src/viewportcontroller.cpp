@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;
@@ -712,6 +713,123 @@ ViewportController::ViewportController(ImageViewportPrivate& viewport)
 {
 }
 
+ViewportSequenceAssignmentResult ViewportController::assignSequence(
+    ViewportSequenceAssignment assignment)
+{
+    ViewportSequenceAssignmentResult result;
+    result.providerFrameTransport = closeProviderSession();
+
+    const ImageViewport::DisplayStatus oldDisplayStatus = viewport.display.status;
+    const ImageViewport::PlaybackPhase oldPlaybackPhase = viewport.request.playbackPhase;
+    const QString oldErrorString = viewport.request.errorString;
+    const QString oldWarningString = viewport.request.warningString;
+    const QRectF oldContentRect = viewport.contentRect();
+    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+
+    viewport.request.sequence = assignment.sequence;
+    viewport.request.sequenceOwner = std::move(assignment.sequenceOwner);
+    ++viewport.request.sequenceGeneration;
+    viewport.request.clearDisplayRequests();
+    viewport.display.nextPreparedPayloadId = 0;
+    viewport.display.clearPendingRenderPayload();
+    viewport.request.errorString.clear();
+    viewport.request.warningString.clear();
+    viewport.request.playbackPhase = ImageViewport::PlaybackPhase::Stopped;
+    viewport.request.stopPlaybackWhenRequestReady = false;
+    viewport.request.providerPlaybackStartPending = false;
+    viewport.provider.metadataReady = false;
+    viewport.provider.timedMetadata = false;
+    viewport.provider.timedPlaybackSupport = false;
+    viewport.provider.frameSeekSupport = false;
+    viewport.provider.positionSeekSupport = false;
+    viewport.provider.logicalSize = {};
+    viewport.provider.timingIntervals = {};
+    viewport.discardPendingRenderCommit();
+    viewport.provider.activeMetadataToken = {};
+    viewport.provider.activeFrameToken = {};
+
+    if (viewport.hasProviderSequence()) {
+        if (viewport.providerHasCompleteKnownMetadata()) {
+            const ImageSequenceProviderKnownFacts knownFacts = viewport.providerKnownFacts();
+            viewport.provider.metadataReady = true;
+            viewport.provider.timedMetadata = knownFacts.isTimedFrameList();
+            viewport.provider.timedPlaybackSupport
+                = ImageViewportInternal::providerResolvedCapability(
+                    viewport.providerTimedPlaybackCapability(), viewport.provider.timedMetadata);
+            viewport.provider.frameSeekSupport = ImageViewportInternal::providerResolvedCapability(
+                viewport.providerFrameSeekCapability(), true);
+            viewport.provider.positionSeekSupport
+                = ImageViewportInternal::providerResolvedCapability(
+                    viewport.providerPositionSeekCapability(), viewport.provider.timedMetadata);
+            viewport.provider.logicalSize = viewport.providerKnownLogicalSize();
+            viewport.provider.timingIntervals = viewport.provider.timedMetadata
+                ? viewport.providerKnownTimingIntervals()
+                : TimingIntervals();
+            const DisplayRequestTarget initialTarget {
+                0,
+                viewport.provider.timedMetadata ? 0 : -1,
+                ImageViewportInternal::ProviderRequestTargetKind::Frame,
+            };
+            viewport.request.beginDisplayRequest(
+                ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
+            viewport.request.playbackPosition = initialTarget.position;
+        } else {
+            const DisplayRequestTarget initialTarget {
+                -1,
+                -1,
+                ImageViewportInternal::ProviderRequestTargetKind::Unknown,
+            };
+            viewport.request.beginDisplayRequest(
+                ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
+            viewport.request.playbackPosition = initialTarget.position;
+        }
+        viewport.request.status = ImageViewport::RequestStatus::Loading;
+        viewport.request.reason = ImageViewport::RequestReason::ProviderWaiting;
+        viewport.display.status = viewport.display.displayedImageSize.isValid()
+            ? ImageViewport::DisplayStatus::Retained
+            : ImageViewport::DisplayStatus::Empty;
+        result.openProviderSession = true;
+    } else if (viewport.hasDisplayableSequence()) {
+        const DisplayRequestTarget initialTarget {
+            0,
+            viewport.hasTimedSequence() ? 0 : -1,
+            ImageViewportInternal::ProviderRequestTargetKind::Unknown,
+        };
+        viewport.request.beginDisplayRequest(
+            ImageViewportInternal::DisplayRequestOrigin::Initial, initialTarget, true);
+        viewport.request.playbackPosition = initialTarget.position;
+        if (viewport.width() > 0.0 && viewport.height() > 0.0) {
+            viewport.publishSequenceReadyState();
+        } else {
+            viewport.publishRenderWaitingState();
+        }
+    } else {
+        viewport.display.clearDisplayedDisplay();
+        viewport.request.status = ImageViewport::RequestStatus::NoRequest;
+        viewport.request.reason = ImageViewport::RequestReason::NoRequest;
+        viewport.display.status = ImageViewport::DisplayStatus::Empty;
+        viewport.display.clearPendingRenderPayload();
+        viewport.display.clearRenderFailureRetainedDisplay();
+    }
+
+    result.changes.requestRevision = true;
+    const bool displayValueChanged = viewport.display.status != oldDisplayStatus
+        || viewport.display.status == ImageViewport::DisplayStatus::Ready;
+    result.changes.displayRevision = displayValueChanged;
+    result.changes.sequence = true;
+    result.changes.requestState = true;
+    result.changes.displayState = displayValueChanged;
+    result.changes.geometryState
+        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+    result.changes.playbackPhase = viewport.request.playbackPhase != oldPlaybackPhase;
+    result.changes.diagnostics = viewport.request.errorString != oldErrorString
+        || viewport.request.warningString != oldWarningString;
+    result.changes.scheduleUpdate = true;
+    return result;
+}
+
 ViewportCommandResult ViewportController::clear()
 {
     ViewportCommandResult result;
@@ -1227,11 +1345,17 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
     return { true };
 }
 
-void ViewportController::handleProviderSessionOpenFailure(const QString& diagnostic)
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessionOpenFailure(
+    const QString& diagnostic)
 {
+    ImageViewportInternal::ViewportChangeSet changes;
     viewport.request.status = ImageViewport::RequestStatus::Error;
     viewport.request.reason = ImageViewport::RequestReason::ProviderFailure;
     viewport.request.errorString = diagnostic;
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
 }
 
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened()

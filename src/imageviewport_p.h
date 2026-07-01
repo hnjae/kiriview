@@ -140,7 +140,10 @@ public:
     ImageSequenceProviderSession* takeProviderSession() override;
     ImageSequenceProviderSession* currentProviderSession() const override;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const override;
+    bool providerHasCompleteKnownMetadata() const;
     ImageSequenceProviderKnownFacts providerKnownFacts() const;
+    QSizeF providerKnownLogicalSize() const;
+    TimingIntervals providerKnownTimingIntervals() const;
     ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;

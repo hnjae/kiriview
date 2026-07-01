@@ -47,7 +47,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M2: Controller-Owned State Boundary
 
-- Status: Not started.
+- Status: In progress; sequence assignment controller transition slice completed 2026-07-01.
 - Priority: P1.
 - Goal: Move request, display, provider-generation, playback, diagnostics, revision, and stale-result ownership out of `ImageViewportPrivate` and into `ViewportController` or a controller-owned state object.
 - Dependencies: M1 first-class display request model.
@@ -56,6 +56,7 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: `src/imageviewport_p.h`, `src/imageviewport.cpp`, `src/imageviewportcontroller.cpp`, `src/viewportcontroller_p.h`, `src/viewportcontroller.cpp`, state structs, notification/change-set application code.
 - Acceptance criteria: `ViewportController` no longer stores or requires broad mutable access to `ImageViewportPrivate`; `ImageViewportPrivate` forwards public commands and geometry changes, applies controller change/effect sets, emits QML notifications, schedules render updates, and synchronizes timers; controller transition methods own request/display/provider/playback state mutation and revision decisions; QML notification emission remains outside the controller; presentation properties stay item-facing but their request/display consequences enter through controller-defined inputs.
 - Expected tests/checks: Pure or near-pure controller tests for command outcomes, invalid/unsupported command preservation, request/display revision decisions, retained display transitions, `resetView()`, and geometry-driven render waiting; existing QML-facing tests for property notifications and public API behavior.
+- Progress evidence: Added `ViewportController::assignSequence()` so `ImageViewportPrivate::setSequence()` delegates accepted generation reset, initial display request selection, provider known-fact projection, request/display status projection, diagnostics clearing, revision/change-set decisions, and provider-close effect creation to the controller, while the item keeps provider transport execution, provider session opening, QML notification application, render scheduling, and timer synchronization. Provider session-open failure now returns a controller change set that assignment merges before notifications. Verified focused `imageviewport_public_api`, `imageviewport_still`, `imageviewport_timed`, `imageviewport_provider_contract`, and `imageviewport_provider_lifecycle`, plus full `devenv shell -- just test` and `devenv shell -- just lint`.
 - Stop conditions: Stop if the controller emits QML signals, calls scene graph update entry points, or directly invokes provider transport; stop if item code can mutate request status, request reason, playback phase, display identity, provider tokens, or diagnostics outside controller change-set application.
 
 ### M3: Provider Generation Ownership and Transport-Only Bridge

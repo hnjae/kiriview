@@ -38,10 +38,7 @@ bool ImageViewportPrivate::openProviderSession()
     return true;
 }
 
-QObject* ImageViewportPrivate::providerCallbackTarget() const
-{
-    return q;
-}
+QObject* ImageViewportPrivate::providerCallbackTarget() const { return q; }
 
 quint64 ImageViewportPrivate::installProviderSession(ImageSequenceProviderSession* session)
 {
@@ -63,27 +60,45 @@ bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) c
     return controller.acceptsProviderSessionResult(sessionSerial);
 }
 
+bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
+{
+    return request.sequence && request.sequence->m_hasCompleteProviderKnownMetadata;
+}
+
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
 {
-    return request.sequence ? request.sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
+    return request.sequence ? request.sequence->m_providerKnownFacts
+                            : ImageSequenceProviderKnownFacts {};
+}
+
+QSizeF ImageViewportPrivate::providerKnownLogicalSize() const
+{
+    return request.sequence ? request.sequence->m_providerKnownLogicalSize : QSizeF {};
+}
+
+TimingIntervals ImageViewportPrivate::providerKnownTimingIntervals() const
+{
+    return request.sequence && request.sequence->m_providerKnownTimingIntervals
+        ? *request.sequence->m_providerKnownTimingIntervals
+        : TimingIntervals();
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
 {
     return request.sequence ? request.sequence->m_providerTimedPlaybackCapability
-                      : ImageSequenceProviderCapabilitySupport::Unavailable;
+                            : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
 {
     return request.sequence ? request.sequence->m_providerFrameSeekCapability
-                      : ImageSequenceProviderCapabilitySupport::Unavailable;
+                            : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
 {
     return request.sequence ? request.sequence->m_providerPositionSeekCapability
-                      : ImageSequenceProviderCapabilitySupport::Unavailable;
+                            : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
@@ -209,15 +224,16 @@ void ImageViewportPrivate::publishProviderFrameLoadingState()
 {
     request.status = RequestStatus::Loading;
     request.reason = RequestReason::ProviderWaiting;
-    display.status = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
+    display.status
+        = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
     discardPendingRenderCommit();
 }
 
 void ImageViewportPrivate::queueProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
-    const ViewportProviderFrameQueueResult result = controller.queueProviderFrameRequest(
-        { frame, targetKind });
+    const ViewportProviderFrameQueueResult result
+        = controller.queueProviderFrameRequest({ frame, targetKind });
     ViewportProviderFrameTransportEffect effect;
     effect.cancelToken = result.cancelToken;
     effect.scheduleFlush = result.scheduleFlush;
@@ -259,7 +275,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
 {
     const ViewportProviderMetadataEventAcceptance metadataEvent
-        = controller.acceptProviderMetadataEvent({token});
+        = controller.acceptProviderMetadataEvent({ token });
     if (!metadataEvent.accepted) {
         return;
     }
@@ -276,8 +292,7 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     }
     const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
 
-    applyProviderAcceptedMetadataFacts(
-        *this, metadataFacts);
+    applyProviderAcceptedMetadataFacts(*this, metadataFacts);
     const ViewportProviderMetadataTargetPolicyResult targetResult
         = controller.handleProviderMetadataTargetPolicy(metadataFacts);
     applyProviderFrameTransportEffect(targetResult.providerFrameTransport);
@@ -314,7 +329,7 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    const auto changes = controller.handleProviderFrameEvent({token}, frame, metadata);
+    const auto changes = controller.handleProviderFrameEvent({ token }, frame, metadata);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();
@@ -323,19 +338,19 @@ void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
 
 void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestToken token)
 {
-    applyControllerChanges(controller.handleProviderWaitingEvent({token, false, 0.0}));
+    applyControllerChanges(controller.handleProviderWaitingEvent({ token, false, 0.0 }));
 }
 
 void ImageViewportPrivate::handleProviderProgress(
     ImageSequenceProviderRequestToken token, double progress)
 {
-    applyControllerChanges(controller.handleProviderWaitingEvent({token, true, progress}));
+    applyControllerChanges(controller.handleProviderWaitingEvent({ token, true, progress }));
 }
 
 void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequestToken token)
 {
     const ViewportProviderEndOfSequenceResult result
-        = controller.handleProviderEndOfSequenceEvent({token});
+        = controller.handleProviderEndOfSequenceEvent({ token });
     if (!result.providerFrameTransport.closeSession) {
         applyProviderFrameTransportEffect(result.providerFrameTransport);
     }
@@ -351,24 +366,24 @@ void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequ
 void ImageViewportPrivate::handleProviderFailure(
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
-    applyProviderTerminalEvent(
-        *this, {token, ViewportProviderTerminalEvent::Kind::Failure,
-                   ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic});
+    applyProviderTerminalEvent(*this,
+        { token, ViewportProviderTerminalEvent::Kind::Failure,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic });
 }
 
 void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderRequestToken token,
     ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic)
 {
     applyProviderTerminalEvent(
-        *this, {token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic});
+        *this, { token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic });
 }
 
 void ImageViewportPrivate::handleProviderCancellation(
     ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
-    applyProviderTerminalEvent(
-        *this, {token, ViewportProviderTerminalEvent::Kind::Cancellation,
-                   ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic});
+    applyProviderTerminalEvent(*this,
+        { token, ViewportProviderTerminalEvent::Kind::Cancellation,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic });
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory>

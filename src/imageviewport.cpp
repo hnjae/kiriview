@@ -5,6 +5,24 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+void mergeControllerChanges(ViewportChangeSet& target, ViewportChangeSet source)
+{
+    target.requestState = target.requestState || source.requestState;
+    target.displayState = target.displayState || source.displayState;
+    target.geometryState = target.geometryState || source.geometryState;
+    target.playbackPhase = target.playbackPhase || source.playbackPhase;
+    target.diagnostics = target.diagnostics || source.diagnostics;
+    target.presentation = target.presentation || source.presentation;
+    target.sequence = target.sequence || source.sequence;
+    target.looping = target.looping || source.looping;
+    target.displayRevision = target.displayRevision || source.displayRevision;
+    target.requestRevision = target.requestRevision || source.requestRevision;
+    target.commandRevision = target.commandRevision || source.commandRevision;
+    target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
+}
+}
+
 ImageSequence* ImageViewportPrivate::sequence() const { return request.sequence; }
 
 void ImageViewportPrivate::setSequence(ImageSequence* sequence)
@@ -13,120 +31,17 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         return;
     }
 
-    const DisplayStatus oldDisplayStatus = display.status;
-    const PlaybackPhase oldPlaybackPhase = request.playbackPhase;
-    const QString oldErrorString = request.errorString;
-    const QString oldWarningString = request.warningString;
-    const QRectF oldContentRect = contentRect();
-    const QRectF oldVisibleImageRect = visibleImageRect();
     std::shared_ptr<ImageSequence> sequenceOwner = factorySequenceOwner(sequence);
-    applyProviderFrameTransportEffect(controller.closeProviderSession());
-    request.sequence = sequence;
-    request.sequenceOwner = std::move(sequenceOwner);
-    ++request.sequenceGeneration;
-    request.clearDisplayRequests();
-    display.nextPreparedPayloadId = 0;
-    display.clearPendingRenderPayload();
-    request.errorString.clear();
-    request.warningString.clear();
-    request.playbackPhase = PlaybackPhase::Stopped;
-    request.stopPlaybackWhenRequestReady = false;
-    request.providerPlaybackStartPending = false;
-    provider.metadataReady = false;
-    provider.timedMetadata = false;
-    provider.timedPlaybackSupport = false;
-    provider.frameSeekSupport = false;
-    provider.positionSeekSupport = false;
-    provider.logicalSize = {};
-    provider.timingIntervals = {};
-    discardPendingRenderCommit();
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-
-    if (hasProviderSequence()) {
-        if (request.sequence->m_hasCompleteProviderKnownMetadata) {
-            provider.metadataReady = true;
-            provider.timedMetadata = request.sequence->m_providerKnownFacts.isTimedFrameList();
-            provider.timedPlaybackSupport = providerResolvedCapability(
-                request.sequence->m_providerTimedPlaybackCapability, provider.timedMetadata);
-            provider.frameSeekSupport
-                = providerResolvedCapability(request.sequence->m_providerFrameSeekCapability, true);
-            provider.positionSeekSupport = providerResolvedCapability(
-                request.sequence->m_providerPositionSeekCapability, provider.timedMetadata);
-            provider.logicalSize = request.sequence->m_providerKnownLogicalSize;
-            provider.timingIntervals
-                = provider.timedMetadata && request.sequence->m_providerKnownTimingIntervals
-                ? *request.sequence->m_providerKnownTimingIntervals
-                : TimingIntervals();
-            const DisplayRequestTarget initialTarget {
-                0,
-                provider.timedMetadata ? 0 : -1,
-                ProviderRequestTargetKind::Frame,
-            };
-            request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
-            request.playbackPosition = initialTarget.position;
-        } else {
-            const DisplayRequestTarget initialTarget {
-                -1,
-                -1,
-                ProviderRequestTargetKind::Unknown,
-            };
-            request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
-            request.playbackPosition = initialTarget.position;
-        }
-        request.status = RequestStatus::Loading;
-        request.reason = RequestReason::ProviderWaiting;
-        display.status
-            = display.displayedImageSize.isValid() ? DisplayStatus::Retained : DisplayStatus::Empty;
-        if (!openProviderSession()) {
+    ViewportSequenceAssignmentResult result
+        = controller.assignSequence({ sequence, std::move(sequenceOwner) });
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    if (result.openProviderSession && !openProviderSession()) {
+        mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(
-                QStringLiteral("provider session creation failed"));
-        }
-    } else if (hasDisplayableSequence()) {
-        const DisplayRequestTarget initialTarget {
-            0,
-            hasTimedSequence() ? 0 : -1,
-            ProviderRequestTargetKind::Unknown,
-        };
-        request.beginDisplayRequest(DisplayRequestOrigin::Initial, initialTarget, true);
-        request.playbackPosition = initialTarget.position;
-        if (width() > 0.0 && height() > 0.0) {
-            publishSequenceReadyState();
-        } else {
-            publishRenderWaitingState();
-        }
-    } else {
-        display.clearDisplayedDisplay();
-        request.status = RequestStatus::NoRequest;
-        request.reason = RequestReason::NoRequest;
-        display.status = DisplayStatus::Empty;
-        display.clearPendingRenderPayload();
-        display.clearRenderFailureRetainedDisplay();
+                QStringLiteral("provider session creation failed")));
     }
-
-    incrementRequestRevision();
-    const bool displayValueChanged
-        = display.status != oldDisplayStatus || display.status == DisplayStatus::Ready;
-    if (displayValueChanged) {
-        incrementDisplayRevision();
-    }
-    emit q->sequenceChanged();
-    emit q->requestStateChanged();
-    if (displayValueChanged) {
-        emit q->displayStateChanged();
-    }
-    if (rectsDifferExactly(contentRect(), oldContentRect)
-        || rectsDifferExactly(visibleImageRect(), oldVisibleImageRect)) {
-        emit q->geometryStateChanged();
-    }
-    if (request.playbackPhase != oldPlaybackPhase) {
-        emit q->playbackPhaseChanged();
-    }
-    if (request.errorString != oldErrorString || request.warningString != oldWarningString) {
-        emit q->diagnosticsChanged();
-    }
+    applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    update();
 }
 
 ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const

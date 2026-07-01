@@ -8,6 +8,8 @@
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
 
+#include <memory>
+
 class ImageViewportPrivate;
 
 struct ViewportRenderAcknowledgement
@@ -267,11 +269,25 @@ struct ViewportPlaybackAdvanceResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
+struct ViewportSequenceAssignment
+{
+    ImageSequence* sequence = nullptr;
+    std::shared_ptr<ImageSequence> sequenceOwner;
+};
+
+struct ViewportSequenceAssignmentResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+    bool openProviderSession = false;
+};
+
 class ViewportController
 {
 public:
     explicit ViewportController(ImageViewportPrivate& viewport);
 
+    ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult pause();
@@ -284,7 +300,8 @@ public:
         ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
-    void handleProviderSessionOpenFailure(const QString& diagnostic);
+    ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
+        const QString& diagnostic);
     ViewportProviderSessionOpenResult handleProviderSessionOpened();
     quint64 installProviderSession(ImageSequenceProviderSession* session);
     ImageSequenceProviderSession* takeProviderSession();
