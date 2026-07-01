@@ -24,6 +24,7 @@ private slots:
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageReplacementPreservesPresentationState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
+    void secondaryStillImagePlayReportsUnsupported();
     void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void coordinateHelpersRejectNonFiniteInputs();
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
@@ -654,6 +655,44 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(item.property("commandRevision").toUInt(), 5U);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+}
+
+void ImageViewportStillTest::secondaryStillImagePlayReportsUnsupported()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    QImage secondaryImage(12, 8, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::black);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+
+    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
+        ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(

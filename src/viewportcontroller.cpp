@@ -1440,6 +1440,15 @@ ViewportCommandResult ViewportController::rejectInvalidCommand()
     return result;
 }
 
+ViewportCommandResult ViewportController::rejectUnsupportedCommand()
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Unsupported;
+    state.request.setCommandDiagnostic(ImageViewport::CommandReason::UnsupportedRequest);
+    result.changes.commandRevision = true;
+    return result;
+}
+
 ViewportCommandResult ViewportController::clear()
 {
     ViewportCommandResult result;
@@ -3318,6 +3327,15 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
         return CommandOutcome::Invalid;
     }
     if (role == PageRole::Secondary) {
+        ImageSequence* sequence = secondarySequence();
+        if (!sequence || !sequence->isValid()) {
+            return CommandOutcome::IgnoredNoRequest;
+        }
+        if (!sequence->isProvider() && !sequence->isTimedList()) {
+            const ViewportCommandResult result = controller.rejectUnsupportedCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
+        }
         return CommandOutcome::IgnoredNoRequest;
     }
 
