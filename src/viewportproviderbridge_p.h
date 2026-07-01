@@ -23,6 +23,7 @@ struct ViewportProviderEvent
     };
 
     Kind kind = Kind::Waiting;
+    quint64 sessionSerial = 0;
     ImageSequenceProviderRequestToken token;
     ImageSequenceProviderMetadata metadata;
     ImageFrame* imageFrame = nullptr;
@@ -47,7 +48,6 @@ public:
     virtual quint64 installProviderSession(ImageSequenceProviderSession* session) = 0;
     virtual ImageSequenceProviderSession* takeProviderSession() = 0;
     virtual ImageSequenceProviderSession* currentProviderSession() const = 0;
-    virtual bool acceptsProviderSessionResult(quint64 sessionSerial) const = 0;
     virtual ImageSequenceProviderThreadingContract providerThreadingContract() const = 0;
     virtual void handleProviderEvent(const ViewportProviderEvent& event) = 0;
 };

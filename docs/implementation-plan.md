@@ -61,7 +61,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M3: Provider Generation Ownership and Transport-Only Bridge
 
-- Status: Not started.
+- Status: In progress; provider event session-tagging slice completed 2026-07-01.
 - Priority: P1.
 - Goal: Make provider generation state controller-owned and reduce the provider bridge to session transport plus normalized event delivery.
 - Dependencies: M1 request identities and M2 controller-owned state boundary.
@@ -70,6 +70,7 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: `src/viewportproviderbridge_p.h`, `src/viewportproviderbridge.cpp`, provider event adaptation code, provider state structs, provider command effect application, session open/close paths.
 - Acceptance criteria: Provider active tokens, metadata token, playback token links, queued target state, metadata readiness, session identity, session serial, token allocation, cancellation policy, and stale-result filtering are inaccessible outside the controller/provider-generation owner; provider bridge opens, closes, sends commands, cancels commands, normalizes callbacks, tags events with session identity, and does not decide public request state; session-open failure and successful session-open initial command selection enter controller events before item notifications or transport command delivery; provider callbacks cannot emit QML signals or mutate display/request/playback state directly.
 - Expected tests/checks: Provider bridge tests for threading contract, callback affinity, session identity tagging, best-effort cancel/close, late-result suppression, and cause-less compatibility unsupported classification; controller provider-generation tests for metadata ready, metadata failure, provider waiting/progress, frame ready, unsupported operation, unsupported payload, provider failure, cancellation, end-of-sequence, queued frame dispatch, token allocation failure, and closed-session late results.
+- Progress evidence: Tagged normalized `ViewportProviderEvent` values with controller-owned session serials, removed bridge-side stale-result filtering from `ViewportProviderBridgeClient`, and moved stale-session rejection to the item/controller event entry so the bridge opens, closes, sends, cancels, tags, and delivers while the controller boundary decides whether a provider callback belongs to the active generation. Stale provider frame handles are released at that controller-facing event entry.
 - Stop conditions: Stop if transport code inspects active tokens to infer status/reason, mutates request/display/provider state, or owns cleanup policy; stop if provider session close blocks clear, replacement, item destruction, or generation-terminal failure; stop if compatibility provider APIs are removed without an authoritative spec change.
 
 ### M4: Preparation, Render Acknowledgement, and Render Failure Identity

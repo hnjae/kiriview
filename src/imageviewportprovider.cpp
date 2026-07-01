@@ -55,11 +55,6 @@ ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession() con
     return controller.currentProviderSession();
 }
 
-bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) const
-{
-    return controller.acceptsProviderSessionResult(sessionSerial);
-}
-
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
 {
     return controller.requestState().sequence
@@ -111,6 +106,11 @@ ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSee
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
 {
+    if (!controller.acceptsProviderSessionResult(event.sessionSerial)) {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
+        return;
+    }
+
     switch (event.kind) {
     case ViewportProviderEvent::Kind::MetadataReady:
         handleProviderMetadataReady(event.token, event.metadata);
