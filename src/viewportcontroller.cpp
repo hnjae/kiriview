@@ -6,41 +6,188 @@
 #include <limits>
 #include <utility>
 
+ViewportControllerPort::ViewportControllerPort(
+    const ImageViewportPrivate& item, ViewportControllerState& state)
+    : item(item)
+    , state(state)
+{
+}
+
+ImageViewportInternal::DisplayState& ViewportControllerPort::displayState()
+{
+    return state.display;
+}
+
+const ImageViewportInternal::DisplayState& ViewportControllerPort::displayState() const
+{
+    return state.display;
+}
+
+ImageViewportInternal::RequestState& ViewportControllerPort::requestState()
+{
+    return state.request;
+}
+
+const ImageViewportInternal::RequestState& ViewportControllerPort::requestState() const
+{
+    return state.request;
+}
+
+ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::providerState()
+{
+    return state.provider;
+}
+
+const ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::providerState() const
+{
+    return state.provider;
+}
+
+QRectF ViewportControllerPort::contentRect() const { return item.contentRect(); }
+
+QRectF ViewportControllerPort::visibleImageRect() const { return item.visibleImageRect(); }
+
+QRectF ViewportControllerPort::itemBounds() const { return item.itemBounds(); }
+
+bool ViewportControllerPort::hasActiveRequest() const { return item.hasActiveRequest(); }
+
+bool ViewportControllerPort::hasReadyDisplay() const { return item.hasReadyDisplay(); }
+
+bool ViewportControllerPort::hasDisplayableSequence() const
+{
+    return item.hasDisplayableSequence();
+}
+
+bool ViewportControllerPort::hasTimedSequence() const { return item.hasTimedSequence(); }
+
+bool ViewportControllerPort::hasProviderSequence() const { return item.hasProviderSequence(); }
+
+bool ViewportControllerPort::hasGenerationTerminalProviderFailure() const
+{
+    return item.hasGenerationTerminalProviderFailure();
+}
+
+bool ViewportControllerPort::providerHasCompleteKnownMetadata() const
+{
+    return item.providerHasCompleteKnownMetadata();
+}
+
+ImageSequenceProviderKnownFacts ViewportControllerPort::providerKnownFacts() const
+{
+    return item.providerKnownFacts();
+}
+
+QSizeF ViewportControllerPort::providerKnownLogicalSize() const
+{
+    return item.providerKnownLogicalSize();
+}
+
+TimingIntervals ViewportControllerPort::providerKnownTimingIntervals() const
+{
+    return item.providerKnownTimingIntervals();
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerPort::providerTimedPlaybackCapability() const
+{
+    return item.providerTimedPlaybackCapability();
+}
+
+ImageSequenceProviderCapabilitySupport ViewportControllerPort::providerFrameSeekCapability() const
+{
+    return item.providerFrameSeekCapability();
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerPort::providerPositionSeekCapability() const
+{
+    return item.providerPositionSeekCapability();
+}
+
+bool ViewportControllerPort::providerTimedPlaybackCapabilityKnownFalse() const
+{
+    return item.providerTimedPlaybackCapabilityKnownFalse();
+}
+
+bool ViewportControllerPort::providerFrameSeekCapabilityKnownFalse() const
+{
+    return item.providerFrameSeekCapabilityKnownFalse();
+}
+
+bool ViewportControllerPort::providerFrameSeekCapabilityKnownTrue() const
+{
+    return item.providerFrameSeekCapabilityKnownTrue();
+}
+
+bool ViewportControllerPort::providerPositionSeekCapabilityKnownFalse() const
+{
+    return item.providerPositionSeekCapabilityKnownFalse();
+}
+
+bool ViewportControllerPort::providerKnownFactsTimedFrameCount() const
+{
+    return item.providerKnownFactsTimedFrameCount();
+}
+
+int ViewportControllerPort::providerKnownFactsFrameCount() const
+{
+    return item.providerKnownFactsFrameCount();
+}
+
+int ViewportControllerPort::providerFrameStartPosition(int frame) const
+{
+    return item.providerFrameStartPosition(frame);
+}
+
+int ViewportControllerPort::providerFrameIndexForPosition(int position) const
+{
+    return item.providerFrameIndexForPosition(position);
+}
+
+int ViewportControllerPort::frameCount() const { return item.frameCount(); }
+
+int ViewportControllerPort::totalDuration() const { return item.totalDuration(); }
+
+int ViewportControllerPort::sequenceFrameCount() const { return item.sequenceFrameCount(); }
+
+int ViewportControllerPort::sequenceFrameIndexForPosition(int position) const
+{
+    return item.sequenceFrameIndexForPosition(position);
+}
+
+int ViewportControllerPort::sequenceFrameStartPosition(int frame) const
+{
+    return item.sequenceFrameStartPosition(frame);
+}
+
+QSizeF ViewportControllerPort::sequenceLogicalSize() const { return item.sequenceLogicalSize(); }
+
+QImage ViewportControllerPort::sequenceFrameImage(int frame) const
+{
+    return item.sequenceFrameImage(frame);
+}
+
+double ViewportControllerPort::width() const { return item.width(); }
+
+double ViewportControllerPort::height() const { return item.height(); }
+
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;
 
-ImageViewportInternal::DisplayState& viewportDisplayState(ImageViewportPrivate& viewport)
+ImageViewportInternal::DisplayState& viewportDisplayState(ViewportControllerPort viewport)
 {
-    return viewport.controller.displayState();
+    return viewport.displayState();
 }
 
-const ImageViewportInternal::DisplayState& viewportDisplayState(
-    const ImageViewportPrivate& viewport)
+ImageViewportInternal::RequestState& viewportRequestState(ViewportControllerPort viewport)
 {
-    return viewport.controller.displayState();
-}
-
-ImageViewportInternal::RequestState& viewportRequestState(ImageViewportPrivate& viewport)
-{
-    return viewport.controller.requestState();
-}
-
-const ImageViewportInternal::RequestState& viewportRequestState(
-    const ImageViewportPrivate& viewport)
-{
-    return viewport.controller.requestState();
+    return viewport.requestState();
 }
 
 ImageViewportInternal::ProviderGenerationState& viewportProviderState(
-    ImageViewportPrivate& viewport)
+    ViewportControllerPort viewport)
 {
-    return viewport.controller.providerState();
-}
-
-const ImageViewportInternal::ProviderGenerationState& viewportProviderState(
-    const ImageViewportPrivate& viewport)
-{
-    return viewport.controller.providerState();
+    return viewport.providerState();
 }
 
 enum class ExplicitSeekMaterialization {
@@ -104,7 +251,7 @@ PlaybackAdvanceTarget playbackAdvanceTarget(int elapsedMilliseconds, int current
     return target;
 }
 
-void setCommandDiagnostic(ImageViewportPrivate& viewport, ViewportCommandResult& result,
+void setCommandDiagnostic(ViewportControllerPort& viewport, ViewportCommandResult& result,
     ImageViewport::CommandReason reason)
 {
     viewportRequestState(viewport).setCommandDiagnostic(reason);
@@ -112,7 +259,7 @@ void setCommandDiagnostic(ImageViewportPrivate& viewport, ViewportCommandResult&
 }
 
 void clearCommandDiagnosticForAcceptedCommand(
-    ImageViewportPrivate& viewport, ViewportCommandResult& result)
+    ViewportControllerPort& viewport, ViewportCommandResult& result)
 {
     result.changes.commandRevision
         = viewportRequestState(viewport).clearCommandDiagnosticForAcceptedCommand()
@@ -129,14 +276,14 @@ bool shouldPreservePlaybackPositionOnPlay(
 }
 
 bool activeProviderFrameTokenMatchesActiveRequest(
-    const ImageViewportPrivate& viewport, ImageSequenceProviderRequestToken token)
+    const ViewportControllerPort viewport, ImageSequenceProviderRequestToken token)
 {
     return viewportProviderState(viewport).activeFrameToken.isValid()
         && token == viewportProviderState(viewport).activeFrameToken
         && viewportRequestState(viewport).activeRequestMatchesProviderFrameToken(token);
 }
 
-bool activeProviderFrameRequestIsPlayback(const ImageViewportPrivate& viewport)
+bool activeProviderFrameRequestIsPlayback(const ViewportControllerPort viewport)
 {
     return activeProviderFrameTokenMatchesActiveRequest(
                viewport, viewportProviderState(viewport).activeFrameToken)
@@ -207,7 +354,7 @@ ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
     return {};
 }
 
-void setPlaybackPhase(ImageViewportPrivate& viewport, ViewportCommandResult& result,
+void setPlaybackPhase(ViewportControllerPort& viewport, ViewportCommandResult& result,
     ImageViewport::PlaybackPhase phase)
 {
     if (viewportRequestState(viewport).playbackPhase == phase) {
@@ -243,7 +390,7 @@ void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& 
     effect.token = start.token;
 }
 
-void clearQueuedProviderFrameRequest(ImageViewportPrivate& viewport)
+void clearQueuedProviderFrameRequest(ViewportControllerPort& viewport)
 {
     viewportProviderState(viewport).queuedFrameRequest = false;
     viewportProviderState(viewport).queuedFrameGeneration = 0;
@@ -256,7 +403,7 @@ void clearQueuedProviderFrameRequest(ImageViewportPrivate& viewport)
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 }
 
-void publishProviderTokenExhaustion(ImageViewportPrivate& viewport)
+void publishProviderTokenExhaustion(ViewportControllerPort& viewport)
 {
     clearQueuedProviderFrameRequest(viewport);
     viewportProviderState(viewport).activeMetadataToken = {};
@@ -269,7 +416,7 @@ void publishProviderTokenExhaustion(ImageViewportPrivate& viewport)
     viewportRequestState(viewport).playbackPhase = ImageViewport::PlaybackPhase::Stopped;
 }
 
-DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewport)
+DisplayRequestTarget providerLatestNonPlaybackTarget(ViewportControllerPort& viewport)
 {
     DisplayRequestTarget target;
     target.frame = viewportRequestState(viewport).latestNonPlaybackRequest.target.frame;
@@ -279,7 +426,7 @@ DisplayRequestTarget providerLatestNonPlaybackTarget(ImageViewportPrivate& viewp
     return target;
 }
 
-DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
+DisplayRequestTarget providerStopRestoreTarget(ViewportControllerPort& viewport)
 {
     DisplayRequestTarget target = providerLatestNonPlaybackTarget(viewport);
     if (target.frame < 0 && target.position >= 0) {
@@ -301,7 +448,7 @@ DisplayRequestTarget providerStopRestoreTarget(ImageViewportPrivate& viewport)
 }
 
 ImageViewportInternal::ResolvedFrameIdentity providerStopRestoreResolvedFrame(
-    ImageViewportPrivate& viewport, DisplayRequestTarget target)
+    ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
     if (viewportRequestState(viewport).latestNonPlaybackRequest.resolvedFrame.isValid()
         && viewportRequestState(viewport).latestNonPlaybackRequest.resolvedFrame.frame
@@ -314,7 +461,7 @@ ImageViewportInternal::ResolvedFrameIdentity providerStopRestoreResolvedFrame(
     return { target.frame, viewport.providerFrameStartPosition(target.frame) };
 }
 
-void beginStopRestoreDisplayRequest(ImageViewportPrivate& viewport, DisplayRequestTarget target,
+void beginStopRestoreDisplayRequest(ViewportControllerPort& viewport, DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
     viewportRequestState(viewport).beginDisplayRequest(
@@ -322,26 +469,26 @@ void beginStopRestoreDisplayRequest(ImageViewportPrivate& viewport, DisplayReque
     viewportRequestState(viewport).playbackPosition = target.position;
 }
 
-void applyStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target,
+void applyStopRestoreTarget(ViewportControllerPort& viewport, DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
     beginStopRestoreDisplayRequest(viewport, target, resolvedFrame);
 }
 
-void applyProviderStopRestoreTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target,
+void applyProviderStopRestoreTarget(ViewportControllerPort& viewport, DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
     beginStopRestoreDisplayRequest(viewport, target, resolvedFrame);
 }
 
-void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
+void beginAcceptedDisplayRequest(ViewportControllerPort& viewport,
     ImageViewportInternal::DisplayRequestOrigin origin, DisplayRequestTarget target,
     bool rememberAsLatestNonPlayback)
 {
     viewportRequestState(viewport).beginDisplayRequest(origin, target, rememberAsLatestNonPlayback);
 }
 
-void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
+void beginAcceptedDisplayRequest(ViewportControllerPort& viewport,
     ImageViewportInternal::DisplayRequestOrigin origin, DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame, bool rememberAsLatestNonPlayback)
 {
@@ -349,7 +496,7 @@ void beginAcceptedDisplayRequest(ImageViewportPrivate& viewport,
         origin, target, resolvedFrame, rememberAsLatestNonPlayback);
 }
 
-bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
+bool stopRestoreTargetIsReadyDisplay(ViewportControllerPort& viewport)
 {
     return viewport.hasReadyDisplay()
         && viewportDisplayState(viewport).displayedRequest.generation
@@ -360,7 +507,7 @@ bool stopRestoreTargetIsReadyDisplay(ImageViewportPrivate& viewport)
         == viewportRequestState(viewport).activeRequest.resolvedFrame.position;
 }
 
-void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport);
+void publishProviderStopRestoreLoading(ViewportControllerPort& viewport);
 
 enum class StopRestoreWaitingState {
     ProviderLoading,
@@ -388,7 +535,7 @@ struct StopRestorePlan
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
 };
 
-StopRestorePlan stopRestorePlanFor(ImageViewportPrivate& viewport)
+StopRestorePlan stopRestorePlanFor(ViewportControllerPort& viewport)
 {
     if (viewport.hasProviderSequence() && !viewportProviderState(viewport).metadataReady
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading
@@ -430,20 +577,20 @@ StopRestorePlan stopRestorePlanFor(ImageViewportPrivate& viewport)
     return {};
 }
 
-void discardPendingRenderCommit(ImageViewportPrivate& viewport)
+void discardPendingRenderCommit(ViewportControllerPort& viewport)
 {
     viewportDisplayState(viewport).clearPendingRenderPayload();
     viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
 }
 
-void publishReadyDisplayState(ImageViewportPrivate& viewport)
+void publishReadyDisplayState(ViewportControllerPort& viewport)
 {
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Ready;
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::Ready;
     viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Ready;
 }
 
-void publishRenderWaitingState(ImageViewportPrivate& viewport)
+void publishRenderWaitingState(ViewportControllerPort& viewport)
 {
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::RenderWaiting;
@@ -454,7 +601,7 @@ void publishRenderWaitingState(ImageViewportPrivate& viewport)
     viewportDisplayState(viewport).pendingRenderPayload.commitPending = false;
 }
 
-void publishSequenceReadyState(ImageViewportPrivate& viewport, const QImage& providerImage = {})
+void publishSequenceReadyState(ViewportControllerPort& viewport, const QImage& providerImage = {})
 {
     viewportDisplayState(viewport).captureRenderFailureRetainedDisplay(
         viewport.hasDisplayableSequence());
@@ -496,7 +643,7 @@ void publishSequenceReadyState(ImageViewportPrivate& viewport, const QImage& pro
     }
 }
 
-void publishAcceptedTargetState(ImageViewportPrivate& viewport, const QImage& providerImage = {})
+void publishAcceptedTargetState(ViewportControllerPort& viewport, const QImage& providerImage = {})
 {
     if (viewport.hasProviderSequence() && !providerImage.isNull()) {
         viewportDisplayState(viewport).captureRenderFailureRetainedDisplay(
@@ -527,7 +674,7 @@ void publishAcceptedTargetState(ImageViewportPrivate& viewport, const QImage& pr
 }
 
 void publishSequenceReadyState(
-    ImageViewportPrivate& viewport, const ImageViewportInternal::PreparedPayload& providerPayload)
+    ViewportControllerPort& viewport, const ImageViewportInternal::PreparedPayload& providerPayload)
 {
     if (!viewport.hasProviderSequence() || providerPayload.image.isNull()) {
         publishSequenceReadyState(viewport, providerPayload.image);
@@ -554,7 +701,7 @@ void publishSequenceReadyState(
 }
 
 void publishAcceptedTargetState(
-    ImageViewportPrivate& viewport, const ImageViewportInternal::PreparedPayload& providerPayload)
+    ViewportControllerPort& viewport, const ImageViewportInternal::PreparedPayload& providerPayload)
 {
     if (viewport.hasProviderSequence() && !providerPayload.image.isNull()) {
         viewportDisplayState(viewport).captureRenderFailureRetainedDisplay(
@@ -578,7 +725,7 @@ void publishAcceptedTargetState(
     publishAcceptedTargetState(viewport, providerPayload.image);
 }
 
-void publishProviderFrameLoadingState(ImageViewportPrivate& viewport)
+void publishProviderFrameLoadingState(ViewportControllerPort& viewport)
 {
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
@@ -589,7 +736,7 @@ void publishProviderFrameLoadingState(ImageViewportPrivate& viewport)
     discardPendingRenderCommit(viewport);
 }
 
-StopRestorePublication publishStopRestoreTarget(ImageViewportPrivate& viewport,
+StopRestorePublication publishStopRestoreTarget(ViewportControllerPort& viewport,
     DisplayRequestTarget target, ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
     StopRestoreWaitingState waitingState)
 {
@@ -612,7 +759,7 @@ StopRestorePublication publishStopRestoreTarget(ImageViewportPrivate& viewport,
     return publication;
 }
 
-void completeStopRestoreRequest(ImageViewportPrivate& viewport, ViewportCommandResult& result)
+void completeStopRestoreRequest(ViewportControllerPort& viewport, ViewportCommandResult& result)
 {
     setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
     result.changes.requestRevision = true;
@@ -620,7 +767,7 @@ void completeStopRestoreRequest(ImageViewportPrivate& viewport, ViewportCommandR
 }
 
 bool renderAcknowledgementMatchesPending(
-    ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
+    ViewportControllerPort& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
     return viewportDisplayState(viewport).pendingRenderPayloadMatches(
                acknowledgement.preparedPayload)
@@ -628,7 +775,7 @@ bool renderAcknowledgementMatchesPending(
             acknowledgement.preparedPayload);
 }
 
-void setPlaybackPhase(ImageViewportPrivate& viewport,
+void setPlaybackPhase(ViewportControllerPort& viewport,
     ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase)
 {
     if (viewportRequestState(viewport).playbackPhase == phase) {
@@ -639,13 +786,13 @@ void setPlaybackPhase(ImageViewportPrivate& viewport,
     changes.playbackPhase = true;
 }
 
-void publishProviderStopRestoreLoading(ImageViewportPrivate& viewport)
+void publishProviderStopRestoreLoading(ViewportControllerPort& viewport)
 {
     publishProviderFrameLoadingState(viewport);
 }
 
 bool appendProviderStopRestoreFrameStart(
-    ViewportController& controller, ImageViewportPrivate& viewport, ViewportCommandResult& result)
+    ViewportController& controller, ViewportControllerPort& viewport, ViewportCommandResult& result)
 {
     if (!viewportProviderState(viewport).session
         || viewportRequestState(viewport).activeRequest.target.frame < 0) {
@@ -668,7 +815,7 @@ bool appendProviderStopRestoreFrameStart(
     return false;
 }
 
-bool applyStopRestorePlan(ViewportController& controller, ImageViewportPrivate& viewport,
+bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort& viewport,
     StopRestorePlan plan, ViewportCommandResult& result)
 {
     switch (plan.kind) {
@@ -731,7 +878,7 @@ bool applyStopRestorePlan(ViewportController& controller, ImageViewportPrivate& 
     return false;
 }
 
-DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
+DisplayRequestTarget providerPlaybackStartTarget(ViewportControllerPort& viewport)
 {
     int selectedFrame = viewportRequestState(viewport).activeRequest.target.frame;
     if (selectedFrame < 0
@@ -742,7 +889,7 @@ DisplayRequestTarget providerPlaybackStartTarget(ImageViewportPrivate& viewport)
         ImageViewportInternal::ProviderRequestTargetKind::Playback };
 }
 
-void applyProviderPlaybackStartTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+void applyProviderPlaybackStartTarget(ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
     viewportRequestState(viewport).providerPlaybackStartPending = false;
     viewportRequestState(viewport).activeRequest.target.frame = target.frame;
@@ -760,7 +907,8 @@ DisplayRequestTarget pendingProviderPlaybackTarget()
         ImageViewportInternal::ProviderRequestTargetKind::Playback };
 }
 
-void applyPendingProviderPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+void applyPendingProviderPlaybackTarget(
+    ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
     viewportRequestState(viewport).providerPlaybackStartPending = true;
     viewportRequestState(viewport).activeRequest.target.frame = target.frame;
@@ -772,20 +920,20 @@ void applyPendingProviderPlaybackTarget(ImageViewportPrivate& viewport, DisplayR
 }
 
 template <typename FrameStartFor>
-int playbackStartPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
+int playbackStartPosition(ViewportControllerPort& viewport, FrameStartFor frameStartFor)
 {
     const auto& target = viewportRequestState(viewport).activeRequest.target;
     return target.position >= 0 ? target.position : frameStartFor(target.frame);
 }
 
 template <typename FrameStartFor>
-void seedPlaybackPosition(ImageViewportPrivate& viewport, FrameStartFor frameStartFor)
+void seedPlaybackPosition(ViewportControllerPort& viewport, FrameStartFor frameStartFor)
 {
     viewportRequestState(viewport).playbackPosition
         = playbackStartPosition(viewport, frameStartFor);
 }
 
-ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ImageViewportPrivate& viewport)
+ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ViewportControllerPort& viewport)
 {
     return viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading
         ? ImageViewport::PlaybackPhase::Waiting
@@ -803,13 +951,13 @@ ImageViewport::PlaybackPhase playbackAdvancePhaseForRequest(
         : ImageViewport::PlaybackPhase::Playing;
 }
 
-void applyPlaybackTarget(ImageViewportPrivate& viewport, DisplayRequestTarget target)
+void applyPlaybackTarget(ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
     beginAcceptedDisplayRequest(
         viewport, ImageViewportInternal::DisplayRequestOrigin::Playback, target, false);
 }
 
-void applyPlaybackAdvancePhase(ImageViewportPrivate& viewport,
+void applyPlaybackAdvancePhase(ViewportControllerPort& viewport,
     ImageViewportInternal::ViewportChangeSet& changes, const PlaybackAdvanceTarget& target)
 {
     if (target.reachedEnd) {
@@ -820,7 +968,7 @@ void applyPlaybackAdvancePhase(ImageViewportPrivate& viewport,
         playbackAdvancePhaseForRequest(viewportRequestState(viewport).status, target.reachedEnd));
 }
 
-void appendPlaybackRequestChange(ImageViewportPrivate& viewport,
+void appendPlaybackRequestChange(ViewportControllerPort& viewport,
     ImageViewportInternal::ViewportChangeSet& changes, int previousFrame)
 {
     changes.requestRevision = true;
@@ -833,7 +981,7 @@ void appendPlaybackRequestChange(ImageViewportPrivate& viewport,
 }
 
 ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
-    ImageViewportPrivate& viewport, DisplayRequestTarget target,
+    ViewportControllerPort& viewport, DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
     ExplicitSeekMaterialization materialization)
 {
@@ -909,7 +1057,7 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
 }
 
 ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
-    ImageViewportPrivate& viewport, DisplayRequestTarget target,
+    ViewportControllerPort& viewport, DisplayRequestTarget target,
     ExplicitSeekMaterialization materialization)
 {
     return acceptExplicitSeek(
@@ -917,28 +1065,19 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
 }
 }
 
-ViewportController::ViewportController(ImageViewportPrivate& viewport)
-    : viewport(viewport)
+ViewportController::ViewportController(const ImageViewportPrivate& item)
+    : viewport(item, state)
 {
 }
-
-ImageViewportInternal::DisplayState& ViewportController::displayState() { return state.display; }
 
 const ImageViewportInternal::DisplayState& ViewportController::displayState() const
 {
     return state.display;
 }
 
-ImageViewportInternal::RequestState& ViewportController::requestState() { return state.request; }
-
 const ImageViewportInternal::RequestState& ViewportController::requestState() const
 {
     return state.request;
-}
-
-ImageViewportInternal::ProviderGenerationState& ViewportController::providerState()
-{
-    return state.provider;
 }
 
 const ImageViewportInternal::ProviderGenerationState& ViewportController::providerState() const

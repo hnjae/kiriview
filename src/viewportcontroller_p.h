@@ -7,6 +7,7 @@
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
+#include <QtGui/QImage>
 
 #include <memory>
 
@@ -295,16 +296,64 @@ struct ViewportControllerState
     ImageViewportInternal::ProviderGenerationState provider;
 };
 
-class ViewportController
+class ViewportControllerPort
 {
 public:
-    explicit ViewportController(ImageViewportPrivate& viewport);
+    ViewportControllerPort(const ImageViewportPrivate& item, ViewportControllerState& state);
 
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
     const ImageViewportInternal::RequestState& requestState() const;
     ImageViewportInternal::ProviderGenerationState& providerState();
+    const ImageViewportInternal::ProviderGenerationState& providerState() const;
+
+    QRectF contentRect() const;
+    QRectF visibleImageRect() const;
+    QRectF itemBounds() const;
+    bool hasActiveRequest() const;
+    bool hasReadyDisplay() const;
+    bool hasDisplayableSequence() const;
+    bool hasTimedSequence() const;
+    bool hasProviderSequence() const;
+    bool hasGenerationTerminalProviderFailure() const;
+    bool providerHasCompleteKnownMetadata() const;
+    ImageSequenceProviderKnownFacts providerKnownFacts() const;
+    QSizeF providerKnownLogicalSize() const;
+    TimingIntervals providerKnownTimingIntervals() const;
+    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
+    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
+    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
+    bool providerTimedPlaybackCapabilityKnownFalse() const;
+    bool providerFrameSeekCapabilityKnownFalse() const;
+    bool providerFrameSeekCapabilityKnownTrue() const;
+    bool providerPositionSeekCapabilityKnownFalse() const;
+    bool providerKnownFactsTimedFrameCount() const;
+    int providerKnownFactsFrameCount() const;
+    int providerFrameStartPosition(int frame) const;
+    int providerFrameIndexForPosition(int position) const;
+    int frameCount() const;
+    int totalDuration() const;
+    int sequenceFrameCount() const;
+    int sequenceFrameIndexForPosition(int position) const;
+    int sequenceFrameStartPosition(int frame) const;
+    QSizeF sequenceLogicalSize() const;
+    QImage sequenceFrameImage(int frame) const;
+    double width() const;
+    double height() const;
+
+private:
+    const ImageViewportPrivate& item;
+    ViewportControllerState& state;
+};
+
+class ViewportController
+{
+public:
+    explicit ViewportController(const ImageViewportPrivate& item);
+
+    const ImageViewportInternal::DisplayState& displayState() const;
+    const ImageViewportInternal::RequestState& requestState() const;
     const ImageViewportInternal::ProviderGenerationState& providerState() const;
     bool looping() const;
     ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
@@ -397,5 +446,5 @@ private:
     ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
 
     ViewportControllerState state;
-    ImageViewportPrivate& viewport;
+    ViewportControllerPort viewport;
 };
