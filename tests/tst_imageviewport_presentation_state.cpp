@@ -25,6 +25,7 @@ private slots:
     void twoPageSpreadGeometryUsesDirectionAndGap();
     void spreadCoordinateHelpersRejectGapAndEdges();
     void fitModesExposeZoomAndPannability();
+    void presentationCommandsUpdateCommandDiagnostics();
     void manualZoomAbovePublishedLimitIsInvalid();
     void rotationAffectsSpreadMapping();
 };
@@ -504,6 +505,45 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.property("fitMode").toInt(), enumValue(item.metaObject(), "FitMode", "Manual"));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(24.0, 42.0, 32.0, 16.0));
     QCOMPARE(item.property("zoomPercent").toDouble(), 200.0);
+}
+
+void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagnostics()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(80.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    const uint invalidSeekCommandRevision = item.property("commandRevision").toUInt();
+
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(item.property("commandRevision").toUInt(), invalidSeekCommandRevision + 1);
+    QCOMPARE(commandSpy.count(), 1);
+
+    const int rotationDegrees = item.property("rotationDegrees").toInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    QCOMPARE(item.rotateClockwise(QPointF(std::numeric_limits<double>::infinity(), 0.0)),
+        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("rotationDegrees").toInt(), rotationDegrees);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("commandRevision").toUInt(), invalidSeekCommandRevision + 2);
+    QCOMPARE(commandSpy.count(), 2);
 }
 
 void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid()

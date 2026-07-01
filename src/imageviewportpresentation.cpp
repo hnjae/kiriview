@@ -149,6 +149,20 @@ QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
     return spreadSize;
 }
 
+ImageViewportPrivate::CommandOutcome rejectInvalidPresentationCommand(ImageViewportPrivate& viewport)
+{
+    const ViewportCommandResult result = viewport.controller.rejectInvalidCommand();
+    viewport.applyControllerChanges(result.changes);
+    return result.outcome;
+}
+
+ImageViewportPrivate::CommandOutcome acceptPresentationCommand(ImageViewportPrivate& viewport)
+{
+    const ViewportCommandResult result = viewport.controller.acceptNoopCommand();
+    viewport.applyControllerChanges(result.changes);
+    return result.outcome;
+}
+
 }
 
 QRectF ImageViewportPrivate::contentRect() const
@@ -407,7 +421,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setSpreadDirection(
     presentation.spreadDirection = direction;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageGap(double gap)
@@ -422,22 +436,22 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageGap(double gap
     presentation.pageGap = gap;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setFitMode(FitMode mode, QPointF anchor)
 {
     if (!isValidFitMode(mode) || !isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
     if (presentation.fitMode == mode) {
-        return CommandOutcome::Accepted;
+        return acceptPresentationCommand(*this);
     }
 
     presentation.fitMode = mode;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
@@ -445,36 +459,34 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
 {
     if (!isFinitePositive(percent) || percent > ImageViewportDisplayLimits::maximumManualZoomPercent()
         || !isFinitePoint(anchor)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
+        return rejectInvalidPresentationCommand(*this);
     }
 
     const double zoom = percent / 100.0;
     if (presentation.fitMode == FitMode::Manual && presentation.zoom == zoom) {
-        return CommandOutcome::Accepted;
+        return acceptPresentationCommand(*this);
     }
 
     presentation.fitMode = FitMode::Manual;
     presentation.zoom = zoom;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panBy(QPointF delta)
 {
     if (!isFinitePoint(delta)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
     if (delta.isNull()) {
-        return CommandOutcome::Accepted;
+        return acceptPresentationCommand(*this);
     }
 
     if (applyContentPosition(*this, contentPosition() + delta)) {
         notifyPresentationChanged(true);
     }
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToStart()
@@ -482,7 +494,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToStart()
     if (applyContentPosition(*this, {})) {
         notifyPresentationChanged(true);
     }
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToEnd()
@@ -490,7 +502,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToEnd()
     if (applyContentPosition(*this, maximumContentPosition())) {
         notifyPresentationChanged(true);
     }
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanNext()
@@ -502,7 +514,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanNext()
     if (maximum.x() > 0.0) {
         return panBy(QPointF(std::max(1.0, itemBounds().width() * 0.9), 0.0));
     }
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanPrevious()
@@ -514,53 +526,53 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanPrevious()
     if (maximum.x() > 0.0) {
         return panBy(QPointF(-std::max(1.0, itemBounds().width() * 0.9), 0.0));
     }
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::rotateClockwise(QPointF anchor)
 {
     if (!isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
 
     presentation.rotationDegrees = (presentation.rotationDegrees + 90) % 360;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::rotateCounterClockwise(QPointF anchor)
 {
     if (!isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
 
     presentation.rotationDegrees = (presentation.rotationDegrees + 270) % 360;
     clampPresentationPanToBounds(*this);
     notifyPresentationChanged(true);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorHorizontally(
     bool enabled, QPointF anchor)
 {
     if (!isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
 
     setMirrorHorizontally(enabled);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorVertically(
     bool enabled, QPointF anchor)
 {
     if (!isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+        return rejectInvalidPresentationCommand(*this);
     }
 
     setMirrorVertically(enabled);
-    return CommandOutcome::Accepted;
+    return acceptPresentationCommand(*this);
 }
 
 QVariantMap ImageViewportPrivate::itemToSpread(double x, double y) const

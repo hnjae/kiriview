@@ -1186,6 +1186,7 @@ ImageViewport {
         && ImageSequenceLimits.maximumFrameDuration >= 86400000
         && ImageSequenceLimits.maximumTotalSequenceDuration >= 86400000
         && ImageSequenceLimits.maximumDiagnosticStringLength >= 4096
+        && ImageViewportDisplayLimits.maximumManualZoomPercent >= 100
 }
 )",
         QUrl());
