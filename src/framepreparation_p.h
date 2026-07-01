@@ -61,7 +61,7 @@ public:
         bool timedMetadata = false;
         QSizeF logicalSize;
         TimingIntervals timingIntervals;
-        int currentFrame = -1;
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
         ImageViewportInternal::PreparedPayload preparedPayload;
     };
 

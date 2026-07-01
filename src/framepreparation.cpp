@@ -202,8 +202,7 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
     for (int duration : durations) {
         if (duration > ImageSequenceLimits::maximumFrameDuration()) {
             return providerKnownFactsRejection(Cause::FrameDurationTooLarge,
-                QStringLiteral(
-                    "provider known facts frame duration exceeds maximumFrameDuration"));
+                QStringLiteral("provider known facts frame duration exceeds maximumFrameDuration"));
         }
         totalDuration += duration;
         if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
@@ -255,7 +254,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     }
 
     if (state.timedMetadata) {
-        if (!metadata.isTimedFrame() || metadata.frame() != state.currentFrame) {
+        if (!metadata.isTimedFrame() || metadata.frame() != state.resolvedFrame.frame) {
             if (!metadata.isTimedFrame()) {
                 return providerFrameError(Cause::InvalidFrameMetadata,
                     QStringLiteral("provider frame metadata is invalid"));
@@ -263,14 +262,13 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             return providerFrameError(Cause::ResolvedFrameMismatch,
                 QStringLiteral("provider frame resolved frame mismatch"));
         }
-        if (metadata.frameStartPosition()
-            != state.timingIntervals.frameStartPosition(state.currentFrame)) {
+        if (metadata.frameStartPosition() != state.resolvedFrame.position) {
             return providerFrameError(Cause::FrameStartMismatch,
                 QStringLiteral("provider frame start position mismatch"));
         }
-        const int expectedFrameDuration = state.timingIntervals.frameDuration(state.currentFrame);
-        if (metadata.frameDuration() != -1
-            && metadata.frameDuration() != expectedFrameDuration) {
+        const int expectedFrameDuration
+            = state.timingIntervals.frameDuration(state.resolvedFrame.frame);
+        if (metadata.frameDuration() != -1 && metadata.frameDuration() != expectedFrameDuration) {
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }

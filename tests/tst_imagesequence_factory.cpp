@@ -45,7 +45,7 @@ private slots:
     void providerMetadataAdmissionRejectsInvalidTiming();
     void providerKnownFactsAdmissionAcceptsTimedFacts();
     void providerKnownFactsAdmissionRejectsDurationLimits();
-    void providerFrameAdmissionUsesAcceptedTimingIntervals();
+    void providerFrameAdmissionUsesResolvedFrameIdentity();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
@@ -384,7 +384,7 @@ void ImageSequenceFactoryTest::providerKnownFactsAdmissionRejectsDurationLimits(
     QVERIFY(admission.diagnostic.contains(QStringLiteral("maximumFrameDuration")));
 }
 
-void ImageSequenceFactoryTest::providerFrameAdmissionUsesAcceptedTimingIntervals()
+void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
 {
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -395,7 +395,8 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesAcceptedTimingIntervals
     state.timedMetadata = true;
     state.logicalSize = QSizeF(16.0, 8.0);
     state.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
-    state.currentFrame = 1;
+    state.resolvedFrame.frame = 1;
+    state.resolvedFrame.position = 100;
     state.preparedPayload.generation = 7;
     state.preparedPayload.requestId = 11;
     state.preparedPayload.payloadId = 13;

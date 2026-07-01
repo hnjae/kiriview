@@ -304,12 +304,16 @@ void ImageViewportPrivate::publishSequenceReadyState(const QImage& providerImage
     display.pendingRenderPayload.commitPending = true;
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
     int displayedPosition = -1;
-    const int currentFrame = request.activeRequest.target.frame;
+    const int currentFrame = request.activeRequest.resolvedFrame.frame;
     if (hasProviderSequence()) {
-        displayedPosition = providerFrameStartPosition(currentFrame);
+        displayedPosition = request.activeRequest.resolvedFrame.position >= 0
+            ? request.activeRequest.resolvedFrame.position
+            : providerFrameStartPosition(currentFrame);
     } else {
-        displayedPosition
-            = hasTimedSequence() ? request.sequence->frameStartPosition(currentFrame) : -1;
+        displayedPosition = request.activeRequest.resolvedFrame.position >= 0
+            ? request.activeRequest.resolvedFrame.position
+            : hasTimedSequence() ? request.sequence->frameStartPosition(currentFrame)
+                                 : -1;
     }
     display.displayedRequest = display.activeRequestSnapshot(
         request.sequenceGeneration, request.activeRequest, displayedPosition);
@@ -341,9 +345,12 @@ void ImageViewportPrivate::publishSequenceReadyState(
     publishReadyDisplayState();
     display.commitPreparedPayloadIdentity(request.activeRequest, providerPayload);
     display.pendingRenderPayload.commitPending = true;
-    const int currentFrame = request.activeRequest.target.frame;
-    display.displayedRequest = display.activeRequestSnapshot(request.sequenceGeneration,
-        request.activeRequest, providerFrameStartPosition(currentFrame));
+    const int currentFrame = request.activeRequest.resolvedFrame.frame;
+    display.displayedRequest
+        = display.activeRequestSnapshot(request.sequenceGeneration, request.activeRequest,
+            request.activeRequest.resolvedFrame.position >= 0
+                ? request.activeRequest.resolvedFrame.position
+                : providerFrameStartPosition(currentFrame));
     display.displayedImageSize = provider.logicalSize;
     display.displayedImage = providerPayload.image;
     display.pendingRenderPayload.image = {};

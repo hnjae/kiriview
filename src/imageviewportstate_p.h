@@ -56,10 +56,19 @@ struct DisplayRequestTarget
     ProviderRequestTargetKind providerTargetKind = ProviderRequestTargetKind::Unknown;
 };
 
+struct ResolvedFrameIdentity
+{
+    int frame = -1;
+    int position = -1;
+
+    bool isValid() const { return frame >= 0; }
+};
+
 struct DisplayRequest
 {
     DisplayRequestIdentity identity;
     DisplayRequestTarget target;
+    ResolvedFrameIdentity resolvedFrame;
     ImageSequenceProviderRequestToken providerFrameToken;
     quint64 preparedPayloadId = 0;
 };
@@ -113,6 +122,8 @@ struct DisplayState
         snapshot.request.target = activeRequest.target;
         snapshot.request.target.frame = activeRequest.target.frame;
         snapshot.request.target.position = displayedPosition;
+        snapshot.request.resolvedFrame = activeRequest.resolvedFrame;
+        snapshot.request.resolvedFrame.position = displayedPosition;
         return snapshot;
     }
 
@@ -120,9 +131,11 @@ struct DisplayState
         quint64 sequenceGeneration, const DisplayRequest& activeRequest, quint64 preparedPayloadId)
     {
         const auto displayedTarget = displayedRequest.request.target;
+        const auto displayedResolvedFrame = displayedRequest.request.resolvedFrame;
         displayedRequest.generation = sequenceGeneration;
         displayedRequest.request = activeRequest;
         displayedRequest.request.target = displayedTarget;
+        displayedRequest.request.resolvedFrame = displayedResolvedFrame;
         displayedRequest.request.preparedPayloadId = preparedPayloadId;
     }
 
@@ -221,10 +234,19 @@ struct RequestState
     void beginDisplayRequest(
         DisplayRequestOrigin origin, DisplayRequestTarget target, bool rememberAsLatestNonPlayback)
     {
+        beginDisplayRequest(
+            origin, target, { target.frame, target.position }, rememberAsLatestNonPlayback);
+    }
+
+    void beginDisplayRequest(DisplayRequestOrigin origin, DisplayRequestTarget target,
+        ResolvedFrameIdentity resolvedFrame, bool rememberAsLatestNonPlayback)
+    {
         beginDisplayRequest(origin, rememberAsLatestNonPlayback);
         activeRequest.target = target;
+        activeRequest.resolvedFrame = resolvedFrame;
         if (rememberAsLatestNonPlayback) {
             latestNonPlaybackRequest.target = target;
+            latestNonPlaybackRequest.resolvedFrame = resolvedFrame;
         }
     }
 
@@ -286,6 +308,7 @@ struct ProviderGenerationState
     quint64 queuedFrameRequestId = 0;
     int queuedFrame = -1;
     int queuedPosition = -1;
+    ResolvedFrameIdentity queuedResolvedFrame;
     bool queuedFrameFromPlayback = false;
     ProviderRequestTargetKind queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
     bool metadataReady = false;
