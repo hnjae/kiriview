@@ -269,6 +269,7 @@ struct ViewportPlaybackAdvanceResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
 };
 
 struct ViewportSequenceAssignment
@@ -455,6 +456,7 @@ public:
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult playSecondaryBuiltIn();
+    ViewportCommandResult playSecondaryProvider();
     ViewportCommandResult pause();
     ViewportCommandResult pause(ImageViewport::PageRole role);
     ViewportCommandResult stop();
@@ -512,6 +514,8 @@ public:
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
     ViewportProviderMetadataRequestStartResult startSecondaryProviderMetadataRequest();
     ViewportProviderFrameRequestStartResult startSecondaryProviderFrameRequest(int frame);
+    ViewportProviderFrameRequestStartResult startSecondaryProviderFrameRequest(
+        ImageViewportInternal::DisplayRequestTarget target);
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();

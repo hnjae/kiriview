@@ -1761,6 +1761,36 @@ ViewportCommandResult ViewportController::playSecondaryBuiltIn()
     return result;
 }
 
+ViewportCommandResult ViewportController::playSecondaryProvider()
+{
+    if (!viewport.hasActiveRequest()
+        || viewportRequestState(viewport).secondaryActiveRequest.target.frame < 0) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+    if (!state.secondaryProvider.metadataReady || !state.secondaryProvider.timedMetadata
+        || !state.secondaryProvider.timedPlaybackSupport) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Unsupported;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        return result;
+    }
+
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Secondary;
+    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+    viewportRequestState(viewport).playbackPosition
+        = viewportRequestState(viewport).secondaryActiveRequest.target.position >= 0
+        ? viewportRequestState(viewport).secondaryActiveRequest.target.position
+        : viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame.position;
+    setPlaybackPhase(viewport, result, playbackPhaseForCurrentRequest(viewport));
+    return result;
+}
+
 ViewportCommandResult ViewportController::pause()
 {
     return pause(ImageViewport::PageRole::Primary);
@@ -2981,6 +3011,16 @@ ViewportController::startSecondaryProviderMetadataRequest()
 ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProviderFrameRequest(
     int frame)
 {
+    const int position = state.secondaryProvider.timedMetadata
+        ? state.secondaryProvider.timingIntervals.frameStartPosition(frame)
+        : -1;
+    return startSecondaryProviderFrameRequest(
+        { frame, position, ImageViewportInternal::ProviderRequestTargetKind::Frame });
+}
+
+ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProviderFrameRequest(
+    ImageViewportInternal::DisplayRequestTarget target)
+{
     ViewportProviderFrameRequestStartResult result;
     const ViewportProviderRequestTokenAllocation allocation
         = allocateSecondaryProviderRequestToken();
@@ -2994,18 +3034,16 @@ ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProvid
 
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-    const int position = state.secondaryProvider.timedMetadata
-        ? state.secondaryProvider.timingIntervals.frameStartPosition(frame)
+    const int resolvedPosition = state.secondaryProvider.timedMetadata
+        ? state.secondaryProvider.timingIntervals.frameStartPosition(target.frame)
         : -1;
-    setSecondaryActiveRequest(viewport,
-        { frame, position, ImageViewportInternal::ProviderRequestTargetKind::Frame },
-        { frame, position });
+    setSecondaryActiveRequest(viewport, target, { target.frame, resolvedPosition });
     result.accepted = true;
     result.sendCommand = state.secondaryProvider.session != nullptr;
     result.command.token = state.secondaryProvider.activeFrameToken;
-    result.command.frame = frame;
-    result.command.position = state.secondaryProvider.timedMetadata ? 0 : -1;
-    result.command.targetKind = ImageViewportInternal::ProviderRequestTargetKind::Frame;
+    result.command.frame = target.frame;
+    result.command.position = target.position;
+    result.command.targetKind = target.providerTargetKind;
     return result;
 }
 
@@ -3279,6 +3317,31 @@ int ViewportController::playbackTimerInterval() const
     }
 
     if (viewportRequestState(viewport).playbackRole == ImageViewport::PageRole::Secondary) {
+        if (state.secondaryProvider.metadataReady && state.secondaryProvider.timedMetadata) {
+            const int currentFrame
+                = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
+            if (currentFrame < 0
+                || currentFrame >= state.secondaryProvider.timingIntervals.frameCount()) {
+                return -1;
+            }
+            const int frameStart
+                = state.secondaryProvider.timingIntervals.frameStartPosition(currentFrame);
+            const int nextFrameStart
+                = currentFrame + 1 < state.secondaryProvider.timingIntervals.frameCount()
+                ? state.secondaryProvider.timingIntervals.frameStartPosition(currentFrame + 1)
+                : state.secondaryProvider.timingIntervals.totalDuration();
+            const int frameDuration = nextFrameStart - frameStart;
+            if (frameStart < 0 || frameDuration <= 0) {
+                return -1;
+            }
+
+            const int playbackPosition = viewportRequestState(viewport).playbackPosition >= 0
+                ? viewportRequestState(viewport).playbackPosition
+                : frameStart;
+            const int remaining = frameStart + frameDuration - playbackPosition;
+            return std::max(1, remaining);
+        }
+
         if (!viewport.hasSecondaryTimedSequence()) {
             return -1;
         }
@@ -3346,6 +3409,71 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
     }
 
     if (viewportRequestState(viewport).playbackRole == ImageViewport::PageRole::Secondary) {
+        if (state.secondaryProvider.metadataReady && state.secondaryProvider.timedMetadata) {
+            const int totalDuration = state.secondaryProvider.timingIntervals.totalDuration();
+            const int previousFrame
+                = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
+            const int currentFrame
+                = viewportRequestState(viewport).secondaryActiveRequest.target.frame;
+            const PlaybackAdvanceTarget target = playbackAdvanceTarget(elapsedMilliseconds,
+                currentFrame, viewportRequestState(viewport).playbackPosition,
+                viewportRequestState(viewport).looping, totalDuration,
+                state.secondaryProvider.timingIntervals.frameCount(),
+                [this](int frame) {
+                    return state.secondaryProvider.timingIntervals.frameStartPosition(frame);
+                },
+                [this](int position) {
+                    return state.secondaryProvider.timingIntervals.frameIndexForPosition(position);
+                });
+            if (!target.valid) {
+                return result;
+            }
+
+            viewportRequestState(viewport).playbackPosition = target.playbackPosition;
+            if (!target.reachedEnd && !target.looped && target.displayTarget.frame == currentFrame
+                && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready) {
+                return result;
+            }
+
+            const ImageViewportInternal::DisplayRequest primaryRequest
+                = viewportRequestState(viewport).activeRequest;
+            beginAcceptedDisplayRequest(viewport,
+                ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
+                primaryRequest.resolvedFrame, false);
+            const DisplayRequestTarget providerTarget {
+                target.displayTarget.frame,
+                target.displayTarget.position,
+                ImageViewportInternal::ProviderRequestTargetKind::Playback,
+            };
+            setSecondaryActiveRequest(viewport, providerTarget,
+                { providerTarget.frame,
+                    state.secondaryProvider.timingIntervals.frameStartPosition(
+                        providerTarget.frame) });
+            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
+            viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+            viewportDisplayState(viewport).status
+                = viewportDisplayState(viewport).displayedImageSize.isValid()
+                ? ImageViewport::DisplayStatus::Retained
+                : ImageViewport::DisplayStatus::Empty;
+            const ViewportProviderFrameRequestStartResult start
+                = startSecondaryProviderFrameRequest(providerTarget);
+            appendProviderFrameStartResult(result.secondaryProviderFrameTransport, start);
+
+            applyPlaybackAdvancePhase(viewport, result.changes, target);
+            result.changes.requestRevision = true;
+            if (target.displayTarget.frame != previousFrame
+                || viewportDisplayState(viewport).status != ImageViewport::DisplayStatus::Ready) {
+                result.changes.displayRevision = true;
+            }
+            result.changes.requestState = true;
+            result.changes.displayState = true;
+            result.changes.scheduleUpdate = true;
+            if (!start.accepted) {
+                result.changes.diagnostics = true;
+            }
+            return result;
+        }
+
         if (!viewport.hasSecondaryTimedSequence()) {
             return result;
         }
@@ -3593,6 +3721,13 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
         if (!sequence->isProvider() && sequence->isTimedList()) {
             flushPlaybackTimerElapsed();
             const ViewportCommandResult result = controller.playSecondaryBuiltIn();
+            applyControllerChanges(result.changes);
+            syncPlaybackTimer();
+            return result.outcome;
+        }
+        if (sequence->isProvider()) {
+            flushPlaybackTimerElapsed();
+            const ViewportCommandResult result = controller.playSecondaryProvider();
             applyControllerChanges(result.changes);
             syncPlaybackTimer();
             return result.outcome;

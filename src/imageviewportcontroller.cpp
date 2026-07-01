@@ -7,6 +7,8 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     const ViewportPlaybackAdvanceResult result = controller.advancePlayback(elapsedMilliseconds);
     applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
 }
 
