@@ -403,16 +403,10 @@ ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingCo
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
 {
-    if (!controller.providerState().timedMetadata) {
-        return -1;
-    }
-    return controller.providerState().timingIntervals.frameStartPosition(frame);
+    return controller.providerFrameStartPosition(frame);
 }
 
 int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
 {
-    if (!controller.providerState().timedMetadata) {
-        return -1;
-    }
-    return controller.providerState().timingIntervals.frameIndexForPosition(position);
+    return controller.providerFrameIndexForPosition(position);
 }

@@ -99,7 +99,7 @@ int ImageViewportPrivate::displayedPosition() const
 int ImageViewportPrivate::requestedPosition() const
 {
     if (hasProviderSequence()
-        && (controller.providerState().timedMetadata
+        && (controller.providerTimedMetadata()
             || controller.requestState().activeRequest.target.position >= 0)) {
         return controller.requestState().activeRequest.target.position;
     }
@@ -112,12 +112,10 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence() && controller.providerState().metadataReady) {
-        return controller.providerState().timedMetadata
-            ? controller.providerState().timingIntervals.frameCount()
-            : 1;
+    if (hasProviderSequence() && controller.providerMetadataReady()) {
+        return controller.providerTimedMetadata() ? controller.providerFrameCount() : 1;
     }
-    if (hasProviderSequence() && !controller.providerState().metadataReady
+    if (hasProviderSequence() && !controller.providerMetadataReady()
         && controller.requestState().sequence->m_providerKnownFacts.isTimedFrameCount()
         && providerCapabilityKnownTrue(
             controller.requestState().sequence->m_providerFrameSeekCapability)) {
@@ -132,8 +130,8 @@ int ImageViewportPrivate::frameCount() const
 
 int ImageViewportPrivate::totalDuration() const
 {
-    if (hasProviderSequence() && controller.providerState().timedMetadata) {
-        return controller.providerState().timingIntervals.totalDuration();
+    if (hasProviderSequence() && controller.providerTimedMetadata()) {
+        return controller.providerTotalDuration();
     }
     if (hasTimedSequence()) {
         return controller.requestState().sequence->totalDuration();
@@ -144,19 +142,17 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence() && controller.providerState().metadataReady) {
-        if (!controller.providerState().frameSeekSupport) {
+    if (hasProviderSequence() && controller.providerMetadataReady()) {
+        if (!controller.providerFrameSeekSupported()) {
             return invalidRange();
         }
         return {
             { QStringLiteral("minimum"), 0 },
             { QStringLiteral("maximum"),
-                controller.providerState().timedMetadata
-                    ? controller.providerState().timingIntervals.frameCount() - 1
-                    : 0 },
+                controller.providerTimedMetadata() ? controller.providerFrameCount() - 1 : 0 },
         };
     }
-    if (hasProviderSequence() && !controller.providerState().metadataReady
+    if (hasProviderSequence() && !controller.providerMetadataReady()
         && controller.requestState().sequence->m_providerKnownFacts.isTimedFrameCount()
         && providerCapabilityKnownTrue(
             controller.requestState().sequence->m_providerFrameSeekCapability)) {
@@ -178,12 +174,11 @@ QVariantMap ImageViewportPrivate::frameSeekBounds() const
 
 QVariantMap ImageViewportPrivate::positionSeekBounds() const
 {
-    if (hasProviderSequence() && controller.providerState().timedMetadata
-        && controller.providerState().positionSeekSupport) {
+    if (hasProviderSequence() && controller.providerTimedMetadata()
+        && controller.providerPositionSeekSupported()) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"),
-                controller.providerState().timingIntervals.totalDuration() },
+            { QStringLiteral("maximum"), controller.providerTotalDuration() },
         };
     }
     if (hasTimedSequence()) {
@@ -198,8 +193,8 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
 {
-    if (hasProviderSequence() && controller.providerState().metadataReady) {
-        return controller.providerState().timedPlaybackSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerMetadataReady()) {
+        return controller.providerTimedPlaybackSupported() ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(
@@ -217,8 +212,8 @@ ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() cons
 
 ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 {
-    if (hasProviderSequence() && controller.providerState().metadataReady) {
-        return controller.providerState().frameSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerMetadataReady()) {
+        return controller.providerFrameSeekSupported() ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(
@@ -233,8 +228,8 @@ ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 {
-    if (hasProviderSequence() && controller.providerState().metadataReady) {
-        return controller.providerState().positionSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerMetadataReady()) {
+        return controller.providerPositionSeekSupported() ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
         return capabilitySupportToTriState(

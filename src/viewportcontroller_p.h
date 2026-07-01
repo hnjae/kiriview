@@ -354,7 +354,18 @@ public:
 
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
-    const ImageViewportInternal::ProviderGenerationState& providerState() const;
+    bool hasProviderSession() const;
+    bool providerMetadataReady() const;
+    bool providerTimedMetadata() const;
+    bool providerTimedPlaybackSupported() const;
+    bool providerFrameSeekSupported() const;
+    bool providerPositionSeekSupported() const;
+    QSizeF providerLogicalSize() const;
+    int providerFrameCount() const;
+    int providerTotalDuration() const;
+    int providerFrameDuration(int frame) const;
+    int providerFrameStartPosition(int frame) const;
+    int providerFrameIndexForPosition(int position) const;
     bool looping() const;
     ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
     void incrementDisplayRevision();

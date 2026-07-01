@@ -77,14 +77,13 @@ int ImageViewportPrivate::playbackTimerInterval() const
     int frameStart = -1;
     int frameDuration = -1;
     const int currentFrame = controller.requestState().activeRequest.target.frame;
-    if (hasProviderSequence() && controller.providerState().metadataReady
-        && controller.providerState().timedMetadata) {
-        if (currentFrame < 0
-            || currentFrame >= controller.providerState().timingIntervals.frameCount()) {
+    if (hasProviderSequence() && controller.providerMetadataReady()
+        && controller.providerTimedMetadata()) {
+        if (currentFrame < 0 || currentFrame >= controller.providerFrameCount()) {
             return -1;
         }
         frameStart = providerFrameStartPosition(currentFrame);
-        frameDuration = controller.providerState().timingIntervals.frameDuration(currentFrame);
+        frameDuration = controller.providerFrameDuration(currentFrame);
     } else if (hasTimedSequence()) {
         if (currentFrame < 0 || currentFrame >= controller.requestState().sequence->frameCount()) {
             return -1;
@@ -142,7 +141,7 @@ bool ImageViewportPrivate::hasProviderSequence() const
 
 bool ImageViewportPrivate::hasGenerationTerminalProviderFailure() const
 {
-    return hasProviderSequence() && !controller.providerState().session
+    return hasProviderSequence() && !controller.hasProviderSession()
         && (controller.requestState().status == RequestStatus::Unsupported
             || controller.requestState().status == RequestStatus::Error);
 }

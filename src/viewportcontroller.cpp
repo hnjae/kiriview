@@ -1080,9 +1080,55 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
     return state.request;
 }
 
-const ImageViewportInternal::ProviderGenerationState& ViewportController::providerState() const
+bool ViewportController::hasProviderSession() const { return state.provider.session != nullptr; }
+
+bool ViewportController::providerMetadataReady() const { return state.provider.metadataReady; }
+
+bool ViewportController::providerTimedMetadata() const { return state.provider.timedMetadata; }
+
+bool ViewportController::providerTimedPlaybackSupported() const
 {
-    return state.provider;
+    return state.provider.timedPlaybackSupport;
+}
+
+bool ViewportController::providerFrameSeekSupported() const
+{
+    return state.provider.frameSeekSupport;
+}
+
+bool ViewportController::providerPositionSeekSupported() const
+{
+    return state.provider.positionSeekSupport;
+}
+
+QSizeF ViewportController::providerLogicalSize() const { return state.provider.logicalSize; }
+
+int ViewportController::providerFrameCount() const
+{
+    return state.provider.timedMetadata ? state.provider.timingIntervals.frameCount() : 1;
+}
+
+int ViewportController::providerTotalDuration() const
+{
+    return state.provider.timedMetadata ? state.provider.timingIntervals.totalDuration() : -1;
+}
+
+int ViewportController::providerFrameDuration(int frame) const
+{
+    return state.provider.timedMetadata ? state.provider.timingIntervals.frameDuration(frame) : -1;
+}
+
+int ViewportController::providerFrameStartPosition(int frame) const
+{
+    return state.provider.timedMetadata ? state.provider.timingIntervals.frameStartPosition(frame)
+                                        : -1;
+}
+
+int ViewportController::providerFrameIndexForPosition(int position) const
+{
+    return state.provider.timedMetadata
+        ? state.provider.timingIntervals.frameIndexForPosition(position)
+        : -1;
 }
 
 bool ViewportController::looping() const { return state.request.looping; }

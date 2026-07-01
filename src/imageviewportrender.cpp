@@ -16,9 +16,9 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     QRectF targetRect = currentContentRect().intersected(itemBounds());
     QRectF sourceRect = visibleImageRect();
     if (synchronization.pendingProviderCommit) {
-        targetRect = contentRectForImageSize(controller.providerState().logicalSize)
-                         .intersected(itemBounds());
-        sourceRect = visibleImageRectForImageSize(controller.providerState().logicalSize);
+        targetRect
+            = contentRectForImageSize(controller.providerLogicalSize()).intersected(itemBounds());
+        sourceRect = visibleImageRectForImageSize(controller.providerLogicalSize());
     }
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
