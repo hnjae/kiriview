@@ -97,8 +97,15 @@ bool activeProviderFrameTokenMatchesActiveRequest(
 {
     return viewport.provider.activeFrameToken.isValid()
         && token == viewport.provider.activeFrameToken
-        && token == viewport.request.activeRequest.providerFrameToken
-        && viewport.provider.activeFrameRequestId == viewport.request.activeRequest.identity.id;
+        && token == viewport.request.activeRequest.providerFrameToken;
+}
+
+bool activeProviderFrameRequestIsPlayback(const ImageViewportPrivate& viewport)
+{
+    return activeProviderFrameTokenMatchesActiveRequest(
+               viewport, viewport.provider.activeFrameToken)
+        && viewport.request.activeRequest.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Playback;
 }
 
 ViewportProviderFrameTerminalResult frameTerminalResultFor(
@@ -218,10 +225,6 @@ void publishProviderTokenExhaustion(ImageViewportPrivate& viewport)
     clearQueuedProviderFrameRequest(viewport);
     viewport.provider.activeMetadataToken = {};
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.request.providerPlaybackStartPending = false;
     viewport.request.stopPlaybackWhenRequestReady = false;
     viewport.request.status = ImageViewport::RequestStatus::Error;
@@ -365,7 +368,7 @@ StopRestorePlan stopRestorePlanFor(ImageViewportPrivate& viewport)
             providerStopRestoreResolvedFrame(viewport, target) };
     }
     if (viewport.hasProviderSequence() && viewport.provider.timedMetadata
-        && viewport.provider.activeFrameFromPlayback) {
+        && activeProviderFrameRequestIsPlayback(viewport)) {
         const DisplayRequestTarget target = providerStopRestoreTarget(viewport);
         return { StopRestorePlanKind::ProviderActivePlayback, target,
             providerStopRestoreResolvedFrame(viewport, target) };
@@ -496,10 +499,6 @@ bool applyStopRestorePlan(ViewportController& controller, ImageViewportPrivate& 
             result.providerFrameTransport.cancelToken = viewport.provider.activeFrameToken;
         }
         viewport.provider.activeFrameToken = {};
-        viewport.provider.activeFrameRequestId = 0;
-        viewport.provider.activeFrameFromPlayback = false;
-        viewport.provider.activeFrameTargetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 
         const StopRestorePublication publication = publishStopRestoreTarget(
             viewport, plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);
@@ -758,10 +757,6 @@ ViewportCommandResult ViewportController::clear()
     viewport.provider.timingIntervals = {};
     viewport.provider.activeMetadataToken = {};
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.request.errorString.clear();
     viewport.request.warningString.clear();
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
@@ -1341,10 +1336,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     if (!admission.accepted()) {
         clearQueuedProviderFrameRequest(viewport);
         viewport.provider.activeFrameToken = {};
-        viewport.provider.activeFrameRequestId = 0;
-        viewport.provider.activeFrameFromPlayback = false;
-        viewport.provider.activeFrameTargetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
         viewport.request.status = admission.status;
         viewport.request.reason = admission.reason;
         viewport.request.errorString = admission.diagnostic;
@@ -1357,10 +1348,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
 
     const bool diagnosticsValueChanged = viewport.request.clearDiagnostics();
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     viewport.publishAcceptedTargetState(admission.preparedPayload);
@@ -1414,10 +1401,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     ImageViewportInternal::ViewportChangeSet changes;
     clearQueuedProviderFrameRequest(viewport);
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.request.status = result.status;
     viewport.request.reason = result.reason;
     viewport.request.errorString
@@ -1648,7 +1631,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
     }
 
     if (activeMetadataToken || !viewport.provider.metadataReady || !viewport.provider.timedMetadata
-        || !viewport.provider.activeFrameFromPlayback) {
+        || !activeProviderFrameRequestIsPlayback(viewport)) {
         ViewportProviderEndOfSequenceResult result;
         result.changes = handleProviderEndOfSequenceProtocolViolation(
             { activeMetadataToken, activeFrameToken });
@@ -1671,10 +1654,6 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     }
     if (violation.activeFrameToken) {
         viewport.provider.activeFrameToken = {};
-        viewport.provider.activeFrameRequestId = 0;
-        viewport.provider.activeFrameFromPlayback = false;
-        viewport.provider.activeFrameTargetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     }
     viewport.request.status = ImageViewport::RequestStatus::Error;
     viewport.request.reason = ImageViewport::RequestReason::PayloadRejection;
@@ -1692,10 +1671,6 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
 {
     ViewportProviderEndOfSequenceResult result;
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     const bool diagnosticsValueChanged = viewport.request.clearDiagnostics();
 
     int selectedFrame = 0;
@@ -1772,10 +1747,6 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
     sessionClose.frameToken = viewport.provider.activeFrameToken;
     viewport.provider.activeMetadataToken = {};
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     viewport.provider.nextRequestToken = 0;
     return sessionClose;
 }
@@ -1826,10 +1797,6 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
         result.cancelToken = viewport.provider.activeFrameToken;
     }
     viewport.provider.activeFrameToken = {};
-    viewport.provider.activeFrameRequestId = 0;
-    viewport.provider.activeFrameFromPlayback = false;
-    viewport.provider.activeFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 
     viewport.provider.queuedFrameRequest = true;
     viewport.provider.queuedFrameGeneration = viewport.request.sequenceGeneration;
@@ -1892,16 +1859,12 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
     viewport.provider.activeFrameToken = allocation.token;
-    viewport.provider.activeFrameRequestId = viewport.request.activeRequest.identity.id;
     if (!viewport.provider.activeFrameToken.isValid()) {
         publishProviderTokenExhaustion(viewport);
         return result;
     }
 
     viewport.request.activeRequest.providerFrameToken = viewport.provider.activeFrameToken;
-    viewport.provider.activeFrameTargetKind = request.target.providerTargetKind;
-    viewport.provider.activeFrameFromPlayback = request.target.providerTargetKind
-        == ImageViewportInternal::ProviderRequestTargetKind::Playback;
     result.accepted = true;
     result.sendCommand = viewport.provider.session != nullptr;
     result.command.token = viewport.provider.activeFrameToken;

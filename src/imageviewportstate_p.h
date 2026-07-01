@@ -300,9 +300,6 @@ struct ProviderGenerationState
     quint64 nextRequestToken = 0;
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;
-    quint64 activeFrameRequestId = 0;
-    bool activeFrameFromPlayback = false;
-    ProviderRequestTargetKind activeFrameTargetKind = ProviderRequestTargetKind::Unknown;
     bool queuedFrameRequest = false;
     quint64 queuedFrameGeneration = 0;
     quint64 queuedFrameRequestId = 0;
