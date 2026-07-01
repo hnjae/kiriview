@@ -856,6 +856,30 @@ ViewportController::ViewportController(ImageViewportPrivate& viewport)
 {
 }
 
+ImageViewportInternal::DisplayState& ViewportController::displayState() { return state.display; }
+
+const ImageViewportInternal::DisplayState& ViewportController::displayState() const
+{
+    return state.display;
+}
+
+ImageViewportInternal::RequestState& ViewportController::requestState() { return state.request; }
+
+const ImageViewportInternal::RequestState& ViewportController::requestState() const
+{
+    return state.request;
+}
+
+ImageViewportInternal::ProviderGenerationState& ViewportController::providerState()
+{
+    return state.provider;
+}
+
+const ImageViewportInternal::ProviderGenerationState& ViewportController::providerState() const
+{
+    return state.provider;
+}
+
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {

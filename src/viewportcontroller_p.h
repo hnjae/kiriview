@@ -282,10 +282,24 @@ struct ViewportSequenceAssignmentResult
     bool openProviderSession = false;
 };
 
+struct ViewportControllerState
+{
+    ImageViewportInternal::DisplayState display;
+    ImageViewportInternal::RequestState request;
+    ImageViewportInternal::ProviderGenerationState provider;
+};
+
 class ViewportController
 {
 public:
     explicit ViewportController(ImageViewportPrivate& viewport);
+
+    ImageViewportInternal::DisplayState& displayState();
+    const ImageViewportInternal::DisplayState& displayState() const;
+    ImageViewportInternal::RequestState& requestState();
+    const ImageViewportInternal::RequestState& requestState() const;
+    ImageViewportInternal::ProviderGenerationState& providerState();
+    const ImageViewportInternal::ProviderGenerationState& providerState() const;
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult clear();
@@ -372,5 +386,6 @@ private:
         ViewportProviderEndOfSequenceProtocolViolation violation);
     ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
 
+    ViewportControllerState state;
     ImageViewportPrivate& viewport;
 };
