@@ -19,6 +19,7 @@ private slots:
     void backgroundOnlyPaintDoesNotAdvanceProviderRequest();
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
+    void twoPageStillSpreadCreatesRoleTextureNodes();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void solidBackgroundRendersBehindImageNode();
     void qualityAndMirroringConfigureTextureNode();
@@ -175,6 +176,47 @@ void ImageViewportRenderSceneGraphTest::stillImageCreatesTexturePaintNode()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNodes()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(255, 0, 0, 255));
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    QQuickWindow window;
+    window.resize(88, 44);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(root->childCount(), 2);
+
+    auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
+    QVERIFY(primaryNode);
+    QVERIFY(primaryNode->texture());
+    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
+    QCOMPARE(primaryNode->sourceRect(), item.property("visiblePrimaryPageRect").toRectF());
+
+    auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
+    QVERIFY(secondaryNode);
+    QVERIFY(secondaryNode->texture());
+    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
+    QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
 }
 
 void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalTextureSourceRect()

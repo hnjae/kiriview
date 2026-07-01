@@ -9,19 +9,30 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 {
     delete oldNode;
 
-    const auto& payload = input.preparedPayload;
     const ImageViewportInternal::PreparedPayloadIdentity emptyPayload;
-    const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
-        payload.generation,
-        payload.requestId,
-        payload.payloadId,
-    };
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
         return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
     }
 
+    QVector<Input::ImageLayer> imageLayers = input.imageLayers;
+    if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
+        imageLayers.append({ input.preparedPayload, input.targetRect, input.sourceRect,
+            input.mirrorHorizontally, input.mirrorVertically });
+    }
+    const auto firstPayloadIdentity = [&]() {
+        if (imageLayers.isEmpty()) {
+            return emptyPayload;
+        }
+        const auto& payload = imageLayers.constFirst().preparedPayload;
+        return ImageViewportInternal::PreparedPayloadIdentity {
+            payload.generation,
+            payload.requestId,
+            payload.payloadId,
+        };
+    };
+
     const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
-    if (!hasBackground && payload.image.isNull()) {
+    if (!hasBackground && imageLayers.isEmpty()) {
         return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
     }
 
@@ -50,46 +61,58 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         }
     }
 
-    if (payload.image.isNull()) {
+    if (imageLayers.isEmpty()) {
         return { root, CommitResult::Empty, emptyPayload };
     }
 
     if (!input.window) {
         delete root;
-        return { nullptr, CommitResult::Failed, payloadIdentity };
+        return { nullptr, CommitResult::Failed, firstPayloadIdentity() };
     }
 
-    QQuickWindow::CreateTextureOptions textureOptions;
-    if (input.mipmap) {
-        textureOptions |= QQuickWindow::TextureHasMipmaps;
-    }
-    QSGTexture* texture = input.window->createTextureFromImage(payload.image, textureOptions);
-    QSGImageNode* imageNode = input.window->createImageNode();
-    if (!texture || !imageNode) {
-        delete texture;
-        delete imageNode;
-        delete root;
-        return { nullptr, CommitResult::Failed, payloadIdentity };
-    }
+    for (const Input::ImageLayer& layer : imageLayers) {
+        const auto& payload = layer.preparedPayload;
+        const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
+            payload.generation,
+            payload.requestId,
+            payload.payloadId,
+        };
+        if (payload.image.isNull()) {
+            continue;
+        }
 
-    imageNode->setTexture(texture);
-    imageNode->setOwnsTexture(true);
-    imageNode->setRect(input.targetRect);
-    const qreal devicePixelRatio = payload.image.devicePixelRatio();
-    const QRectF physicalSourceRect(input.sourceRect.x() * devicePixelRatio,
-        input.sourceRect.y() * devicePixelRatio, input.sourceRect.width() * devicePixelRatio,
-        input.sourceRect.height() * devicePixelRatio);
-    imageNode->setSourceRect(physicalSourceRect);
-    imageNode->setFiltering(input.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
-    imageNode->setMipmapFiltering(input.mipmap ? QSGTexture::Linear : QSGTexture::None);
-    QSGImageNode::TextureCoordinatesTransformMode transform = {};
-    if (input.mirrorHorizontally) {
-        transform |= QSGImageNode::MirrorHorizontally;
+        QQuickWindow::CreateTextureOptions textureOptions;
+        if (input.mipmap) {
+            textureOptions |= QQuickWindow::TextureHasMipmaps;
+        }
+        QSGTexture* texture = input.window->createTextureFromImage(payload.image, textureOptions);
+        QSGImageNode* imageNode = input.window->createImageNode();
+        if (!texture || !imageNode) {
+            delete texture;
+            delete imageNode;
+            delete root;
+            return { nullptr, CommitResult::Failed, payloadIdentity };
+        }
+
+        imageNode->setTexture(texture);
+        imageNode->setOwnsTexture(true);
+        imageNode->setRect(layer.targetRect);
+        const qreal devicePixelRatio = payload.image.devicePixelRatio();
+        const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
+            layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
+            layer.sourceRect.height() * devicePixelRatio);
+        imageNode->setSourceRect(physicalSourceRect);
+        imageNode->setFiltering(input.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
+        imageNode->setMipmapFiltering(input.mipmap ? QSGTexture::Linear : QSGTexture::None);
+        QSGImageNode::TextureCoordinatesTransformMode transform = {};
+        if (layer.mirrorHorizontally) {
+            transform |= QSGImageNode::MirrorHorizontally;
+        }
+        if (layer.mirrorVertically) {
+            transform |= QSGImageNode::MirrorVertically;
+        }
+        imageNode->setTextureCoordinatesTransform(transform);
+        root->appendChildNode(imageNode);
     }
-    if (input.mirrorVertically) {
-        transform |= QSGImageNode::MirrorVertically;
-    }
-    imageNode->setTextureCoordinatesTransform(transform);
-    root->appendChildNode(imageNode);
-    return { root, CommitResult::Committed, payloadIdentity };
+    return { root, CommitResult::Committed, firstPayloadIdentity() };
 }

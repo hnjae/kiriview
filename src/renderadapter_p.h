@@ -3,6 +3,7 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 
+#include <QtCore/QVector>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGImageNode>
 #include <QtQuick/QSGNode>
@@ -19,6 +20,15 @@ public:
 
     struct Input
     {
+        struct ImageLayer
+        {
+            ImageViewportInternal::PreparedPayload preparedPayload;
+            QRectF targetRect;
+            QRectF sourceRect;
+            bool mirrorHorizontally = false;
+            bool mirrorVertically = false;
+        };
+
         QSizeF itemSize;
         ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
         QColor backgroundColor = Qt::transparent;
@@ -29,6 +39,7 @@ public:
         bool mipmap = false;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
+        QVector<ImageLayer> imageLayers;
         QQuickWindow* window = nullptr;
     };
 
