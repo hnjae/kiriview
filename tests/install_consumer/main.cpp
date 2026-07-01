@@ -168,6 +168,7 @@ QtObject {
     property var maximumFrameDuration: ImageSequenceLimits.maximumFrameDuration
     property var maximumTotalSequenceDuration: ImageSequenceLimits.maximumTotalSequenceDuration
     property var maximumDiagnosticStringLength: ImageSequenceLimits.maximumDiagnosticStringLength
+    property var maximumManualZoomPercent: ImageViewportDisplayLimits.maximumManualZoomPercent
 }
 )",
         QUrl());
@@ -197,7 +198,9 @@ QtObject {
         || object->property("maximumTotalSequenceDuration").toInt()
             != ImageSequenceLimits::maximumTotalSequenceDuration()
         || object->property("maximumDiagnosticStringLength").toInt()
-            != ImageSequenceLimits::maximumDiagnosticStringLength()) {
+            != ImageSequenceLimits::maximumDiagnosticStringLength()
+        || object->property("maximumManualZoomPercent").toDouble()
+            != ImageViewportDisplayLimits::maximumManualZoomPercent()) {
         return false;
     }
 
@@ -208,7 +211,8 @@ QtObject {
         && ImageSequenceLimits::maximumTimedListFrameCount() >= 10000
         && ImageSequenceLimits::maximumFrameDuration() >= 86400000
         && ImageSequenceLimits::maximumTotalSequenceDuration() >= 86400000
-        && ImageSequenceLimits::maximumDiagnosticStringLength() >= 4096;
+        && ImageSequenceLimits::maximumDiagnosticStringLength() >= 4096
+        && ImageViewportDisplayLimits::maximumManualZoomPercent() >= 100.0;
 }
 
 bool canUseInstalledQmlFactorySurface()

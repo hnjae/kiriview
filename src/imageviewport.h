@@ -578,6 +578,21 @@ public:
     static int maximumDiagnosticStringLength();
 };
 
+class ImageViewportDisplayLimits : public QObject
+{
+    Q_OBJECT
+    QML_ELEMENT
+    QML_SINGLETON
+    Q_PROPERTY(double maximumManualZoomPercent READ getMaximumManualZoomPercent CONSTANT)
+
+public:
+    explicit ImageViewportDisplayLimits(QObject* parent = nullptr);
+
+    double getMaximumManualZoomPercent() const;
+
+    static double maximumManualZoomPercent();
+};
+
 class ImageViewportRange
 {
     Q_GADGET

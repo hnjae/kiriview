@@ -443,8 +443,11 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setFitMode(FitMode mo
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
     double percent, QPointF anchor)
 {
-    if (!isFinitePositive(percent) || !isFinitePoint(anchor)) {
-        return CommandOutcome::Invalid;
+    if (!isFinitePositive(percent) || percent > ImageViewportDisplayLimits::maximumManualZoomPercent()
+        || !isFinitePoint(anchor)) {
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
 
     const double zoom = percent / 100.0;

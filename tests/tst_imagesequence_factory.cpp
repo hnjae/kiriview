@@ -3,6 +3,8 @@
 #include "imageviewport_qml_test_support.h"
 #include "timingintervals_p.h"
 
+#include <cmath>
+
 namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
@@ -32,6 +34,7 @@ private slots:
     void qmlFactoryCreatesSequencesFromSuppliedTypedHelpers();
     void factoryResultDiagnosticsArePublicSafe();
     void exposesImageSequenceLimits();
+    void exposesImageViewportDisplayLimits();
     void factoryResultSequenceSurvivesFactoryDestruction();
     void assignedFactorySequenceSurvivesResultDestruction();
     void assignedProviderSequenceSurvivesResultDestruction();
@@ -320,6 +323,22 @@ void ImageSequenceFactoryTest::exposesImageSequenceLimits()
         QCOMPARE(limits.property(expectation.name).toLongLong(), expectation.cppValue);
         QVERIFY2(expectation.cppValue >= expectation.minimum, expectation.name);
     }
+}
+
+void ImageSequenceFactoryTest::exposesImageViewportDisplayLimits()
+{
+    ImageViewportDisplayLimits limits;
+    const QMetaObject* metaObject = limits.metaObject();
+    const int propertyIndex = metaObject->indexOfProperty("maximumManualZoomPercent");
+    QVERIFY(propertyIndex >= 0);
+    const QMetaProperty property = metaObject->property(propertyIndex);
+
+    QCOMPARE(property.isWritable(), false);
+    QCOMPARE(property.isConstant(), true);
+    QCOMPARE(limits.property("maximumManualZoomPercent").toDouble(),
+        ImageViewportDisplayLimits::maximumManualZoomPercent());
+    QVERIFY(std::isfinite(ImageViewportDisplayLimits::maximumManualZoomPercent()));
+    QVERIFY(ImageViewportDisplayLimits::maximumManualZoomPercent() >= 100.0);
 }
 
 void ImageSequenceFactoryTest::providerMetadataAdmissionAcceptsTimedMetadata()

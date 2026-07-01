@@ -25,6 +25,7 @@ private slots:
     void twoPageSpreadGeometryUsesDirectionAndGap();
     void spreadCoordinateHelpersRejectGapAndEdges();
     void fitModesExposeZoomAndPannability();
+    void manualZoomAbovePublishedLimitIsInvalid();
     void rotationAffectsSpreadMapping();
 };
 
@@ -503,6 +504,50 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.property("fitMode").toInt(), enumValue(item.metaObject(), "FitMode", "Manual"));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(24.0, 42.0, 32.0, 16.0));
     QCOMPARE(item.property("zoomPercent").toDouble(), 200.0);
+}
+
+void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(80.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(
+        item.setZoomPercent(200.0, QPointF(40.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+    const int fitMode = item.property("fitMode").toInt();
+    const double zoomPercent = item.property("zoomPercent").toDouble();
+    const QRectF contentRect = item.property("contentRect").toRectF();
+    const QPointF contentPosition = item.property("contentPosition").toPointF();
+    const uint requestRevision = item.property("requestRevision").toUInt();
+    const uint displayRevision = item.property("displayRevision").toUInt();
+    const uint commandRevision = item.property("commandRevision").toUInt();
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+
+    QCOMPARE(item.setZoomPercent(ImageViewportDisplayLimits::maximumManualZoomPercent() + 1.0,
+                 QPointF(40.0, 50.0)),
+        ImageViewport::CommandOutcome::Invalid);
+
+    QCOMPARE(item.property("fitMode").toInt(), fitMode);
+    QCOMPARE(item.property("zoomPercent").toDouble(), zoomPercent);
+    QCOMPARE(item.property("contentRect").toRectF(), contentRect);
+    QCOMPARE(item.property("contentPosition").toPointF(), contentPosition);
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QVERIFY(item.property("commandRevision").toUInt() > commandRevision);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 1);
 }
 
 void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()

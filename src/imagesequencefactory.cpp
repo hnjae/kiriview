@@ -248,3 +248,15 @@ int ImageSequenceLimits::maximumDiagnosticStringLength()
 {
     return minimumMaximumDiagnosticStringLength;
 }
+
+ImageViewportDisplayLimits::ImageViewportDisplayLimits(QObject* parent)
+    : QObject(parent)
+{
+}
+
+double ImageViewportDisplayLimits::getMaximumManualZoomPercent() const
+{
+    return maximumManualZoomPercent();
+}
+
+double ImageViewportDisplayLimits::maximumManualZoomPercent() { return 10000.0; }
