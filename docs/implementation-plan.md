@@ -33,7 +33,8 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M0 Build And Test Harness
 
-- Status: Not started.
+- Status: Completed.
+- Verification: after removing the stale generated `build-ninja` tree, `just test` configured, built, and ran all 18 CTest tests successfully in the current project shell, including `imageviewport_install_consumer`, without manual `LD_LIBRARY_PATH`.
 - Dependencies: None.
 - Acceptance criteria: `just test` configures, builds, and runs from a clean project shell without manual `LD_LIBRARY_PATH`; the existing 18 tests pass; the install-consumer test still passes; no spec or architecture files change.
 - Relevant references: [Specification Index](spec/README.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).
