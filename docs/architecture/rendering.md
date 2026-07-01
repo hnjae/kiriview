@@ -1,12 +1,12 @@
 # Rendering
 
-Rendering should translate prepared image payloads and viewport presentation state into Qt Quick scene graph updates. The durable baseline is a CPU-backed image path; native texture and tiled paths require explicit contracts before they become part of this architecture.
+Rendering must translate prepared image payloads and viewport presentation state into Qt Quick scene graph updates. The durable baseline is a CPU-backed image path; native texture and tiled paths are outside this architecture unless explicit contracts define them.
 
 ## Render Data Flow
 
 Prepared frame payloads carry public logical image size, physical payload size, alpha information, timing identity, orientation identity, and any internal payload policy identity required by the installed backend. Public logical image size is the orientation-normalized image size used for geometry, coordinate conversion, and displayed image size; physical payload size and backend source rectangles remain render details. Frame preparation normalizes oriented payload pixels into public logical image space before render admission and geometry publication, so render adapters do not need to reinterpret image I/O orientation policy. Full color-management policy is not part of the public viewport contract; internal color tags must not change public geometry, status, coordinate conversion, or request ordering. The render adapter receives that prepared payload plus item-space placement, source rectangle, mirroring, smoothing, mipmap request, background state, zoom, and pan.
 
-The adapter should create or update scene graph resources only on the appropriate Qt Quick synchronization/render path. GUI-side cleanup should invalidate logical render state without dereferencing raw scene graph pointers after ownership has moved to the render side.
+The adapter must create or update scene graph resources only on the appropriate Qt Quick synchronization/render path. GUI-side cleanup must invalidate logical render state without dereferencing raw scene graph pointers after ownership has moved to the render side.
 
 Render data is immutable for the duration of one synchronization attempt. Payload data and presentation data have separate identities. Payload changes require a new prepared payload identity and payload commit acknowledgement; presentation-only changes reuse the latest committed payload identity and advance presentation/display revision without resetting request readiness. A pending provider payload may be rendered from a synchronization snapshot before it is public display content; only the accepted render commit acknowledgement promotes that payload to ready request/display ownership.
 
@@ -14,7 +14,7 @@ Render data is immutable for the duration of one synchronization attempt. Payloa
 
 Logical image geometry is the authority for public coordinate conversion. Device-pixel ratio, texture atlas placement, backend source rectangles, and upload rectangles are render details that must not change QML-visible item-to-image mapping.
 
-The render path should treat image bounds as half-open logical rectangles. Coordinate sampling and hit testing should reject the excluded right and bottom edges rather than clamping invalid coordinates to the last pixel.
+The render path must treat image bounds as half-open logical rectangles. Coordinate sampling and hit testing must reject the excluded right and bottom edges rather than clamping invalid coordinates to the last pixel.
 
 The geometry pipeline applies fill mode from item bounds and public logical image size, alignment within the resulting placement, zoom around the placement center, pan in item logical pixels, and mirroring around the placement center. The same pipeline feeds scene graph mapping, public rectangles, hit testing, and coordinate conversion.
 

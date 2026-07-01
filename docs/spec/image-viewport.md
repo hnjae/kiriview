@@ -4,7 +4,7 @@
 
 ## Sequence Assignment
 
-The viewport should behave as a sequence consumer, not as a URL loader. It should not interpret strings, file paths, URLs, archives, byte buffers, JavaScript objects, or raw provider objects as image sources through the `sequence` property.
+The viewport is a sequence consumer, not a URL loader. It must not interpret strings, file paths, URLs, archives, byte buffers, JavaScript objects, or raw provider objects as image sources through the `sequence` property.
 
 Assigning a valid non-null sequence starts a new accepted sequence generation and initial accepted display request. Assigning `null` or calling `clear()` clears the accepted request, stops playback, removes retained display content, and returns request and display observations to their empty states.
 
@@ -56,13 +56,13 @@ When multiple waits are true at the same time, the public request reason is proj
 
 Timed sequences support playback advancement with `play()`, frame seeking, and position seeking when the active sequence reports the required capability. `pause()` and `stop()` are active-request controls that affect playback only when playback is active or waiting. Playback advances from sequence timing metadata, not from fixed wall-clock sleeps as an externally visible rule.
 
-Playback phase is observable as stopped, playing, waiting, or paused. Waiting is visible when playback has been accepted but is blocked on metadata before a target exists, or when playback has accepted a target frame or position but is blocked on provider work, preparation, or render commit. Waiting is not reported as paused or stopped unless the caller requested that phase or the request reaches a terminal state.
+Playback phase is observable as stopped, playing, waiting, or paused. Waiting is visible when playback has been accepted but is blocked on metadata before a target exists, or when playback has accepted a target frame or position but is blocked by request queueing, provider work, preparation or upload ownership, non-positive item geometry, or render commit. Waiting is not reported as paused or stopped unless the caller requested that phase or the request reaches a terminal state.
 
-Playback waiting pauses the playback clock. Elapsed wall-clock time while metadata, provider work, preparation, zero-size geometry, or render commit is blocking is not accumulated for catch-up or frame skipping after the requested frame commits.
+Playback waiting pauses the playback clock. Elapsed wall-clock time while metadata, request queueing, provider work, preparation or upload ownership, non-positive item geometry, or render commit is blocking is not accumulated for catch-up or frame skipping after the requested frame commits.
 
 Playback defaults to play-once. In play-once mode, reaching the end commits the final displayable frame, sets playback to stopped, and does not report an error. End-of-sequence handling must not clear the display, stop on a blank target, or publish a beyond-final requested target. If the same generation already displays the final frame from an earlier request, the viewport may satisfy the terminal request by promoting that visible payload to the accepted display identity: `requestStatus` becomes `Ready`, `displayStatus` becomes `Ready`, playback becomes `Stopped`, and `displayRevision` increments if display ownership or status changes even though pixels are unchanged. If the final frame is not already visible for the same generation, the viewport makes the final frame the active display request and keeps playback waiting until that request commits or fails. In looping mode, reaching the end advances to the first frame without incrementing position beyond the sequence duration.
 
-Frame indices are zero-based. Seeking to a frame outside the sequence bounds is invalid. Position seeking uses milliseconds; a position within a frame's half-open time interval selects that frame, and seeking exactly to the total duration selects the final frame. Negative positions and positions greater than total duration are invalid.
+Frame indices are zero-based. Seeking to a negative frame index is invalid even before frame bounds are known, and seeking to any frame outside known sequence bounds is invalid. Position seeking uses milliseconds; a position within a frame's half-open time interval selects that frame, and seeking exactly to the total duration selects the final frame. Negative positions and positions greater than total duration are invalid.
 
 Unsupported play or seek commands leave playback phase and the next observable requested frame or position unchanged. A sequence or request that becomes terminally unsupported or erroneous while playback is active stops playback.
 
@@ -74,9 +74,9 @@ Playback request ordering distinguishes explicit seeks from playback advancement
 
 ## Presentation Controls
 
-Presentation properties such as smoothing, mipmap request, mirror flags, background mode, background color, zoom, pan, fill mode, and alignment are viewport state. Sequence assignment and clearing should not reset viewport transforms unless the caller explicitly requests a reset.
+Presentation properties such as smoothing, mipmap request, mirror flags, background mode, background color, zoom, pan, fill mode, and alignment are viewport state. Sequence assignment and clearing must not reset viewport transforms unless the caller explicitly requests a reset.
 
-Transparent content should be inspectable through a deterministic background mode. A checkerboard background should affect only presentation behind the image and must not change image geometry, request state, or coordinate conversion.
+Transparent content is inspectable through a deterministic background mode. A checkerboard background affects only presentation behind the image and must not change image geometry, request state, or coordinate conversion.
 
 ## Non-Goals
 
