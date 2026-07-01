@@ -415,6 +415,7 @@ public:
     bool secondaryProviderTimedPlaybackSupported() const;
     bool secondaryProviderFrameSeekSupported() const;
     bool secondaryProviderPositionSeekSupported() const;
+    QSizeF secondaryProviderLogicalSize() const;
     int secondaryProviderFrameCount() const;
     int secondaryProviderTotalDuration() const;
     bool providerTimedMetadata() const;
@@ -454,7 +455,8 @@ public:
     ViewportProviderSessionOpenResult handleProviderSessionOpened(ImageViewport::PageRole role);
     ViewportProviderMetadataRequestStartResult handleSecondaryProviderSessionOpened();
     quint64 installProviderSession(ImageSequenceProviderSession* session);
-    quint64 installProviderSession(ImageViewport::PageRole role, ImageSequenceProviderSession* session);
+    quint64 installProviderSession(
+        ImageViewport::PageRole role, ImageSequenceProviderSession* session);
     ImageSequenceProviderSession* takeProviderSession();
     ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role);
     ImageSequenceProviderSession* currentProviderSession() const;

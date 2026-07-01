@@ -92,7 +92,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M5 Spread Geometry And Presentation Commands
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M5 makes the public geometry and presentation command model spread-aware for accepted primary/secondary roles, including secondary provider metadata when known; M6 remains responsible for making the render snapshot and scene graph present both role payloads atomically rather than only exposing their canonical geometry.
+- Verification: added presentation-state coverage for two-page spread placement, page gap, reading direction, role coordinate rejection in gaps and half-open edges, fit modes, effective zoom, pannability, clamped pan commands, and quarter-turn coordinate mapping; confirmed the focused `imageviewport_presentation_state`, neighboring public/still/render-scenegraph tests, full `just test`, and `git diff --check` pass.
 - Dependencies: M2.
 - Acceptance criteria: spread canvas is built from primary and optional secondary roles; `LeftToRight` and `RightToLeft` placement, explicit page gap, `Contain`, `FitWidth`, `FitHeight`, `Manual`, physical-pixel-aware `zoomPercent`, content position, maximum content position, pannability, visible spread/page rectangles, page/item rectangles, scan commands, pan commands, mirror, quarter-turn rotation, and reset view match the documented public behavior; helpers reject half-open right/bottom edges and non-presentable geometry.
 - Relevant references: [ImageViewport Behavior](spec/image-viewport.md), [ImageViewport API](spec/image-viewport-api.md), [Rendering](architecture/rendering.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).

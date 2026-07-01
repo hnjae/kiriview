@@ -202,6 +202,7 @@ public:
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
     QSizeF currentImageSize() const;
+    QSizeF secondaryLogicalSize() const;
 
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
@@ -220,10 +221,10 @@ public:
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const override;
     void startProviderMetadataRequest();
-    void applyProviderMetadataTransportEffect(const ViewportProviderMetadataTransportEffect& effect,
-        PageRole role = PageRole::Primary);
-    void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect,
-        PageRole role = PageRole::Primary);
+    void applyProviderMetadataTransportEffect(
+        const ViewportProviderMetadataTransportEffect& effect, PageRole role = PageRole::Primary);
+    void applyProviderFrameTransportEffect(
+        const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);

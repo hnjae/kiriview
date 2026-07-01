@@ -22,6 +22,10 @@ private slots:
     void qualityPresentationDoesNotChangeRequestGeometryOrPlayback();
     void loopingDoesNotChangeRequestDisplayOrGeometry();
     void presentationChangesNotifyGeometryState();
+    void twoPageSpreadGeometryUsesDirectionAndGap();
+    void spreadCoordinateHelpersRejectGapAndEdges();
+    void fitModesExposeZoomAndPannability();
+    void rotationAffectsSpreadMapping();
 };
 
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
@@ -356,6 +360,180 @@ void ImageViewportPresentationStateTest::presentationChangesNotifyGeometryState(
 
     item.setMirrorHorizontally(true);
     QCOMPARE(geometrySpy.count(), 4);
+}
+
+void ImageViewportPresentationStateTest::twoPageSpreadGeometryUsesDirectionAndGap()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("displayedSpreadSize").toSizeF(), QSizeF(40.0, 20.0));
+    QCOMPARE(item.property("primaryDisplayedImageSize").toSizeF(), QSizeF(10.0, 20.0));
+    QCOMPARE(item.property("secondaryDisplayedImageSize").toSizeF(), QSizeF(30.0, 20.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 88.0, 44.0));
+    QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
+    QCOMPARE(item.property("secondaryPageRect").toRectF(), QRectF(10.0, 0.0, 30.0, 20.0));
+    QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 0.0, 22.0, 44.0));
+    QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(22.0, 0.0, 66.0, 44.0));
+    QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF(0.0, 0.0, 40.0, 20.0));
+    QCOMPARE(item.property("visiblePrimaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
+    QCOMPARE(item.property("visibleSecondaryPageRect").toRectF(), QRectF(0.0, 0.0, 30.0, 20.0));
+
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("displayedSpreadSize").toSizeF(), QSizeF(44.0, 20.0));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 2.0, 88.0, 40.0));
+    QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
+    QCOMPARE(item.property("secondaryPageRect").toRectF(), QRectF(14.0, 0.0, 30.0, 20.0));
+    QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 2.0, 20.0, 40.0));
+    QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(28.0, 2.0, 60.0, 40.0));
+
+    QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF(34.0, 0.0, 10.0, 20.0));
+    QCOMPARE(item.property("secondaryPageRect").toRectF(), QRectF(0.0, 0.0, 30.0, 20.0));
+    QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(68.0, 2.0, 20.0, 40.0));
+    QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(0.0, 2.0, 60.0, 40.0));
+}
+
+void ImageViewportPresentationStateTest::spreadCoordinateHelpersRejectGapAndEdges()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+
+    const QVariantMap gapSpreadPoint = item.itemToSpread(22.0, 22.0);
+    QCOMPARE(gapSpreadPoint.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(gapSpreadPoint.value(QStringLiteral("x")).toDouble(), 11.0);
+    QCOMPARE(gapSpreadPoint.value(QStringLiteral("y")).toDouble(), 10.0);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 22.0, 22.0)
+                 .value(QStringLiteral("valid"))
+                 .toBool(),
+        false);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Secondary, 22.0, 22.0)
+                 .value(QStringLiteral("valid"))
+                 .toBool(),
+        false);
+
+    const QVariantMap primaryPoint = item.itemToPage(ImageViewport::PageRole::Primary, 19.0, 22.0);
+    QCOMPARE(primaryPoint.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(primaryPoint.value(QStringLiteral("x")).toDouble(), 9.5);
+    QCOMPARE(primaryPoint.value(QStringLiteral("y")).toDouble(), 10.0);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 20.0, 22.0)
+                 .value(QStringLiteral("valid"))
+                 .toBool(),
+        false);
+
+    const QVariantMap secondaryOrigin
+        = item.pageToItem(ImageViewport::PageRole::Secondary, 0.0, 0.0);
+    QCOMPARE(secondaryOrigin.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(secondaryOrigin.value(QStringLiteral("x")).toDouble(), 28.0);
+    QCOMPARE(secondaryOrigin.value(QStringLiteral("y")).toDouble(), 2.0);
+    QCOMPARE(item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0)
+                 .value(QStringLiteral("valid"))
+                 .toBool(),
+        false);
+}
+
+void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(80.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 30.0, 80.0, 40.0));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 500.0);
+    QCOMPARE(item.property("horizontalPannable").toBool(), false);
+    QCOMPARE(item.property("verticalPannable").toBool(), false);
+
+    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-60.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 1250.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF(60.0, 0.0));
+    QCOMPARE(item.property("maximumContentPosition").toPointF(), QPointF(120.0, 0.0));
+    QCOMPARE(item.property("horizontalPannable").toBool(), true);
+    QCOMPARE(item.property("verticalPannable").toBool(), false);
+
+    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-120.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF(120.0, 0.0));
+
+    QCOMPARE(item.panBy(QPointF(-500.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF(0.0, 0.0));
+
+    QCOMPARE(
+        item.setZoomPercent(200.0, QPointF(40.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(item.metaObject(), "FitMode", "Manual"));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(24.0, 42.0, 32.0, 16.0));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 200.0);
+}
+
+void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
+{
+    ImageSequenceFactory factory;
+    QImage image(10, 20, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(item.property("rotationDegrees").toInt(), 90);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
+    QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
+
+    const QVariantMap center = item.itemToSpread(50.0, 50.0);
+    QCOMPARE(center.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(center.value(QStringLiteral("x")).toDouble(), 5.0);
+    QCOMPARE(center.value(QStringLiteral("y")).toDouble(), 10.0);
+
+    const QVariantMap imageCenter = item.itemToImage(50.0, 50.0);
+    QCOMPARE(imageCenter.value(QStringLiteral("valid")).toBool(), true);
+    QCOMPARE(imageCenter.value(QStringLiteral("x")).toDouble(), 5.0);
+    QCOMPARE(imageCenter.value(QStringLiteral("y")).toDouble(), 10.0);
+    verifyInvalidCoordinateResult(item.spreadToItem(10.0, 10.0));
 }
 
 QTEST_MAIN(ImageViewportPresentationStateTest)

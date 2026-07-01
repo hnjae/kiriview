@@ -1,6 +1,7 @@
 #include "imagesequenceownership_p.h"
 #include "imageviewport_p.h"
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -8,6 +9,11 @@
 using namespace ImageViewportInternal;
 
 namespace {
+bool isPositiveSize(QSizeF size)
+{
+    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+}
+
 void mergeControllerChanges(ViewportChangeSet& target, ViewportChangeSet source)
 {
     target.requestState = target.requestState || source.requestState;
@@ -169,8 +175,8 @@ bool updateMirrorTransition(const QVariant& value, NormalizedPageSetTransitionPo
     switch (static_cast<PageSetTransitionPolicy::MirrorTransition>(numericValue)) {
     case PageSetTransitionPolicy::MirrorTransition::Preserve:
     case PageSetTransitionPolicy::MirrorTransition::Reset:
-        policy.mirrorTransition = static_cast<PageSetTransitionPolicy::MirrorTransition>(
-            numericValue);
+        policy.mirrorTransition
+            = static_cast<PageSetTransitionPolicy::MirrorTransition>(numericValue);
         return true;
     }
 
@@ -211,8 +217,7 @@ bool updateExplicitFitMode(const QVariant& value, NormalizedPageSetTransitionPol
     return true;
 }
 
-bool updateExplicitSpreadDirection(
-    const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
+bool updateExplicitSpreadDirection(const QVariant& value, NormalizedPageSetTransitionPolicy& policy)
 {
     int numericValue = 0;
     if (!enumIntValue(value, numericValue)) {
@@ -330,8 +335,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     ViewportSequenceAssignmentResult result
         = controller.assignSequence({ sequence, std::move(sequenceOwner) });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
-    applyProviderFrameTransportEffect(
-        result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
         mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(
@@ -440,7 +444,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupportForSequ
     }
     if (sequence->m_hasCompleteProviderKnownMetadata) {
         return providerResolvedCapability(sequence->m_providerTimedPlaybackCapability,
-            sequence->m_providerKnownFacts.isTimedFrameList())
+                   sequence->m_providerKnownFacts.isTimedFrameList())
             ? TriState::True
             : TriState::False;
     }
@@ -486,7 +490,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupportForSeque
     }
     if (sequence->m_hasCompleteProviderKnownMetadata) {
         return providerResolvedCapability(sequence->m_providerPositionSeekCapability,
-            sequence->m_providerKnownFacts.isTimedFrameList())
+                   sequence->m_providerKnownFacts.isTimedFrameList())
             ? TriState::True
             : TriState::False;
     }
@@ -677,8 +681,9 @@ int ImageViewportPrivate::secondaryFrameCount() const
 {
     ImageSequence* sequence = secondarySequence();
     if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
-        return controller.secondaryProviderTimedMetadata() ? controller.secondaryProviderFrameCount()
-                                                          : 1;
+        return controller.secondaryProviderTimedMetadata()
+            ? controller.secondaryProviderFrameCount()
+            : 1;
     }
     return frameCountForSequence(secondarySequence());
 }
@@ -793,7 +798,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::secondaryTimedPlaybackSuppo
     ImageSequence* sequence = secondarySequence();
     if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
         return controller.secondaryProviderTimedPlaybackSupported() ? TriState::True
-                                                                   : TriState::False;
+                                                                    : TriState::False;
     }
     return timedPlaybackSupportForSequence(secondarySequence());
 }
@@ -807,8 +812,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::secondaryFrameSeekSupport()
 {
     ImageSequence* sequence = secondarySequence();
     if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
-        return controller.secondaryProviderFrameSeekSupported() ? TriState::True
-                                                               : TriState::False;
+        return controller.secondaryProviderFrameSeekSupported() ? TriState::True : TriState::False;
     }
     return frameSeekSupportForSequence(secondarySequence());
 }
@@ -823,7 +827,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::secondaryPositionSeekSuppor
     ImageSequence* sequence = secondarySequence();
     if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
         return controller.secondaryProviderPositionSeekSupported() ? TriState::True
-                                                                  : TriState::False;
+                                                                   : TriState::False;
     }
     return positionSeekSupportForSequence(secondarySequence());
 }
@@ -837,11 +841,49 @@ QSizeF ImageViewportPrivate::displayedImageSize() const
     return QSizeF(0.0, 0.0);
 }
 
-QSizeF ImageViewportPrivate::displayedSpreadSize() const { return displayedImageSize(); }
+QSizeF ImageViewportPrivate::displayedSpreadSize() const
+{
+    const QSizeF primarySize = primaryDisplayedImageSize();
+    if (!isPositiveSize(primarySize)) {
+        return QSizeF(0.0, 0.0);
+    }
+
+    const QSizeF secondarySize = secondaryDisplayedImageSize();
+    if (!isPositiveSize(secondarySize)) {
+        return primarySize;
+    }
+
+    return QSizeF(primarySize.width() + presentation.pageGap + secondarySize.width(),
+        std::max(primarySize.height(), secondarySize.height()));
+}
 
 QSizeF ImageViewportPrivate::primaryDisplayedImageSize() const { return displayedImageSize(); }
 
-QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const { return QSizeF(0.0, 0.0); }
+QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const
+{
+    if (!hasReadyDisplay()) {
+        return QSizeF(0.0, 0.0);
+    }
+
+    const QSizeF size = secondaryLogicalSize();
+    return isPositiveSize(size) ? size : QSizeF(0.0, 0.0);
+}
+
+QSizeF ImageViewportPrivate::secondaryLogicalSize() const
+{
+    ImageSequence* sequence = secondarySequence();
+    if (!sequence || !sequence->isValid()) {
+        return {};
+    }
+    if (sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        return controller.secondaryProviderLogicalSize();
+    }
+    if (!sequence->isProvider()) {
+        return sequence->logicalSize();
+    }
+
+    return {};
+}
 
 uint ImageViewportPrivate::displayRevision() const { return controller.displayState().revision; }
 
@@ -932,14 +974,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
 
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
-    ViewportSequenceAssignmentResult result = controller.assignSequence({ primarySequence,
-        std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
-        transitionPolicy->displayTransition
-            == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
-        secondarySequence && secondarySequence->isProvider() });
+    ViewportSequenceAssignmentResult result = controller.assignSequence(
+        { primarySequence, std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
+            transitionPolicy->displayTransition
+                == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
+            secondarySequence && secondarySequence->isProvider() });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
-    applyProviderFrameTransportEffect(
-        result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
         mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(

@@ -1161,6 +1161,11 @@ bool ViewportController::secondaryProviderPositionSeekSupported() const
 
 QSizeF ViewportController::providerLogicalSize() const { return state.provider.logicalSize; }
 
+QSizeF ViewportController::secondaryProviderLogicalSize() const
+{
+    return state.secondaryProvider.logicalSize;
+}
+
 int ViewportController::providerFrameCount() const
 {
     return state.provider.timedMetadata ? state.provider.timingIntervals.frameCount() : 1;
@@ -1168,8 +1173,9 @@ int ViewportController::providerFrameCount() const
 
 int ViewportController::secondaryProviderFrameCount() const
 {
-    return state.secondaryProvider.timedMetadata ? state.secondaryProvider.timingIntervals.frameCount()
-                                                : 1;
+    return state.secondaryProvider.timedMetadata
+        ? state.secondaryProvider.timingIntervals.frameCount()
+        : 1;
 }
 
 int ViewportController::providerTotalDuration() const
@@ -1237,16 +1243,14 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
 
-    ImageSequence* secondarySequence
-        = assignment.sequence ? assignment.secondarySequence : nullptr;
+    ImageSequence* secondarySequence = assignment.sequence ? assignment.secondarySequence : nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner
         = assignment.sequence ? std::move(assignment.secondarySequenceOwner) : nullptr;
 
     viewportRequestState(viewport).sequence = assignment.sequence;
     viewportRequestState(viewport).sequenceOwner = std::move(assignment.sequenceOwner);
     viewportRequestState(viewport).secondarySequence = secondarySequence;
-    viewportRequestState(viewport).secondarySequenceOwner
-        = std::move(secondarySequenceOwner);
+    viewportRequestState(viewport).secondarySequenceOwner = std::move(secondarySequenceOwner);
     ++viewportRequestState(viewport).sequenceGeneration;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
@@ -1394,7 +1398,8 @@ ViewportCommandResult ViewportController::clear()
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     const bool sequenceValueChanged = viewportRequestState(viewport).sequence != nullptr
         || viewportRequestState(viewport).secondarySequence != nullptr;
-    const bool requestChanged = viewport.hasActiveRequest() || viewportRequestState(viewport).sequence
+    const bool requestChanged = viewport.hasActiveRequest()
+        || viewportRequestState(viewport).sequence
         || viewportRequestState(viewport).secondarySequence;
     const bool displayChanged
         = viewportDisplayState(viewport).status != ImageViewport::DisplayStatus::Empty
@@ -1948,7 +1953,8 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     return result;
 }
 
-ViewportProviderMetadataRequestStartResult ViewportController::handleSecondaryProviderSessionOpened()
+ViewportProviderMetadataRequestStartResult
+ViewportController::handleSecondaryProviderSessionOpened()
 {
     return startSecondaryProviderMetadataRequest();
 }
@@ -2615,10 +2621,12 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
     return result;
 }
 
-ViewportProviderMetadataRequestStartResult ViewportController::startSecondaryProviderMetadataRequest()
+ViewportProviderMetadataRequestStartResult
+ViewportController::startSecondaryProviderMetadataRequest()
 {
     ViewportProviderMetadataRequestStartResult result;
-    const ViewportProviderRequestTokenAllocation allocation = allocateSecondaryProviderRequestToken();
+    const ViewportProviderRequestTokenAllocation allocation
+        = allocateSecondaryProviderRequestToken();
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
     state.secondaryProvider.activeMetadataToken = allocation.token;
@@ -3202,8 +3210,9 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 {
-    const bool changed
-        = presentation.zoom != 1.0 || presentation.pan.x() != 0.0 || presentation.pan.y() != 0.0;
+    const bool changed = presentation.fitMode != FitMode::Contain || presentation.zoom != 1.0
+        || presentation.pan.x() != 0.0 || presentation.pan.y() != 0.0;
+    presentation.fitMode = FitMode::Contain;
     presentation.zoom = 1.0;
     presentation.pan = {};
     const ViewportCommandResult result = controller.resetView(
