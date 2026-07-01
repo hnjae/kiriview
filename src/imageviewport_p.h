@@ -260,6 +260,7 @@ public:
         PageRole role) const override;
     int providerFrameStartPosition(int frame) const override;
     int providerFrameIndexForPosition(int position) const override;
+    ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const override;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageSequenceProviderThreadingContract providerThreadingContract(PageRole role) const override;
     void incrementDisplayRevision();
@@ -286,6 +287,8 @@ public:
     int sequenceFrameCount() const override;
     int sequenceFrameIndexForPosition(int position) const override;
     int sequenceFrameStartPosition(int frame) const override;
+    ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const override;
+    ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const override;
     QSizeF sequenceLogicalSize() const override;
     QImage sequenceFrameImage(int frame) const override;
 

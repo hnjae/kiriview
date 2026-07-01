@@ -316,6 +316,9 @@ void ImageViewportPrivate::handleSecondaryProviderMetadataReady(
         metadata.positionSeekSupport(),
         admission.logicalSize,
         admission.timingIntervals,
+        metadata.hasAuthoredAnimationFacts()
+            ? metadata.authoredAnimationFacts()
+            : secondarySequence()->m_authoredAnimationFacts,
     };
     applyControllerChanges(controller.handleSecondaryProviderAcceptedMetadataFacts(metadataFacts));
     const ViewportProviderFrameRequestStartResult frameRequest
@@ -452,4 +455,16 @@ int ImageViewportPrivate::providerFrameStartPosition(int frame) const
 int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
 {
     return controller.providerFrameIndexForPosition(position);
+}
+
+ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::providerAuthoredAnimationFacts() const
+{
+    ImageSequence* sequence = this->sequence();
+    if (!sequence) {
+        return {};
+    }
+    if (controller.providerMetadataReady()) {
+        return controller.providerAuthoredAnimationFacts();
+    }
+    return sequence->m_authoredAnimationFacts;
 }

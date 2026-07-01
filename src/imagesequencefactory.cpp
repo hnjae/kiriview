@@ -104,7 +104,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
     }
 
     std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages()));
+        new ImageSequence(list->logicalSize(), list->frameDurations(), list->frameImages(),
+            list->authoredAnimationFacts()));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
@@ -134,6 +135,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
         = adapter->frameSeekCapability();
     const ImageSequenceProviderCapabilitySupport positionSeekCapability
         = adapter->positionSeekCapability();
+    const ImageSequenceAuthoredAnimationFacts authoredAnimationFacts
+        = adapter->authoredAnimationFacts();
     const ImageSequenceProviderThreadingContract threadingContract = adapter->threadingContract();
     if (knownMetadata.isSpecified()) {
         const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
@@ -184,7 +187,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
 
     std::shared_ptr<ImageSequence> sequence(
         new ImageSequence(std::move(sessionFactory), knownFacts, effectiveTimedPlaybackCapability,
-            effectiveFrameSeekCapability, effectivePositionSeekCapability, threadingContract));
+            effectiveFrameSeekCapability, effectivePositionSeekCapability, authoredAnimationFacts,
+            threadingContract));
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});

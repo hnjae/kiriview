@@ -117,6 +117,7 @@ struct ViewportProviderAcceptedMetadataFacts
     bool positionSeekSupport = false;
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
 };
 
 struct ViewportProviderWaitingEvent
@@ -341,16 +342,19 @@ public:
     virtual int providerKnownFactsFrameCount() const;
     virtual int providerFrameStartPosition(int frame) const;
     virtual int providerFrameIndexForPosition(int position) const;
+    virtual ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
     virtual int frameCount() const;
     virtual int totalDuration() const;
     virtual int sequenceFrameCount() const;
     virtual int sequenceFrameIndexForPosition(int position) const;
     virtual int sequenceFrameStartPosition(int frame) const;
+    virtual ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
     virtual bool hasSecondaryTimedSequence() const;
     virtual int secondarySequenceFrameCount() const;
     virtual int secondaryTotalDuration() const;
     virtual int secondarySequenceFrameIndexForPosition(int position) const;
     virtual int secondarySequenceFrameStartPosition(int frame) const;
+    virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
     virtual QSizeF sequenceLogicalSize() const;
     virtual QImage sequenceFrameImage(int frame) const;
     virtual double width() const;
@@ -394,16 +398,19 @@ public:
     int providerKnownFactsFrameCount() const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
+    ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
     int frameCount() const;
     int totalDuration() const;
     int sequenceFrameCount() const;
     int sequenceFrameIndexForPosition(int position) const;
     int sequenceFrameStartPosition(int frame) const;
+    ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
     bool hasSecondaryTimedSequence() const;
     int secondarySequenceFrameCount() const;
     int secondaryTotalDuration() const;
     int secondarySequenceFrameIndexForPosition(int position) const;
     int secondarySequenceFrameStartPosition(int frame) const;
+    ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
     QSizeF sequenceLogicalSize() const;
     QImage sequenceFrameImage(int frame) const;
     double width() const;
@@ -432,6 +439,7 @@ public:
     QSizeF secondaryProviderLogicalSize() const;
     int secondaryProviderFrameCount() const;
     int secondaryProviderTotalDuration() const;
+    ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
     bool providerTimedMetadata() const;
     bool providerTimedPlaybackSupported() const;
     bool providerFrameSeekSupported() const;

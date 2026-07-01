@@ -27,6 +27,9 @@ private slots:
     void timedFrameListSecondaryPauseStopNoopWhenPrimaryPlaying();
     void timedFrameListSecondaryStopRestoresRoleTarget();
     void timedFrameListSecondaryInvalidSeekUsesPresentRolePrecedence();
+    void timedFrameListAuthoredAutoplayStartsInitialPlayback();
+    void timedFrameListAuthoredInfiniteLoopControlsDefaultPlayback();
+    void timedFrameListAuthoredFiniteLoopStopsAfterFinalIteration();
     void timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest();
     void timedFrameListPlayCommandPreservesElapsedPosition();
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
@@ -720,6 +723,109 @@ void ImageViewportTimedTest::timedFrameListSecondaryInvalidSeekUsesPresentRolePr
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+}
+
+void ImageViewportTimedTest::timedFrameListAuthoredAutoplayStartsInitialPlayback()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 100));
+    ImageSequenceAuthoredAnimationFacts facts;
+    facts.setAutoplay(true);
+    list.setAuthoredAnimationFacts(facts);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    item.advancePlaybackForTest(100);
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+}
+
+void ImageViewportTimedTest::timedFrameListAuthoredInfiniteLoopControlsDefaultPlayback()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 100));
+    list.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::infiniteLoop());
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(200);
+
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+}
+
+void ImageViewportTimedTest::timedFrameListAuthoredFiniteLoopStopsAfterFinalIteration()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 100));
+    list.setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts::finiteLoop(2));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(200);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+
+    item.advancePlaybackForTest(200);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(item.property("displayedPosition").toInt(), 100);
 }
 
 void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPreservesRequest()

@@ -685,6 +685,19 @@ int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
     return sequence && sequence->isTimedList() ? sequence->frameStartPosition(frame) : -1;
 }
 
+ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::sequenceAuthoredAnimationFacts() const
+{
+    ImageSequence* sequence = controller.requestState().sequence;
+    return sequence ? sequence->m_authoredAnimationFacts : ImageSequenceAuthoredAnimationFacts {};
+}
+
+ImageSequenceAuthoredAnimationFacts
+ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_authoredAnimationFacts : ImageSequenceAuthoredAnimationFacts {};
+}
+
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
     if (hasProviderSequence() && controller.providerMetadataReady()) {

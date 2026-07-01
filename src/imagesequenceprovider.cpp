@@ -52,6 +52,11 @@ ImageSequenceProviderAdapter::positionSeekCapability() const
     return CapabilitySupport::Unavailable;
 }
 
+ImageSequenceAuthoredAnimationFacts ImageSequenceProviderAdapter::authoredAnimationFacts() const
+{
+    return {};
+}
+
 ImageSequenceProviderThreadingContract ImageSequenceProviderAdapter::threadingContract() const
 {
     return ImageSequenceProviderThreadingContract::AffinityBound;
@@ -261,6 +266,23 @@ bool ImageSequenceProviderMetadata::isTimedFrameList() const
 QSizeF ImageSequenceProviderMetadata::logicalSize() const { return m_logicalSize; }
 
 QVector<int> ImageSequenceProviderMetadata::frameDurations() const { return m_frameDurations; }
+
+bool ImageSequenceProviderMetadata::hasAuthoredAnimationFacts() const
+{
+    return m_hasAuthoredAnimationFacts;
+}
+
+ImageSequenceAuthoredAnimationFacts ImageSequenceProviderMetadata::authoredAnimationFacts() const
+{
+    return m_authoredAnimationFacts;
+}
+
+void ImageSequenceProviderMetadata::setAuthoredAnimationFacts(
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
+{
+    m_hasAuthoredAnimationFacts = true;
+    m_authoredAnimationFacts = authoredAnimationFacts;
+}
 
 void ImageSequenceProviderMetadata::setTimedPlaybackSupport(bool supported)
 {

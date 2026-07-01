@@ -35,6 +35,42 @@ enum class ImageSequenceProviderCapabilitySupport {
     KnownTrue,
 };
 
+class ImageSequenceAuthoredAnimationFacts
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageSequenceAuthoredAnimationFacts)
+    Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
+    Q_PROPERTY(bool progressiveAnimationReadiness READ progressiveAnimationReadiness CONSTANT)
+    Q_PROPERTY(LoopMode loopMode READ loopMode CONSTANT)
+    Q_PROPERTY(int loopCount READ loopCount CONSTANT)
+
+public:
+    enum class LoopMode {
+        PlayOnce,
+        Finite,
+        Infinite,
+    };
+    Q_ENUM(LoopMode)
+
+    ImageSequenceAuthoredAnimationFacts() = default;
+    static ImageSequenceAuthoredAnimationFacts finiteLoop(int loopCount);
+    static ImageSequenceAuthoredAnimationFacts infiniteLoop();
+
+    bool autoplay() const;
+    void setAutoplay(bool autoplay);
+    bool progressiveAnimationReadiness() const;
+    void setProgressiveAnimationReadiness(bool progressiveAnimationReadiness);
+    LoopMode loopMode() const;
+    int loopCount() const;
+    bool setFiniteLoopCount(int loopCount);
+
+private:
+    bool m_autoplay = false;
+    bool m_progressiveAnimationReadiness = false;
+    LoopMode m_loopMode = LoopMode::PlayOnce;
+    int m_loopCount = 1;
+};
+
 class ImageSequenceProviderKnownFacts
 {
 public:
@@ -90,13 +126,15 @@ private:
     explicit ImageSequence(QObject* parent = nullptr);
     explicit ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent = nullptr);
     explicit ImageSequence(QSizeF logicalSize, const QVector<int>& frameDurations,
-        QVector<QImage> frameImages, QObject* parent = nullptr);
+        QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+        QObject* parent = nullptr);
     explicit ImageSequence(
         std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
         ImageSequenceProviderKnownFacts providerKnownFacts,
         ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
         ImageSequenceProviderCapabilitySupport frameSeekCapability,
         ImageSequenceProviderCapabilitySupport positionSeekCapability,
+        ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
         ImageSequenceProviderThreadingContract providerThreadingContract,
         QObject* parent = nullptr);
 
@@ -123,6 +161,7 @@ private:
     QImage m_stillImage;
     std::shared_ptr<const TimingIntervals> m_timingIntervals;
     QVector<QImage> m_frameImages;
+    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
     ImageSequenceProviderKnownFacts m_providerKnownFacts;
     bool m_hasProviderKnownMetadata = false;
@@ -239,6 +278,8 @@ public:
     int count() const;
     QString errorString() const;
     QString warningString() const;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
+    void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     bool appendFrame(const QImage& image, int durationMilliseconds);
     Q_INVOKABLE bool appendFrame(ImageFrame* frame, int durationMilliseconds);
     Q_INVOKABLE void clear();
@@ -258,6 +299,7 @@ private:
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     QVector<QImage> m_frameImages;
+    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     QString m_errorString;
     QString m_warningString;
 
@@ -280,6 +322,7 @@ public:
     virtual CapabilitySupport timedPlaybackCapability() const;
     virtual CapabilitySupport frameSeekCapability() const;
     virtual CapabilitySupport positionSeekCapability() const;
+    virtual ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
     virtual ImageSequenceProviderThreadingContract threadingContract() const;
 };
 
@@ -331,6 +374,9 @@ public:
     bool isTimedFrameList() const;
     QSizeF logicalSize() const;
     QVector<int> frameDurations() const;
+    bool hasAuthoredAnimationFacts() const;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
+    void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     void setTimedPlaybackSupport(bool supported);
     void setFrameSeekSupport(bool supported);
     void setPositionSeekSupport(bool supported);
@@ -342,6 +388,8 @@ private:
     TimingModel m_timingModel = TimingModel::Invalid;
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
+    bool m_hasAuthoredAnimationFacts = false;
+    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     std::optional<bool> m_timedPlaybackSupport;
     std::optional<bool> m_frameSeekSupport;
     std::optional<bool> m_positionSeekSupport;
@@ -1079,6 +1127,7 @@ private:
 };
 
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
+Q_DECLARE_METATYPE(ImageSequenceAuthoredAnimationFacts)
 Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
 Q_DECLARE_METATYPE(ImageSequenceProviderFrameMetadata)
 Q_DECLARE_METATYPE(ImageViewportRange)

@@ -33,6 +33,57 @@ QImage normalizedImageForOrientation(
 }
 }
 
+ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::finiteLoop(int loopCount)
+{
+    ImageSequenceAuthoredAnimationFacts facts;
+    facts.setFiniteLoopCount(loopCount);
+    return facts;
+}
+
+ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::infiniteLoop()
+{
+    ImageSequenceAuthoredAnimationFacts facts;
+    facts.m_loopMode = LoopMode::Infinite;
+    facts.m_loopCount = -1;
+    return facts;
+}
+
+bool ImageSequenceAuthoredAnimationFacts::autoplay() const { return m_autoplay; }
+
+void ImageSequenceAuthoredAnimationFacts::setAutoplay(bool autoplay)
+{
+    m_autoplay = autoplay;
+}
+
+bool ImageSequenceAuthoredAnimationFacts::progressiveAnimationReadiness() const
+{
+    return m_progressiveAnimationReadiness;
+}
+
+void ImageSequenceAuthoredAnimationFacts::setProgressiveAnimationReadiness(
+    bool progressiveAnimationReadiness)
+{
+    m_progressiveAnimationReadiness = progressiveAnimationReadiness;
+}
+
+ImageSequenceAuthoredAnimationFacts::LoopMode ImageSequenceAuthoredAnimationFacts::loopMode() const
+{
+    return m_loopMode;
+}
+
+int ImageSequenceAuthoredAnimationFacts::loopCount() const { return m_loopCount; }
+
+bool ImageSequenceAuthoredAnimationFacts::setFiniteLoopCount(int loopCount)
+{
+    if (loopCount < 1) {
+        return false;
+    }
+
+    m_loopMode = LoopMode::Finite;
+    m_loopCount = loopCount;
+    return true;
+}
+
 ImageSequence::ImageSequence(QObject* parent)
     : QObject(parent)
 {
@@ -48,13 +99,14 @@ ImageSequence::ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* par
 
 ImageSequence::ImageSequence(
     QSizeF logicalSize, const QVector<int>& frameDurations, QVector<QImage> frameImages,
-    QObject* parent)
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::TimedList)
     , m_logicalSize(logicalSize)
     , m_timingIntervals(
           std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations)))
     , m_frameImages(std::move(frameImages))
+    , m_authoredAnimationFacts(authoredAnimationFacts)
 {
 }
 
@@ -64,9 +116,11 @@ ImageSequence::ImageSequence(
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
     ImageSequenceProviderCapabilitySupport positionSeekCapability,
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
     ImageSequenceProviderThreadingContract providerThreadingContract, QObject* parent)
     : QObject(parent)
     , m_timingModel(TimingModel::Provider)
+    , m_authoredAnimationFacts(authoredAnimationFacts)
     , m_providerSessionFactory(std::move(providerSessionFactory))
     , m_providerKnownFacts(std::move(providerKnownFacts))
     , m_hasProviderKnownMetadata(m_providerKnownFacts.isSpecified())
@@ -263,6 +317,17 @@ int TimedImageFrameList::count() const { return m_frameDurations.size(); }
 QString TimedImageFrameList::errorString() const { return m_errorString; }
 
 QString TimedImageFrameList::warningString() const { return m_warningString; }
+
+ImageSequenceAuthoredAnimationFacts TimedImageFrameList::authoredAnimationFacts() const
+{
+    return m_authoredAnimationFacts;
+}
+
+void TimedImageFrameList::setAuthoredAnimationFacts(
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
+{
+    m_authoredAnimationFacts = authoredAnimationFacts;
+}
 
 bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseconds)
 {

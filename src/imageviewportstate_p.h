@@ -249,6 +249,7 @@ struct RequestState
         secondaryLatestNonPlaybackRequest = {};
         playbackPosition = -1;
         playbackRole = ImageViewport::PageRole::Primary;
+        playbackLoopIterationsCompleted = 0;
     }
 
     void beginDisplayRequest(DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
@@ -334,6 +335,7 @@ struct RequestState
     ImageViewport::PageRole playbackRole = ImageViewport::PageRole::Primary;
     DisplayRequest latestNonPlaybackRequest;
     DisplayRequest secondaryLatestNonPlaybackRequest;
+    int playbackLoopIterationsCompleted = 0;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     uint requestRevision = 0;
@@ -362,6 +364,7 @@ struct ProviderGenerationState
     bool timedPlaybackSupport = false;
     bool frameSeekSupport = false;
     bool positionSeekSupport = false;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
 };
