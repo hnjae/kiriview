@@ -157,35 +157,8 @@ void ImageViewportPrivate::startProviderMetadataRequest()
             result.sessionClose.metadataToken, result.sessionClose.frameToken);
     }
     if (result.sendCommand) {
-        requestProviderMetadata(result.token);
+        providerBridge.requestMetadata(result.token);
     }
-}
-
-void ImageViewportPrivate::requestProviderMetadata(ImageSequenceProviderRequestToken token)
-{
-    providerBridge.requestMetadata(token);
-}
-
-void ImageViewportPrivate::requestProviderFrame(ImageSequenceProviderRequestToken token, int frame)
-{
-    providerBridge.requestFrame(token, frame);
-}
-
-void ImageViewportPrivate::requestProviderPosition(
-    ImageSequenceProviderRequestToken token, int frame, int position)
-{
-    providerBridge.requestPosition(token, frame, position);
-}
-
-void ImageViewportPrivate::requestProviderPlayback(
-    ImageSequenceProviderRequestToken token, int frame, int position)
-{
-    providerBridge.requestPlayback(token, frame, position);
-}
-
-void ImageViewportPrivate::cancelProviderRequest(ImageSequenceProviderRequestToken token)
-{
-    providerBridge.cancelRequest(token);
 }
 
 void ImageViewportPrivate::applyProviderMetadataTransportEffect(
@@ -196,7 +169,7 @@ void ImageViewportPrivate::applyProviderMetadataTransportEffect(
             effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
     }
     if (effect.sendCommand) {
-        requestProviderMetadata(effect.token);
+        providerBridge.requestMetadata(effect.token);
     }
 }
 
@@ -204,7 +177,7 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     const ViewportProviderFrameTransportEffect& effect)
 {
     if (effect.cancelToken.isValid()) {
-        cancelProviderRequest(effect.cancelToken);
+        providerBridge.cancelRequest(effect.cancelToken);
     }
     if (effect.scheduleFlush) {
         QMetaObject::invokeMethod(
@@ -218,13 +191,13 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
         return;
     }
     if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
-        requestProviderPlayback(
+        providerBridge.requestPlayback(
             effect.command.token, effect.command.frame, effect.command.position);
     } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
-        requestProviderPosition(
+        providerBridge.requestPosition(
             effect.command.token, effect.command.frame, effect.command.position);
     } else {
-        requestProviderFrame(effect.command.token, effect.command.frame);
+        providerBridge.requestFrame(effect.command.token, effect.command.frame);
     }
 }
 

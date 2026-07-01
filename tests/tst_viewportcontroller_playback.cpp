@@ -1,5 +1,7 @@
-#include "imageviewport_test_support.h"
+#include "imageviewport.h"
 #include "viewportcontroller_p.h"
+
+#include <QtTest/QTest>
 
 #include <memory>
 
@@ -115,6 +117,12 @@ std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
 class ViewportControllerPlaybackTest : public QObject
 {
     Q_OBJECT
+
+public:
+    explicit ViewportControllerPlaybackTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
 
 private slots:
     void builtInPlaybackAdvanceUsesExplicitElapsedWithoutTimer();

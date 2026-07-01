@@ -1,14 +1,19 @@
-add_library(imageviewport_test_support INTERFACE)
+add_library(imageviewport_core_test_support INTERFACE)
 
 if(NOT IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES)
     message(FATAL_ERROR "IMAGEVIEWPORT_BUILD_TESTS requires IMAGE_VIEWPORT_ENABLE_PRIVATE_TEST_PROBES")
 endif()
 
-target_link_libraries(imageviewport_test_support INTERFACE ImageViewport ImageViewportplugin
-                                                           Qt6::Qml Qt6::Quick Qt6::Test)
+target_link_libraries(imageviewport_core_test_support INTERFACE ImageViewport Qt6::Test)
 
-target_include_directories(imageviewport_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
-                                                                ${OPENGL_INCLUDE_DIR})
+target_include_directories(imageviewport_core_test_support
+                           INTERFACE ${CMAKE_CURRENT_SOURCE_DIR} ${OPENGL_INCLUDE_DIR})
+
+add_library(imageviewport_test_support INTERFACE)
+
+target_link_libraries(imageviewport_test_support
+                      INTERFACE imageviewport_core_test_support ImageViewportplugin Qt6::Qml
+                                Qt6::Quick)
 
 target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
@@ -32,7 +37,15 @@ target_compile_definitions(
 # - playback waiting:
 #   imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata.
 
-# Add a Qt test executable with shared ImageViewport test wiring.
+# Add a Qt test executable without private probe declarations.
+function(add_imageviewport_core_qt_test target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE imageviewport_core_test_support)
+    add_test(NAME ${target} COMMAND ${target})
+    set_tests_properties(${target} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endfunction()
+
+# Add a Qt test executable with private probe declarations and QML plugin imports.
 function(add_imageviewport_qt_test target source)
     add_executable(${target} ${source})
     target_link_libraries(${target} PRIVATE imageviewport_test_support)
@@ -43,9 +56,9 @@ endfunction()
 
 add_imageviewport_qt_test(imageviewport_public_api tst_imageviewport_public_api.cpp)
 add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
-add_imageviewport_qt_test(playback_clock tst_playback_clock.cpp)
-add_imageviewport_qt_test(playback_timeline tst_playback_timeline.cpp)
-add_imageviewport_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
+add_imageviewport_core_qt_test(playback_clock tst_playback_clock.cpp)
+add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)
+add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
 add_imageviewport_qt_test(imageviewport_still tst_imageviewport_still.cpp)
 add_imageviewport_qt_test(imageviewport_timed tst_imageviewport_timed.cpp)
 add_imageviewport_qt_test(imageviewport_provider_contract tst_imageviewport_provider_contract.cpp)

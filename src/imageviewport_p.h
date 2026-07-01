@@ -136,11 +136,6 @@ public:
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const override;
     void startProviderMetadataRequest();
-    void requestProviderMetadata(ImageSequenceProviderRequestToken token);
-    void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
-    void requestProviderPosition(ImageSequenceProviderRequestToken token, int frame, int position);
-    void requestProviderPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
-    void cancelProviderRequest(ImageSequenceProviderRequestToken token);
     void applyProviderMetadataTransportEffect(
         const ViewportProviderMetadataTransportEffect& effect);
     void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect);

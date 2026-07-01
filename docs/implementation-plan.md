@@ -103,7 +103,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M6: Boundary Cleanup and Feature Modularity Gate
 
-- Status: Not started.
+- Status: Completed 2026-07-01.
 - Priority: P2.
 - Goal: Remove incomplete wrapper patterns after ownership has moved, then verify provider, render, preparation, playback, and item adapter boundaries are independently replaceable.
 - Dependencies: M1 through M5.
@@ -112,6 +112,7 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: Dead forwarding methods, compatibility aliases that no longer serve installed APIs, private probes, item-private adapter methods, provider bridge client surface, controller transition API, test scaffolding.
 - Acceptance criteria: `ViewportController` exposes non-delegating transition/event methods; `ViewportProviderBridge` communicates through typed transport events/effects only; `FramePreparation` returns admission/prepared-payload results rather than boolean-style helper outcomes; render adapter replacement does not require edits to command or playback logic; provider-backed support is isolated behind provider-event and provider-command effect interfaces; QML notification emission remains in `ImageViewportPrivate`; private probe compilation is no longer required for core controller coverage.
 - Expected tests/checks: Full CI lint and test suite; targeted compile check without private probe-only controller behavior dependencies if the build supports it; provider-disabled or fake-provider controller tests; render adapter fake tests plus real render smoke tests.
+- Completion evidence: Re-read the M6 spec and architecture references, split test support into probe-free core wiring and probe-enabled item/QML wiring, moved `playback_clock`, `playback_timeline`, and `viewportcontroller_playback` to the probe-free target, and verified their compile commands do not define `IMAGEVIEWPORT_PRIVATE_TEST_PROBES`. Removed item-private provider command forwarding wrappers so provider transport effects call the bridge directly while controller-owned provider effects still drive all dispatch, cancellation, and close decisions. Verified focused playback/controller/provider request tests, plus full `devenv shell -- just test` and `devenv shell -- just lint`.
 - Stop conditions: Stop if cleanup removes supported compatibility provider APIs, changes public API names/defaults, introduces native texture/tiled/region/progress/color-management behavior, or collapses retained display semantics; stop if broad file moves obscure ownership changes without reducing coupling.
 
 ## Global Dependencies
