@@ -80,7 +80,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M4 Role-Scoped Provider And Request Pipeline
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M4 establishes role-local provider session ownership, token-scoped secondary metadata startup, and secondary runtime metadata observations; M6 remains responsible for full secondary frame payload/render synchronization and complete-spread ready commits, while M7 owns role-scoped playback drivers.
+- Verification: added public API coverage for secondary provider session startup and metadata observation projection, confirmed the focused `imageviewport_public_api` test passes, ran `just test`, and ran `git diff --check`.
 - Dependencies: M2, M3.
 - Acceptance criteria: each accepted role has independent generation/session/token/request state; provider sessions are role-local; metadata, frame, waiting, unsupported, cancellation, failure, and end-of-sequence events are validated against role, session, generation, and token identity; spread request status aggregates required role waits and terminal failures; stale provider/preparation/render results cannot mutate newer page sets or roles.
 - Relevant references: [ImageSequence Provider Adapter](spec/image-sequence-provider-adapter.md), [Provider Protocol](architecture/provider-protocol.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).

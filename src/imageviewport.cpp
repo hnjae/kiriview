@@ -330,6 +330,8 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     ViewportSequenceAssignmentResult result
         = controller.assignSequence({ sequence, std::move(sequenceOwner) });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
         mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(
@@ -673,6 +675,11 @@ int ImageViewportPrivate::primaryFrameCount() const { return frameCount(); }
 
 int ImageViewportPrivate::secondaryFrameCount() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        return controller.secondaryProviderTimedMetadata() ? controller.secondaryProviderFrameCount()
+                                                          : 1;
+    }
     return frameCountForSequence(secondarySequence());
 }
 
@@ -680,6 +687,10 @@ int ImageViewportPrivate::primaryTotalDuration() const { return totalDuration();
 
 int ImageViewportPrivate::secondaryTotalDuration() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderTimedMetadata()) {
+        return controller.secondaryProviderTotalDuration();
+    }
     return totalDurationForSequence(secondarySequence());
 }
 
@@ -687,6 +698,19 @@ QVariantMap ImageViewportPrivate::primaryFrameSeekBounds() const { return frameS
 
 QVariantMap ImageViewportPrivate::secondaryFrameSeekBounds() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        if (!controller.secondaryProviderFrameSeekSupported()) {
+            return invalidRange();
+        }
+        return {
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"),
+                controller.secondaryProviderTimedMetadata()
+                    ? controller.secondaryProviderFrameCount() - 1
+                    : 0 },
+        };
+    }
     return frameSeekBoundsForSequence(secondarySequence());
 }
 
@@ -694,6 +718,14 @@ QVariantMap ImageViewportPrivate::primaryPositionSeekBounds() const { return pos
 
 QVariantMap ImageViewportPrivate::secondaryPositionSeekBounds() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderTimedMetadata()
+        && controller.secondaryProviderPositionSeekSupported()) {
+        return {
+            { QStringLiteral("minimum"), 0 },
+            { QStringLiteral("maximum"), controller.secondaryProviderTotalDuration() },
+        };
+    }
     return positionSeekBoundsForSequence(secondarySequence());
 }
 
@@ -758,6 +790,11 @@ ImageViewportPrivate::TriState ImageViewportPrivate::primaryTimedPlaybackSupport
 
 ImageViewportPrivate::TriState ImageViewportPrivate::secondaryTimedPlaybackSupport() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        return controller.secondaryProviderTimedPlaybackSupported() ? TriState::True
+                                                                   : TriState::False;
+    }
     return timedPlaybackSupportForSequence(secondarySequence());
 }
 
@@ -768,6 +805,11 @@ ImageViewportPrivate::TriState ImageViewportPrivate::primaryFrameSeekSupport() c
 
 ImageViewportPrivate::TriState ImageViewportPrivate::secondaryFrameSeekSupport() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        return controller.secondaryProviderFrameSeekSupported() ? TriState::True
+                                                               : TriState::False;
+    }
     return frameSeekSupportForSequence(secondarySequence());
 }
 
@@ -778,6 +820,11 @@ ImageViewportPrivate::TriState ImageViewportPrivate::primaryPositionSeekSupport(
 
 ImageViewportPrivate::TriState ImageViewportPrivate::secondaryPositionSeekSupport() const
 {
+    ImageSequence* sequence = secondarySequence();
+    if (sequence && sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
+        return controller.secondaryProviderPositionSeekSupported() ? TriState::True
+                                                                  : TriState::False;
+    }
     return positionSeekSupportForSequence(secondarySequence());
 }
 
@@ -888,9 +935,17 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     ViewportSequenceAssignmentResult result = controller.assignSequence({ primarySequence,
         std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
         transitionPolicy->displayTransition
-            == PageSetTransitionPolicy::DisplayTransition::RetainPrevious });
+            == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
+        secondarySequence && secondarySequence->isProvider() });
     applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
+        mergeControllerChanges(result.changes,
+            controller.handleProviderSessionOpenFailure(
+                QStringLiteral("provider session creation failed")));
+    }
+    if (result.openSecondaryProviderSession && !openProviderSession(PageRole::Secondary)) {
         mergeControllerChanges(result.changes,
             controller.handleProviderSessionOpenFailure(
                 QStringLiteral("provider session creation failed")));

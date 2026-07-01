@@ -277,13 +277,16 @@ struct ViewportSequenceAssignment
     ImageSequence* secondarySequence = nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
     bool retainPreviousDisplay = true;
+    bool secondaryIsProvider = false;
 };
 
 struct ViewportSequenceAssignmentResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
     bool openProviderSession = false;
+    bool openSecondaryProviderSession = false;
 };
 
 struct ViewportPresentationReset
@@ -297,6 +300,7 @@ struct ViewportControllerState
     ImageViewportInternal::DisplayState display;
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
+    ImageViewportInternal::ProviderGenerationState secondaryProvider;
 };
 
 class ViewportControllerContext
@@ -404,7 +408,15 @@ public:
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
     bool hasProviderSession() const;
+    bool hasProviderSession(ImageViewport::PageRole role) const;
     bool providerMetadataReady() const;
+    bool secondaryProviderMetadataReady() const;
+    bool secondaryProviderTimedMetadata() const;
+    bool secondaryProviderTimedPlaybackSupported() const;
+    bool secondaryProviderFrameSeekSupported() const;
+    bool secondaryProviderPositionSeekSupported() const;
+    int secondaryProviderFrameCount() const;
+    int secondaryProviderTotalDuration() const;
     bool providerTimedMetadata() const;
     bool providerTimedPlaybackSupported() const;
     bool providerFrameSeekSupported() const;
@@ -423,6 +435,7 @@ public:
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult rejectInvalidCommand();
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult pause();
@@ -438,15 +451,25 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
         const QString& diagnostic);
     ViewportProviderSessionOpenResult handleProviderSessionOpened();
+    ViewportProviderSessionOpenResult handleProviderSessionOpened(ImageViewport::PageRole role);
+    ViewportProviderMetadataRequestStartResult handleSecondaryProviderSessionOpened();
     quint64 installProviderSession(ImageSequenceProviderSession* session);
+    quint64 installProviderSession(ImageViewport::PageRole role, ImageSequenceProviderSession* session);
     ImageSequenceProviderSession* takeProviderSession();
+    ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role);
     ImageSequenceProviderSession* currentProviderSession() const;
+    ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const;
+    bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
         const ViewportProviderTerminalEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
+        const ViewportProviderAcceptedMetadataFacts& facts);
+    ViewportProviderMetadataEventAcceptance acceptSecondaryProviderMetadataEvent(
+        ViewportProviderMetadataEvent event);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
         const ViewportProviderAcceptedMetadataFacts& facts);
@@ -456,9 +479,13 @@ public:
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ViewportProviderEndOfSequenceEvent event);
     ViewportProviderFrameTransportEffect closeProviderSession();
+    ViewportProviderFrameTransportEffect closeSecondaryProviderSession();
     ViewportProviderSessionClose handleProviderSessionClose();
+    ViewportProviderSessionClose handleSecondaryProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
+    ViewportProviderRequestTokenAllocation allocateSecondaryProviderRequestToken();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
+    ViewportProviderMetadataRequestStartResult startSecondaryProviderMetadataRequest();
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();

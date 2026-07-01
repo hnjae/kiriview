@@ -23,6 +23,7 @@ struct ViewportProviderEvent
     };
 
     Kind kind = Kind::Waiting;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
     quint64 sessionSerial = 0;
     ImageSequenceProviderRequestToken token;
     ImageSequenceProviderMetadata metadata;
@@ -44,18 +45,26 @@ public:
     virtual ~ViewportProviderBridgeClient() = default;
 
     virtual QObject* providerCallbackTarget() const = 0;
-    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const = 0;
-    virtual quint64 installProviderSession(ImageSequenceProviderSession* session) = 0;
-    virtual ImageSequenceProviderSession* takeProviderSession() = 0;
-    virtual ImageSequenceProviderSession* currentProviderSession() const = 0;
-    virtual ImageSequenceProviderThreadingContract providerThreadingContract() const = 0;
+    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
+        ImageViewport::PageRole role) const = 0;
+    virtual quint64 installProviderSession(
+        ImageViewport::PageRole role, ImageSequenceProviderSession* session)
+        = 0;
+    virtual ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role) = 0;
+    virtual ImageSequenceProviderSession* currentProviderSession(
+        ImageViewport::PageRole role) const
+        = 0;
+    virtual ImageSequenceProviderThreadingContract providerThreadingContract(
+        ImageViewport::PageRole role) const
+        = 0;
     virtual void handleProviderEvent(const ViewportProviderEvent& event) = 0;
 };
 
 class ViewportProviderBridge
 {
 public:
-    explicit ViewportProviderBridge(ViewportProviderBridgeClient& client);
+    explicit ViewportProviderBridge(ViewportProviderBridgeClient& client,
+        ImageViewport::PageRole role = ImageViewport::PageRole::Primary);
 
     void closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
@@ -70,4 +79,5 @@ private:
     ImageSequenceProviderThreadingContract threadingContract() const;
 
     ViewportProviderBridgeClient& client;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
 };

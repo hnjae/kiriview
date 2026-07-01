@@ -207,11 +207,11 @@ public:
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
-    bool openProviderSession();
+    bool openProviderSession(PageRole role = PageRole::Primary);
     QObject* providerCallbackTarget() const override;
-    quint64 installProviderSession(ImageSequenceProviderSession* session) override;
-    ImageSequenceProviderSession* takeProviderSession() override;
-    ImageSequenceProviderSession* currentProviderSession() const override;
+    quint64 installProviderSession(PageRole role, ImageSequenceProviderSession* session) override;
+    ImageSequenceProviderSession* takeProviderSession(PageRole role) override;
+    ImageSequenceProviderSession* currentProviderSession(PageRole role) const override;
     bool providerHasCompleteKnownMetadata() const override;
     ImageSequenceProviderKnownFacts providerKnownFacts() const override;
     QSizeF providerKnownLogicalSize() const override;
@@ -220,14 +220,17 @@ public:
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const override;
     void startProviderMetadataRequest();
-    void applyProviderMetadataTransportEffect(
-        const ViewportProviderMetadataTransportEffect& effect);
-    void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect);
+    void applyProviderMetadataTransportEffect(const ViewportProviderMetadataTransportEffect& effect,
+        PageRole role = PageRole::Primary);
+    void applyProviderFrameTransportEffect(const ViewportProviderFrameTransportEffect& effect,
+        PageRole role = PageRole::Primary);
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void flushQueuedProviderFrameRequest();
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(
+        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
+    void handleSecondaryProviderMetadataReady(
         ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
     void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
@@ -244,11 +247,12 @@ public:
         ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const override;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
+        PageRole role) const override;
     int providerFrameStartPosition(int frame) const override;
     int providerFrameIndexForPosition(int position) const override;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
-    ImageSequenceProviderThreadingContract providerThreadingContract() const override;
+    ImageSequenceProviderThreadingContract providerThreadingContract(PageRole role) const override;
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void syncPlaybackTimer();
@@ -284,6 +288,7 @@ public:
     ImageViewport* q = nullptr;
     ViewportController controller;
     ViewportProviderBridge providerBridge;
+    ViewportProviderBridge secondaryProviderBridge;
     RenderAdapter renderAdapter;
     ImageViewportInternal::PresentationState presentation;
     QTimer playbackTimer;

@@ -26,33 +26,36 @@ void applyProviderAcceptedMetadataFacts(
 }
 }
 
-bool ImageViewportPrivate::openProviderSession()
+bool ImageViewportPrivate::openProviderSession(PageRole role)
 {
-    if (!providerBridge.openSession()) {
+    ViewportProviderBridge& bridge
+        = role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
+    if (!bridge.openSession()) {
         return false;
     }
 
-    const ViewportProviderSessionOpenResult result = controller.handleProviderSessionOpened();
-    applyProviderMetadataTransportEffect(result.providerMetadataTransport);
-    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    const ViewportProviderSessionOpenResult result = controller.handleProviderSessionOpened(role);
+    applyProviderMetadataTransportEffect(result.providerMetadataTransport, role);
+    applyProviderFrameTransportEffect(result.providerFrameTransport, role);
     return true;
 }
 
 QObject* ImageViewportPrivate::providerCallbackTarget() const { return q; }
 
-quint64 ImageViewportPrivate::installProviderSession(ImageSequenceProviderSession* session)
+quint64 ImageViewportPrivate::installProviderSession(
+    PageRole role, ImageSequenceProviderSession* session)
 {
-    return controller.installProviderSession(session);
+    return controller.installProviderSession(role, session);
 }
 
-ImageSequenceProviderSession* ImageViewportPrivate::takeProviderSession()
+ImageSequenceProviderSession* ImageViewportPrivate::takeProviderSession(PageRole role)
 {
-    return controller.takeProviderSession();
+    return controller.takeProviderSession(role);
 }
 
-ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession() const
+ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession(PageRole role) const
 {
-    return controller.currentProviderSession();
+    return controller.currentProviderSession(role);
 }
 
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
@@ -106,8 +109,17 @@ ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSee
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
 {
-    if (!controller.acceptsProviderSessionResult(event.sessionSerial)) {
+    if (!controller.acceptsProviderSessionResult(event.role, event.sessionSerial)) {
         std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
+        return;
+    }
+
+    if (event.role == PageRole::Secondary) {
+        if (event.kind == ViewportProviderEvent::Kind::MetadataReady) {
+            handleSecondaryProviderMetadataReady(event.token, event.metadata);
+        } else {
+            std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
+        }
         return;
     }
 
@@ -162,42 +174,44 @@ void ImageViewportPrivate::startProviderMetadataRequest()
 }
 
 void ImageViewportPrivate::applyProviderMetadataTransportEffect(
-    const ViewportProviderMetadataTransportEffect& effect)
+    const ViewportProviderMetadataTransportEffect& effect, PageRole role)
 {
+    ViewportProviderBridge& bridge
+        = role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
     if (effect.closeSession) {
-        providerBridge.closeSession(
-            effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+        bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
     }
     if (effect.sendCommand) {
-        providerBridge.requestMetadata(effect.token);
+        bridge.requestMetadata(effect.token);
     }
 }
 
 void ImageViewportPrivate::applyProviderFrameTransportEffect(
-    const ViewportProviderFrameTransportEffect& effect)
+    const ViewportProviderFrameTransportEffect& effect, PageRole role)
 {
+    ViewportProviderBridge& bridge
+        = role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
     if (effect.cancelToken.isValid()) {
-        providerBridge.cancelRequest(effect.cancelToken);
+        bridge.cancelRequest(effect.cancelToken);
     }
     if (effect.scheduleFlush) {
         QMetaObject::invokeMethod(
             q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
     }
     if (effect.closeSession) {
-        providerBridge.closeSession(
-            effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+        bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
     }
     if (!effect.sendCommand) {
         return;
     }
     if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
-        providerBridge.requestPlayback(
+        bridge.requestPlayback(
             effect.command.token, effect.command.frame, effect.command.position);
     } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
-        providerBridge.requestPosition(
+        bridge.requestPosition(
             effect.command.token, effect.command.frame, effect.command.position);
     } else {
-        providerBridge.requestFrame(effect.command.token, effect.command.frame);
+        bridge.requestFrame(effect.command.token, effect.command.frame);
     }
 }
 
@@ -273,6 +287,34 @@ void ImageViewportPrivate::handleProviderMetadataReady(
     if (targetResult.changes.playbackPhase) {
         syncPlaybackTimer();
     }
+}
+
+void ImageViewportPrivate::handleSecondaryProviderMetadataReady(
+    ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
+{
+    const ViewportProviderMetadataEventAcceptance metadataEvent
+        = controller.acceptSecondaryProviderMetadataEvent({ token });
+    if (!metadataEvent.accepted) {
+        return;
+    }
+
+    const auto admission = FramePreparation::admitProviderMetadata(metadata);
+    if (!admission.accepted()) {
+        const ViewportProviderFrameTransportEffect closeEffect
+            = controller.closeProviderSession(PageRole::Secondary);
+        applyProviderFrameTransportEffect(closeEffect, PageRole::Secondary);
+        return;
+    }
+
+    const ViewportProviderAcceptedMetadataFacts metadataFacts {
+        admission.timedMetadata,
+        metadata.timedPlaybackSupport(),
+        metadata.frameSeekSupport(),
+        metadata.positionSeekSupport(),
+        admission.logicalSize,
+        admission.timingIntervals,
+    };
+    applyControllerChanges(controller.handleSecondaryProviderAcceptedMetadataFacts(metadataFacts));
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(
@@ -360,16 +402,18 @@ void ImageViewportPrivate::handleProviderCancellation(
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory>
-ImageViewportPrivate::providerSessionFactory() const
+ImageViewportPrivate::providerSessionFactory(PageRole role) const
 {
-    return hasProviderSequence() ? controller.requestState().sequence->m_providerSessionFactory
-                                 : nullptr;
+    ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
+    return sequence && sequence->isProvider() ? sequence->m_providerSessionFactory : nullptr;
 }
 
-ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract() const
+ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract(
+    PageRole role) const
 {
-    if (hasProviderSequence()) {
-        return controller.requestState().sequence->m_providerThreadingContract;
+    ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
+    if (sequence && sequence->isProvider()) {
+        return sequence->m_providerThreadingContract;
     }
     return ImageSequenceProviderThreadingContract::AffinityBound;
 }
