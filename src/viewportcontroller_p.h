@@ -460,6 +460,7 @@ public:
     ViewportCommandResult pause();
     ViewportCommandResult pause(ImageViewport::PageRole role);
     ViewportCommandResult stop();
+    ViewportCommandResult stop(ImageViewport::PageRole role);
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(

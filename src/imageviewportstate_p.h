@@ -246,6 +246,7 @@ struct RequestState
         activeRequest = {};
         secondaryActiveRequest = {};
         latestNonPlaybackRequest = {};
+        secondaryLatestNonPlaybackRequest = {};
         playbackPosition = -1;
         playbackRole = ImageViewport::PageRole::Primary;
     }
@@ -332,6 +333,7 @@ struct RequestState
     int playbackPosition = -1;
     ImageViewport::PageRole playbackRole = ImageViewport::PageRole::Primary;
     DisplayRequest latestNonPlaybackRequest;
+    DisplayRequest secondaryLatestNonPlaybackRequest;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     uint requestRevision = 0;

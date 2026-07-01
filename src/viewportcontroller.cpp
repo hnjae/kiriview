@@ -658,7 +658,8 @@ bool hasSecondarySequence(ViewportControllerPort& viewport)
 }
 
 void setSecondaryActiveRequest(ViewportControllerPort& viewport, DisplayRequestTarget target,
-    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
+    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+    bool rememberAsLatestNonPlayback = false)
 {
     viewportRequestState(viewport).secondaryActiveRequest.identity
         = viewportRequestState(viewport).activeRequest.identity;
@@ -667,12 +668,16 @@ void setSecondaryActiveRequest(ViewportControllerPort& viewport, DisplayRequestT
     viewportRequestState(viewport).secondaryActiveRequest.providerFrameToken = {};
     viewportRequestState(viewport).secondaryActiveRequest.preparedPayloadId
         = viewportRequestState(viewport).activeRequest.preparedPayloadId;
+    if (rememberAsLatestNonPlayback && target.frame >= 0) {
+        viewportRequestState(viewport).secondaryLatestNonPlaybackRequest
+            = viewportRequestState(viewport).secondaryActiveRequest;
+    }
 }
 
 void initializeSecondaryActiveRequest(ViewportControllerPort& viewport,
     DisplayRequestTarget target, ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
-    setSecondaryActiveRequest(viewport, target, resolvedFrame);
+    setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
 }
 
 bool hasPendingSecondarySpreadPayload(ViewportControllerPort& viewport)
@@ -1822,6 +1827,11 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
 
 ViewportCommandResult ViewportController::stop()
 {
+    return stop(ImageViewport::PageRole::Primary);
+}
+
+ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
+{
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
@@ -1832,7 +1842,53 @@ ViewportCommandResult ViewportController::stop()
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Stopped
+        && viewportRequestState(viewport).playbackRole != role) {
+        return result;
+    }
+
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Stopped) {
+            return result;
+        }
+
+        const ImageViewportInternal::DisplayRequest restoreRequest
+            = viewportRequestState(viewport).secondaryLatestNonPlaybackRequest;
+        if (restoreRequest.target.frame >= 0) {
+            const QRectF oldContentRect = viewport.contentRect();
+            const QRectF oldVisibleImageRect = viewport.visibleImageRect();
+            const ImageViewport::DisplayStatus oldDisplayStatus
+                = viewportDisplayState(viewport).status;
+            const ImageViewportInternal::DisplayRequest primaryRequest
+                = viewportRequestState(viewport).activeRequest;
+            beginAcceptedDisplayRequest(viewport,
+                ImageViewportInternal::DisplayRequestOrigin::StopRestore, primaryRequest.target,
+                primaryRequest.resolvedFrame, false);
+            setSecondaryActiveRequest(
+                viewport, restoreRequest.target, restoreRequest.resolvedFrame, true);
+            viewportRequestState(viewport).playbackPosition = restoreRequest.target.position;
+            publishAcceptedTargetState(viewport);
+            setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
+            result.changes.requestRevision = true;
+            const bool displayValueChanged
+                = viewportDisplayState(viewport).status != oldDisplayStatus
+                || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
+            result.changes.displayRevision = displayValueChanged;
+            result.changes.requestState = true;
+            result.changes.displayState = displayValueChanged;
+            result.changes.geometryState
+                = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+                || ImageViewportInternal::rectsDifferExactly(
+                    viewport.visibleImageRect(), oldVisibleImageRect);
+            result.changes.scheduleUpdate = true;
+            return result;
+        }
+
+        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Stopped);
+        return result;
+    }
+
     const StopRestorePlan stopRestorePlan = stopRestorePlanFor(viewport);
     if (applyStopRestorePlan(*this, viewport, stopRestorePlan, result)) {
         return result;
@@ -1956,7 +2012,7 @@ ViewportCommandResult ViewportController::seekSecondaryBuiltIn(
     beginAcceptedDisplayRequest(viewport,
         ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, primaryRequest.target,
         primaryRequest.resolvedFrame, true);
-    setSecondaryActiveRequest(viewport, target, resolvedFrame);
+    setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
     publishAcceptedTargetState(viewport);
     if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Playing
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading) {
@@ -3037,7 +3093,8 @@ ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProvid
     const int resolvedPosition = state.secondaryProvider.timedMetadata
         ? state.secondaryProvider.timingIntervals.frameStartPosition(target.frame)
         : -1;
-    setSecondaryActiveRequest(viewport, target, { target.frame, resolvedPosition });
+    setSecondaryActiveRequest(viewport, target, { target.frame, resolvedPosition },
+        target.providerTargetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback);
     result.accepted = true;
     result.sendCommand = state.secondaryProvider.session != nullptr;
     result.command.token = state.secondaryProvider.activeFrameToken;
@@ -3788,8 +3845,11 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
         if (!sequence || !sequence->isValid()) {
             return CommandOutcome::IgnoredNoRequest;
         }
-        const ViewportCommandResult result = controller.acceptNoopCommand();
+        flushPlaybackTimerElapsed();
+        const ViewportCommandResult result = controller.stop(PageRole::Secondary);
+        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
         applyControllerChanges(result.changes);
+        syncPlaybackTimer();
         return result.outcome;
     }
 
