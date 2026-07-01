@@ -1501,6 +1501,14 @@ ViewportCommandResult ViewportController::clear()
     return result;
 }
 
+ViewportCommandResult ViewportController::acceptNoopCommand()
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    return result;
+}
+
 ViewportCommandResult ViewportController::play()
 {
     if (!viewport.hasActiveRequest()) {
@@ -3332,7 +3340,13 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
         return CommandOutcome::Invalid;
     }
     if (role == PageRole::Secondary) {
-        return CommandOutcome::IgnoredNoRequest;
+        ImageSequence* sequence = secondarySequence();
+        if (!sequence || !sequence->isValid()) {
+            return CommandOutcome::IgnoredNoRequest;
+        }
+        const ViewportCommandResult result = controller.acceptNoopCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
 
     return pause();
@@ -3354,7 +3368,13 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
         return CommandOutcome::Invalid;
     }
     if (role == PageRole::Secondary) {
-        return CommandOutcome::IgnoredNoRequest;
+        ImageSequence* sequence = secondarySequence();
+        if (!sequence || !sequence->isValid()) {
+            return CommandOutcome::IgnoredNoRequest;
+        }
+        const ViewportCommandResult result = controller.acceptNoopCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
 
     return stop();

@@ -438,6 +438,7 @@ public:
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult rejectInvalidCommand();
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
+    ViewportCommandResult acceptNoopCommand();
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult pause();
