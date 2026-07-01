@@ -3459,6 +3459,11 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
             applyControllerChanges(result.changes);
             return result.outcome;
         }
+        if (!sequence->isProvider() && !sequence->isTimedList()) {
+            const ViewportCommandResult result = controller.rejectUnsupportedCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
+        }
         if (!sequence->isProvider() && sequence->isTimedList()
             && milliseconds > sequence->totalDuration()) {
             const ViewportCommandResult result = controller.rejectInvalidCommand();
