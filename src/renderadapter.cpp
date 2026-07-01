@@ -10,18 +10,19 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     delete oldNode;
 
     const auto& payload = input.preparedPayload;
+    const ImageViewportInternal::PreparedPayloadIdentity emptyPayload;
     const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
         payload.generation,
         payload.requestId,
         payload.payloadId,
     };
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, payloadIdentity };
+        return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
     }
 
     const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
     if (!hasBackground && payload.image.isNull()) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, payloadIdentity };
+        return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
     }
 
     auto* root = new QSGNode;
@@ -50,7 +51,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     }
 
     if (payload.image.isNull()) {
-        return { root, CommitResult::Empty, payloadIdentity };
+        return { root, CommitResult::Empty, emptyPayload };
     }
 
     if (!input.window) {

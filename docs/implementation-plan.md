@@ -75,7 +75,7 @@ This document is an execution queue for moving the implementation toward the end
 
 ### M4: Preparation, Render Acknowledgement, and Render Failure Identity
 
-- Status: Not started.
+- Status: Completed 2026-07-01.
 - Priority: P1.
 - Goal: Finish the admission and render boundaries so preparation owns admitted payloads and render reports only identity-keyed commit/failure acknowledgements.
 - Dependencies: M1 request/payload identity and M2 controller-owned state boundary.
@@ -84,6 +84,7 @@ This document is an execution queue for moving the implementation toward the end
 - Likely code areas: `src/framepreparation_p.h`, `src/framepreparation.cpp`, render adapter input/output types, render synchronization code, render failure handling, display-state pending payload and retained display code.
 - Acceptance criteria: Metadata, construction-time known facts, and frame envelopes pass through structured admission results with stable public status/reason projection and bounded diagnostics; prepared payload records carry the admitted payload identity and upload-ready data before controller publication or render snapshotting; render input consumes prepared payload plus presentation mapping and does not reinterpret request state; render commit/failure acknowledgements are explicit controller inputs keyed by generation, request, and prepared-payload identity; backend capacity failures for admitted payloads map to `Error` with `RenderFailure`; payload rejections preserve the documented unsupported/error distinction.
 - Expected tests/checks: Preparation tests for malformed metadata, construction-time contradiction, public-limit violations, missing byte-size metadata, logical-size mismatch, resolved-frame mismatch, orientation normalization, and backend admission failure classification; render tests for commit/failure stale identity rejection, non-positive item geometry render waiting, retained display, background-only updates, mirroring, fill modes, and half-open coordinate behavior.
+- Completion evidence: Confirmed provider metadata, known-facts, and frame payload admission flow through `FramePreparation` structured result types with bounded diagnostics and existing unsupported/error payload-rejection classification, then tightened render output so empty/background-only/non-positive passes carry no prepared-payload acknowledgement and the item bridge only calls the controller commit path for `Committed` render results. Added `providerRetainedFrameWaitingForGeometryIgnoresEmptyPaint()` to prove a retained display with a pending provider payload is not acknowledged by a zero-size paint pass and is only promoted after positive geometry permits a texture commit. Verified focused `imageviewport_render_scenegraph`, `imageviewport_render_commit`, and `imageviewport_provider_frame_admission`, plus full `devenv shell -- just test` and `devenv shell -- just lint`.
 - Stop conditions: Stop if render code publishes request readiness or display ownership without controller acknowledgement; stop if preparation depends on scene graph objects; stop if public-limit admission and backend capacity failure are collapsed into the same status/reason.
 
 ### M5: Playback Clock Port and Pure Controller Coverage

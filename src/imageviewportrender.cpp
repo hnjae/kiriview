@@ -44,11 +44,13 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         return nullptr;
     }
 
-    const auto changes = controller.acknowledgeRenderCommit(
-        { render.preparedPayload }, imagePresent, synchronization);
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        syncPlaybackTimer();
+    if (render.result == RenderAdapter::CommitResult::Committed) {
+        const auto changes = controller.acknowledgeRenderCommit(
+            { render.preparedPayload }, imagePresent, synchronization);
+        applyControllerChanges(changes);
+        if (changes.playbackPhase) {
+            syncPlaybackTimer();
+        }
     }
     return render.node;
 }

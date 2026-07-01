@@ -25,6 +25,7 @@ private slots:
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
+    void providerRetainedFrameWaitingForGeometryIgnoresEmptyPaint();
 };
 
 void ImageViewportRenderSceneGraphTest::transparentBackgroundDoesNotCreatePaintNode()
@@ -416,6 +417,94 @@ void ImageViewportRenderSceneGraphTest::
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+}
+
+void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryIgnoresEmptyPaint()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    QImage firstImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(QColor(255, 0, 0, 255));
+    ImageFrame firstFrame(firstImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
+
+    QVERIFY(commitPaintNode(item));
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+
+    item.setSize(QSizeF(0.0, 20.0));
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*lastRequestedFrame, 1);
+
+    QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame secondFrame(secondImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondFrame, 1, 100);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(item.hasPendingRenderCommitForTest());
+    const quint64 pendingPayloadId = item.pendingRenderPayloadIdForTest();
+
+    QScopedPointer<QSGNode> zeroSizeRoot(item.takePaintNode());
+    QVERIFY(zeroSizeRoot.isNull());
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 1);
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(item.hasPendingRenderCommitForTest());
+    QCOMPARE(item.pendingRenderPayloadIdForTest(), pendingPayloadId);
+
+    item.setSize(QSizeF(40.0, 20.0));
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QVERIFY(commitPaintNode(item));
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+    QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
 }
 
 QTEST_MAIN(ImageViewportRenderSceneGraphTest)
