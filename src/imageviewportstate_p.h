@@ -304,6 +304,8 @@ struct RequestState
 
     QPointer<ImageSequence> sequence;
     std::shared_ptr<ImageSequence> sequenceOwner;
+    QPointer<ImageSequence> secondarySequence;
+    std::shared_ptr<ImageSequence> secondarySequenceOwner;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;

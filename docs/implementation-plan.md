@@ -56,7 +56,9 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 
 ### M2 Page-Set And Role State Model
 
-- Status: Not started.
+- Status: Completed.
+- Assumption: M2 stores the accepted secondary role and construction-time secondary observations, while M4/M6 remain responsible for independent secondary provider/request/render pipelines and complete-spread commit readiness.
+- Verification: added page-set role observation coverage, confirmed the focused `imageviewport_public_api` test passes, ran `just test`, and ran `git diff --check`.
 - Dependencies: M1.
 - Acceptance criteria: primary-only page sets and two-role page sets are accepted through one transaction; `primarySequence` and `secondarySequence` are observations only; `sequence` assignment is equivalent to primary-only `setPageSet`; secondary-without-primary is inert or clear-style according to the command contract; no transient primary-only accepted page set is exposed for a two-role command; role-scoped metadata observations alias or default correctly.
 - Relevant references: [ImageViewport Behavior](spec/image-viewport.md), [ImageViewport API](spec/image-viewport-api.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md).

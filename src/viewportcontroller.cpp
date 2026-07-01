@@ -1192,8 +1192,16 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
 
+    ImageSequence* secondarySequence
+        = assignment.sequence ? assignment.secondarySequence : nullptr;
+    std::shared_ptr<ImageSequence> secondarySequenceOwner
+        = assignment.sequence ? std::move(assignment.secondarySequenceOwner) : nullptr;
+
     viewportRequestState(viewport).sequence = assignment.sequence;
     viewportRequestState(viewport).sequenceOwner = std::move(assignment.sequenceOwner);
+    viewportRequestState(viewport).secondarySequence = secondarySequence;
+    viewportRequestState(viewport).secondarySequenceOwner
+        = std::move(secondarySequenceOwner);
     ++viewportRequestState(viewport).sequenceGeneration;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
@@ -1305,9 +1313,10 @@ ViewportCommandResult ViewportController::clear()
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    const bool sequenceValueChanged = viewportRequestState(viewport).sequence != nullptr;
-    const bool requestChanged
-        = viewport.hasActiveRequest() || viewportRequestState(viewport).sequence;
+    const bool sequenceValueChanged = viewportRequestState(viewport).sequence != nullptr
+        || viewportRequestState(viewport).secondarySequence != nullptr;
+    const bool requestChanged = viewport.hasActiveRequest() || viewportRequestState(viewport).sequence
+        || viewportRequestState(viewport).secondarySequence;
     const bool displayChanged
         = viewportDisplayState(viewport).status != ImageViewport::DisplayStatus::Empty
         || viewportDisplayState(viewport).displayedImageSize.isValid();
@@ -1322,6 +1331,8 @@ ViewportCommandResult ViewportController::clear()
     result.providerFrameTransport.closeSession = closeProviderSession;
     viewportRequestState(viewport).sequence = nullptr;
     viewportRequestState(viewport).sequenceOwner.reset();
+    viewportRequestState(viewport).secondarySequence = nullptr;
+    viewportRequestState(viewport).secondarySequenceOwner.reset();
     ++viewportRequestState(viewport).sequenceGeneration;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).clearDisplayedDisplay();

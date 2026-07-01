@@ -39,6 +39,13 @@ public:
     void setSequence(ImageSequence* sequence);
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
+    int frameCountForSequence(ImageSequence* sequence) const;
+    int totalDurationForSequence(ImageSequence* sequence) const;
+    QVariantMap frameSeekBoundsForSequence(ImageSequence* sequence) const;
+    QVariantMap positionSeekBoundsForSequence(ImageSequence* sequence) const;
+    TriState timedPlaybackSupportForSequence(ImageSequence* sequence) const;
+    TriState frameSeekSupportForSequence(ImageSequence* sequence) const;
+    TriState positionSeekSupportForSequence(ImageSequence* sequence) const;
     SpreadDirection spreadDirection() const;
     void setSpreadDirectionProperty(SpreadDirection direction);
     double pageGap() const;

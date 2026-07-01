@@ -274,6 +274,8 @@ struct ViewportSequenceAssignment
 {
     ImageSequence* sequence = nullptr;
     std::shared_ptr<ImageSequence> sequenceOwner;
+    ImageSequence* secondarySequence = nullptr;
+    std::shared_ptr<ImageSequence> secondarySequenceOwner;
 };
 
 struct ViewportSequenceAssignmentResult
