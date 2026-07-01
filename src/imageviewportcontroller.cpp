@@ -13,44 +13,6 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     applyControllerChanges(result.changes);
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ImageViewportPrivate::advancePlaybackForTestImpl(int elapsedMilliseconds)
-{
-    advancePlayback(elapsedMilliseconds);
-    syncPlaybackTimer();
-}
-
-void ImageViewportPrivate::setNextProviderRequestTokenForTestImpl(quint64 token)
-{
-    provider.nextRequestToken = token;
-}
-
-bool ImageViewportPrivate::hasPendingRenderCommitForTestImpl() const
-{
-    return display.pendingRenderPayload.commitPending;
-}
-
-quint64 ImageViewportPrivate::activeRequestIdForTestImpl() const
-{
-    return request.activeRequest.identity.id;
-}
-
-quint64 ImageViewportPrivate::displayedRequestIdForTestImpl() const
-{
-    return display.displayedRequest.request.identity.id;
-}
-
-quint64 ImageViewportPrivate::pendingRenderGenerationForTestImpl() const
-{
-    return display.pendingRenderPayload.generation;
-}
-
-quint64 ImageViewportPrivate::pendingRenderPayloadIdForTestImpl() const
-{
-    return display.pendingRenderPayload.payloadId;
-}
-#endif
-
 void ImageViewportPrivate::incrementDisplayRevision()
 {
     ++display.revision;

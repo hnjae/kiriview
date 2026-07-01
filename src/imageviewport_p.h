@@ -77,16 +77,6 @@ public:
     void acknowledgeRenderFailureForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 #endif
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    void advancePlaybackForTestImpl(int elapsedMilliseconds);
-    void setNextProviderRequestTokenForTestImpl(quint64 token);
-    bool hasPendingRenderCommitForTestImpl() const;
-    quint64 activeRequestIdForTestImpl() const;
-    quint64 displayedRequestIdForTestImpl() const;
-    quint64 pendingRenderGenerationForTestImpl() const;
-    quint64 pendingRenderPayloadIdForTestImpl() const;
-#endif
-
     QRectF contentRect() const;
     QRectF visibleImageRect() const;
     FillMode fillMode() const;

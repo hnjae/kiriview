@@ -2380,39 +2380,34 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ViewportController::advancePlaybackForTest(int elapsedMilliseconds)
-{
-    viewport.advancePlaybackForTestImpl(elapsedMilliseconds);
-}
-
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
-    viewport.setNextProviderRequestTokenForTestImpl(token);
+    state.provider.nextRequestToken = token;
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const
 {
-    return viewport.hasPendingRenderCommitForTestImpl();
+    return state.display.pendingRenderPayload.commitPending;
 }
 
 quint64 ViewportController::activeRequestIdForTest() const
 {
-    return viewport.activeRequestIdForTestImpl();
+    return state.request.activeRequest.identity.id;
 }
 
 quint64 ViewportController::displayedRequestIdForTest() const
 {
-    return viewport.displayedRequestIdForTestImpl();
+    return state.display.displayedRequest.request.identity.id;
 }
 
 quint64 ViewportController::pendingRenderGenerationForTest() const
 {
-    return viewport.pendingRenderGenerationForTestImpl();
+    return state.display.pendingRenderPayload.generation;
 }
 
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
-    return viewport.pendingRenderPayloadIdForTestImpl();
+    return state.display.pendingRenderPayload.payloadId;
 }
 #endif
 
@@ -2527,7 +2522,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 {
-    controller.advancePlaybackForTest(elapsedMilliseconds);
+    advancePlayback(elapsedMilliseconds);
+    syncPlaybackTimer();
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
