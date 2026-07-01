@@ -661,6 +661,30 @@ int ImageViewportPrivate::totalDuration() const
     return -1;
 }
 
+bool ImageViewportPrivate::hasSecondaryTimedSequence() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence && sequence->isTimedList();
+}
+
+int ImageViewportPrivate::secondarySequenceFrameCount() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence && !sequence->isProvider() ? sequence->frameCount() : -1;
+}
+
+int ImageViewportPrivate::secondarySequenceFrameIndexForPosition(int position) const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence && sequence->isTimedList() ? sequence->frameIndexForPosition(position) : -1;
+}
+
+int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence && sequence->isTimedList() ? sequence->frameStartPosition(frame) : -1;
+}
+
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
     if (hasProviderSequence() && controller.providerMetadataReady()) {

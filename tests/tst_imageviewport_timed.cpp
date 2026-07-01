@@ -20,6 +20,7 @@ private slots:
     void timedFrameListAssignmentPublishesInitialTimedState();
     void timedFrameListSeekCommandsSelectDocumentedTargets();
     void timedFrameListSecondarySeekCommandsSelectRoleTargets();
+    void timedFrameListSecondaryPlaybackAdvancesRoleTarget();
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
     void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
     void timedFrameListPlaybackCommandsUpdatePhase();
@@ -345,6 +346,70 @@ void ImageViewportTimedTest::timedFrameListSecondarySeekCommandsSelectRoleTarget
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 1);
     QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 350);
     QCOMPARE(item.property("secondaryDisplayedPosition").toInt(), 100);
+}
+
+void ImageViewportTimedTest::timedFrameListSecondaryPlaybackAdvancesRoleTarget()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::transparent);
+    QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::black);
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+
+    TimedImageFrameList primaryList;
+    QVERIFY(primaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(primaryList.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(
+        factory.fromTimedFrameList(&primaryList));
+    QVERIFY(primaryResult->sequence());
+
+    TimedImageFrameList secondaryList;
+    QVERIFY(secondaryList.appendFrame(&firstFrame, 100));
+    QVERIFY(secondaryList.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromTimedFrameList(&secondaryList));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
+    QCOMPARE(item.property("primaryDisplayedFrame").toInt(), 0);
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 0);
+    QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
+
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "NoCommand"));
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+
+    item.advancePlaybackForTest(100);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
+    QCOMPARE(item.property("primaryDisplayedFrame").toInt(), 0);
+    QCOMPARE(item.property("primaryRequestedPosition").toInt(), 0);
+    QCOMPARE(item.property("primaryDisplayedPosition").toInt(), 0);
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
+    QCOMPARE(item.property("secondaryDisplayedPosition").toInt(), 100);
+
+    QCOMPARE(
+        item.pause(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Paused"));
 }
 
 void ImageViewportTimedTest::timedFrameListSeekWhilePlayingWaitsForRenderCommit()

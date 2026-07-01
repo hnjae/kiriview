@@ -70,12 +70,16 @@ public:
     int secondaryRequestedPosition() const;
     int frameCount() const override;
     int totalDuration() const override;
+    bool hasSecondaryTimedSequence() const override;
+    int secondarySequenceFrameCount() const override;
+    int secondarySequenceFrameIndexForPosition(int position) const override;
+    int secondarySequenceFrameStartPosition(int frame) const override;
     QVariantMap frameSeekBounds() const;
     QVariantMap positionSeekBounds() const;
     int primaryFrameCount() const;
     int secondaryFrameCount() const;
     int primaryTotalDuration() const;
-    int secondaryTotalDuration() const;
+    int secondaryTotalDuration() const override;
     QVariantMap primaryFrameSeekBounds() const;
     QVariantMap secondaryFrameSeekBounds() const;
     QVariantMap primaryPositionSeekBounds() const;

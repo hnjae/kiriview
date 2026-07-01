@@ -345,6 +345,11 @@ public:
     virtual int sequenceFrameCount() const;
     virtual int sequenceFrameIndexForPosition(int position) const;
     virtual int sequenceFrameStartPosition(int frame) const;
+    virtual bool hasSecondaryTimedSequence() const;
+    virtual int secondarySequenceFrameCount() const;
+    virtual int secondaryTotalDuration() const;
+    virtual int secondarySequenceFrameIndexForPosition(int position) const;
+    virtual int secondarySequenceFrameStartPosition(int frame) const;
     virtual QSizeF sequenceLogicalSize() const;
     virtual QImage sequenceFrameImage(int frame) const;
     virtual double width() const;
@@ -393,6 +398,11 @@ public:
     int sequenceFrameCount() const;
     int sequenceFrameIndexForPosition(int position) const;
     int sequenceFrameStartPosition(int frame) const;
+    bool hasSecondaryTimedSequence() const;
+    int secondarySequenceFrameCount() const;
+    int secondaryTotalDuration() const;
+    int secondarySequenceFrameIndexForPosition(int position) const;
+    int secondarySequenceFrameStartPosition(int frame) const;
     QSizeF sequenceLogicalSize() const;
     QImage sequenceFrameImage(int frame) const;
     double width() const;
@@ -444,7 +454,9 @@ public:
     ViewportCommandResult acceptNoopCommand();
     ViewportCommandResult clear();
     ViewportCommandResult play();
+    ViewportCommandResult playSecondaryBuiltIn();
     ViewportCommandResult pause();
+    ViewportCommandResult pause(ImageViewport::PageRole role);
     ViewportCommandResult stop();
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
