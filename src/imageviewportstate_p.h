@@ -84,6 +84,8 @@ struct PreparedPayloadIdentity
     quint64 generation = 0;
     quint64 requestId = 0;
     quint64 payloadId = 0;
+
+    bool isValid() const { return generation != 0 && requestId != 0 && payloadId != 0; }
 };
 
 struct PreparedPayload
@@ -93,6 +95,8 @@ struct PreparedPayload
     quint64 requestId = 0;
     quint64 payloadId = 0;
     QImage image;
+
+    PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
 };
 
 struct PresentationState
@@ -166,6 +170,15 @@ struct DisplayState
     }
 
     void clearPendingRenderPayload() { pendingRenderPayload = {}; }
+
+    bool pendingRenderPayloadMatches(const PreparedPayloadIdentity& identity) const
+    {
+        const PreparedPayloadIdentity pendingIdentity = pendingRenderPayload.identity();
+        return pendingRenderPayload.commitPending && identity.isValid()
+            && identity.generation == pendingIdentity.generation
+            && identity.requestId == pendingIdentity.requestId
+            && identity.payloadId == pendingIdentity.payloadId;
+    }
 
     bool hasReadyDisplay(bool hasDisplayableSequence) const
     {
@@ -271,6 +284,18 @@ struct RequestState
         errorString.clear();
         warningString.clear();
         return true;
+    }
+
+    bool activeRequestMatchesProviderFrameToken(ImageSequenceProviderRequestToken token) const
+    {
+        return token.isValid() && token == activeRequest.providerFrameToken;
+    }
+
+    bool activeRequestOwnsPreparedPayload(const PreparedPayloadIdentity& identity) const
+    {
+        return identity.isValid() && identity.generation == sequenceGeneration
+            && identity.requestId == activeRequest.identity.id
+            && identity.payloadId == activeRequest.preparedPayloadId;
     }
 
     QPointer<ImageSequence> sequence;

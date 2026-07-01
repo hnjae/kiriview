@@ -97,7 +97,7 @@ bool activeProviderFrameTokenMatchesActiveRequest(
 {
     return viewport.provider.activeFrameToken.isValid()
         && token == viewport.provider.activeFrameToken
-        && token == viewport.request.activeRequest.providerFrameToken;
+        && viewport.request.activeRequestMatchesProviderFrameToken(token);
 }
 
 bool activeProviderFrameRequestIsPlayback(const ImageViewportPrivate& viewport)
@@ -422,16 +422,8 @@ void completeStopRestoreRequest(ImageViewportPrivate& viewport, ViewportCommandR
 bool renderAcknowledgementMatchesPending(
     ImageViewportPrivate& viewport, ViewportRenderAcknowledgement acknowledgement)
 {
-    return viewport.display.pendingRenderPayload.commitPending
-        && acknowledgement.preparedPayload.generation
-        == viewport.display.pendingRenderPayload.generation
-        && acknowledgement.preparedPayload.generation == viewport.request.sequenceGeneration
-        && acknowledgement.preparedPayload.requestId
-        == viewport.display.pendingRenderPayload.requestId
-        && acknowledgement.preparedPayload.payloadId
-        == viewport.display.pendingRenderPayload.payloadId
-        && acknowledgement.preparedPayload.payloadId
-        == viewport.request.activeRequest.preparedPayloadId;
+    return viewport.display.pendingRenderPayloadMatches(acknowledgement.preparedPayload)
+        && viewport.request.activeRequestOwnsPreparedPayload(acknowledgement.preparedPayload);
 }
 
 void setPlaybackPhase(ImageViewportPrivate& viewport,
@@ -1924,17 +1916,18 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
 
     const bool renderMatchesPending
         = renderAcknowledgementMatchesPending(viewport, acknowledgement);
-    if (renderMatchesPending && synchronization.pendingProviderCommit) {
+    if (!renderMatchesPending) {
+        return changes;
+    }
+    if (synchronization.pendingProviderCommit) {
         viewport.publishSequenceReadyState(synchronization.preparedPayload);
     }
-    const bool resumePlaybackAfterCommit = renderMatchesPending
-        && viewport.request.playbackPhase == ImageViewport::PlaybackPhase::Waiting
+    const bool resumePlaybackAfterCommit
+        = viewport.request.playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && viewport.request.status == ImageViewport::RequestStatus::Ready;
-    if (renderMatchesPending) {
-        viewport.display.commitDisplayedRequestSnapshot(viewport.request.sequenceGeneration,
-            viewport.request.activeRequest, viewport.display.pendingRenderPayload.payloadId);
-        viewport.display.clearPendingRenderPayload();
-    }
+    viewport.display.commitDisplayedRequestSnapshot(viewport.request.sequenceGeneration,
+        viewport.request.activeRequest, viewport.display.pendingRenderPayload.payloadId);
+    viewport.display.clearPendingRenderPayload();
     viewport.display.clearRenderFailureRetainedDisplay();
     if (resumePlaybackAfterCommit) {
         setPlaybackPhase(viewport, changes,
