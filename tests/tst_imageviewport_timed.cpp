@@ -507,6 +507,13 @@ void ImageViewportTimedTest::timedFrameListSecondaryInvalidSeekUsesPresentRolePr
     QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
     QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
 
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Secondary, 351),
+        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+
     QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Secondary, -1),
         ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
