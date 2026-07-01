@@ -559,9 +559,23 @@ int ImageViewportPrivate::primaryDisplayedFrame() const { return displayedFrame(
 
 int ImageViewportPrivate::primaryRequestedFrame() const { return requestedFrame(); }
 
-int ImageViewportPrivate::secondaryDisplayedFrame() const { return -1; }
+int ImageViewportPrivate::secondaryDisplayedFrame() const
+{
+    if (hasReadyDisplay() && secondarySequence()) {
+        return controller.displayState().secondaryDisplayedRequest.request.target.frame;
+    }
 
-int ImageViewportPrivate::secondaryRequestedFrame() const { return -1; }
+    return -1;
+}
+
+int ImageViewportPrivate::secondaryRequestedFrame() const
+{
+    if (secondarySequence()) {
+        return controller.requestState().secondaryActiveRequest.target.frame;
+    }
+
+    return -1;
+}
 
 int ImageViewportPrivate::displayedPosition() const
 {
@@ -590,9 +604,32 @@ int ImageViewportPrivate::primaryDisplayedPosition() const { return displayedPos
 
 int ImageViewportPrivate::primaryRequestedPosition() const { return requestedPosition(); }
 
-int ImageViewportPrivate::secondaryDisplayedPosition() const { return -1; }
+int ImageViewportPrivate::secondaryDisplayedPosition() const
+{
+    if (hasReadyDisplay() && secondarySequence()) {
+        return controller.displayState().secondaryDisplayedRequest.request.target.position;
+    }
 
-int ImageViewportPrivate::secondaryRequestedPosition() const { return -1; }
+    return -1;
+}
+
+int ImageViewportPrivate::secondaryRequestedPosition() const
+{
+    ImageSequence* sequence = secondarySequence();
+    if (!sequence) {
+        return -1;
+    }
+    if (sequence->isProvider()
+        && (controller.secondaryProviderTimedMetadata()
+            || controller.requestState().secondaryActiveRequest.target.position >= 0)) {
+        return controller.requestState().secondaryActiveRequest.target.position;
+    }
+    if (sequence->isTimedList()) {
+        return controller.requestState().secondaryActiveRequest.target.position;
+    }
+
+    return -1;
+}
 
 int ImageViewportPrivate::frameCount() const
 {
@@ -974,8 +1011,20 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
 
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
+    ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
+    ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
+    if (secondarySequence && secondarySequence->isValid() && !secondarySequence->isProvider()) {
+        const int position = secondarySequence->isTimedList()
+            ? secondarySequence->frameStartPosition(0)
+            : -1;
+        secondaryInitialTarget = {
+            0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown
+        };
+        secondaryInitialResolvedFrame = { 0, position };
+    }
     ViewportSequenceAssignmentResult result = controller.assignSequence(
         { primarySequence, std::move(primaryOwner), secondarySequence, std::move(secondaryOwner),
+            secondaryInitialTarget, secondaryInitialResolvedFrame,
             transitionPolicy->displayTransition
                 == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
             secondarySequence && secondarySequence->isProvider() });

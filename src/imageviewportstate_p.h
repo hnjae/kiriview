@@ -150,6 +150,7 @@ struct DisplayState
     void clearDisplayedDisplay()
     {
         displayedRequest = {};
+        secondaryDisplayedRequest = {};
         displayedImageSize = {};
         displayedImage = {};
         secondaryDisplayedImageSize = {};
@@ -222,6 +223,7 @@ struct DisplayState
 
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     DisplayRequestSnapshot displayedRequest;
+    DisplayRequestSnapshot secondaryDisplayedRequest;
     QSizeF displayedImageSize;
     QImage displayedImage;
     QSizeF secondaryDisplayedImageSize;
@@ -242,6 +244,7 @@ struct RequestState
     {
         nextRequestId = 0;
         activeRequest = {};
+        secondaryActiveRequest = {};
         latestNonPlaybackRequest = {};
         playbackPosition = -1;
     }
@@ -324,6 +327,7 @@ struct RequestState
     bool stopPlaybackWhenRequestReady = false;
     bool providerPlaybackStartPending = false;
     DisplayRequest activeRequest;
+    DisplayRequest secondaryActiveRequest;
     int playbackPosition = -1;
     DisplayRequest latestNonPlaybackRequest;
     quint64 sequenceGeneration = 0;

@@ -111,8 +111,8 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             } else {
                 const int roleFrame = synchronization.pendingProviderCommit
                         || synchronization.pendingSecondaryCommit
-                    ? requestedFrame()
-                    : displayedFrame();
+                    ? secondaryRequestedFrame()
+                    : secondaryDisplayedFrame();
                 const int frame = sequence->frameCount() > 0
                     ? std::clamp(roleFrame, 0, sequence->frameCount() - 1)
                     : -1;

@@ -277,6 +277,8 @@ struct ViewportSequenceAssignment
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageSequence* secondarySequence = nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
+    ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
+    ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
     bool retainPreviousDisplay = true;
     bool secondaryIsProvider = false;
 };
@@ -446,6 +448,9 @@ public:
     ViewportCommandResult stop();
     ViewportCommandResult seek(int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
+    ViewportCommandResult seekSecondaryBuiltIn(
+        ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
     ViewportCommandResult resetView(ViewportPresentationReset reset);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
