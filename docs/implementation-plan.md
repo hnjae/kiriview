@@ -128,6 +128,7 @@ If this plan conflicts with `docs/spec/**` or `docs/architecture/**`, the spec a
 ### M8 Public Limits, Diagnostics, And Packaging
 
 - Status: Not started.
+- Assumption: the authoritative API spec requires display-demand limits but does not name their public object; M8 will expose them through a separate `ImageViewportDisplayLimits` QML singleton and C++ type so source admission limits remain isolated in `ImageSequenceLimits`.
 - Dependencies: M1 through M7.
 - Acceptance criteria: `ImageSequenceLimits` and display-demand limits expose the documented public fields including `maximumManualZoomPercent`; manual zoom above the published display limit returns `Invalid` without changing canonical presentation state; source admission limits and display-demand limits stay separate; diagnostics are bounded, redacted, plain text, and owned by request, command, or warning lifetimes as documented; installed headers and QML import expose only public API and hide private scene graph/backend details.
 - Relevant references: [ImageViewport API](spec/image-viewport-api.md), [ImageSequence Provider Adapter](spec/image-sequence-provider-adapter.md), [Subsystem Boundaries](architecture/subsystem-boundaries.md), [Rendering](architecture/rendering.md).
