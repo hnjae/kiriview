@@ -3423,6 +3423,11 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
             applyControllerChanges(result.changes);
             return result.outcome;
         }
+        if (!sequence->isProvider() && frame >= sequence->frameCount()) {
+            const ViewportCommandResult result = controller.rejectInvalidCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
+        }
         return CommandOutcome::IgnoredNoRequest;
     }
 
