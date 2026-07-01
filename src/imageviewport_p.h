@@ -11,7 +11,7 @@
 #include <QtCore/QTimer>
 #include <QtQuick/QSGNode>
 
-class ImageViewportPrivate : public ViewportProviderBridgeClient
+class ImageViewportPrivate : public ViewportProviderBridgeClient, public ViewportControllerContext
 {
 public:
     using BackgroundMode = ImageViewport::BackgroundMode;
@@ -44,8 +44,8 @@ public:
     int requestedFrame() const;
     int displayedPosition() const;
     int requestedPosition() const;
-    int frameCount() const;
-    int totalDuration() const;
+    int frameCount() const override;
+    int totalDuration() const override;
     QVariantMap frameSeekBounds() const;
     QVariantMap positionSeekBounds() const;
     TriState timedPlaybackSupport() const;
@@ -78,8 +78,8 @@ public:
     void acknowledgeRenderFailureForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 #endif
-    QRectF contentRect() const;
-    QRectF visibleImageRect() const;
+    QRectF contentRect() const override;
+    QRectF visibleImageRect() const override;
     FillMode fillMode() const;
     void setFillMode(FillMode mode);
     HorizontalAlignment horizontalAlignment() const;
@@ -114,7 +114,7 @@ public:
     QRectF currentContentRect() const;
     QRectF contentRectForImageSize(QSizeF imageSize) const;
     QRectF visibleImageRectForImageSize(QSizeF imageSize) const;
-    QRectF itemBounds() const;
+    QRectF itemBounds() const override;
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
     QSizeF currentImageSize() const;
@@ -128,13 +128,13 @@ public:
     quint64 installProviderSession(ImageSequenceProviderSession* session) override;
     ImageSequenceProviderSession* takeProviderSession() override;
     ImageSequenceProviderSession* currentProviderSession() const override;
-    bool providerHasCompleteKnownMetadata() const;
-    ImageSequenceProviderKnownFacts providerKnownFacts() const;
-    QSizeF providerKnownLogicalSize() const;
-    TimingIntervals providerKnownTimingIntervals() const;
-    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
-    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
-    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
+    bool providerHasCompleteKnownMetadata() const override;
+    ImageSequenceProviderKnownFacts providerKnownFacts() const override;
+    QSizeF providerKnownLogicalSize() const override;
+    TimingIntervals providerKnownTimingIntervals() const override;
+    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const override;
+    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const override;
+    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const override;
     void startProviderMetadataRequest();
     void requestProviderMetadata(ImageSequenceProviderRequestToken token);
     void requestProviderFrame(ImageSequenceProviderRequestToken token, int frame);
@@ -166,8 +166,8 @@ public:
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory() const override;
-    int providerFrameStartPosition(int frame) const;
-    int providerFrameIndexForPosition(int position) const;
+    int providerFrameStartPosition(int frame) const override;
+    int providerFrameIndexForPosition(int position) const override;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     ImageSequenceProviderThreadingContract providerThreadingContract() const override;
     void incrementDisplayRevision();
@@ -178,27 +178,27 @@ public:
     int takePlaybackTimerElapsed();
     void flushPlaybackTimerElapsed();
     void advancePlayback(int elapsedMilliseconds);
-    bool hasActiveRequest() const;
-    bool hasReadyDisplay() const;
-    bool hasDisplayableSequence() const;
+    bool hasActiveRequest() const override;
+    bool hasReadyDisplay() const override;
+    bool hasDisplayableSequence() const override;
     bool hasStillSequence() const;
-    bool hasTimedSequence() const;
-    bool hasProviderSequence() const;
-    bool hasGenerationTerminalProviderFailure() const;
-    bool providerTimedPlaybackCapabilityKnownFalse() const;
-    bool providerFrameSeekCapabilityKnownFalse() const;
-    bool providerFrameSeekCapabilityKnownTrue() const;
-    bool providerPositionSeekCapabilityKnownFalse() const;
-    bool providerKnownFactsTimedFrameCount() const;
-    int providerKnownFactsFrameCount() const;
-    int sequenceFrameCount() const;
-    int sequenceFrameIndexForPosition(int position) const;
-    int sequenceFrameStartPosition(int frame) const;
-    QSizeF sequenceLogicalSize() const;
-    QImage sequenceFrameImage(int frame) const;
+    bool hasTimedSequence() const override;
+    bool hasProviderSequence() const override;
+    bool hasGenerationTerminalProviderFailure() const override;
+    bool providerTimedPlaybackCapabilityKnownFalse() const override;
+    bool providerFrameSeekCapabilityKnownFalse() const override;
+    bool providerFrameSeekCapabilityKnownTrue() const override;
+    bool providerPositionSeekCapabilityKnownFalse() const override;
+    bool providerKnownFactsTimedFrameCount() const override;
+    int providerKnownFactsFrameCount() const override;
+    int sequenceFrameCount() const override;
+    int sequenceFrameIndexForPosition(int position) const override;
+    int sequenceFrameStartPosition(int frame) const override;
+    QSizeF sequenceLogicalSize() const override;
+    QImage sequenceFrameImage(int frame) const override;
 
-    double width() const;
-    double height() const;
+    double width() const override;
+    double height() const override;
     QQuickWindow* window() const;
     void update();
 

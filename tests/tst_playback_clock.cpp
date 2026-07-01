@@ -8,6 +8,12 @@ class PlaybackClockTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit PlaybackClockTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void invalidClockTakesZeroElapsed();
     void restartedClockTakesMonotonicElapsedAndInvalidates();

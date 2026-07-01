@@ -8,9 +8,87 @@
 #include <limits>
 #include <utility>
 
+QRectF ViewportControllerContext::contentRect() const { return {}; }
+
+QRectF ViewportControllerContext::visibleImageRect() const { return {}; }
+
+QRectF ViewportControllerContext::itemBounds() const { return {}; }
+
+bool ViewportControllerContext::hasActiveRequest() const { return false; }
+
+bool ViewportControllerContext::hasReadyDisplay() const { return false; }
+
+bool ViewportControllerContext::hasDisplayableSequence() const { return false; }
+
+bool ViewportControllerContext::hasTimedSequence() const { return false; }
+
+bool ViewportControllerContext::hasProviderSequence() const { return false; }
+
+bool ViewportControllerContext::hasGenerationTerminalProviderFailure() const { return false; }
+
+bool ViewportControllerContext::providerHasCompleteKnownMetadata() const { return false; }
+
+ImageSequenceProviderKnownFacts ViewportControllerContext::providerKnownFacts() const { return {}; }
+
+QSizeF ViewportControllerContext::providerKnownLogicalSize() const { return {}; }
+
+TimingIntervals ViewportControllerContext::providerKnownTimingIntervals() const { return {}; }
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::providerTimedPlaybackCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::providerFrameSeekCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::providerPositionSeekCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+bool ViewportControllerContext::providerTimedPlaybackCapabilityKnownFalse() const { return false; }
+
+bool ViewportControllerContext::providerFrameSeekCapabilityKnownFalse() const { return false; }
+
+bool ViewportControllerContext::providerFrameSeekCapabilityKnownTrue() const { return false; }
+
+bool ViewportControllerContext::providerPositionSeekCapabilityKnownFalse() const { return false; }
+
+bool ViewportControllerContext::providerKnownFactsTimedFrameCount() const { return false; }
+
+int ViewportControllerContext::providerKnownFactsFrameCount() const { return 0; }
+
+int ViewportControllerContext::providerFrameStartPosition(int) const { return -1; }
+
+int ViewportControllerContext::providerFrameIndexForPosition(int) const { return -1; }
+
+int ViewportControllerContext::frameCount() const { return -1; }
+
+int ViewportControllerContext::totalDuration() const { return -1; }
+
+int ViewportControllerContext::sequenceFrameCount() const { return -1; }
+
+int ViewportControllerContext::sequenceFrameIndexForPosition(int) const { return -1; }
+
+int ViewportControllerContext::sequenceFrameStartPosition(int) const { return -1; }
+
+QSizeF ViewportControllerContext::sequenceLogicalSize() const { return {}; }
+
+QImage ViewportControllerContext::sequenceFrameImage(int) const { return {}; }
+
+double ViewportControllerContext::width() const { return 0.0; }
+
+double ViewportControllerContext::height() const { return 0.0; }
+
 ViewportControllerPort::ViewportControllerPort(
-    const ImageViewportPrivate& item, ViewportControllerState& state)
-    : item(item)
+    const ViewportControllerContext& context, ViewportControllerState& state)
+    : context(context)
     , state(state)
 {
 }
@@ -45,133 +123,133 @@ const ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::pr
     return state.provider;
 }
 
-QRectF ViewportControllerPort::contentRect() const { return item.contentRect(); }
+QRectF ViewportControllerPort::contentRect() const { return context.contentRect(); }
 
-QRectF ViewportControllerPort::visibleImageRect() const { return item.visibleImageRect(); }
+QRectF ViewportControllerPort::visibleImageRect() const { return context.visibleImageRect(); }
 
-QRectF ViewportControllerPort::itemBounds() const { return item.itemBounds(); }
+QRectF ViewportControllerPort::itemBounds() const { return context.itemBounds(); }
 
-bool ViewportControllerPort::hasActiveRequest() const { return item.hasActiveRequest(); }
+bool ViewportControllerPort::hasActiveRequest() const { return context.hasActiveRequest(); }
 
-bool ViewportControllerPort::hasReadyDisplay() const { return item.hasReadyDisplay(); }
+bool ViewportControllerPort::hasReadyDisplay() const { return context.hasReadyDisplay(); }
 
 bool ViewportControllerPort::hasDisplayableSequence() const
 {
-    return item.hasDisplayableSequence();
+    return context.hasDisplayableSequence();
 }
 
-bool ViewportControllerPort::hasTimedSequence() const { return item.hasTimedSequence(); }
+bool ViewportControllerPort::hasTimedSequence() const { return context.hasTimedSequence(); }
 
-bool ViewportControllerPort::hasProviderSequence() const { return item.hasProviderSequence(); }
+bool ViewportControllerPort::hasProviderSequence() const { return context.hasProviderSequence(); }
 
 bool ViewportControllerPort::hasGenerationTerminalProviderFailure() const
 {
-    return item.hasGenerationTerminalProviderFailure();
+    return context.hasGenerationTerminalProviderFailure();
 }
 
 bool ViewportControllerPort::providerHasCompleteKnownMetadata() const
 {
-    return item.providerHasCompleteKnownMetadata();
+    return context.providerHasCompleteKnownMetadata();
 }
 
 ImageSequenceProviderKnownFacts ViewportControllerPort::providerKnownFacts() const
 {
-    return item.providerKnownFacts();
+    return context.providerKnownFacts();
 }
 
 QSizeF ViewportControllerPort::providerKnownLogicalSize() const
 {
-    return item.providerKnownLogicalSize();
+    return context.providerKnownLogicalSize();
 }
 
 TimingIntervals ViewportControllerPort::providerKnownTimingIntervals() const
 {
-    return item.providerKnownTimingIntervals();
+    return context.providerKnownTimingIntervals();
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::providerTimedPlaybackCapability() const
 {
-    return item.providerTimedPlaybackCapability();
+    return context.providerTimedPlaybackCapability();
 }
 
 ImageSequenceProviderCapabilitySupport ViewportControllerPort::providerFrameSeekCapability() const
 {
-    return item.providerFrameSeekCapability();
+    return context.providerFrameSeekCapability();
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::providerPositionSeekCapability() const
 {
-    return item.providerPositionSeekCapability();
+    return context.providerPositionSeekCapability();
 }
 
 bool ViewportControllerPort::providerTimedPlaybackCapabilityKnownFalse() const
 {
-    return item.providerTimedPlaybackCapabilityKnownFalse();
+    return context.providerTimedPlaybackCapabilityKnownFalse();
 }
 
 bool ViewportControllerPort::providerFrameSeekCapabilityKnownFalse() const
 {
-    return item.providerFrameSeekCapabilityKnownFalse();
+    return context.providerFrameSeekCapabilityKnownFalse();
 }
 
 bool ViewportControllerPort::providerFrameSeekCapabilityKnownTrue() const
 {
-    return item.providerFrameSeekCapabilityKnownTrue();
+    return context.providerFrameSeekCapabilityKnownTrue();
 }
 
 bool ViewportControllerPort::providerPositionSeekCapabilityKnownFalse() const
 {
-    return item.providerPositionSeekCapabilityKnownFalse();
+    return context.providerPositionSeekCapabilityKnownFalse();
 }
 
 bool ViewportControllerPort::providerKnownFactsTimedFrameCount() const
 {
-    return item.providerKnownFactsTimedFrameCount();
+    return context.providerKnownFactsTimedFrameCount();
 }
 
 int ViewportControllerPort::providerKnownFactsFrameCount() const
 {
-    return item.providerKnownFactsFrameCount();
+    return context.providerKnownFactsFrameCount();
 }
 
 int ViewportControllerPort::providerFrameStartPosition(int frame) const
 {
-    return item.providerFrameStartPosition(frame);
+    return context.providerFrameStartPosition(frame);
 }
 
 int ViewportControllerPort::providerFrameIndexForPosition(int position) const
 {
-    return item.providerFrameIndexForPosition(position);
+    return context.providerFrameIndexForPosition(position);
 }
 
-int ViewportControllerPort::frameCount() const { return item.frameCount(); }
+int ViewportControllerPort::frameCount() const { return context.frameCount(); }
 
-int ViewportControllerPort::totalDuration() const { return item.totalDuration(); }
+int ViewportControllerPort::totalDuration() const { return context.totalDuration(); }
 
-int ViewportControllerPort::sequenceFrameCount() const { return item.sequenceFrameCount(); }
+int ViewportControllerPort::sequenceFrameCount() const { return context.sequenceFrameCount(); }
 
 int ViewportControllerPort::sequenceFrameIndexForPosition(int position) const
 {
-    return item.sequenceFrameIndexForPosition(position);
+    return context.sequenceFrameIndexForPosition(position);
 }
 
 int ViewportControllerPort::sequenceFrameStartPosition(int frame) const
 {
-    return item.sequenceFrameStartPosition(frame);
+    return context.sequenceFrameStartPosition(frame);
 }
 
-QSizeF ViewportControllerPort::sequenceLogicalSize() const { return item.sequenceLogicalSize(); }
+QSizeF ViewportControllerPort::sequenceLogicalSize() const { return context.sequenceLogicalSize(); }
 
 QImage ViewportControllerPort::sequenceFrameImage(int frame) const
 {
-    return item.sequenceFrameImage(frame);
+    return context.sequenceFrameImage(frame);
 }
 
-double ViewportControllerPort::width() const { return item.width(); }
+double ViewportControllerPort::width() const { return context.width(); }
 
-double ViewportControllerPort::height() const { return item.height(); }
+double ViewportControllerPort::height() const { return context.height(); }
 
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;
@@ -1014,8 +1092,8 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
 }
 }
 
-ViewportController::ViewportController(const ImageViewportPrivate& item)
-    : viewport(item, state)
+ViewportController::ViewportController(const ViewportControllerContext& context)
+    : viewport(context, state)
 {
 }
 

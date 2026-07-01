@@ -33,6 +33,12 @@ class PlaybackTimelineTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit PlaybackTimelineTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void advancementWithinCurrentFrameKeepsDisplayTarget();
     void advancementAtFrameBoundarySelectsNextFrame();

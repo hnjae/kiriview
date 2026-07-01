@@ -296,10 +296,56 @@ struct ViewportControllerState
     ImageViewportInternal::ProviderGenerationState provider;
 };
 
+class ViewportControllerContext
+{
+public:
+    ViewportControllerContext() = default;
+    ViewportControllerContext(const ViewportControllerContext&) = delete;
+    ViewportControllerContext& operator=(const ViewportControllerContext&) = delete;
+    ViewportControllerContext(ViewportControllerContext&&) = delete;
+    ViewportControllerContext& operator=(ViewportControllerContext&&) = delete;
+    virtual ~ViewportControllerContext() = default;
+
+    virtual QRectF contentRect() const;
+    virtual QRectF visibleImageRect() const;
+    virtual QRectF itemBounds() const;
+    virtual bool hasActiveRequest() const;
+    virtual bool hasReadyDisplay() const;
+    virtual bool hasDisplayableSequence() const;
+    virtual bool hasTimedSequence() const;
+    virtual bool hasProviderSequence() const;
+    virtual bool hasGenerationTerminalProviderFailure() const;
+    virtual bool providerHasCompleteKnownMetadata() const;
+    virtual ImageSequenceProviderKnownFacts providerKnownFacts() const;
+    virtual QSizeF providerKnownLogicalSize() const;
+    virtual TimingIntervals providerKnownTimingIntervals() const;
+    virtual ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
+    virtual ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
+    virtual ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
+    virtual bool providerTimedPlaybackCapabilityKnownFalse() const;
+    virtual bool providerFrameSeekCapabilityKnownFalse() const;
+    virtual bool providerFrameSeekCapabilityKnownTrue() const;
+    virtual bool providerPositionSeekCapabilityKnownFalse() const;
+    virtual bool providerKnownFactsTimedFrameCount() const;
+    virtual int providerKnownFactsFrameCount() const;
+    virtual int providerFrameStartPosition(int frame) const;
+    virtual int providerFrameIndexForPosition(int position) const;
+    virtual int frameCount() const;
+    virtual int totalDuration() const;
+    virtual int sequenceFrameCount() const;
+    virtual int sequenceFrameIndexForPosition(int position) const;
+    virtual int sequenceFrameStartPosition(int frame) const;
+    virtual QSizeF sequenceLogicalSize() const;
+    virtual QImage sequenceFrameImage(int frame) const;
+    virtual double width() const;
+    virtual double height() const;
+};
+
 class ViewportControllerPort
 {
 public:
-    ViewportControllerPort(const ImageViewportPrivate& item, ViewportControllerState& state);
+    ViewportControllerPort(
+        const ViewportControllerContext& context, ViewportControllerState& state);
 
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;
@@ -343,14 +389,14 @@ public:
     double height() const;
 
 private:
-    const ImageViewportPrivate& item;
+    const ViewportControllerContext& context;
     ViewportControllerState& state;
 };
 
 class ViewportController
 {
 public:
-    explicit ViewportController(const ImageViewportPrivate& item);
+    explicit ViewportController(const ViewportControllerContext& context);
 
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
