@@ -23,11 +23,11 @@ void mergeControllerChanges(ViewportChangeSet& target, ViewportChangeSet source)
 }
 }
 
-ImageSequence* ImageViewportPrivate::sequence() const { return request.sequence; }
+ImageSequence* ImageViewportPrivate::sequence() const { return controller.requestState().sequence; }
 
 void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 {
-    if (!request.sequence && !sequence) {
+    if (!controller.requestState().sequence && !sequence) {
         return;
     }
 
@@ -46,33 +46,33 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 
 ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const
 {
-    return request.status;
+    return controller.requestState().status;
 }
 
 ImageViewportPrivate::RequestReason ImageViewportPrivate::requestReason() const
 {
-    return request.reason;
+    return controller.requestState().reason;
 }
 
 ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
 {
-    return request.commandReason;
+    return controller.requestState().commandReason;
 }
 
 ImageViewportPrivate::DisplayStatus ImageViewportPrivate::displayStatus() const
 {
-    return display.status;
+    return controller.displayState().status;
 }
 
 ImageViewportPrivate::PlaybackPhase ImageViewportPrivate::playbackPhase() const
 {
-    return request.playbackPhase;
+    return controller.requestState().playbackPhase;
 }
 
 int ImageViewportPrivate::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return display.displayedRequest.request.target.frame;
+        return controller.displayState().displayedRequest.request.target.frame;
     }
 
     return -1;
@@ -81,7 +81,7 @@ int ImageViewportPrivate::displayedFrame() const
 int ImageViewportPrivate::requestedFrame() const
 {
     if (hasDisplayableSequence()) {
-        return request.activeRequest.target.frame;
+        return controller.requestState().activeRequest.target.frame;
     }
 
     return -1;
@@ -90,7 +90,7 @@ int ImageViewportPrivate::requestedFrame() const
 int ImageViewportPrivate::displayedPosition() const
 {
     if (hasReadyDisplay()) {
-        return display.displayedRequest.request.target.position;
+        return controller.displayState().displayedRequest.request.target.position;
     }
 
     return -1;
@@ -99,11 +99,12 @@ int ImageViewportPrivate::displayedPosition() const
 int ImageViewportPrivate::requestedPosition() const
 {
     if (hasProviderSequence()
-        && (provider.timedMetadata || request.activeRequest.target.position >= 0)) {
-        return request.activeRequest.target.position;
+        && (controller.providerState().timedMetadata
+            || controller.requestState().activeRequest.target.position >= 0)) {
+        return controller.requestState().activeRequest.target.position;
     }
     if (hasTimedSequence()) {
-        return request.activeRequest.target.position;
+        return controller.requestState().activeRequest.target.position;
     }
 
     return -1;
@@ -111,16 +112,19 @@ int ImageViewportPrivate::requestedPosition() const
 
 int ImageViewportPrivate::frameCount() const
 {
-    if (hasProviderSequence() && provider.metadataReady) {
-        return provider.timedMetadata ? provider.timingIntervals.frameCount() : 1;
+    if (hasProviderSequence() && controller.providerState().metadataReady) {
+        return controller.providerState().timedMetadata
+            ? controller.providerState().timingIntervals.frameCount()
+            : 1;
     }
-    if (hasProviderSequence() && !provider.metadataReady
-        && request.sequence->m_providerKnownFacts.isTimedFrameCount()
-        && providerCapabilityKnownTrue(request.sequence->m_providerFrameSeekCapability)) {
-        return request.sequence->m_providerKnownFacts.frameCount();
+    if (hasProviderSequence() && !controller.providerState().metadataReady
+        && controller.requestState().sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(
+            controller.requestState().sequence->m_providerFrameSeekCapability)) {
+        return controller.requestState().sequence->m_providerKnownFacts.frameCount();
     }
     if (hasDisplayableSequence()) {
-        return request.sequence->frameCount();
+        return controller.requestState().sequence->frameCount();
     }
 
     return -1;
@@ -128,11 +132,11 @@ int ImageViewportPrivate::frameCount() const
 
 int ImageViewportPrivate::totalDuration() const
 {
-    if (hasProviderSequence() && provider.timedMetadata) {
-        return provider.timingIntervals.totalDuration();
+    if (hasProviderSequence() && controller.providerState().timedMetadata) {
+        return controller.providerState().timingIntervals.totalDuration();
     }
     if (hasTimedSequence()) {
-        return request.sequence->totalDuration();
+        return controller.requestState().sequence->totalDuration();
     }
 
     return -1;
@@ -140,28 +144,32 @@ int ImageViewportPrivate::totalDuration() const
 
 QVariantMap ImageViewportPrivate::frameSeekBounds() const
 {
-    if (hasProviderSequence() && provider.metadataReady) {
-        if (!provider.frameSeekSupport) {
+    if (hasProviderSequence() && controller.providerState().metadataReady) {
+        if (!controller.providerState().frameSeekSupport) {
             return invalidRange();
         }
         return {
             { QStringLiteral("minimum"), 0 },
             { QStringLiteral("maximum"),
-                provider.timedMetadata ? provider.timingIntervals.frameCount() - 1 : 0 },
+                controller.providerState().timedMetadata
+                    ? controller.providerState().timingIntervals.frameCount() - 1
+                    : 0 },
         };
     }
-    if (hasProviderSequence() && !provider.metadataReady
-        && request.sequence->m_providerKnownFacts.isTimedFrameCount()
-        && providerCapabilityKnownTrue(request.sequence->m_providerFrameSeekCapability)) {
+    if (hasProviderSequence() && !controller.providerState().metadataReady
+        && controller.requestState().sequence->m_providerKnownFacts.isTimedFrameCount()
+        && providerCapabilityKnownTrue(
+            controller.requestState().sequence->m_providerFrameSeekCapability)) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), request.sequence->m_providerKnownFacts.frameCount() - 1 },
+            { QStringLiteral("maximum"),
+                controller.requestState().sequence->m_providerKnownFacts.frameCount() - 1 },
         };
     }
     if (hasStillSequence() || hasTimedSequence()) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), request.sequence->frameCount() - 1 },
+            { QStringLiteral("maximum"), controller.requestState().sequence->frameCount() - 1 },
         };
     }
 
@@ -170,16 +178,18 @@ QVariantMap ImageViewportPrivate::frameSeekBounds() const
 
 QVariantMap ImageViewportPrivate::positionSeekBounds() const
 {
-    if (hasProviderSequence() && provider.timedMetadata && provider.positionSeekSupport) {
+    if (hasProviderSequence() && controller.providerState().timedMetadata
+        && controller.providerState().positionSeekSupport) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), provider.timingIntervals.totalDuration() },
+            { QStringLiteral("maximum"),
+                controller.providerState().timingIntervals.totalDuration() },
         };
     }
     if (hasTimedSequence()) {
         return {
             { QStringLiteral("minimum"), 0 },
-            { QStringLiteral("maximum"), request.sequence->totalDuration() },
+            { QStringLiteral("maximum"), controller.requestState().sequence->totalDuration() },
         };
     }
 
@@ -188,11 +198,12 @@ QVariantMap ImageViewportPrivate::positionSeekBounds() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
 {
-    if (hasProviderSequence() && provider.metadataReady) {
-        return provider.timedPlaybackSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerState().metadataReady) {
+        return controller.providerState().timedPlaybackSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(request.sequence->m_providerTimedPlaybackCapability);
+        return capabilitySupportToTriState(
+            controller.requestState().sequence->m_providerTimedPlaybackCapability);
     }
     if (hasTimedSequence()) {
         return TriState::True;
@@ -206,11 +217,12 @@ ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() cons
 
 ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 {
-    if (hasProviderSequence() && provider.metadataReady) {
-        return provider.frameSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerState().metadataReady) {
+        return controller.providerState().frameSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(request.sequence->m_providerFrameSeekCapability);
+        return capabilitySupportToTriState(
+            controller.requestState().sequence->m_providerFrameSeekCapability);
     }
     if (hasStillSequence() || hasTimedSequence()) {
         return TriState::True;
@@ -221,11 +233,12 @@ ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
 
 ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 {
-    if (hasProviderSequence() && provider.metadataReady) {
-        return provider.positionSeekSupport ? TriState::True : TriState::False;
+    if (hasProviderSequence() && controller.providerState().metadataReady) {
+        return controller.providerState().positionSeekSupport ? TriState::True : TriState::False;
     }
     if (hasProviderSequence()) {
-        return capabilitySupportToTriState(request.sequence->m_providerPositionSeekCapability);
+        return capabilitySupportToTriState(
+            controller.requestState().sequence->m_providerPositionSeekCapability);
     }
     if (hasTimedSequence()) {
         return TriState::True;
@@ -240,18 +253,27 @@ ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
 QSizeF ImageViewportPrivate::displayedImageSize() const
 {
     if (hasReadyDisplay()) {
-        return display.displayedImageSize;
+        return controller.displayState().displayedImageSize;
     }
 
     return QSizeF(0.0, 0.0);
 }
 
-uint ImageViewportPrivate::displayRevision() const { return display.revision; }
+uint ImageViewportPrivate::displayRevision() const { return controller.displayState().revision; }
 
-uint ImageViewportPrivate::requestRevision() const { return request.requestRevision; }
+uint ImageViewportPrivate::requestRevision() const
+{
+    return controller.requestState().requestRevision;
+}
 
-uint ImageViewportPrivate::commandRevision() const { return request.commandRevision; }
+uint ImageViewportPrivate::commandRevision() const
+{
+    return controller.requestState().commandRevision;
+}
 
-QString ImageViewportPrivate::errorString() const { return request.errorString; }
+QString ImageViewportPrivate::errorString() const { return controller.requestState().errorString; }
 
-QString ImageViewportPrivate::warningString() const { return request.warningString; }
+QString ImageViewportPrivate::warningString() const
+{
+    return controller.requestState().warningString;
+}

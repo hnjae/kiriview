@@ -209,9 +209,6 @@ public:
     ViewportProviderBridge providerBridge;
     RenderAdapter renderAdapter;
     ImageViewportInternal::PresentationState presentation;
-    ImageViewportInternal::DisplayState& display;
-    ImageViewportInternal::RequestState& request;
-    ImageViewportInternal::ProviderGenerationState& provider;
     QTimer playbackTimer;
     QElapsedTimer playbackElapsedTimer;
 };

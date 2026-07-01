@@ -10,14 +10,15 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
     auto preparedPayload = synchronization.preparedPayload;
     if (!preparedPayload.commitPending && hasReadyDisplay()) {
-        preparedPayload.image = display.displayedImage;
+        preparedPayload.image = controller.displayState().displayedImage;
     }
     const bool imagePresent = !preparedPayload.image.isNull();
     QRectF targetRect = currentContentRect().intersected(itemBounds());
     QRectF sourceRect = visibleImageRect();
     if (synchronization.pendingProviderCommit) {
-        targetRect = contentRectForImageSize(provider.logicalSize).intersected(itemBounds());
-        sourceRect = visibleImageRectForImageSize(provider.logicalSize);
+        targetRect = contentRectForImageSize(controller.providerState().logicalSize)
+                         .intersected(itemBounds());
+        sourceRect = visibleImageRectForImageSize(controller.providerState().logicalSize);
     }
 
     const RenderAdapter::Output render = renderAdapter.createNode(oldNode,

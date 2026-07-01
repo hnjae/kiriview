@@ -15,23 +15,23 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 
 void ImageViewportPrivate::incrementDisplayRevision()
 {
-    ++display.revision;
+    ++controller.displayState().revision;
     emit q->displayRevisionChanged();
 }
 
 void ImageViewportPrivate::incrementRequestRevision()
 {
-    ++request.requestRevision;
+    ++controller.requestState().requestRevision;
     emit q->requestRevisionChanged();
 }
 
 void ImageViewportPrivate::setPlaybackPhase(PlaybackPhase phase)
 {
-    if (request.playbackPhase == phase) {
+    if (controller.requestState().playbackPhase == phase) {
         return;
     }
 
-    request.playbackPhase = phase;
+    controller.requestState().playbackPhase = phase;
     emit q->playbackPhaseChanged();
     syncPlaybackTimer();
 }
@@ -80,27 +80,31 @@ void ImageViewportPrivate::flushPlaybackTimerElapsed()
 
 int ImageViewportPrivate::playbackTimerInterval() const
 {
-    if (request.playbackPhase != PlaybackPhase::Playing || request.status != RequestStatus::Ready) {
+    if (controller.requestState().playbackPhase != PlaybackPhase::Playing
+        || controller.requestState().status != RequestStatus::Ready) {
         return -1;
     }
 
     int frameStart = -1;
     int frameDuration = -1;
-    const int currentFrame = request.activeRequest.target.frame;
-    if (hasProviderSequence() && provider.metadataReady && provider.timedMetadata) {
-        if (currentFrame < 0 || currentFrame >= provider.timingIntervals.frameCount()) {
+    const int currentFrame = controller.requestState().activeRequest.target.frame;
+    if (hasProviderSequence() && controller.providerState().metadataReady
+        && controller.providerState().timedMetadata) {
+        if (currentFrame < 0
+            || currentFrame >= controller.providerState().timingIntervals.frameCount()) {
             return -1;
         }
         frameStart = providerFrameStartPosition(currentFrame);
-        frameDuration = provider.timingIntervals.frameDuration(currentFrame);
+        frameDuration = controller.providerState().timingIntervals.frameDuration(currentFrame);
     } else if (hasTimedSequence()) {
-        if (currentFrame < 0 || currentFrame >= request.sequence->frameCount()) {
+        if (currentFrame < 0 || currentFrame >= controller.requestState().sequence->frameCount()) {
             return -1;
         }
-        frameStart = request.sequence->frameStartPosition(currentFrame);
-        const int nextFrameStart = currentFrame + 1 < request.sequence->frameCount()
-            ? request.sequence->frameStartPosition(currentFrame + 1)
-            : request.sequence->totalDuration();
+        frameStart = controller.requestState().sequence->frameStartPosition(currentFrame);
+        const int nextFrameStart
+            = currentFrame + 1 < controller.requestState().sequence->frameCount()
+            ? controller.requestState().sequence->frameStartPosition(currentFrame + 1)
+            : controller.requestState().sequence->totalDuration();
         frameDuration = nextFrameStart - frameStart;
     } else {
         return -1;
@@ -110,106 +114,122 @@ int ImageViewportPrivate::playbackTimerInterval() const
         return -1;
     }
 
-    const int playbackPosition
-        = request.playbackPosition >= 0 ? request.playbackPosition : frameStart;
+    const int playbackPosition = controller.requestState().playbackPosition >= 0
+        ? controller.requestState().playbackPosition
+        : frameStart;
     const int remaining = frameStart + frameDuration - playbackPosition;
     return std::max(1, remaining);
 }
 
 bool ImageViewportPrivate::hasActiveRequest() const
 {
-    return request.status != RequestStatus::NoRequest;
+    return controller.requestState().status != RequestStatus::NoRequest;
 }
 
 bool ImageViewportPrivate::hasReadyDisplay() const
 {
-    return display.hasReadyDisplay(hasDisplayableSequence());
+    return controller.displayState().hasReadyDisplay(hasDisplayableSequence());
 }
 
 bool ImageViewportPrivate::hasDisplayableSequence() const
 {
-    return request.sequence && request.sequence->isValid();
+    return controller.requestState().sequence && controller.requestState().sequence->isValid();
 }
 
 bool ImageViewportPrivate::hasStillSequence() const
 {
-    return request.sequence && request.sequence->isStill();
+    return controller.requestState().sequence && controller.requestState().sequence->isStill();
 }
 
 bool ImageViewportPrivate::hasTimedSequence() const
 {
-    return request.sequence && request.sequence->isTimedList();
+    return controller.requestState().sequence && controller.requestState().sequence->isTimedList();
 }
 
 bool ImageViewportPrivate::hasProviderSequence() const
 {
-    return request.sequence && request.sequence->isProvider();
+    return controller.requestState().sequence && controller.requestState().sequence->isProvider();
 }
 
 bool ImageViewportPrivate::hasGenerationTerminalProviderFailure() const
 {
-    return hasProviderSequence() && !provider.session
-        && (request.status == RequestStatus::Unsupported || request.status == RequestStatus::Error);
+    return hasProviderSequence() && !controller.providerState().session
+        && (controller.requestState().status == RequestStatus::Unsupported
+            || controller.requestState().status == RequestStatus::Error);
 }
 
 bool ImageViewportPrivate::providerTimedPlaybackCapabilityKnownFalse() const
 {
-    return request.sequence
-        && providerCapabilityKnownFalse(request.sequence->m_providerTimedPlaybackCapability);
+    return controller.requestState().sequence
+        && providerCapabilityKnownFalse(
+            controller.requestState().sequence->m_providerTimedPlaybackCapability);
 }
 
 bool ImageViewportPrivate::providerFrameSeekCapabilityKnownFalse() const
 {
-    return request.sequence
-        && providerCapabilityKnownFalse(request.sequence->m_providerFrameSeekCapability);
+    return controller.requestState().sequence
+        && providerCapabilityKnownFalse(
+            controller.requestState().sequence->m_providerFrameSeekCapability);
 }
 
 bool ImageViewportPrivate::providerFrameSeekCapabilityKnownTrue() const
 {
-    return request.sequence
-        && providerCapabilityKnownTrue(request.sequence->m_providerFrameSeekCapability);
+    return controller.requestState().sequence
+        && providerCapabilityKnownTrue(
+            controller.requestState().sequence->m_providerFrameSeekCapability);
 }
 
 bool ImageViewportPrivate::providerPositionSeekCapabilityKnownFalse() const
 {
-    return request.sequence
-        && providerCapabilityKnownFalse(request.sequence->m_providerPositionSeekCapability);
+    return controller.requestState().sequence
+        && providerCapabilityKnownFalse(
+            controller.requestState().sequence->m_providerPositionSeekCapability);
 }
 
 bool ImageViewportPrivate::providerKnownFactsTimedFrameCount() const
 {
-    return request.sequence && request.sequence->m_providerKnownFacts.isTimedFrameCount();
+    return controller.requestState().sequence
+        && controller.requestState().sequence->m_providerKnownFacts.isTimedFrameCount();
 }
 
 int ImageViewportPrivate::providerKnownFactsFrameCount() const
 {
-    return providerKnownFactsTimedFrameCount() ? request.sequence->m_providerKnownFacts.frameCount()
-                                               : 0;
+    return providerKnownFactsTimedFrameCount()
+        ? controller.requestState().sequence->m_providerKnownFacts.frameCount()
+        : 0;
 }
 
 int ImageViewportPrivate::sequenceFrameCount() const
 {
-    return request.sequence ? request.sequence->frameCount() : 0;
+    return controller.requestState().sequence ? controller.requestState().sequence->frameCount()
+                                              : 0;
 }
 
 int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
 {
-    return request.sequence ? request.sequence->frameIndexForPosition(position) : -1;
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->frameIndexForPosition(position)
+        : -1;
 }
 
 int ImageViewportPrivate::sequenceFrameStartPosition(int frame) const
 {
-    return request.sequence ? request.sequence->frameStartPosition(frame) : -1;
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->frameStartPosition(frame)
+        : -1;
 }
 
 QSizeF ImageViewportPrivate::sequenceLogicalSize() const
 {
-    return request.sequence ? request.sequence->logicalSize() : QSizeF {};
+    return controller.requestState().sequence ? controller.requestState().sequence->logicalSize()
+                                              : QSizeF {};
 }
 
 QImage ImageViewportPrivate::sequenceFrameImage(int frame) const
 {
-    return request.sequence ? request.sequence->frameImage(frame) : QImage();
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->frameImage(frame)
+        : QImage();
 }
 
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)

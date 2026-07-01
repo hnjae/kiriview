@@ -207,15 +207,15 @@ void ImageViewportPrivate::setPan(QPointF pan)
     notifyPresentationChanged(true);
 }
 
-bool ImageViewportPrivate::looping() const { return request.looping; }
+bool ImageViewportPrivate::looping() const { return controller.requestState().looping; }
 
 void ImageViewportPrivate::setLooping(bool looping)
 {
-    if (request.looping == looping) {
+    if (controller.requestState().looping == looping) {
         return;
     }
 
-    request.looping = looping;
+    controller.requestState().looping = looping;
     emit q->loopingChanged();
 }
 
@@ -287,5 +287,5 @@ QSizeF ImageViewportPrivate::currentImageSize() const
         return {};
     }
 
-    return display.displayedImageSize;
+    return controller.displayState().displayedImageSize;
 }

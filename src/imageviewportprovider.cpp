@@ -62,43 +62,51 @@ bool ImageViewportPrivate::acceptsProviderSessionResult(quint64 sessionSerial) c
 
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
 {
-    return request.sequence && request.sequence->m_hasCompleteProviderKnownMetadata;
+    return controller.requestState().sequence
+        && controller.requestState().sequence->m_hasCompleteProviderKnownMetadata;
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
 {
-    return request.sequence ? request.sequence->m_providerKnownFacts
-                            : ImageSequenceProviderKnownFacts {};
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->m_providerKnownFacts
+        : ImageSequenceProviderKnownFacts {};
 }
 
 QSizeF ImageViewportPrivate::providerKnownLogicalSize() const
 {
-    return request.sequence ? request.sequence->m_providerKnownLogicalSize : QSizeF {};
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->m_providerKnownLogicalSize
+        : QSizeF {};
 }
 
 TimingIntervals ImageViewportPrivate::providerKnownTimingIntervals() const
 {
-    return request.sequence && request.sequence->m_providerKnownTimingIntervals
-        ? *request.sequence->m_providerKnownTimingIntervals
+    return controller.requestState().sequence
+            && controller.requestState().sequence->m_providerKnownTimingIntervals
+        ? *controller.requestState().sequence->m_providerKnownTimingIntervals
         : TimingIntervals();
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
 {
-    return request.sequence ? request.sequence->m_providerTimedPlaybackCapability
-                            : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->m_providerTimedPlaybackCapability
+        : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
 {
-    return request.sequence ? request.sequence->m_providerFrameSeekCapability
-                            : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->m_providerFrameSeekCapability
+        : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
 {
-    return request.sequence ? request.sequence->m_providerPositionSeekCapability
-                            : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return controller.requestState().sequence
+        ? controller.requestState().sequence->m_providerPositionSeekCapability
+        : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
@@ -241,8 +249,8 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
     startProviderFrameRequest(flush.frame, flush.targetKind);
     incrementRequestRevision();
     emit q->requestStateChanged();
-    if (request.status == RequestStatus::Error
-        && request.reason == RequestReason::ProviderFailure) {
+    if (controller.requestState().status == RequestStatus::Error
+        && controller.requestState().reason == RequestReason::ProviderFailure) {
         emit q->diagnosticsChanged();
     }
 }
@@ -250,7 +258,8 @@ void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 bool ImageViewportPrivate::startProviderFrameRequest(
     int frame, ProviderRequestTargetKind targetKind)
 {
-    const DisplayRequestTarget target { frame, request.activeRequest.target.position, targetKind };
+    const DisplayRequestTarget target { frame,
+        controller.requestState().activeRequest.target.position, targetKind };
     const ViewportProviderFrameRequestStartResult result
         = controller.startProviderFrameRequest({ target });
     ViewportProviderFrameTransportEffect effect;
@@ -380,29 +389,30 @@ void ImageViewportPrivate::handleProviderCancellation(
 std::shared_ptr<ImageSequenceProviderSessionFactory>
 ImageViewportPrivate::providerSessionFactory() const
 {
-    return hasProviderSequence() ? request.sequence->m_providerSessionFactory : nullptr;
+    return hasProviderSequence() ? controller.requestState().sequence->m_providerSessionFactory
+                                 : nullptr;
 }
 
 ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract() const
 {
     if (hasProviderSequence()) {
-        return request.sequence->m_providerThreadingContract;
+        return controller.requestState().sequence->m_providerThreadingContract;
     }
     return ImageSequenceProviderThreadingContract::AffinityBound;
 }
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
 {
-    if (!provider.timedMetadata) {
+    if (!controller.providerState().timedMetadata) {
         return -1;
     }
-    return provider.timingIntervals.frameStartPosition(frame);
+    return controller.providerState().timingIntervals.frameStartPosition(frame);
 }
 
 int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
 {
-    if (!provider.timedMetadata) {
+    if (!controller.providerState().timedMetadata) {
         return -1;
     }
-    return provider.timingIntervals.frameIndexForPosition(position);
+    return controller.providerState().timingIntervals.frameIndexForPosition(position);
 }
