@@ -142,7 +142,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 5: Actions, Menus, Panels, Startup, And Operations
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Finish visible shell behavior and user operations that depend on shared session/action ownership.
 - Dependencies: Milestone 2; Milestone 4 for video-specific action states.
 - Relevant references: `docs/spec/main-window.md`, `docs/spec/file-access.md`, `docs/spec/video-playback.md`, `docs/architecture/state-ownership.md`, `docs/architecture/layer-ownership.md`, `docs/architecture/async-lifecycle.md`.
@@ -151,6 +151,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Action registry/runtime tests, shortcut policy tests, menu access key tests, main-window toolbar tests, info panel tests, startup Rust tests, `devenv tasks run --mode single ci:lint:qml`, and focused Qt/QML CTest targets.
 - Suggested commit boundaries: Commit startup policy, action/menu availability, operation targets, and panel/fullscreen UI behavior in separate commits where practical.
 - Stop conditions: Stop before changing persistent action IDs or shortcut names without deliberate acceptance, before changing destructive deletion targets without test coverage, or before modifying `po/*.po`.
+- Completion notes: Existing action, menu, operation, panel, fullscreen, shortcut-help, and info-panel implementation already matched the documented shell end state. Added focused coverage for first-startup-source selection, drop-first-item routing, and single-selection open dialog mode. Verification covers the shared action registry/runtime, command router, action state policy, persistent menu presentation, shortcut policy/runtime surfaces, menu access keys, shortcut help, Kirigami action facade, toolbar/fullscreen/context-menu/panel behavior, media information projection, Open With target planning/runtime, deletion target planning/runtime, startup verbose and missing-path policy, and QML lint. No persistent action ids, shortcut names, destructive deletion targets, translations, dependencies, or Flatpak permissions changed.
 
 ### Milestone 6: Provider-Only Rendering Migration
 
