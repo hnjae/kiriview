@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include "imageviewporthelpers_p.h"
 #include "timingintervals_p.h"
 
 #include <QtCore/QPointer>
@@ -103,11 +103,12 @@ struct PresentationState
 {
     ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
     ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
-    ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
-    ImageViewport::HorizontalAlignment horizontalAlignment
-        = ImageViewport::HorizontalAlignment::AlignHCenter;
-    ImageViewport::VerticalAlignment verticalAlignment
-        = ImageViewport::VerticalAlignment::AlignVCenter;
+    ImageViewportInternal::ContentPlacementMode fillMode
+        = ImageViewportInternal::ContentPlacementMode::Contain;
+    ImageViewportInternal::ContentHorizontalPlacement horizontalAlignment
+        = ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter;
+    ImageViewportInternal::ContentVerticalPlacement verticalAlignment
+        = ImageViewportInternal::ContentVerticalPlacement::AlignVCenter;
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
     QColor backgroundColor = Qt::transparent;
     double zoom = 1.0;

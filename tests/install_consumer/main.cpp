@@ -385,8 +385,7 @@ ImageViewport {
         const stopOutcome = stop()
         const seekOutcome = seek(0)
         const positionSeekOutcome = seekToPosition(0)
-        zoom = 2
-        pan = Qt.point(3, 4)
+        const zoomOutcome = setZoomPercent(200, Qt.point(5, 5))
         const resetViewOutcome = resetView()
         commandSurfaceAvailable = requestStatus === ImageViewport.RequestStatus.NoRequest
             && requestReason === ImageViewport.RequestReason.NoRequest
@@ -397,12 +396,14 @@ ImageViewport {
             && stopOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && seekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && positionSeekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && zoomOutcome === ImageViewport.CommandOutcome.Accepted
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
             && commandReason === ImageViewport.CommandReason.NoCommand
             && commandRevision.valid
-            && zoom === 1
-            && pan.x === 0
-            && pan.y === 0
+            && fitMode === ImageViewport.FitMode.Contain
+            && zoomPercent === 100
+            && contentPosition.x === 0
+            && contentPosition.y === 0
             && frameSeekBounds.minimum === -1
             && frameSeekBounds.maximum === -1
             && positionSeekBounds.minimum === -1

@@ -82,7 +82,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 
 ## M3: Legacy Presentation API Removal
 
-- Status: Not Started
+- Status: Complete
 - Goal: Remove legacy presentation aliases that are explicitly outside the final public API.
 - Scope: Add failing public API tests that assert the absence of legacy properties/enums and then remove `FillMode`, horizontal and vertical alignment API, raw scale-style `zoom`, raw `pan`, and related tests or geometry dependencies.
 - Acceptance Criteria: Installed public header, QML type metadata, and public meta-object no longer expose `FillMode`, `HorizontalAlignment`, `VerticalAlignment`, `fillMode`, `horizontalAlignment`, `verticalAlignment`, raw `zoom`, or raw `pan`, matching `docs/spec/image-viewport-api.md`.
@@ -94,6 +94,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 - Likely Code Areas: `src/imageviewport.h`, `src/imageviewport_p.h`, `src/imageviewportpresentation.cpp`, `src/presentationgeometry.cpp`, `src/presentationgeometry_p.h`, `src/imageviewportrender.cpp`, `tests/tst_imageviewport_public_api.cpp`, and `tests/tst_imageviewport_presentation_state.cpp`.
 - Dependencies: M2 should land first when possible so the public API shape is already moving toward typed final surfaces; otherwise legacy removal can proceed independently if it does not conflict with typed value work.
 - Stop Conditions: Stop if any downstream-supported compatibility requirement for legacy aliases is reintroduced; that would contradict the approved target and needs documentation approval before implementation.
+- Implementation Note: M3 removed the public legacy presentation aliases while preserving private placement state needed for current geometry calculation; remaining broad `setZoom` search hits are the final `setZoomPercent` API, and remaining legacy-name hits are absence assertions or historical plan text.
 
 ## M4: Controller-Owned Presentation State
 

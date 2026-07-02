@@ -130,24 +130,6 @@ void ImageViewport::setFitModeProperty(FitMode mode) { d->setFitModeProperty(mod
 double ImageViewport::zoomPercent() const { return d->zoomPercent(); }
 void ImageViewport::setZoomPercentProperty(double percent) { d->setZoomPercentProperty(percent); }
 int ImageViewport::rotationDegrees() const { return d->rotationDegrees(); }
-ImageViewport::FillMode ImageViewport::fillMode() const { return d->fillMode(); }
-void ImageViewport::setFillMode(FillMode mode) { d->setFillMode(mode); }
-ImageViewport::HorizontalAlignment ImageViewport::horizontalAlignment() const
-{
-    return d->horizontalAlignment();
-}
-void ImageViewport::setHorizontalAlignment(HorizontalAlignment alignment)
-{
-    d->setHorizontalAlignment(alignment);
-}
-ImageViewport::VerticalAlignment ImageViewport::verticalAlignment() const
-{
-    return d->verticalAlignment();
-}
-void ImageViewport::setVerticalAlignment(VerticalAlignment alignment)
-{
-    d->setVerticalAlignment(alignment);
-}
 bool ImageViewport::smoothing() const { return d->smoothing(); }
 void ImageViewport::setSmoothing(bool smoothing) { d->setSmoothing(smoothing); }
 bool ImageViewport::mipmap() const { return d->mipmap(); }
@@ -160,10 +142,6 @@ ImageViewport::BackgroundMode ImageViewport::backgroundMode() const { return d->
 void ImageViewport::setBackgroundMode(BackgroundMode mode) { d->setBackgroundMode(mode); }
 QColor ImageViewport::backgroundColor() const { return d->backgroundColor(); }
 void ImageViewport::setBackgroundColor(const QColor& color) { d->setBackgroundColor(color); }
-double ImageViewport::zoom() const { return d->zoom(); }
-void ImageViewport::setZoom(double zoom) { d->setZoom(zoom); }
-QPointF ImageViewport::pan() const { return d->pan(); }
-void ImageViewport::setPan(QPointF pan) { d->setPan(pan); }
 bool ImageViewport::looping() const { return d->looping(); }
 void ImageViewport::setLooping(bool looping) { d->setLooping(looping); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }

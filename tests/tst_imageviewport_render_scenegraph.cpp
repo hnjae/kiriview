@@ -513,7 +513,8 @@ void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRe
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    item.setFillMode(ImageViewport::FillMode::Cover);
+    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);

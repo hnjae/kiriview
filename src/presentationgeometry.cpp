@@ -227,38 +227,41 @@ QRectF contentRectForReadyState(const PresentationGeometry::State& state)
         placedSize = fittingSize * (state.zoom / devicePixelRatio);
     } else {
         switch (state.fillMode) {
-        case ImageViewport::FillMode::Contain: {
+        case ImageViewportInternal::ContentPlacementMode::Contain: {
             const double scale = std::min(state.itemBounds.width() / fittingSize.width(),
                 state.itemBounds.height() / fittingSize.height());
             placedSize = fittingSize * scale;
             break;
         }
-        case ImageViewport::FillMode::Cover: {
+        case ImageViewportInternal::ContentPlacementMode::Cover: {
             const double scale = std::max(state.itemBounds.width() / fittingSize.width(),
                 state.itemBounds.height() / fittingSize.height());
             placedSize = fittingSize * scale;
             break;
         }
-        case ImageViewport::FillMode::Stretch:
+        case ImageViewportInternal::ContentPlacementMode::Stretch:
             placedSize = state.itemBounds.size();
             break;
-        case ImageViewport::FillMode::Center:
+        case ImageViewportInternal::ContentPlacementMode::Center:
             placedSize = fittingSize;
             break;
         }
     }
 
     double x = 0.0;
-    if (state.horizontalAlignment == ImageViewport::HorizontalAlignment::AlignHCenter) {
+    if (state.horizontalAlignment
+        == ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter) {
         x = (state.itemBounds.width() - placedSize.width()) / 2.0;
-    } else if (state.horizontalAlignment == ImageViewport::HorizontalAlignment::AlignRight) {
+    } else if (state.horizontalAlignment
+        == ImageViewportInternal::ContentHorizontalPlacement::AlignRight) {
         x = state.itemBounds.width() - placedSize.width();
     }
 
     double y = 0.0;
-    if (state.verticalAlignment == ImageViewport::VerticalAlignment::AlignVCenter) {
+    if (state.verticalAlignment == ImageViewportInternal::ContentVerticalPlacement::AlignVCenter) {
         y = (state.itemBounds.height() - placedSize.height()) / 2.0;
-    } else if (state.verticalAlignment == ImageViewport::VerticalAlignment::AlignBottom) {
+    } else if (state.verticalAlignment
+        == ImageViewportInternal::ContentVerticalPlacement::AlignBottom) {
         y = state.itemBounds.height() - placedSize.height();
     }
 

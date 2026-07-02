@@ -73,10 +73,25 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "acceptedSequence",
         "displayedSequence",
         "loopProgress",
+        "fillMode",
+        "horizontalAlignment",
+        "verticalAlignment",
+        "zoom",
+        "pan",
     };
 
     for (const QByteArray& property : absentProperties) {
         QVERIFY2(metaObject->indexOfProperty(property.constData()) < 0, property.constData());
+    }
+
+    const QList<QByteArray> absentEnumerators = {
+        "FillMode",
+        "HorizontalAlignment",
+        "VerticalAlignment",
+    };
+
+    for (const QByteArray& enumerator : absentEnumerators) {
+        QVERIFY2(metaObject->indexOfEnumerator(enumerator.constData()) < 0, enumerator.constData());
     }
 
     const QList<QByteArray> absentMethods = {
@@ -430,9 +445,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "frameSeekSupport",
         "positionSeekSupport",
         "displayedImageSize",
-        "fillMode",
-        "horizontalAlignment",
-        "verticalAlignment",
         "contentRect",
         "visibleImageRect",
         "displayRevision",
@@ -440,8 +452,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "commandRevision",
         "errorString",
         "warningString",
-        "zoom",
-        "pan",
         "smoothing",
         "mipmap",
         "mirrorHorizontally",
@@ -463,9 +473,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "PlaybackPhase",
         "TriState",
         "CommandOutcome",
-        "FillMode",
-        "HorizontalAlignment",
-        "VerticalAlignment",
         "BackgroundMode",
     };
 
@@ -487,11 +494,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     verifyEnumValues(metaObject, "TriState", { "Unavailable", "False", "True" });
     verifyEnumValues(
         metaObject, "CommandOutcome", { "Accepted", "Invalid", "Unsupported", "IgnoredNoRequest" });
-    verifyEnumValues(metaObject, "FillMode", { "Contain", "Cover", "Stretch", "Center" });
-    verifyEnumValues(
-        metaObject, "HorizontalAlignment", { "AlignLeft", "AlignHCenter", "AlignRight" });
-    verifyEnumValues(
-        metaObject, "VerticalAlignment", { "AlignTop", "AlignVCenter", "AlignBottom" });
     verifyEnumValues(metaObject, "BackgroundMode", { "Transparent", "SolidColor", "Checkerboard" });
 
     const QList<QByteArray> methods = {
@@ -720,13 +722,6 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
-    QCOMPARE(item.property("fillMode").toInt(), enumValue(metaObject, "FillMode", "Contain"));
-    QCOMPARE(item.property("horizontalAlignment").toInt(),
-        enumValue(metaObject, "HorizontalAlignment", "AlignHCenter"));
-    QCOMPARE(item.property("verticalAlignment").toInt(),
-        enumValue(metaObject, "VerticalAlignment", "AlignVCenter"));
-    QCOMPARE(item.property("zoom").toDouble(), 1.0);
-    QCOMPARE(item.property("pan").toPointF(), QPointF(0.0, 0.0));
     QCOMPARE(item.property("smoothing").toBool(), true);
     QCOMPARE(item.property("mipmap").toBool(), false);
     QCOMPARE(item.property("mirrorHorizontally").toBool(), false);
@@ -1320,8 +1315,6 @@ ImageViewport {
     property int factoryInvalid: ImageSequenceFactoryResult.FactoryOutcome.Invalid
     property int factoryUnsupported: ImageSequenceFactoryResult.FactoryOutcome.Unsupported
     property int factoryError: ImageSequenceFactoryResult.FactoryOutcome.Error
-    property int cover: ImageViewport.FillMode.Cover
-    property int center: ImageViewport.FillMode.Center
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
     property bool mappingInvalid: itemToImage(1, 1).valid === false
     property bool mappingHasFlatFields: imageToItem(1, 1).x === 0 && imageToItem(1, 1).y === 0
@@ -1375,8 +1368,6 @@ ImageViewport {
         enumValue(resultMetaObject, "FactoryOutcome", "Unsupported"));
     QCOMPARE(object->property("factoryError").toInt(),
         enumValue(resultMetaObject, "FactoryOutcome", "Error"));
-    QCOMPARE(object->property("cover").toInt(), enumValue(metaObject, "FillMode", "Cover"));
-    QCOMPARE(object->property("center").toInt(), enumValue(metaObject, "FillMode", "Center"));
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
     QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);

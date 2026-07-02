@@ -8,6 +8,25 @@
 
 namespace ImageViewportInternal {
 
+enum class ContentPlacementMode {
+    Contain,
+    Cover,
+    Stretch,
+    Center,
+};
+
+enum class ContentHorizontalPlacement {
+    AlignLeft,
+    AlignHCenter,
+    AlignRight,
+};
+
+enum class ContentVerticalPlacement {
+    AlignTop,
+    AlignVCenter,
+    AlignBottom,
+};
+
 constexpr int minimumMaximumLogicalSide = 8192;
 constexpr qint64 minimumMaximumPixelsPerFrame = 67108864LL;
 constexpr qint64 minimumMaximumPayloadBytesPerFrame = 268435456LL;
@@ -164,13 +183,13 @@ inline bool providerFactsContradictMetadata(
     return false;
 }
 
-inline bool isValidFillMode(ImageViewport::FillMode mode)
+inline bool isValidContentPlacementMode(ContentPlacementMode mode)
 {
     switch (mode) {
-    case ImageViewport::FillMode::Contain:
-    case ImageViewport::FillMode::Cover:
-    case ImageViewport::FillMode::Stretch:
-    case ImageViewport::FillMode::Center:
+    case ContentPlacementMode::Contain:
+    case ContentPlacementMode::Cover:
+    case ContentPlacementMode::Stretch:
+    case ContentPlacementMode::Center:
         return true;
     }
 
@@ -212,24 +231,24 @@ inline bool isValidPageRole(ImageViewport::PageRole role)
     return false;
 }
 
-inline bool isValidHorizontalAlignment(ImageViewport::HorizontalAlignment alignment)
+inline bool isValidContentHorizontalPlacement(ContentHorizontalPlacement alignment)
 {
     switch (alignment) {
-    case ImageViewport::HorizontalAlignment::AlignLeft:
-    case ImageViewport::HorizontalAlignment::AlignHCenter:
-    case ImageViewport::HorizontalAlignment::AlignRight:
+    case ContentHorizontalPlacement::AlignLeft:
+    case ContentHorizontalPlacement::AlignHCenter:
+    case ContentHorizontalPlacement::AlignRight:
         return true;
     }
 
     return false;
 }
 
-inline bool isValidVerticalAlignment(ImageViewport::VerticalAlignment alignment)
+inline bool isValidContentVerticalPlacement(ContentVerticalPlacement alignment)
 {
     switch (alignment) {
-    case ImageViewport::VerticalAlignment::AlignTop:
-    case ImageViewport::VerticalAlignment::AlignVCenter:
-    case ImageViewport::VerticalAlignment::AlignBottom:
+    case ContentVerticalPlacement::AlignTop:
+    case ContentVerticalPlacement::AlignVCenter:
+    case ContentVerticalPlacement::AlignBottom:
         return true;
     }
 

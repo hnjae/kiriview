@@ -26,7 +26,6 @@ private slots:
     void stillImageCommandsPreserveOrReplaceDocumentedState();
     void secondaryStillImagePlayReportsUnsupported();
     void secondaryStillImagePositionSeekReportsUnsupported();
-    void stillImageFillModesAndMirroringUseDocumentedGeometry();
     void coordinateHelpersRejectNonFiniteInputs();
     void stillImageMirroredCoverUsesMirroredVisibleImageRect();
     void stillImageCoverUsesBottomAlignmentAsCropFocus();
@@ -41,13 +40,11 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     ImageViewport item;
     const QMetaObject* metaObject = item.metaObject();
 
+    QCOMPARE(item.setZoomPercent(200.0, QPointF()), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
-
-    item.setZoom(2.0);
-    item.setPan(QPointF(4.0, -3.0));
     const RevisionToken displayRevisionBeforeReset = revisionTokenProperty(item, "displayRevision");
 
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
@@ -59,8 +56,9 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.zoom(), 1.0);
-    QCOMPARE(item.pan(), QPointF());
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 100.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
@@ -101,8 +99,9 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.zoom(), 1.0);
-    QCOMPARE(item.pan(), QPointF());
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 100.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
@@ -133,17 +132,14 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
-    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignTop);
     item.setSmoothing(false);
     item.setMipmap(true);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    item.setZoom(2.5);
-    item.setPan(QPointF(12.0, -6.0));
+    QCOMPARE(
+        item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
@@ -159,17 +155,15 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Cover);
-    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignLeft);
-    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignTop);
     QCOMPARE(item.smoothing(), false);
     QCOMPARE(item.mipmap(), true);
     QCOMPARE(item.mirrorHorizontally(), true);
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.zoom(), 1.0);
-    QCOMPARE(item.pan(), QPointF());
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 625.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
 
@@ -392,17 +386,14 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignRight);
-    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignBottom);
     item.setSmoothing(false);
     item.setMipmap(true);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    item.setZoom(2.5);
-    item.setPan(QPointF(12.0, -6.0));
+    QCOMPARE(
+        item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
@@ -415,17 +406,15 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
-    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Cover);
-    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignRight);
-    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignBottom);
     QCOMPARE(item.smoothing(), false);
     QCOMPARE(item.mipmap(), true);
     QCOMPARE(item.mirrorHorizontally(), true);
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.zoom(), 2.5);
-    QCOMPARE(item.pan(), QPointF(12.0, -6.0));
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Manual"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 250.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
 
@@ -534,17 +523,14 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     item.setSequence(firstResult->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
-    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignTop);
     item.setSmoothing(false);
     item.setMipmap(true);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    item.setZoom(1.5);
-    item.setPan(QPointF(-8.0, 6.0));
+    QCOMPARE(
+        item.setZoomPercent(150.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
 
     item.setSequence(replacementResult->sequence());
@@ -557,17 +543,15 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.fillMode(), ImageViewport::FillMode::Cover);
-    QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignLeft);
-    QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignTop);
     QCOMPARE(item.smoothing(), false);
     QCOMPARE(item.mipmap(), true);
     QCOMPARE(item.mirrorHorizontally(), true);
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.zoom(), 1.5);
-    QCOMPARE(item.pan(), QPointF(-8.0, 6.0));
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Manual"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 150.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
 
@@ -647,11 +631,13 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
-    item.setZoom(2.0);
-    item.setPan(QPointF(4.0, 8.0));
+    QCOMPARE(
+        item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.panBy(QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("zoom").toDouble(), 1.0);
-    QCOMPARE(item.property("pan").toPointF(), QPointF(0.0, 0.0));
+    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
+    QCOMPARE(item.property("zoomPercent").toDouble(), 625.0);
+    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
@@ -737,78 +723,6 @@ void ImageViewportStillTest::secondaryStillImagePositionSeekReportsUnsupported()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
-void ImageViewportStillTest::stillImageFillModesAndMirroringUseDocumentedGeometry()
-{
-    ImageSequenceFactory factory;
-    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
-    image.fill(Qt::transparent);
-    ImageFrame frame(image);
-    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
-    QVERIFY(result->sequence());
-
-    ImageViewport item;
-    item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
-
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-50.0, 0.0, 200.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(4.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(0.0, 50.0).x(), 4.0);
-    QCOMPARE(item.itemToImage(99.0, 50.0).isValid(), true);
-    QCOMPARE(item.containsVisibleImagePoint(3.999, 4.0), false);
-    QCOMPARE(item.containsVisibleImagePoint(12.0, 4.0), false);
-    QCOMPARE(item.containsVisibleImagePoint(11.999, 4.0), true);
-    QCOMPARE(item.imageToItem(4.0, 4.0).x(), 0.0);
-    verifyInvalidCoordinateResult(item.imageToItem(12.0, 4.0));
-
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(99.0, 50.0).x(), 7.92);
-
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignRight);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.itemToImage(0.0, 50.0).x(), 8.0);
-    QVERIFY(item.itemToImage(99.0, 50.0).x() > 15.9);
-
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
-    item.setFillMode(ImageViewport::FillMode::Stretch);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(item.itemToImage(50.0, 50.0).x(), 8.0);
-    QCOMPARE(item.itemToImage(50.0, 50.0).y(), 4.0);
-
-    item.setFillMode(ImageViewport::FillMode::Center);
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignHCenter);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(42.0, 46.0, 16.0, 8.0));
-    QCOMPARE(item.itemToImage(42.0, 46.0).isValid(), true);
-    verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
-
-    item.setMirrorHorizontally(true);
-    verifyInvalidCoordinateResult(item.itemToImage(42.0, 50.0));
-    verifyInvalidCoordinateResult(item.itemToImage(58.0, 50.0));
-    const CoordinateResult horizontallyMirrored = item.itemToImage(57.999, 50.0);
-    QCOMPARE(horizontallyMirrored.isValid(), true);
-    QVERIFY(qAbs(horizontallyMirrored.x() - 0.001) < 0.000001);
-
-    item.setMirrorVertically(true);
-    const CoordinateResult mirrored = item.itemToImage(42.001, 46.001);
-    QCOMPARE(mirrored.isValid(), true);
-    QCOMPARE(mirrored.x(), 15.999);
-    QCOMPARE(mirrored.y(), 7.999);
-
-    const CoordinateResult mirroredItem = item.imageToItem(15.999, 7.999);
-    QCOMPARE(mirroredItem.isValid(), true);
-    QCOMPARE(mirroredItem.x(), 42.001);
-    QCOMPARE(mirroredItem.y(), 46.001);
-
-    const CoordinateResult mirroredOriginItem = item.imageToItem(0.0, 0.0);
-    QCOMPARE(mirroredOriginItem.isValid(), true);
-    QCOMPARE(mirroredOriginItem.x(), 58.0);
-    QCOMPARE(mirroredOriginItem.y(), 54.0);
-}
-
 void ImageViewportStillTest::coordinateHelpersRejectNonFiniteInputs()
 {
     ImageSequenceFactory factory;
@@ -845,8 +759,9 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    item.setHorizontalAlignment(ImageViewport::HorizontalAlignment::AlignLeft);
+    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.panBy(QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
@@ -877,8 +792,9 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    item.setFillMode(ImageViewport::FillMode::Cover);
-    item.setVerticalAlignment(ImageViewport::VerticalAlignment::AlignBottom);
+    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitWidth, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -100.0, 100.0, 200.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 8.0, 8.0, 8.0));

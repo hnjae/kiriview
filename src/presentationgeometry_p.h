@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewport.h"
+#include "imageviewporthelpers_p.h"
 
 class PresentationGeometry
 {
@@ -15,11 +15,12 @@ public:
         ImageViewport::SpreadDirection spreadDirection
             = ImageViewport::SpreadDirection::LeftToRight;
         ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
-        ImageViewport::FillMode fillMode = ImageViewport::FillMode::Contain;
-        ImageViewport::HorizontalAlignment horizontalAlignment
-            = ImageViewport::HorizontalAlignment::AlignHCenter;
-        ImageViewport::VerticalAlignment verticalAlignment
-            = ImageViewport::VerticalAlignment::AlignVCenter;
+        ImageViewportInternal::ContentPlacementMode fillMode
+            = ImageViewportInternal::ContentPlacementMode::Contain;
+        ImageViewportInternal::ContentHorizontalPlacement horizontalAlignment
+            = ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter;
+        ImageViewportInternal::ContentVerticalPlacement verticalAlignment
+            = ImageViewportInternal::ContentVerticalPlacement::AlignVCenter;
         int rotationDegrees = 0;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;

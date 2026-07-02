@@ -257,51 +257,6 @@ void ImageViewportPrivate::setZoomPercentProperty(double percent) { setZoomPerce
 
 int ImageViewportPrivate::rotationDegrees() const { return presentation.rotationDegrees; }
 
-ImageViewportPrivate::FillMode ImageViewportPrivate::fillMode() const
-{
-    return presentation.fillMode;
-}
-
-void ImageViewportPrivate::setFillMode(FillMode mode)
-{
-    if (!isValidFillMode(mode) || presentation.fillMode == mode) {
-        return;
-    }
-
-    presentation.fillMode = mode;
-    notifyPresentationChanged(true);
-}
-
-ImageViewportPrivate::HorizontalAlignment ImageViewportPrivate::horizontalAlignment() const
-{
-    return presentation.horizontalAlignment;
-}
-
-void ImageViewportPrivate::setHorizontalAlignment(HorizontalAlignment alignment)
-{
-    if (!isValidHorizontalAlignment(alignment) || presentation.horizontalAlignment == alignment) {
-        return;
-    }
-
-    presentation.horizontalAlignment = alignment;
-    notifyPresentationChanged(true);
-}
-
-ImageViewportPrivate::VerticalAlignment ImageViewportPrivate::verticalAlignment() const
-{
-    return presentation.verticalAlignment;
-}
-
-void ImageViewportPrivate::setVerticalAlignment(VerticalAlignment alignment)
-{
-    if (!isValidVerticalAlignment(alignment) || presentation.verticalAlignment == alignment) {
-        return;
-    }
-
-    presentation.verticalAlignment = alignment;
-    notifyPresentationChanged(true);
-}
-
 bool ImageViewportPrivate::smoothing() const { return presentation.smoothing; }
 
 void ImageViewportPrivate::setSmoothing(bool smoothing)
@@ -375,31 +330,6 @@ void ImageViewportPrivate::setBackgroundColor(const QColor& color)
 
     presentation.backgroundColor = color;
     notifyPresentationChanged(false);
-}
-
-double ImageViewportPrivate::zoom() const { return presentation.zoom; }
-
-void ImageViewportPrivate::setZoom(double zoom)
-{
-    if (!isFinitePositive(zoom) || presentation.zoom == zoom) {
-        return;
-    }
-
-    presentation.zoom = zoom;
-    notifyPresentationChanged(true);
-}
-
-QPointF ImageViewportPrivate::pan() const { return presentation.pan; }
-
-void ImageViewportPrivate::setPan(QPointF pan)
-{
-    const bool unchanged = presentation.pan.x() == pan.x() && presentation.pan.y() == pan.y();
-    if (!isFinitePoint(pan) || unchanged) {
-        return;
-    }
-
-    presentation.pan = pan;
-    notifyPresentationChanged(true);
 }
 
 bool ImageViewportPrivate::looping() const { return controller.looping(); }

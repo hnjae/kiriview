@@ -779,11 +779,6 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(
         double zoomPercent READ zoomPercent WRITE setZoomPercentProperty NOTIFY presentationChanged)
     Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY presentationChanged)
-    Q_PROPERTY(FillMode fillMode READ fillMode WRITE setFillMode NOTIFY presentationChanged)
-    Q_PROPERTY(HorizontalAlignment horizontalAlignment READ horizontalAlignment WRITE
-            setHorizontalAlignment NOTIFY presentationChanged)
-    Q_PROPERTY(VerticalAlignment verticalAlignment READ verticalAlignment WRITE setVerticalAlignment
-            NOTIFY presentationChanged)
     Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing NOTIFY presentationChanged)
     Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap NOTIFY presentationChanged)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally NOTIFY
@@ -794,8 +789,6 @@ class ImageViewport : public QQuickItem
             presentationChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY
             presentationChanged)
-    Q_PROPERTY(double zoom READ zoom WRITE setZoom NOTIFY presentationChanged)
-    Q_PROPERTY(QPointF pan READ pan WRITE setPan NOTIFY presentationChanged)
     Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
 
 public:
@@ -880,28 +873,6 @@ public:
         IgnoredNoRequest,
     };
     Q_ENUM(CommandOutcome)
-
-    enum class FillMode {
-        Contain,
-        Cover,
-        Stretch,
-        Center,
-    };
-    Q_ENUM(FillMode)
-
-    enum class HorizontalAlignment {
-        AlignLeft,
-        AlignHCenter,
-        AlignRight,
-    };
-    Q_ENUM(HorizontalAlignment)
-
-    enum class VerticalAlignment {
-        AlignTop,
-        AlignVCenter,
-        AlignBottom,
-    };
-    Q_ENUM(VerticalAlignment)
 
     enum class BackgroundMode {
         Transparent,
@@ -989,12 +960,6 @@ public:
     double zoomPercent() const;
     void setZoomPercentProperty(double percent);
     int rotationDegrees() const;
-    FillMode fillMode() const;
-    void setFillMode(FillMode mode);
-    HorizontalAlignment horizontalAlignment() const;
-    void setHorizontalAlignment(HorizontalAlignment alignment);
-    VerticalAlignment verticalAlignment() const;
-    void setVerticalAlignment(VerticalAlignment alignment);
     bool smoothing() const;
     void setSmoothing(bool smoothing);
     bool mipmap() const;
@@ -1007,10 +972,6 @@ public:
     void setBackgroundMode(BackgroundMode mode);
     QColor backgroundColor() const;
     void setBackgroundColor(const QColor& color);
-    double zoom() const;
-    void setZoom(double zoom);
-    QPointF pan() const;
-    void setPan(QPointF pan);
     bool looping() const;
     void setLooping(bool looping);
 
