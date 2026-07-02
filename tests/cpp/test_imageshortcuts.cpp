@@ -264,7 +264,7 @@ Item {
     onToolbarTextInputFocusedChanged: publishActionUiState()
 
     function openImageAtPage(pageNumber) {
-        sessionImageDocument.openImageAtPage(pageNumber);
+        documentSession.openActiveNavigationAtNumber(pageNumber);
     }
 
     function documentReady() {

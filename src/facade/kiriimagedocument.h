@@ -245,14 +245,14 @@ public:
 
     void setRenderContextProvider(RenderContextProvider provider);
 
-    Q_INVOKABLE void openPreviousPage();
-    Q_INVOKABLE void openNextPage();
-    Q_INVOKABLE void openPreviousSinglePage();
-    Q_INVOKABLE void openNextSinglePage();
-    Q_INVOKABLE void openImageAtPage(int pageNumber);
-    Q_INVOKABLE void openPreviousContainer();
-    Q_INVOKABLE void openNextContainer();
-    Q_INVOKABLE void deleteDisplayedFile(KiriImageDocument::DeletionMode mode);
+    void openPreviousPage();
+    void openNextPage();
+    void openPreviousSinglePage();
+    void openNextSinglePage();
+    void openImageAtPage(int pageNumber);
+    void openPreviousContainer();
+    void openNextContainer();
+    void deleteDisplayedFile(KiriImageDocument::DeletionMode mode);
     Q_INVOKABLE void resetZoom();
     Q_INVOKABLE void setFitMode(KiriImageDocument::ZoomMode zoomMode);
     Q_INVOKABLE void rotateClockwise();

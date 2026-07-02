@@ -21,6 +21,7 @@ private Q_SLOTS:
     void leafDocumentSourceRoutesAreReadOnlyPublicObservations();
     void leafDocumentRouteSettersStayPrivateToTheSession();
     void qmlCannotSetLeafDocumentRoutes();
+    void qmlCannotInvokeLeafImageNavigationOrDeletion();
     void qmlDoesNotWriteSharedActionState();
     void qmlActionProxiesDoNotOverrideRuntimeActionState();
     void qmlDoesNotOwnSharedActionPolicy();
@@ -251,6 +252,45 @@ void TestArchitectureBoundaries::qmlCannotSetLeafDocumentRoutes()
     QStringList violations;
     for (const QString& filePath : productionQmlFiles()) {
         const QString matches = matchingLines(filePath, forbiddenPatterns);
+        if (!matches.isEmpty()) {
+            violations.push_back(matches);
+        }
+    }
+
+    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
+}
+
+void TestArchitectureBoundaries::qmlCannotInvokeLeafImageNavigationOrDeletion()
+{
+    const QString header = readProjectFile(QStringLiteral("src/facade/kiriimagedocument.h"));
+    const QStringList forbiddenInvokables {
+        QStringLiteral("Q_INVOKABLE void openPreviousPage"),
+        QStringLiteral("Q_INVOKABLE void openNextPage"),
+        QStringLiteral("Q_INVOKABLE void openPreviousSinglePage"),
+        QStringLiteral("Q_INVOKABLE void openNextSinglePage"),
+        QStringLiteral("Q_INVOKABLE void openImageAtPage"),
+        QStringLiteral("Q_INVOKABLE void openPreviousContainer"),
+        QStringLiteral("Q_INVOKABLE void openNextContainer"),
+        QStringLiteral("Q_INVOKABLE void deleteDisplayedFile"),
+    };
+    QStringList exposedInvokables;
+    for (const QString& invokable : forbiddenInvokables) {
+        if (header.contains(invokable)) {
+            exposedInvokables.push_back(invokable);
+        }
+    }
+    QVERIFY2(exposedInvokables.isEmpty(), qPrintable(exposedInvokables.join(QLatin1Char('\n'))));
+
+    const QList<QRegularExpression> forbiddenQmlCalls {
+        QRegularExpression(QStringLiteral(
+            R"(\bimageDocument\s*\.\s*(?:openPreviousPage|openNextPage|openPreviousSinglePage|openNextSinglePage|openImageAtPage|openPreviousContainer|openNextContainer|deleteDisplayedFile)\s*\()")),
+        QRegularExpression(QStringLiteral(
+            R"(\bdocumentSession\s*\.\s*imageDocument\s*\.\s*(?:openPreviousPage|openNextPage|openPreviousSinglePage|openNextSinglePage|openImageAtPage|openPreviousContainer|openNextContainer|deleteDisplayedFile)\s*\()")),
+    };
+
+    QStringList violations;
+    for (const QString& filePath : productionQmlFiles()) {
+        const QString matches = matchingLines(filePath, forbiddenQmlCalls);
         if (!matches.isEmpty()) {
             violations.push_back(matches);
         }
