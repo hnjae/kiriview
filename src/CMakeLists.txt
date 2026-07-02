@@ -60,6 +60,23 @@ target_compile_definitions(
 
 set_target_properties(ImageViewport PROPERTIES EXPORT_NAME ImageViewport)
 
+set(imageviewport_installed_public_include_dir
+    "${CMAKE_CURRENT_BINARY_DIR}/installed-public-include/ImageViewport")
+set(imageviewport_installed_public_header
+    "${imageviewport_installed_public_include_dir}/imageviewport.h")
+add_custom_command(
+    OUTPUT "${imageviewport_installed_public_header}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${imageviewport_installed_public_include_dir}"
+    COMMAND
+        "${CMAKE_COMMAND}" "-DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/imageviewport.h"
+        "-DOUTPUT=${imageviewport_installed_public_header}" -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/imageviewport.h"
+            "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
+    VERBATIM)
+add_custom_target(ImageViewportInstalledPublicHeader ALL
+                  DEPENDS "${imageviewport_installed_public_header}")
+
 install(
     TARGETS ImageViewport
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -68,7 +85,8 @@ install(
     INCLUDES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
 
-install(FILES imageviewport.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
+install(FILES "${imageviewport_installed_public_header}"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ImageViewport)
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/qmldir
               ${CMAKE_CURRENT_BINARY_DIR}/ImageViewport/ImageViewport.qmltypes

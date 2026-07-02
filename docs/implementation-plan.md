@@ -115,7 +115,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 
 ## M5: Linux/Static Package Contract Conformance
 
-- Status: Not Started
+- Status: Complete
 - Goal: Make the installed package and package smoke test match the approved Linux/static QML plugin contract.
 - Scope: Verify and adjust install rules, exported target usage, static QML plugin installation, public header exposure, QML type metadata, and install-consumer checks for the supported Linux/static target only.
 - Acceptance Criteria: The installed package exposes only public headers, exported CMake package target, QML module metadata, and static QML plugin archive needed by Linux consumers, matching `docs/spec/image-viewport-api.md` and `docs/architecture/build-and-package.md`.
@@ -127,6 +127,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 - Likely Code Areas: `CMakeLists.txt`, `src/CMakeLists.txt`, `src/ImageViewportConfig.cmake.in`, `tests/install_consumer/run.cmake`, `tests/install_consumer/main.cpp`, and public header installation checks.
 - Dependencies: M2 and M3 should be complete so install-consumer tests validate the final public API shape; M5 can also run after M4 if controller ownership changes affect exported symbols or QML metadata.
 - Stop Conditions: Stop if a requirement appears for non-Linux package portability, dynamic plugin layouts, or downstream source compatibility beyond the approved Linux/static target.
+- Implementation Note: M5 generates a sanitized installed public header that strips private test-probe declarations while preserving build-tree probe support, and the install-consumer smoke test now rejects private probe and internal implementation tokens in the installed header.
 
 ## M6: Final Conformance Sweep
 

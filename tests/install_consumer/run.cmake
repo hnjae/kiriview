@@ -47,6 +47,15 @@ if(installed_public_header MATCHES "ViewportProviderBridge")
     message(
         FATAL_ERROR "Installed ImageViewport public header exposed internal provider bridge type")
 endif()
+foreach(forbidden_header_token IN ITEMS IMAGEVIEWPORT_PRIVATE_TEST_PROBES ForTest
+                                        ViewportController RenderAdapter QSGTexture QRhi)
+    if(installed_public_header MATCHES "${forbidden_header_token}")
+        message(
+            FATAL_ERROR
+                "Installed ImageViewport public header exposed forbidden token ${forbidden_header_token}"
+        )
+    endif()
+endforeach()
 file(GLOB installed_private_headers "${prefix}/include/ImageViewport/*_p.h")
 if(installed_private_headers)
     message(
