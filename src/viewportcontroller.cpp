@@ -379,11 +379,30 @@ bool activeProviderFrameTokenMatchesActiveRequest(
         && viewportRequestState(viewport).activeRequestMatchesProviderFrameToken(token);
 }
 
+bool activeSecondaryProviderFrameTokenMatchesActiveRequest(const ViewportControllerPort viewport,
+    const ImageViewportInternal::ProviderGenerationState& secondaryProvider,
+    ImageSequenceProviderRequestToken token)
+{
+    return secondaryProvider.activeFrameToken.isValid()
+        && token == secondaryProvider.activeFrameToken
+        && viewportRequestState(viewport).secondaryActiveRequest.identity.id
+        == viewportRequestState(viewport).activeRequest.identity.id;
+}
+
 bool activeProviderFrameRequestIsPlayback(const ViewportControllerPort viewport)
 {
     return activeProviderFrameTokenMatchesActiveRequest(
                viewport, viewportProviderState(viewport).activeFrameToken)
         && viewportRequestState(viewport).activeRequest.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+}
+
+bool activeSecondaryProviderFrameRequestIsPlayback(const ViewportControllerPort viewport,
+    const ImageViewportInternal::ProviderGenerationState& secondaryProvider)
+{
+    return activeSecondaryProviderFrameTokenMatchesActiveRequest(
+               viewport, secondaryProvider, secondaryProvider.activeFrameToken)
+        && viewportRequestState(viewport).secondaryActiveRequest.target.providerTargetKind
         == ImageViewportInternal::ProviderRequestTargetKind::Playback;
 }
 
@@ -720,6 +739,17 @@ bool hasPendingSecondarySpreadPayload(ViewportControllerPort& viewport)
         && viewportDisplayState(viewport).pendingRenderPayload.commitPending
         && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull()
         && !viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull();
+}
+
+bool displayedPrimaryPayloadMatchesActiveTarget(ViewportControllerPort& viewport)
+{
+    return viewport.hasReadyDisplay()
+        && viewportDisplayState(viewport).displayedRequest.generation
+        == viewportRequestState(viewport).sequenceGeneration
+        && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.frame
+        == viewportRequestState(viewport).activeRequest.resolvedFrame.frame
+        && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.position
+        == viewportRequestState(viewport).activeRequest.resolvedFrame.position;
 }
 
 void publishSecondaryDisplayedRequest(ViewportControllerPort& viewport)
@@ -1968,6 +1998,11 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
             return result;
         }
 
+        if (activeSecondaryProviderFrameRequestIsPlayback(viewport, state.secondaryProvider)) {
+            result.providerFrameTransport.cancelToken = state.secondaryProvider.activeFrameToken;
+            state.secondaryProvider.activeFrameToken = {};
+        }
+
         const ImageViewportInternal::DisplayRequest restoreRequest
             = viewportRequestState(viewport).secondaryLatestNonPlaybackRequest;
         if (restoreRequest.target.frame >= 0) {
@@ -2339,6 +2374,9 @@ ViewportProviderFrameEventAcceptance ViewportController::acceptSecondaryProvider
         preparedPayload.generation = viewportRequestState(viewport).sequenceGeneration;
         preparedPayload.requestId = viewportRequestState(viewport).activeRequest.identity.id;
         preparedPayload.payloadId = ++viewportDisplayState(viewport).nextPreparedPayloadId;
+        if (displayedPrimaryPayloadMatchesActiveTarget(viewport)) {
+            preparedPayload.image = viewportDisplayState(viewport).displayedImage;
+        }
         viewportRequestState(viewport).activeRequest.preparedPayloadId = preparedPayload.payloadId;
         viewportDisplayState(viewport).pendingRenderPayload = preparedPayload;
     }
@@ -2566,6 +2604,39 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
     return result;
 }
 
+ViewportProviderMetadataAdmissionResult
+ViewportController::handleSecondaryProviderMetadataAdmission(
+    const ImageSequenceProviderMetadata& metadata)
+{
+    const auto generationTerminalResult = [this](ImageViewportInternal::ViewportChangeSet changes) {
+        ViewportProviderMetadataAdmissionResult result;
+        result.changes = changes;
+        result.providerFrameTransport.closeSession = state.secondaryProvider.session != nullptr;
+        result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
+        return result;
+    };
+
+    const auto admission = FramePreparation::admitProviderMetadata(metadata);
+    if (!admission.accepted()) {
+        return generationTerminalResult(
+            handleProviderMetadataAdmissionRejection({ admission.diagnostic }));
+    }
+
+    ViewportProviderMetadataAdmissionResult result;
+    result.accepted = true;
+    result.facts = {
+        admission.timedMetadata,
+        metadata.timedPlaybackSupport(),
+        metadata.frameSeekSupport(),
+        metadata.positionSeekSupport(),
+        admission.logicalSize,
+        admission.timingIntervals,
+        metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
+                                             : viewport.secondarySequenceAuthoredAnimationFacts(),
+    };
+    return result;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
@@ -2668,6 +2739,37 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleSecondaryProv
 ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
     const ViewportProviderTerminalEvent& event)
 {
+    return handleProviderTerminalEvent(ImageViewport::PageRole::Primary, event);
+}
+
+ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
+    ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event)
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (!hasSecondaryProviderSequence(viewport) || !state.secondaryProvider.session) {
+            return {};
+        }
+
+        if (activeSecondaryProviderFrameTokenMatchesActiveRequest(
+                viewport, state.secondaryProvider, event.token)) {
+            return { handleSecondaryProviderFrameTerminalResult(frameTerminalResultFor(event)),
+                {} };
+        }
+
+        if (state.secondaryProvider.metadataReady
+            || !state.secondaryProvider.activeMetadataToken.isValid()
+            || event.token != state.secondaryProvider.activeMetadataToken) {
+            return {};
+        }
+
+        ViewportProviderTerminalEventResult result;
+        result.changes
+            = handleSecondaryProviderMetadataTerminalResult(metadataTerminalResultFor(event));
+        result.providerFrameTransport.closeSession = true;
+        result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
+        return result;
+    }
+
     if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session) {
         return {};
     }
@@ -2706,6 +2808,23 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet
+ViewportController::handleSecondaryProviderFrameTerminalResult(
+    const ViewportProviderFrameTerminalResult& result)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    state.secondaryProvider.activeFrameToken = {};
+    viewportRequestState(viewport).status = result.status;
+    viewportRequestState(viewport).reason = result.reason;
+    viewportRequestState(viewport).errorString
+        = ImageViewportPrivate::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic);
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTerminalResult(
     const ViewportProviderMetadataTerminalResult& result)
 {
@@ -2716,6 +2835,23 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
         = ImageViewportPrivate::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic);
     viewportProviderState(viewport).activeMetadataToken = {};
     viewportRequestState(viewport).providerPlaybackStartPending = false;
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
+ImageViewportInternal::ViewportChangeSet
+ViewportController::handleSecondaryProviderMetadataTerminalResult(
+    const ViewportProviderMetadataTerminalResult& result)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    viewportRequestState(viewport).status = result.status;
+    viewportRequestState(viewport).reason = result.reason;
+    viewportRequestState(viewport).errorString
+        = ImageViewportPrivate::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic);
+    state.secondaryProvider.activeMetadataToken = {};
     setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
     changes.requestRevision = true;
     changes.requestState = true;
@@ -2909,6 +3045,34 @@ ViewportController::handleSecondaryProviderAcceptedMetadataFacts(
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
     ViewportProviderWaitingEvent event)
 {
+    return handleProviderWaitingEvent(ImageViewport::PageRole::Primary, event);
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
+    ImageViewport::PageRole role, ViewportProviderWaitingEvent event)
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (!hasSecondaryProviderSequence(viewport) || !state.secondaryProvider.session) {
+            return {};
+        }
+        if (event.progress
+            && (!std::isfinite(event.progressValue) || event.progressValue < 0.0
+                || event.progressValue > 1.0)) {
+            return {};
+        }
+
+        const bool activeMetadataToken = !state.secondaryProvider.metadataReady
+            && state.secondaryProvider.activeMetadataToken.isValid()
+            && event.token == state.secondaryProvider.activeMetadataToken;
+        const bool activeFrameToken = activeSecondaryProviderFrameTokenMatchesActiveRequest(
+            viewport, state.secondaryProvider, event.token);
+        if (!activeMetadataToken && !activeFrameToken) {
+            return {};
+        }
+
+        return handleProviderWaiting();
+    }
+
     if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session) {
         return {};
     }
@@ -2947,6 +3111,40 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
     ViewportProviderEndOfSequenceEvent event)
 {
+    return handleProviderEndOfSequenceEvent(ImageViewport::PageRole::Primary, event);
+}
+
+ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
+    ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event)
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (!hasSecondaryProviderSequence(viewport) || !state.secondaryProvider.session) {
+            return {};
+        }
+
+        const bool activeMetadataToken = !state.secondaryProvider.metadataReady
+            && state.secondaryProvider.activeMetadataToken.isValid()
+            && event.token == state.secondaryProvider.activeMetadataToken;
+        const bool activeFrameToken = activeSecondaryProviderFrameTokenMatchesActiveRequest(
+            viewport, state.secondaryProvider, event.token);
+        if (!activeMetadataToken && !activeFrameToken) {
+            return {};
+        }
+
+        if (activeMetadataToken || !state.secondaryProvider.metadataReady
+            || !state.secondaryProvider.timedMetadata
+            || !activeSecondaryProviderFrameRequestIsPlayback(viewport, state.secondaryProvider)) {
+            ViewportProviderEndOfSequenceResult result;
+            result.changes = handleSecondaryProviderEndOfSequenceProtocolViolation(
+                { activeMetadataToken, activeFrameToken });
+            result.providerFrameTransport.closeSession = state.secondaryProvider.session != nullptr;
+            result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
+            return result;
+        }
+
+        return handleSecondaryProviderPlaybackEndOfSequence();
+    }
+
     if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session) {
         return {};
     }
@@ -2991,6 +3189,28 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::PayloadRejection;
     viewportRequestState(viewport).errorString = QStringLiteral("provider protocol violation");
     viewportRequestState(viewport).providerPlaybackStartPending = false;
+    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    changes.requestRevision = true;
+    changes.requestState = true;
+    changes.diagnostics = true;
+    return changes;
+}
+
+ImageViewportInternal::ViewportChangeSet
+ViewportController::handleSecondaryProviderEndOfSequenceProtocolViolation(
+    ViewportProviderEndOfSequenceProtocolViolation violation)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    if (violation.activeMetadataToken) {
+        state.secondaryProvider.activeMetadataToken = {};
+    }
+    if (violation.activeFrameToken) {
+        state.secondaryProvider.activeFrameToken = {};
+    }
+    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Error;
+    viewportRequestState(viewport).reason = ImageViewport::RequestReason::PayloadRejection;
+    viewportRequestState(viewport).errorString = QStringLiteral("provider protocol violation");
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
     changes.requestRevision = true;
@@ -3046,6 +3266,59 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     publishProviderFrameLoadingState(viewport);
     const ViewportProviderFrameRequestStartResult start
         = startProviderFrameRequest({ viewportRequestState(viewport).activeRequest.target });
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    if (!start.accepted) {
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = true;
+        return result;
+    }
+    setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Waiting);
+    result.changes.requestRevision = true;
+    result.changes.displayRevision = true;
+    result.changes.requestState = true;
+    result.changes.displayState = true;
+    result.changes.diagnostics = diagnosticsValueChanged;
+    result.changes.scheduleUpdate = true;
+    return result;
+}
+
+ViewportProviderEndOfSequenceResult
+ViewportController::handleSecondaryProviderPlaybackEndOfSequence()
+{
+    ViewportProviderEndOfSequenceResult result;
+    state.secondaryProvider.activeFrameToken = {};
+    const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
+
+    int selectedFrame = 0;
+    int selectedPosition = 0;
+    if (viewportRequestState(viewport).looping) {
+        viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+        viewportRequestState(viewport).playbackPosition = 0;
+    } else {
+        selectedFrame = state.secondaryProvider.timingIntervals.frameCount() - 1;
+        selectedPosition
+            = state.secondaryProvider.timingIntervals.frameStartPosition(selectedFrame);
+        viewportRequestState(viewport).playbackPosition
+            = state.secondaryProvider.timingIntervals.totalDuration();
+        viewportRequestState(viewport).stopPlaybackWhenRequestReady = true;
+    }
+
+    const ImageViewportInternal::DisplayRequest primaryRequest
+        = viewportRequestState(viewport).activeRequest;
+    beginAcceptedDisplayRequest(viewport, ImageViewportInternal::DisplayRequestOrigin::Playback,
+        primaryRequest.target, primaryRequest.resolvedFrame, false);
+
+    const ImageViewportInternal::DisplayRequestTarget providerTarget {
+        selectedFrame,
+        selectedPosition,
+        ImageViewportInternal::ProviderRequestTargetKind::Playback,
+    };
+    setSecondaryActiveRequest(viewport, providerTarget, { selectedFrame, selectedPosition }, false);
+
+    publishProviderFrameLoadingState(viewport);
+    const ViewportProviderFrameRequestStartResult start
+        = startSecondaryProviderFrameRequest(providerTarget);
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;

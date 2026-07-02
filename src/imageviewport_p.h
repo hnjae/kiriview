@@ -241,6 +241,10 @@ public:
         ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleSecondaryProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
         ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
+    void handleSecondaryProviderFrameReady(
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
+    void handleSecondaryProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
     void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
         ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
@@ -249,13 +253,23 @@ public:
     void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
         ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
     void handleProviderWaiting(ImageSequenceProviderRequestToken token);
+    void handleProviderWaiting(PageRole role, ImageSequenceProviderRequestToken token);
     void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
+    void handleProviderProgress(
+        PageRole role, ImageSequenceProviderRequestToken token, double progress);
     void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
+    void handleProviderEndOfSequence(PageRole role, ImageSequenceProviderRequestToken token);
     void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
+    void handleProviderFailure(
+        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
+    void handleProviderUnsupported(PageRole role, ImageSequenceProviderRequestToken token,
         ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
+    void handleProviderCancellation(
+        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         PageRole role) const override;
     int providerFrameStartPosition(int frame) const override;

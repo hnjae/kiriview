@@ -498,8 +498,12 @@ public:
     bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
+    ViewportProviderMetadataAdmissionResult handleSecondaryProviderMetadataAdmission(
+        const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
         const ViewportProviderTerminalEvent& event);
+    ViewportProviderTerminalEventResult handleProviderTerminalEvent(
+        ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataEventAcceptance acceptSecondaryProviderMetadataEvent(
@@ -510,9 +514,13 @@ public:
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
+    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
+        ImageViewport::PageRole role, ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ViewportProviderEndOfSequenceEvent event);
+    ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
+        ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event);
     ViewportProviderFrameTransportEffect closeProviderSession();
     ViewportProviderFrameTransportEffect closeSecondaryProviderSession();
     ViewportProviderSessionClose handleProviderSessionClose();
@@ -562,7 +570,11 @@ private:
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
         const ViewportProviderFrameTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameTerminalResult(
+        const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
+        const ViewportProviderMetadataTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderMetadataTerminalResult(
         const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
         const ViewportProviderMetadataContradiction& contradiction);
@@ -574,7 +586,10 @@ private:
         ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ViewportProviderEndOfSequenceProtocolViolation violation);
+    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderEndOfSequenceProtocolViolation(
+        ViewportProviderEndOfSequenceProtocolViolation violation);
     ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
+    ViewportProviderEndOfSequenceResult handleSecondaryProviderPlaybackEndOfSequence();
 
     ViewportControllerState state;
     ViewportControllerPort viewport;
