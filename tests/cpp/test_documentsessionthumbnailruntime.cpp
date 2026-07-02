@@ -40,6 +40,7 @@ class TestDocumentSessionThumbnailRuntime : public QObject
 private Q_SLOTS:
     void imageDocumentPageRowsUseOpenedCollectionScopeFromLeafSnapshot();
     void directoryCollectionRowsStayPlaceholderOnly();
+    void nonZipArchiveCollectionRowsStayPlaceholderOnly();
 };
 
 void TestDocumentSessionThumbnailRuntime::
@@ -118,6 +119,48 @@ void TestDocumentSessionThumbnailRuntime::directoryCollectionRowsStayPlaceholder
     kiriview::DocumentSessionThumbnailRuntime runtime(
         &owner, &imageDocument, std::move(dependencies));
     const QUrl pageUrl = localUrl(QStringLiteral("/books/book/chapter/001.png"));
+    runtime.setRows({ thumbnailRow(1, pageUrl) });
+
+    QVERIFY(
+        runtime.reportDemand(1, pageUrl, 256, Priority::Visible, runtime.navigationGeneration()));
+
+    QCOMPARE(lookupCount, 0);
+    QCOMPARE(generationCount, 0);
+}
+
+void TestDocumentSessionThumbnailRuntime::nonZipArchiveCollectionRowsStayPlaceholderOnly()
+{
+    using Priority = kiriview::ActiveNavigationThumbnailDemandPriority;
+    QObject owner;
+    const kiriview::OpenedCollectionScopeLocation cb7Scope
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(
+            localUrl(QStringLiteral("/books/book.cb7")),
+            QUrl(QStringLiteral("sevenz:///books/book.cb7/")),
+            kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+    kiriview::DocumentSessionImageDocumentSnapshot imageSnapshot;
+    imageSnapshot.displayedOpenedCollectionScope = cb7Scope;
+
+    kiriview::DocumentSessionImageDocumentSnapshotPort imageDocument;
+    imageDocument.snapshot = [&imageSnapshot]() { return imageSnapshot; };
+
+    int lookupCount = 0;
+    int generationCount = 0;
+    kiriview::ActiveNavigationThumbnailRuntimeDependencies dependencies;
+    dependencies.lookupProvider = [&lookupCount](QObject*, kiriview::ThumbnailCacheLookupRequest,
+                                      kiriview::ThumbnailCacheLookupCallback) {
+        ++lookupCount;
+        return kiriview::ImageIoJob {};
+    };
+    dependencies.generationProvider
+        = [&generationCount](QObject*, kiriview::ThumbnailGenerationRequest,
+              kiriview::ThumbnailGenerationCallback) {
+              ++generationCount;
+              return kiriview::ImageIoJob {};
+          };
+
+    kiriview::DocumentSessionThumbnailRuntime runtime(
+        &owner, &imageDocument, std::move(dependencies));
+    const QUrl pageUrl = archivePageUrl(cb7Scope.rootUrl(), QStringLiteral("pages/001.png"));
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
     QVERIFY(

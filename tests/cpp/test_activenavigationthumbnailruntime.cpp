@@ -294,6 +294,7 @@ private Q_SLOTS:
     void generationFailurePublishesFallbackResult();
     void nonLocalDirectImageIsUnsupportedWithoutLookup();
     void nonLocalDirectVideoIsUnsupportedWithoutLookup();
+    void directArchiveEntryMediaRowsStayPlaceholderOnly();
     void defaultDirectLocalVideoUsesCacheLookupFirst();
     void defaultDirectLocalVideoCacheMissStartsVideoGeneration();
     void directVideoGenerationFailurePublishesFallbackAndDiagnostics();
@@ -990,6 +991,38 @@ void TestActiveNavigationThumbnailRuntime::nonLocalDirectVideoIsUnsupportedWitho
     QCOMPARE(generationProvider.generationCount(), std::size_t(0));
     QCOMPARE(runtime.resultAt(0).status, Status::Unsupported);
     QCOMPARE(runtime.resultAt(0).imageSource, QUrl());
+}
+
+void TestActiveNavigationThumbnailRuntime::directArchiveEntryMediaRowsStayPlaceholderOnly()
+{
+    using Bucket = kiriview::ActiveNavigationThumbnailDemandBucket;
+    using Priority = kiriview::ActiveNavigationThumbnailDemandPriority;
+    using Status = kiriview::ActiveNavigationThumbnailResultStatus;
+
+    QObject owner;
+    ManualThumbnailLookupProvider lookupProvider;
+    ManualThumbnailGenerationProvider generationProvider;
+    kiriview::ActiveNavigationThumbnailRuntime runtime(
+        &owner, lookupProvider.provider(), {}, generationProvider.provider());
+    const QUrl imageUrl(QStringLiteral("zip:///books/book.zip!/chapter/001.png"));
+    const QUrl videoUrl(QStringLiteral("zip:///books/book.zip!/chapter/clip.mp4"));
+    runtime.setRows({
+        thumbnailRow(1, imageUrl, QStringLiteral("001.png"),
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage, true),
+        thumbnailRow(2, videoUrl, QStringLiteral("clip.mp4"),
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectVideo),
+    });
+
+    const quint64 generation = runtime.navigationGeneration();
+    QVERIFY(runtime.reportDemand(1, imageUrl, Bucket::Normal, Priority::Visible, generation));
+    QVERIFY(runtime.reportDemand(2, videoUrl, Bucket::Normal, Priority::Nearby, generation));
+
+    QCOMPARE(lookupProvider.lookupCount(), std::size_t(0));
+    QCOMPARE(generationProvider.generationCount(), std::size_t(0));
+    QCOMPARE(runtime.resultAt(0).status, Status::Unsupported);
+    QCOMPARE(runtime.resultAt(1).status, Status::Unsupported);
+    QCOMPARE(runtime.resultAt(0).imageSource, QUrl());
+    QCOMPARE(runtime.resultAt(1).imageSource, QUrl());
 }
 
 void TestActiveNavigationThumbnailRuntime::defaultDirectLocalVideoUsesCacheLookupFirst()
