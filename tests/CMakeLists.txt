@@ -55,6 +55,8 @@ add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
 add_imageviewport_core_qt_test(playback_clock tst_playback_clock.cpp)
 add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)
 add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
+add_imageviewport_core_qt_test(viewportcontroller_presentation
+                               tst_viewportcontroller_presentation.cpp)
 add_imageviewport_qt_test(imageviewport_still tst_imageviewport_still.cpp)
 add_imageviewport_qt_test(imageviewport_timed tst_imageviewport_timed.cpp)
 add_imageviewport_qt_test(imageviewport_provider_contract tst_imageviewport_provider_contract.cpp)

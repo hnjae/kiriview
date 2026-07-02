@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <optional>
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -183,48 +182,6 @@ ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
     return nullptr;
 }
 
-struct NormalizedPageSetTransitionPolicy
-{
-    PageSetTransitionPolicy::DisplayTransition displayTransition
-        = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    PageSetTransitionPolicy::ZoomTransition zoomTransition
-        = PageSetTransitionPolicy::ZoomTransition::Preserve;
-    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
-        = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
-    PageSetTransitionPolicy::RotationTransition rotationTransition
-        = PageSetTransitionPolicy::RotationTransition::Preserve;
-    PageSetTransitionPolicy::MirrorTransition mirrorTransition
-        = PageSetTransitionPolicy::MirrorTransition::Preserve;
-    PageSetTransitionPolicy::ReplacementIntent replacementIntent
-        = PageSetTransitionPolicy::ReplacementIntent::NewTarget;
-    std::optional<ImageViewport::FitMode> explicitFitMode;
-    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
-    std::optional<double> explicitPageGap;
-};
-
-std::optional<NormalizedPageSetTransitionPolicy> normalizePageSetTransitionPolicy(
-    const PageSetTransitionPolicy& policy)
-{
-    if (!policy.isValid()) {
-        return std::nullopt;
-    }
-
-    NormalizedPageSetTransitionPolicy normalized { policy.displayTransition(),
-        policy.zoomTransition(), policy.contentPositionTransition(), policy.rotationTransition(),
-        policy.mirrorTransition(), policy.replacementIntent() };
-    if (policy.fitModeTransition() == PageSetTransitionPolicy::FitModeTransition::SetExplicit) {
-        normalized.explicitFitMode = policy.fitMode();
-    }
-    if (policy.spreadDirectionTransition()
-        == PageSetTransitionPolicy::SpreadDirectionTransition::SetExplicit) {
-        normalized.explicitSpreadDirection = policy.spreadDirection();
-    }
-    if (policy.pageGapTransition() == PageSetTransitionPolicy::PageGapTransition::SetExplicit) {
-        normalized.explicitPageGap = policy.pageGap();
-    }
-
-    return normalized;
-}
 }
 
 ImageSequence* ImageViewportPrivate::sequence() const { return controller.requestState().sequence; }
@@ -400,7 +357,7 @@ ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupportForSeque
 
 ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() const
 {
-    return presentation.spreadDirection;
+    return controller.presentationState().spreadDirection;
 }
 
 void ImageViewportPrivate::setSpreadDirectionProperty(SpreadDirection direction)
@@ -408,7 +365,7 @@ void ImageViewportPrivate::setSpreadDirectionProperty(SpreadDirection direction)
     setSpreadDirection(direction);
 }
 
-double ImageViewportPrivate::pageGap() const { return presentation.pageGap; }
+double ImageViewportPrivate::pageGap() const { return controller.presentationState().pageGap; }
 
 void ImageViewportPrivate::setPageGapProperty(double gap) { setPageGap(gap); }
 
@@ -812,7 +769,8 @@ QSizeF ImageViewportPrivate::displayedSpreadSize() const
         return primarySize;
     }
 
-    return QSizeF(primarySize.width() + presentation.pageGap + secondarySize.width(),
+    return QSizeF(
+        primarySize.width() + controller.presentationState().pageGap + secondarySize.width(),
         std::max(primarySize.height(), secondarySize.height()));
 }
 
@@ -884,62 +842,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         return CommandOutcome::Invalid;
     }
 
-    const std::optional<NormalizedPageSetTransitionPolicy> transitionPolicy
-        = normalizePageSetTransitionPolicy(policy);
-    if (!transitionPolicy) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    if (!primarySequence) {
-        return clear();
-    }
-
-    ViewportChangeSet transitionChanges;
-    auto markPresentationChanged = [&](bool affectsGeometry) {
-        transitionChanges.presentation = true;
-        transitionChanges.displayRevision = true;
-        transitionChanges.geometryState = transitionChanges.geometryState
-            || (affectsGeometry && hasReadyDisplay() && !itemBounds().isEmpty());
-        transitionChanges.scheduleUpdate = true;
-    };
-
-    if (transitionPolicy->zoomTransition
-        == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
-        if (presentation.fitMode != FitMode::Contain || presentation.zoom != 1.0) {
-            presentation.fitMode = FitMode::Contain;
-            presentation.zoom = 1.0;
-            markPresentationChanged(true);
-        }
-    }
-    if (transitionPolicy->explicitFitMode
-        && presentation.fitMode != *transitionPolicy->explicitFitMode) {
-        presentation.fitMode = *transitionPolicy->explicitFitMode;
-        markPresentationChanged(true);
-    }
-    if (transitionPolicy->rotationTransition == PageSetTransitionPolicy::RotationTransition::Reset
-        && presentation.rotationDegrees != 0) {
-        presentation.rotationDegrees = 0;
-        markPresentationChanged(true);
-    }
-    if (transitionPolicy->mirrorTransition == PageSetTransitionPolicy::MirrorTransition::Reset
-        && (presentation.mirrorHorizontally || presentation.mirrorVertically)) {
-        presentation.mirrorHorizontally = false;
-        presentation.mirrorVertically = false;
-        markPresentationChanged(true);
-    }
-    if (transitionPolicy->explicitSpreadDirection
-        && presentation.spreadDirection != *transitionPolicy->explicitSpreadDirection) {
-        presentation.spreadDirection = *transitionPolicy->explicitSpreadDirection;
-        markPresentationChanged(true);
-    }
-    if (transitionPolicy->explicitPageGap
-        && presentation.pageGap != *transitionPolicy->explicitPageGap) {
-        presentation.pageGap = *transitionPolicy->explicitPageGap;
-        markPresentationChanged(true);
-    }
-
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
     ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
@@ -951,12 +853,22 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
             = { 0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
         secondaryInitialResolvedFrame = { 0, position };
     }
-    ViewportSequenceAssignmentResult result
-        = controller.assignSequence({ primarySequence, std::move(primaryOwner), secondarySequence,
-            std::move(secondaryOwner), secondaryInitialTarget, secondaryInitialResolvedFrame,
-            transitionPolicy->displayTransition
-                == PageSetTransitionPolicy::DisplayTransition::RetainPrevious,
-            secondarySequence && secondarySequence->isProvider() });
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primarySequence;
+    assignment.sequenceOwner = std::move(primaryOwner);
+    assignment.secondarySequence = secondarySequence;
+    assignment.secondarySequenceOwner = std::move(secondaryOwner);
+    assignment.secondaryInitialTarget = secondaryInitialTarget;
+    assignment.secondaryInitialResolvedFrame = secondaryInitialResolvedFrame;
+    assignment.retainPreviousDisplay
+        = policy.displayTransition() == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+    assignment.secondaryIsProvider = secondarySequence && secondarySequence->isProvider();
+    assignment.transitionPolicy = policy;
+    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
+    if (result.outcome != CommandOutcome::Accepted) {
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
@@ -969,8 +881,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
             controller.handleProviderSessionOpenFailure(
                 QStringLiteral("provider session creation failed")));
     }
-    mergeControllerChanges(result.changes, transitionChanges);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
-    return CommandOutcome::Accepted;
+    return result.outcome;
 }

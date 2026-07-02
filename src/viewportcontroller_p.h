@@ -283,10 +283,12 @@ struct ViewportSequenceAssignment
     ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
     bool retainPreviousDisplay = true;
     bool secondaryIsProvider = false;
+    PageSetTransitionPolicy transitionPolicy;
 };
 
 struct ViewportSequenceAssignmentResult
 {
+    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
@@ -294,14 +296,9 @@ struct ViewportSequenceAssignmentResult
     bool openSecondaryProviderSession = false;
 };
 
-struct ViewportPresentationReset
-{
-    bool changed = false;
-    bool geometryState = false;
-};
-
 struct ViewportControllerState
 {
+    ImageViewportInternal::PresentationState presentation;
     ImageViewportInternal::DisplayState display;
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
@@ -426,6 +423,7 @@ class ViewportController
 public:
     explicit ViewportController(const ViewportControllerContext& context);
 
+    const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
     bool hasProviderSession() const;
@@ -473,7 +471,26 @@ public:
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
-    ViewportCommandResult resetView(ViewportPresentationReset reset);
+    ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
+    ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
+    ImageViewportInternal::ViewportChangeSet setMirrorHorizontally(bool enabled);
+    ImageViewportInternal::ViewportChangeSet setMirrorVertically(bool enabled);
+    ImageViewportInternal::ViewportChangeSet setBackgroundMode(ImageViewport::BackgroundMode mode);
+    ImageViewportInternal::ViewportChangeSet setBackgroundColor(const QColor& color);
+    ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
+    ViewportCommandResult setPageGap(double gap);
+    ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);
+    ViewportCommandResult setZoomPercent(double percent, QPointF anchor);
+    ViewportCommandResult panBy(QPointF delta);
+    ViewportCommandResult panToStart();
+    ViewportCommandResult panToEnd();
+    ViewportCommandResult scanNext();
+    ViewportCommandResult scanPrevious();
+    ViewportCommandResult rotateClockwise(QPointF anchor);
+    ViewportCommandResult rotateCounterClockwise(QPointF anchor);
+    ViewportCommandResult setMirrorHorizontally(bool enabled, QPointF anchor);
+    ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
+    ViewportCommandResult resetView();
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);

@@ -29,23 +29,25 @@ QSizeF imageLogicalSize(const QImage& image)
 PresentationGeometry::State renderGeometryState(
     const ImageViewportPrivate& viewport, QSizeF primarySize, QSizeF secondarySize)
 {
+    const ImageViewportInternal::PresentationState& presentation
+        = viewport.controller.presentationState();
     return {
         isPositiveSize(primarySize),
         viewport.itemBounds(),
         primarySize,
         secondarySize,
-        viewport.presentation.pageGap,
-        viewport.presentation.spreadDirection,
-        viewport.presentation.fitMode,
-        viewport.presentation.fillMode,
-        viewport.presentation.horizontalAlignment,
-        viewport.presentation.verticalAlignment,
-        viewport.presentation.rotationDegrees,
-        viewport.presentation.mirrorHorizontally,
-        viewport.presentation.mirrorVertically,
-        viewport.presentation.zoom,
+        presentation.pageGap,
+        presentation.spreadDirection,
+        presentation.fitMode,
+        presentation.fillMode,
+        presentation.horizontalAlignment,
+        presentation.verticalAlignment,
+        presentation.rotationDegrees,
+        presentation.mirrorHorizontally,
+        presentation.mirrorVertically,
+        presentation.zoom,
         effectiveDevicePixelRatio(viewport),
-        viewport.presentation.pan,
+        presentation.pan,
     };
 }
 
@@ -54,6 +56,7 @@ PresentationGeometry::State renderGeometryState(
 QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
 {
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const ImageViewportInternal::PresentationState& presentation = controller.presentationState();
     auto preparedPayload = synchronization.preparedPayload;
     if (!preparedPayload.commitPending && hasReadyDisplay()) {
         preparedPayload.image = controller.displayState().displayedImage;

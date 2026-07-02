@@ -98,7 +98,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 
 ## M4: Controller-Owned Presentation State
 
-- Status: Not Started
+- Status: Complete
 - Goal: Move canonical presentation state and page-set transition effects behind controller-owned inputs and outputs.
 - Scope: Add controller-focused tests for presentation mutations and transition transactions, then move canonical fit mode, effective and manual zoom percent, content position, scan state, rotation, mirroring, spread direction, page gap, virtual spread geometry, and revision effects out of item-private mutable ownership and into controller-owned state or controller-owned collaborators.
 - Acceptance Criteria: The item no longer mutates canonical presentation state directly before or after `ViewportController::assignSequence`; page-set transition policy is validated and applied as one controller transaction, matching `docs/architecture/subsystem-boundaries.md`.
@@ -111,6 +111,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 - Likely Code Areas: `src/viewportcontroller.cpp`, `src/viewportcontroller_p.h`, `src/imageviewport.cpp`, `src/imageviewport_p.h`, `src/imageviewportpresentation.cpp`, `src/imageviewportrender.cpp`, `src/presentationgeometry.cpp`, `src/presentationgeometry_p.h`, `src/renderadapter.cpp`, and private test probes.
 - Dependencies: M2 and M3 reduce public API churn before internal ownership changes; M1 should be complete or actively protected by tests because controller state changes can affect provider wait, terminal, and render projections.
 - Stop Conditions: Stop if implementing controller-owned presentation state requires a new durable subsystem boundary outside the controller rather than a controller-owned collaborator; update architecture docs and get approval before proceeding.
+- Implementation Note: M4 moved canonical presentation state into `ViewportControllerState`, routed standalone presentation commands and page-set transition policy application through `ViewportController`, and added `viewportcontroller_presentation` coverage for controller-owned mutations and transition transactions.
 
 ## M5: Linux/Static Package Contract Conformance
 

@@ -186,7 +186,6 @@ public:
     static ImageViewportRange invalidRange();
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
-    void notifyPresentationChanged(bool affectsGeometry);
     QRectF currentContentRect() const;
     QRectF contentRectForImageSize(QSizeF imageSize) const;
     QRectF visibleImageRectForImageSize(QSizeF imageSize) const;
@@ -304,7 +303,6 @@ public:
     ViewportProviderBridge providerBridge;
     ViewportProviderBridge secondaryProviderBridge;
     RenderAdapter renderAdapter;
-    ImageViewportInternal::PresentationState presentation;
     QTimer playbackTimer;
     QElapsedTimer playbackClockTimebase;
     ImageViewportInternal::PlaybackClock playbackClock;
