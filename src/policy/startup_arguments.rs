@@ -390,6 +390,23 @@ mod tests {
     }
 
     #[test]
+    fn multiple_startup_sources_keep_first_source() {
+        let working_directory = TestDirectory::new("multiple-startup-sources");
+        let expected_path = existing_test_file(working_directory.path(), "first.png");
+
+        let options = startup_options_from_args(
+            startup_args(&["first.png", "missing-second.png"]),
+            Some(working_directory.path()),
+        )
+        .expect("only the first startup source should be validated");
+
+        assert_eq!(
+            options.source,
+            Some(StartupSource::LocalFile(expected_path))
+        );
+    }
+
+    #[test]
     fn option_separator_treats_verbose_short_name_as_source() {
         let working_directory = TestDirectory::new("verbose-after-separator");
         let expected_path = existing_test_file(working_directory.path(), "-v");

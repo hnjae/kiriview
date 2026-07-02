@@ -538,6 +538,7 @@ StatefulApp.StatefulWindow {
     Dialogs.FileDialog {
         id: fileDialog
 
+        objectName: "openFileDialog"
         fileMode: Dialogs.FileDialog.OpenFile
         nameFilters: documentSession.openDialogNameFilters
         title: KI18n.i18nc("@title:window", "Open Image, Video, or Comic Book")

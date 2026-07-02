@@ -20,6 +20,8 @@
 #include <QFile>
 #include <QFont>
 #include <QImage>
+#include <QMetaEnum>
+#include <QMetaProperty>
 #include <QObject>
 #include <QQmlApplicationEngine>
 #include <QQuickItem>
@@ -32,6 +34,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+#include <QVariantList>
 #include <QVariantMap>
 #include <QWheelEvent>
 #include <QtQml/qqml.h>
@@ -48,6 +51,8 @@ private Q_SLOTS:
     void startupCreatesOneVisibleToolbarWithDisabledMediaControls();
     void startupInitialDirectImageRendersMainViewport();
     void startupInitialComicArchiveRendersAndNavigatesMainViewport();
+    void dropOpensFirstUrlOnly();
+    void fileDialogUsesSingleSelectionMode();
     void directImageShowsMediaPositionAfterSiblingListing();
     void directoryImageDocumentShowsPagePosition();
     void mediaViewportHostLoadsOnlyActiveDelegate();
@@ -581,6 +586,12 @@ bool invokeBool(QObject* object, const char* method)
     return invoked && result.toBool();
 }
 
+void invokeWithVariant(QObject* object, const char* method, const QVariant& argument)
+{
+    QVERIFY(
+        QMetaObject::invokeMethod(object, method, Qt::DirectConnection, Q_ARG(QVariant, argument)));
+}
+
 QPoint itemCenter(QQuickItem* item)
 {
     if (item == nullptr || item->width() <= 0 || item->height() <= 0) {
@@ -774,6 +785,44 @@ void TestMainWindowToolBar::startupInitialComicArchiveRendersAndNavigatesMainVie
         && providerImage->property("source").toUrl() != secondPageSource);
     QVERIFY(!providerImage->property("source").toUrl().isEmpty());
     QVERIFY(!thumbnailPanel->isVisible());
+}
+
+void TestMainWindowToolBar::dropOpensFirstUrlOnly()
+{
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    KiriDocumentSession* documentSession = findDocumentSession(fixture.window);
+    QVERIFY(documentSession != nullptr);
+    const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/kiriview/drop-first.png"));
+    const QUrl secondUrl = QUrl::fromLocalFile(QStringLiteral("/tmp/kiriview/drop-second.png"));
+
+    QVariantList urls;
+    urls.append(firstUrl);
+    urls.append(secondUrl);
+    invokeWithVariant(fixture.window, "openDroppedUrls", urls);
+
+    QTRY_COMPARE(documentSession->sourceUrl(), firstUrl);
+}
+
+void TestMainWindowToolBar::fileDialogUsesSingleSelectionMode()
+{
+    MainWindowFixture fixture = createMainWindowFixture();
+    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
+
+    QObject* fileDialog = findObject(fixture.window, QStringLiteral("openFileDialog"));
+    QVERIFY(fileDialog != nullptr);
+
+    const int propertyIndex = fileDialog->metaObject()->indexOfProperty("fileMode");
+    QVERIFY(propertyIndex >= 0);
+    const QMetaProperty fileModeProperty = fileDialog->metaObject()->property(propertyIndex);
+    const QMetaEnum fileModeEnum = fileModeProperty.enumerator();
+    QVERIFY(fileModeEnum.isValid());
+
+    bool ok = false;
+    const int openFileMode = fileModeEnum.keyToValue("OpenFile", &ok);
+    QVERIFY(ok);
+    QCOMPARE(fileDialog->property("fileMode").toInt(), openFileMode);
 }
 
 void TestMainWindowToolBar::directImageShowsMediaPositionAfterSiblingListing()
