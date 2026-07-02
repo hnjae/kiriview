@@ -168,7 +168,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 7: Thumbnail And Predecode Finalization
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Align thumbnail generation, placeholder behavior, demand buckets, and still-image predecode with navigation and provider boundaries.
 - Dependencies: Milestone 2; Milestone 3; Milestone 4 for video rows; Milestone 6 for rendering source contracts if thumbnail generation currently depends on tile-era APIs.
 - Relevant references: `docs/spec/navigation.md`, `docs/spec/video-playback.md`, `docs/architecture/thumbnail-source-adapters.md`, `docs/architecture/state-ownership.md`, `docs/architecture/async-lifecycle.md`.
@@ -177,6 +177,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Active navigation thumbnail runtime tests, thumbnail generation tests, thumbnail panel Qt/QML tests, predecode schedule/cache tests; run `devenv tasks run --mode single ci:test:cpp`.
 - Suggested commit boundaries: Commit thumbnail eligibility/source-key behavior separately from predecode scheduling and QML panel behavior.
 - Stop conditions: Stop before adding a video thumbnail backend dependency or broadening thumbnail generation beyond documented eligible sources.
+- Completion notes: Existing thumbnail and predecode production runtimes already matched the documented end state: active thumbnail rows are derived from the session-owned active navigation projection, direct local images and videos use cacheable local-file thumbnail plans, direct archive-entry and non-local media rows remain placeholder-only, opened-collection image thumbnails are limited to ZIP-backed eligible entries, video rows do not become still-image predecode targets, stale thumbnail completions are rejected by source key plus navigation generation, and power saver suppresses new adjacent predecode work while preserving displayed-image cache entries. Added regression coverage for direct archive-entry image/video placeholder rows, CB7/non-ZIP opened-collection placeholder rows, and power-saver cache retention. Verification covered focused `ctest -R '(thumbnail|predecode)'` and `devenv tasks run --mode single ci:test:cpp`. No new thumbnail/video backend dependency, Flatpak permission change, or translation catalog edit was needed.
 
 ### Milestone 8: Cleanup, Public API Narrowing, And Boundary Enforcement
 
