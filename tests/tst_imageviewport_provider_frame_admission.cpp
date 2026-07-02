@@ -1141,7 +1141,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QVERIFY(item.hasPendingRenderCommitForTest());
 
-    const uint uploadPendingRevision = item.property("requestRevision").toUInt();
+    const RevisionToken uploadPendingRevision = revisionTokenProperty(item, "requestRevision");
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(
@@ -1151,7 +1151,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.property("requestRevision").toUInt() > uploadPendingRevision);
+    verifyRevisionChanged(item, "requestRevision", uploadPendingRevision);
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometryKeepsRenderWaiting()
@@ -1194,7 +1194,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QVERIFY(item.hasPendingRenderCommitForTest());
 
-    const uint renderWaitingRevision = item.property("requestRevision").toUInt();
+    const RevisionToken renderWaitingRevision = revisionTokenProperty(item, "requestRevision");
     item.setSize(QSizeF(100.0, 100.0));
     acknowledgePendingRenderCommit(item);
 
@@ -1205,7 +1205,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.property("requestRevision").toUInt() > renderWaitingRevision);
+    verifyRevisionChanged(item, "requestRevision", renderWaitingRevision);
 }
 
 QTEST_MAIN(ImageViewportProviderFrameAdmissionTest)

@@ -620,7 +620,7 @@ void ImageViewportProviderLifecycleTest::
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     item.setSequence(replacementResult->sequence());
-    const uint replacementRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken replacementRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.sequence(), replacementResult->sequence());
     QCOMPARE(
@@ -635,7 +635,7 @@ void ImageViewportProviderLifecycleTest::
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(item.property("requestRevision").toUInt(), replacementRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), replacementRequestRevision);
     QCOMPARE(item.sequence(), replacementResult->sequence());
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -675,7 +675,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresCancelledMetadataAc
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
-    const uint clearedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken clearedRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
@@ -689,7 +689,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresCancelledMetadataAc
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(item.property("requestRevision").toUInt(), clearedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), clearedRequestRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -746,7 +746,7 @@ void ImageViewportProviderLifecycleTest::providerClosedGenerationTokenCollisionI
 
     QVERIFY(replacementSessionFactory->lastSession());
     QCOMPARE(replacementSessionFactory->lastSession()->lastMetadataToken(), staleToken);
-    const uint replacementRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken replacementRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     drainQueuedProviderResults();
 
@@ -756,7 +756,7 @@ void ImageViewportProviderLifecycleTest::providerClosedGenerationTokenCollisionI
     QCOMPARE(*replacementMetadataRequestCount, 1);
     QCOMPARE(*replacementFrameRequestCount, 0);
     QCOMPARE(item.sequence(), replacementResult->sequence());
-    QCOMPARE(item.property("requestRevision").toUInt(), replacementRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), replacementRequestRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -802,7 +802,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresCancelledFrameAckno
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
-    const uint clearedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken clearedRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
@@ -816,7 +816,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresCancelledFrameAckno
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(item.property("requestRevision").toUInt(), clearedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), clearedRequestRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -897,7 +897,7 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
 
     item.setSequence(replacementResult->sequence());
-    const uint replacementRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken replacementRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(*replacementSessionCount, 1);
     QCOMPARE(*replacementMetadataRequestCount, 1);
@@ -915,7 +915,7 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(*staleFrameRequestCount, 0);
     QCOMPARE(*replacementFrameRequestCount, 0);
     QCOMPARE(item.sequence(), replacementResult->sequence());
-    QCOMPARE(item.property("requestRevision").toUInt(), replacementRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), replacementRequestRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),

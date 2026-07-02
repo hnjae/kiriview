@@ -2,8 +2,6 @@
 
 #include "imageviewport.h"
 
-#include <QtCore/QVariantMap>
-
 class PresentationGeometry
 {
 public:
@@ -38,17 +36,17 @@ public:
     static QRectF visibleSpreadRect(const State& state);
     static QRectF visiblePageRect(const State& state, ImageViewport::PageRole role);
     static QRectF pageItemRect(const State& state, ImageViewport::PageRole role);
-    static QVariantMap itemToImage(const State& state, double x, double y);
-    static QVariantMap imageToItem(const State& state, double x, double y);
-    static QVariantMap itemToSpread(const State& state, double x, double y);
-    static QVariantMap spreadToItem(const State& state, double x, double y);
-    static QVariantMap itemToPage(
+    static CoordinateResult itemToImage(const State& state, double x, double y);
+    static CoordinateResult imageToItem(const State& state, double x, double y);
+    static CoordinateResult itemToSpread(const State& state, double x, double y);
+    static CoordinateResult spreadToItem(const State& state, double x, double y);
+    static CoordinateResult itemToPage(
         const State& state, ImageViewport::PageRole role, double x, double y);
-    static QVariantMap pageToItem(
+    static CoordinateResult pageToItem(
         const State& state, ImageViewport::PageRole role, double x, double y);
     static bool containsVisibleImagePoint(const State& state, double x, double y);
     static bool containsVisibleSpreadPoint(const State& state, double x, double y);
     static bool containsVisiblePagePoint(
         const State& state, ImageViewport::PageRole role, double x, double y);
-    static QVariantMap invalidCoordinateResult();
+    static CoordinateResult invalidCoordinateResult();
 };

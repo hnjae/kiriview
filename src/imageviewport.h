@@ -1,12 +1,12 @@
 #pragma once
 
+#include <QtCore/QDebug>
 #include <QtCore/QObject>
 #include <QtCore/QPointF>
 #include <QtCore/QPointer>
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QVariant>
-#include <QtCore/QVariantMap>
 #include <QtCore/QVector>
 #include <QtGui/QColor>
 #include <QtGui/QImage>
@@ -20,6 +20,7 @@
 class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderMetadata;
 class ImageViewportPrivate;
+class PageSetTransitionPolicy;
 class TimingIntervals;
 
 enum class ImageSequenceProviderThreadingContract {
@@ -611,6 +612,12 @@ public:
     int minimum() const { return m_minimum; }
     int maximum() const { return m_maximum; }
 
+    friend bool operator==(ImageViewportRange lhs, ImageViewportRange rhs)
+    {
+        return lhs.m_minimum == rhs.m_minimum && lhs.m_maximum == rhs.m_maximum;
+    }
+    friend bool operator!=(ImageViewportRange lhs, ImageViewportRange rhs) { return !(lhs == rhs); }
+
 private:
     int m_minimum = -1;
     int m_maximum = -1;
@@ -637,6 +644,12 @@ public:
     double x() const { return m_x; }
     double y() const { return m_y; }
 
+    friend bool operator==(CoordinateResult lhs, CoordinateResult rhs)
+    {
+        return lhs.m_valid == rhs.m_valid && lhs.m_x == rhs.m_x && lhs.m_y == rhs.m_y;
+    }
+    friend bool operator!=(CoordinateResult lhs, CoordinateResult rhs) { return !(lhs == rhs); }
+
 private:
     bool m_valid = false;
     double m_x = 0.0;
@@ -660,81 +673,14 @@ public:
     bool isValid() const { return m_value != 0; }
     uint value() const { return m_value; }
 
+    friend bool operator==(RevisionToken lhs, RevisionToken rhs)
+    {
+        return lhs.m_value == rhs.m_value;
+    }
+    friend bool operator!=(RevisionToken lhs, RevisionToken rhs) { return !(lhs == rhs); }
+
 private:
     uint m_value = 0;
-};
-
-class PageSetTransitionPolicy
-{
-    Q_GADGET
-    QML_VALUE_TYPE(pageSetTransitionPolicy)
-    Q_PROPERTY(DisplayTransition displayTransition READ displayTransition CONSTANT)
-    Q_PROPERTY(ZoomTransition zoomTransition READ zoomTransition CONSTANT)
-    Q_PROPERTY(
-        ContentPositionTransition contentPositionTransition READ contentPositionTransition CONSTANT)
-    Q_PROPERTY(RotationTransition rotationTransition READ rotationTransition CONSTANT)
-    Q_PROPERTY(MirrorTransition mirrorTransition READ mirrorTransition CONSTANT)
-    Q_PROPERTY(ReplacementIntent replacementIntent READ replacementIntent CONSTANT)
-
-public:
-    enum class DisplayTransition {
-        RetainPrevious,
-        ClearBeforeLoad,
-    };
-    Q_ENUM(DisplayTransition)
-
-    enum class ZoomTransition {
-        Preserve,
-        ResetToContain,
-        PreserveManualPercent,
-    };
-    Q_ENUM(ZoomTransition)
-
-    enum class ContentPositionTransition {
-        Preserve,
-        Clamp,
-        ScanStart,
-        ScanEnd,
-    };
-    Q_ENUM(ContentPositionTransition)
-
-    enum class RotationTransition {
-        Preserve,
-        Reset,
-    };
-    Q_ENUM(RotationTransition)
-
-    enum class MirrorTransition {
-        Preserve,
-        Reset,
-    };
-    Q_ENUM(MirrorTransition)
-
-    enum class ReplacementIntent {
-        NewTarget,
-        SameTargetRefinement,
-    };
-    Q_ENUM(ReplacementIntent)
-
-    PageSetTransitionPolicy() = default;
-
-    DisplayTransition displayTransition() const { return m_displayTransition; }
-    ZoomTransition zoomTransition() const { return m_zoomTransition; }
-    ContentPositionTransition contentPositionTransition() const
-    {
-        return m_contentPositionTransition;
-    }
-    RotationTransition rotationTransition() const { return m_rotationTransition; }
-    MirrorTransition mirrorTransition() const { return m_mirrorTransition; }
-    ReplacementIntent replacementIntent() const { return m_replacementIntent; }
-
-private:
-    DisplayTransition m_displayTransition = DisplayTransition::RetainPrevious;
-    ZoomTransition m_zoomTransition = ZoomTransition::Preserve;
-    ContentPositionTransition m_contentPositionTransition = ContentPositionTransition::Clamp;
-    RotationTransition m_rotationTransition = RotationTransition::Preserve;
-    MirrorTransition m_mirrorTransition = MirrorTransition::Preserve;
-    ReplacementIntent m_replacementIntent = ReplacementIntent::NewTarget;
 };
 
 class ImageViewport : public QQuickItem
@@ -771,20 +717,21 @@ class ImageViewport : public QQuickItem
         int secondaryRequestedPosition READ secondaryRequestedPosition NOTIFY requestStateChanged)
     Q_PROPERTY(int frameCount READ frameCount NOTIFY requestStateChanged)
     Q_PROPERTY(int totalDuration READ totalDuration NOTIFY requestStateChanged)
-    Q_PROPERTY(QVariantMap frameSeekBounds READ frameSeekBounds NOTIFY requestStateChanged)
-    Q_PROPERTY(QVariantMap positionSeekBounds READ positionSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(ImageViewportRange frameSeekBounds READ frameSeekBounds NOTIFY requestStateChanged)
+    Q_PROPERTY(
+        ImageViewportRange positionSeekBounds READ positionSeekBounds NOTIFY requestStateChanged)
     Q_PROPERTY(int primaryFrameCount READ primaryFrameCount NOTIFY requestStateChanged)
     Q_PROPERTY(int secondaryFrameCount READ secondaryFrameCount NOTIFY requestStateChanged)
     Q_PROPERTY(int primaryTotalDuration READ primaryTotalDuration NOTIFY requestStateChanged)
     Q_PROPERTY(int secondaryTotalDuration READ secondaryTotalDuration NOTIFY requestStateChanged)
-    Q_PROPERTY(
-        QVariantMap primaryFrameSeekBounds READ primaryFrameSeekBounds NOTIFY requestStateChanged)
-    Q_PROPERTY(QVariantMap secondaryFrameSeekBounds READ secondaryFrameSeekBounds NOTIFY
+    Q_PROPERTY(ImageViewportRange primaryFrameSeekBounds READ primaryFrameSeekBounds NOTIFY
             requestStateChanged)
-    Q_PROPERTY(QVariantMap primaryPositionSeekBounds READ primaryPositionSeekBounds NOTIFY
+    Q_PROPERTY(ImageViewportRange secondaryFrameSeekBounds READ secondaryFrameSeekBounds NOTIFY
             requestStateChanged)
-    Q_PROPERTY(QVariantMap secondaryPositionSeekBounds READ secondaryPositionSeekBounds NOTIFY
+    Q_PROPERTY(ImageViewportRange primaryPositionSeekBounds READ primaryPositionSeekBounds NOTIFY
             requestStateChanged)
+    Q_PROPERTY(ImageViewportRange secondaryPositionSeekBounds READ secondaryPositionSeekBounds
+            NOTIFY requestStateChanged)
     Q_PROPERTY(TriState timedPlaybackSupport READ timedPlaybackSupport NOTIFY requestStateChanged)
     Q_PROPERTY(TriState frameSeekSupport READ frameSeekSupport NOTIFY requestStateChanged)
     Q_PROPERTY(TriState positionSeekSupport READ positionSeekSupport NOTIFY requestStateChanged)
@@ -823,9 +770,9 @@ class ImageViewport : public QQuickItem
         QPointF maximumContentPosition READ maximumContentPosition NOTIFY geometryStateChanged)
     Q_PROPERTY(bool horizontalPannable READ horizontalPannable NOTIFY geometryStateChanged)
     Q_PROPERTY(bool verticalPannable READ verticalPannable NOTIFY geometryStateChanged)
-    Q_PROPERTY(uint displayRevision READ displayRevision NOTIFY displayRevisionChanged)
-    Q_PROPERTY(uint requestRevision READ requestRevision NOTIFY requestRevisionChanged)
-    Q_PROPERTY(uint commandRevision READ commandRevision NOTIFY commandRevisionChanged)
+    Q_PROPERTY(RevisionToken displayRevision READ displayRevision NOTIFY displayRevisionChanged)
+    Q_PROPERTY(RevisionToken requestRevision READ requestRevision NOTIFY requestRevisionChanged)
+    Q_PROPERTY(RevisionToken commandRevision READ commandRevision NOTIFY commandRevisionChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
     Q_PROPERTY(FitMode fitMode READ fitMode WRITE setFitModeProperty NOTIFY presentationChanged)
@@ -994,16 +941,16 @@ public:
     int secondaryRequestedPosition() const;
     int frameCount() const;
     int totalDuration() const;
-    QVariantMap frameSeekBounds() const;
-    QVariantMap positionSeekBounds() const;
+    ImageViewportRange frameSeekBounds() const;
+    ImageViewportRange positionSeekBounds() const;
     int primaryFrameCount() const;
     int secondaryFrameCount() const;
     int primaryTotalDuration() const;
     int secondaryTotalDuration() const;
-    QVariantMap primaryFrameSeekBounds() const;
-    QVariantMap secondaryFrameSeekBounds() const;
-    QVariantMap primaryPositionSeekBounds() const;
-    QVariantMap secondaryPositionSeekBounds() const;
+    ImageViewportRange primaryFrameSeekBounds() const;
+    ImageViewportRange secondaryFrameSeekBounds() const;
+    ImageViewportRange primaryPositionSeekBounds() const;
+    ImageViewportRange secondaryPositionSeekBounds() const;
     TriState timedPlaybackSupport() const;
     TriState frameSeekSupport() const;
     TriState positionSeekSupport() const;
@@ -1031,9 +978,9 @@ public:
     QPointF maximumContentPosition() const;
     bool horizontalPannable() const;
     bool verticalPannable() const;
-    uint displayRevision() const;
-    uint requestRevision() const;
-    uint commandRevision() const;
+    RevisionToken displayRevision() const;
+    RevisionToken requestRevision() const;
+    RevisionToken commandRevision() const;
     QString errorString() const;
     QString warningString() const;
 
@@ -1080,7 +1027,9 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
-        const QVariant& primary, const QVariant& secondary, const QVariant& policy = {});
+        const QVariant& primary, const QVariant& secondary);
+    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
+        const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
     Q_INVOKABLE ImageViewport::CommandOutcome setSpreadDirection(
         ImageViewport::SpreadDirection direction);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageGap(double gap);
@@ -1097,15 +1046,15 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome setMirrorHorizontally(bool enabled, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setMirrorVertically(bool enabled, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
-    Q_INVOKABLE QVariantMap itemToSpread(double x, double y) const;
-    Q_INVOKABLE QVariantMap spreadToItem(double x, double y) const;
-    Q_INVOKABLE QVariantMap itemToPage(ImageViewport::PageRole role, double x, double y) const;
-    Q_INVOKABLE QVariantMap pageToItem(ImageViewport::PageRole role, double x, double y) const;
+    Q_INVOKABLE CoordinateResult itemToSpread(double x, double y) const;
+    Q_INVOKABLE CoordinateResult spreadToItem(double x, double y) const;
+    Q_INVOKABLE CoordinateResult itemToPage(ImageViewport::PageRole role, double x, double y) const;
+    Q_INVOKABLE CoordinateResult pageToItem(ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE bool containsVisibleSpreadPoint(double x, double y) const;
     Q_INVOKABLE bool containsVisiblePagePoint(
         ImageViewport::PageRole role, double x, double y) const;
-    Q_INVOKABLE QVariantMap itemToImage(double x, double y) const;
-    Q_INVOKABLE QVariantMap imageToItem(double x, double y) const;
+    Q_INVOKABLE CoordinateResult itemToImage(double x, double y) const;
+    Q_INVOKABLE CoordinateResult imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
@@ -1144,6 +1093,208 @@ private:
 
     std::unique_ptr<ImageViewportPrivate> d;
 };
+
+class PageSetTransitionPolicy
+{
+    Q_GADGET
+    QML_VALUE_TYPE(pageSetTransitionPolicy)
+    QML_STRUCTURED_VALUE
+    Q_PROPERTY(
+        DisplayTransition displayTransition READ displayTransition WRITE setDisplayTransition)
+    Q_PROPERTY(ZoomTransition zoomTransition READ zoomTransition WRITE setZoomTransition)
+    Q_PROPERTY(ContentPositionTransition contentPositionTransition READ contentPositionTransition
+            WRITE setContentPositionTransition)
+    Q_PROPERTY(
+        RotationTransition rotationTransition READ rotationTransition WRITE setRotationTransition)
+    Q_PROPERTY(MirrorTransition mirrorTransition READ mirrorTransition WRITE setMirrorTransition)
+    Q_PROPERTY(
+        FitModeTransition fitModeTransition READ fitModeTransition WRITE setFitModeTransition)
+    Q_PROPERTY(ImageViewport::FitMode fitMode READ fitMode WRITE setFitMode)
+    Q_PROPERTY(SpreadDirectionTransition spreadDirectionTransition READ spreadDirectionTransition
+            WRITE setSpreadDirectionTransition)
+    Q_PROPERTY(ImageViewport::SpreadDirection spreadDirection READ spreadDirection WRITE
+            setSpreadDirection)
+    Q_PROPERTY(
+        PageGapTransition pageGapTransition READ pageGapTransition WRITE setPageGapTransition)
+    Q_PROPERTY(double pageGap READ pageGap WRITE setPageGap)
+    Q_PROPERTY(
+        ReplacementIntent replacementIntent READ replacementIntent WRITE setReplacementIntent)
+
+public:
+    enum class DisplayTransition {
+        RetainPrevious,
+        ClearBeforeLoad,
+    };
+    Q_ENUM(DisplayTransition)
+
+    enum class ZoomTransition {
+        Preserve,
+        ResetToContain,
+        PreserveManualPercent,
+    };
+    Q_ENUM(ZoomTransition)
+
+    enum class ContentPositionTransition {
+        Preserve,
+        Clamp,
+        ScanStart,
+        ScanEnd,
+    };
+    Q_ENUM(ContentPositionTransition)
+
+    enum class RotationTransition {
+        Preserve,
+        Reset,
+    };
+    Q_ENUM(RotationTransition)
+
+    enum class MirrorTransition {
+        Preserve,
+        Reset,
+    };
+    Q_ENUM(MirrorTransition)
+
+    enum class FitModeTransition {
+        Preserve,
+        SetExplicit,
+    };
+    Q_ENUM(FitModeTransition)
+
+    enum class SpreadDirectionTransition {
+        Preserve,
+        SetExplicit,
+    };
+    Q_ENUM(SpreadDirectionTransition)
+
+    enum class PageGapTransition {
+        Preserve,
+        SetExplicit,
+    };
+    Q_ENUM(PageGapTransition)
+
+    enum class ReplacementIntent {
+        NewTarget,
+        SameTargetRefinement,
+    };
+    Q_ENUM(ReplacementIntent)
+
+    PageSetTransitionPolicy() = default;
+
+    DisplayTransition displayTransition() const { return m_displayTransition; }
+    void setDisplayTransition(DisplayTransition transition) { m_displayTransition = transition; }
+    ZoomTransition zoomTransition() const { return m_zoomTransition; }
+    void setZoomTransition(ZoomTransition transition) { m_zoomTransition = transition; }
+    ContentPositionTransition contentPositionTransition() const
+    {
+        return m_contentPositionTransition;
+    }
+    void setContentPositionTransition(ContentPositionTransition transition)
+    {
+        m_contentPositionTransition = transition;
+    }
+    RotationTransition rotationTransition() const { return m_rotationTransition; }
+    void setRotationTransition(RotationTransition transition) { m_rotationTransition = transition; }
+    MirrorTransition mirrorTransition() const { return m_mirrorTransition; }
+    void setMirrorTransition(MirrorTransition transition) { m_mirrorTransition = transition; }
+    FitModeTransition fitModeTransition() const { return m_fitModeTransition; }
+    void setFitModeTransition(FitModeTransition transition) { m_fitModeTransition = transition; }
+    ImageViewport::FitMode fitMode() const { return m_fitMode; }
+    void setFitMode(ImageViewport::FitMode mode)
+    {
+        m_fitMode = mode;
+        m_fitModeSet = true;
+    }
+    SpreadDirectionTransition spreadDirectionTransition() const
+    {
+        return m_spreadDirectionTransition;
+    }
+    void setSpreadDirectionTransition(SpreadDirectionTransition transition)
+    {
+        m_spreadDirectionTransition = transition;
+    }
+    ImageViewport::SpreadDirection spreadDirection() const { return m_spreadDirection; }
+    void setSpreadDirection(ImageViewport::SpreadDirection direction)
+    {
+        m_spreadDirection = direction;
+        m_spreadDirectionSet = true;
+    }
+    PageGapTransition pageGapTransition() const { return m_pageGapTransition; }
+    void setPageGapTransition(PageGapTransition transition) { m_pageGapTransition = transition; }
+    double pageGap() const { return m_pageGap; }
+    void setPageGap(double gap)
+    {
+        m_pageGap = gap;
+        m_pageGapSet = true;
+    }
+    ReplacementIntent replacementIntent() const { return m_replacementIntent; }
+    void setReplacementIntent(ReplacementIntent intent) { m_replacementIntent = intent; }
+
+    bool hasExplicitFitMode() const { return m_fitModeSet; }
+    bool hasExplicitSpreadDirection() const { return m_spreadDirectionSet; }
+    bool hasExplicitPageGap() const { return m_pageGapSet; }
+    bool isValid() const;
+
+    friend bool operator==(PageSetTransitionPolicy lhs, PageSetTransitionPolicy rhs)
+    {
+        return lhs.m_displayTransition == rhs.m_displayTransition
+            && lhs.m_zoomTransition == rhs.m_zoomTransition
+            && lhs.m_contentPositionTransition == rhs.m_contentPositionTransition
+            && lhs.m_rotationTransition == rhs.m_rotationTransition
+            && lhs.m_mirrorTransition == rhs.m_mirrorTransition
+            && lhs.m_fitModeTransition == rhs.m_fitModeTransition && lhs.m_fitMode == rhs.m_fitMode
+            && lhs.m_fitModeSet == rhs.m_fitModeSet
+            && lhs.m_spreadDirectionTransition == rhs.m_spreadDirectionTransition
+            && lhs.m_spreadDirection == rhs.m_spreadDirection
+            && lhs.m_spreadDirectionSet == rhs.m_spreadDirectionSet
+            && lhs.m_pageGapTransition == rhs.m_pageGapTransition && lhs.m_pageGap == rhs.m_pageGap
+            && lhs.m_pageGapSet == rhs.m_pageGapSet
+            && lhs.m_replacementIntent == rhs.m_replacementIntent;
+    }
+    friend bool operator!=(PageSetTransitionPolicy lhs, PageSetTransitionPolicy rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    DisplayTransition m_displayTransition = DisplayTransition::RetainPrevious;
+    ZoomTransition m_zoomTransition = ZoomTransition::Preserve;
+    ContentPositionTransition m_contentPositionTransition = ContentPositionTransition::Clamp;
+    RotationTransition m_rotationTransition = RotationTransition::Preserve;
+    MirrorTransition m_mirrorTransition = MirrorTransition::Preserve;
+    FitModeTransition m_fitModeTransition = FitModeTransition::Preserve;
+    ImageViewport::FitMode m_fitMode = ImageViewport::FitMode::Contain;
+    bool m_fitModeSet = false;
+    SpreadDirectionTransition m_spreadDirectionTransition = SpreadDirectionTransition::Preserve;
+    ImageViewport::SpreadDirection m_spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
+    bool m_spreadDirectionSet = false;
+    PageGapTransition m_pageGapTransition = PageGapTransition::Preserve;
+    double m_pageGap = 0.0;
+    bool m_pageGapSet = false;
+    ReplacementIntent m_replacementIntent = ReplacementIntent::NewTarget;
+};
+
+inline QDebug operator<<(QDebug debug, ImageViewportRange range)
+{
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "ImageViewportRange(" << range.minimum() << ", " << range.maximum() << ")";
+    return debug;
+}
+
+inline QDebug operator<<(QDebug debug, CoordinateResult result)
+{
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "CoordinateResult(valid=" << result.isValid() << ", x=" << result.x()
+                    << ", y=" << result.y() << ")";
+    return debug;
+}
+
+inline QDebug operator<<(QDebug debug, RevisionToken token)
+{
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "RevisionToken(valid=" << token.isValid() << ", value=" << token.value()
+                    << ")";
+    return debug;
+}
 
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
 Q_DECLARE_METATYPE(ImageSequenceAuthoredAnimationFacts)

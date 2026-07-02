@@ -63,7 +63,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 
 ## M2: Typed Public Value API And Transition Policy
 
-- Status: Not Started
+- Status: Complete
 - Goal: Replace map-shaped public value surfaces with documented typed C++ and QML value types, and expose the full typed page-set transition policy.
 - Scope: Add or complete public value types for ranges, rectangles, sizes, points, coordinate results, page geometry, revision tokens, command outcomes where needed, and page-set transition policy; update public properties and invokables to return typed values instead of `QVariantMap`; expose typed fit-mode, spread-direction, and page-gap transitions on `PageSetTransitionPolicy`; stop relying on undocumented transition-policy map keys as the final contract.
 - Acceptance Criteria: Public header and QML type metadata expose documented typed value fields for ranges, rectangles, sizes, points, coordinate results, page geometry, revision tokens, command outcomes, and `PageSetTransitionPolicy`, matching `docs/spec/image-viewport-api.md`.
@@ -78,6 +78,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Miles
 - Dependencies: M1 is independent but should remain green; this milestone depends on the approved typed-value API target and may be implemented before or after provider role symmetry if branch management requires.
 - Stop Conditions: Stop if Qt 6.5 QML value-type registration cannot support the documented type-stable field access without an alternate public contract; request a spec decision before keeping `QVariantMap` as a compatibility surface.
 - Stop Conditions: Do not treat M2 as a release boundary for full page-set transition semantics unless explicit fit-mode, spread-direction, and page-gap policy fields are routed through controller-owned transition handling; if typed policy exposure would otherwise add or preserve item-side canonical transition ownership, combine that part of M2 with M4 or stop for an architecture decision.
+- Implementation Note: M2 completed the public typed value surfaces and typed policy input path; controller-owned canonical presentation transition ownership remains the M4 scope.
 
 ## M3: Legacy Presentation API Removal
 

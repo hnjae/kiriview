@@ -577,17 +577,17 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorVertically(
     return acceptPresentationCommand(*this);
 }
 
-QVariantMap ImageViewportPrivate::itemToSpread(double x, double y) const
+CoordinateResult ImageViewportPrivate::itemToSpread(double x, double y) const
 {
     return PresentationGeometry::itemToSpread(geometryState(*this), x, y);
 }
 
-QVariantMap ImageViewportPrivate::spreadToItem(double x, double y) const
+CoordinateResult ImageViewportPrivate::spreadToItem(double x, double y) const
 {
     return PresentationGeometry::spreadToItem(geometryState(*this), x, y);
 }
 
-QVariantMap ImageViewportPrivate::itemToPage(PageRole role, double x, double y) const
+CoordinateResult ImageViewportPrivate::itemToPage(PageRole role, double x, double y) const
 {
     if (!isValidPageRole(role)) {
         return invalidCoordinateResult();
@@ -596,7 +596,7 @@ QVariantMap ImageViewportPrivate::itemToPage(PageRole role, double x, double y) 
     return PresentationGeometry::itemToPage(geometryState(*this), role, x, y);
 }
 
-QVariantMap ImageViewportPrivate::pageToItem(PageRole role, double x, double y) const
+CoordinateResult ImageViewportPrivate::pageToItem(PageRole role, double x, double y) const
 {
     if (!isValidPageRole(role)) {
         return invalidCoordinateResult();
@@ -619,12 +619,12 @@ bool ImageViewportPrivate::containsVisiblePagePoint(PageRole role, double x, dou
     return PresentationGeometry::containsVisiblePagePoint(geometryState(*this), role, x, y);
 }
 
-QVariantMap ImageViewportPrivate::itemToImage(double x, double y) const
+CoordinateResult ImageViewportPrivate::itemToImage(double x, double y) const
 {
     return PresentationGeometry::itemToImage(geometryState(*this), x, y);
 }
 
-QVariantMap ImageViewportPrivate::imageToItem(double x, double y) const
+CoordinateResult ImageViewportPrivate::imageToItem(double x, double y) const
 {
     return PresentationGeometry::imageToItem(geometryState(*this), x, y);
 }
@@ -634,15 +634,9 @@ bool ImageViewportPrivate::containsVisibleImagePoint(double x, double y) const
     return PresentationGeometry::containsVisibleImagePoint(geometryState(*this), x, y);
 }
 
-QVariantMap ImageViewportPrivate::invalidRange()
-{
-    return {
-        { QStringLiteral("minimum"), -1 },
-        { QStringLiteral("maximum"), -1 },
-    };
-}
+ImageViewportRange ImageViewportPrivate::invalidRange() { return {}; }
 
-QVariantMap ImageViewportPrivate::invalidCoordinateResult()
+CoordinateResult ImageViewportPrivate::invalidCoordinateResult()
 {
     return PresentationGeometry::invalidCoordinateResult();
 }

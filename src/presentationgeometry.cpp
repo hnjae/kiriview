@@ -16,13 +16,9 @@ bool containsHalfOpen(const QRectF& rect, QPointF point)
         && point.x() < rect.right() && point.y() < rect.bottom();
 }
 
-QVariantMap coordinateResult(QPointF point)
+CoordinateResult coordinateResult(QPointF point)
 {
-    return {
-        { QStringLiteral("valid"), true },
-        { QStringLiteral("x"), point.x() },
-        { QStringLiteral("y"), point.y() },
-    };
+    return CoordinateResult(true, point.x(), point.y());
 }
 
 int normalizedRotation(int degrees)
@@ -393,17 +389,17 @@ QRectF PresentationGeometry::pageItemRect(const State& state, ImageViewport::Pag
     return itemRectForSpreadRect(state, pageRectForRole(state, role));
 }
 
-QVariantMap PresentationGeometry::itemToImage(const State& state, double x, double y)
+CoordinateResult PresentationGeometry::itemToImage(const State& state, double x, double y)
 {
     return itemToPage(state, ImageViewport::PageRole::Primary, x, y);
 }
 
-QVariantMap PresentationGeometry::imageToItem(const State& state, double x, double y)
+CoordinateResult PresentationGeometry::imageToItem(const State& state, double x, double y)
 {
     return pageToItem(state, ImageViewport::PageRole::Primary, x, y);
 }
 
-QVariantMap PresentationGeometry::itemToSpread(const State& state, double x, double y)
+CoordinateResult PresentationGeometry::itemToSpread(const State& state, double x, double y)
 {
     if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
         return invalidCoordinateResult();
@@ -424,7 +420,7 @@ QVariantMap PresentationGeometry::itemToSpread(const State& state, double x, dou
     return coordinateResult(spreadPoint);
 }
 
-QVariantMap PresentationGeometry::spreadToItem(const State& state, double x, double y)
+CoordinateResult PresentationGeometry::spreadToItem(const State& state, double x, double y)
 {
     if (!containsVisibleSpreadPoint(state, x, y)) {
         return invalidCoordinateResult();
@@ -439,17 +435,16 @@ QVariantMap PresentationGeometry::spreadToItem(const State& state, double x, dou
     return coordinateResult(itemPoint);
 }
 
-QVariantMap PresentationGeometry::itemToPage(
+CoordinateResult PresentationGeometry::itemToPage(
     const State& state, ImageViewport::PageRole role, double x, double y)
 {
-    const QVariantMap spreadPoint = itemToSpread(state, x, y);
-    if (!spreadPoint.value(QStringLiteral("valid")).toBool()) {
+    const CoordinateResult spreadPoint = itemToSpread(state, x, y);
+    if (!spreadPoint.isValid()) {
         return invalidCoordinateResult();
     }
 
     const QRectF pageRect = pageRectForRole(state, role);
-    const QPointF point(spreadPoint.value(QStringLiteral("x")).toDouble(),
-        spreadPoint.value(QStringLiteral("y")).toDouble());
+    const QPointF point(spreadPoint.x(), spreadPoint.y());
     if (!containsHalfOpen(pageRect, point)) {
         return invalidCoordinateResult();
     }
@@ -457,7 +452,7 @@ QVariantMap PresentationGeometry::itemToPage(
     return coordinateResult(point - pageRect.topLeft());
 }
 
-QVariantMap PresentationGeometry::pageToItem(
+CoordinateResult PresentationGeometry::pageToItem(
     const State& state, ImageViewport::PageRole role, double x, double y)
 {
     if (!std::isfinite(x) || !std::isfinite(y)) {
@@ -508,11 +503,4 @@ bool PresentationGeometry::containsVisiblePagePoint(
     return containsHalfOpen(visiblePageRectForState(state, role), QPointF(x, y));
 }
 
-QVariantMap PresentationGeometry::invalidCoordinateResult()
-{
-    return {
-        { QStringLiteral("valid"), false },
-        { QStringLiteral("x"), 0.0 },
-        { QStringLiteral("y"), 0.0 },
-    };
-}
+CoordinateResult PresentationGeometry::invalidCoordinateResult() { return {}; }

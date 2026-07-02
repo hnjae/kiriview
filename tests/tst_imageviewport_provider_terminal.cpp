@@ -366,7 +366,7 @@ void ImageViewportProviderTerminalTest::providerInvalidTerminalTokenBeforeMetada
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
@@ -393,7 +393,7 @@ void ImageViewportProviderTerminalTest::providerInvalidTerminalTokenBeforeMetada
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
@@ -424,7 +424,7 @@ void ImageViewportProviderTerminalTest::providerInvalidTerminalTokenAfterMetadat
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
@@ -449,7 +449,7 @@ void ImageViewportProviderTerminalTest::providerInvalidTerminalTokenAfterMetadat
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
@@ -679,7 +679,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         QStringLiteral("metadata service unavailable"));
     drainQueuedProviderResults();
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
@@ -689,7 +689,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.seekToPosition(-1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -700,7 +700,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
 
@@ -715,7 +715,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -726,7 +726,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -739,7 +739,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureRejects
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 0);
 }
 
@@ -767,16 +767,16 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureAccepts
         QStringLiteral("metadata service unavailable"));
     drainQueuedProviderResults();
 
-    const uint failedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    const uint unsupportedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken unsupportedCommandRevision = revisionTokenProperty(item, "commandRevision");
 
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), unsupportedCommandRevision + 1);
+    verifyRevisionChanged(item, "commandRevision", unsupportedCommandRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -787,13 +787,13 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureAccepts
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
 
-    const uint clearedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken clearedCommandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), clearedCommandRevision);
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -804,7 +804,7 @@ void ImageViewportProviderTerminalTest::providerGenerationTerminalFailureAccepts
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
@@ -853,7 +853,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureKeepsGenerationSeeka
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
 
-    const uint terminalRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken terminalRequestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
@@ -869,7 +869,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureKeepsGenerationSeeka
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestRevision").toUInt(), terminalRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), terminalRequestRevision);
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
     QCOMPARE(requestSpy.count(), 0);
@@ -964,15 +964,15 @@ void ImageViewportProviderTerminalTest::providerFrameFailureRetainsDisplayAndCle
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
 
-    const uint failedRequestRevision = item.property("requestRevision").toUInt();
-    const uint retainedDisplayRevision = item.property("displayRevision").toUInt();
-    const uint failedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken retainedDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const RevisionToken failedCommandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    QVERIFY(item.property("commandRevision").toUInt() > failedCommandRevision);
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), retainedDisplayRevision);
+    verifyRevisionChanged(item, "commandRevision", failedCommandRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), retainedDisplayRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1191,17 +1191,17 @@ void ImageViewportProviderTerminalTest::providerFrameFailureAcceptsControlComman
         frameToken, QStringLiteral("frame decode failed"));
     drainQueuedProviderResults();
 
-    const uint failedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    const uint invalidCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken invalidCommandRevision = revisionTokenProperty(item, "commandRevision");
 
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), invalidCommandRevision + 1);
+    verifyRevisionChanged(item, "commandRevision", invalidCommandRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1212,16 +1212,16 @@ void ImageViewportProviderTerminalTest::providerFrameFailureAcceptsControlComman
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
 
-    const uint clearedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken clearedCommandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), clearedCommandRevision);
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1232,7 +1232,7 @@ void ImageViewportProviderTerminalTest::providerFrameFailureAcceptsControlComman
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("frame decode failed")));
     QCOMPARE(*sessionCount, 1);
@@ -1278,7 +1278,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
@@ -1288,7 +1288,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
         enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -1299,7 +1299,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
         enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -1312,7 +1312,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 0);
 }
 
@@ -1340,17 +1340,17 @@ void ImageViewportProviderTerminalTest::
         sessionFactory->lastSession()->lastMetadataToken(), QStringLiteral("unsupported codec"));
     drainQueuedProviderResults();
 
-    const uint unsupportedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken unsupportedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    const uint unsupportedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken unsupportedCommandRevision = revisionTokenProperty(item, "commandRevision");
 
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), unsupportedCommandRevision + 1);
+    verifyRevisionChanged(item, "commandRevision", unsupportedCommandRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1361,15 +1361,15 @@ void ImageViewportProviderTerminalTest::
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), unsupportedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), unsupportedRequestRevision);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
 
-    const uint clearedCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken clearedCommandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), clearedCommandRevision);
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), clearedCommandRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -1380,7 +1380,7 @@ void ImageViewportProviderTerminalTest::
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("requestRevision").toUInt(), unsupportedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), unsupportedRequestRevision);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("unsupported codec")));
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 0);
@@ -1488,11 +1488,11 @@ void ImageViewportProviderTerminalTest::
             .toString()
             .contains(QStringLiteral("unsupported replacement metadata")));
 
-    const uint failedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(
@@ -1934,7 +1934,7 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
             .toString()
             .contains(QStringLiteral("provider protocol violation")));
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
@@ -1947,7 +1947,7 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 
 void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtocolViolation()
@@ -1999,7 +1999,7 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
             .toString()
             .contains(QStringLiteral("provider protocol violation")));
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
@@ -2012,7 +2012,7 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 
 void ImageViewportProviderTerminalTest::
@@ -2080,7 +2080,7 @@ void ImageViewportProviderTerminalTest::
             .toString()
             .contains(QStringLiteral("provider protocol violation")));
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
@@ -2093,7 +2093,7 @@ void ImageViewportProviderTerminalTest::
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 
 void ImageViewportProviderTerminalTest::providerTimedPlaybackStopsOnFrameFailure()

@@ -44,22 +44,25 @@ int ImageViewport::secondaryDisplayedPosition() const { return d->secondaryDispl
 int ImageViewport::secondaryRequestedPosition() const { return d->secondaryRequestedPosition(); }
 int ImageViewport::frameCount() const { return d->frameCount(); }
 int ImageViewport::totalDuration() const { return d->totalDuration(); }
-QVariantMap ImageViewport::frameSeekBounds() const { return d->frameSeekBounds(); }
-QVariantMap ImageViewport::positionSeekBounds() const { return d->positionSeekBounds(); }
+ImageViewportRange ImageViewport::frameSeekBounds() const { return d->frameSeekBounds(); }
+ImageViewportRange ImageViewport::positionSeekBounds() const { return d->positionSeekBounds(); }
 int ImageViewport::primaryFrameCount() const { return d->primaryFrameCount(); }
 int ImageViewport::secondaryFrameCount() const { return d->secondaryFrameCount(); }
 int ImageViewport::primaryTotalDuration() const { return d->primaryTotalDuration(); }
 int ImageViewport::secondaryTotalDuration() const { return d->secondaryTotalDuration(); }
-QVariantMap ImageViewport::primaryFrameSeekBounds() const { return d->primaryFrameSeekBounds(); }
-QVariantMap ImageViewport::secondaryFrameSeekBounds() const
+ImageViewportRange ImageViewport::primaryFrameSeekBounds() const
+{
+    return d->primaryFrameSeekBounds();
+}
+ImageViewportRange ImageViewport::secondaryFrameSeekBounds() const
 {
     return d->secondaryFrameSeekBounds();
 }
-QVariantMap ImageViewport::primaryPositionSeekBounds() const
+ImageViewportRange ImageViewport::primaryPositionSeekBounds() const
 {
     return d->primaryPositionSeekBounds();
 }
-QVariantMap ImageViewport::secondaryPositionSeekBounds() const
+ImageViewportRange ImageViewport::secondaryPositionSeekBounds() const
 {
     return d->secondaryPositionSeekBounds();
 }
@@ -117,9 +120,9 @@ QPointF ImageViewport::contentPosition() const { return d->contentPosition(); }
 QPointF ImageViewport::maximumContentPosition() const { return d->maximumContentPosition(); }
 bool ImageViewport::horizontalPannable() const { return d->horizontalPannable(); }
 bool ImageViewport::verticalPannable() const { return d->verticalPannable(); }
-uint ImageViewport::displayRevision() const { return d->displayRevision(); }
-uint ImageViewport::requestRevision() const { return d->requestRevision(); }
-uint ImageViewport::commandRevision() const { return d->commandRevision(); }
+RevisionToken ImageViewport::displayRevision() const { return d->displayRevision(); }
+RevisionToken ImageViewport::requestRevision() const { return d->requestRevision(); }
+RevisionToken ImageViewport::commandRevision() const { return d->commandRevision(); }
 QString ImageViewport::errorString() const { return d->errorString(); }
 QString ImageViewport::warningString() const { return d->warningString(); }
 ImageViewport::FitMode ImageViewport::fitMode() const { return d->fitMode(); }
@@ -184,7 +187,12 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(PageRole role, int m
     return d->seekToPosition(role, milliseconds);
 }
 ImageViewport::CommandOutcome ImageViewport::setPageSet(
-    const QVariant& primary, const QVariant& secondary, const QVariant& policy)
+    const QVariant& primary, const QVariant& secondary)
+{
+    return d->setPageSet(primary, secondary);
+}
+ImageViewport::CommandOutcome ImageViewport::setPageSet(
+    const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy)
 {
     return d->setPageSet(primary, secondary, policy);
 }
@@ -223,13 +231,19 @@ ImageViewport::CommandOutcome ImageViewport::setMirrorVertically(bool enabled, Q
     return d->setMirrorVertically(enabled, anchor);
 }
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
-QVariantMap ImageViewport::itemToSpread(double x, double y) const { return d->itemToSpread(x, y); }
-QVariantMap ImageViewport::spreadToItem(double x, double y) const { return d->spreadToItem(x, y); }
-QVariantMap ImageViewport::itemToPage(PageRole role, double x, double y) const
+CoordinateResult ImageViewport::itemToSpread(double x, double y) const
+{
+    return d->itemToSpread(x, y);
+}
+CoordinateResult ImageViewport::spreadToItem(double x, double y) const
+{
+    return d->spreadToItem(x, y);
+}
+CoordinateResult ImageViewport::itemToPage(PageRole role, double x, double y) const
 {
     return d->itemToPage(role, x, y);
 }
-QVariantMap ImageViewport::pageToItem(PageRole role, double x, double y) const
+CoordinateResult ImageViewport::pageToItem(PageRole role, double x, double y) const
 {
     return d->pageToItem(role, x, y);
 }
@@ -241,8 +255,14 @@ bool ImageViewport::containsVisiblePagePoint(PageRole role, double x, double y) 
 {
     return d->containsVisiblePagePoint(role, x, y);
 }
-QVariantMap ImageViewport::itemToImage(double x, double y) const { return d->itemToImage(x, y); }
-QVariantMap ImageViewport::imageToItem(double x, double y) const { return d->imageToItem(x, y); }
+CoordinateResult ImageViewport::itemToImage(double x, double y) const
+{
+    return d->itemToImage(x, y);
+}
+CoordinateResult ImageViewport::imageToItem(double x, double y) const
+{
+    return d->imageToItem(x, y);
+}
 bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 {
     return d->containsVisibleImagePoint(x, y);

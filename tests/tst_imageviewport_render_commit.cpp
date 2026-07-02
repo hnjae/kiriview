@@ -691,8 +691,8 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QVERIFY(!item.hasPendingRenderCommitForTest());
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
@@ -707,8 +707,8 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("errorString").toString(), QString());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
@@ -908,8 +908,8 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     const quint64 generation = item.pendingRenderGenerationForTest();
     const quint64 requestId = item.activeRequestIdForTest();
     const quint64 payloadId = item.pendingRenderPayloadIdForTest();
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
@@ -925,8 +925,8 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(item.property("errorString").toString(), QString());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
@@ -984,8 +984,8 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     const quint64 generation = item.pendingRenderGenerationForTest();
     const quint64 requestId = item.activeRequestIdForTest();
     const quint64 payloadId = item.pendingRenderPayloadIdForTest();
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
@@ -1001,8 +1001,8 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("errorString").toString(), QString());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);

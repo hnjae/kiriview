@@ -20,7 +20,11 @@ private slots:
     void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void exposesDocumentedQmlSurface();
     void exposesFinalApiScaffold();
+    void exposesTypedPublicValueSurfaces();
     void hasDocumentedDefaultState();
+    void typedPublicValueDefaultsExposeDocumentedFields();
+    void revisionTokensExposeValidityAndEquality();
+    void typedPageSetTransitionPolicyPreservesStateWhenInvalid();
     void qmlFinalApiScaffoldDefaultsAndCommands();
     void setPageSetAcceptsPrimaryAndSecondaryAtomically();
     void compatibilitySequenceAssignmentClearsSecondaryRole();
@@ -119,8 +123,8 @@ void ImageViewportPublicApiTest::unsupportedSequencePropertyWritesPreserveState(
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
@@ -144,8 +148,8 @@ void ImageViewportPublicApiTest::unsupportedSequencePropertyWritesPreserveState(
             enumValue(metaObject, "DisplayStatus", "Ready"));
         QCOMPARE(item.property("requestedFrame").toInt(), 0);
         QCOMPARE(item.property("displayedFrame").toInt(), 0);
-        QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-        QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+        QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+        QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     }
 
     QCOMPARE(sequenceSpy.count(), 0);
@@ -170,7 +174,7 @@ void ImageViewportPublicApiTest::sequenceAssignmentPreservesCommandDiagnostic()
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    const uint commandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     item.setSequence(result->sequence());
@@ -184,7 +188,7 @@ void ImageViewportPublicApiTest::sequenceAssignmentPreservesCommandDiagnostic()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(commandSpy.count(), 0);
 }
 
@@ -225,8 +229,8 @@ ImageViewport {
         stringAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
         try {
             sequence = Qt.resolvedUrl("image.png")
@@ -235,8 +239,8 @@ ImageViewport {
         urlAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
         try {
             sequence = new ArrayBuffer(4)
@@ -245,8 +249,8 @@ ImageViewport {
         byteBufferAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
         try {
             sequence = ({ url: "image.png" })
@@ -255,8 +259,8 @@ ImageViewport {
         jsObjectAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
         try {
             sequence = rawObject
@@ -265,8 +269,8 @@ ImageViewport {
         objectAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
         try {
             sequence = rawProvider
@@ -275,8 +279,8 @@ ImageViewport {
         providerAssignmentPreserved = sequence === null
             && requestStatus === ImageViewport.RequestStatus.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === 0
-            && displayRevision === 0
+            && !requestRevision.valid
+            && !displayRevision.valid
             && errorString === ""
     }
 }
@@ -582,7 +586,8 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
 
     const QList<QByteArray> methods = {
-        "setPageSet(QVariant,QVariant,QVariant)",
+        "setPageSet(QVariant,QVariant)",
+        "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "panToStart()",
@@ -599,6 +604,76 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
             metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) >= 0,
             method.constData());
     }
+}
+
+void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
+{
+    ImageViewport item;
+    const QMetaObject* metaObject = item.metaObject();
+
+    const QList<QByteArray> rangeProperties = {
+        "frameSeekBounds",
+        "positionSeekBounds",
+        "primaryFrameSeekBounds",
+        "secondaryFrameSeekBounds",
+        "primaryPositionSeekBounds",
+        "secondaryPositionSeekBounds",
+    };
+    for (const QByteArray& propertyName : rangeProperties) {
+        const int index = metaObject->indexOfProperty(propertyName.constData());
+        QVERIFY2(index >= 0, propertyName.constData());
+        QCOMPARE(
+            QByteArray(metaObject->property(index).typeName()), QByteArray("ImageViewportRange"));
+    }
+
+    const QList<QByteArray> revisionProperties = {
+        "displayRevision",
+        "requestRevision",
+        "commandRevision",
+    };
+    for (const QByteArray& propertyName : revisionProperties) {
+        const int index = metaObject->indexOfProperty(propertyName.constData());
+        QVERIFY2(index >= 0, propertyName.constData());
+        QCOMPARE(QByteArray(metaObject->property(index).typeName()), QByteArray("RevisionToken"));
+    }
+
+    const QList<QByteArray> coordinateMethods = {
+        "itemToSpread(double,double)",
+        "spreadToItem(double,double)",
+        "itemToPage(ImageViewport::PageRole,double,double)",
+        "pageToItem(ImageViewport::PageRole,double,double)",
+        "itemToImage(double,double)",
+        "imageToItem(double,double)",
+    };
+    for (const QByteArray& methodName : coordinateMethods) {
+        const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
+        QVERIFY2(index >= 0, methodName.constData());
+        QCOMPARE(QByteArray(metaObject->method(index).typeName()), QByteArray("CoordinateResult"));
+    }
+
+    const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
+    const QList<QByteArray> policyProperties = {
+        "displayTransition",
+        "zoomTransition",
+        "contentPositionTransition",
+        "rotationTransition",
+        "mirrorTransition",
+        "fitModeTransition",
+        "fitMode",
+        "spreadDirectionTransition",
+        "spreadDirection",
+        "pageGapTransition",
+        "pageGap",
+        "replacementIntent",
+    };
+    for (const QByteArray& propertyName : policyProperties) {
+        QVERIFY2(policyMetaObject.indexOfProperty(propertyName.constData()) >= 0,
+            propertyName.constData());
+    }
+
+    verifyEnumValues(&policyMetaObject, "FitModeTransition", { "Preserve", "SetExplicit" });
+    verifyEnumValues(&policyMetaObject, "SpreadDirectionTransition", { "Preserve", "SetExplicit" });
+    verifyEnumValues(&policyMetaObject, "PageGapTransition", { "Preserve", "SetExplicit" });
 }
 
 void ImageViewportPublicApiTest::hasDocumentedDefaultState()
@@ -624,12 +699,10 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), -1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), -1);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), -1);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(),
         enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(),
@@ -642,9 +715,9 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     verifyInvalidCoordinateResult(item.itemToImage(1.0, 1.0));
     verifyInvalidCoordinateResult(item.imageToItem(1.0, 1.0));
     QCOMPARE(item.containsVisibleImagePoint(1.0, 1.0), false);
-    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
-    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
-    QCOMPARE(item.property("commandRevision").toUInt(), 0U);
+    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
+    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
+    QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
     QCOMPARE(item.property("fillMode").toInt(), enumValue(metaObject, "FillMode", "Contain"));
@@ -662,6 +735,90 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
         enumValue(metaObject, "BackgroundMode", "Transparent"));
     QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
     QCOMPARE(item.property("looping").toBool(), false);
+}
+
+void ImageViewportPublicApiTest::typedPublicValueDefaultsExposeDocumentedFields()
+{
+    ImageViewport item;
+
+    const ImageViewportRange frameBounds = item.frameSeekBounds();
+    QCOMPARE(frameBounds.minimum(), -1);
+    QCOMPARE(frameBounds.maximum(), -1);
+
+    const ImageViewportRange positionBounds = item.positionSeekBounds();
+    QCOMPARE(positionBounds.minimum(), -1);
+    QCOMPARE(positionBounds.maximum(), -1);
+
+    const CoordinateResult itemToImage = item.itemToImage(1.0, 1.0);
+    QCOMPARE(itemToImage.isValid(), false);
+    QCOMPARE(itemToImage.x(), 0.0);
+    QCOMPARE(itemToImage.y(), 0.0);
+
+    const CoordinateResult imageToItem = item.imageToItem(1.0, 1.0);
+    QCOMPARE(imageToItem.isValid(), false);
+    QCOMPARE(imageToItem.x(), 0.0);
+    QCOMPARE(imageToItem.y(), 0.0);
+}
+
+void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
+{
+    ImageViewport item;
+    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
+
+    const RevisionToken initialDisplayRevision = item.displayRevision();
+    const RevisionToken initialRequestRevision = item.requestRevision();
+    const RevisionToken initialCommandRevision = item.commandRevision();
+    QVERIFY(!initialDisplayRevision.isValid());
+    QVERIFY(!initialRequestRevision.isValid());
+    QVERIFY(!initialCommandRevision.isValid());
+
+    item.setSize(QSizeF(100.0, 50.0));
+
+    const RevisionToken changedDisplayRevision = item.displayRevision();
+    QVERIFY(changedDisplayRevision.isValid());
+    QVERIFY(changedDisplayRevision != initialDisplayRevision);
+    QCOMPARE(item.displayRevision(), changedDisplayRevision);
+    QCOMPARE(item.requestRevision(), initialRequestRevision);
+    QCOMPARE(item.commandRevision(), initialCommandRevision);
+    QCOMPARE(displayRevisionSpy.count(), 1);
+}
+
+void ImageViewportPublicApiTest::typedPageSetTransitionPolicyPreservesStateWhenInvalid()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame firstFrame(image);
+    ImageFrame replacementFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> firstResult(factory.fromFrame(&firstFrame));
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
+    QVERIFY(firstResult->sequence());
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(firstResult->sequence());
+    const RevisionToken requestRevision = item.requestRevision();
+    const RevisionToken displayRevision = item.displayRevision();
+    const RevisionToken commandRevision = item.commandRevision();
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+
+    PageSetTransitionPolicy invalidPolicy;
+    invalidPolicy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+
+    const auto outcome = item.setPageSet(
+        QVariant::fromValue<QObject*>(replacementResult->sequence()), {}, invalidPolicy);
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.sequence(), firstResult->sequence());
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QVERIFY(item.commandRevision().isValid());
+    QVERIFY(item.commandRevision() != commandRevision);
+    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
 
 void ImageViewportPublicApiTest::qmlFinalApiScaffoldDefaultsAndCommands()
@@ -803,12 +960,8 @@ void ImageViewportPublicApiTest::setPageSetAcceptsPrimaryAndSecondaryAtomically(
     QCOMPARE(secondaryObservedDuringSignal, secondaryResult->sequence());
     QCOMPARE(item.property("primaryFrameCount").toInt(), 1);
     QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(
-        item.property("primaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
-        0);
-    QCOMPARE(
-        item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(),
-        0);
+    QCOMPARE(rangeProperty(item, "primaryFrameSeekBounds").minimum(), 0);
+    QCOMPARE(rangeProperty(item, "secondaryFrameSeekBounds").maximum(), 0);
     QCOMPARE(item.property("primaryFrameSeekSupport").toInt(),
         enumValue(item.metaObject(), "TriState", "True"));
     QCOMPARE(item.property("secondaryFrameSeekSupport").toInt(),
@@ -894,8 +1047,8 @@ void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
     const auto outcome = item.setPageSet(
         QVariant::fromValue<QObject*>(primaryResult->sequence()), QVariant(QStringLiteral("bad")));
@@ -904,8 +1057,8 @@ void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()
     QCOMPARE(item.property("primarySequence").value<ImageSequence*>(), primaryResult->sequence());
     QCOMPARE(
         item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
 }
 
 void ImageViewportPublicApiTest::pageSetTransitionClearBeforeLoadClearsRetainedDisplay()
@@ -936,9 +1089,8 @@ void ImageViewportPublicApiTest::pageSetTransitionClearBeforeLoadClearsRetainedD
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
 
-    QVariantMap policy;
-    policy.insert(QStringLiteral("displayTransition"),
-        static_cast<int>(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad));
+    PageSetTransitionPolicy policy;
+    policy.setDisplayTransition(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
 
     const auto outcome
         = item.setPageSet(QVariant::fromValue<QObject*>(loadingResult->sequence()), {}, policy);
@@ -973,22 +1125,23 @@ void ImageViewportPublicApiTest::invalidPageSetTransitionPolicyPreservesState()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(firstResult->sequence());
     const QMetaObject* metaObject = item.metaObject();
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
-    const uint commandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
 
-    QVariantMap invalidPolicy;
-    invalidPolicy.insert(QStringLiteral("displayTransition"), 999);
+    PageSetTransitionPolicy invalidPolicy;
+    invalidPolicy.setDisplayTransition(
+        static_cast<PageSetTransitionPolicy::DisplayTransition>(999));
 
     const auto outcome = item.setPageSet(
         QVariant::fromValue<QObject*>(replacementResult->sequence()), {}, invalidPolicy);
 
     QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.sequence(), firstResult->sequence());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
-    QVERIFY(item.property("commandRevision").toUInt() > commandRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(commandSpy.count(), 1);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
@@ -1015,11 +1168,12 @@ void ImageViewportPublicApiTest::invalidClearStyleTransitionPolicyPreservesState
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
-    QVariantMap invalidPolicy;
-    invalidPolicy.insert(QStringLiteral("pageGap"), -1.0);
+    PageSetTransitionPolicy invalidPolicy;
+    invalidPolicy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    invalidPolicy.setPageGap(-1.0);
 
     const auto outcome = item.setPageSet(QVariant(), QVariant(), invalidPolicy);
 
@@ -1027,8 +1181,8 @@ void ImageViewportPublicApiTest::invalidClearStyleTransitionPolicyPreservesState
     QCOMPARE(item.property("primarySequence").value<ImageSequence*>(), primaryResult->sequence());
     QCOMPARE(
         item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
@@ -1104,12 +1258,8 @@ void ImageViewportPublicApiTest::secondaryProviderMetadataUpdatesRoleObservation
     drainQueuedProviderResults();
 
     QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(
-        item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(),
-        0);
-    QCOMPARE(
-        item.property("secondaryFrameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(),
-        0);
+    QCOMPARE(rangeProperty(item, "secondaryFrameSeekBounds").minimum(), 0);
+    QCOMPARE(rangeProperty(item, "secondaryFrameSeekBounds").maximum(), 0);
     QCOMPARE(item.property("secondaryFrameSeekSupport").toInt(),
         enumValue(item.metaObject(), "TriState", "True"));
     QCOMPARE(item.property("secondaryTimedPlaybackSupport").toInt(),
@@ -1125,7 +1275,7 @@ void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()
 
     item.setSize(QSizeF(100.0, 50.0));
 
-    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(displayRevisionSpy.count(), 1);
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(geometrySpy.count(), 0);
@@ -1136,14 +1286,14 @@ void ImageViewportPublicApiTest::emptyGeometryChangeIncrementsDisplayRevision()
 
     item.setSize(QSizeF(100.0, 50.0));
 
-    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(displayRevisionSpy.count(), 1);
 
     const double changedWidth = 100.0 + 5.0e-13;
     QVERIFY(changedWidth != 100.0);
     item.setSize(QSizeF(changedWidth, 50.0));
 
-    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(displayRevisionSpy.count(), 2);
 }
 

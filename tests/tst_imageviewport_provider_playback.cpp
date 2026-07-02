@@ -594,7 +594,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    const uint playbackRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken playbackRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
 
@@ -606,7 +606,7 @@ void ImageViewportProviderPlaybackTest::
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 3);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QVERIFY(item.property("requestRevision").toUInt() > playbackRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", playbackRequestRevision);
     QCOMPARE(*frameRequestCount, 0);
 
     QVERIFY(sessionFactory->lastSession());
@@ -654,7 +654,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    const uint playbackRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken playbackRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
 
@@ -666,7 +666,7 @@ void ImageViewportProviderPlaybackTest::
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), 250);
-    QVERIFY(item.property("requestRevision").toUInt() > playbackRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", playbackRequestRevision);
     QCOMPARE(*frameRequestCount, 0);
 
     QVERIFY(sessionFactory->lastSession());
@@ -1917,7 +1917,7 @@ void ImageViewportProviderPlaybackTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    const uint playbackRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken playbackRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
 
@@ -1929,7 +1929,7 @@ void ImageViewportProviderPlaybackTest::
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QVERIFY(item.property("requestRevision").toUInt() > playbackRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", playbackRequestRevision);
     QCOMPARE(*frameRequestCount, 0);
 
     QVERIFY(sessionFactory->lastSession());

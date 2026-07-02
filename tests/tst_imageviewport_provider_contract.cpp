@@ -522,12 +522,10 @@ void ImageViewportProviderContractTest::providerSequenceOpensSessionAfterAdapter
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     QCOMPARE(item.property("frameCount").toInt(), -1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), -1);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), -1);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
     QCOMPARE(item.property("timedPlaybackSupport").toInt(),
         enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("frameSeekSupport").toInt(),
@@ -658,7 +656,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
 
     item.setSequence(replacementResult->sequence());
 
@@ -682,10 +680,10 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(
         item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+    verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     QVERIFY(item.property("errorString").toString().contains(QStringLiteral("session")));
 
-    const uint failedRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
@@ -693,7 +691,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QCOMPARE(item.property("requestRevision").toUInt(), failedRequestRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), failedRequestRevision);
 }
 
 void ImageViewportProviderContractTest::reassigningSameProviderSequenceStartsNewGeneration()
@@ -715,7 +713,7 @@ void ImageViewportProviderContractTest::reassigningSameProviderSequenceStartsNew
     ImageViewport item;
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
-    const uint initialRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken initialRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
@@ -737,7 +735,7 @@ void ImageViewportProviderContractTest::reassigningSameProviderSequenceStartsNew
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QVERIFY(item.property("requestRevision").toUInt() > initialRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", initialRequestRevision);
 }
 
 QTEST_MAIN(ImageViewportProviderContractTest)

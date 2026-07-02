@@ -159,7 +159,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
     const quint64 preMetadataRequestId = item.activeRequestIdForTest();
     QVERIFY(preMetadataRequestId > 0);
-    const uint preMetadataRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken preMetadataRequestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     QVERIFY(sessionFactory->lastSession());
@@ -179,7 +179,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
     QVERIFY(item.activeRequestIdForTest() > preMetadataRequestId);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QVERIFY(item.property("requestRevision").toUInt() > preMetadataRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", preMetadataRequestRevision);
     QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
@@ -267,7 +267,7 @@ void ImageViewportProviderRequestsTest::providerStillMetadataRevisesAcceptedSeek
         enumValue(metaObject, "TriState", "Unavailable"));
     QCOMPARE(item.property("timedPlaybackSupport").toInt(),
         enumValue(metaObject, "TriState", "Unavailable"));
-    const uint preMetadataRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken preMetadataRequestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     QVERIFY(sessionFactory->lastSession());
@@ -288,18 +288,16 @@ void ImageViewportProviderRequestsTest::providerStillMetadataRevisesAcceptedSeek
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), 0);
-    QCOMPARE(item.property("frameSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), 0);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("minimum")).toInt(), -1);
-    QCOMPARE(
-        item.property("positionSeekBounds").toMap().value(QStringLiteral("maximum")).toInt(), -1);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
+    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 0);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
+    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
     QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
     QCOMPARE(
         item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
     QCOMPARE(
         item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QVERIFY(item.property("requestRevision").toUInt() > preMetadataRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", preMetadataRequestRevision);
     QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
@@ -393,7 +391,7 @@ void ImageViewportProviderRequestsTest::providerPositionSeekBeforeMetadataResolv
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
     QCOMPARE(item.property("requestedPosition").toInt(), 349);
-    const uint preMetadataRequestRevision = item.property("requestRevision").toUInt();
+    const RevisionToken preMetadataRequestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
     QVERIFY(sessionFactory->lastSession());
@@ -415,7 +413,7 @@ void ImageViewportProviderRequestsTest::providerPositionSeekBeforeMetadataResolv
     QCOMPARE(item.property("requestedPosition").toInt(), 349);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QVERIFY(item.property("requestRevision").toUInt() > preMetadataRequestRevision);
+    verifyRevisionChanged(item, "requestRevision", preMetadataRequestRevision);
     QCOMPARE(requestRevisionSpy.count(), 1);
 }
 
@@ -799,7 +797,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
 
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
-    const uint providerWaitingRevision = item.property("requestRevision").toUInt();
+    const RevisionToken providerWaitingRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
@@ -814,11 +812,11 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    QVERIFY(item.property("requestRevision").toUInt() > providerWaitingRevision);
+    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
     QCOMPARE(requestStateSpy.count(), 1);
     QCOMPARE(requestRevisionSpy.count(), 1);
 
-    const uint queuedRevision = item.property("requestRevision").toUInt();
+    const RevisionToken queuedRevision = revisionTokenProperty(item, "requestRevision");
     drainQueuedProviderResults();
 
     const ImageSequenceProviderRequestToken seekFrameToken = session->lastFrameToken();
@@ -832,14 +830,14 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    QVERIFY(item.property("requestRevision").toUInt() > queuedRevision);
+    verifyRevisionChanged(item, "requestRevision", queuedRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
 
     QImage staleImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     staleImage.fill(Qt::transparent);
     ImageFrame staleFrame(staleImage);
-    const uint activeRevision = item.property("requestRevision").toUInt();
+    const RevisionToken activeRevision = revisionTokenProperty(item, "requestRevision");
     emitTimedProviderFrameReady(session, initialFrameToken, &staleFrame, 0, 0);
 
     QCOMPARE(
@@ -854,7 +852,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
-    QCOMPARE(item.property("requestRevision").toUInt(), activeRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), activeRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
 }
@@ -898,7 +896,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
 
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
-    const uint providerWaitingRevision = item.property("requestRevision").toUInt();
+    const RevisionToken providerWaitingRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
 
@@ -913,11 +911,11 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QVERIFY(item.property("requestRevision").toUInt() > providerWaitingRevision);
+    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
     QCOMPARE(requestStateSpy.count(), 1);
     QCOMPARE(requestRevisionSpy.count(), 1);
 
-    const uint queuedRevision = item.property("requestRevision").toUInt();
+    const RevisionToken queuedRevision = revisionTokenProperty(item, "requestRevision");
     drainQueuedProviderResults();
 
     const ImageSequenceProviderRequestToken activeFrameToken = session->lastFrameToken();
@@ -933,14 +931,14 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QVERIFY(item.property("requestRevision").toUInt() > queuedRevision);
+    verifyRevisionChanged(item, "requestRevision", queuedRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
 
     QImage staleImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     staleImage.fill(Qt::transparent);
     ImageFrame staleFrame(staleImage);
-    const uint activeRevision = item.property("requestRevision").toUInt();
+    const RevisionToken activeRevision = revisionTokenProperty(item, "requestRevision");
     emitTimedProviderFrameReady(session, initialFrameToken, &staleFrame, 0, 0);
 
     QCOMPARE(
@@ -956,7 +954,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
     QCOMPARE(item.activeRequestIdForTest(), activeRequestId);
-    QCOMPARE(item.property("requestRevision").toUInt(), activeRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), activeRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
 
@@ -1020,7 +1018,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    const uint readyDisplayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
@@ -1037,7 +1035,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QVERIFY(item.property("displayRevision").toUInt() > readyDisplayRevision);
+    verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
 }
 
 void ImageViewportProviderRequestsTest::providerTimedFrameSeekWithoutDiagnosticsDoesNotNotify()

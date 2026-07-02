@@ -889,29 +889,29 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 1U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
-    QCOMPARE(item.property("commandRevision").toUInt(), 2U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 3U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 4U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 5U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
     QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
@@ -922,9 +922,9 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), 6U);
-    QCOMPARE(item.property("requestRevision").toUInt(), 0U);
-    QCOMPARE(item.property("displayRevision").toUInt(), 0U);
+    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
+    QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
+    QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(item.property("requestStatus").toInt(),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(

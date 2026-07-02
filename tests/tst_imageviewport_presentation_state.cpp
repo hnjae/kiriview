@@ -33,7 +33,7 @@ private slots:
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
-    const uint initialDisplayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken initialDisplayRevision = revisionTokenProperty(item, "displayRevision");
 
     QVERIFY(item.setProperty("fillMode", 999));
     QVERIFY(item.setProperty("horizontalAlignment", 999));
@@ -44,7 +44,7 @@ void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored
     QCOMPARE(item.horizontalAlignment(), ImageViewport::HorizontalAlignment::AlignHCenter);
     QCOMPARE(item.verticalAlignment(), ImageViewport::VerticalAlignment::AlignVCenter);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
-    QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), initialDisplayRevision);
 }
 
 void ImageViewportPresentationStateTest::invalidPresentationTransformsAreIgnored()
@@ -52,7 +52,7 @@ void ImageViewportPresentationStateTest::invalidPresentationTransformsAreIgnored
     ImageViewport item;
     item.setZoom(2.0);
     item.setPan(QPointF(3.0, 4.0));
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
@@ -67,7 +67,7 @@ void ImageViewportPresentationStateTest::invalidPresentationTransformsAreIgnored
 
     QCOMPARE(item.zoom(), 2.0);
     QCOMPARE(item.pan(), QPointF(3.0, 4.0));
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(displayRevisionSpy.count(), 0);
     QCOMPARE(presentationSpy.count(), 0);
     QCOMPARE(geometrySpy.count(), 0);
@@ -83,12 +83,12 @@ void ImageViewportPresentationStateTest::presentationZoomUsesExactValueChanges()
     item.setZoom(changedZoom);
 
     QCOMPARE(item.zoom(), changedZoom);
-    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(presentationSpy.count(), 1);
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.zoom(), 1.0);
-    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(presentationSpy.count(), 2);
 }
 
@@ -103,19 +103,19 @@ void ImageViewportPresentationStateTest::presentationPanUsesExactValueChanges()
     item.setPan(changedPan);
 
     QCOMPARE(item.pan(), changedPan);
-    QCOMPARE(item.property("displayRevision").toUInt(), 1U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(presentationSpy.count(), 1);
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.pan(), QPointF());
-    QCOMPARE(item.property("displayRevision").toUInt(), 2U);
+    QVERIFY(revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(presentationSpy.count(), 2);
 }
 
 void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotNotifyGeometryState()
 {
     ImageViewport item;
-    const uint initialDisplayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken initialDisplayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
@@ -134,7 +134,7 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotN
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
-    QCOMPARE(item.property("displayRevision").toUInt(), initialDisplayRevision + 11U);
+    verifyRevisionChanged(item, "displayRevision", initialDisplayRevision);
     QCOMPARE(displayRevisionSpy.count(), 11);
     QCOMPARE(presentationSpy.count(), 11);
     QCOMPARE(geometrySpy.count(), 0);
@@ -167,8 +167,8 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     const QRectF contentRect = item.property("contentRect").toRectF();
     const QRectF visibleImageRect = item.property("visibleImageRect").toRectF();
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
@@ -193,8 +193,8 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision + 2U);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    verifyRevisionChanged(item, "displayRevision", displayRevision);
     QCOMPARE(item.property("contentRect").toRectF(), contentRect);
     QCOMPARE(item.property("visibleImageRect").toRectF(), visibleImageRect);
     QCOMPARE(requestSpy.count(), 0);
@@ -226,8 +226,8 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     const QRectF contentRect = item.property("contentRect").toRectF();
     const QRectF visibleImageRect = item.property("visibleImageRect").toRectF();
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
@@ -255,8 +255,8 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision + 2U);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    verifyRevisionChanged(item, "displayRevision", displayRevision);
     QCOMPARE(item.property("contentRect").toRectF(), contentRect);
     QCOMPARE(item.property("visibleImageRect").toRectF(), visibleImageRect);
     QCOMPARE(item.property("errorString").toString(), QString());
@@ -291,9 +291,9 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
 
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
-    const uint commandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     const QRectF contentRect = item.property("contentRect").toRectF();
     const QRectF visibleImageRect = item.property("visibleImageRect").toRectF();
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
@@ -320,9 +320,9 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
-    QCOMPARE(item.property("commandRevision").toUInt(), commandRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(item.property("contentRect").toRectF(), contentRect);
     QCOMPARE(item.property("visibleImageRect").toRectF(), visibleImageRect);
     QCOMPARE(item.property("errorString").toString(), QString());
@@ -433,37 +433,26 @@ void ImageViewportPresentationStateTest::spreadCoordinateHelpersRejectGapAndEdge
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
 
-    const QVariantMap gapSpreadPoint = item.itemToSpread(22.0, 22.0);
-    QCOMPARE(gapSpreadPoint.value(QStringLiteral("valid")).toBool(), true);
-    QCOMPARE(gapSpreadPoint.value(QStringLiteral("x")).toDouble(), 11.0);
-    QCOMPARE(gapSpreadPoint.value(QStringLiteral("y")).toDouble(), 10.0);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 22.0, 22.0)
-                 .value(QStringLiteral("valid"))
-                 .toBool(),
-        false);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Secondary, 22.0, 22.0)
-                 .value(QStringLiteral("valid"))
-                 .toBool(),
-        false);
+    const CoordinateResult gapSpreadPoint = item.itemToSpread(22.0, 22.0);
+    QCOMPARE(gapSpreadPoint.isValid(), true);
+    QCOMPARE(gapSpreadPoint.x(), 11.0);
+    QCOMPARE(gapSpreadPoint.y(), 10.0);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 22.0, 22.0).isValid(), false);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Secondary, 22.0, 22.0).isValid(), false);
 
-    const QVariantMap primaryPoint = item.itemToPage(ImageViewport::PageRole::Primary, 19.0, 22.0);
-    QCOMPARE(primaryPoint.value(QStringLiteral("valid")).toBool(), true);
-    QCOMPARE(primaryPoint.value(QStringLiteral("x")).toDouble(), 9.5);
-    QCOMPARE(primaryPoint.value(QStringLiteral("y")).toDouble(), 10.0);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 20.0, 22.0)
-                 .value(QStringLiteral("valid"))
-                 .toBool(),
-        false);
+    const CoordinateResult primaryPoint
+        = item.itemToPage(ImageViewport::PageRole::Primary, 19.0, 22.0);
+    QCOMPARE(primaryPoint.isValid(), true);
+    QCOMPARE(primaryPoint.x(), 9.5);
+    QCOMPARE(primaryPoint.y(), 10.0);
+    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 20.0, 22.0).isValid(), false);
 
-    const QVariantMap secondaryOrigin
+    const CoordinateResult secondaryOrigin
         = item.pageToItem(ImageViewport::PageRole::Secondary, 0.0, 0.0);
-    QCOMPARE(secondaryOrigin.value(QStringLiteral("valid")).toBool(), true);
-    QCOMPARE(secondaryOrigin.value(QStringLiteral("x")).toDouble(), 28.0);
-    QCOMPARE(secondaryOrigin.value(QStringLiteral("y")).toDouble(), 2.0);
-    QCOMPARE(item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0)
-                 .value(QStringLiteral("valid"))
-                 .toBool(),
-        false);
+    QCOMPARE(secondaryOrigin.isValid(), true);
+    QCOMPARE(secondaryOrigin.x(), 28.0);
+    QCOMPARE(secondaryOrigin.y(), 2.0);
+    QCOMPARE(item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0).isValid(), false);
 }
 
 void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
@@ -524,25 +513,25 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    const uint invalidSeekCommandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken invalidSeekCommandRevision = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("commandRevision").toUInt(), invalidSeekCommandRevision + 1);
+    verifyRevisionChanged(item, "commandRevision", invalidSeekCommandRevision);
     QCOMPARE(commandSpy.count(), 1);
 
     const int rotationDegrees = item.property("rotationDegrees").toInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QCOMPARE(item.rotateClockwise(QPointF(std::numeric_limits<double>::infinity(), 0.0)),
         ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("rotationDegrees").toInt(), rotationDegrees);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    QCOMPARE(item.property("commandRevision").toUInt(), invalidSeekCommandRevision + 2);
+    verifyRevisionChanged(item, "commandRevision", invalidSeekCommandRevision);
     QCOMPARE(commandSpy.count(), 2);
 }
 
@@ -565,9 +554,9 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     const double zoomPercent = item.property("zoomPercent").toDouble();
     const QRectF contentRect = item.property("contentRect").toRectF();
     const QPointF contentPosition = item.property("contentPosition").toPointF();
-    const uint requestRevision = item.property("requestRevision").toUInt();
-    const uint displayRevision = item.property("displayRevision").toUInt();
-    const uint commandRevision = item.property("commandRevision").toUInt();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
@@ -580,9 +569,9 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QCOMPARE(item.property("zoomPercent").toDouble(), zoomPercent);
     QCOMPARE(item.property("contentRect").toRectF(), contentRect);
     QCOMPARE(item.property("contentPosition").toPointF(), contentPosition);
-    QCOMPARE(item.property("requestRevision").toUInt(), requestRevision);
-    QCOMPARE(item.property("displayRevision").toUInt(), displayRevision);
-    QVERIFY(item.property("commandRevision").toUInt() > commandRevision);
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(requestSpy.count(), 0);
@@ -609,15 +598,15 @@ void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
     QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
     QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
 
-    const QVariantMap center = item.itemToSpread(50.0, 50.0);
-    QCOMPARE(center.value(QStringLiteral("valid")).toBool(), true);
-    QCOMPARE(center.value(QStringLiteral("x")).toDouble(), 5.0);
-    QCOMPARE(center.value(QStringLiteral("y")).toDouble(), 10.0);
+    const CoordinateResult center = item.itemToSpread(50.0, 50.0);
+    QCOMPARE(center.isValid(), true);
+    QCOMPARE(center.x(), 5.0);
+    QCOMPARE(center.y(), 10.0);
 
-    const QVariantMap imageCenter = item.itemToImage(50.0, 50.0);
-    QCOMPARE(imageCenter.value(QStringLiteral("valid")).toBool(), true);
-    QCOMPARE(imageCenter.value(QStringLiteral("x")).toDouble(), 5.0);
-    QCOMPARE(imageCenter.value(QStringLiteral("y")).toDouble(), 10.0);
+    const CoordinateResult imageCenter = item.itemToImage(50.0, 50.0);
+    QCOMPARE(imageCenter.isValid(), true);
+    QCOMPARE(imageCenter.x(), 5.0);
+    QCOMPARE(imageCenter.y(), 10.0);
     verifyInvalidCoordinateResult(item.spreadToItem(10.0, 10.0));
 }
 

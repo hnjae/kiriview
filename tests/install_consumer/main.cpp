@@ -399,7 +399,7 @@ ImageViewport {
             && positionSeekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
             && commandReason === ImageViewport.CommandReason.NoCommand
-            && commandRevision === 6
+            && commandRevision.valid
             && zoom === 1
             && pan.x === 0
             && pan.y === 0

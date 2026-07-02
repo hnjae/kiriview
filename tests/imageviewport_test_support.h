@@ -71,11 +71,29 @@ void verifyRequestStatusReasonPair(const ImageViewport& item)
     QVERIFY2(valid, qPrintable(message));
 }
 
-void verifyInvalidCoordinateResult(const QVariantMap& result)
+void verifyInvalidCoordinateResult(CoordinateResult result)
 {
-    QCOMPARE(result.value(QStringLiteral("valid")).toBool(), false);
-    QCOMPARE(result.value(QStringLiteral("x")).toDouble(), 0.0);
-    QCOMPARE(result.value(QStringLiteral("y")).toDouble(), 0.0);
+    QCOMPARE(result.isValid(), false);
+    QCOMPARE(result.x(), 0.0);
+    QCOMPARE(result.y(), 0.0);
+}
+
+ImageViewportRange rangeProperty(const QObject& object, const char* propertyName)
+{
+    return object.property(propertyName).value<ImageViewportRange>();
+}
+
+RevisionToken revisionTokenProperty(const QObject& object, const char* propertyName)
+{
+    return object.property(propertyName).value<RevisionToken>();
+}
+
+void verifyRevisionChanged(
+    const QObject& object, const char* propertyName, RevisionToken previousToken)
+{
+    const RevisionToken currentToken = revisionTokenProperty(object, propertyName);
+    QVERIFY(currentToken.isValid());
+    QVERIFY(currentToken != previousToken);
 }
 
 }
