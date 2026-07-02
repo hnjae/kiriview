@@ -149,9 +149,17 @@ void TestMediaFormatRegistry::openDialogFilterIncludesMediaAndArchives()
     const QStringList filters = kiriview::ordinaryMediaOpenDialogNameFilters();
 
     QCOMPARE(filters.size(), 2);
-    QVERIFY(filters.first().contains(QStringLiteral("*.png")));
-    QVERIFY(filters.first().contains(QStringLiteral("*.mp4")));
-    QVERIFY(filters.first().contains(QStringLiteral("*.cbz")));
+    const QString defaultFilter = filters.first();
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.png")));
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.mp4")));
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.cbz")));
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.cbt")));
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.cb7")));
+    QVERIFY(defaultFilter.contains(QStringLiteral("*.cbr")));
+    QVERIFY(!defaultFilter.contains(QStringLiteral("*.zip")));
+    QVERIFY(!defaultFilter.contains(QStringLiteral("*.tar")));
+    QVERIFY(!defaultFilter.contains(QStringLiteral("*.7z")));
+    QVERIFY(!defaultFilter.contains(QStringLiteral("*.rar")));
     QCOMPARE(filters.back(), QStringLiteral("All files (*)"));
 }
 

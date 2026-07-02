@@ -116,7 +116,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 3: Archive And Directory Collection Semantics
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Complete opened collection behavior for comic archives, general archives, and directly opened local directories.
 - Dependencies: Milestone 2.
 - Relevant references: `docs/spec/file-access.md`, `docs/spec/comic-archives.md`, `docs/spec/navigation.md`, `docs/architecture/extension-contracts.md`, `docs/architecture/async-lifecycle.md`.
@@ -125,6 +125,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Media entry source backend tests, archive format tests, image container navigation tests, document session integration tests; run `devenv tasks run --mode single ci:test:cpp`.
 - Suggested commit boundaries: Commit archive format/routing changes separately from directory collection behavior and sibling archive navigation.
 - Stop conditions: Stop before adding archive libraries, changing dependency versions, patching upstream archive behavior, or deleting archive support that has not been deliberately replaced.
+- Completion notes: Added source-load resolution coverage for directly opened CBZ, CBT, CB7, CBR, ZIP, TAR, 7Z, RAR, and real local directory inputs, plus default open-dialog filter assertions that advertise images, direct videos, and comic book archives while excluding general archive extensions. Existing focused coverage verifies recursive directory and archive listing, first-candidate selection, empty selected-collection errors, sibling archive navigation only for comic archives, and opened archive snapshot behavior without live directory subscriptions; no production code changes were required.
 
 ### Milestone 4: Video End State
 

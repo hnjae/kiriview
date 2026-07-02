@@ -5,19 +5,51 @@
 #include "decoding/imagedecoderequest.h"
 #include "document/imageloadsessiontracker.h"
 #include "location/imagedocumentlocation.h"
+#include "location/imageurl.h"
 
 #include <QObject>
 #include <QSize>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 #include <limits>
 #include <optional>
+#include <vector>
 
 namespace {
 using kiriview::TestSupport::archivePageUrl;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
 using kiriview::TestSupport::videoCandidate;
+
+struct DirectArchiveCase
+{
+    QString fileName;
+    kiriview::OpenedCollectionScopeKind kind;
+    QString rootScheme;
+};
+
+std::vector<DirectArchiveCase> directArchiveCases()
+{
+    return {
+        { QStringLiteral("book.cbz"), kiriview::OpenedCollectionScopeKind::ComicBookArchive,
+            QStringLiteral("zip") },
+        { QStringLiteral("book.cbt"), kiriview::OpenedCollectionScopeKind::ComicBookArchive,
+            QStringLiteral("tar") },
+        { QStringLiteral("book.cb7"), kiriview::OpenedCollectionScopeKind::ComicBookArchive,
+            QStringLiteral("sevenz") },
+        { QStringLiteral("book.cbr"), kiriview::OpenedCollectionScopeKind::ComicBookArchive,
+            QStringLiteral("rar") },
+        { QStringLiteral("book.zip"), kiriview::OpenedCollectionScopeKind::GeneralArchive,
+            QStringLiteral("zip") },
+        { QStringLiteral("book.tar"), kiriview::OpenedCollectionScopeKind::GeneralArchive,
+            QStringLiteral("tar") },
+        { QStringLiteral("book.7z"), kiriview::OpenedCollectionScopeKind::GeneralArchive,
+            QStringLiteral("sevenz") },
+        { QStringLiteral("book.rar"), kiriview::OpenedCollectionScopeKind::GeneralArchive,
+            QStringLiteral("rar") },
+    };
+}
 }
 
 class TestImageLoadSessionTracker : public QObject
@@ -26,6 +58,8 @@ class TestImageLoadSessionTracker : public QObject
 
 private Q_SLOTS:
     void startOwnsSessionIdAndFirstDisplayContext();
+    void directlyOpenedArchiveFormatsStartOpenedCollectionCandidateLoad();
+    void directlyOpenedDirectoryStartsOpenedCollectionCandidateLoad();
     void staleSessionsCannotResolveOrFinishCurrentLoad();
     void archiveResolutionUpdatesCanonicalCurrentSession();
     void archiveResolutionReportsUnsupportedOpenedCollectionVideo();
@@ -55,6 +89,50 @@ void TestImageLoadSessionTracker::startOwnsSessionIdAndFirstDisplayContext()
     QCOMPARE(secondPlan.session.firstDisplay().physicalViewportSize, QSize());
     QVERIFY(!tracker.isCurrent(firstPlan.session));
     QVERIFY(tracker.isCurrent(secondPlan.session));
+}
+
+void TestImageLoadSessionTracker::directlyOpenedArchiveFormatsStartOpenedCollectionCandidateLoad()
+{
+    for (const DirectArchiveCase& archiveCase : directArchiveCases()) {
+        kiriview::ImageLoadSessionTracker tracker;
+        const QUrl archiveUrl = localUrl(QStringLiteral("/books/") + archiveCase.fileName);
+
+        const kiriview::ImageLoadPlan plan
+            = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+        const kiriview::OpenedCollectionScopeLocation& scope = plan.session.openedCollectionScope();
+
+        QCOMPARE(
+            plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
+        QCOMPARE(plan.session.imageUrl(), archiveUrl);
+        QVERIFY(!scope.isEmpty());
+        QCOMPARE(scope.fileUrl(), archiveUrl);
+        QCOMPARE(scope.kind(), archiveCase.kind);
+        QCOMPARE(scope.rootUrl().scheme(), archiveCase.rootScheme);
+        QCOMPARE(scope.isComicBook(),
+            archiveCase.kind == kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+        QVERIFY(tracker.isCurrent(plan.session));
+    }
+}
+
+void TestImageLoadSessionTracker::directlyOpenedDirectoryStartsOpenedCollectionCandidateLoad()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QUrl directoryUrl = localUrl(directory.path());
+
+    kiriview::ImageLoadSessionTracker tracker;
+    const kiriview::ImageLoadPlan plan
+        = tracker.start(kiriview::ImageLoadRequest::fromUrl(directoryUrl));
+    const kiriview::OpenedCollectionScopeLocation& scope = plan.session.openedCollectionScope();
+
+    QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
+    QCOMPARE(plan.session.imageUrl(), directoryUrl);
+    QVERIFY(!scope.isEmpty());
+    QVERIFY(scope.isDirectory());
+    QCOMPARE(scope.fileUrl(), kiriview::normalizedFileContainerUrl(directoryUrl));
+    QCOMPARE(scope.rootUrl(), kiriview::normalizedDirectoryContainerUrl(directoryUrl));
+    QCOMPARE(scope.kind(), kiriview::OpenedCollectionScopeKind::Directory);
+    QVERIFY(tracker.isCurrent(plan.session));
 }
 
 void TestImageLoadSessionTracker::staleSessionsCannotResolveOrFinishCurrentLoad()
