@@ -129,7 +129,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 4: Video End State
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Bring direct video and eligible opened collection video behavior into spec conformance.
 - Dependencies: Milestone 2 and Milestone 3.
 - Relevant references: `docs/spec/video-playback.md`, `docs/spec/file-access.md`, `docs/spec/navigation.md`, `docs/spec/main-window.md`, `docs/architecture/state-ownership.md`, `docs/architecture/thumbnail-source-adapters.md`.
@@ -138,6 +138,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Video source/load/control tests, session video sync tests, shortcut/action tests, main-window video integration tests; run `devenv tasks run --mode single ci:test:cpp`; run `just build-with-tests` only if Flatpak-only codec, manifest, or runtime dependency behavior changes.
 - Suggested commit boundaries: Commit video source eligibility separately from UI/action control behavior and Flatpak/package changes.
 - Stop conditions: Stop before adding codecs, adding dependencies, changing Flatpak permissions beyond documented access, patching Qt/KDE/FFmpeg/libheif behavior, or exposing collection-internal video metadata.
+- Completion notes: Existing implementation and tests already prove the documented video end state without production changes. Focused verification covers direct MP4/M4V/MOV format exposure and direct-media routing, KDE archive-entry video source identity, opened collection video source-device handoff, directory collection video navigation, stored ZIP/plain TAR/directory playback eligibility with unsupported archive fallbacks, exact unsupported collection-video placeholder/toast text, video source-load failure text and typed diagnostics, autoplay, playback controls, timeline seek gates, fixed Alt+Arrow seek dispatch, unsupported image/video shortcut toasts, end-of-stream retention/restart behavior, mute persistence, direct and opened-collection video deletion follow-up, direct-video metadata, and omitted collection-internal video metadata. No Flatpak codec, manifest, runtime dependency, or permission changes were needed.
 
 ### Milestone 5: Actions, Menus, Panels, Startup, And Operations
 
