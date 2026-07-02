@@ -5,8 +5,7 @@ endif()
 file(READ "${INPUT}" installed_public_header)
 
 foreach(
-    private_probe_block
-    IN
+    private_probe_block IN
     ITEMS
         [=[
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -41,8 +40,7 @@ private:
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 #endif
 ]=])
-    string(REPLACE "${private_probe_block}" "" installed_public_header
-                   "${installed_public_header}")
+    string(REPLACE "${private_probe_block}" "" installed_public_header "${installed_public_header}")
 endforeach()
 
 file(WRITE "${OUTPUT}" "${installed_public_header}")

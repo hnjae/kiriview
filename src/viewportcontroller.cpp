@@ -541,7 +541,7 @@ ImageViewportInternal::ViewportChangeSet presentationChanges(
 }
 
 void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
-    const ImageViewportInternal::ViewportChangeSet& source)
+    ImageViewportInternal::ViewportChangeSet source)
 {
     target.requestState = target.requestState || source.requestState;
     target.displayState = target.displayState || source.displayState;

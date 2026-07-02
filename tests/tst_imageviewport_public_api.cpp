@@ -1126,8 +1126,8 @@ void ImageViewportPublicApiTest::invalidPageSetTransitionPolicyPreservesState()
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
 
     PageSetTransitionPolicy invalidPolicy;
-    invalidPolicy.setDisplayTransition(
-        static_cast<PageSetTransitionPolicy::DisplayTransition>(999));
+    invalidPolicy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    invalidPolicy.setPageGap(-1.0);
 
     const auto outcome = item.setPageSet(
         QVariant::fromValue<QObject*>(replacementResult->sequence()), {}, invalidPolicy);

@@ -73,9 +73,12 @@ add_custom_command(
         "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/imageviewport.h"
             "${CMAKE_CURRENT_SOURCE_DIR}/generate_installed_public_header.cmake"
+    COMMENT "Generating sanitized installed ImageViewport public header"
     VERBATIM)
-add_custom_target(ImageViewportInstalledPublicHeader ALL
-                  DEPENDS "${imageviewport_installed_public_header}")
+add_custom_target(
+    ImageViewportInstalledPublicHeader ALL
+    DEPENDS "${imageviewport_installed_public_header}"
+    COMMENT "Preparing sanitized installed ImageViewport public header")
 
 install(
     TARGETS ImageViewport
