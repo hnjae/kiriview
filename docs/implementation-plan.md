@@ -89,7 +89,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 1: Conformance Characterization Tests
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Convert the most important documented gaps into executable tests before changing behavior.
 - Dependencies: None.
 - Relevant references: `docs/spec/scope.md`, `docs/spec/file-access.md`, `docs/spec/navigation.md`, `docs/spec/video-playback.md`, `docs/architecture/state-ownership.md`, `docs/architecture/provider-rendering.md`, `docs/architecture/testing-strategy.md`.
@@ -98,10 +98,12 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Focused Rust policy tests for plain-value planning; focused C++ tests for session/navigation/rendering boundaries; no full suite required for intent-only test commits unless changes are broad.
 - Suggested commit boundaries: Commit route/navigation characterization tests separately from rendering boundary characterization tests.
 - Stop conditions: Stop if a failing expectation depends on an ambiguity in authoritative docs or would require changing `docs/spec/**` or `docs/architecture/**`.
+- Completion notes: Added C++ characterization coverage for stale active-navigation inputs, directly opened collection routing versus ordinary direct-media refresh, directory-collection thumbnail placeholder behavior, and provider-only rendering tile-source boundaries. Existing tests cover direct archive-entry routing, collection video eligibility, current-media Open With and info-panel target rules, deletion target rules, thumbnail stale completion/source-key behavior, direct local video thumbnails, and opened ZIP/CBZ image thumbnail eligibility.
+- Recorded assumption: `QEXPECT_FAIL` is used for executable characterization TODOs where the documented end state is clear but later milestones intentionally still need to replace current behavior; later implementation milestones must remove those expected-failure markers when making the behavior pass normally.
 
 ### Milestone 2: Session Routing And Source Identity
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Make session routing and public source identity match the documented direct media, opened collection, and mode-switch semantics.
 - Dependencies: Milestone 1 characterization tests for routing and source identity.
 - Relevant references: `docs/spec/file-access.md`, `docs/spec/navigation.md`, `docs/spec/video-playback.md`, `docs/architecture/state-ownership.md`, `docs/architecture/workflow-shape.md`, `docs/architecture/language-boundary.md`.
@@ -110,6 +112,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Focused session route/projection tests, direct media navigation tests, image open workflow Rust tests, video document sync tests, then `devenv tasks run --mode single ci:test:cpp` if C++ session behavior changed broadly.
 - Suggested commit boundaries: Commit Rust route policy changes, C++ runtime application changes, and test updates separately when practical.
 - Stop conditions: Stop before changing documented source identity behavior, preserving compatibility with an old route model, or introducing broad local workarounds for KIO/video limitations.
+- Completion notes: Session route planning now refreshes ordinary direct media navigation only for direct image/video routes; directly opened collection and fallback image-document routes keep their non-direct source identity instead of synthesizing ordinary direct-media scope. Route-plan tests assert directory/general archive and unsupported-image routes do not schedule direct-media refresh, while existing session, image-runtime, video-sync, and public-projection coverage verifies direct image/video/archive-entry routing, same-scope image retention, failed-target errors, mode switches, and collection-video source identity.
 
 ### Milestone 3: Archive And Directory Collection Semantics
 

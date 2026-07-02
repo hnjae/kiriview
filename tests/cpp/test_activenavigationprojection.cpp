@@ -64,6 +64,7 @@ class TestActiveNavigationProjection : public QObject
 
 private Q_SLOTS:
     void unavailableSourceProjectsUnavailable();
+    void inactiveSourceIgnoresStaleNavigationInputs();
     void unknownMediaStateProjectsAvailableButUnknown();
     void validDirectMediaNavigationBoundaryStateProjectsReadoutAndActions();
     void invalidMediaNumbersNormalizeToUnknown();
@@ -83,6 +84,19 @@ void TestActiveNavigationProjection::unavailableSourceProjectsUnavailable()
 {
     const kiriview::ActiveNavigationSnapshot snapshot = kiriview::projectActiveNavigation(
         kiriview::ActiveNavigationSourceKind::None, {}, {}, false);
+
+    compareUnavailable(snapshot);
+}
+
+void TestActiveNavigationProjection::inactiveSourceIgnoresStaleNavigationInputs()
+{
+    const kiriview::ActiveNavigationSnapshot snapshot
+        = kiriview::projectActiveNavigation(kiriview::ActiveNavigationSourceKind::None,
+            kiriview::DirectMediaActiveNavigationInput {
+                kiriview::DirectMediaNavigationBoundaryState { true, true, false, false, 2, 4 },
+                true,
+            },
+            imageDocumentActiveNavigationSnapshot(true, true, false, false, 3, 5), false);
 
     compareUnavailable(snapshot);
 }

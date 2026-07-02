@@ -39,6 +39,7 @@ class TestDocumentSessionThumbnailRuntime : public QObject
 
 private Q_SLOTS:
     void imageDocumentPageRowsUseOpenedCollectionScopeFromLeafSnapshot();
+    void directoryCollectionRowsStayPlaceholderOnly();
 };
 
 void TestDocumentSessionThumbnailRuntime::
@@ -83,6 +84,47 @@ void TestDocumentSessionThumbnailRuntime::
     QCOMPARE(generatedRequest.openedCollectionScope, cbzScope);
     QCOMPARE(generatedRequest.sourceUrl, pageUrl);
     QCOMPARE(generatedRequest.cacheInstallEnabled, true);
+}
+
+void TestDocumentSessionThumbnailRuntime::directoryCollectionRowsStayPlaceholderOnly()
+{
+    using Priority = kiriview::ActiveNavigationThumbnailDemandPriority;
+    QObject owner;
+    const kiriview::OpenedCollectionScopeLocation directoryScope
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(localUrl(QStringLiteral("/books/book")),
+            localUrl(QStringLiteral("/books/book/")),
+            kiriview::OpenedCollectionScopeKind::Directory);
+    kiriview::DocumentSessionImageDocumentSnapshot imageSnapshot;
+    imageSnapshot.displayedOpenedCollectionScope = directoryScope;
+
+    kiriview::DocumentSessionImageDocumentSnapshotPort imageDocument;
+    imageDocument.snapshot = [&imageSnapshot]() { return imageSnapshot; };
+
+    int lookupCount = 0;
+    int generationCount = 0;
+    kiriview::ActiveNavigationThumbnailRuntimeDependencies dependencies;
+    dependencies.lookupProvider = [&lookupCount](QObject*, kiriview::ThumbnailCacheLookupRequest,
+                                      kiriview::ThumbnailCacheLookupCallback) {
+        ++lookupCount;
+        return kiriview::ImageIoJob {};
+    };
+    dependencies.generationProvider
+        = [&generationCount](QObject*, kiriview::ThumbnailGenerationRequest,
+              kiriview::ThumbnailGenerationCallback) {
+              ++generationCount;
+              return kiriview::ImageIoJob {};
+          };
+
+    kiriview::DocumentSessionThumbnailRuntime runtime(
+        &owner, &imageDocument, std::move(dependencies));
+    const QUrl pageUrl = localUrl(QStringLiteral("/books/book/chapter/001.png"));
+    runtime.setRows({ thumbnailRow(1, pageUrl) });
+
+    QVERIFY(
+        runtime.reportDemand(1, pageUrl, 256, Priority::Visible, runtime.navigationGeneration()));
+
+    QCOMPARE(lookupCount, 0);
+    QCOMPARE(generationCount, 0);
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionThumbnailRuntime)

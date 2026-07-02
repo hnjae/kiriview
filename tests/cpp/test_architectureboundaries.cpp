@@ -53,6 +53,7 @@ private Q_SLOTS:
     void qmlViewportUsesContextBridgeForRenderContextDiscovery();
     void oldImageRendererArtifactsAreAbsent();
     void oldImageRendererBuildWiringIsAbsent();
+    void providerRenderingRejectsTileSourceContracts();
     void cppTestBuildConsumesCargoAppLibraryOnly();
     void productionImageDisplayUsesProviderPathOnly();
     void sourceKeysExposeTypedExtensionFamilies();
@@ -1091,6 +1092,57 @@ void TestArchitectureBoundaries::oldImageRendererBuildWiringIsAbsent()
     }
 
     QVERIFY2(buildViolations.isEmpty(), qPrintable(buildViolations.join(QLatin1Char('\n'))));
+}
+
+void TestArchitectureBoundaries::providerRenderingRejectsTileSourceContracts()
+{
+    const QList<QString> forbiddenFiles {
+        QStringLiteral("src/rendering/imagetile.cpp"),
+        QStringLiteral("src/rendering/imagetile.h"),
+        QStringLiteral("src/rendering/imagetilegeometrypolicy.cpp"),
+        QStringLiteral("src/rendering/imagetilegeometrypolicy.h"),
+        QStringLiteral("src/rendering/imagetilevisibility.cpp"),
+        QStringLiteral("src/rendering/imagetilevisibility.h"),
+        QStringLiteral("src/rendering/qimagereadertilesource.cpp"),
+        QStringLiteral("src/rendering/qimagereadertilesource.h"),
+        QStringLiteral("src/rendering/svgtilesource.cpp"),
+        QStringLiteral("src/rendering/svgtilesource.h"),
+        QStringLiteral("src/rendering/heiftilesource.cpp"),
+        QStringLiteral("src/rendering/heiftilesource.h"),
+        QStringLiteral("src/rendering/qimagereaderscaledlevelcache.cpp"),
+        QStringLiteral("src/rendering/qimagereaderscaledlevelcache.h"),
+        QStringLiteral("src/policy/imagetilegeometry.rs"),
+    };
+
+    QStringList violations = existingProjectFiles(forbiddenFiles);
+
+    const QStringList files = projectFilesUnder({ QStringLiteral("src") },
+        { QStringLiteral("*.cpp"), QStringLiteral("*.h"), QStringLiteral("*.rs"),
+            QStringLiteral("*.txt") });
+    const QList<QRegularExpression> forbiddenPatterns {
+        QRegularExpression(QStringLiteral(R"(\bclass\s+ImageTileSource\b)")),
+        QRegularExpression(QStringLiteral(R"(\bImageTileSource\b)")),
+        QRegularExpression(QStringLiteral(R"(\bDecodedTile\b)")),
+        QRegularExpression(QStringLiteral(R"(\bdecodeTile\s*\()")),
+        QRegularExpression(QStringLiteral(R"(\bImageTileGeometry\b)")),
+        QRegularExpression(QStringLiteral(R"(\bImageTileVisibility\b)")),
+        QRegularExpression(QStringLiteral(R"(\bQImageReaderTileSource\b)")),
+        QRegularExpression(QStringLiteral(R"(\bSvgTileSource\b)")),
+        QRegularExpression(QStringLiteral(R"(\bHeifTileSource\b)")),
+        QRegularExpression(QStringLiteral(R"(\bQImageReaderScaledLevelCache\b)")),
+    };
+    for (const QString& filePath : files) {
+        const QString matches = matchingLines(filePath, forbiddenPatterns);
+        if (!matches.isEmpty()) {
+            violations.push_back(matches);
+        }
+    }
+
+    QEXPECT_FAIL("",
+        "Milestone 6: provider-only rendering must replace public tile decode/source/cache "
+        "contracts with whole-image display and refinement sources.",
+        Continue);
+    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
 }
 
 void TestArchitectureBoundaries::cppTestBuildConsumesCargoAppLibraryOnly()

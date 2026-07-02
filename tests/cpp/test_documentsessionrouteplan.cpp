@@ -72,6 +72,7 @@ private Q_SLOTS:
     void directVideoLocalAndKdeArchiveUrlsRouteToDirectVideo();
     void directImageLocalAndKdeArchiveUrlsRouteToDirectImage();
     void localDirectoryAndGeneralArchiveNamesRouteToImageDocument();
+    void directlyOpenedCollectionsDoNotRefreshOrdinaryDirectMediaNavigation();
     void unsupportedExtensionRoutesToImageDocument();
     void fileNamesMatchCaseInsensitively();
     void sourceRoutesPrepareSessionForTopLevelRouting();
@@ -189,9 +190,30 @@ void TestDocumentSessionRoutePlan::localDirectoryAndGeneralArchiveNamesRouteToIm
         QVERIFY(operationAt<kiriview::EnterImageDocumentRouteOperation>(plan, 6) != nullptr);
         QVERIFY(operationAt<kiriview::SyncDirectImageCursorFromDocumentRouteOperation>(plan, 7)
             != nullptr);
-        QVERIFY(
-            followUpEffectAt<kiriview::RefreshDirectMediaNavigationAfterRoutingRouteEffect>(plan, 0)
-            != nullptr);
+        QVERIFY(!hasFollowUpEffect<kiriview::RefreshDirectMediaNavigationAfterRoutingRouteEffect>(
+            plan));
+    }
+}
+
+void TestDocumentSessionRoutePlan::
+    directlyOpenedCollectionsDoNotRefreshOrdinaryDirectMediaNavigation()
+{
+    for (const QUrl& url :
+        { localUrl(QStringLiteral("/books/")), localUrl(QStringLiteral("/books/book.cbz")),
+            localUrl(QStringLiteral("/books/book.cbt")),
+            localUrl(QStringLiteral("/books/book.cb7")),
+            localUrl(QStringLiteral("/books/book.cbr")),
+            localUrl(QStringLiteral("/books/book.zip")),
+            localUrl(QStringLiteral("/books/book.tar")), localUrl(QStringLiteral("/books/book.7z")),
+            localUrl(QStringLiteral("/books/book.rar")) }) {
+        const kiriview::DocumentSessionRoutePlan plan
+            = kiriview::documentSessionRoutePlanForSourceUrl(
+                url, kiriview::DocumentSessionKind::Video);
+
+        QCOMPARE(plan.kind, kiriview::DocumentSessionRouteKind::ImageDocument);
+        QVERIFY2(
+            !hasFollowUpEffect<kiriview::RefreshDirectMediaNavigationAfterRoutingRouteEffect>(plan),
+            qPrintable(url.toString()));
     }
 }
 
@@ -206,6 +228,8 @@ void TestDocumentSessionRoutePlan::unsupportedExtensionRoutesToImageDocument()
     QCOMPARE(plan.kind, kiriview::DocumentSessionRouteKind::ImageDocument);
     QVERIFY(operationAt<kiriview::ClearDirectMediaCursorRouteOperation>(plan, 4) != nullptr);
     QVERIFY(operationAt<kiriview::EnterImageDocumentRouteOperation>(plan, 6) != nullptr);
+    QVERIFY(
+        !hasFollowUpEffect<kiriview::RefreshDirectMediaNavigationAfterRoutingRouteEffect>(plan));
 }
 
 void TestDocumentSessionRoutePlan::fileNamesMatchCaseInsensitively()
@@ -383,8 +407,6 @@ void TestDocumentSessionRoutePlan::routePlansKeepMutationPublicationFollowUpOrde
         localUrl(QStringLiteral("/media/page.png")), kiriview::DocumentSessionKind::Image));
     verifyRoutePhasesSeparated(kiriview::documentSessionRoutePlanForSourceUrl(
         localUrl(QStringLiteral("/media/clip.mp4")), kiriview::DocumentSessionKind::Image));
-    verifyRoutePhasesSeparated(kiriview::documentSessionRoutePlanForSourceUrl(
-        localUrl(QStringLiteral("/books/")), kiriview::DocumentSessionKind::Video));
     verifyRoutePhasesSeparated(kiriview::documentSessionRoutePlanAfterMediaDeletion(
         kiriview::DocumentSessionKind::Image, localUrl(QStringLiteral("/media/fallback.png"))));
     verifyRoutePhasesSeparated(kiriview::documentSessionRoutePlanAfterMediaDeletion(
