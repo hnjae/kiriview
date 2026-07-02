@@ -86,8 +86,6 @@ mod imagezoomstate;
 // Rendering policy.
 #[path = "policy/imagerendergeometry.rs"]
 mod imagerendergeometry;
-#[path = "policy/imagetilegeometry.rs"]
-mod imagetilegeometry;
 #[path = "policy/rasterdisplaybucketpolicy.rs"]
 mod rasterdisplaybucketpolicy;
 #[path = "policy/svgrenderer.rs"]

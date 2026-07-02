@@ -18,7 +18,7 @@
 #include "heifsupport.h"
 #include "imagedecoderequest.h"
 #include "location/sourcekey.h"
-#include "rendering/heiftilesource.h"
+#include "rendering/heifdisplaysource.h"
 #include "staticimagedecode.h"
 
 #include <memory>
@@ -90,8 +90,8 @@ std::optional<kiriview::DecodedImageResult> decodeHeifStillImageDataForInfo(cons
     }
 
     QString errorString;
-    std::shared_ptr<kiriview::ImageTileSource> source
-        = kiriview::openHeifTileSource(data, &errorString);
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source
+        = kiriview::openHeifDisplaySource(data, &errorString);
     if (source == nullptr) {
         return failedHeifDecodedImageResult(
             errorString, kiriview::DecodedImageFailureOperation::OpenStaticImageSource);

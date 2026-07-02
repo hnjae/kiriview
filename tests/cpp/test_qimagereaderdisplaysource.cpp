@@ -1,17 +1,17 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "rendering/qimagereadertilesource.h"
+#include "rendering/qimagereaderdisplaysource.h"
 
 #include <QBuffer>
 #include <QByteArrayList>
+#include <QColor>
 #include <QImage>
 #include <QImageWriter>
 #include <QObject>
 #include <QTest>
 #include <Qt>
 #include <memory>
-#include <optional>
 
 namespace {
 QByteArray encodedImageData(const QImage& image, const QByteArray& format, QString* errorString)
@@ -67,24 +67,24 @@ void verifyDisplayFailure(const kiriview::QImageReaderDisplayDecodeResult& resul
 }
 }
 
-class TestQImageReaderTileSource : public QObject
+class TestQImageReaderDisplaySource : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
-    void sourceDecodesBlockingDisplayImageAndTile();
-    void failedTileDecodePreservesAttemptDiagnostics();
+    void sourceDecodesBlockingAndRasterDisplayImages();
     void failedDisplayDecodePreservesOperationDiagnostics();
     void jpegSourceDecodesFirstDisplayToViewport();
     void jpegSourceSkipsFirstDisplayWhenImageFitsViewport();
     void pngSourceLeavesFirstDisplayNotImplemented();
 };
 
-void TestQImageReaderTileSource::sourceDecodesBlockingDisplayImageAndTile()
+void TestQImageReaderDisplaySource::sourceDecodesBlockingAndRasterDisplayImages()
 {
     QString errorString;
-    std::shared_ptr<kiriview::QImageReaderTileSource> source
-        = kiriview::QImageReaderTileSource::open(pngData(), QByteArrayLiteral("png"), &errorString);
+    std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(
+            pngData(), QByteArrayLiteral("png"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QCOMPARE(source->imageSize(), QSize(4, 4));
 
@@ -92,49 +92,16 @@ void TestQImageReaderTileSource::sourceDecodesBlockingDisplayImageAndTile()
     QVERIFY2(!preview.isNull(), qPrintable(errorString));
     QCOMPARE(preview.size(), QSize(2, 2));
 
-    const kiriview::TilePyramid pyramid(source->imageSize());
-    const kiriview::TileRequest request = pyramid.requestForTile(kiriview::TileKey { 0, 0, 0 });
-    const std::optional<kiriview::DecodedTile> tile = source->decodeTile(request, &errorString);
-    QVERIFY2(tile.has_value(), qPrintable(errorString));
-    QCOMPARE(tile->image.size(), QSize(4, 4));
+    const QImage raster = source->decodeRasterDisplayImage(QSize(4, 4), &errorString);
+    QVERIFY2(!raster.isNull(), qPrintable(errorString));
+    QCOMPARE(raster.size(), QSize(4, 4));
+    QCOMPARE(raster.pixelColor(0, 0), QColor(Qt::red));
+    QCOMPARE(raster.pixelColor(3, 3), QColor(Qt::blue));
 }
 
-void TestQImageReaderTileSource::failedTileDecodePreservesAttemptDiagnostics()
+void TestQImageReaderDisplaySource::failedDisplayDecodePreservesOperationDiagnostics()
 {
-    kiriview::QImageReaderTileSource source(QByteArrayLiteral("not image data"),
-        QByteArrayLiteral("png"), QSize(4, 4), kiriview::StaticImageReaderTransform {});
-
-    const kiriview::TilePyramid pyramid(source.imageSize());
-    const kiriview::TileRequest request = pyramid.requestForTile(kiriview::TileKey { 0, 0, 0 });
-    const kiriview::QImageReaderTileDecodeResult result = source.decodeTileWithDiagnostics(request);
-
-    QVERIFY(!result.tile.has_value());
-    QCOMPARE(result.diagnostics.failures.size(), 4);
-    QCOMPARE(result.diagnostics.failures.at(0).kind,
-        kiriview::QImageReaderTileDecodeAttemptKind::ReaderClip);
-    QCOMPARE(result.diagnostics.failures.at(1).kind,
-        kiriview::QImageReaderTileDecodeAttemptKind::SourceClip);
-    QCOMPARE(result.diagnostics.failures.at(2).kind,
-        kiriview::QImageReaderTileDecodeAttemptKind::ScaledLevel);
-    QCOMPARE(result.diagnostics.failures.at(3).kind,
-        kiriview::QImageReaderTileDecodeAttemptKind::FullImageFallback);
-    for (const kiriview::QImageReaderTileDecodeAttemptFailure& failure :
-        result.diagnostics.failures) {
-        QVERIFY(!failure.errorString.isEmpty());
-        QCOMPARE(failure.severity, kiriview::QImageReaderTileDecodeFailureSeverity::Error);
-        QVERIFY(!failure.retryable);
-    }
-
-    QString compatibilityError;
-    const std::optional<kiriview::DecodedTile> compatibilityTile
-        = source.decodeTile(request, &compatibilityError);
-    QVERIFY(!compatibilityTile.has_value());
-    QCOMPARE(compatibilityError, result.diagnostics.userMessage());
-}
-
-void TestQImageReaderTileSource::failedDisplayDecodePreservesOperationDiagnostics()
-{
-    kiriview::QImageReaderTileSource source(QByteArrayLiteral("not image data"),
+    kiriview::QImageReaderDisplaySource source(QByteArrayLiteral("not image data"),
         QByteArrayLiteral("png"), QSize(4, 4), kiriview::StaticImageReaderTransform {});
 
     const kiriview::QImageReaderDisplayDecodeResult rasterResult
@@ -160,7 +127,7 @@ void TestQImageReaderTileSource::failedDisplayDecodePreservesOperationDiagnostic
     QCOMPARE(blockingCompatibilityError, blockingResult.diagnostics.userMessage());
 }
 
-void TestQImageReaderTileSource::jpegSourceDecodesFirstDisplayToViewport()
+void TestQImageReaderDisplaySource::jpegSourceDecodesFirstDisplayToViewport()
 {
     if (!imageWriterSupports(QByteArrayLiteral("jpg"))
         && !imageWriterSupports(QByteArrayLiteral("jpeg"))) {
@@ -173,8 +140,8 @@ void TestQImageReaderTileSource::jpegSourceDecodesFirstDisplayToViewport()
     const QByteArray data = encodedImageData(image, jpegWriterFormat(), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
-    std::shared_ptr<kiriview::QImageReaderTileSource> source
-        = kiriview::QImageReaderTileSource::open(data, QByteArrayLiteral("jpeg"), &errorString);
+    std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
     const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
@@ -187,7 +154,7 @@ void TestQImageReaderTileSource::jpegSourceDecodesFirstDisplayToViewport()
     QCOMPARE(result.displayPixelsPerSourcePixel, 0.25);
 }
 
-void TestQImageReaderTileSource::jpegSourceSkipsFirstDisplayWhenImageFitsViewport()
+void TestQImageReaderDisplaySource::jpegSourceSkipsFirstDisplayWhenImageFitsViewport()
 {
     if (!imageWriterSupports(QByteArrayLiteral("jpg"))
         && !imageWriterSupports(QByteArrayLiteral("jpeg"))) {
@@ -200,8 +167,8 @@ void TestQImageReaderTileSource::jpegSourceSkipsFirstDisplayWhenImageFitsViewpor
     const QByteArray data = encodedImageData(image, jpegWriterFormat(), &errorString);
     QVERIFY2(!data.isEmpty(), qPrintable(errorString));
 
-    std::shared_ptr<kiriview::QImageReaderTileSource> source
-        = kiriview::QImageReaderTileSource::open(data, QByteArrayLiteral("jpeg"), &errorString);
+    std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(data, QByteArrayLiteral("jpeg"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
     const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
@@ -211,11 +178,12 @@ void TestQImageReaderTileSource::jpegSourceSkipsFirstDisplayWhenImageFitsViewpor
     QVERIFY(result.image.isNull());
 }
 
-void TestQImageReaderTileSource::pngSourceLeavesFirstDisplayNotImplemented()
+void TestQImageReaderDisplaySource::pngSourceLeavesFirstDisplayNotImplemented()
 {
     QString errorString;
-    std::shared_ptr<kiriview::QImageReaderTileSource> source
-        = kiriview::QImageReaderTileSource::open(pngData(), QByteArrayLiteral("png"), &errorString);
+    std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(
+            pngData(), QByteArrayLiteral("png"), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
     const kiriview::FirstDisplayImageDecodeResult result = source->decodeFirstDisplayImage(
@@ -227,6 +195,6 @@ void TestQImageReaderTileSource::pngSourceLeavesFirstDisplayNotImplemented()
     QCOMPARE(blockingDisplay.size(), QSize(2, 2));
 }
 
-QTEST_GUILESS_MAIN(TestQImageReaderTileSource)
+QTEST_GUILESS_MAIN(TestQImageReaderDisplaySource)
 
-#include "test_qimagereadertilesource.moc"
+#include "test_qimagereaderdisplaysource.moc"

@@ -5,7 +5,6 @@
 #define KIRIVIEW_STATICIMAGE_H
 
 #include "displayimagequality.h"
-#include "imagetile.h"
 #include "metadata/embeddedmetadata.h"
 
 #include <QImage>
@@ -41,45 +40,45 @@ struct FirstDisplayImageDecodeResult
     qreal displayPixelsPerSourcePixel = 0.0;
 };
 
-enum class ImageTileSourceDisplayDecodeOperation {
+enum class StaticImageDisplayDecodeOperation {
     FirstDisplayImage,
     RasterDisplayImage,
     BlockingDisplayImage,
 };
 
-enum class ImageTileSourceDisplayDecodeFailureSeverity {
+enum class StaticImageDisplayDecodeFailureSeverity {
     Error,
 };
 
-struct ImageTileSourceDisplayDecodeFailure
+struct StaticImageDisplayDecodeFailure
 {
-    ImageTileSourceDisplayDecodeOperation operation
-        = ImageTileSourceDisplayDecodeOperation::RasterDisplayImage;
+    StaticImageDisplayDecodeOperation operation
+        = StaticImageDisplayDecodeOperation::RasterDisplayImage;
     QString userMessage;
     QString diagnosticDetail;
-    ImageTileSourceDisplayDecodeFailureSeverity severity
-        = ImageTileSourceDisplayDecodeFailureSeverity::Error;
+    StaticImageDisplayDecodeFailureSeverity severity
+        = StaticImageDisplayDecodeFailureSeverity::Error;
     bool retryable = false;
 };
 
-struct ImageTileSourceDisplayDecodeDiagnostics
+struct StaticImageDisplayDecodeDiagnostics
 {
-    std::vector<ImageTileSourceDisplayDecodeFailure> failures;
+    std::vector<StaticImageDisplayDecodeFailure> failures;
 
     QString userMessage() const;
     QString diagnosticDetail() const;
 };
 
-struct ImageTileSourceDisplayDecodeResult
+struct StaticImageDisplayDecodeResult
 {
     QImage image;
-    ImageTileSourceDisplayDecodeDiagnostics diagnostics;
+    StaticImageDisplayDecodeDiagnostics diagnostics;
 };
 
-struct ImageTileSourceFirstDisplayDecodeResult
+struct StaticImageFirstDisplayDecodeResult
 {
     FirstDisplayImageDecodeResult firstDisplay;
-    ImageTileSourceDisplayDecodeDiagnostics diagnostics;
+    StaticImageDisplayDecodeDiagnostics diagnostics;
 };
 
 struct StaticImageReaderTransform
@@ -89,33 +88,30 @@ struct StaticImageReaderTransform
     bool hasTransform() const { return transformations != QImageIOHandler::TransformationNone; }
 };
 
-class ImageTileSource
+class StaticImageDisplaySource
 {
 public:
-    ImageTileSource() = default;
+    StaticImageDisplaySource() = default;
 
 public:
-    virtual ~ImageTileSource() = default;
+    virtual ~StaticImageDisplaySource() = default;
 
     virtual QSize imageSize() const = 0;
-    virtual std::optional<DecodedTile> decodeTile(
-        const TileRequest& request, QString* errorString) const
-        = 0;
-    virtual ImageTileSourceFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
+    virtual StaticImageFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
         const ImageFirstDisplayDecodeContext& context) const;
     virtual FirstDisplayImageDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context, QString* errorString) const;
     virtual bool supportsRasterDisplayRefinement() const;
-    virtual ImageTileSourceDisplayDecodeResult decodeRasterDisplayImageWithDiagnostics(
+    virtual StaticImageDisplayDecodeResult decodeRasterDisplayImageWithDiagnostics(
         const QSize& rasterSize) const;
     virtual QImage decodeRasterDisplayImage(const QSize& rasterSize, QString* errorString) const;
-    virtual ImageTileSourceDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
+    virtual StaticImageDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
         int maximumLongEdge) const;
     virtual QImage decodeBlockingDisplayImage(int maximumLongEdge, QString* errorString) const = 0;
     virtual qsizetype byteCost() const = 0;
     virtual bool isResolutionIndependent() const;
     virtual StaticImageReaderTransform imageReaderTransform() const;
-    Q_DISABLE_COPY(ImageTileSource)
+    Q_DISABLE_COPY(StaticImageDisplaySource)
 };
 
 struct StaticDisplayImagePayload
@@ -127,7 +123,7 @@ struct StaticDisplayImagePayload
     DisplayImageQuality quality = DisplayImageQuality::Exact;
     qreal displayPixelsPerSourcePixel = 0.0;
     EmbeddedMetadata embeddedMetadata;
-    std::shared_ptr<ImageTileSource> refinementSource;
+    std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
 
     bool isValid() const;

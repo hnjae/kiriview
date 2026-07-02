@@ -59,7 +59,7 @@ src/decoding/heifsupport.cpp
 src/decoding/heiftilingplan.cpp
 src/decoding/jxlanimationreader.cpp
 src/async/directorylistingjob.cpp
-src/rendering/heiftilesource.cpp
+src/rendering/heifdisplaysource.cpp
 src/presentation/animationlogging.cpp
 src/presentation/imageanimationplaybacksource.cpp
 src/presentation/imageanimationpolicy.cpp
@@ -131,10 +131,7 @@ src/async/imageiojob.cpp
 src/location/imagelocation.cpp
 src/location/sourcekey.cpp
 src/presentation/imagerectmapping.cpp
-src/rendering/imagetile.cpp
-src/rendering/imagetilegeometrypolicy.cpp
-src/rendering/imagetilevisibility.cpp
-src/rendering/imagetilesourcehelpers.cpp
+src/rendering/staticimagedisplaysourcehelpers.cpp
 src/document/imageloader.cpp
 src/document/imageloadplan.cpp
 src/document/imageloadtypes.cpp
@@ -206,8 +203,7 @@ src/predecode/predecodescheduleruntime.cpp
 src/predecode/predecodeschedulestate.cpp
 src/predecode/predecodewindowplan.cpp
 src/decoding/qimagereaderdecoder.cpp
-src/rendering/qimagereaderscaledlevelcache.cpp
-src/rendering/qimagereadertilesource.cpp
+src/rendering/qimagereaderdisplaysource.cpp
 src/decoding/rawdecoder.cpp
 src/decoding/rawthumbnailpreview.cpp
 src/rendering/rasterdisplaybucketpolicy.cpp
@@ -263,7 +259,7 @@ src/decoding/staticimagedecode.cpp
 src/decoding/thumbnailpreview.cpp
 src/decoding/webpanimationreader.cpp
 src/system/systemmemory.cpp
-src/rendering/svgtilesource.cpp
+src/rendering/svgdisplaysource.cpp
 src/video/videooutputrendercontextobserver.cpp
 src/video/videooutputruntime.cpp
 src/video/videodocumentruntime.cpp

@@ -7,7 +7,7 @@
 #include "localization/imageerrortext.h"
 #include "location/sourcekey.h"
 #include "rendering/imagerendering.h"
-#include "rendering/qimagereadertilesource.h"
+#include "rendering/qimagereaderdisplaysource.h"
 #include "staticimagedecode.h"
 
 #include <QImage>
@@ -75,8 +75,8 @@ kiriview::DecodedImageResult openedStaticImageResult(
     const QByteArray& data, const kiriview::ImageDecodeRequest& request, const QByteArray& format)
 {
     QString errorString;
-    std::shared_ptr<kiriview::ImageTileSource> source
-        = kiriview::QImageReaderTileSource::open(data, format, &errorString);
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(data, format, &errorString);
     if (source == nullptr) {
         return failedQtRasterDecodedImageResult(errorString,
             kiriview::DecodedImageFailureOperation::OpenStaticImageSource, format, errorString);

@@ -7,9 +7,9 @@
 #include "imageinputclassification.h"
 #include "location/sourcekey.h"
 #include "rawthumbnailpreview.h"
-#include "rendering/heiftilesource.h"
+#include "rendering/heifdisplaysource.h"
 #include "rendering/imagerendering.h"
-#include "rendering/svgtilesource.h"
+#include "rendering/svgdisplaysource.h"
 
 #include <QFile>
 #include <QImageIOHandler>
@@ -95,8 +95,8 @@ std::optional<QSize> qtRasterTrustedOriginalSize(
 std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data)
 {
     QString errorString;
-    const std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    const std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     if (source == nullptr || !validImageSize(source->imageSize())) {
         return std::nullopt;
     }
@@ -106,8 +106,8 @@ std::optional<QSize> svgTrustedOriginalSize(const QByteArray& data)
 std::optional<QSize> heifTrustedOriginalSize(const QByteArray& data)
 {
     QString errorString;
-    const std::shared_ptr<kiriview::ImageTileSource> source
-        = kiriview::openHeifTileSource(data, &errorString);
+    const std::shared_ptr<kiriview::StaticImageDisplaySource> source
+        = kiriview::openHeifDisplaySource(data, &errorString);
     if (source == nullptr || !validImageSize(source->imageSize())) {
         return std::nullopt;
     }

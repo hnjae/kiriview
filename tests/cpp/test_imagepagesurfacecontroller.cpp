@@ -6,10 +6,10 @@
 #include "async/imageworkerscheduler.h"
 #include "decoding/kiriimagedecoder.h"
 #include "image_test_support.h"
-#include "rendering/heiftilesource.h"
+#include "rendering/heifdisplaysource.h"
 #include "rendering/imagerendering.h"
-#include "rendering/qimagereadertilesource.h"
-#include "rendering/svgtilesource.h"
+#include "rendering/qimagereaderdisplaysource.h"
+#include "rendering/svgdisplaysource.h"
 
 #include <libheif/heif.h>
 
@@ -249,8 +249,8 @@ kiriview::StaticDisplayImagePayload qtRasterPayload(const QSize& originalSize,
     kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::FirstDisplay)
 {
     QString errorString;
-    std::shared_ptr<kiriview::QImageReaderTileSource> source
-        = kiriview::QImageReaderTileSource::open(
+    std::shared_ptr<kiriview::QImageReaderDisplaySource> source
+        = kiriview::QImageReaderDisplaySource::open(
             encodedPng(kiriview::TestSupport::testImage(originalSize)), QByteArrayLiteral("png"),
             &errorString);
     Q_ASSERT(source != nullptr);
@@ -272,8 +272,8 @@ kiriview::StaticDisplayImagePayload svgPayload(const QSize& originalSize, const 
     kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::FirstDisplay)
 {
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(svgData(originalSize), &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(svgData(originalSize), &errorString);
     Q_ASSERT(source != nullptr);
 
     return kiriview::StaticDisplayImagePayload {
@@ -293,8 +293,8 @@ std::optional<kiriview::StaticDisplayImagePayload> heifPayload(const QSize& orig
     kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::FirstDisplay)
 {
     QString errorString;
-    std::shared_ptr<kiriview::ImageTileSource> source
-        = kiriview::openHeifTileSource(encodedHeifStill(originalSize), &errorString);
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source
+        = kiriview::openHeifDisplaySource(encodedHeifStill(originalSize), &errorString);
     if (source == nullptr) {
         return std::nullopt;
     }

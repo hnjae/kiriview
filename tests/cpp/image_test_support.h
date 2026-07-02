@@ -63,10 +63,10 @@ inline QImage testImage(const QSize& size = QSize(1, 1))
 
 inline QImage testImage(int width, int height = 1) { return testImage(QSize(width, height)); }
 
-class TestImageTileSource final : public ImageTileSource
+class TestStaticImageDisplaySource final : public StaticImageDisplaySource
 {
 public:
-    explicit TestImageTileSource(QImage image)
+    explicit TestStaticImageDisplaySource(QImage image)
         : m_image(std::move(image))
     {
     }
@@ -75,19 +75,6 @@ public:
     qsizetype byteCost() const override { return m_image.sizeInBytes(); }
 
     QImage decodeBlockingDisplayImage(int, QString*) const override { return m_image; }
-
-    std::optional<DecodedTile> decodeTile(const TileRequest& request, QString*) const override
-    {
-        if (request.textureLevelRect.isEmpty()) {
-            return std::nullopt;
-        }
-
-        QImage levelImage
-            = m_image.scaled(request.levelSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        return DecodedTile { request.key, request.levelSize, request.levelRect,
-            request.textureLevelRect, levelImage.copy(request.textureLevelRect),
-            request.displaySourceRect, request.displaySourceRectF };
-    }
 
 private:
     QImage m_image;
@@ -108,7 +95,7 @@ inline StaticDisplayImagePayload staticDisplayTestImagePayload(const QImage& sou
         quality,
         displayPixelsPerSourcePixel,
         {},
-        std::make_shared<TestImageTileSource>(sourceImage),
+        std::make_shared<TestStaticImageDisplaySource>(sourceImage),
     };
 }
 

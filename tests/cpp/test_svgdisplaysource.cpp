@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "rendering/svgtilesource.h"
+#include "rendering/svgdisplaysource.h"
 
 #include <QColor>
 #include <QObject>
-#include <QRect>
-#include <QRectF>
 #include <QTest>
 #include <Qt>
 #include <memory>
-#include <optional>
 
 namespace {
 QByteArray clippedSvgData()
@@ -27,23 +24,22 @@ QByteArray clippedSvgData()
 }
 }
 
-class TestSvgTileSource : public QObject
+class TestSvgDisplaySource : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
-    void sourceRendersIntrinsicPreviewAndTile();
+    void sourceRendersIntrinsicPreviewAndBlockingDisplay();
     void sourceRendersWholeSurfaceDisplayBucket();
     void sourceRendersUpscaledFirstDisplayPreview();
     void sourceSkipsFirstDisplayPreviewWithoutValidViewport();
     void sourceReportsFirstDisplayRenderFailure();
     void sourceReportsWholeSurfaceRenderFailure();
-    void sourceAppliesClipPathToPreviewAndTile();
-    void sourceRendersOversampledBucketTile();
-    void sourceRejectsEmptyTileRequest();
+    void sourceAppliesClipPathToBlockingAndBucketDisplay();
+    void sourceRendersOversampledDisplayBucket();
 };
 
-void TestSvgTileSource::sourceRendersIntrinsicPreviewAndTile()
+void TestSvgDisplaySource::sourceRendersIntrinsicPreviewAndBlockingDisplay()
 {
     const QByteArray data
         = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
@@ -51,8 +47,8 @@ void TestSvgTileSource::sourceRendersIntrinsicPreviewAndTile()
                             "</svg>");
 
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QCOMPARE(source->imageSize(), QSize(80, 40));
 
@@ -66,15 +62,13 @@ void TestSvgTileSource::sourceRendersIntrinsicPreviewAndTile()
     QVERIFY2(!preview.isNull(), qPrintable(errorString));
     QCOMPARE(preview.size(), QSize(20, 10));
 
-    const kiriview::TilePyramid pyramid(source->imageSize());
-    const kiriview::TileRequest request = pyramid.requestForTile(kiriview::TileKey { 0, 0, 0 });
-    const std::optional<kiriview::DecodedTile> tile = source->decodeTile(request, &errorString);
-    QVERIFY2(tile.has_value(), qPrintable(errorString));
-    QCOMPARE(tile->image.size(), QSize(80, 40));
-    QVERIFY(qRed(tile->image.pixel(10, 10)) > 0);
+    const QImage bucket = source->decodeRasterDisplayImage(QSize(80, 40), &errorString);
+    QVERIFY2(!bucket.isNull(), qPrintable(errorString));
+    QCOMPARE(bucket.size(), QSize(80, 40));
+    QCOMPARE(bucket.pixelColor(10, 10), QColor(Qt::red));
 }
 
-void TestSvgTileSource::sourceRendersWholeSurfaceDisplayBucket()
+void TestSvgDisplaySource::sourceRendersWholeSurfaceDisplayBucket()
 {
     const QByteArray data
         = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
@@ -82,8 +76,8 @@ void TestSvgTileSource::sourceRendersWholeSurfaceDisplayBucket()
                             "</svg>");
 
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QVERIFY(source->supportsRasterDisplayRefinement());
 
@@ -94,7 +88,7 @@ void TestSvgTileSource::sourceRendersWholeSurfaceDisplayBucket()
     QCOMPARE(bucket.pixelColor(10, 10), QColor(Qt::red));
 }
 
-void TestSvgTileSource::sourceRendersUpscaledFirstDisplayPreview()
+void TestSvgDisplaySource::sourceRendersUpscaledFirstDisplayPreview()
 {
     const QByteArray data
         = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
@@ -102,8 +96,8 @@ void TestSvgTileSource::sourceRendersUpscaledFirstDisplayPreview()
                             "</svg>");
 
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
     const kiriview::FirstDisplayImageDecodeResult firstDisplay = source->decodeFirstDisplayImage(
@@ -114,7 +108,7 @@ void TestSvgTileSource::sourceRendersUpscaledFirstDisplayPreview()
     QCOMPARE(firstDisplay.displayPixelsPerSourcePixel, 2.5);
 }
 
-void TestSvgTileSource::sourceSkipsFirstDisplayPreviewWithoutValidViewport()
+void TestSvgDisplaySource::sourceSkipsFirstDisplayPreviewWithoutValidViewport()
 {
     const QByteArray data
         = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
@@ -122,8 +116,8 @@ void TestSvgTileSource::sourceSkipsFirstDisplayPreviewWithoutValidViewport()
                             "</svg>");
 
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
     const kiriview::FirstDisplayImageDecodeResult firstDisplay = source->decodeFirstDisplayImage(
@@ -133,9 +127,9 @@ void TestSvgTileSource::sourceSkipsFirstDisplayPreviewWithoutValidViewport()
     QVERIFY(firstDisplay.image.isNull());
 }
 
-void TestSvgTileSource::sourceReportsFirstDisplayRenderFailure()
+void TestSvgDisplaySource::sourceReportsFirstDisplayRenderFailure()
 {
-    kiriview::SvgTileSource source(QByteArrayLiteral("not svg"), QSize(80, 40));
+    kiriview::SvgDisplaySource source(QByteArrayLiteral("not svg"), QSize(80, 40));
 
     QString errorString;
     const kiriview::FirstDisplayImageDecodeResult firstDisplay = source.decodeFirstDisplayImage(
@@ -146,9 +140,9 @@ void TestSvgTileSource::sourceReportsFirstDisplayRenderFailure()
     QVERIFY(!errorString.isEmpty());
 }
 
-void TestSvgTileSource::sourceReportsWholeSurfaceRenderFailure()
+void TestSvgDisplaySource::sourceReportsWholeSurfaceRenderFailure()
 {
-    kiriview::SvgTileSource source(QByteArrayLiteral("not svg"), QSize(80, 40));
+    kiriview::SvgDisplaySource source(QByteArrayLiteral("not svg"), QSize(80, 40));
 
     QString errorString;
     const QImage bucket = source.decodeRasterDisplayImage(QSize(120, 60), &errorString);
@@ -158,11 +152,11 @@ void TestSvgTileSource::sourceReportsWholeSurfaceRenderFailure()
     QVERIFY(!errorString.isEmpty());
 }
 
-void TestSvgTileSource::sourceAppliesClipPathToPreviewAndTile()
+void TestSvgDisplaySource::sourceAppliesClipPathToBlockingAndBucketDisplay()
 {
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(clippedSvgData(), &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(clippedSvgData(), &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
     QCOMPARE(source->imageSize(), QSize(12, 8));
 
@@ -171,15 +165,13 @@ void TestSvgTileSource::sourceAppliesClipPathToPreviewAndTile()
     QCOMPARE(preview.pixelColor(3, 2), QColor(Qt::red));
     QCOMPARE(preview.pixelColor(8, 2), QColor(Qt::white));
 
-    const kiriview::TilePyramid pyramid(source->imageSize());
-    const kiriview::TileRequest request = pyramid.requestForTile(kiriview::TileKey { 0, 0, 0 });
-    const std::optional<kiriview::DecodedTile> tile = source->decodeTile(request, &errorString);
-    QVERIFY2(tile.has_value(), qPrintable(errorString));
-    QCOMPARE(tile->image.pixelColor(3, 2), QColor(Qt::red));
-    QCOMPARE(tile->image.pixelColor(8, 2), QColor(Qt::white));
+    const QImage bucket = source->decodeRasterDisplayImage(QSize(12, 8), &errorString);
+    QVERIFY2(!bucket.isNull(), qPrintable(errorString));
+    QCOMPARE(bucket.pixelColor(3, 2), QColor(Qt::red));
+    QCOMPARE(bucket.pixelColor(8, 2), QColor(Qt::white));
 }
 
-void TestSvgTileSource::sourceRendersOversampledBucketTile()
+void TestSvgDisplaySource::sourceRendersOversampledDisplayBucket()
 {
     const QByteArray data
         = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
@@ -187,46 +179,16 @@ void TestSvgTileSource::sourceRendersOversampledBucketTile()
                             "</svg>");
 
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(data, &errorString);
     QVERIFY2(source != nullptr, qPrintable(errorString));
 
-    kiriview::TileRequest request;
-    request.key = kiriview::TileKey { 0, 0, 0, 1 };
-    request.levelSize = QSize(120, 60);
-    request.levelRect = QRect(0, 0, 120, 60);
-    request.textureLevelRect = QRect(0, 0, 120, 60);
-    request.sourceRect = QRect(0, 0, 80, 40);
-    request.displaySourceRect = QRect(0, 0, 80, 40);
-    request.displaySourceRectF = QRectF(0.0, 0.0, 80.0 / 1.5, 40.0);
-
-    const std::optional<kiriview::DecodedTile> tile = source->decodeTile(request, &errorString);
-    QVERIFY2(tile.has_value(), qPrintable(errorString));
-    QCOMPARE(tile->key.scaleBucket, 1);
-    QCOMPARE(tile->image.size(), QSize(120, 60));
-    QCOMPARE(tile->displaySourceRect, QRect(0, 0, 80, 40));
-    QCOMPARE(tile->displaySourceRectF, QRectF(0.0, 0.0, 80.0 / 1.5, 40.0));
-    QCOMPARE(tile->image.pixelColor(10, 10), QColor(Qt::red));
+    const QImage bucket = source->decodeRasterDisplayImage(QSize(120, 60), &errorString);
+    QVERIFY2(!bucket.isNull(), qPrintable(errorString));
+    QCOMPARE(bucket.size(), QSize(120, 60));
+    QCOMPARE(bucket.pixelColor(10, 10), QColor(Qt::red));
 }
 
-void TestSvgTileSource::sourceRejectsEmptyTileRequest()
-{
-    const QByteArray data
-        = QByteArrayLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"80\" height=\"40\">"
-                            "<rect width=\"80\" height=\"40\" fill=\"red\"/>"
-                            "</svg>");
+QTEST_GUILESS_MAIN(TestSvgDisplaySource)
 
-    QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(data, &errorString);
-    QVERIFY2(source != nullptr, qPrintable(errorString));
-
-    const std::optional<kiriview::DecodedTile> tile
-        = source->decodeTile(kiriview::TileRequest {}, &errorString);
-
-    QVERIFY(!tile.has_value());
-}
-
-QTEST_GUILESS_MAIN(TestSvgTileSource)
-
-#include "test_svgtilesource.moc"
+#include "test_svgdisplaysource.moc"

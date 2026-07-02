@@ -1138,10 +1138,6 @@ void TestArchitectureBoundaries::providerRenderingRejectsTileSourceContracts()
         }
     }
 
-    QEXPECT_FAIL("",
-        "Milestone 6: provider-only rendering must replace public tile decode/source/cache "
-        "contracts with whole-image display and refinement sources.",
-        Continue);
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
 }
 

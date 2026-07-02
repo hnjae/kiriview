@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#ifndef KIRIVIEW_SVGTILESOURCE_H
-#define KIRIVIEW_SVGTILESOURCE_H
+#ifndef KIRIVIEW_SVGDISPLAYSOURCE_H
+#define KIRIVIEW_SVGDISPLAYSOURCE_H
 
 #include "staticimage.h"
 
@@ -12,19 +12,16 @@
 #include <QString>
 #include <QtGlobal>
 #include <memory>
-#include <optional>
 
 namespace kiriview {
-class SvgTileSource final : public ImageTileSource
+class SvgDisplaySource final : public StaticImageDisplaySource
 {
 public:
-    static std::shared_ptr<SvgTileSource> open(const QByteArray& data, QString* errorString);
+    static std::shared_ptr<SvgDisplaySource> open(const QByteArray& data, QString* errorString);
 
-    SvgTileSource(QByteArray data, QSize imageSize);
+    SvgDisplaySource(QByteArray data, QSize imageSize);
 
     QSize imageSize() const override;
-    std::optional<DecodedTile> decodeTile(
-        const TileRequest& request, QString* errorString) const override;
     FirstDisplayImageDecodeResult decodeFirstDisplayImage(
         const ImageFirstDisplayDecodeContext& context, QString* errorString) const override;
     bool supportsRasterDisplayRefinement() const override;
@@ -36,7 +33,7 @@ public:
 private:
     QByteArray m_data;
     QSize m_imageSize;
-    Q_DISABLE_COPY(SvgTileSource)
+    Q_DISABLE_COPY(SvgDisplaySource)
 };
 }
 

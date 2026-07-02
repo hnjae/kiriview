@@ -22,7 +22,7 @@ namespace {
         RasterDisplayRefinementDemandKey demandKey;
         ImageDocumentRenderContext renderContext;
         StaticDisplayImagePayload currentDisplay;
-        std::shared_ptr<ImageTileSource> source;
+        std::shared_ptr<StaticImageDisplaySource> source;
         QSize rasterSize;
         DisplayImageQuality quality = DisplayImageQuality::Exact;
     };
@@ -130,7 +130,7 @@ namespace {
             return { work.ticket, std::move(work.demandKey), work.renderContext, {}, false };
         }
 
-        ImageTileSourceDisplayDecodeResult decodeResult
+        StaticImageDisplayDecodeResult decodeResult
             = work.source->decodeRasterDisplayImageWithDiagnostics(work.rasterSize);
         Q_UNUSED(decodeResult.diagnostics);
         QImage image = std::move(decodeResult.image);
@@ -671,7 +671,7 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
         return;
     }
 
-    std::shared_ptr<ImageTileSource> source = currentDisplay->refinementSource;
+    std::shared_ptr<StaticImageDisplaySource> source = currentDisplay->refinementSource;
     if (source == nullptr || !source->supportsRasterDisplayRefinement()) {
         cancelRasterDisplayRefinement();
         return;

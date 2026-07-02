@@ -8,15 +8,15 @@
 
 namespace kiriview {
 namespace {
-    void appendDisplayDecodeFailure(ImageTileSourceDisplayDecodeDiagnostics* diagnostics,
-        ImageTileSourceDisplayDecodeOperation operation, const QString& userMessage,
+    void appendDisplayDecodeFailure(StaticImageDisplayDecodeDiagnostics* diagnostics,
+        StaticImageDisplayDecodeOperation operation, const QString& userMessage,
         const QString& diagnosticDetail)
     {
         if (diagnostics == nullptr) {
             return;
         }
 
-        diagnostics->failures.push_back(ImageTileSourceDisplayDecodeFailure {
+        diagnostics->failures.push_back(StaticImageDisplayDecodeFailure {
             operation,
             userMessage,
             diagnosticDetail.isEmpty() ? userMessage : diagnosticDetail,
@@ -24,7 +24,7 @@ namespace {
     }
 }
 
-QString ImageTileSourceDisplayDecodeDiagnostics::userMessage() const
+QString StaticImageDisplayDecodeDiagnostics::userMessage() const
 {
     for (auto failure = failures.crbegin(); failure != failures.crend(); ++failure) {
         if (!failure->userMessage.isEmpty()) {
@@ -34,7 +34,7 @@ QString ImageTileSourceDisplayDecodeDiagnostics::userMessage() const
     return {};
 }
 
-QString ImageTileSourceDisplayDecodeDiagnostics::diagnosticDetail() const
+QString StaticImageDisplayDecodeDiagnostics::diagnosticDetail() const
 {
     for (auto failure = failures.crbegin(); failure != failures.crend(); ++failure) {
         if (!failure->diagnosticDetail.isEmpty()) {
@@ -44,20 +44,21 @@ QString ImageTileSourceDisplayDecodeDiagnostics::diagnosticDetail() const
     return {};
 }
 
-ImageTileSourceFirstDisplayDecodeResult ImageTileSource::decodeFirstDisplayImageWithDiagnostics(
+StaticImageFirstDisplayDecodeResult
+StaticImageDisplaySource::decodeFirstDisplayImageWithDiagnostics(
     const ImageFirstDisplayDecodeContext& context) const
 {
     QString errorString;
-    ImageTileSourceFirstDisplayDecodeResult result;
+    StaticImageFirstDisplayDecodeResult result;
     result.firstDisplay = decodeFirstDisplayImage(context, &errorString);
     if (result.firstDisplay.status == FirstDisplayImageDecodeStatus::Error) {
         appendDisplayDecodeFailure(&result.diagnostics,
-            ImageTileSourceDisplayDecodeOperation::FirstDisplayImage, errorString, errorString);
+            StaticImageDisplayDecodeOperation::FirstDisplayImage, errorString, errorString);
     }
     return result;
 }
 
-FirstDisplayImageDecodeResult ImageTileSource::decodeFirstDisplayImage(
+FirstDisplayImageDecodeResult StaticImageDisplaySource::decodeFirstDisplayImage(
     const ImageFirstDisplayDecodeContext& context, QString* errorString) const
 {
     Q_UNUSED(context);
@@ -65,9 +66,9 @@ FirstDisplayImageDecodeResult ImageTileSource::decodeFirstDisplayImage(
     return {};
 }
 
-bool ImageTileSource::supportsRasterDisplayRefinement() const { return false; }
+bool StaticImageDisplaySource::supportsRasterDisplayRefinement() const { return false; }
 
-ImageTileSourceDisplayDecodeResult ImageTileSource::decodeRasterDisplayImageWithDiagnostics(
+StaticImageDisplayDecodeResult StaticImageDisplaySource::decodeRasterDisplayImageWithDiagnostics(
     const QSize& rasterSize) const
 {
     if (rasterSize.isEmpty()) {
@@ -75,16 +76,16 @@ ImageTileSourceDisplayDecodeResult ImageTileSource::decodeRasterDisplayImageWith
     }
 
     QString errorString;
-    ImageTileSourceDisplayDecodeResult result;
+    StaticImageDisplayDecodeResult result;
     result.image = decodeRasterDisplayImage(rasterSize, &errorString);
     if (result.image.isNull() && !errorString.isEmpty()) {
         appendDisplayDecodeFailure(&result.diagnostics,
-            ImageTileSourceDisplayDecodeOperation::RasterDisplayImage, errorString, errorString);
+            StaticImageDisplayDecodeOperation::RasterDisplayImage, errorString, errorString);
     }
     return result;
 }
 
-QImage ImageTileSource::decodeRasterDisplayImage(
+QImage StaticImageDisplaySource::decodeRasterDisplayImage(
     const QSize& rasterSize, QString* errorString) const
 {
     Q_UNUSED(rasterSize);
@@ -92,22 +93,22 @@ QImage ImageTileSource::decodeRasterDisplayImage(
     return {};
 }
 
-ImageTileSourceDisplayDecodeResult ImageTileSource::decodeBlockingDisplayImageWithDiagnostics(
+StaticImageDisplayDecodeResult StaticImageDisplaySource::decodeBlockingDisplayImageWithDiagnostics(
     int maximumLongEdge) const
 {
     QString errorString;
-    ImageTileSourceDisplayDecodeResult result;
+    StaticImageDisplayDecodeResult result;
     result.image = decodeBlockingDisplayImage(maximumLongEdge, &errorString);
     if (result.image.isNull() && !errorString.isEmpty()) {
         appendDisplayDecodeFailure(&result.diagnostics,
-            ImageTileSourceDisplayDecodeOperation::BlockingDisplayImage, errorString, errorString);
+            StaticImageDisplayDecodeOperation::BlockingDisplayImage, errorString, errorString);
     }
     return result;
 }
 
-bool ImageTileSource::isResolutionIndependent() const { return false; }
+bool StaticImageDisplaySource::isResolutionIndependent() const { return false; }
 
-StaticImageReaderTransform ImageTileSource::imageReaderTransform() const { return {}; }
+StaticImageReaderTransform StaticImageDisplaySource::imageReaderTransform() const { return {}; }
 
 bool StaticDisplayImagePayload::isValid() const
 {

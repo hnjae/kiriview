@@ -6,7 +6,7 @@
 #include "cache/imagebytecost.h"
 #include "localization/imageerrortext.h"
 #include "rendering/imagerendering.h"
-#include "rendering/imagetilesourcehelpers_p.h"
+#include "rendering/staticimagedisplaysourcehelpers_p.h"
 #include "staticimagedecode.h"
 
 #include <QColorSpace>
@@ -211,10 +211,10 @@ std::optional<QImage> decodeRawImage(
     return qImageFromRawProcessedImage(processedImage.get(), errorString, diagnosticDetail);
 }
 
-class RawImageTileSource final : public kiriview::ImageTileSource
+class RawStaticImageDisplaySource final : public kiriview::StaticImageDisplaySource
 {
 public:
-    explicit RawImageTileSource(QImage image)
+    explicit RawStaticImageDisplaySource(QImage image)
         : m_image(std::move(image))
     {
     }
@@ -229,36 +229,18 @@ public:
             return {};
         }
 
-        return kiriview::scaledTileImage(m_image, rasterSize);
+        return kiriview::scaledDisplayImage(m_image, rasterSize);
     }
 
     QImage decodeBlockingDisplayImage(int maximumLongEdge, QString*) const override
     {
-        return kiriview::scaledTileImage(
+        return kiriview::scaledDisplayImage(
             m_image, kiriview::boundedPreviewSize(m_image.size(), maximumLongEdge));
-    }
-
-    std::optional<kiriview::DecodedTile> decodeTile(
-        const kiriview::TileRequest& request, QString* errorString) const override
-    {
-        if (!kiriview::tileRequestCanDecode(request)) {
-            return std::nullopt;
-        }
-
-        QImage levelImage = kiriview::scaledTileImage(m_image, request.levelSize);
-        if (std::optional<kiriview::DecodedTile> tile
-            = kiriview::decodedTileFromLevelImage(request, levelImage)) {
-            return tile;
-        }
-
-        kiriview::setTileSourceError(
-            errorString, kiriview::imageErrorText(kiriview::ImageErrorTextId::RenderRawTile));
-        return std::nullopt;
     }
 
 private:
     QImage m_image;
-    Q_DISABLE_COPY(RawImageTileSource)
+    Q_DISABLE_COPY(RawStaticImageDisplaySource)
 };
 }
 
@@ -279,8 +261,8 @@ DecodedImageResult decodeRawImageData(const QByteArray& data, const ImageDecodeR
         });
     }
 
-    std::shared_ptr<ImageTileSource> source
-        = std::make_shared<RawImageTileSource>(std::move(*image));
+    std::shared_ptr<StaticImageDisplaySource> source
+        = std::make_shared<RawStaticImageDisplaySource>(std::move(*image));
     return staticDecodedImageResult(std::move(source), request, &errorString);
 }
 }

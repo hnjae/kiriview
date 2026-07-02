@@ -85,21 +85,15 @@ private:
     std::unique_ptr<RuntimeOwner> m_owner;
 };
 
-class NonCacheableTestImageTileSource final : public kiriview::ImageTileSource
+class NonCacheableTestStaticImageDisplaySource final : public kiriview::StaticImageDisplaySource
 {
 public:
-    explicit NonCacheableTestImageTileSource(QImage image)
+    explicit NonCacheableTestStaticImageDisplaySource(QImage image)
         : m_image(std::move(image))
     {
     }
 
     QSize imageSize() const override { return m_image.size(); }
-
-    std::optional<kiriview::DecodedTile> decodeTile(
-        const kiriview::TileRequest&, QString*) const override
-    {
-        return std::nullopt;
-    }
 
     QImage decodeBlockingDisplayImage(int, QString*) const override { return m_image; }
 
@@ -132,7 +126,7 @@ kiriview::DecodedImageResult singleFrameDecodedImage(const QSize& size)
             kiriview::DisplayImageQuality::Exact,
             1.0,
             {},
-            std::make_shared<NonCacheableTestImageTileSource>(std::move(image)),
+            std::make_shared<NonCacheableTestStaticImageDisplaySource>(std::move(image)),
         },
     });
 }

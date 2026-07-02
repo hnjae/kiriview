@@ -155,7 +155,7 @@ Implementation work should preserve valuable existing implementation by replacin
 
 ### Milestone 6: Provider-Only Rendering Migration
 
-- Status: Not started.
+- Status: Completed.
 - Purpose: Remove tile-era public rendering contracts and complete the documented provider-backed whole-image display/refinement model.
 - Dependencies: Milestone 1 rendering boundary tests; Milestone 2 for stable source identity; image-display characterization tests for previews/refinement.
 - Relevant references: `docs/spec/image-display.md`, `docs/architecture/provider-rendering.md`, `docs/architecture/extension-contracts.md`, `docs/architecture/state-ownership.md`, `docs/architecture/testing-strategy.md`.
@@ -164,6 +164,7 @@ Implementation work should preserve valuable existing implementation by replacin
 - Expected tests/checks: Updated display source/refinement tests, image page surface controller tests, display store tests, SVG/HEIF/RAW/QImageReader tests, architecture boundary tests, Rust tests if policy manifests change, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
 - Suggested commit boundaries: Commit replacement display/refinement interfaces first, migrate decoders/presentation second, remove tile-era files/manifests third, update boundary tests last if needed.
 - Stop conditions: Stop before deleting tile-era code that still carries unreplaced preview/refinement functionality, before adding an image/rendering dependency, or before resolving the `RenderSurfaceKey` naming ambiguity without confirmation.
+- Completion notes: Replaced public tile-era static image sources with provider-oriented whole-image display/refinement sources, removed the visual tile source, cache, visibility, and geometry modules from production manifests, and retained libheif grid tile decoding only as a source-internal assembly step for one display image. QImageReader, SVG, HEIF, RAW, thumbnail preview, static decode, predecode, and page-surface refinement paths now publish immutable display payloads through provider entries without exposing `decodeTile` or tile cache contracts. Architecture tests now enforce removal of the old tile-source files and symbols. Verification covered focused display source/refinement, image page surface controller, display store/page, SVG/HEIF/RAW/QImageReader, static decode, raster bucket, Kiri decoder, and architecture-boundary CTests; filtered Rust render geometry tests; `devenv tasks run --mode single ci:lint:rust`; `devenv tasks run --mode single ci:test:rust`; `devenv tasks run --mode single ci:lint:cpp`; and `devenv tasks run --mode single ci:test:cpp`. No new dependencies, Flatpak permission changes, or translation catalog edits were needed.
 
 ### Milestone 7: Thumbnail And Predecode Finalization
 

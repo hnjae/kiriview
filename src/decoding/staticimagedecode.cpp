@@ -18,7 +18,7 @@ QString errorStringValue(QString* errorString)
 
 kiriview::DecodedImageResult failedStaticDecodedImageResult(
     kiriview::DecodedImageFailureOperation operation, QString* errorString,
-    const kiriview::ImageTileSourceDisplayDecodeDiagnostics* diagnostics = nullptr)
+    const kiriview::StaticImageDisplayDecodeDiagnostics* diagnostics = nullptr)
 {
     QString message = diagnostics == nullptr ? QString() : diagnostics->userMessage();
     if (message.isEmpty()) {
@@ -63,8 +63,9 @@ kiriview::DisplayImageQuality displayQualityForImage(
 }
 
 kiriview::StaticDisplayImagePayload staticDisplayPayload(
-    std::shared_ptr<kiriview::ImageTileSource> source, const kiriview::ImageDecodeRequest& request,
-    QImage image, bool firstDisplay, qreal firstDisplayPixelsPerSourcePixel)
+    std::shared_ptr<kiriview::StaticImageDisplaySource> source,
+    const kiriview::ImageDecodeRequest& request, QImage image, bool firstDisplay,
+    qreal firstDisplayPixelsPerSourcePixel)
 {
     QImage displayImage = kiriview::displayReadyImage(image);
     const QSize originalSize = source == nullptr ? QSize() : source->imageSize();
@@ -89,7 +90,7 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
 }
 
 namespace kiriview {
-DecodedImageResult staticDecodedImageResult(std::shared_ptr<ImageTileSource> source,
+DecodedImageResult staticDecodedImageResult(std::shared_ptr<StaticImageDisplaySource> source,
     const ImageDecodeRequest& request, QString* errorString)
 {
     if (source == nullptr) {
@@ -97,7 +98,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<ImageTileSource> sou
             DecodedImageFailureOperation::OpenStaticImageSource, errorString);
     }
 
-    ImageTileSourceFirstDisplayDecodeResult firstDisplayResult
+    StaticImageFirstDisplayDecodeResult firstDisplayResult
         = source->decodeFirstDisplayImageWithDiagnostics(request.firstDisplay());
     switch (firstDisplayResult.firstDisplay.status) {
     case FirstDisplayImageDecodeStatus::Ready:
@@ -119,7 +120,7 @@ DecodedImageResult staticDecodedImageResult(std::shared_ptr<ImageTileSource> sou
             errorString, &firstDisplayResult.diagnostics);
     }
 
-    ImageTileSourceDisplayDecodeResult previewResult
+    StaticImageDisplayDecodeResult previewResult
         = source->decodeBlockingDisplayImageWithDiagnostics(imageBlockingDisplayLongEdgeMax);
     if (previewResult.image.isNull()) {
         return failedStaticDecodedImageResult(

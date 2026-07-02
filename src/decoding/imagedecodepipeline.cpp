@@ -13,7 +13,7 @@
 #include "metadata/embeddedmetadata.h"
 #include "qimagereaderdecoder.h"
 #include "rawdecoder.h"
-#include "rendering/svgtilesource.h"
+#include "rendering/svgdisplaysource.h"
 #include "staticimagedecode.h"
 #include "webpanimationreader.h"
 
@@ -256,8 +256,8 @@ QString sourceIdentityForRequest(const kiriview::ImageDecodeRequest& request)
 kiriview::DecodedImageResult decodeSvgImageData(const kiriview::ImageDecodeRouterInput& input)
 {
     QString errorString;
-    std::shared_ptr<kiriview::SvgTileSource> source
-        = kiriview::SvgTileSource::open(input.data, &errorString);
+    std::shared_ptr<kiriview::SvgDisplaySource> source
+        = kiriview::SvgDisplaySource::open(input.data, &errorString);
     if (source == nullptr) {
         if (errorString.isEmpty()) {
             errorString = kiriview::imageErrorText(kiriview::ImageErrorTextId::ReadImageData);

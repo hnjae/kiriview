@@ -5,7 +5,7 @@
 
 #include "decoding/heifcontainer.h"
 #include "image_test_support.h"
-#include "rendering/qimagereadertilesource.h"
+#include "rendering/qimagereaderdisplaysource.h"
 
 #include <libheif/heif.h>
 
@@ -337,7 +337,7 @@ void TestKiriImageDecoder::avifStillBrandUsesHeifStaticPath()
     const auto* decoded = decodedImage<kiriview::StaticDecodedImage>(result);
     QVERIFY2(decoded != nullptr, "AVIF still brand should use the HEIF static image path");
     QVERIFY(decoded->displayImage.refinementSource != nullptr);
-    QVERIFY(dynamic_cast<kiriview::QImageReaderTileSource*>(
+    QVERIFY(dynamic_cast<kiriview::QImageReaderDisplaySource*>(
                 decoded->displayImage.refinementSource.get())
         == nullptr);
     QCOMPARE(decoded->displayImage.originalSize, QSize(2, 2));

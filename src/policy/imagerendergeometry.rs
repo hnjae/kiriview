@@ -63,6 +63,19 @@ mod ffi {
             bounds_size: RustImageRenderSize,
         ) -> RustImageRenderSize;
 
+        #[cxx_name = "rustBoundedIntegerRect"]
+        fn rust_bounded_integer_rect(
+            rect: RustImageRenderRect,
+            bounds_size: RustImageRenderSize,
+        ) -> RustImageRenderRect;
+
+        #[cxx_name = "rustScaledIntegerRect"]
+        fn rust_scaled_integer_rect(
+            rect: RustImageRenderRectF,
+            source_size: RustImageRenderSizeF,
+            target_size: RustImageRenderSize,
+        ) -> RustImageRenderRect;
+
         #[cxx_name = "rustNormalizedImageDocumentRenderContext"]
         fn rust_normalized_image_document_render_context(
             context: RustImageDocumentRenderContext,
@@ -86,26 +99,6 @@ mod ffi {
             image_size: RustImageRenderSize,
             display_size: RustImageRenderSize,
         ) -> f64;
-
-        #[cxx_name = "rustImageTileTargetRect"]
-        fn rust_image_tile_target_rect(
-            source_rect: RustImageRenderRect,
-            image_size: RustImageRenderSize,
-            target_rect: RustImageRenderRectF,
-        ) -> RustImageRenderRectF;
-
-        #[cxx_name = "rustImageTileTargetRectF"]
-        fn rust_image_tile_target_rect_f(
-            source_rect: RustImageRenderRectF,
-            image_size: RustImageRenderSize,
-            target_rect: RustImageRenderRectF,
-        ) -> RustImageRenderRectF;
-
-        #[cxx_name = "rustImageTileTextureRect"]
-        fn rust_image_tile_texture_rect(
-            level_rect: RustImageRenderRect,
-            texture_level_rect: RustImageRenderRect,
-        ) -> RustImageRenderRectF;
 
         #[cxx_name = "rustStaticImageFitsFullImageSurface"]
         fn rust_static_image_fits_full_image_surface(
@@ -222,6 +215,21 @@ fn rust_scaled_image_size_to_fit(
     }
 }
 
+fn rust_bounded_integer_rect(
+    rect: RustImageRenderRect,
+    bounds_size: RustImageRenderSize,
+) -> RustImageRenderRect {
+    bounded_integer_rect(rect, bounds_size)
+}
+
+fn rust_scaled_integer_rect(
+    rect: RustImageRenderRectF,
+    source_size: RustImageRenderSizeF,
+    target_size: RustImageRenderSize,
+) -> RustImageRenderRect {
+    scaled_integer_rect(rect, source_size, target_size)
+}
+
 fn rust_normalized_image_document_render_context(
     context: RustImageDocumentRenderContext,
     fallback_texture_size_max: i32,
@@ -298,60 +306,6 @@ fn rust_image_pixels_per_source_pixel(
         scale
     } else {
         0.0
-    }
-}
-
-fn rust_image_tile_target_rect(
-    source_rect: RustImageRenderRect,
-    image_size: RustImageRenderSize,
-    target_rect: RustImageRenderRectF,
-) -> RustImageRenderRectF {
-    rust_image_tile_target_rect_f(
-        RustImageRenderRectF {
-            x: f64::from(source_rect.x),
-            y: f64::from(source_rect.y),
-            width: f64::from(source_rect.width),
-            height: f64::from(source_rect.height),
-        },
-        image_size,
-        target_rect,
-    )
-}
-
-fn rust_image_tile_target_rect_f(
-    source_rect: RustImageRenderRectF,
-    image_size: RustImageRenderSize,
-    target_rect: RustImageRenderRectF,
-) -> RustImageRenderRectF {
-    if rect_f_empty(source_rect) || size_empty(image_size) || rect_f_empty(target_rect) {
-        return empty_rect_f();
-    }
-
-    let image_width = f64::from(image_size.width);
-    let image_height = f64::from(image_size.height);
-    RustImageRenderRectF {
-        x: target_rect.x + (source_rect.x / image_width) * target_rect.width,
-        y: target_rect.y + (source_rect.y / image_height) * target_rect.height,
-        width: (source_rect.width / image_width) * target_rect.width,
-        height: (source_rect.height / image_height) * target_rect.height,
-    }
-}
-
-fn rust_image_tile_texture_rect(
-    level_rect: RustImageRenderRect,
-    texture_level_rect: RustImageRenderRect,
-) -> RustImageRenderRectF {
-    if rect_empty(texture_level_rect) {
-        return empty_rect_f();
-    }
-
-    let texture_width = f64::from(texture_level_rect.width);
-    let texture_height = f64::from(texture_level_rect.height);
-    RustImageRenderRectF {
-        x: (f64::from(level_rect.x) - f64::from(texture_level_rect.x)) / texture_width,
-        y: (f64::from(level_rect.y) - f64::from(texture_level_rect.y)) / texture_height,
-        width: f64::from(level_rect.width) / texture_width,
-        height: f64::from(level_rect.height) / texture_height,
     }
 }
 
@@ -526,7 +480,97 @@ fn min_like_cpp(left: f64, right: f64) -> f64 {
     if right < left { right } else { left }
 }
 
+fn bounded_integer_rect(
+    rect: RustImageRenderRect,
+    bounds_size: RustImageRenderSize,
+) -> RustImageRenderRect {
+    if rect_empty(rect) || size_empty(bounds_size) {
+        return empty_rect();
+    }
+
+    let left = i64::from(rect.x).max(0);
+    let top = i64::from(rect.y).max(0);
+    let right = (i64::from(rect.x) + i64::from(rect.width)).min(i64::from(bounds_size.width));
+    let bottom = (i64::from(rect.y) + i64::from(rect.height)).min(i64::from(bounds_size.height));
+    rect_from_edges(left, top, right, bottom)
+}
+
+fn scaled_integer_rect(
+    rect: RustImageRenderRectF,
+    source_size: RustImageRenderSizeF,
+    target_size: RustImageRenderSize,
+) -> RustImageRenderRect {
+    if rect_f_empty(rect)
+        || !rect_f_finite(rect)
+        || size_f_empty(source_size)
+        || !size_f_finite(source_size)
+        || size_empty(target_size)
+    {
+        return empty_rect();
+    }
+
+    let bounded = intersect_rect_f(
+        rect,
+        RustImageRenderRectF {
+            x: 0.0,
+            y: 0.0,
+            width: source_size.width,
+            height: source_size.height,
+        },
+    );
+    if rect_f_empty(bounded) {
+        return empty_rect();
+    }
+
+    let x_scale = f64::from(target_size.width) / source_size.width;
+    let y_scale = f64::from(target_size.height) / source_size.height;
+    if !x_scale.is_finite() || !y_scale.is_finite() || x_scale <= 0.0 || y_scale <= 0.0 {
+        return empty_rect();
+    }
+
+    let left = clamp_floor_to_i32(bounded.x * x_scale, 0, target_size.width);
+    let top = clamp_floor_to_i32(bounded.y * y_scale, 0, target_size.height);
+    let right = clamp_ceil_to_i32(rect_f_right(bounded) * x_scale, left, target_size.width);
+    let bottom = clamp_ceil_to_i32(rect_f_bottom(bounded) * y_scale, top, target_size.height);
+    rect_from_edges(
+        i64::from(left),
+        i64::from(top),
+        i64::from(right),
+        i64::from(bottom),
+    )
+}
+
 fn ceil_clamped_to_i32(value: f64, minimum: i32, maximum: i32) -> i32 {
+    let rounded = value.ceil();
+    if rounded <= f64::from(minimum) {
+        minimum
+    } else if rounded >= f64::from(maximum) {
+        maximum
+    } else {
+        rounded as i32
+    }
+}
+
+fn clamp_floor_to_i32(value: f64, minimum: i32, maximum: i32) -> i32 {
+    if !value.is_finite() {
+        return minimum;
+    }
+
+    let rounded = value.floor();
+    if rounded <= f64::from(minimum) {
+        minimum
+    } else if rounded >= f64::from(maximum) {
+        maximum
+    } else {
+        rounded as i32
+    }
+}
+
+fn clamp_ceil_to_i32(value: f64, minimum: i32, maximum: i32) -> i32 {
+    if !value.is_finite() {
+        return minimum;
+    }
+
     let rounded = value.ceil();
     if rounded <= f64::from(minimum) {
         minimum
@@ -560,6 +604,10 @@ fn size_f_empty(size: RustImageRenderSizeF) -> bool {
     size.width <= 0.0 || size.height <= 0.0
 }
 
+fn size_f_finite(size: RustImageRenderSizeF) -> bool {
+    size.width.is_finite() && size.height.is_finite()
+}
+
 fn rect_empty(rect: RustImageRenderRect) -> bool {
     rect.width <= 0 || rect.height <= 0
 }
@@ -568,11 +616,69 @@ fn rect_f_empty(rect: RustImageRenderRectF) -> bool {
     rect.width <= 0.0 || rect.height <= 0.0
 }
 
+fn rect_f_finite(rect: RustImageRenderRectF) -> bool {
+    rect.x.is_finite() && rect.y.is_finite() && rect.width.is_finite() && rect.height.is_finite()
+}
+
 fn empty_size() -> RustImageRenderSize {
     RustImageRenderSize {
         width: -1,
         height: -1,
     }
+}
+
+fn empty_rect() -> RustImageRenderRect {
+    RustImageRenderRect {
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+    }
+}
+
+fn rect_from_edges(left: i64, top: i64, right: i64, bottom: i64) -> RustImageRenderRect {
+    if right <= left || bottom <= top {
+        return empty_rect();
+    }
+
+    RustImageRenderRect {
+        x: i64_to_i32_saturating(left),
+        y: i64_to_i32_saturating(top),
+        width: i64_to_i32_saturating(right - left),
+        height: i64_to_i32_saturating(bottom - top),
+    }
+}
+
+fn i64_to_i32_saturating(value: i64) -> i32 {
+    i32::try_from(value).unwrap_or(if value < 0 { i32::MIN } else { i32::MAX })
+}
+
+fn intersect_rect_f(
+    left: RustImageRenderRectF,
+    right: RustImageRenderRectF,
+) -> RustImageRenderRectF {
+    let x1 = left.x.max(right.x);
+    let y1 = left.y.max(right.y);
+    let x2 = rect_f_right(left).min(rect_f_right(right));
+    let y2 = rect_f_bottom(left).min(rect_f_bottom(right));
+    if x2 <= x1 || y2 <= y1 {
+        return empty_rect_f();
+    }
+
+    RustImageRenderRectF {
+        x: x1,
+        y: y1,
+        width: x2 - x1,
+        height: y2 - y1,
+    }
+}
+
+fn rect_f_right(rect: RustImageRenderRectF) -> f64 {
+    rect.x + rect.width
+}
+
+fn rect_f_bottom(rect: RustImageRenderRectF) -> f64 {
+    rect.y + rect.height
 }
 
 fn empty_rect_f() -> RustImageRenderRectF {
@@ -677,6 +783,53 @@ mod tests {
     }
 
     #[test]
+    fn maps_and_clips_integer_rects() {
+        assert_eq!(
+            bounded_integer_rect(rect(-1, -2, 4, 5), size(10, 10)),
+            rect(0, 0, 3, 3)
+        );
+        assert_eq!(
+            scaled_integer_rect(
+                rect_f(1.0, 2.0, 3.0, 4.0),
+                size_f(10.0, 10.0),
+                size(100, 50)
+            ),
+            rect(10, 10, 30, 20)
+        );
+        assert_eq!(
+            scaled_integer_rect(
+                rect_f(-5.0, 2.0, 10.0, 5.0),
+                size_f(20.0, 10.0),
+                size(40, 20)
+            ),
+            rect(0, 4, 10, 10)
+        );
+    }
+
+    #[test]
+    fn mapped_integer_rects_reject_invalid_or_overflow_geometry() {
+        assert!(rect_empty(scaled_integer_rect(
+            rect_f(f64::NAN, 0.0, 1.0, 1.0),
+            size_f(10.0, 10.0),
+            size(10, 10)
+        )));
+        assert!(rect_empty(scaled_integer_rect(
+            rect_f(0.0, 0.0, 1.0, 1.0),
+            size_f(f64::INFINITY, 10.0),
+            size(10, 10)
+        )));
+        assert!(rect_empty(scaled_integer_rect(
+            rect_f(0.0, 0.0, 1.0, 1.0),
+            size_f(10.0, 10.0),
+            size(0, 10)
+        )));
+        assert_eq!(
+            bounded_integer_rect(rect(i32::MAX - 1, 0, 10, 1), size(i32::MAX, 1)),
+            rect(i32::MAX - 1, 0, 1, 1)
+        );
+    }
+
+    #[test]
     fn render_context_normalizes_invalid_values() {
         assert_eq!(
             rust_normalized_image_document_render_context(
@@ -751,41 +904,6 @@ mod tests {
         assert_eq!(
             rust_image_pixels_per_source_pixel(size(1600, 1200), size(0, 300)),
             0.0
-        );
-    }
-
-    #[test]
-    fn tile_target_rect_maps_source_rect_into_image_target() {
-        let target = rust_image_tile_target_rect(
-            rect(256, 512, 256, 256),
-            size(1024, 1024),
-            rect_f(10.0, 20.0, 1000.0, 500.0),
-        );
-
-        assert_eq!(target, rect_f(260.0, 270.0, 250.0, 125.0));
-    }
-
-    #[test]
-    fn tile_texture_rect_maps_level_rect_into_texture_coordinates() {
-        let texture =
-            rust_image_tile_texture_rect(rect(256, 128, 512, 256), rect(128, 0, 1024, 512));
-
-        assert_eq!(texture, rect_f(0.125, 0.25, 0.5, 0.5));
-    }
-
-    #[test]
-    fn tile_rects_reject_invalid_geometry() {
-        assert_eq!(
-            rust_image_tile_target_rect(
-                rect(0, 0, 0, 512),
-                size(1024, 1024),
-                rect_f(10.0, 20.0, 1000.0, 500.0)
-            ),
-            empty_rect_f()
-        );
-        assert_eq!(
-            rust_image_tile_texture_rect(rect(0, 0, 512, 512), rect(0, 0, 0, 512)),
-            empty_rect_f()
         );
     }
 

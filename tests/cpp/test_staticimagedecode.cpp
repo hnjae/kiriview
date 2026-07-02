@@ -10,7 +10,6 @@
 #include <QTest>
 #include <QUrl>
 #include <memory>
-#include <optional>
 #include <utility>
 
 namespace {
@@ -21,10 +20,10 @@ QImage testImage(const QSize& size)
     return image;
 }
 
-class ResultTileSource final : public kiriview::ImageTileSource
+class ResultDisplaySource final : public kiriview::StaticImageDisplaySource
 {
 public:
-    explicit ResultTileSource(QSize imageSize = QSize(16, 16))
+    explicit ResultDisplaySource(QSize imageSize = QSize(16, 16))
         : m_imageSize(std::move(imageSize))
     {
     }
@@ -32,21 +31,15 @@ public:
     QSize imageSize() const override { return m_imageSize; }
     qsizetype byteCost() const override { return 1; }
 
-    std::optional<kiriview::DecodedTile> decodeTile(
-        const kiriview::TileRequest&, QString*) const override
-    {
-        return std::nullopt;
-    }
-
-    kiriview::ImageTileSourceFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
+    kiriview::StaticImageFirstDisplayDecodeResult decodeFirstDisplayImageWithDiagnostics(
         const kiriview::ImageFirstDisplayDecodeContext&) const override
     {
         ++firstDisplayDecodeCount;
-        kiriview::ImageTileSourceFirstDisplayDecodeResult result;
+        kiriview::StaticImageFirstDisplayDecodeResult result;
         result.firstDisplay = firstDisplayResult;
         if (firstDisplayResult.status == kiriview::FirstDisplayImageDecodeStatus::Error) {
-            result.diagnostics.failures.push_back(kiriview::ImageTileSourceDisplayDecodeFailure {
-                kiriview::ImageTileSourceDisplayDecodeOperation::FirstDisplayImage,
+            result.diagnostics.failures.push_back(kiriview::StaticImageDisplayDecodeFailure {
+                kiriview::StaticImageDisplayDecodeOperation::FirstDisplayImage,
                 firstDisplayError,
                 firstDisplayDiagnosticDetail.isEmpty() ? firstDisplayError
                                                        : firstDisplayDiagnosticDetail,
@@ -65,17 +58,17 @@ public:
         return firstDisplayResult;
     }
 
-    kiriview::ImageTileSourceDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
+    kiriview::StaticImageDisplayDecodeResult decodeBlockingDisplayImageWithDiagnostics(
         int maximumLongEdge) const override
     {
         ++blockingDisplayDecodeCount;
         blockingDisplayMaximumLongEdge = maximumLongEdge;
 
-        kiriview::ImageTileSourceDisplayDecodeResult result;
+        kiriview::StaticImageDisplayDecodeResult result;
         result.image = blockingDisplay;
         if (blockingDisplay.isNull()) {
-            result.diagnostics.failures.push_back(kiriview::ImageTileSourceDisplayDecodeFailure {
-                kiriview::ImageTileSourceDisplayDecodeOperation::BlockingDisplayImage,
+            result.diagnostics.failures.push_back(kiriview::StaticImageDisplayDecodeFailure {
+                kiriview::StaticImageDisplayDecodeOperation::BlockingDisplayImage,
                 blockingDisplayError,
                 blockingDisplayDiagnosticDetail.isEmpty() ? blockingDisplayError
                                                           : blockingDisplayDiagnosticDetail,
@@ -136,7 +129,7 @@ private Q_SLOTS:
 
 void TestStaticImageDecode::staticResultUsesReadyFirstDisplayImage()
 {
-    auto source = std::make_shared<ResultTileSource>();
+    auto source = std::make_shared<ResultDisplaySource>();
     source->firstDisplayResult = kiriview::FirstDisplayImageDecodeResult {
         kiriview::FirstDisplayImageDecodeStatus::Ready,
         testImage(QSize(8, 4)),
@@ -164,7 +157,7 @@ void TestStaticImageDecode::staticResultUsesReadyFirstDisplayImage()
 
 void TestStaticImageDecode::staticResultFallsBackToBlockingPreview()
 {
-    auto source = std::make_shared<ResultTileSource>(QSize(12, 9));
+    auto source = std::make_shared<ResultDisplaySource>(QSize(12, 9));
     source->blockingDisplay = testImage(QSize(12, 9));
 
     QString errorString;
@@ -188,7 +181,7 @@ void TestStaticImageDecode::staticResultFallsBackToBlockingPreview()
 
 void TestStaticImageDecode::staticResultMarksScaledBlockingPreviewAsFirstDisplayQuality()
 {
-    auto source = std::make_shared<ResultTileSource>(QSize(4000, 3000));
+    auto source = std::make_shared<ResultDisplaySource>(QSize(4000, 3000));
     source->blockingDisplay = testImage(QSize(2048, 1536));
 
     QString errorString;
@@ -207,7 +200,7 @@ void TestStaticImageDecode::staticResultMarksScaledBlockingPreviewAsFirstDisplay
 
 void TestStaticImageDecode::staticResultReportsFirstDisplayErrors()
 {
-    auto source = std::make_shared<ResultTileSource>();
+    auto source = std::make_shared<ResultDisplaySource>();
     source->firstDisplayResult.status = kiriview::FirstDisplayImageDecodeStatus::Error;
     source->firstDisplayError = QStringLiteral("first display failed");
     source->firstDisplayDiagnosticDetail = QStringLiteral("first display backend detail");
@@ -231,7 +224,7 @@ void TestStaticImageDecode::staticResultReportsFirstDisplayErrors()
 
 void TestStaticImageDecode::staticResultReportsMissingReadyFirstDisplayImage()
 {
-    auto source = std::make_shared<ResultTileSource>();
+    auto source = std::make_shared<ResultDisplaySource>();
     source->firstDisplayResult.status = kiriview::FirstDisplayImageDecodeStatus::Ready;
     source->blockingDisplay = testImage(QSize(12, 9));
 
@@ -247,7 +240,7 @@ void TestStaticImageDecode::staticResultReportsMissingReadyFirstDisplayImage()
 
 void TestStaticImageDecode::staticResultReportsMissingBlockingPreview()
 {
-    auto source = std::make_shared<ResultTileSource>();
+    auto source = std::make_shared<ResultDisplaySource>();
     source->blockingDisplayError = QStringLiteral("blocking display failed");
     source->blockingDisplayDiagnosticDetail = QStringLiteral("blocking display backend detail");
 

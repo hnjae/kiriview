@@ -3,7 +3,7 @@
 
 #include "decoding/qimagereaderdecoder.h"
 
-#include "rendering/qimagereadertilesource.h"
+#include "rendering/qimagereaderdisplaysource.h"
 
 #include <QBuffer>
 #include <QByteArrayList>
@@ -143,7 +143,7 @@ void TestQImageReaderDecoder::pngDataDecodesAsStaticDisplayPayload()
         = decodedImage<kiriview::StaticDecodedImage>(result);
 
     QVERIFY(decoded != nullptr);
-    QVERIFY(dynamic_cast<kiriview::QImageReaderTileSource*>(
+    QVERIFY(dynamic_cast<kiriview::QImageReaderDisplaySource*>(
                 decoded->displayImage.refinementSource.get())
         != nullptr);
     QCOMPARE(decoded->displayImage.originalSize, QSize(4, 4));
@@ -181,7 +181,7 @@ void TestQImageReaderDecoder::jpegDataUsesFirstDisplayRequest()
     QCOMPARE(decoded->displayImage.image.size(), QSize(400, 300));
     QCOMPARE(decoded->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
     QCOMPARE(decoded->displayImage.displayPixelsPerSourcePixel, 0.25);
-    QVERIFY(dynamic_cast<kiriview::QImageReaderTileSource*>(
+    QVERIFY(dynamic_cast<kiriview::QImageReaderDisplaySource*>(
                 decoded->displayImage.refinementSource.get())
         != nullptr);
 }

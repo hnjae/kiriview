@@ -189,7 +189,7 @@ QImage renderedThumbnailImage(
                     }
                     return {};
                 }
-                kiriview::ImageTileSourceDisplayDecodeResult result
+                kiriview::StaticImageDisplayDecodeResult result
                     = image.displayImage.refinementSource
                           ->decodeBlockingDisplayImageWithDiagnostics(maximumLongEdge);
                 if (result.image.isNull() && errorString != nullptr) {
