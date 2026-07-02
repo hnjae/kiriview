@@ -2,7 +2,7 @@
 
 This plan translates the approved target state in `docs/spec/` and `docs/architecture/` into implementation milestones. It is a planning document only and does not approve product behavior beyond those target-state docs.
 
-Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Every milestone below is currently `Not Started`.
+Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Milestone status is tracked on each milestone section below.
 
 ## Confirmed Requirements
 
@@ -47,7 +47,7 @@ Status values are `Not Started`, `In Progress`, `Blocked`, and `Complete`. Every
 
 ## M1: Provider Role-Symmetric Result Handling
 
-- Status: Not Started
+- Status: Complete
 - Goal: Make primary and secondary provider sessions use the same public result channel and controller event boundary.
 - Scope: Add missing secondary-provider tests first, then route secondary frame handles, frame handles with metadata, waiting/progress hints, end-of-sequence, unsupported results, provider failures, and cancellation results through the same role-scoped controller path used by primary providers.
 - Acceptance Criteria: Secondary `FrameHandleReady` and `FrameHandleWithMetadataReady` results are validated, rendered or rejected, and released exactly once according to the provider payload contract in `docs/spec/image-sequence-provider-adapter.md`.
