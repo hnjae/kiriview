@@ -599,7 +599,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     }
 
     result.providerFrameTransport = closeProviderSession();
-    result.secondaryProviderFrameTransport = closeSecondaryProviderSession();
+    result.secondaryProviderFrameTransport
+        = closeProviderSession(ImageViewport::PageRole::Secondary);
 
     const ImageViewport::DisplayStatus oldDisplayStatus = viewportDisplayState(viewport).status;
     const ImageViewport::PlaybackPhase oldPlaybackPhase
@@ -819,10 +820,11 @@ ViewportCommandResult ViewportController::clear()
         || !viewportRequestState(viewport).warningString.isEmpty();
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    const bool closeProviderSession = viewportProviderState(viewport).session != nullptr;
+    const bool hasProviderSession = viewportProviderState(viewport).session != nullptr;
     result.providerFrameTransport.sessionClose = handleProviderSessionClose();
-    result.providerFrameTransport.closeSession = closeProviderSession;
-    result.secondaryProviderFrameTransport = closeSecondaryProviderSession();
+    result.providerFrameTransport.closeSession = hasProviderSession;
+    result.secondaryProviderFrameTransport
+        = closeProviderSession(ImageViewport::PageRole::Secondary);
     viewportRequestState(viewport).sequence = nullptr;
     viewportRequestState(viewport).sequenceOwner.reset();
     viewportRequestState(viewport).secondarySequence = nullptr;

@@ -448,6 +448,8 @@ F6, F7.
 
 ### Milestone 6: Close Provider Result and Lifecycle Role Symmetry
 
+Status: Complete. Verified against the provider adapter, provider protocol, subsystem-boundary, and rendering docs before execution. Provider metadata admission, metadata target policy, frame admission, waiting/progress, terminal results, end-of-sequence handling, session close, queued frame cleanup, and item-side provider callbacks now route through role-parameterized result/lifecycle paths before spread aggregation. A secondary close now clears queued secondary frame work, and stale frame payload ownership remains identical across roles. Remaining `secondaryProvider` names in the structural grep are bridge/projection/accessor state or role-specific command admission references rather than independent provider result-channel policy.
+
 #### Objective
 
 Verify and close the remaining provider role-symmetry gaps after frame dispatch is shared, covering the full provider result and lifecycle channel required by the provider protocol.
@@ -486,13 +488,13 @@ F6.
 
 #### Tasks
 
-- [ ] Add or confirm primary/secondary data-driven tests for metadata projection, terminal projection, frame admission, progress/waiting, provider cancellation, close, and render failure acknowledgement.
-- [ ] Convert secondary metadata ready/admission/target-policy handlers to shared role-parametric paths where they contain policy rather than presentation-specific aggregation.
-- [ ] Convert secondary frame admission and terminal handling to shared role-parametric paths while keeping target-spread aggregate projection owned by display/request state.
-- [ ] Confirm payload release and stale frame-ready handling are identical for primary and secondary roles.
-- [ ] Confirm cancellation and close effects identify the addressed role and do not use reduced secondary cleanup semantics.
-- [ ] Remove or reduce secondary-specific provider methods such as `handleSecondaryProviderFrameAdmission`, `handleSecondaryProviderMetadataAdmission`, and `acceptSecondaryProviderMetadataEvent` when their logic can be represented by role-parametric helpers.
-- [ ] Add structural checks for remaining `Secondary`-named provider methods; any remaining method must be a public compatibility wrapper, test helper, or spread-aggregation projection with documented ownership.
+- [x] Add or confirm primary/secondary data-driven tests for metadata projection, terminal projection, frame admission, progress/waiting, provider cancellation, close, and render failure acknowledgement.
+- [x] Convert secondary metadata ready/admission/target-policy handlers to shared role-parametric paths where they contain policy rather than presentation-specific aggregation.
+- [x] Convert secondary frame admission and terminal handling to shared role-parametric paths while keeping target-spread aggregate projection owned by display/request state.
+- [x] Confirm payload release and stale frame-ready handling are identical for primary and secondary roles.
+- [x] Confirm cancellation and close effects identify the addressed role and do not use reduced secondary cleanup semantics.
+- [x] Remove or reduce secondary-specific provider methods such as `handleSecondaryProviderFrameAdmission`, `handleSecondaryProviderMetadataAdmission`, and `acceptSecondaryProviderMetadataEvent` when their logic can be represented by role-parametric helpers.
+- [x] Add structural checks for remaining `Secondary`-named provider methods; any remaining method must be a public compatibility wrapper, test helper, or spread-aggregation projection with documented ownership.
 
 #### Acceptance criteria
 

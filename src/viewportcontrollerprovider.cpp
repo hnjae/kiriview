@@ -81,9 +81,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
 
     const FramePreparation::ProviderFrameAdmissionResult admission
         = FramePreparation::admitProviderFrame(frame, metadata, frameEvent.preparationState);
-    return role == ImageViewport::PageRole::Secondary
-        ? handleSecondaryProviderFrameAdmission(admission)
-        : handleProviderFrameAdmission(admission);
+    return handleProviderFrameAdmission(role, admission);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
@@ -96,16 +94,24 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
 ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
     ViewportProviderMetadataEvent event)
 {
+    return acceptProviderMetadataEvent(ImageViewport::PageRole::Primary, event);
+}
+
+ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
+    ImageViewport::PageRole role, ViewportProviderMetadataEvent event)
+{
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
         return {};
     }
-    if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session
-        || !viewportProviderState(viewport).activeMetadataToken.isValid()
-        || event.token != viewportProviderState(viewport).activeMetadataToken) {
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.session
+        || !provider.activeMetadataToken.isValid()
+        || event.token != provider.activeMetadataToken) {
         return {};
     }
 
-    viewportProviderState(viewport).activeMetadataToken = {};
+    provider.activeMetadataToken = {};
     return { true };
 }
 
@@ -119,9 +125,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessi
     ImageViewport::PageRole role, const QString& diagnostic)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    if (role == ImageViewport::PageRole::Primary) {
-        clearQueuedProviderFrameRequest(viewport);
-    }
+    clearQueuedProviderFrameRequest(state, role);
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
     provider.activeMetadataToken = {};
@@ -143,30 +147,21 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
         return {};
     }
-    if (role == ImageViewport::PageRole::Secondary) {
-        ViewportProviderSessionOpenResult result;
-        appendProviderMetadataStartResult(
-            result.providerMetadataTransport, handleSecondaryProviderSessionOpened());
-        return result;
-    }
 
     ViewportProviderSessionOpenResult result;
-    if (viewportProviderState(viewport).metadataReady) {
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (provider.metadataReady) {
         discardPendingRenderCommit(viewport);
         appendProviderFrameStartResult(result.providerFrameTransport,
-            startProviderFrameRequest({ viewportRequestState(viewport).activeRequest.target }));
+            startProviderFrameRequest(role,
+                { activeRequestForRole(viewportRequestState(viewport), role).target }));
         return result;
     }
 
     appendProviderMetadataStartResult(
-        result.providerMetadataTransport, startProviderMetadataRequest());
+        result.providerMetadataTransport, startProviderMetadataRequest(role));
     return result;
-}
-
-ViewportProviderMetadataRequestStartResult
-ViewportController::handleSecondaryProviderSessionOpened()
-{
-    return startSecondaryProviderMetadataRequest();
 }
 
 quint64 ViewportController::installProviderSession(ImageSequenceProviderSession* session)
@@ -263,15 +258,9 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
                                               ImageViewportInternal::ViewportChangeSet changes) {
         ViewportProviderMetadataAdmissionResult result;
         result.changes = changes;
-        if (role == ImageViewport::PageRole::Secondary) {
-            result.providerFrameTransport.closeSession = state.secondaryProvider.session != nullptr;
-            result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
-            return result;
-        }
-
         result.providerFrameTransport.closeSession
-            = viewportProviderState(viewport).session != nullptr;
-        result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+            = providerGenerationStateForRole(state, role).session != nullptr;
+        result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
         return result;
     };
 
@@ -326,20 +315,11 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
     return result;
 }
 
-ViewportProviderMetadataAdmissionResult
-ViewportController::handleSecondaryProviderMetadataAdmission(
-    const ImageSequenceProviderMetadata& metadata)
-{
-    return handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary, metadata);
-}
-
 ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataReadyEvent(
     ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event)
 {
     const ViewportProviderMetadataEventAcceptance metadataEvent
-        = role == ImageViewport::PageRole::Secondary
-        ? acceptSecondaryProviderMetadataEvent({ event.token })
-        : acceptProviderMetadataEvent({ event.token });
+        = acceptProviderMetadataEvent(role, { event.token });
     if (!metadataEvent.accepted) {
         return {};
     }
@@ -353,14 +333,9 @@ ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataRe
         return result;
     }
 
-    mergeChanges(result.changes,
-        role == ImageViewport::PageRole::Secondary
-            ? handleSecondaryProviderAcceptedMetadataFacts(admission.facts)
-            : handleProviderAcceptedMetadataFacts(admission.facts));
+    mergeChanges(result.changes, handleProviderAcceptedMetadataFacts(role, admission.facts));
     const ViewportProviderMetadataTargetPolicyResult targetPolicy
-        = role == ImageViewport::PageRole::Secondary
-        ? handleSecondaryProviderMetadataTargetPolicy(admission.facts)
-        : handleProviderMetadataTargetPolicy(admission.facts);
+        = handleProviderMetadataTargetPolicy(role, admission.facts);
     mergeChanges(result.changes, targetPolicy.changes);
     result.providerFrameTransport = targetPolicy.providerFrameTransport;
     return result;
@@ -369,11 +344,19 @@ ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataRe
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
+    return handleProviderFrameAdmission(ImageViewport::PageRole::Primary, admission);
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
+    ImageViewport::PageRole role, const FramePreparation::ProviderFrameAdmissionResult& admission)
+{
     ImageViewportInternal::ViewportChangeSet changes;
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
     if (!admission.accepted()) {
-        clearQueuedProviderFrameRequest(viewport);
-        viewportProviderState(viewport).activeFrameToken = {};
-        recordTargetSpreadTerminal(viewport, ImageViewport::PageRole::Primary, admission.status,
+        clearQueuedProviderFrameRequest(state, role);
+        provider.activeFrameToken = {};
+        recordTargetSpreadTerminal(viewport, role, admission.status,
             admission.reason, ImageViewportInternal::FailureScope::DisplayRequest,
             admission.diagnostic, changes);
         setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
@@ -381,89 +364,61 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     }
 
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-    viewportProviderState(viewport).activeFrameToken = {};
+    provider.activeFrameToken = {};
     const RequestStatusSnapshot oldRequestStatus = requestStatusSnapshot(viewport);
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    publishAcceptedTargetState(viewport, admission.preparedPayload);
-    if (hasSecondaryProviderSequence(viewport)
-        && viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
+    if (role == ImageViewport::PageRole::Secondary) {
+        pendingPayloadForRole(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary)
+            = admission.preparedPayload;
+        const bool primaryPayloadReady
+            = viewportDisplayState(viewport).pendingRenderPayload.commitPending
+            && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull();
         ImageViewportInternal::TargetSpreadWaitState waitState;
         waitState.requiresSecondary = true;
-        if (viewport.itemBounds().isEmpty()) {
+        if (primaryPayloadReady && viewport.itemBounds().isEmpty()) {
             waitState.primary.renderWaiting = true;
-        } else {
+            waitState.secondary.renderWaiting = true;
+        } else if (primaryPayloadReady) {
             waitState.primary.uploadPending = true;
+            waitState.secondary.uploadPending = true;
+        } else {
+            waitState.primary.providerWaiting = true;
+            waitState.secondary.uploadPending = true;
         }
-        waitState.secondary.providerWaiting = true;
         publishLoadingWaitState(viewport, waitState);
         viewportDisplayState(viewport).status
             = viewportDisplayState(viewport).displayedImageSize.isValid()
             ? ImageViewport::DisplayStatus::Retained
             : ImageViewport::DisplayStatus::Empty;
-    }
-    if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
-        && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready
-        && !viewportDisplayState(viewport).pendingRenderPayload.commitPending) {
-        setPlaybackPhase(viewport, changes,
-            viewportRequestState(viewport).stopPlaybackWhenRequestReady
-                ? ImageViewport::PlaybackPhase::Stopped
-                : ImageViewport::PlaybackPhase::Playing);
-        viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    }
-    changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
-    changes.displayRevision = true;
-    changes.requestState = true;
-    changes.displayState = true;
-    changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    changes.diagnostics = diagnosticsValueChanged;
-    changes.scheduleUpdate = true;
-    return changes;
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportController::handleSecondaryProviderFrameAdmission(
-    const FramePreparation::ProviderFrameAdmissionResult& admission)
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    if (!admission.accepted()) {
-        state.secondaryProvider.activeFrameToken = {};
-        recordTargetSpreadTerminal(viewport, ImageViewport::PageRole::Secondary, admission.status,
-            admission.reason, ImageViewportInternal::FailureScope::DisplayRequest,
-            admission.diagnostic, changes);
-        setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
-        return changes;
-    }
-
-    const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-    const RequestStatusSnapshot oldRequestStatus = requestStatusSnapshot(viewport);
-    const QRectF oldContentRect = viewport.contentRect();
-    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    pendingPayloadForRole(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary)
-        = admission.preparedPayload;
-    const bool primaryPayloadReady
-        = viewportDisplayState(viewport).pendingRenderPayload.commitPending
-        && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull();
-    ImageViewportInternal::TargetSpreadWaitState waitState;
-    waitState.requiresSecondary = true;
-    if (primaryPayloadReady && viewport.itemBounds().isEmpty()) {
-        waitState.primary.renderWaiting = true;
-        waitState.secondary.renderWaiting = true;
-    } else if (primaryPayloadReady) {
-        waitState.primary.uploadPending = true;
-        waitState.secondary.uploadPending = true;
     } else {
-        waitState.primary.providerWaiting = true;
-        waitState.secondary.uploadPending = true;
+        publishAcceptedTargetState(viewport, admission.preparedPayload);
+        if (hasSecondaryProviderSequence(viewport)
+            && viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
+            ImageViewportInternal::TargetSpreadWaitState waitState;
+            waitState.requiresSecondary = true;
+            if (viewport.itemBounds().isEmpty()) {
+                waitState.primary.renderWaiting = true;
+            } else {
+                waitState.primary.uploadPending = true;
+            }
+            waitState.secondary.providerWaiting = true;
+            publishLoadingWaitState(viewport, waitState);
+            viewportDisplayState(viewport).status
+                = viewportDisplayState(viewport).displayedImageSize.isValid()
+                ? ImageViewport::DisplayStatus::Retained
+                : ImageViewport::DisplayStatus::Empty;
+        }
+        if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
+            && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready
+            && !viewportDisplayState(viewport).pendingRenderPayload.commitPending) {
+            setPlaybackPhase(viewport, changes,
+                viewportRequestState(viewport).stopPlaybackWhenRequestReady
+                    ? ImageViewport::PlaybackPhase::Stopped
+                    : ImageViewport::PlaybackPhase::Playing);
+            viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+        }
     }
-    publishLoadingWaitState(viewport, waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
-
     changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
     changes.displayRevision = true;
     changes.requestState = true;
@@ -541,9 +496,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     ImageViewport::PageRole role, const ViewportProviderFrameTerminalResult& result)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    if (role == ImageViewport::PageRole::Primary) {
-        clearQueuedProviderFrameRequest(viewport);
-    }
+    clearQueuedProviderFrameRequest(state, role);
     providerGenerationStateForRole(state, role).activeFrameToken = {};
     recordTargetSpreadTerminal(viewport, role, result.status, result.reason,
         ImageViewportInternal::FailureScope::DisplayRequest,
@@ -563,9 +516,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
 {
     ImageViewportInternal::ViewportChangeSet changes;
     providerGenerationStateForRole(state, role).activeMetadataToken = {};
-    if (role == ImageViewport::PageRole::Primary) {
-        viewportRequestState(viewport).providerPlaybackStartPending = false;
-    }
+    viewportRequestState(viewport).providerPlaybackStartPending = false;
     recordTargetSpreadTerminal(viewport, role, result.status, result.reason,
         ImageViewportInternal::FailureScope::Generation,
         FramePreparation::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic), changes);
@@ -650,62 +601,61 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
     const ViewportProviderAcceptedMetadataFacts& facts)
 {
+    return handleProviderMetadataTargetPolicy(ImageViewport::PageRole::Primary, facts);
+}
+
+ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
+    ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
+{
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
         return {};
     }
 
-    const bool selectedFromPlaybackStart
-        = viewportRequestState(viewport).providerPlaybackStartPending
-        && viewportRequestState(viewport).activeRequest.target.providerTargetKind
-            == ImageViewportInternal::ProviderRequestTargetKind::Playback;
-    const bool selectedFromPosition
-        = viewportRequestState(viewport).activeRequest.target.providerTargetKind
-        == ImageViewportInternal::ProviderRequestTargetKind::Position;
-    ImageViewportInternal::ProviderRequestTargetKind requestTargetKind = selectedFromPlaybackStart
-        ? ImageViewportInternal::ProviderRequestTargetKind::Playback
-        : (selectedFromPosition ? ImageViewportInternal::ProviderRequestTargetKind::Position
-                                : ImageViewportInternal::ProviderRequestTargetKind::Frame);
-    int selectedFrame = viewportRequestState(viewport).activeRequest.target.frame >= 0
-        ? viewportRequestState(viewport).activeRequest.target.frame
-        : 0;
-    const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
-    if (selectedFromPlaybackStart
-        && (!facts.timedMetadata || !viewportProviderState(viewport).timedPlaybackSupport)) {
-        return { handleProviderMetadataTargetRejection(ImageViewport::PageRole::Primary,
-            { ImageViewport::RequestStatus::Unsupported,
-                ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true }) };
-    }
-    if (selectedFromPosition) {
-        if (!facts.timedMetadata || !viewportProviderState(viewport).positionSeekSupport) {
-            return { handleProviderMetadataTargetRejection(ImageViewport::PageRole::Primary,
-                { ImageViewport::RequestStatus::Unsupported,
-                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false }) };
-        }
-        selectedFrame = viewport.providerFrameIndexForPosition(
-            viewportRequestState(viewport).activeRequest.target.position);
-    }
-    if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
-        return { handleProviderMetadataTargetRejection(ImageViewport::PageRole::Primary,
-            { ImageViewport::RequestStatus::Unsupported,
-                ImageViewport::RequestReason::InvalidRequest, selectedFrame, true,
-                selectedFromPosition, false }) };
-    }
-
-    return handleProviderMetadataTargetSelection(
-        { requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata });
-}
-
-ViewportProviderMetadataTargetPolicyResult
-ViewportController::handleSecondaryProviderMetadataTargetPolicy(
-    const ViewportProviderAcceptedMetadataFacts& facts)
-{
-    ViewportProviderMetadataTargetPolicyResult result;
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
-        return result;
-    }
-
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
     const ImageViewportInternal::DisplayRequest& request
-        = viewportRequestState(viewport).secondaryActiveRequest;
+        = activeRequestForRole(viewportRequestState(viewport), role);
+    const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
+
+    if (role == ImageViewport::PageRole::Primary) {
+        const bool selectedFromPlaybackStart
+            = viewportRequestState(viewport).providerPlaybackStartPending
+            && request.target.providerTargetKind
+            == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+        const bool selectedFromPosition = request.target.providerTargetKind
+            == ImageViewportInternal::ProviderRequestTargetKind::Position;
+        ImageViewportInternal::ProviderRequestTargetKind requestTargetKind = selectedFromPlaybackStart
+            ? ImageViewportInternal::ProviderRequestTargetKind::Playback
+            : (selectedFromPosition ? ImageViewportInternal::ProviderRequestTargetKind::Position
+                                    : ImageViewportInternal::ProviderRequestTargetKind::Frame);
+        int selectedFrame = request.target.frame >= 0 ? request.target.frame : 0;
+        if (selectedFromPlaybackStart
+            && (!facts.timedMetadata || !provider.timedPlaybackSupport)) {
+            return { handleProviderMetadataTargetRejection(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true }) };
+        }
+        if (selectedFromPosition) {
+            if (!facts.timedMetadata || !provider.positionSeekSupport) {
+                return { handleProviderMetadataTargetRejection(role,
+                    { ImageViewport::RequestStatus::Unsupported,
+                        ImageViewport::RequestReason::UnsupportedRequest, -1, false, false,
+                        false }) };
+            }
+            selectedFrame = facts.timingIntervals.frameIndexForPosition(request.target.position);
+        }
+        if (selectedFrame < 0 || selectedFrame >= providerFrameCount) {
+            return { handleProviderMetadataTargetRejection(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, selectedFrame, true,
+                    selectedFromPosition, false }) };
+        }
+
+        return handleProviderMetadataTargetSelection(
+            { requestTargetKind, selectedFrame, selectedFromPosition, facts.timedMetadata });
+    }
+
+    ViewportProviderMetadataTargetPolicyResult result;
     const bool currentIdentity = request.identity.id != 0
         && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
     if (!currentIdentity) {
@@ -721,9 +671,8 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
         };
     } else if (request.target.providerTargetKind
         == ImageViewportInternal::ProviderRequestTargetKind::Playback) {
-        if (!facts.timedMetadata || !state.secondaryProvider.timedPlaybackSupport) {
-            result.changes = handleProviderMetadataTargetRejection(
-                ImageViewport::PageRole::Secondary,
+        if (!facts.timedMetadata || !provider.timedPlaybackSupport) {
+            result.changes = handleProviderMetadataTargetRejection(role,
                 { ImageViewport::RequestStatus::Unsupported,
                     ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false });
             return result;
@@ -732,13 +681,11 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
         if (selectedFrame < 0) {
             selectedFrame = 0;
         }
-        const int providerFrameCount = facts.timingIntervals.frameCount();
         if (selectedFrame >= providerFrameCount) {
-            result.changes
-                = handleProviderMetadataTargetRejection(ImageViewport::PageRole::Secondary,
-                    { ImageViewport::RequestStatus::Unsupported,
-                        ImageViewport::RequestReason::InvalidRequest, selectedFrame, false, false,
-                        false });
+            result.changes = handleProviderMetadataTargetRejection(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, selectedFrame, false, false,
+                    false });
             return result;
         }
         target = {
@@ -748,37 +695,31 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
         };
     } else if (request.target.providerTargetKind
         == ImageViewportInternal::ProviderRequestTargetKind::Frame) {
-        const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
         if (request.target.frame < 0 || request.target.frame >= providerFrameCount) {
-            result.changes
-                = handleProviderMetadataTargetRejection(ImageViewport::PageRole::Secondary,
-                    { ImageViewport::RequestStatus::Unsupported,
-                        ImageViewport::RequestReason::InvalidRequest, request.target.frame, false,
-                        false, false });
+            result.changes = handleProviderMetadataTargetRejection(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, request.target.frame, false,
+                    false, false });
             return result;
         }
         target = {
             request.target.frame,
-            facts.timedMetadata ? facts.timingIntervals.frameStartPosition(request.target.frame)
-                                : -1,
+            facts.timedMetadata ? facts.timingIntervals.frameStartPosition(request.target.frame) : -1,
             ImageViewportInternal::ProviderRequestTargetKind::Frame,
         };
     } else if (request.target.providerTargetKind
         == ImageViewportInternal::ProviderRequestTargetKind::Position) {
-        if (!facts.timedMetadata || !state.secondaryProvider.positionSeekSupport) {
-            result.changes = handleProviderMetadataTargetRejection(
-                ImageViewport::PageRole::Secondary,
+        if (!facts.timedMetadata || !provider.positionSeekSupport) {
+            result.changes = handleProviderMetadataTargetRejection(role,
                 { ImageViewport::RequestStatus::Unsupported,
                     ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false });
             return result;
         }
-        const int selectedFrame
-            = facts.timingIntervals.frameIndexForPosition(request.target.position);
+        const int selectedFrame = facts.timingIntervals.frameIndexForPosition(request.target.position);
         if (selectedFrame < 0) {
-            result.changes
-                = handleProviderMetadataTargetRejection(ImageViewport::PageRole::Secondary,
-                    { ImageViewport::RequestStatus::Unsupported,
-                        ImageViewport::RequestReason::InvalidRequest, -1, false, false, false });
+            result.changes = handleProviderMetadataTargetRejection(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, -1, false, false, false });
             return result;
         }
         target = {
@@ -791,7 +732,7 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
     }
 
     const ViewportProviderFrameDispatchResult dispatch
-        = dispatchProviderFrameRequest(ImageViewport::PageRole::Secondary, { target });
+        = dispatchProviderFrameRequest(role, { target });
     result.providerFrameTransport = dispatch.transport;
     result.changes.requestRevision = true;
     result.changes.requestState = true;
@@ -854,56 +795,32 @@ ViewportController::handleProviderMetadataTargetSelection(
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
     const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
-        return {};
-    }
-
-    viewportProviderState(viewport).metadataReady = true;
-    viewportProviderState(viewport).timedMetadata = facts.timedMetadata;
-    viewportProviderState(viewport).timedPlaybackSupport = facts.timedPlaybackSupport;
-    viewportProviderState(viewport).frameSeekSupport = facts.frameSeekSupport;
-    viewportProviderState(viewport).positionSeekSupport = facts.positionSeekSupport;
-    viewportProviderState(viewport).logicalSize = facts.logicalSize;
-    viewportProviderState(viewport).timingIntervals = facts.timingIntervals;
-    viewportProviderState(viewport).authoredAnimationFacts = facts.authoredAnimationFacts;
-    return {};
+    return handleProviderAcceptedMetadataFacts(ImageViewport::PageRole::Primary, facts);
 }
 
-ViewportProviderMetadataEventAcceptance ViewportController::acceptSecondaryProviderMetadataEvent(
-    ViewportProviderMetadataEvent event)
-{
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
-        return {};
-    }
-    if (!state.secondaryProvider.session || !state.secondaryProvider.activeMetadataToken.isValid()
-        || event.token != state.secondaryProvider.activeMetadataToken) {
-        return {};
-    }
-
-    state.secondaryProvider.activeMetadataToken = {};
-    return { true };
-}
-
-ImageViewportInternal::ViewportChangeSet
-ViewportController::handleSecondaryProviderAcceptedMetadataFacts(
-    const ViewportProviderAcceptedMetadataFacts& facts)
+ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
+    ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
         return {};
     }
 
-    state.secondaryProvider.metadataReady = true;
-    state.secondaryProvider.timedMetadata = facts.timedMetadata;
-    state.secondaryProvider.timedPlaybackSupport = facts.timedPlaybackSupport;
-    state.secondaryProvider.frameSeekSupport = facts.frameSeekSupport;
-    state.secondaryProvider.positionSeekSupport = facts.positionSeekSupport;
-    state.secondaryProvider.logicalSize = facts.logicalSize;
-    state.secondaryProvider.timingIntervals = facts.timingIntervals;
-    state.secondaryProvider.authoredAnimationFacts = facts.authoredAnimationFacts;
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    provider.metadataReady = true;
+    provider.timedMetadata = facts.timedMetadata;
+    provider.timedPlaybackSupport = facts.timedPlaybackSupport;
+    provider.frameSeekSupport = facts.frameSeekSupport;
+    provider.positionSeekSupport = facts.positionSeekSupport;
+    provider.logicalSize = facts.logicalSize;
+    provider.timingIntervals = facts.timingIntervals;
+    provider.authoredAnimationFacts = facts.authoredAnimationFacts;
 
     ImageViewportInternal::ViewportChangeSet changes;
-    changes.requestRevision = true;
-    changes.requestState = true;
+    if (role == ImageViewport::PageRole::Secondary) {
+        changes.requestRevision = true;
+        changes.requestState = true;
+    }
     return changes;
 }
 
@@ -919,29 +836,9 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
         return {};
     }
-    if (role == ImageViewport::PageRole::Secondary) {
-        if (!hasSecondaryProviderSequence(viewport) || !state.secondaryProvider.session) {
-            return {};
-        }
-        if (event.progress
-            && (!std::isfinite(event.progressValue) || event.progressValue < 0.0
-                || event.progressValue > 1.0)) {
-            return {};
-        }
-
-        const bool activeMetadataToken = !state.secondaryProvider.metadataReady
-            && state.secondaryProvider.activeMetadataToken.isValid()
-            && event.token == state.secondaryProvider.activeMetadataToken;
-        const bool activeFrameToken
-            = activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token);
-        if (!activeMetadataToken && !activeFrameToken) {
-            return {};
-        }
-
-        return handleProviderWaiting();
-    }
-
-    if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session) {
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
         return {};
     }
     if (event.progress
@@ -950,9 +847,9 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
         return {};
     }
 
-    const bool activeMetadataToken = !viewportProviderState(viewport).metadataReady
-        && viewportProviderState(viewport).activeMetadataToken.isValid()
-        && event.token == viewportProviderState(viewport).activeMetadataToken;
+    const bool activeMetadataToken = !provider.metadataReady
+        && provider.activeMetadataToken.isValid()
+        && event.token == provider.activeMetadataToken;
     const bool activeFrameToken
         = activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token);
     if (!activeMetadataToken && !activeFrameToken) {
@@ -986,45 +883,15 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
     ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event)
 {
     const bool sealed = targetSpreadTerminalSealedForActiveRequest(viewport);
-    if (role == ImageViewport::PageRole::Secondary) {
-        if (!hasSecondaryProviderSequence(viewport) || !state.secondaryProvider.session) {
-            return {};
-        }
-
-        const bool activeMetadataToken = !state.secondaryProvider.metadataReady
-            && state.secondaryProvider.activeMetadataToken.isValid()
-            && event.token == state.secondaryProvider.activeMetadataToken;
-        const bool activeFrameToken
-            = activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token);
-        if (!activeMetadataToken && !activeFrameToken) {
-            return {};
-        }
-
-        if (sealed) {
-            return {};
-        }
-
-        if (activeMetadataToken || !state.secondaryProvider.metadataReady
-            || !state.secondaryProvider.timedMetadata
-            || !activeProviderFrameRequestIsPlayback(state, viewport, role)) {
-            ViewportProviderEndOfSequenceResult result;
-            result.changes = handleSecondaryProviderEndOfSequenceProtocolViolation(
-                { activeMetadataToken, activeFrameToken });
-            result.providerFrameTransport.closeSession = state.secondaryProvider.session != nullptr;
-            result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
-            return result;
-        }
-
-        return handleSecondaryProviderPlaybackEndOfSequence();
-    }
-
-    if (!viewport.hasProviderSequence() || !viewportProviderState(viewport).session) {
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
         return {};
     }
 
-    const bool activeMetadataToken = !viewportProviderState(viewport).metadataReady
-        && viewportProviderState(viewport).activeMetadataToken.isValid()
-        && event.token == viewportProviderState(viewport).activeMetadataToken;
+    const bool activeMetadataToken = !provider.metadataReady
+        && provider.activeMetadataToken.isValid()
+        && event.token == provider.activeMetadataToken;
     const bool activeFrameToken
         = activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token);
     if (!activeMetadataToken && !activeFrameToken) {
@@ -1035,57 +902,44 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
         return {};
     }
 
-    if (activeMetadataToken || !viewportProviderState(viewport).metadataReady
-        || !viewportProviderState(viewport).timedMetadata
-        || !activeProviderFrameRequestIsPlayback(viewport)) {
+    if (activeMetadataToken || !provider.metadataReady || !provider.timedMetadata
+        || !activeProviderFrameRequestIsPlayback(state, viewport, role)) {
         ViewportProviderEndOfSequenceResult result;
-        result.changes = handleProviderEndOfSequenceProtocolViolation(
+        result.changes = handleProviderEndOfSequenceProtocolViolation(role,
             { activeMetadataToken, activeFrameToken });
-        result.providerFrameTransport.closeSession
-            = viewportProviderState(viewport).session != nullptr;
-        result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+        result.providerFrameTransport.closeSession = provider.session != nullptr;
+        result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
         return result;
     }
 
-    return handleProviderPlaybackEndOfSequence();
+    return handleProviderPlaybackEndOfSequence(role);
 }
 
 ImageViewportInternal::ViewportChangeSet
 ViewportController::handleProviderEndOfSequenceProtocolViolation(
     ViewportProviderEndOfSequenceProtocolViolation violation)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
-    clearQueuedProviderFrameRequest(viewport);
-    if (violation.activeMetadataToken) {
-        viewportProviderState(viewport).activeMetadataToken = {};
-    }
-    if (violation.activeFrameToken) {
-        viewportProviderState(viewport).activeFrameToken = {};
-    }
-    viewportRequestState(viewport).providerPlaybackStartPending = false;
-    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    recordTargetSpreadTerminal(viewport, ImageViewport::PageRole::Primary,
-        ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::PayloadRejection,
-        violation.activeMetadataToken ? ImageViewportInternal::FailureScope::Generation
-                                      : ImageViewportInternal::FailureScope::DisplayRequest,
-        QStringLiteral("provider protocol violation"), changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
-    return changes;
+    return handleProviderEndOfSequenceProtocolViolation(
+        ImageViewport::PageRole::Primary, violation);
 }
 
 ImageViewportInternal::ViewportChangeSet
-ViewportController::handleSecondaryProviderEndOfSequenceProtocolViolation(
-    ViewportProviderEndOfSequenceProtocolViolation violation)
+ViewportController::handleProviderEndOfSequenceProtocolViolation(
+    ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation violation)
 {
     ImageViewportInternal::ViewportChangeSet changes;
+    clearQueuedProviderFrameRequest(state, role);
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
     if (violation.activeMetadataToken) {
-        state.secondaryProvider.activeMetadataToken = {};
+        provider.activeMetadataToken = {};
     }
     if (violation.activeFrameToken) {
-        state.secondaryProvider.activeFrameToken = {};
+        provider.activeFrameToken = {};
     }
+    viewportRequestState(viewport).providerPlaybackStartPending = false;
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    recordTargetSpreadTerminal(viewport, ImageViewport::PageRole::Secondary,
+    recordTargetSpreadTerminal(viewport, role,
         ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::PayloadRejection,
         violation.activeMetadataToken ? ImageViewportInternal::FailureScope::Generation
                                       : ImageViewportInternal::FailureScope::DisplayRequest,
@@ -1096,8 +950,16 @@ ViewportController::handleSecondaryProviderEndOfSequenceProtocolViolation(
 
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEndOfSequence()
 {
+    return handleProviderPlaybackEndOfSequence(ImageViewport::PageRole::Primary);
+}
+
+ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEndOfSequence(
+    ImageViewport::PageRole role)
+{
     ViewportProviderEndOfSequenceResult result;
-    viewportProviderState(viewport).activeFrameToken = {};
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    provider.activeFrameToken = {};
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
 
     int selectedFrame = 0;
@@ -1106,20 +968,33 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         viewportRequestState(viewport).playbackPosition = 0;
     } else {
-        selectedFrame = viewport.frameCount() - 1;
-        selectedPosition = viewport.providerFrameStartPosition(selectedFrame);
-        viewportRequestState(viewport).playbackPosition = viewport.totalDuration();
+        selectedFrame = provider.timingIntervals.frameCount() - 1;
+        selectedPosition = provider.timingIntervals.frameStartPosition(selectedFrame);
+        viewportRequestState(viewport).playbackPosition = provider.timingIntervals.totalDuration();
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = true;
     }
 
-    viewportRequestState(viewport).activeRequest.target.frame = selectedFrame;
-    viewportRequestState(viewport).activeRequest.target.position = selectedPosition;
-    viewportRequestState(viewport).activeRequest.resolvedFrame
-        = { selectedFrame, selectedPosition };
-    viewportRequestState(viewport).activeRequest.target.providerTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    const ImageViewportInternal::DisplayRequestTarget providerTarget {
+        selectedFrame,
+        selectedPosition,
+        ImageViewportInternal::ProviderRequestTargetKind::Playback,
+    };
+    if (role == ImageViewport::PageRole::Secondary) {
+        const ImageViewportInternal::DisplayRequest primaryRequest
+            = viewportRequestState(viewport).activeRequest;
+        beginAcceptedDisplayRequest(viewport,
+            ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
+            primaryRequest.resolvedFrame, false);
+        setSecondaryActiveRequest(
+            viewport, providerTarget, { selectedFrame, selectedPosition }, false);
+    } else {
+        viewportRequestState(viewport).activeRequest.target = providerTarget;
+        viewportRequestState(viewport).activeRequest.resolvedFrame
+            = { selectedFrame, selectedPosition };
+    }
 
-    if (!viewportRequestState(viewport).looping && viewport.hasReadyDisplay()
+    if (role == ImageViewport::PageRole::Primary && !viewportRequestState(viewport).looping
+        && viewport.hasReadyDisplay()
         && viewportDisplayState(viewport).displayedRequest.generation
             == viewportRequestState(viewport).sequenceGeneration
         && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.frame
@@ -1139,61 +1014,8 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     }
 
     publishProviderFrameLoadingState(viewport);
-    const ViewportProviderFrameRequestStartResult start
-        = startProviderFrameRequest({ viewportRequestState(viewport).activeRequest.target });
-    appendProviderFrameStartResult(result.providerFrameTransport, start);
-    if (!start.accepted) {
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = true;
-        return result;
-    }
-    setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Waiting);
-    result.changes.requestRevision = true;
-    result.changes.displayRevision = true;
-    result.changes.requestState = true;
-    result.changes.displayState = true;
-    result.changes.diagnostics = diagnosticsValueChanged;
-    result.changes.scheduleUpdate = true;
-    return result;
-}
-
-ViewportProviderEndOfSequenceResult
-ViewportController::handleSecondaryProviderPlaybackEndOfSequence()
-{
-    ViewportProviderEndOfSequenceResult result;
-    state.secondaryProvider.activeFrameToken = {};
-    const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-
-    int selectedFrame = 0;
-    int selectedPosition = 0;
-    if (viewportRequestState(viewport).looping) {
-        viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-        viewportRequestState(viewport).playbackPosition = 0;
-    } else {
-        selectedFrame = state.secondaryProvider.timingIntervals.frameCount() - 1;
-        selectedPosition
-            = state.secondaryProvider.timingIntervals.frameStartPosition(selectedFrame);
-        viewportRequestState(viewport).playbackPosition
-            = state.secondaryProvider.timingIntervals.totalDuration();
-        viewportRequestState(viewport).stopPlaybackWhenRequestReady = true;
-    }
-
-    const ImageViewportInternal::DisplayRequest primaryRequest
-        = viewportRequestState(viewport).activeRequest;
-    beginAcceptedDisplayRequest(viewport, ImageViewportInternal::DisplayRequestOrigin::Playback,
-        primaryRequest.target, primaryRequest.resolvedFrame, false);
-
-    const ImageViewportInternal::DisplayRequestTarget providerTarget {
-        selectedFrame,
-        selectedPosition,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback,
-    };
-    setSecondaryActiveRequest(viewport, providerTarget, { selectedFrame, selectedPosition }, false);
-
-    publishProviderFrameLoadingState(viewport);
     const ViewportProviderFrameDispatchResult dispatch
-        = dispatchProviderFrameRequest(ImageViewport::PageRole::Secondary, { providerTarget });
+        = dispatchProviderFrameRequest(role, { providerTarget });
     result.providerFrameTransport = dispatch.transport;
     if (!dispatch.accepted) {
         result.changes.requestRevision = true;
@@ -1222,15 +1044,9 @@ ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession(
     ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? closeSecondaryProviderSession()
-                                                      : closeProviderSession();
-}
-
-ViewportProviderFrameTransportEffect ViewportController::closeSecondaryProviderSession()
-{
     ViewportProviderFrameTransportEffect effect;
-    effect.closeSession = state.secondaryProvider.session != nullptr;
-    effect.sessionClose = handleProviderSessionClose(ImageViewport::PageRole::Secondary);
+    effect.closeSession = providerGenerationStateForRole(state, role).session != nullptr;
+    effect.sessionClose = handleProviderSessionClose(role);
     return effect;
 }
 
@@ -1245,9 +1061,7 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
     ViewportProviderSessionClose sessionClose;
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
-    if (role == ImageViewport::PageRole::Primary) {
-        clearQueuedProviderFrameRequest(viewport);
-    }
+    clearQueuedProviderFrameRequest(state, role);
     if (!provider.session) {
         return sessionClose;
     }
@@ -1258,11 +1072,6 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
     provider.activeFrameToken = {};
     provider.nextRequestToken = 0;
     return sessionClose;
-}
-
-ViewportProviderSessionClose ViewportController::handleSecondaryProviderSessionClose()
-{
-    return handleProviderSessionClose(ImageViewport::PageRole::Secondary);
 }
 
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken()
@@ -1287,11 +1096,6 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
     return allocation;
 }
 
-ViewportProviderRequestTokenAllocation ViewportController::allocateSecondaryProviderRequestToken()
-{
-    return allocateProviderRequestToken(ImageViewport::PageRole::Secondary);
-}
-
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest()
 {
     return startProviderMetadataRequest(ImageViewport::PageRole::Primary);
@@ -1308,35 +1112,13 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
     result.sessionClose = allocation.sessionClose;
     provider.activeMetadataToken = allocation.token;
     if (!provider.activeMetadataToken.isValid()) {
-        publishProviderTokenExhaustion(viewport);
+        publishProviderTokenExhaustion(viewport, state, role);
         return result;
     }
 
     result.sendCommand = provider.session != nullptr;
     result.token = provider.activeMetadataToken;
     return result;
-}
-
-ViewportProviderMetadataRequestStartResult
-ViewportController::startSecondaryProviderMetadataRequest()
-{
-    return startProviderMetadataRequest(ImageViewport::PageRole::Secondary);
-}
-
-ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProviderFrameRequest(
-    int frame)
-{
-    const int position = state.secondaryProvider.timedMetadata
-        ? state.secondaryProvider.timingIntervals.frameStartPosition(frame)
-        : -1;
-    return startSecondaryProviderFrameRequest(
-        { frame, position, ImageViewportInternal::ProviderRequestTargetKind::Frame });
-}
-
-ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProviderFrameRequest(
-    ImageViewportInternal::DisplayRequestTarget target)
-{
-    return startProviderFrameRequest(ImageViewport::PageRole::Secondary, { target });
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(

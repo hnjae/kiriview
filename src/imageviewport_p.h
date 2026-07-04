@@ -233,24 +233,19 @@ public:
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(
-        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
-    void handleSecondaryProviderMetadataReady(
-        ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata);
-    void handleSecondaryProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageFrame* frame);
-    void handleSecondaryProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
-    void handleSecondaryProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
-    void handleSecondaryProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
-    void handleProviderFrameReady(ImageSequenceProviderRequestToken token, ImageFrame* frame);
-    void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata);
+        PageRole role, ImageSequenceProviderRequestToken token,
+        const ImageSequenceProviderMetadata& metadata);
     void handleProviderFrameReady(
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame);
-    void handleProviderFrameReadyWithMetadata(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata);
+        PageRole role, ImageSequenceProviderRequestToken token, ImageFrame* frame);
+    void handleProviderFrameReadyWithMetadata(PageRole role,
+        ImageSequenceProviderRequestToken token, ImageFrame* frame,
+        ImageSequenceProviderFrameMetadata metadata);
+    void handleProviderFrameReady(
+        PageRole role, ImageSequenceProviderRequestToken token,
+        ImageSequenceProviderFrameHandle* frame);
+    void handleProviderFrameReadyWithMetadata(PageRole role,
+        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame,
+        ImageSequenceProviderFrameMetadata metadata);
     void handleProviderWaiting(ImageSequenceProviderRequestToken token);
     void handleProviderWaiting(PageRole role, ImageSequenceProviderRequestToken token);
     void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);

@@ -162,6 +162,7 @@ private slots:
     void metadataReadyEventAppliesAdmissionAndTargetPolicy();
     void secondaryMetadataReadyEventUsesSameShape();
     void queuedProviderFlushReturnsChangesAndTransport();
+    void secondaryProviderCloseClearsQueuedFrameRequest();
     void providerFrameEventsRejectStaleTokensByRole_data();
     void providerFrameEventsRejectStaleTokensByRole();
     void providerTerminalEventsCloseMetadataGenerationByRole_data();
@@ -509,6 +510,55 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
         = controller.flushQueuedProviderFrameRequestEvent();
     QCOMPARE(stale.changes.requestState, false);
     QCOMPARE(stale.providerFrameTransport.sendCommand, false);
+}
+
+void ViewportControllerProviderTest::secondaryProviderCloseClearsQueuedFrameRequest()
+{
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
+    QVERIFY(primary);
+    QVERIFY(secondary);
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primary->sequence();
+    assignment.secondarySequence = secondary->sequence();
+    assignment.secondarySource.present = true;
+    assignment.secondarySource.provider = true;
+    controller.assignSequence(assignment);
+
+    StubProviderSession session;
+    controller.installProviderSession(ImageViewport::PageRole::Secondary, &session);
+    const ViewportProviderSessionOpenResult opened
+        = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
+    const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
+    QVERIFY(metadataToken.isValid());
+
+    const ViewportProviderMetadataReadyResult metadataReady
+        = controller.handleProviderMetadataReadyEvent(ImageViewport::PageRole::Secondary,
+            { metadataToken,
+                ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 100 }) });
+    const ImageSequenceProviderRequestToken activeFrameToken
+        = metadataReady.providerFrameTransport.command.token;
+    QVERIFY(activeFrameToken.isValid());
+
+    const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Secondary, 1);
+    QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(seek.secondaryProviderFrameTransport.cancelToken, activeFrameToken);
+    QCOMPARE(seek.secondaryProviderFrameTransport.deferredControllerEvent,
+        ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest);
+    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RequestQueued);
+
+    const ViewportProviderFrameTransportEffect close
+        = controller.closeProviderSession(ImageViewport::PageRole::Secondary);
+    QCOMPARE(close.closeSession, true);
+
+    const ViewportProviderFrameQueueFlushResult flush
+        = controller.flushQueuedProviderFrameRequestEvent(ImageViewport::PageRole::Secondary);
+    QCOMPARE(flush.providerFrameTransport.sendCommand, false);
+    QCOMPARE(flush.changes.requestState, false);
 }
 
 void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole_data()
@@ -977,10 +1027,13 @@ void ViewportControllerProviderTest::
         = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
-    QCOMPARE(controller.acceptSecondaryProviderMetadataEvent({ metadataToken }).accepted, true);
+    QCOMPARE(controller
+            .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
+            .accepted,
+        true);
 
     const ViewportProviderMetadataAdmissionResult admission
-        = controller.handleSecondaryProviderMetadataAdmission(
+        = controller.handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary,
             ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
     QCOMPARE(admission.accepted, false);
     QCOMPARE(admission.providerFrameTransport.closeSession, true);
@@ -1021,14 +1074,19 @@ void ViewportControllerProviderTest::
         ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek);
     QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
 
-    QCOMPARE(controller.acceptSecondaryProviderMetadataEvent({ metadataToken }).accepted, true);
+    QCOMPARE(controller
+            .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
+            .accepted,
+        true);
     const ViewportProviderMetadataAdmissionResult admission
-        = controller.handleSecondaryProviderMetadataAdmission(
+        = controller.handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary,
             ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QCOMPARE(admission.accepted, true);
-    controller.handleSecondaryProviderAcceptedMetadataFacts(admission.facts);
+    controller.handleProviderAcceptedMetadataFacts(
+        ImageViewport::PageRole::Secondary, admission.facts);
     const ViewportProviderMetadataTargetPolicyResult targetPolicy
-        = controller.handleSecondaryProviderMetadataTargetPolicy(admission.facts);
+        = controller.handleProviderMetadataTargetPolicy(
+            ImageViewport::PageRole::Secondary, admission.facts);
     QCOMPARE(targetPolicy.providerFrameTransport.sendCommand, false);
     QCOMPARE(controller.secondaryProviderMetadataReady(), true);
     QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);

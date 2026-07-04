@@ -16,7 +16,7 @@ ImageViewportPrivate::~ImageViewportPrivate()
     stopPlaybackTimer();
     applyProviderFrameTransportEffect(controller.closeProviderSession());
     applyProviderFrameTransportEffect(
-        controller.closeSecondaryProviderSession(), PageRole::Secondary);
+        controller.closeProviderSession(PageRole::Secondary), PageRole::Secondary);
 }
 
 double ImageViewportPrivate::width() const { return q->width(); }
