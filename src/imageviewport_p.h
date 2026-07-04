@@ -189,13 +189,9 @@ public:
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
     QRectF currentContentRect() const;
-    QRectF contentRectForImageSize(QSizeF imageSize) const;
-    QRectF visibleImageRectForImageSize(QSizeF imageSize) const;
     QRectF itemBounds() const override;
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
-    QSizeF currentImageSize() const;
-    QSizeF secondaryLogicalSize() const;
 
     QSGNode* updatePaintNode(QSGNode* oldNode);
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
@@ -301,6 +297,7 @@ public:
     ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override;
     QSizeF sequenceLogicalSize() const override;
+    QSizeF secondarySequenceLogicalSize() const override;
     QImage sequenceFrameImage(int frame) const override;
 
     double width() const override;

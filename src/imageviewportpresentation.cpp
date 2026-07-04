@@ -19,51 +19,16 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
     return window ? window->effectiveDevicePixelRatio() : 1.0;
 }
 
-QSizeF secondaryImageSize(const ImageViewportPrivate& viewport)
-{
-    return viewport.secondaryLogicalSize();
-}
-
 PresentationGeometry::State geometryState(const ImageViewportPrivate& viewport)
 {
-    const ImageViewportInternal::PresentationState& presentation
-        = viewport.controller.presentationState();
-    return {
-        viewport.hasReadyDisplay(),
-        viewport.itemBounds(),
-        viewport.currentImageSize(),
-        secondaryImageSize(viewport),
-        presentation.pageGap,
-        presentation.spreadDirection,
-        presentation.fitMode,
-        presentation.fillMode,
-        presentation.horizontalAlignment,
-        presentation.verticalAlignment,
-        presentation.rotationDegrees,
-        presentation.mirrorHorizontally,
-        presentation.mirrorVertically,
-        presentation.zoom,
-        effectiveDevicePixelRatio(viewport),
-        presentation.pan,
-    };
+    return viewport.controller.geometryState(effectiveDevicePixelRatio(viewport));
 }
 
 PresentationGeometry::State geometryStateForItemBounds(
     const ImageViewportPrivate& viewport, const QRectF& bounds)
 {
-    PresentationGeometry::State state = geometryState(viewport);
-    state.itemBounds = bounds;
-    return state;
-}
-
-PresentationGeometry::State geometryStateForImageSize(
-    const ImageViewportPrivate& viewport, QSizeF imageSize)
-{
-    PresentationGeometry::State state = geometryState(viewport);
-    state.hasReadyDisplay = !imageSize.isEmpty();
-    state.primaryImageSize = imageSize;
-    state.secondaryImageSize = {};
-    return state;
+    return viewport.controller.geometryStateForItemBounds(
+        bounds, effectiveDevicePixelRatio(viewport));
 }
 
 QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
@@ -165,16 +130,6 @@ QPointF ImageViewportPrivate::maximumContentPosition() const
 bool ImageViewportPrivate::horizontalPannable() const { return maximumContentPosition().x() > 0.0; }
 
 bool ImageViewportPrivate::verticalPannable() const { return maximumContentPosition().y() > 0.0; }
-
-QRectF ImageViewportPrivate::contentRectForImageSize(QSizeF imageSize) const
-{
-    return PresentationGeometry::contentRect(geometryStateForImageSize(*this, imageSize));
-}
-
-QRectF ImageViewportPrivate::visibleImageRectForImageSize(QSizeF imageSize) const
-{
-    return PresentationGeometry::visibleImageRect(geometryStateForImageSize(*this, imageSize));
-}
 
 ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
 {
@@ -444,13 +399,4 @@ QRectF ImageViewportPrivate::contentRectForItemBounds(const QRectF& bounds) cons
 QRectF ImageViewportPrivate::visibleImageRectForItemBounds(const QRectF& bounds) const
 {
     return PresentationGeometry::visibleImageRect(geometryStateForItemBounds(*this, bounds));
-}
-
-QSizeF ImageViewportPrivate::currentImageSize() const
-{
-    if (!hasReadyDisplay()) {
-        return {};
-    }
-
-    return controller.displayState().displayedImageSize;
 }

@@ -167,6 +167,13 @@ QSizeF ImageViewportPrivate::sequenceLogicalSize() const
                                               : QSizeF {};
 }
 
+QSizeF ImageViewportPrivate::secondarySequenceLogicalSize() const
+{
+    return controller.requestState().secondarySequence
+        ? controller.requestState().secondarySequence->logicalSize()
+        : QSizeF {};
+}
+
 QImage ImageViewportPrivate::sequenceFrameImage(int frame) const
 {
     return controller.requestState().sequence

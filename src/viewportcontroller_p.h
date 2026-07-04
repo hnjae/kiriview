@@ -3,6 +3,7 @@
 #include "framepreparation_p.h"
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
+#include "presentationgeometry_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -26,6 +27,7 @@ struct ViewportRenderSynchronization
     ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;
+    PresentationGeometry::State geometryState;
 };
 
 struct ViewportProviderFrameTerminalResult
@@ -366,6 +368,7 @@ public:
     virtual ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
     virtual ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
     virtual QSizeF sequenceLogicalSize() const;
+    virtual QSizeF secondarySequenceLogicalSize() const;
     virtual QImage sequenceFrameImage(int frame) const;
     virtual double width() const;
     virtual double height() const;
@@ -383,6 +386,8 @@ public:
     const ImageViewportInternal::RequestState& requestState() const;
     ImageViewportInternal::ProviderGenerationState& providerState();
     const ImageViewportInternal::ProviderGenerationState& providerState() const;
+    ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
+    const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
 
     QRectF contentRect() const;
     QRectF visibleImageRect() const;
@@ -428,6 +433,7 @@ public:
     ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
     ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
     QSizeF sequenceLogicalSize() const;
+    QSizeF secondarySequenceLogicalSize() const;
     QImage sequenceFrameImage(int frame) const;
     double width() const;
     double height() const;
@@ -468,6 +474,9 @@ public:
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     bool looping() const;
+    PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;
+    PresentationGeometry::State geometryStateForItemBounds(
+        const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
     ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
     void incrementDisplayRevision();
     void incrementRequestRevision();
@@ -590,7 +599,7 @@ public:
         ViewportProviderFrameRequestStart request);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
-    ViewportRenderSynchronization beginRenderSynchronization();
+    ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
         ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
         const ViewportRenderSynchronization& synchronization);

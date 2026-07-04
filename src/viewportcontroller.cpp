@@ -140,6 +140,8 @@ ViewportControllerContext::secondaryProviderPositionSeekCapability() const
 
 QSizeF ViewportControllerContext::sequenceLogicalSize() const { return {}; }
 
+QSizeF ViewportControllerContext::secondarySequenceLogicalSize() const { return {}; }
+
 QImage ViewportControllerContext::sequenceFrameImage(int) const { return {}; }
 
 double ViewportControllerContext::width() const { return 0.0; }
@@ -181,6 +183,17 @@ ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::provider
 const ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::providerState() const
 {
     return state.provider;
+}
+
+ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::secondaryProviderState()
+{
+    return state.secondaryProvider;
+}
+
+const ImageViewportInternal::ProviderGenerationState&
+ViewportControllerPort::secondaryProviderState() const
+{
+    return state.secondaryProvider;
 }
 
 QRectF ViewportControllerPort::contentRect() const { return context.contentRect(); }
@@ -376,6 +389,11 @@ ViewportControllerPort::secondaryProviderPositionSeekCapability() const
 
 QSizeF ViewportControllerPort::sequenceLogicalSize() const { return context.sequenceLogicalSize(); }
 
+QSizeF ViewportControllerPort::secondarySequenceLogicalSize() const
+{
+    return context.secondarySequenceLogicalSize();
+}
+
 QImage ViewportControllerPort::sequenceFrameImage(int frame) const
 {
     return context.sequenceFrameImage(frame);
@@ -477,14 +495,93 @@ std::optional<ControllerTransitionPolicy> normalizeControllerTransitionPolicy(
     return normalized;
 }
 
-PresentationGeometry::State controllerGeometryState(
-    ViewportControllerPort& viewport, const ImageViewportInternal::PresentationState& presentation)
+bool isPositiveGeometrySize(QSizeF size)
 {
+    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+}
+
+QSizeF imageLogicalSize(const QImage& image)
+{
+    return image.isNull() ? QSizeF() : image.deviceIndependentSize();
+}
+
+enum class GeometryProjectionTarget {
+    CurrentDisplay,
+    PendingRender,
+};
+
+QSizeF displayedPrimaryGeometrySize(ViewportControllerPort viewport)
+{
+    const auto& display = viewportDisplayState(viewport);
+    if (!display.hasReadyDisplay(viewport.hasDisplayableSequence())) {
+        return {};
+    }
+    return display.displayedImageSize;
+}
+
+QSizeF displayedSecondaryGeometrySize(ViewportControllerPort viewport)
+{
+    const auto& display = viewportDisplayState(viewport);
+    if (!display.hasReadyDisplay(viewport.hasDisplayableSequence())) {
+        return {};
+    }
+    return display.secondaryDisplayedImageSize;
+}
+
+QSizeF pendingPrimaryGeometrySize(ViewportControllerPort viewport)
+{
+    const auto& display = viewportDisplayState(viewport);
+    if (viewport.hasProviderSequence()
+        && isPositiveGeometrySize(viewportProviderState(viewport).logicalSize)) {
+        return viewportProviderState(viewport).logicalSize;
+    }
+    const QSizeF pendingSize = imageLogicalSize(display.pendingRenderPayload.image);
+    if (isPositiveGeometrySize(pendingSize)) {
+        return pendingSize;
+    }
+    return displayedPrimaryGeometrySize(viewport);
+}
+
+QSizeF pendingSecondaryGeometrySize(ViewportControllerPort viewport)
+{
+    const auto& request = viewportRequestState(viewport);
+    if (!request.secondarySequence || request.secondaryActiveRequest.target.frame < 0) {
+        return {};
+    }
+
+    const auto& display = viewportDisplayState(viewport);
+    if (request.secondarySequenceIsProvider) {
+        if (isPositiveGeometrySize(viewport.secondaryProviderState().logicalSize)) {
+            return viewport.secondaryProviderState().logicalSize;
+        }
+        const QSizeF pendingSize = imageLogicalSize(display.secondaryPendingRenderPayload.image);
+        return isPositiveGeometrySize(pendingSize) ? pendingSize
+                                                  : displayedSecondaryGeometrySize(viewport);
+    }
+
+    const QSizeF sequenceSize = viewport.secondarySequenceLogicalSize();
+    return isPositiveGeometrySize(sequenceSize) ? sequenceSize
+                                                : displayedSecondaryGeometrySize(viewport);
+}
+
+PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewport,
+    const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
+    std::optional<QRectF> itemBounds = std::nullopt,
+    GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay)
+{
+    const QRectF bounds = itemBounds ? *itemBounds : viewport.itemBounds();
+    QSizeF primarySize = displayedPrimaryGeometrySize(viewport);
+    QSizeF secondarySize = displayedSecondaryGeometrySize(viewport);
+    if (target == GeometryProjectionTarget::PendingRender) {
+        primarySize = pendingPrimaryGeometrySize(viewport);
+        secondarySize = pendingSecondaryGeometrySize(viewport);
+    }
+
     return {
-        viewport.hasReadyDisplay(),
-        viewport.itemBounds(),
-        viewport.sequenceLogicalSize(),
-        {},
+        isPositiveGeometrySize(primarySize),
+        bounds,
+        primarySize,
+        secondarySize,
         presentation.pageGap,
         presentation.spreadDirection,
         presentation.fitMode,
@@ -495,7 +592,7 @@ PresentationGeometry::State controllerGeometryState(
         presentation.mirrorHorizontally,
         presentation.mirrorVertically,
         presentation.zoom,
-        1.0,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
         presentation.pan,
     };
 }
@@ -1108,6 +1205,8 @@ void publishSecondaryDisplayedRequest(ViewportControllerPort& viewport)
 {
     if (!hasSecondarySequence(viewport)) {
         viewportDisplayState(viewport).secondaryDisplayedRequest = {};
+        viewportDisplayState(viewport).secondaryDisplayedImageSize = {};
+        viewportDisplayState(viewport).secondaryDisplayedImage = {};
         return;
     }
 
@@ -1119,6 +1218,10 @@ void publishSecondaryDisplayedRequest(ViewportControllerPort& viewport)
     snapshot.request.target.position = displayedPosition;
     snapshot.request.resolvedFrame.position = displayedPosition;
     viewportDisplayState(viewport).secondaryDisplayedRequest = snapshot;
+    viewportDisplayState(viewport).secondaryDisplayedImageSize
+        = viewportRequestState(viewport).secondarySequenceIsProvider
+        ? viewport.secondaryProviderState().logicalSize
+        : viewport.secondarySequenceLogicalSize();
 }
 
 void stageBuiltInPrimarySpreadPayload(ViewportControllerPort& viewport)
@@ -1838,6 +1941,18 @@ int ViewportController::providerFrameIndexForPosition(int position) const
 }
 
 bool ViewportController::looping() const { return state.request.looping; }
+
+PresentationGeometry::State ViewportController::geometryState(double devicePixelRatio) const
+{
+    return controllerGeometryState(viewport, state.presentation, devicePixelRatio);
+}
+
+PresentationGeometry::State ViewportController::geometryStateForItemBounds(
+    const QRectF& itemBounds, double devicePixelRatio) const
+{
+    return controllerGeometryState(
+        viewport, state.presentation, devicePixelRatio, itemBounds);
+}
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool looping)
 {
@@ -4663,7 +4778,7 @@ ViewportProviderFrameDispatchResult ViewportController::dispatchProviderFrameReq
     return result;
 }
 
-ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
+ViewportRenderSynchronization ViewportController::beginRenderSynchronization(double devicePixelRatio)
 {
     ViewportRenderSynchronization synchronization;
     synchronization.pendingSecondaryCommit
@@ -4690,6 +4805,11 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization()
         synchronization.preparedPayload = viewportDisplayState(viewport).pendingRenderPayload;
         synchronization.preparedPayload.image = viewportDisplayState(viewport).displayedImage;
     }
+    synchronization.geometryState = controllerGeometryState(viewport, state.presentation,
+        devicePixelRatio, std::nullopt,
+        synchronization.pendingProviderCommit || synchronization.pendingSecondaryCommit
+            ? GeometryProjectionTarget::PendingRender
+            : GeometryProjectionTarget::CurrentDisplay);
     return synchronization;
 }
 

@@ -782,24 +782,8 @@ QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const
         return QSizeF(0.0, 0.0);
     }
 
-    const QSizeF size = secondaryLogicalSize();
+    const QSizeF size = controller.displayState().secondaryDisplayedImageSize;
     return isPositiveSize(size) ? size : QSizeF(0.0, 0.0);
-}
-
-QSizeF ImageViewportPrivate::secondaryLogicalSize() const
-{
-    ImageSequence* sequence = secondarySequence();
-    if (!sequence || !sequence->isValid()) {
-        return {};
-    }
-    if (sequence->isProvider() && controller.secondaryProviderMetadataReady()) {
-        return controller.secondaryProviderLogicalSize();
-    }
-    if (!sequence->isProvider()) {
-        return sequence->logicalSize();
-    }
-
-    return {};
 }
 
 RevisionToken ImageViewportPrivate::displayRevision() const

@@ -747,16 +747,16 @@ Geometry has multiple runtime authorities; render path rebuilds target spread de
 
 #### Tasks
 
-- [ ] Add characterization tests for two-page geometry with secondary page, non-zero page gap, both spread directions, manual zoom, pan or scan, rotation or mirror where practical, and non-positive item geometry.
-- [ ] Add DPR characterization if a stable test hook exists; otherwise update `Deferred / Needs Investigation` with the blocked behavior, missing hook, dependent acceptance criterion, and exit criterion.
-- [ ] Identify every production path constructing `PresentationGeometry::State` and classify whether it is controller command logic, public getter projection, or render synchronization.
-- [ ] Add a controller-owned geometry snapshot type or extend existing controller output types to carry canonical geometry projection.
-- [ ] Include secondary role size and placement in the snapshot for accepted ready display, retained display, and pending render target spreads.
-- [ ] Include effective device pixel ratio in the snapshot according to the physical-pixel-aware zoom contract.
-- [ ] Route public geometry getters in `imageviewportpresentation.cpp` to use the controller-authored snapshot instead of reconstructing state from current image/provider sizes.
-- [ ] Route render synchronization to carry the same snapshot to `imageviewportrender.cpp`.
-- [ ] Preserve non-positive item geometry behavior: ready accepted requests may remain ready while presentable rectangles and coordinate conversion report unavailable; pending new requests remain render waiting until positive geometry.
-- [ ] Remove or isolate duplicate geometry reconstruction paths once tests prove public and render geometry agree.
+- [x] Add characterization tests for two-page geometry with secondary page, non-zero page gap, both spread directions, manual zoom, pan or scan, rotation or mirror where practical, and non-positive item geometry.
+- [x] Add DPR characterization if a stable test hook exists; otherwise update `Deferred / Needs Investigation` with the blocked behavior, missing hook, dependent acceptance criterion, and exit criterion.
+- [x] Identify every production path constructing `PresentationGeometry::State` and classify whether it is controller command logic, public getter projection, or render synchronization.
+- [x] Add a controller-owned geometry snapshot type or extend existing controller output types to carry canonical geometry projection.
+- [x] Include secondary role size and placement in the snapshot for accepted ready display, retained display, and pending render target spreads.
+- [x] Include effective device pixel ratio in the snapshot according to the physical-pixel-aware zoom contract.
+- [x] Route public geometry getters in `imageviewportpresentation.cpp` to use the controller-authored snapshot instead of reconstructing state from current image/provider sizes.
+- [x] Route render synchronization to carry the same snapshot to `imageviewportrender.cpp`.
+- [x] Preserve non-positive item geometry behavior: ready accepted requests may remain ready while presentable rectangles and coordinate conversion report unavailable; pending new requests remain render waiting until positive geometry.
+- [x] Remove or isolate duplicate geometry reconstruction paths once tests prove public and render geometry agree.
 
 #### Acceptance criteria
 
@@ -772,6 +772,16 @@ Geometry has multiple runtime authorities; render path rebuilds target spread de
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$'`
 - `ctest --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04 by moving canonical `PresentationGeometry::State` construction into `ViewportController`, routing public presentation getters through `ViewportController::geometryState(...)`, and carrying the same projection through `ViewportRenderSynchronization` for render target/source rectangle mapping.
+- Characterization added two-page manual pan, rotated right-to-left manual pan, non-positive item geometry, and retained two-page display coverage in `imageviewport_presentation_state`.
+- Production construction paths after the refactor: controller command logic uses the controller projection helper; public getter projection adapts `ViewportController::geometryState(...)`; render synchronization stores the controller-authored `PresentationGeometry::State` snapshot for the render attempt. The remaining item-side helpers only adapt that state to public values.
+- DPR characterization remains deferred because the repository still lacks a stable effective-DPR test hook; the controller snapshot now carries the effective DPR supplied by item/render callers.
+- Focused filter selection passed: `ctest -N --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$'` selected 4 tests.
+- Focused verification passed: `ctest --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$' --output-on-failure`, 4/4 tests.
+- Full verification passed: `ctest --test-dir build --output-on-failure`, 20/20 tests.
 
 #### Risks / notes
 
@@ -991,7 +1001,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 - Direct controller-level provider harness feasibility. Blocked behavior: role-symmetric provider metadata, token, terminal, cancellation, overflow, and stale-result policy refactors. Missing evidence: a safe test seam that feeds normalized provider events and observes transport effects without full `ImageViewport`/Qt event delivery. Dependent milestones: 5, 6, 7, and 8. Exit criterion: controller harness tests cover token scope and stale-result rejection for both roles, or this plan is amended with a concrete alternative before provider-policy refactors proceed.
 - Provider command delivery failure simulation. Blocked behavior: classifying null/destroyed session and failed queued invocation as `ProviderFailure`. Missing evidence: the least invasive bridge test hook to simulate failed delivery without public API changes. Dependent milestone: 5. Exit criterion: focused tests can simulate null session and failed `invokeMethod`/delivery and observe terminal `Error` with `ProviderFailure`.
-- Device-pixel-ratio characterization for two-page spreads. Blocked behavior: final proof that physical-pixel-aware zoom geometry agrees between controller, public getters, and render for non-1 DPR. Missing evidence: a stable Qt offscreen-window or test hook for effective DPR. Dependent milestone: 9. Exit criterion: reliable DPR test exists, or the plan is amended to add a narrow internal test seam for DPR input.
+- Device-pixel-ratio characterization for two-page spreads. Blocked behavior: final proof that physical-pixel-aware zoom geometry agrees between controller, public getters, and render for non-1 DPR. Missing evidence: a stable Qt offscreen-window or test hook for effective DPR. Dependent milestone: 9. M9 narrowed implementation and tests to DPR-independent geometry while carrying effective DPR through the controller snapshot. Exit criterion: reliable DPR test exists, or the plan is amended to add a narrow internal test seam for DPR input.
 - Complete-role render acknowledgement characterization. Blocked behavior: safe implementation of complete spread acknowledgement identity. Missing evidence: focused failing test or trace for stale secondary acknowledgement, secondary-layer render failure, or partial-spread commit risk. Dependent milestone: 11. Exit criterion: characterization exists before acknowledgement logic changes; implementation remains required because architecture requires complete-role acknowledgement.
 
 ## Suggested `/goal` Execution Order
@@ -1004,7 +1014,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - [x] Milestone 6: Role-Indexed Provider State And Shared Metadata Admission
 - [x] Milestone 7: Role-Symmetric Explicit Provider Requests
 - [x] Milestone 8: Role-Symmetric Provider Playback And Terminal Lifecycle
-- [ ] Milestone 9: Controller-Authored Geometry Projection
+- [x] Milestone 9: Controller-Authored Geometry Projection
 - [ ] Milestone 10: Immutable Render Snapshot
 - [ ] Milestone 11: Complete-Role Spread Render Acknowledgement
 - [ ] Milestone 12: Controller Boundary Decoupling And Layered Tests
