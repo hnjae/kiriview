@@ -571,6 +571,37 @@ QSizeF pendingSecondaryGeometrySize(ViewportControllerPort viewport)
                                                 : displayedSecondaryGeometrySize(viewport);
 }
 
+QSizeF acceptedPrimaryGeometrySize(ViewportControllerPort viewport)
+{
+    if (viewport.hasProviderSequence()) {
+        return isPositiveGeometrySize(viewportProviderState(viewport).logicalSize)
+            ? viewportProviderState(viewport).logicalSize
+            : QSizeF {};
+    }
+
+    const QSizeF sequenceSize = viewport.sequenceLogicalSize();
+    return isPositiveGeometrySize(sequenceSize) ? sequenceSize : QSizeF {};
+}
+
+QSizeF acceptedSecondaryGeometrySize(ViewportControllerPort viewport)
+{
+    const auto& request = viewportRequestState(viewport);
+    if (!request.secondarySequence) {
+        return {};
+    }
+    if (request.secondarySequenceIsProvider) {
+        return isPositiveGeometrySize(viewport.secondaryProviderState().logicalSize)
+            ? viewport.secondaryProviderState().logicalSize
+            : QSizeF {};
+    }
+    if (request.secondaryActiveRequest.target.frame < 0) {
+        return {};
+    }
+
+    const QSizeF sequenceSize = viewport.secondarySequenceLogicalSize();
+    return isPositiveGeometrySize(sequenceSize) ? sequenceSize : QSizeF {};
+}
+
 PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewport,
     const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
     std::optional<QRectF> itemBounds = std::nullopt,
@@ -583,6 +614,34 @@ PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewp
         primarySize = pendingPrimaryGeometrySize(viewport);
         secondarySize = pendingSecondaryGeometrySize(viewport);
     }
+
+    return {
+        isPositiveGeometrySize(primarySize),
+        bounds,
+        primarySize,
+        secondarySize,
+        presentation.pageGap,
+        presentation.spreadDirection,
+        presentation.fitMode,
+        presentation.fillMode,
+        presentation.horizontalAlignment,
+        presentation.verticalAlignment,
+        presentation.rotationDegrees,
+        presentation.mirrorHorizontally,
+        presentation.mirrorVertically,
+        presentation.zoom,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
+        presentation.pan,
+    };
+}
+
+PresentationGeometry::State acceptedGeometryState(ViewportControllerPort viewport,
+    const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
+    std::optional<QRectF> itemBounds = std::nullopt)
+{
+    const QRectF bounds = itemBounds ? *itemBounds : viewport.itemBounds();
+    const QSizeF primarySize = acceptedPrimaryGeometrySize(viewport);
+    const QSizeF secondarySize = acceptedSecondaryGeometrySize(viewport);
 
     return {
         isPositiveGeometrySize(primarySize),
@@ -726,6 +785,24 @@ bool applyContentPosition(ViewportControllerPort& viewport,
     return true;
 }
 
+bool applyContentPositionForGeometry(ImageViewportInternal::PresentationState& presentation,
+    const PresentationGeometry::State& geometry, QPointF requestedPosition)
+{
+    if (PresentationGeometry::contentRect(geometry).isEmpty() || geometry.itemBounds.isEmpty()) {
+        return false;
+    }
+
+    const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
+    const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
+    if (nextPosition == currentPosition) {
+        return false;
+    }
+
+    presentation.pan += currentPosition - nextPosition;
+    return true;
+}
+
 QPointF controllerContentPosition(
     ViewportControllerPort& viewport, const ImageViewportInternal::PresentationState& presentation)
 {
@@ -820,7 +897,7 @@ ViewportCommandResult invalidPresentationCommand(ViewportControllerPort& viewpor
 
 ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
     ViewportControllerPort& viewport, ImageViewportInternal::PresentationState& presentation,
-    const ControllerTransitionPolicy& policy)
+    const ControllerTransitionPolicy& policy, QPointF previousContentPosition)
 {
     ImageViewportInternal::ViewportChangeSet changes;
     auto markChanged = [&]() { mergeChanges(changes, presentationChanges(viewport, true)); };
@@ -859,19 +936,24 @@ ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
 
     if (policy.contentPositionTransition
         == PageSetTransitionPolicy::ContentPositionTransition::ScanStart) {
-        if (applyContentPosition(viewport, presentation, {})) {
+        if (applyContentPositionForGeometry(
+                presentation, acceptedGeometryState(viewport, presentation), {})) {
             markChanged();
         }
     } else if (policy.contentPositionTransition
         == PageSetTransitionPolicy::ContentPositionTransition::ScanEnd) {
-        if (applyContentPosition(
-                viewport, presentation, controllerMaximumContentPosition(viewport, presentation))) {
+        const PresentationGeometry::State geometry = acceptedGeometryState(viewport, presentation);
+        if (applyContentPositionForGeometry(
+                presentation, geometry, PresentationGeometry::maximumContentPosition(geometry))) {
             markChanged();
         }
-    } else if (changes.presentation
-        && policy.contentPositionTransition
-            == PageSetTransitionPolicy::ContentPositionTransition::Clamp) {
-        clampPresentationPanToBounds(viewport, presentation);
+    } else if (policy.contentPositionTransition
+        == PageSetTransitionPolicy::ContentPositionTransition::Clamp) {
+        if (applyContentPositionForGeometry(
+                presentation, acceptedGeometryState(viewport, presentation),
+                previousContentPosition)) {
+            markChanged();
+        }
     }
 
     return changes;
@@ -2288,8 +2370,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const QString oldWarningString = viewportRequestState(viewport).warningString;
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    const ImageViewportInternal::ViewportChangeSet transitionChanges
-        = applyPresentationTransition(viewport, state.presentation, *transitionPolicy);
+    const QPointF previousContentPosition
+        = controllerContentPosition(viewport, state.presentation);
+    ImageViewportInternal::ViewportChangeSet transitionChanges;
 
     viewportRequestState(viewport).sequence = assignment.sequence;
     viewportRequestState(viewport).sequenceOwner = std::move(assignment.sequenceOwner);
@@ -2424,6 +2507,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         }
         result.openSecondaryProviderSession = true;
     }
+
+    transitionChanges = applyPresentationTransition(
+        viewport, state.presentation, *transitionPolicy, previousContentPosition);
 
     armAuthoredAutoplayIfEligible(viewport);
 

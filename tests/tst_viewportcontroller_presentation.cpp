@@ -65,6 +65,32 @@ std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
     return result;
 }
 
+PageSetTransitionPolicy replacementSpreadPolicy(
+    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition)
+{
+    PageSetTransitionPolicy policy;
+    policy.setContentPositionTransition(contentPositionTransition);
+    policy.setSpreadDirectionTransition(
+        PageSetTransitionPolicy::SpreadDirectionTransition::SetExplicit);
+    policy.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
+    policy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    policy.setPageGap(50.0);
+    return policy;
+}
+
+ViewportSequenceAssignment replacementSpreadAssignment(
+    ImageSequence* primary, ImageSequence* secondary, const PageSetTransitionPolicy& policy)
+{
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primary;
+    assignment.secondarySequence = secondary;
+    assignment.secondaryInitialTarget
+        = { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
+    assignment.secondaryInitialResolvedFrame = { 0, -1 };
+    assignment.transitionPolicy = policy;
+    return assignment;
+}
+
 } // namespace
 
 class ViewportControllerPresentationTest : public QObject
@@ -81,6 +107,9 @@ private slots:
     void standalonePresentationCommandsMutateControllerState();
     void presentationCommandsReportGeometryChangesWhenDisplayIsReady();
     void assignmentAppliesPresentationTransitionInControllerTransaction();
+    void pageSetTransitionScanStartUsesReplacementSpreadGeometry();
+    void pageSetTransitionScanEndUsesReplacementSpreadGeometry();
+    void pageSetTransitionClampUsesReplacementBounds();
     void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
 };
 
@@ -179,6 +208,123 @@ void ViewportControllerPresentationTest::
     QCOMPARE(controller.presentationState().spreadDirection,
         ImageViewport::SpreadDirection::RightToLeft);
     QCOMPARE(controller.presentationState().pageGap, 4.0);
+}
+
+void ViewportControllerPresentationTest::
+    pageSetTransitionScanStartUsesReplacementSpreadGeometry()
+{
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    context.logicalSize = QSizeF(100.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
+    QVERIFY(initial);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+    QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.panToEnd().outcome, ImageViewport::CommandOutcome::Accepted);
+
+    context.logicalSize = QSizeF(200.0, 100.0);
+    context.secondaryLogicalSize = QSizeF(50.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementPrimary
+        = makeStillSequence(factory, context.logicalSize);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementSecondary
+        = makeStillSequence(factory, context.secondaryLogicalSize);
+    QVERIFY(replacementPrimary);
+    QVERIFY(replacementSecondary);
+    context.sequence = replacementPrimary->sequence();
+
+    const PageSetTransitionPolicy policy = replacementSpreadPolicy(
+        PageSetTransitionPolicy::ContentPositionTransition::ScanStart);
+    const ViewportSequenceAssignmentResult result = controller.assignSequence(
+        replacementSpreadAssignment(
+            replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
+
+    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    const PresentationGeometry::State geometry = controller.geometryState();
+    QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(300.0, 100.0));
+    QCOMPARE(PresentationGeometry::primaryPageRect(geometry),
+        QRectF(100.0, 0.0, 200.0, 100.0));
+    QCOMPARE(PresentationGeometry::secondaryPageRect(geometry),
+        QRectF(0.0, 0.0, 50.0, 100.0));
+    QCOMPARE(PresentationGeometry::contentPosition(geometry), QPointF(0.0, 0.0));
+}
+
+void ViewportControllerPresentationTest::pageSetTransitionScanEndUsesReplacementSpreadGeometry()
+{
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    context.logicalSize = QSizeF(100.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
+    QVERIFY(initial);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+    QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+
+    context.logicalSize = QSizeF(200.0, 100.0);
+    context.secondaryLogicalSize = QSizeF(50.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementPrimary
+        = makeStillSequence(factory, context.logicalSize);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementSecondary
+        = makeStillSequence(factory, context.secondaryLogicalSize);
+    QVERIFY(replacementPrimary);
+    QVERIFY(replacementSecondary);
+    context.sequence = replacementPrimary->sequence();
+
+    const PageSetTransitionPolicy policy
+        = replacementSpreadPolicy(PageSetTransitionPolicy::ContentPositionTransition::ScanEnd);
+    const ViewportSequenceAssignmentResult result = controller.assignSequence(
+        replacementSpreadAssignment(
+            replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
+
+    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    const PresentationGeometry::State geometry = controller.geometryState();
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
+    QCOMPARE(maximum, QPointF(500.0, 100.0));
+    QCOMPARE(PresentationGeometry::contentPosition(geometry), maximum);
+}
+
+void ViewportControllerPresentationTest::pageSetTransitionClampUsesReplacementBounds()
+{
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    context.logicalSize = QSizeF(100.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
+    QVERIFY(initial);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+    QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.panToEnd().outcome, ImageViewport::CommandOutcome::Accepted);
+
+    context.logicalSize = QSizeF(200.0, 100.0);
+    context.secondaryLogicalSize = QSizeF(50.0, 100.0);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementPrimary
+        = makeStillSequence(factory, context.logicalSize);
+    std::unique_ptr<ImageSequenceFactoryResult> replacementSecondary
+        = makeStillSequence(factory, context.secondaryLogicalSize);
+    QVERIFY(replacementPrimary);
+    QVERIFY(replacementSecondary);
+    context.sequence = replacementPrimary->sequence();
+
+    const PageSetTransitionPolicy policy
+        = replacementSpreadPolicy(PageSetTransitionPolicy::ContentPositionTransition::Clamp);
+    const ViewportSequenceAssignmentResult result = controller.assignSequence(
+        replacementSpreadAssignment(
+            replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
+
+    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    const PresentationGeometry::State geometry = controller.geometryState();
+    QCOMPARE(PresentationGeometry::maximumContentPosition(geometry), QPointF(500.0, 100.0));
+    QCOMPARE(PresentationGeometry::contentPosition(geometry), QPointF(100.0, 100.0));
+    QCOMPARE(PresentationGeometry::contentRect(geometry).topLeft(), QPointF(-100.0, -100.0));
 }
 
 void ViewportControllerPresentationTest::

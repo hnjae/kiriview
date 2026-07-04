@@ -444,11 +444,25 @@ Page-set content-position transition; minimal geometry projection from Milestone
 
 #### Tasks
 
-- [ ] Add a controller-level pending page-set or target-spread facts structure sufficient for replacement transition geometry.
-- [ ] Move content-position transition application after replacement spread facts are available, or compute it against an immutable pending replacement geometry snapshot.
-- [ ] Preserve invalid-policy no-partial-apply behavior and existing command diagnostics.
-- [ ] Ensure clear-style page-set commands validate policy but do not mutate presentation fields.
-- [ ] Add and pass tests for `ScanStart`, `ScanEnd`, and `Clamp` across changed bounds, changed orientation, changed page gap, and changed spread direction.
+- [x] Add a controller-level pending page-set or target-spread facts structure sufficient for replacement transition geometry.
+- [x] Move content-position transition application after replacement spread facts are available, or compute it against an immutable pending replacement geometry snapshot.
+- [x] Preserve invalid-policy no-partial-apply behavior and existing command diagnostics.
+- [x] Ensure clear-style page-set commands validate policy but do not mutate presentation fields.
+- [x] Add and pass tests for `ScanStart`, `ScanEnd`, and `Clamp` across changed bounds, changed orientation, changed page gap, and changed spread direction.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/spec/image-viewport.md`, `docs/spec/image-viewport-api.md`, `docs/architecture/subsystem-boundaries.md`, and `docs/architecture/rendering.md` were re-read for this milestone. The implementation follows the documented requirement that content-position handoff is computed after replacement spread bounds, rotation, mirror, direction, and gap are known.
+
+Added controller tests `ViewportControllerPresentationTest::pageSetTransitionScanStartUsesReplacementSpreadGeometry`, `pageSetTransitionScanEndUsesReplacementSpreadGeometry`, and `pageSetTransitionClampUsesReplacementBounds`. These were red before implementation: `ScanStart` landed at `200,0`, `ScanEnd` at `300,100` instead of `500,100`, and `Clamp` at `300,100` instead of preserving the replacement-clamped `100,100`.
+
+Added `ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateAndRevisions` to cover no-partial-apply preservation for page set, presentation fields, geometry, playback phase, request diagnostics, and request/display revision tokens when transition policy validation fails.
+
+Implemented accepted replacement geometry projection in the controller for page-set transition handoff. `assignSequence` now validates transition policy first, captures the previous content position, installs replacement role facts, and then applies `ScanStart`, `ScanEnd`, or `Clamp` against an accepted-replacement geometry snapshot rather than the prior displayed spread. Clear-style assignments still validate policy before delegating to clear and do not apply transition fields.
+
+Verification: `ctest --test-dir build-ninja -R 'viewportcontroller_presentation|imageviewport_presentation_state|imageviewport_public_api' --output-on-failure` and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 
