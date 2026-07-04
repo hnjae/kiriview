@@ -53,6 +53,11 @@ foreach(
     ITEMS
         IMAGEVIEWPORT_PRIVATE_TEST_PROBES
         ForTest
+        ImageViewportInternal
+        ImageSequenceData
+        ImageSequencePrivateAccess
+        ImageFramePrivateAccess
+        QSGNode
         ViewportController
         RenderAdapter
         QSGTexture

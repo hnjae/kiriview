@@ -451,31 +451,52 @@ void ImageViewportPublicApiCommandsTest::invalidPageRoleArgumentsPreserveRevisio
 
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    const int requestStatus = item.property("requestStatus").toInt();
+    const int displayStatus = item.property("displayStatus").toInt();
+    const int playbackPhase = item.property("playbackPhase").toInt();
+    const QMetaObject* metaObject = item.metaObject();
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
 
     const auto invalidPrimaryOutcome = item.setPageSet(QVariant(QStringLiteral("bad primary")),
         QVariant::fromValue<QObject*>(secondaryResult->sequence()));
 
     QCOMPARE(invalidPrimaryOutcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
+    commandRevision = revisionTokenProperty(item, "commandRevision");
     QCOMPARE(item.primarySequence(), primaryResult->sequence());
     QCOMPARE(item.secondarySequence(), secondaryResult->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), requestStatus);
+    QCOMPARE(item.property("displayStatus").toInt(), displayStatus);
+    QCOMPARE(item.property("playbackPhase").toInt(), playbackPhase);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 1);
 
     const auto invalidSecondaryOutcome
         = item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
             QVariant(QStringLiteral("bad secondary")));
 
     QCOMPARE(invalidSecondaryOutcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(metaObject, "CommandReason", "InvalidRequest"));
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(item.primarySequence(), primaryResult->sequence());
     QCOMPARE(item.secondarySequence(), secondaryResult->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), requestStatus);
+    QCOMPARE(item.property("displayStatus").toInt(), displayStatus);
+    QCOMPARE(item.property("playbackPhase").toInt(), playbackPhase);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 2);
 }
 
 void ImageViewportPublicApiCommandsTest::roleCommandsWithInvalidRolePublishCommandDiagnostics()

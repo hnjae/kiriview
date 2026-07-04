@@ -569,7 +569,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     ImageSequence* secondarySequence = sequenceFromPageSetValue(secondary, secondaryValid);
 
     if (!primaryValid || !secondaryValid) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
 
     return setPageSet(primarySequence, secondarySequence, policy);

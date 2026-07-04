@@ -218,8 +218,15 @@ ViewportCommandResult ViewportController::setMirrorHorizontally(bool enabled, QP
     if (!ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }
+    if (state.presentation.mirrorHorizontally == enabled) {
+        return acceptedPresentationCommand(viewport);
+    }
 
-    return acceptedPresentationCommand(viewport, setMirrorHorizontally(enabled));
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
+    state.presentation.mirrorHorizontally = enabled;
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+    return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
 ViewportCommandResult ViewportController::setMirrorVertically(bool enabled, QPointF anchor)
@@ -227,8 +234,15 @@ ViewportCommandResult ViewportController::setMirrorVertically(bool enabled, QPoi
     if (!ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }
+    if (state.presentation.mirrorVertically == enabled) {
+        return acceptedPresentationCommand(viewport);
+    }
 
-    return acceptedPresentationCommand(viewport, setMirrorVertically(enabled));
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
+    state.presentation.mirrorVertically = enabled;
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+    return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
 ViewportCommandResult ViewportController::resetView()

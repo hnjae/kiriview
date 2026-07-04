@@ -29,6 +29,7 @@ private slots:
     void invalidPageSetTransitionPreservesStateAndRevisions();
     void presentationCommandsUpdateCommandDiagnostics();
     void manualZoomAbovePublishedLimitIsInvalid();
+    void mirrorCommandsPreserveAnchor();
     void rotationAffectsSpreadMapping();
 };
 
@@ -770,6 +771,61 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(commandSpy.count(), 1);
+}
+
+void ImageViewportPresentationStateTest::mirrorCommandsPreserveAnchor()
+{
+    ImageSequenceFactory factory;
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    const auto verifyClose = [](double actual, double expected) {
+        QVERIFY2(qAbs(actual - expected) < 0.000001,
+            qPrintable(QStringLiteral("actual %1 expected %2").arg(actual).arg(expected)));
+    };
+
+    ImageViewport horizontalItem;
+    horizontalItem.setSize(QSizeF(100.0, 100.0));
+    horizontalItem.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(horizontalItem);
+    QCOMPARE(horizontalItem.setZoomPercent(200.0, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(horizontalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+
+    const QPointF horizontalAnchor(25.0, 50.0);
+    const CoordinateResult horizontalBefore
+        = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
+    QCOMPARE(horizontalBefore.isValid(), true);
+    QCOMPARE(horizontalItem.setMirrorHorizontally(true, horizontalAnchor),
+        ImageViewport::CommandOutcome::Accepted);
+    const CoordinateResult horizontalAfter
+        = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
+    QCOMPARE(horizontalAfter.isValid(), true);
+    verifyClose(horizontalAfter.x(), horizontalBefore.x());
+    verifyClose(horizontalAfter.y(), horizontalBefore.y());
+
+    ImageViewport verticalItem;
+    verticalItem.setSize(QSizeF(100.0, 100.0));
+    verticalItem.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(verticalItem);
+    QCOMPARE(verticalItem.setZoomPercent(200.0, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(verticalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+
+    const QPointF verticalAnchor(50.0, 25.0);
+    const CoordinateResult verticalBefore
+        = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
+    QCOMPARE(verticalBefore.isValid(), true);
+    QCOMPARE(verticalItem.setMirrorVertically(true, verticalAnchor),
+        ImageViewport::CommandOutcome::Accepted);
+    const CoordinateResult verticalAfter
+        = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
+    QCOMPARE(verticalAfter.isValid(), true);
+    verifyClose(verticalAfter.x(), verticalBefore.x());
+    verifyClose(verticalAfter.y(), verticalBefore.y());
 }
 
 void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()

@@ -179,6 +179,8 @@ F6, F7, F8, F9, F10, F11, F12.
 
 ### Milestone 2: Fix Public API and Command Conformance
 
+Status: Complete. Verified against the authoritative public API, package, item-boundary, controller-boundary, and rendering docs before execution. The installed public header is generated without private namespace helpers, `ImageSequenceData`, private access helpers, or `QSGNode`; mirror presentation commands preserve valid anchors; invalid page-role arguments now publish `InvalidRequest` command diagnostics while preserving accepted request/display state and request/display revisions.
+
 #### Objective
 
 Correct the public/package and command conformance gaps that are already fully specified: installed-header opacity, anchor-preserving mirror commands, and invalid page-set command diagnostics.
@@ -216,12 +218,12 @@ F1, F2, F3.
 
 #### Tasks
 
-- [ ] Add install-consumer assertions that the installed header does not contain `ImageViewportInternal`, `ImageSequenceData`, private access helper names, or `QSGNode`.
-- [ ] Move or hide sequence private storage and scene graph override exposure from the installed public header while preserving downstream public API compilation.
-- [ ] Add mirror-anchor tests that compare `itemToSpread(anchor)` before and after `setMirrorHorizontally(...)` and `setMirrorVertically(...)` on geometry where preservation is possible.
-- [ ] Update mirror command implementations to use the same anchored preservation and clamping path as rotation.
-- [ ] Add invalid page-set argument tests that assert `CommandOutcome::Invalid`, unchanged accepted page-set, unchanged request/display status, unchanged request/display revisions, unchanged playback phase, `CommandReason::InvalidRequest`, and advanced `commandRevision`.
-- [ ] Route invalid page-role conversion through the normal command-diagnostic boundary without accepting a new request or display state.
+- [x] Add install-consumer assertions that the installed header does not contain `ImageViewportInternal`, `ImageSequenceData`, private access helper names, or `QSGNode`.
+- [x] Move or hide sequence private storage and scene graph override exposure from the installed public header while preserving downstream public API compilation.
+- [x] Add mirror-anchor tests that compare `itemToSpread(anchor)` before and after `setMirrorHorizontally(...)` and `setMirrorVertically(...)` on geometry where preservation is possible.
+- [x] Update mirror command implementations to use the same anchored preservation and clamping path as rotation.
+- [x] Add invalid page-set argument tests that assert `CommandOutcome::Invalid`, unchanged accepted page-set, unchanged request/display status, unchanged request/display revisions, unchanged playback phase, `CommandReason::InvalidRequest`, and advanced `commandRevision`.
+- [x] Route invalid page-role conversion through the normal command-diagnostic boundary without accepting a new request or display state.
 
 #### Acceptance criteria
 
@@ -234,6 +236,7 @@ F1, F2, F3.
 
 - `cmake --build build-ninja --target imageviewport_public_api_commands imageviewport_presentation_state viewportcontroller_presentation`
 - `ctest --test-dir build-ninja -R 'imageviewport_install_consumer|imageviewport_public_api_commands|imageviewport_presentation_state|viewportcontroller_presentation' --output-on-failure`
+- Completed run also built `ImageViewportInstalledPublicHeader` before the install-consumer check so the installed package used the regenerated sanitized header.
 
 #### Risks / notes
 
