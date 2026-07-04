@@ -29,6 +29,8 @@ private slots:
     void secondaryProviderMetadataFailureReportsAggregateProviderFailure();
     void secondaryProviderFrameTerminalResultsProjectThroughSpread_data();
     void secondaryProviderFrameTerminalResultsProjectThroughSpread();
+    void secondaryProviderPlaybackTerminalResultsProjectThroughSpread_data();
+    void secondaryProviderPlaybackTerminalResultsProjectThroughSpread();
     void providerInvalidTerminalTokenBeforeMetadataIsIgnored();
     void providerInvalidTerminalTokenAfterMetadataIsIgnored();
     void providerDiagnosticsUseUnicodeScalarLimit();
@@ -344,6 +346,123 @@ void ImageViewportProviderTerminalTest::secondaryProviderFrameTerminalResultsPro
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
     QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(diagnostic));
+}
+
+void ImageViewportProviderTerminalTest::
+    secondaryProviderPlaybackTerminalResultsProjectThroughSpread_data()
+{
+    QTest::addColumn<int>("terminalKind");
+    QTest::addColumn<int>("unsupportedCause");
+    QTest::addColumn<QString>("diagnostic");
+    QTest::addColumn<QString>("expectedStatus");
+    QTest::addColumn<QString>("expectedReason");
+
+    QTest::newRow("failure") << 0 << 0 << QStringLiteral("secondary playback provider failed")
+                             << QStringLiteral("Error") << QStringLiteral("ProviderFailure");
+    QTest::newRow("unsupported-request")
+        << 1 << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << QStringLiteral("secondary playback operation unsupported")
+        << QStringLiteral("Unsupported") << QStringLiteral("UnsupportedRequest");
+    QTest::newRow("payload-rejection")
+        << 1 << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << QStringLiteral("secondary playback payload rejected") << QStringLiteral("Unsupported")
+        << QStringLiteral("PayloadRejection");
+    QTest::newRow("cancellation") << 2 << 0
+                                  << QStringLiteral("secondary playback cancelled unexpectedly")
+                                  << QStringLiteral("Error") << QStringLiteral("ProviderFailure");
+}
+
+void ImageViewportProviderTerminalTest::
+    secondaryProviderPlaybackTerminalResultsProjectThroughSpread()
+{
+    QFETCH(int, terminalKind);
+    QFETCH(int, unsupportedCause);
+    QFETCH(QString, diagnostic);
+    QFETCH(QString, expectedStatus);
+    QFETCH(QString, expectedReason);
+
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        playbackRequestCount, lastPlaybackFrame, lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    QImage secondaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::black);
+    ImageFrame secondaryFrame(secondaryImage);
+    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
+    acknowledgePendingRenderCommit(item);
+
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
+    item.advancePlaybackForTest(100);
+
+    QCOMPARE(*playbackRequestCount, 1);
+    QCOMPARE(*lastPlaybackFrame, 1);
+    QCOMPARE(*lastPlaybackPosition, 100);
+    QCOMPARE(*frameRequestCount, 2);
+    QCOMPARE(*lastRequestedFrame, 1);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
+
+    const ImageSequenceProviderRequestToken playbackToken
+        = sessionFactory->lastSession()->lastFrameToken();
+    if (terminalKind == 0) {
+        emit sessionFactory->lastSession()->providerFailed(playbackToken, diagnostic);
+    } else if (terminalKind == 1) {
+        emit sessionFactory->lastSession()->providerUnsupportedWithCause(playbackToken,
+            static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause),
+            diagnostic);
+    } else {
+        emit sessionFactory->lastSession()->providerCancelled(playbackToken, diagnostic);
+    }
+    drainQueuedProviderResults();
+
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", expectedStatus.toUtf8().constData()));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", expectedReason.toUtf8().constData()));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
+    QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
     QVERIFY(item.property("errorString").toString().contains(diagnostic));
 }
 

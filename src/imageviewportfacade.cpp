@@ -257,6 +257,11 @@ void ImageViewport::setNextProviderRequestTokenForTest(quint64 token)
     d->setNextProviderRequestTokenForTest(token);
 }
 
+void ImageViewport::setNextProviderRequestTokenForTest(PageRole role, quint64 token)
+{
+    d->setNextProviderRequestTokenForTest(role, token);
+}
+
 void ImageViewport::failNextProviderCommandDeliveryForTest(PageRole role)
 {
     d->failNextProviderCommandDeliveryForTest(role);

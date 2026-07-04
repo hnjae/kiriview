@@ -406,6 +406,12 @@ ImageViewportInternal::ProviderGenerationState& viewportProviderState(
     return viewport.providerState();
 }
 
+ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
+    ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider : state.provider;
+}
+
 enum class ExplicitSeekMaterialization {
     ProviderReady,
     ProviderPendingMetadata,
@@ -1485,6 +1491,15 @@ void applyPendingProviderPlaybackTarget(
         = target.providerTargetKind;
 }
 
+void applyPendingSecondaryProviderPlaybackTarget(
+    ViewportControllerPort& viewport, DisplayRequestTarget target)
+{
+    viewportRequestState(viewport).secondaryActiveRequest.target = target;
+    viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame = { -1, -1 };
+    viewportRequestState(viewport).secondaryActiveRequest.providerFrameToken = {};
+    viewportRequestState(viewport).playbackPosition = target.position;
+}
+
 template <typename FrameStartFor>
 int playbackStartPosition(ViewportControllerPort& viewport, FrameStartFor frameStartFor)
 {
@@ -2543,15 +2558,48 @@ ViewportCommandResult ViewportController::playSecondaryBuiltIn()
 
 ViewportCommandResult ViewportController::playSecondaryProvider()
 {
-    if (!viewport.hasActiveRequest()
-        || viewportRequestState(viewport).secondaryActiveRequest.target.frame < 0) {
+    const ImageViewportInternal::DisplayRequest& request
+        = viewportRequestState(viewport).secondaryActiveRequest;
+    const bool currentIdentity = request.identity.id != 0
+        && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
+    if (!viewport.hasActiveRequest() || !currentIdentity) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
         setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
-    if (!state.secondaryProvider.metadataReady || !state.secondaryProvider.timedMetadata
-        || !state.secondaryProvider.timedPlaybackSupport) {
+
+    if (!state.secondaryProvider.metadataReady) {
+        if (ImageViewportInternal::providerCapabilityKnownFalse(
+                viewport.secondaryProviderTimedPlaybackCapability())) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(
+                viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Secondary;
+        viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+        viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
+        applyPendingSecondaryProviderPlaybackTarget(viewport, pendingProviderPlaybackTarget());
+        setPlaybackPhase(viewport, result, ImageViewport::PlaybackPhase::Waiting);
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        return result;
+    }
+
+    if (request.target.frame < 0) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+
+    if (!state.secondaryProvider.timedMetadata || !state.secondaryProvider.timedPlaybackSupport) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
         setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
@@ -2565,9 +2613,7 @@ ViewportCommandResult ViewportController::playSecondaryProvider()
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
     viewportRequestState(viewport).playbackPosition
-        = viewportRequestState(viewport).secondaryActiveRequest.target.position >= 0
-        ? viewportRequestState(viewport).secondaryActiveRequest.target.position
-        : viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame.position;
+        = request.target.position >= 0 ? request.target.position : request.resolvedFrame.position;
     setPlaybackPhase(viewport, result, playbackPhaseForCurrentRequest(viewport));
     return result;
 }
@@ -3880,6 +3926,31 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
             ImageViewportInternal::ProviderRequestTargetKind::Frame,
         };
     } else if (request.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Playback) {
+        if (!facts.timedMetadata || !state.secondaryProvider.timedPlaybackSupport) {
+            result.changes = handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false });
+            return result;
+        }
+        int selectedFrame = request.target.frame;
+        if (selectedFrame < 0) {
+            selectedFrame = 0;
+        }
+        const int providerFrameCount = facts.timingIntervals.frameCount();
+        if (selectedFrame >= providerFrameCount) {
+            result.changes = handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, selectedFrame, false, false,
+                    false });
+            return result;
+        }
+        target = {
+            selectedFrame,
+            facts.timingIntervals.frameStartPosition(selectedFrame),
+            ImageViewportInternal::ProviderRequestTargetKind::Playback,
+        };
+    } else if (request.target.providerTargetKind
         == ImageViewportInternal::ProviderRequestTargetKind::Frame) {
         const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
         if (request.target.frame < 0 || request.target.frame >= providerFrameCount) {
@@ -4340,104 +4411,97 @@ ViewportProviderFrameTransportEffect ViewportController::closeSecondaryProviderS
 {
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession = state.secondaryProvider.session != nullptr;
-    effect.sessionClose = handleSecondaryProviderSessionClose();
+    effect.sessionClose = handleProviderSessionClose(ImageViewport::PageRole::Secondary);
     return effect;
 }
 
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
 {
+    return handleProviderSessionClose(ImageViewport::PageRole::Primary);
+}
+
+ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
+    ImageViewport::PageRole role)
+{
     ViewportProviderSessionClose sessionClose;
-    clearQueuedProviderFrameRequest(viewport);
-    if (!viewportProviderState(viewport).session) {
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (role == ImageViewport::PageRole::Primary) {
+        clearQueuedProviderFrameRequest(viewport);
+    }
+    if (!provider.session) {
         return sessionClose;
     }
 
-    sessionClose.metadataToken = viewportProviderState(viewport).activeMetadataToken;
-    sessionClose.frameToken = viewportProviderState(viewport).activeFrameToken;
-    viewportProviderState(viewport).activeMetadataToken = {};
-    viewportProviderState(viewport).activeFrameToken = {};
-    viewportProviderState(viewport).nextRequestToken = 0;
+    sessionClose.metadataToken = provider.activeMetadataToken;
+    sessionClose.frameToken = provider.activeFrameToken;
+    provider.activeMetadataToken = {};
+    provider.activeFrameToken = {};
+    provider.nextRequestToken = 0;
     return sessionClose;
 }
 
 ViewportProviderSessionClose ViewportController::handleSecondaryProviderSessionClose()
 {
-    ViewportProviderSessionClose sessionClose;
-    if (!state.secondaryProvider.session) {
-        return sessionClose;
-    }
-
-    sessionClose.metadataToken = state.secondaryProvider.activeMetadataToken;
-    sessionClose.frameToken = state.secondaryProvider.activeFrameToken;
-    state.secondaryProvider.activeMetadataToken = {};
-    state.secondaryProvider.activeFrameToken = {};
-    state.secondaryProvider.nextRequestToken = 0;
-    return sessionClose;
+    return handleProviderSessionClose(ImageViewport::PageRole::Secondary);
 }
 
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken()
 {
+    return allocateProviderRequestToken(ImageViewport::PageRole::Primary);
+}
+
+ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken(
+    ImageViewport::PageRole role)
+{
     ViewportProviderRequestTokenAllocation allocation;
-    if (viewportProviderState(viewport).nextRequestToken == std::numeric_limits<quint64>::max()) {
-        allocation.closeSession = viewportProviderState(viewport).session != nullptr;
-        allocation.sessionClose = handleProviderSessionClose();
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    if (provider.nextRequestToken == std::numeric_limits<quint64>::max()) {
+        allocation.closeSession = provider.session != nullptr;
+        allocation.sessionClose = handleProviderSessionClose(role);
         return allocation;
     }
 
-    ++viewportProviderState(viewport).nextRequestToken;
-    allocation.token
-        = ImageSequenceProviderRequestToken(viewportProviderState(viewport).nextRequestToken);
+    ++provider.nextRequestToken;
+    allocation.token = ImageSequenceProviderRequestToken(provider.nextRequestToken);
     return allocation;
 }
 
 ViewportProviderRequestTokenAllocation ViewportController::allocateSecondaryProviderRequestToken()
 {
-    ViewportProviderRequestTokenAllocation allocation;
-    if (state.secondaryProvider.nextRequestToken == std::numeric_limits<quint64>::max()) {
-        allocation.closeSession = state.secondaryProvider.session != nullptr;
-        allocation.sessionClose = handleSecondaryProviderSessionClose();
-        return allocation;
-    }
-
-    ++state.secondaryProvider.nextRequestToken;
-    allocation.token = ImageSequenceProviderRequestToken(state.secondaryProvider.nextRequestToken);
-    return allocation;
+    return allocateProviderRequestToken(ImageViewport::PageRole::Secondary);
 }
 
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest()
 {
+    return startProviderMetadataRequest(ImageViewport::PageRole::Primary);
+}
+
+ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest(
+    ImageViewport::PageRole role)
+{
     ViewportProviderMetadataRequestStartResult result;
-    const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken();
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
-    viewportProviderState(viewport).activeMetadataToken = allocation.token;
-    if (!viewportProviderState(viewport).activeMetadataToken.isValid()) {
+    provider.activeMetadataToken = allocation.token;
+    if (!provider.activeMetadataToken.isValid()) {
         publishProviderTokenExhaustion(viewport);
         return result;
     }
 
-    result.sendCommand = viewportProviderState(viewport).session != nullptr;
-    result.token = viewportProviderState(viewport).activeMetadataToken;
+    result.sendCommand = provider.session != nullptr;
+    result.token = provider.activeMetadataToken;
     return result;
 }
 
 ViewportProviderMetadataRequestStartResult
 ViewportController::startSecondaryProviderMetadataRequest()
 {
-    ViewportProviderMetadataRequestStartResult result;
-    const ViewportProviderRequestTokenAllocation allocation
-        = allocateSecondaryProviderRequestToken();
-    result.closeSession = allocation.closeSession;
-    result.sessionClose = allocation.sessionClose;
-    state.secondaryProvider.activeMetadataToken = allocation.token;
-    if (!state.secondaryProvider.activeMetadataToken.isValid()) {
-        publishProviderTokenExhaustion(viewport);
-        return result;
-    }
-
-    result.sendCommand = state.secondaryProvider.session != nullptr;
-    result.token = state.secondaryProvider.activeMetadataToken;
-    return result;
+    return startProviderMetadataRequest(ImageViewport::PageRole::Secondary);
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProviderFrameRequest(
@@ -5052,6 +5116,17 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
     state.provider.nextRequestToken = token;
+}
+
+void ViewportController::setNextProviderRequestTokenForTest(
+    ImageViewport::PageRole role, quint64 token)
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        state.secondaryProvider.nextRequestToken = token;
+        return;
+    }
+
+    setNextProviderRequestTokenForTest(token);
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const

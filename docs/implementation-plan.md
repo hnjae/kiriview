@@ -667,12 +667,12 @@ Provider role semantics are split between primary and secondary paths; provider 
 
 #### Tasks
 
-- [ ] Add characterization tests for secondary provider `play()` waiting on unknown metadata unless construction facts declare timed playback false.
-- [ ] Add characterization tests for secondary provider playback resolving to supported playback, unsupported playback, construction-fact contradiction, end-of-sequence final-frame handling, and stop restoration.
-- [ ] Ensure secondary provider waiting/progress, unsupported, cancellation, provider failure, payload rejection, and end-of-sequence results use the same token-scope and failure-scope projection as primary.
-- [ ] Replace duplicated secondary provider lifecycle helpers only after shared tests cover active tokens, queued work, cancellation, close, terminal generation failure, replacement, clear, and item destruction.
-- [ ] Add role-parametric tests for token overflow and stale terminal results.
-- [ ] Ensure removing or changing a provider lifecycle behavior now requires changing one role-parametric path rather than several secondary-specific side paths.
+- [x] Add characterization tests for secondary provider `play()` waiting on unknown metadata unless construction facts declare timed playback false.
+- [x] Add characterization tests for secondary provider playback resolving to supported playback, unsupported playback, construction-fact contradiction, end-of-sequence final-frame handling, and stop restoration.
+- [x] Ensure secondary provider waiting/progress, unsupported, cancellation, provider failure, payload rejection, and end-of-sequence results use the same token-scope and failure-scope projection as primary.
+- [x] Replace duplicated secondary provider lifecycle helpers only after shared tests cover active tokens, queued work, cancellation, close, terminal generation failure, replacement, clear, and item destruction.
+- [x] Add role-parametric tests for token overflow and stale terminal results.
+- [x] Ensure removing or changing a provider lifecycle behavior now requires changing one role-parametric path rather than several secondary-specific side paths.
 
 #### Acceptance criteria
 
@@ -685,9 +685,19 @@ Provider role semantics are split between primary and secondary paths; provider 
 
 - `cmake --build build`
 - `ctest -N --test-dir build`
-- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_playback|imageviewport_provider_terminal|imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_playback)$'`
-- `ctest --test-dir build -R '^(imageviewport_provider_playback|imageviewport_provider_terminal|imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_playback)$' --output-on-failure`
+- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(viewportcontroller_provider|imageviewport_provider_playback|imageviewport_provider_terminal|imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_playback)$'`
+- `ctest --test-dir build -R '^(viewportcontroller_provider|imageviewport_provider_playback|imageviewport_provider_terminal|imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_playback)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04 by extending secondary provider playback coverage for pre-metadata waiting, construction-time timed-playback false admission, unsupported runtime metadata, construction-fact contradiction, playback-token terminal projection, and secondary provider token overflow.
+- Secondary provider `play()` before runtime metadata now accepts a pending playback target when timed playback is not known false, keeps the request in `Waiting`/`ProviderWaiting`, and resolves through secondary metadata target policy into the provider playback request entry point.
+- Secondary provider runtime metadata with timed playback unsupported now resolves the waiting playback request to `Unsupported`/`UnsupportedRequest`; construction-fact contradiction while playback waits resolves to `Error`/`PayloadRejection` and closes generation interest.
+- Provider request token allocation, metadata request startup, and provider session-close token retirement now share role-aware controller helpers while preserving primary and secondary wrapper names.
+- Added a role-aware private test probe for provider token counters so secondary token overflow can be covered without changing the normal public API surface.
+- Focused verification passed: `ctest --test-dir build -R '^(viewportcontroller_provider|imageviewport_provider_playback|imageviewport_provider_terminal|imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_playback)$' --output-on-failure`.
+- Full verification passed: `ctest --test-dir build --output-on-failure`, 20/20 tests.
 
 #### Risks / notes
 
@@ -990,10 +1000,10 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - [x] Milestone 2: Clear Transaction Characterization And Fix
 - [x] Milestone 3: Mechanical Controller/Item Separation Precursor
 - [x] Milestone 4: Command Diagnostics For Invalid And Absent Roles
-- [ ] Milestone 5: Provider Harness And Dispatch-Failure Foundation
-- [ ] Milestone 6: Role-Indexed Provider State And Shared Metadata Admission
-- [ ] Milestone 7: Role-Symmetric Explicit Provider Requests
-- [ ] Milestone 8: Role-Symmetric Provider Playback And Terminal Lifecycle
+- [x] Milestone 5: Provider Harness And Dispatch-Failure Foundation
+- [x] Milestone 6: Role-Indexed Provider State And Shared Metadata Admission
+- [x] Milestone 7: Role-Symmetric Explicit Provider Requests
+- [x] Milestone 8: Role-Symmetric Provider Playback And Terminal Lifecycle
 - [ ] Milestone 9: Controller-Authored Geometry Projection
 - [ ] Milestone 10: Immutable Render Snapshot
 - [ ] Milestone 11: Complete-Role Spread Render Acknowledgement

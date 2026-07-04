@@ -29,6 +29,7 @@ private:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
+    void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
     void failNextProviderCommandDeliveryForTest(ImageViewport::PageRole role);
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;

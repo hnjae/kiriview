@@ -569,10 +569,14 @@ public:
     ViewportProviderFrameTransportEffect closeProviderSession();
     ViewportProviderFrameTransportEffect closeSecondaryProviderSession();
     ViewportProviderSessionClose handleProviderSessionClose();
+    ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
     ViewportProviderSessionClose handleSecondaryProviderSessionClose();
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(ImageViewport::PageRole role);
     ViewportProviderRequestTokenAllocation allocateSecondaryProviderRequestToken();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
+    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
+        ImageViewport::PageRole role);
     ViewportProviderMetadataRequestStartResult startSecondaryProviderMetadataRequest();
     ViewportProviderFrameRequestStartResult startSecondaryProviderFrameRequest(int frame);
     ViewportProviderFrameRequestStartResult startSecondaryProviderFrameRequest(
@@ -596,6 +600,7 @@ public:
     ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
+    void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;
