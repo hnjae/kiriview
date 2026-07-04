@@ -76,6 +76,43 @@ struct TargetSpreadTerminalState
     TargetSpreadRoleTerminalState secondary;
 };
 
+struct TargetSpreadRoleWaitState
+{
+    bool providerWaiting = false;
+    bool requestQueued = false;
+    bool uploadPending = false;
+    bool renderWaiting = false;
+};
+
+struct TargetSpreadWaitState
+{
+    TargetSpreadRoleWaitState primary;
+    TargetSpreadRoleWaitState secondary;
+    bool requiresSecondary = false;
+};
+
+inline ImageViewport::RequestReason projectWaitReason(const TargetSpreadWaitState& waitState)
+{
+    const auto anyRequired = [&waitState](auto member) {
+        return waitState.primary.*member
+            || (waitState.requiresSecondary && waitState.secondary.*member);
+    };
+
+    if (anyRequired(&TargetSpreadRoleWaitState::providerWaiting)) {
+        return ImageViewport::RequestReason::ProviderWaiting;
+    }
+    if (anyRequired(&TargetSpreadRoleWaitState::requestQueued)) {
+        return ImageViewport::RequestReason::RequestQueued;
+    }
+    if (anyRequired(&TargetSpreadRoleWaitState::uploadPending)) {
+        return ImageViewport::RequestReason::UploadPending;
+    }
+    if (anyRequired(&TargetSpreadRoleWaitState::renderWaiting)) {
+        return ImageViewport::RequestReason::RenderWaiting;
+    }
+    return ImageViewport::RequestReason::NoRequest;
+}
+
 struct DisplayRequestIdentity
 {
     quint64 id = 0;

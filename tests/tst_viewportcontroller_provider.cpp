@@ -157,6 +157,8 @@ private slots:
     void metadataAndFrameEventsRejectStaleTokens();
     void providerFrameRenderAcknowledgementCommitsFromControllerSnapshot();
     void cancellationTerminalEventClosesActiveMetadataGeneration();
+    void requiredRoleWaitPriorityAggregatesBeforeProjection_data();
+    void requiredRoleWaitPriorityAggregatesBeforeProjection();
     void failureScopeTableClassifiesTerminalInputs_data();
     void failureScopeTableClassifiesTerminalInputs();
     void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
@@ -453,6 +455,64 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("cancelled")));
+}
+
+void ViewportControllerProviderTest::requiredRoleWaitPriorityAggregatesBeforeProjection_data()
+{
+    QTest::addColumn<bool>("requiresSecondary");
+    QTest::addColumn<bool>("primaryProviderWaiting");
+    QTest::addColumn<bool>("primaryRequestQueued");
+    QTest::addColumn<bool>("primaryUploadPending");
+    QTest::addColumn<bool>("primaryRenderWaiting");
+    QTest::addColumn<bool>("secondaryProviderWaiting");
+    QTest::addColumn<bool>("secondaryRequestQueued");
+    QTest::addColumn<bool>("secondaryUploadPending");
+    QTest::addColumn<bool>("secondaryRenderWaiting");
+    QTest::addColumn<int>("expectedReason");
+
+    QTest::newRow("provider-waiting-over-upload")
+        << true << false << false << true << false << true << false << false << false
+        << static_cast<int>(ImageViewport::RequestReason::ProviderWaiting);
+    QTest::newRow("queued-over-upload-and-render")
+        << true << false << false << true << false << false << true << false << true
+        << static_cast<int>(ImageViewport::RequestReason::RequestQueued);
+    QTest::newRow("upload-over-render")
+        << true << false << false << false << true << false << false << true << false
+        << static_cast<int>(ImageViewport::RequestReason::UploadPending);
+    QTest::newRow("render-only")
+        << true << false << false << false << true << false << false << false << true
+        << static_cast<int>(ImageViewport::RequestReason::RenderWaiting);
+    QTest::newRow("non-required-secondary-ignored")
+        << false << false << false << true << false << true << true << false << false
+        << static_cast<int>(ImageViewport::RequestReason::UploadPending);
+}
+
+void ViewportControllerProviderTest::requiredRoleWaitPriorityAggregatesBeforeProjection()
+{
+    QFETCH(bool, requiresSecondary);
+    QFETCH(bool, primaryProviderWaiting);
+    QFETCH(bool, primaryRequestQueued);
+    QFETCH(bool, primaryUploadPending);
+    QFETCH(bool, primaryRenderWaiting);
+    QFETCH(bool, secondaryProviderWaiting);
+    QFETCH(bool, secondaryRequestQueued);
+    QFETCH(bool, secondaryUploadPending);
+    QFETCH(bool, secondaryRenderWaiting);
+    QFETCH(int, expectedReason);
+
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.requiresSecondary = requiresSecondary;
+    waitState.primary.providerWaiting = primaryProviderWaiting;
+    waitState.primary.requestQueued = primaryRequestQueued;
+    waitState.primary.uploadPending = primaryUploadPending;
+    waitState.primary.renderWaiting = primaryRenderWaiting;
+    waitState.secondary.providerWaiting = secondaryProviderWaiting;
+    waitState.secondary.requestQueued = secondaryRequestQueued;
+    waitState.secondary.uploadPending = secondaryUploadPending;
+    waitState.secondary.renderWaiting = secondaryRenderWaiting;
+
+    QCOMPARE(ImageViewportInternal::projectWaitReason(waitState),
+        static_cast<ImageViewport::RequestReason>(expectedReason));
 }
 
 void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs_data()

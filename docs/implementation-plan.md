@@ -512,11 +512,25 @@ Public metadata and wait-reason projections; built-in render readiness; target-s
 
 #### Tasks
 
-- [ ] Define wait-state data for active request and required roles.
-- [ ] Implement one helper that projects public reason priority: provider waiting, request queued, upload pending, render waiting.
-- [ ] Convert provider queueing, provider frame loading, upload pending, render waiting, and secondary spread wait paths touched by upcoming render-readiness work.
-- [ ] Add tests for simultaneous wait facts across required roles and request revision changes only when projected public reason changes.
-- [ ] Add structural inspection checks documenting where direct loading-reason writes are still temporarily allowed, if any.
+- [x] Define wait-state data for active request and required roles.
+- [x] Implement one helper that projects public reason priority: provider waiting, request queued, upload pending, render waiting.
+- [x] Convert provider queueing, provider frame loading, upload pending, render waiting, and secondary spread wait paths touched by upcoming render-readiness work.
+- [x] Add tests for simultaneous wait facts across required roles and request revision changes only when projected public reason changes.
+- [x] Add structural inspection checks documenting where direct loading-reason writes are still temporarily allowed, if any.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/spec/image-viewport.md`, `docs/spec/image-viewport-api.md`, `docs/architecture/subsystem-boundaries.md`, `docs/architecture/provider-protocol.md`, and `docs/architecture/rendering.md` were re-read for this milestone. The implementation follows the documented wait-priority projection: provider waiting, request queued, upload pending, then render waiting, after aggregating required roles.
+
+Implemented `TargetSpreadRoleWaitState`, `TargetSpreadWaitState`, and `ImageViewportInternal::projectWaitReason(...)` in internal state. Converted provider queueing, provider frame loading, upload-pending, render-waiting, and primary/secondary provider frame-admission spread waits to publish through the projection helper.
+
+Added `ViewportControllerProviderTest::requiredRoleWaitPriorityAggregatesBeforeProjection_data` and `requiredRoleWaitPriorityAggregatesBeforeProjection` for direct wait-priority and required-secondary aggregation coverage. Added `ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPublicReasonChanges` to cover a primary payload becoming upload-pending while a required secondary role remains provider-waiting; the public reason stays `ProviderWaiting`, so `requestRevision` does not advance until the projected reason changes to `UploadPending`.
+
+Structural inspection: `rg -n "RequestReason::(ProviderWaiting|RequestQueued|UploadPending|RenderWaiting)" src/viewportcontroller.cpp` still reports direct wait-reason writes in assignment/session-open setup, secondary provider command setup, metadata-bound target selection, render-synchronization predicates, resize/render-commit bookkeeping, and playback/end-of-sequence paths. These are temporarily allowed because Milestone 4 only converts the paths Milestone 5 will touch; the remaining direct writes must be eliminated by the later wait/readiness cleanup milestones.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_provider_requests|imageviewport_provider_frame_admission|viewportcontroller_provider' --output-on-failure`, the structural `rg` command above, and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

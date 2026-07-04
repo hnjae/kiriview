@@ -458,6 +458,31 @@ void clearCommandDiagnosticForAcceptedCommand(
         || result.changes.commandRevision;
 }
 
+struct RequestStatusSnapshot
+{
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+};
+
+RequestStatusSnapshot requestStatusSnapshot(ViewportControllerPort& viewport)
+{
+    return { viewportRequestState(viewport).status, viewportRequestState(viewport).reason };
+}
+
+bool requestStatusChanged(
+    ViewportControllerPort& viewport, const RequestStatusSnapshot& snapshot)
+{
+    return viewportRequestState(viewport).status != snapshot.status
+        || viewportRequestState(viewport).reason != snapshot.reason;
+}
+
+void publishLoadingWaitState(
+    ViewportControllerPort& viewport, const ImageViewportInternal::TargetSpreadWaitState& waitState)
+{
+    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
+    viewportRequestState(viewport).reason = ImageViewportInternal::projectWaitReason(waitState);
+}
+
 struct ControllerTransitionPolicy
 {
     PageSetTransitionPolicy::DisplayTransition displayTransition
@@ -1547,8 +1572,9 @@ void publishReadyDisplayState(ViewportControllerPort& viewport)
 
 void publishRenderWaitingState(ViewportControllerPort& viewport)
 {
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::RenderWaiting;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.primary.renderWaiting = true;
+    publishLoadingWaitState(viewport, waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
@@ -1630,8 +1656,9 @@ void publishAcceptedTargetState(ViewportControllerPort& viewport, const QImage& 
         if (viewport.itemBounds().isEmpty()) {
             publishRenderWaitingState(viewport);
         } else {
-            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-            viewportRequestState(viewport).reason = ImageViewport::RequestReason::UploadPending;
+            ImageViewportInternal::TargetSpreadWaitState waitState;
+            waitState.primary.uploadPending = true;
+            publishLoadingWaitState(viewport, waitState);
             viewportDisplayState(viewport).status
                 = viewportDisplayState(viewport).displayedImageSize.isValid()
                 ? ImageViewport::DisplayStatus::Retained
@@ -1687,8 +1714,9 @@ void publishAcceptedTargetState(
         if (viewport.itemBounds().isEmpty()) {
             publishRenderWaitingState(viewport);
         } else {
-            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-            viewportRequestState(viewport).reason = ImageViewport::RequestReason::UploadPending;
+            ImageViewportInternal::TargetSpreadWaitState waitState;
+            waitState.primary.uploadPending = true;
+            publishLoadingWaitState(viewport, waitState);
             viewportDisplayState(viewport).status
                 = viewportDisplayState(viewport).displayedImageSize.isValid()
                 ? ImageViewport::DisplayStatus::Retained
@@ -1704,8 +1732,9 @@ void publishAcceptedTargetState(
 void publishProviderFrameLoadingState(ViewportControllerPort& viewport)
 {
     clearDisplayRequestTerminalForAcceptedRequest(viewport);
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.primary.providerWaiting = true;
+    publishLoadingWaitState(viewport, waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
@@ -4086,13 +4115,21 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
 
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
     viewportProviderState(viewport).activeFrameToken = {};
+    const RequestStatusSnapshot oldRequestStatus = requestStatusSnapshot(viewport);
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     publishAcceptedTargetState(viewport, admission.preparedPayload);
     if (hasSecondaryProviderSequence(viewport)
         && viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
-        viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-        viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+        ImageViewportInternal::TargetSpreadWaitState waitState;
+        waitState.requiresSecondary = true;
+        if (viewport.itemBounds().isEmpty()) {
+            waitState.primary.renderWaiting = true;
+        } else {
+            waitState.primary.uploadPending = true;
+        }
+        waitState.secondary.providerWaiting = true;
+        publishLoadingWaitState(viewport, waitState);
         viewportDisplayState(viewport).status
             = viewportDisplayState(viewport).displayedImageSize.isValid()
             ? ImageViewport::DisplayStatus::Retained
@@ -4107,7 +4144,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
                 : ImageViewport::PlaybackPhase::Playing);
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     }
-    changes.requestRevision = true;
+    changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
     changes.displayRevision = true;
     changes.requestState = true;
     changes.displayState = true;
@@ -4134,23 +4171,32 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleSecondaryProv
     }
 
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
+    const RequestStatusSnapshot oldRequestStatus = requestStatusSnapshot(viewport);
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     viewportDisplayState(viewport).secondaryPendingRenderPayload = admission.preparedPayload;
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     const bool primaryPayloadReady
         = viewportDisplayState(viewport).pendingRenderPayload.commitPending
         && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull();
-    viewportRequestState(viewport).reason = !primaryPayloadReady
-        ? ImageViewport::RequestReason::ProviderWaiting
-        : viewport.itemBounds().isEmpty() ? ImageViewport::RequestReason::RenderWaiting
-                                          : ImageViewport::RequestReason::UploadPending;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.requiresSecondary = true;
+    if (primaryPayloadReady && viewport.itemBounds().isEmpty()) {
+        waitState.primary.renderWaiting = true;
+        waitState.secondary.renderWaiting = true;
+    } else if (primaryPayloadReady) {
+        waitState.primary.uploadPending = true;
+        waitState.secondary.uploadPending = true;
+    } else {
+        waitState.primary.providerWaiting = true;
+        waitState.secondary.uploadPending = true;
+    }
+    publishLoadingWaitState(viewport, waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
 
-    changes.requestRevision = true;
+    changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
     changes.displayRevision = true;
     changes.requestState = true;
     changes.displayState = true;
@@ -5084,8 +5130,10 @@ ViewportProviderFrameRequestStartResult ViewportController::startSecondaryProvid
         return result;
     }
 
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.requiresSecondary = true;
+    waitState.secondary.providerWaiting = true;
+    publishLoadingWaitState(viewport, waitState);
     const int resolvedPosition = state.secondaryProvider.timedMetadata
         ? state.secondaryProvider.timingIntervals.frameStartPosition(target.frame)
         : -1;
@@ -5104,8 +5152,9 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
     ViewportProviderFrameQueueRequest request)
 {
     ViewportProviderFrameQueueResult result;
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::RequestQueued;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.primary.requestQueued = true;
+    publishLoadingWaitState(viewport, waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
@@ -5180,8 +5229,9 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
 {
     ViewportProviderFrameRequestStartResult result;
     clearQueuedProviderFrameRequest(viewport);
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    waitState.primary.providerWaiting = true;
+    publishLoadingWaitState(viewport, waitState);
     const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken();
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
