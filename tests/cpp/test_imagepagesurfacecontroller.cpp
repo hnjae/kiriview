@@ -42,6 +42,8 @@ private Q_SLOTS:
     void shadowThumbnailPreviewEntryIsReleasedOnDecodedReplacement();
     void rawShadowThumbnailPreviewEntryIsReleasedOnDecodedReplacement();
     void qtRasterFirstDisplayRefinesToProviderBucket();
+    void qtRasterRefinementCacheHitAvoidsWorkerReschedule();
+    void qtRasterInFlightRefinementRevisitDoesNotScheduleDuplicate();
     void refinementPolicyUsesResolvedCacheBudgetWhenStoreBudgetDiffers();
     void qtRasterRefinementCompletionIsRejectedAfterSourceReplacement();
     void exactQtRasterCurrentImageDoesNotRequestRefinement();
@@ -589,6 +591,88 @@ void TestImagePageSurfaceController::qtRasterFirstDisplayRefinesToProviderBucket
     QCOMPARE(refined.quality, kiriview::DisplayImageQuality::Exact);
     QVERIFY(!store->entry(entryId(first)).has_value());
     QVERIFY(store->entry(entryId(refined)).has_value());
+}
+
+void TestImagePageSurfaceController::qtRasterRefinementCacheHitAvoidsWorkerReschedule()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
+
+    const kiriview::ImagePresentationRenderProjection projection
+        = visibleProjection(QSizeF(8.0, 6.0));
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
+        renderContext());
+    controller.updateDisplayProjection(projection);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    const kiriview::ImageDisplaySourceSlot refined = controller.snapshot().displaySource();
+    QCOMPARE(refined.sourceIdentity, QStringLiteral("source-a"));
+    QCOMPARE(refined.rasterSize, QSize(8, 6));
+    QCOMPARE(refined.quality, kiriview::DisplayImageQuality::Exact);
+
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
+            kiriview::DisplayImageQuality::Exact),
+        false, renderContext());
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
+        renderContext());
+    const kiriview::ImageDisplaySourceSlot revisitedFirstDisplay
+        = controller.snapshot().displaySource();
+    QCOMPARE(revisitedFirstDisplay.sourceIdentity, QStringLiteral("source-a"));
+    QCOMPARE(revisitedFirstDisplay.rasterSize, QSize(4, 3));
+
+    controller.updateDisplayProjection(projection);
+
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    const kiriview::ImageDisplaySourceSlot cached = controller.snapshot().displaySource();
+    QCOMPARE(cached.sourceIdentity, QStringLiteral("source-a"));
+    QCOMPARE(cached.rasterSize, QSize(8, 6));
+    QCOMPARE(cached.quality, kiriview::DisplayImageQuality::Exact);
+    QCOMPARE(cached.revision, revisitedFirstDisplay.revision + 1);
+    QVERIFY(cached.providerUrl != revisitedFirstDisplay.providerUrl);
+}
+
+void TestImagePageSurfaceController::qtRasterInFlightRefinementRevisitDoesNotScheduleDuplicate()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
+
+    const kiriview::ImagePresentationRenderProjection projection
+        = visibleProjection(QSizeF(8.0, 6.0));
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
+        renderContext());
+    controller.updateDisplayProjection(projection);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
+            kiriview::DisplayImageQuality::Exact),
+        false, renderContext());
+    controller.setStaticDisplayImage(
+        qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
+        renderContext());
+    const kiriview::ImageDisplaySourceSlot revisitedFirstDisplay
+        = controller.snapshot().displaySource();
+    controller.updateDisplayProjection(projection);
+
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+
+    const kiriview::ImageDisplaySourceSlot refined = controller.snapshot().displaySource();
+    QCOMPARE(refined.sourceIdentity, QStringLiteral("source-a"));
+    QCOMPARE(refined.rasterSize, QSize(8, 6));
+    QCOMPARE(refined.quality, kiriview::DisplayImageQuality::Exact);
+    QCOMPARE(refined.revision, revisitedFirstDisplay.revision + 1);
+    QVERIFY(refined.providerUrl != revisitedFirstDisplay.providerUrl);
 }
 
 void TestImagePageSurfaceController::refinementPolicyUsesResolvedCacheBudgetWhenStoreBudgetDiffers()

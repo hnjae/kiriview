@@ -16,9 +16,11 @@
 #include "rendering/staticimage.h"
 
 #include <QImage>
+#include <QImageIOHandler>
 #include <QSize>
 #include <QString>
 #include <QUrl>
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -28,6 +30,34 @@ class QObject;
 
 namespace kiriview {
 class ImageAnimationPlayer;
+
+struct RasterDisplayRefinementCacheKey
+{
+    QString sourceIdentity;
+    QImageIOHandler::Transformations imageReaderTransformations
+        = QImageIOHandler::TransformationNone;
+    QSize originalSize;
+    DisplayedPageRole pageRole = DisplayedPageRole::Primary;
+    bool resolutionIndependent = false;
+    DisplayImageQuality quality = DisplayImageQuality::Exact;
+    RasterDisplayBucketKey bucketKey;
+
+    friend bool operator==(
+        const RasterDisplayRefinementCacheKey& left, const RasterDisplayRefinementCacheKey& right)
+    {
+        return left.sourceIdentity == right.sourceIdentity
+            && left.imageReaderTransformations == right.imageReaderTransformations
+            && left.originalSize == right.originalSize && left.pageRole == right.pageRole
+            && left.resolutionIndependent == right.resolutionIndependent
+            && left.quality == right.quality && left.bucketKey == right.bucketKey;
+    }
+
+    friend bool operator!=(
+        const RasterDisplayRefinementCacheKey& left, const RasterDisplayRefinementCacheKey& right)
+    {
+        return !(left == right);
+    }
+};
 
 class ImagePageSurfaceController final
 {
@@ -82,6 +112,20 @@ private:
         QString entryId;
     };
 
+    struct CachedRasterDisplayRefinement
+    {
+        RasterDisplayRefinementCacheKey cacheKey;
+        StaticDisplayImagePayload displayImage;
+    };
+
+    struct InFlightRasterDisplayRefinement
+    {
+        RasterDisplayRefinementCacheKey cacheKey;
+        RasterDisplayRefinementDemandKey demandKey;
+        quint64 ticket = 0;
+        std::shared_ptr<std::atomic_bool> startCanceled;
+    };
+
     void acceptImageState(QSize imageSize, bool predecodeCacheable,
         std::optional<StaticDisplayImagePayload> displayImage);
     DisplayImageReuseKey staticDisplayReuseKey(const StaticDisplayImagePayload& displayImage) const;
@@ -102,6 +146,22 @@ private:
     void clearAnimationFrameLoadContract();
     void updateDisplaySourceVisibility(bool visible);
     void cancelRasterDisplayRefinement();
+    RasterDisplayRefinementCacheKey rasterDisplayRefinementCacheKey(
+        const StaticDisplayImagePayload& displayImage,
+        const ImagePresentationRenderProjection& projection, const StaticImageDisplaySource& source,
+        const RasterDisplayBucketDecision& decision) const;
+    bool promoteCachedRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
+        const ImageDocumentRenderContext& renderContext);
+    void retainCachedRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
+        const StaticDisplayImagePayload& displayImage);
+    std::optional<RasterDisplayRefinementDemandKey> attachInFlightRasterDisplayRefinement(
+        const RasterDisplayRefinementCacheKey& cacheKey,
+        RasterDisplayRefinementDemandKey demandKey);
+    void retainInFlightRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
+        const RasterDisplayRefinementDemandKey& demandKey, quint64 ticket,
+        std::shared_ptr<std::atomic_bool> startCanceled);
+    std::optional<RasterDisplayRefinementDemandKey> takeInFlightRasterDisplayRefinement(
+        const RasterDisplayRefinementCacheKey& cacheKey, quint64 ticket);
     void scheduleRasterDisplayRefinement(const ImagePresentationRenderProjection& projection);
     void notify(ImageDocumentChange change);
 
@@ -137,6 +197,8 @@ private:
     quint64 m_displaySourceRevision = 0;
     std::vector<BufferedStaticDisplayEntry> m_bufferedStaticDisplayEntries;
     std::optional<RasterDisplayRefinementDemandKey> m_rasterDisplayRefinementDemand;
+    std::vector<CachedRasterDisplayRefinement> m_cachedRasterDisplayRefinements;
+    std::vector<InFlightRasterDisplayRefinement> m_inFlightRasterDisplayRefinements;
     ImageAsyncTicket m_rasterDisplayRefinementTicket;
     std::unique_ptr<ImageAnimationPlayer> m_animationPlayer;
 };

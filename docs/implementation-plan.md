@@ -135,6 +135,10 @@ Update `docs/architecture/provider-rendering.md` and, if cancellation ownership 
 - Rapid A/B PgUp/PgDown does not accumulate expensive stale refinement work in the global thread pool.
 - Stale refinement completion still cannot replace the current display source.
 
+### Status
+
+Completed. The slice records refinement cache and in-flight ownership in the provider-rendering and async lifecycle architecture docs, adds focused page-surface tests for refined-bucket cache hits and A/B/A in-flight coalescing, and implements a bounded page-surface refinement cache plus bounded in-flight records. Cache hits promote the refined static display without scheduling another worker job, identical in-flight work reattaches the current demand to the original ticket, and stale completions may populate the cache but still cannot publish unless the completion matches the current active demand.
+
 ### Suggested Verification
 
 - Add focused tests for refinement demand-key equality, cache hit, in-flight coalescing, and stale completion rejection.

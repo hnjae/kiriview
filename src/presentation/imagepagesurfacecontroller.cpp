@@ -11,6 +11,7 @@
 
 #include <QDebug>
 #include <algorithm>
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -18,14 +19,18 @@
 namespace kiriview {
 namespace {
     constexpr qsizetype staticDisplayBufferCapacity = 2;
+    constexpr qsizetype rasterDisplayRefinementCacheCapacity = 4;
+    constexpr qsizetype rasterDisplayRefinementInFlightCapacity = 4;
 
     struct RasterDisplayRefinementWork
     {
         quint64 ticket = 0;
+        RasterDisplayRefinementCacheKey cacheKey;
         RasterDisplayRefinementDemandKey demandKey;
         ImageDocumentRenderContext renderContext;
         StaticDisplayImagePayload currentDisplay;
         std::shared_ptr<StaticImageDisplaySource> source;
+        std::shared_ptr<std::atomic_bool> startCanceled;
         QSize rasterSize;
         DisplayImageQuality quality = DisplayImageQuality::Exact;
     };
@@ -33,6 +38,7 @@ namespace {
     struct RasterDisplayRefinementResult
     {
         quint64 ticket = 0;
+        RasterDisplayRefinementCacheKey cacheKey;
         RasterDisplayRefinementDemandKey demandKey;
         ImageDocumentRenderContext renderContext;
         StaticDisplayImagePayload displayImage;
@@ -129,8 +135,14 @@ namespace {
 
     RasterDisplayRefinementResult runRasterDisplayRefinement(RasterDisplayRefinementWork work)
     {
+        if (work.startCanceled != nullptr && work.startCanceled->load(std::memory_order_relaxed)) {
+            return { work.ticket, std::move(work.cacheKey), std::move(work.demandKey),
+                work.renderContext, {}, false };
+        }
+
         if (work.source == nullptr || work.rasterSize.isEmpty()) {
-            return { work.ticket, std::move(work.demandKey), work.renderContext, {}, false };
+            return { work.ticket, std::move(work.cacheKey), std::move(work.demandKey),
+                work.renderContext, {}, false };
         }
 
         StaticImageDisplayDecodeResult decodeResult
@@ -138,10 +150,11 @@ namespace {
         Q_UNUSED(decodeResult.diagnostics);
         QImage image = std::move(decodeResult.image);
         if (image.isNull()) {
-            return { work.ticket, std::move(work.demandKey), work.renderContext, {}, false };
+            return { work.ticket, std::move(work.cacheKey), std::move(work.demandKey),
+                work.renderContext, {}, false };
         }
 
-        return { work.ticket, work.demandKey, work.renderContext,
+        return { work.ticket, work.cacheKey, work.demandKey, work.renderContext,
             refinedDisplayImagePayload(std::move(work), std::move(image)), true };
     }
 }
@@ -606,6 +619,143 @@ void ImagePageSurfaceController::cancelRasterDisplayRefinement()
     m_rasterDisplayRefinementDemand = std::nullopt;
 }
 
+RasterDisplayRefinementCacheKey ImagePageSurfaceController::rasterDisplayRefinementCacheKey(
+    const StaticDisplayImagePayload& displayImage,
+    const ImagePresentationRenderProjection& projection, const StaticImageDisplaySource& source,
+    const RasterDisplayBucketDecision& decision) const
+{
+    return RasterDisplayRefinementCacheKey {
+        displayImage.sourceIdentity,
+        displayImage.imageReaderTransform.transformations,
+        displayImage.originalSize,
+        projection.pageRole,
+        source.isResolutionIndependent(),
+        decision.quality,
+        decision.bucketKey,
+    };
+}
+
+bool ImagePageSurfaceController::promoteCachedRasterDisplayRefinement(
+    const RasterDisplayRefinementCacheKey& cacheKey,
+    const ImageDocumentRenderContext& renderContext)
+{
+    auto entry = std::find_if(m_cachedRasterDisplayRefinements.begin(),
+        m_cachedRasterDisplayRefinements.end(),
+        [&cacheKey](const CachedRasterDisplayRefinement& refinement) {
+            return refinement.cacheKey == cacheKey;
+        });
+    if (entry == m_cachedRasterDisplayRefinements.end()) {
+        return false;
+    }
+
+    CachedRasterDisplayRefinement cached = *entry;
+    m_cachedRasterDisplayRefinements.erase(entry);
+    m_cachedRasterDisplayRefinements.push_back(cached);
+    qCDebug(kiriviewDisplayProviderLog)
+        << "raster display refinement cache hit"
+        << "sourceIdentity" << cacheKey.sourceIdentity << "pageRole"
+        << static_cast<int>(cacheKey.pageRole) << "bucketSize" << cacheKey.bucketKey.rasterSize
+        << "exact" << cacheKey.bucketKey.exact << "quality" << static_cast<int>(cacheKey.quality);
+
+    setStaticDisplayImage(std::move(cached.displayImage), isPredecodeCacheable(), renderContext);
+    updateDisplaySourceVisibility(true);
+    notify(ImageDocumentChange::DisplaySource);
+    return true;
+}
+
+void ImagePageSurfaceController::retainCachedRasterDisplayRefinement(
+    const RasterDisplayRefinementCacheKey& cacheKey, const StaticDisplayImagePayload& displayImage)
+{
+    auto entry = m_cachedRasterDisplayRefinements.begin();
+    while (entry != m_cachedRasterDisplayRefinements.end()) {
+        if (entry->cacheKey == cacheKey) {
+            entry = m_cachedRasterDisplayRefinements.erase(entry);
+            continue;
+        }
+        ++entry;
+    }
+
+    m_cachedRasterDisplayRefinements.push_back(CachedRasterDisplayRefinement {
+        cacheKey,
+        displayImage,
+    });
+    while (static_cast<qsizetype>(m_cachedRasterDisplayRefinements.size())
+        > rasterDisplayRefinementCacheCapacity) {
+        m_cachedRasterDisplayRefinements.erase(m_cachedRasterDisplayRefinements.begin());
+    }
+}
+
+std::optional<RasterDisplayRefinementDemandKey>
+ImagePageSurfaceController::attachInFlightRasterDisplayRefinement(
+    const RasterDisplayRefinementCacheKey& cacheKey, RasterDisplayRefinementDemandKey demandKey)
+{
+    auto entry = std::find_if(m_inFlightRasterDisplayRefinements.begin(),
+        m_inFlightRasterDisplayRefinements.end(),
+        [&cacheKey](const InFlightRasterDisplayRefinement& refinement) {
+            return refinement.cacheKey == cacheKey;
+        });
+    if (entry == m_inFlightRasterDisplayRefinements.end()) {
+        return std::nullopt;
+    }
+
+    demandKey.renderRevision = entry->ticket;
+    entry->demandKey = demandKey;
+    m_rasterDisplayRefinementDemand = demandKey;
+    return demandKey;
+}
+
+void ImagePageSurfaceController::retainInFlightRasterDisplayRefinement(
+    const RasterDisplayRefinementCacheKey& cacheKey,
+    const RasterDisplayRefinementDemandKey& demandKey, quint64 ticket,
+    std::shared_ptr<std::atomic_bool> startCanceled)
+{
+    auto entry = m_inFlightRasterDisplayRefinements.begin();
+    while (entry != m_inFlightRasterDisplayRefinements.end()) {
+        if (entry->cacheKey == cacheKey || entry->ticket == ticket) {
+            entry = m_inFlightRasterDisplayRefinements.erase(entry);
+            continue;
+        }
+        ++entry;
+    }
+
+    m_inFlightRasterDisplayRefinements.push_back(InFlightRasterDisplayRefinement {
+        cacheKey,
+        demandKey,
+        ticket,
+        std::move(startCanceled),
+    });
+    while (static_cast<qsizetype>(m_inFlightRasterDisplayRefinements.size())
+        > rasterDisplayRefinementInFlightCapacity) {
+        InFlightRasterDisplayRefinement evicted = m_inFlightRasterDisplayRefinements.front();
+        if (evicted.startCanceled != nullptr) {
+            evicted.startCanceled->store(true, std::memory_order_relaxed);
+        }
+        if (m_rasterDisplayRefinementDemand.has_value()
+            && *m_rasterDisplayRefinementDemand == evicted.demandKey) {
+            m_rasterDisplayRefinementDemand = std::nullopt;
+        }
+        m_inFlightRasterDisplayRefinements.erase(m_inFlightRasterDisplayRefinements.begin());
+    }
+}
+
+std::optional<RasterDisplayRefinementDemandKey>
+ImagePageSurfaceController::takeInFlightRasterDisplayRefinement(
+    const RasterDisplayRefinementCacheKey& cacheKey, quint64 ticket)
+{
+    auto entry = std::find_if(m_inFlightRasterDisplayRefinements.begin(),
+        m_inFlightRasterDisplayRefinements.end(),
+        [&cacheKey, ticket](const InFlightRasterDisplayRefinement& refinement) {
+            return refinement.cacheKey == cacheKey && refinement.ticket == ticket;
+        });
+    if (entry == m_inFlightRasterDisplayRefinements.end()) {
+        return std::nullopt;
+    }
+
+    RasterDisplayRefinementDemandKey demandKey = entry->demandKey;
+    m_inFlightRasterDisplayRefinements.erase(entry);
+    return demandKey;
+}
+
 void ImagePageSurfaceController::releaseCurrentDisplayEntry()
 {
     clearStillImageLoadContract();
@@ -853,6 +1003,9 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
 
     RasterDisplayRefinementDemandKey demandKey = rasterDemandKey(*currentDisplay, projection,
         m_displaySourceRevision, displayImageByteBudget, 0, decision.bucketKey);
+    const ImageDocumentRenderContext renderContext = renderContextForProjection(projection);
+    const RasterDisplayRefinementCacheKey cacheKey
+        = rasterDisplayRefinementCacheKey(*currentDisplay, projection, *source, decision);
     if (m_rasterDisplayRefinementDemand.has_value()) {
         RasterDisplayRefinementDemandKey pendingDemand = *m_rasterDisplayRefinementDemand;
         pendingDemand.renderRevision = 0;
@@ -866,10 +1019,34 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
             return;
         }
     }
+    if (promoteCachedRasterDisplayRefinement(cacheKey, renderContext)) {
+        return;
+    }
+    std::optional<RasterDisplayRefinementDemandKey> attachedDemand
+        = attachInFlightRasterDisplayRefinement(cacheKey, demandKey);
+    if (attachedDemand.has_value()) {
+        qCDebug(kiriviewDisplayProviderLog)
+            << "raster display refinement demand attached to in-flight work"
+            << "ticket" << attachedDemand->renderRevision << "sourceIdentity"
+            << attachedDemand->sourceIdentity << "pageRole"
+            << static_cast<int>(attachedDemand->pageRole) << "displaySourceRevision"
+            << attachedDemand->displaySourceRevision << "zoomGeneration"
+            << attachedDemand->zoomGeneration << "renderContextGeneration"
+            << attachedDemand->renderContextGeneration << "allocationGeneration"
+            << attachedDemand->allocationGeneration << "rotationGeneration"
+            << attachedDemand->rotationGeneration << "bucketSize"
+            << attachedDemand->bucketKey.rasterSize << "exact" << attachedDemand->bucketKey.exact
+            << "maximumTextureSize" << attachedDemand->bucketKey.maximumTextureSize
+            << "displayImageByteBudget" << attachedDemand->bucketKey.displayImageByteBudget
+            << "quality" << static_cast<int>(decision.quality);
+        return;
+    }
 
     const quint64 ticket = m_rasterDisplayRefinementTicket.next();
     demandKey.renderRevision = ticket;
     m_rasterDisplayRefinementDemand = demandKey;
+    std::shared_ptr<std::atomic_bool> startCanceled = std::make_shared<std::atomic_bool>(false);
+    retainInFlightRasterDisplayRefinement(cacheKey, demandKey, ticket, startCanceled);
     qCDebug(kiriviewDisplayProviderLog)
         << "raster display refinement scheduled"
         << "ticket" << ticket << "sourceIdentity" << demandKey.sourceIdentity << "pageRole"
@@ -885,19 +1062,39 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
         m_context,
         [work = RasterDisplayRefinementWork {
              ticket,
-             std::move(demandKey),
-             renderContextForProjection(projection),
+             cacheKey,
+             demandKey,
+             renderContext,
              std::move(*currentDisplay),
              std::move(source),
+             std::move(startCanceled),
              decision.bucketKey.rasterSize,
              decision.quality,
         }]() mutable { return runRasterDisplayRefinement(std::move(work)); },
         [this](RasterDisplayRefinementResult result) mutable {
-            if (!m_rasterDisplayRefinementTicket.accepts(result.ticket)
-                || !m_rasterDisplayRefinementDemand.has_value()
-                || *m_rasterDisplayRefinementDemand != result.demandKey) {
+            std::optional<RasterDisplayRefinementDemandKey> currentDemand
+                = takeInFlightRasterDisplayRefinement(result.cacheKey, result.ticket);
+            if (!currentDemand.has_value()) {
                 qCDebug(kiriviewDisplayProviderLog)
                     << "raster display refinement result dropped"
+                    << "ticket" << result.ticket << "sourceIdentity"
+                    << result.demandKey.sourceIdentity << "pageRole"
+                    << static_cast<int>(result.demandKey.pageRole)
+                    << "displaySourceRevision" << result.demandKey.displaySourceRevision
+                    << "renderRevision" << result.demandKey.renderRevision << "bucketSize"
+                    << result.demandKey.bucketKey.rasterSize << "ready" << result.ready
+                    << "hasCurrentDemand" << m_rasterDisplayRefinementDemand.has_value();
+                return;
+            }
+
+            if (result.ready) {
+                retainCachedRasterDisplayRefinement(result.cacheKey, result.displayImage);
+            }
+
+            if (!m_rasterDisplayRefinementDemand.has_value()
+                || *m_rasterDisplayRefinementDemand != *currentDemand) {
+                qCDebug(kiriviewDisplayProviderLog)
+                    << "raster display refinement result cached for inactive demand"
                     << "ticket" << result.ticket << "sourceIdentity"
                     << result.demandKey.sourceIdentity << "pageRole"
                     << static_cast<int>(result.demandKey.pageRole)
