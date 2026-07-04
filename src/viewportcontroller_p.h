@@ -374,7 +374,6 @@ struct ViewportSequenceAssignment
     ImageSequence* secondarySequence = nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
     ViewportSequenceRoleSource secondarySource;
-    bool retainPreviousDisplay = true;
     PageSetTransitionPolicy transitionPolicy;
 };
 

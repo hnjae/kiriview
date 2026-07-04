@@ -588,6 +588,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         result.changes = commandResult.changes;
         return result;
     }
+    const bool retainDisplay = transitionPolicy->displayTransition
+        == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
 
     if (!assignment.sequence) {
         const ViewportCommandResult clearResult = clear();
@@ -629,7 +631,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
     viewportDisplayState(viewport).clearPendingRenderPayload();
-    if (!assignment.retainPreviousDisplay) {
+    if (!retainDisplay) {
         viewportDisplayState(viewport).clearDisplayedDisplay();
         viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
     }
@@ -742,8 +744,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     if (secondarySource.provider) {
         viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-        if (assignment.retainPreviousDisplay
-            && viewportDisplayState(viewport).displayedImageSize.isValid()) {
+        if (retainDisplay && viewportDisplayState(viewport).displayedImageSize.isValid()) {
             viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Retained;
         } else {
             viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Empty;

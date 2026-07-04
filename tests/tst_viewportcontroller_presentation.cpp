@@ -132,6 +132,7 @@ private slots:
     void standalonePresentationCommandsMutateControllerState();
     void presentationCommandsReportGeometryChangesWhenDisplayIsReady();
     void assignmentAppliesPresentationTransitionInControllerTransaction();
+    void assignmentDerivesDisplayTransitionFromPolicy();
     void pageSetTransitionScanStartUsesReplacementSpreadGeometry();
     void pageSetTransitionScanEndUsesReplacementSpreadGeometry();
     void pageSetTransitionClampUsesReplacementBounds();
@@ -234,6 +235,38 @@ void ViewportControllerPresentationTest::
     QCOMPARE(controller.presentationState().spreadDirection,
         ImageViewport::SpreadDirection::RightToLeft);
     QCOMPARE(controller.presentationState().pageGap, 4.0);
+}
+
+void ViewportControllerPresentationTest::assignmentDerivesDisplayTransitionFromPolicy()
+{
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
+    QVERIFY(initial);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+    QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
+    QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Ready);
+
+    context.logicalSize = QSizeF(32.0, 16.0);
+    std::unique_ptr<ImageSequenceFactoryResult> replacement = makeStillSequence(factory, context);
+    QVERIFY(replacement);
+    context.sequence = replacement->sequence();
+
+    PageSetTransitionPolicy policy;
+    policy.setDisplayTransition(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = replacement->sequence();
+    assignment.transitionPolicy = policy;
+    const ViewportSequenceAssignmentResult result = controller.assignSequence(assignment);
+
+    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Empty);
+    QCOMPARE(controller.displayState().displayedImageSize, QSizeF());
+    QCOMPARE(result.changes.displayRevision, true);
 }
 
 void ViewportControllerPresentationTest::

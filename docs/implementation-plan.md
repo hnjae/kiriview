@@ -516,6 +516,8 @@ F6.
 
 ### Milestone 7: Make Page-Set Display Transition a Controller-Owned Single Source
 
+Status: Complete. Verified against the sequence assignment and controller boundary sections of the authoritative spec and architecture docs before execution. A controller-level regression test now proves `ClearBeforeLoad` is derived from `PageSetTransitionPolicy` even when assignment callers provide no derived retain flag. `ViewportSequenceAssignment` no longer carries `retainPreviousDisplay`; `ImageViewportPrivate::setPageSet(...)` passes the public policy through unchanged, and `ViewportController::assignSequence(...)` derives retain versus clear once from the normalized controller policy. Existing retained replacement, clear-before-load, clear-style preservation, invalid page-role, invalid transition-policy, and provider replacement tests passed unchanged.
+
 #### Objective
 
 Remove duplicate retain/clear transition intent before introducing the sequence-source boundary needed to finish role fact ownership.
@@ -549,13 +551,13 @@ F9.
 
 #### Tasks
 
-- [ ] Add tests that `RetainPrevious` keeps retained display while the accepted replacement loads or fails.
-- [ ] Add tests that `ClearBeforeLoad` exposes empty display before replacement load and after terminal failure until content commits.
-- [ ] Add tests that valid clear-style operations preserve presentation preferences such as fit mode, zoom, content position, rotation, mirror, spread direction, page gap, background, quality preferences, and looping.
-- [ ] Add tests that invalid transition-policy or page-role values preserve accepted page set, request/display revisions, playback phase, retained content, provider work, and publish command diagnostics where specified.
-- [ ] Remove `ViewportSequenceAssignment::retainPreviousDisplay` or equivalent duplicate transition state.
-- [ ] Derive retain/clear behavior inside `ViewportController::assignSequence(...)` from normalized transition policy.
-- [ ] Keep invalid transition-policy rejection before page-set, presentation, retained-display, provider, playback, or revision changes.
+- [x] Add tests that `RetainPrevious` keeps retained display while the accepted replacement loads or fails.
+- [x] Add tests that `ClearBeforeLoad` exposes empty display before replacement load and after terminal failure until content commits.
+- [x] Add tests that valid clear-style operations preserve presentation preferences such as fit mode, zoom, content position, rotation, mirror, spread direction, page gap, background, quality preferences, and looping.
+- [x] Add tests that invalid transition-policy or page-role values preserve accepted page set, request/display revisions, playback phase, retained content, provider work, and publish command diagnostics where specified.
+- [x] Remove `ViewportSequenceAssignment::retainPreviousDisplay` or equivalent duplicate transition state.
+- [x] Derive retain/clear behavior inside `ViewportController::assignSequence(...)` from normalized transition policy.
+- [x] Keep invalid transition-policy rejection before page-set, presentation, retained-display, provider, playback, or revision changes.
 
 #### Acceptance criteria
 

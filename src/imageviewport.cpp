@@ -622,8 +622,6 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     assignment.secondarySequence = secondarySequence;
     assignment.secondarySequenceOwner = std::move(secondaryOwner);
     assignment.secondarySource = secondarySource;
-    assignment.retainPreviousDisplay
-        = policy.displayTransition() == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
     assignment.transitionPolicy = policy;
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     if (result.outcome != CommandOutcome::Accepted) {
