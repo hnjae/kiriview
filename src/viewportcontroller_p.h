@@ -15,13 +15,22 @@
 
 class ImageViewportPrivate;
 
+struct ViewportRenderRolePayload
+{
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
+};
+
 struct ViewportRenderAcknowledgement
 {
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
+    QVector<ViewportRenderRolePayload> rolePayloads;
+    ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
 };
 
 struct ViewportRenderLayer
 {
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
     ImageViewportInternal::PreparedPayload preparedPayload;
     QRectF targetRect;
     QRectF sourceRect;
@@ -643,6 +652,7 @@ public:
     quint64 displayedRequestIdForTest() const;
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
+    quint64 secondaryPendingRenderPayloadIdForTest() const;
 #endif
 
 private:

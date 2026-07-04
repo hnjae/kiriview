@@ -16,7 +16,8 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 
     QVector<Input::ImageLayer> imageLayers = input.imageLayers;
     if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
-        imageLayers.append({ input.preparedPayload, input.targetRect, input.sourceRect,
+        imageLayers.append({ ImageViewport::PageRole::Primary, input.preparedPayload,
+            input.targetRect, input.sourceRect,
             input.mirrorHorizontally, input.mirrorVertically });
     }
     const auto firstPayloadIdentity = [&]() {
@@ -70,6 +71,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         return { nullptr, CommitResult::Failed, firstPayloadIdentity() };
     }
 
+    QVector<Output::RolePayload> rolePayloads;
     for (const Input::ImageLayer& layer : imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
@@ -80,6 +82,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         if (payload.image.isNull()) {
             continue;
         }
+        rolePayloads.append({ layer.role, payloadIdentity });
 
         QQuickWindow::CreateTextureOptions textureOptions;
         if (input.mipmap) {
@@ -91,7 +94,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
             delete texture;
             delete imageNode;
             delete root;
-            return { nullptr, CommitResult::Failed, payloadIdentity };
+            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role };
         }
 
         imageNode->setTexture(texture);
@@ -114,5 +117,5 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         imageNode->setTextureCoordinatesTransform(transform);
         root->appendChildNode(imageNode);
     }
-    return { root, CommitResult::Committed, firstPayloadIdentity() };
+    return { root, CommitResult::Committed, firstPayloadIdentity(), rolePayloads };
 }

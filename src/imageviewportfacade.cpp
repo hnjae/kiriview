@@ -286,16 +286,34 @@ quint64 ImageViewport::pendingRenderPayloadIdForTest() const
     return d->pendingRenderPayloadIdForTest();
 }
 
+quint64 ImageViewport::secondaryPendingRenderPayloadIdForTest() const
+{
+    return d->secondaryPendingRenderPayloadIdForTest();
+}
+
 void ImageViewport::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     d->acknowledgeRenderCommitForTest(generation, requestId, preparedPayloadId);
 }
 
+void ImageViewport::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
+    quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
+{
+    d->acknowledgeRenderCommitForTest(
+        generation, requestId, primaryPreparedPayloadId, secondaryPreparedPayloadId);
+}
+
 void ImageViewport::acknowledgeRenderFailureForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     d->acknowledgeRenderFailureForTest(generation, requestId, preparedPayloadId);
+}
+
+void ImageViewport::acknowledgeRenderFailureForTest(ImageViewport::PageRole failedRole,
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    d->acknowledgeRenderFailureForTest(failedRole, generation, requestId, preparedPayloadId);
 }
 #endif
 

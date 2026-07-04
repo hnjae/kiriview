@@ -648,7 +648,7 @@ ImageViewportInternal::PreparedPayload secondaryRenderPayload(ViewportController
     return payload;
 }
 
-void appendRenderLayer(QVector<ViewportRenderLayer>& layers,
+void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::PageRole role,
     const ImageViewportInternal::PreparedPayload& payload, const QRectF& targetRect,
     const QRectF& sourceRect, const ImageViewportInternal::PresentationState& presentation,
     bool requirePresentableRects)
@@ -659,7 +659,7 @@ void appendRenderLayer(QVector<ViewportRenderLayer>& layers,
     if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
         return;
     }
-    layers.append({ payload, targetRect, sourceRect, presentation.mirrorHorizontally,
+    layers.append({ role, payload, targetRect, sourceRect, presentation.mirrorHorizontally,
         presentation.mirrorVertically });
 }
 
@@ -683,12 +683,12 @@ ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort v
         = renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
     snapshot.sourceRect
         = renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
-    appendRenderLayer(snapshot.imageLayers, primaryPayload, snapshot.targetRect,
-        snapshot.sourceRect, presentation, false);
+    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Primary, primaryPayload,
+        snapshot.targetRect, snapshot.sourceRect, presentation, false);
 
     const ImageViewportInternal::PreparedPayload secondaryPayload
         = secondaryRenderPayload(viewport, synchronization, primaryPayload);
-    appendRenderLayer(snapshot.imageLayers, secondaryPayload,
+    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Secondary, secondaryPayload,
         renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
         renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
         presentation, true);
@@ -1543,13 +1543,75 @@ void completeStopRestoreRequest(ViewportControllerPort& viewport, ViewportComman
     result.changes.requestState = true;
 }
 
-bool renderAcknowledgementMatchesPending(
-    ViewportControllerPort& viewport, ViewportRenderAcknowledgement acknowledgement)
+ImageViewportInternal::PreparedPayloadIdentity acknowledgementPayloadForRole(
+    const ViewportRenderAcknowledgement& acknowledgement, ImageViewport::PageRole role)
 {
-    return viewportDisplayState(viewport).pendingRenderPayloadMatches(
-               acknowledgement.preparedPayload)
-        && viewportRequestState(viewport).activeRequestOwnsPreparedPayload(
-            acknowledgement.preparedPayload);
+    for (const ViewportRenderRolePayload& rolePayload : acknowledgement.rolePayloads) {
+        if (rolePayload.role == role) {
+            return rolePayload.preparedPayload;
+        }
+    }
+    return role == ImageViewport::PageRole::Primary
+        ? acknowledgement.preparedPayload
+        : ImageViewportInternal::PreparedPayloadIdentity {};
+}
+
+ImageViewportInternal::PreparedPayloadIdentity expectedRenderPayloadForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+{
+    if (role == ImageViewport::PageRole::Primary) {
+        return viewportDisplayState(viewport).pendingRenderPayload.identity();
+    }
+    if (!hasSecondarySequence(viewport)) {
+        return {};
+    }
+    const ImageViewportInternal::PreparedPayloadIdentity secondaryIdentity
+        = viewportDisplayState(viewport).secondaryPendingRenderPayload.identity();
+    return secondaryIdentity.isValid()
+        ? secondaryIdentity
+        : viewportDisplayState(viewport).pendingRenderPayload.identity();
+}
+
+bool renderPayloadMatches(
+    ImageViewportInternal::PreparedPayloadIdentity actual,
+    ImageViewportInternal::PreparedPayloadIdentity expected)
+{
+    return actual.isValid() && expected.isValid() && actual.generation == expected.generation
+        && actual.requestId == expected.requestId && actual.payloadId == expected.payloadId;
+}
+
+bool primaryRenderAcknowledgementMatchesPending(
+    ViewportControllerPort& viewport, const ViewportRenderAcknowledgement& acknowledgement)
+{
+    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
+        = acknowledgementPayloadForRole(acknowledgement, ImageViewport::PageRole::Primary);
+    return viewportDisplayState(viewport).pendingRenderPayloadMatches(primaryPayload)
+        && viewportRequestState(viewport).activeRequestOwnsPreparedPayload(primaryPayload);
+}
+
+bool renderCommitAcknowledgementMatchesPending(
+    ViewportControllerPort& viewport, const ViewportRenderAcknowledgement& acknowledgement)
+{
+    if (!primaryRenderAcknowledgementMatchesPending(viewport, acknowledgement)) {
+        return false;
+    }
+    if (!hasSecondarySequence(viewport)) {
+        return true;
+    }
+    return renderPayloadMatches(
+        acknowledgementPayloadForRole(acknowledgement, ImageViewport::PageRole::Secondary),
+        expectedRenderPayloadForRole(viewport, ImageViewport::PageRole::Secondary));
+}
+
+bool renderFailureAcknowledgementMatchesPending(
+    ViewportControllerPort& viewport, const ViewportRenderAcknowledgement& acknowledgement)
+{
+    if (acknowledgement.failedRole == ImageViewport::PageRole::Primary) {
+        return primaryRenderAcknowledgementMatchesPending(viewport, acknowledgement);
+    }
+    return renderPayloadMatches(
+        acknowledgementPayloadForRole(acknowledgement, ImageViewport::PageRole::Secondary),
+        expectedRenderPayloadForRole(viewport, ImageViewport::PageRole::Secondary));
 }
 
 void setPlaybackPhase(ViewportControllerPort& viewport,
@@ -4927,7 +4989,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
     }
 
     const bool renderMatchesPending
-        = renderAcknowledgementMatchesPending(viewport, acknowledgement);
+        = renderCommitAcknowledgementMatchesPending(viewport, acknowledgement);
     if (!renderMatchesPending) {
         return changes;
     }
@@ -4979,7 +5041,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
 {
     ImageViewportInternal::ViewportChangeSet changes;
     const bool renderMatchesPending
-        = renderAcknowledgementMatchesPending(viewport, acknowledgement);
+        = renderFailureAcknowledgementMatchesPending(viewport, acknowledgement);
     const bool pendingProviderCommit = viewport.hasProviderSequence()
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading
         && (viewportRequestState(viewport).reason == ImageViewport::RequestReason::UploadPending
@@ -5376,5 +5438,10 @@ quint64 ViewportController::pendingRenderGenerationForTest() const
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
     return state.display.pendingRenderPayload.payloadId;
+}
+
+quint64 ViewportController::secondaryPendingRenderPayloadIdForTest() const
+{
+    return state.display.secondaryPendingRenderPayload.payloadId;
 }
 #endif

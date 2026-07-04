@@ -138,10 +138,15 @@ public:
     quint64 displayedRequestIdForTest() const;
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
+    quint64 secondaryPendingRenderPayloadIdForTest() const;
     void acknowledgeRenderCommitForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
+    void acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
+        quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId);
     void acknowledgeRenderFailureForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
+    void acknowledgeRenderFailureForTest(
+        PageRole failedRole, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 #endif
     QRectF contentRect() const override;
     QRectF visibleImageRect() const override;

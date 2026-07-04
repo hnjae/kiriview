@@ -538,6 +538,11 @@ quint64 ImageViewportPrivate::pendingRenderPayloadIdForTest() const
     return controller.pendingRenderPayloadIdForTest();
 }
 
+quint64 ImageViewportPrivate::secondaryPendingRenderPayloadIdForTest() const
+{
+    return controller.secondaryPendingRenderPayloadIdForTest();
+}
+
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
@@ -550,11 +555,56 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     }
 }
 
+void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
+    quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
+{
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
+        generation,
+        requestId,
+        primaryPreparedPayloadId,
+    };
+    const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload {
+        generation,
+        requestId,
+        secondaryPreparedPayloadId,
+    };
+    const auto changes = controller.acknowledgeRenderCommit(
+        {
+            primaryPayload,
+            {
+                { ImageViewport::PageRole::Primary, primaryPayload },
+                { ImageViewport::PageRole::Secondary, secondaryPayload },
+            },
+        },
+        true, synchronization);
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
+}
+
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     const auto changes
         = controller.acknowledgeRenderFailure({ { generation, requestId, preparedPayloadId } });
+    applyControllerChanges(changes);
+    if (changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
+}
+
+void ImageViewportPrivate::acknowledgeRenderFailureForTest(
+    PageRole failedRole, quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    const ImageViewportInternal::PreparedPayloadIdentity failedPayload {
+        generation,
+        requestId,
+        preparedPayloadId,
+    };
+    const auto changes = controller.acknowledgeRenderFailure(
+        { failedPayload, { { failedRole, failedPayload } }, failedRole });
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

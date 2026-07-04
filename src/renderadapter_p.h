@@ -22,6 +22,7 @@ public:
     {
         struct ImageLayer
         {
+            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
             ImageViewportInternal::PreparedPayload preparedPayload;
             QRectF targetRect;
             QRectF sourceRect;
@@ -45,9 +46,17 @@ public:
 
     struct Output
     {
+        struct RolePayload
+        {
+            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+            ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
+        };
+
         QSGNode* node = nullptr;
         CommitResult result = CommitResult::Empty;
         ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
+        QVector<RolePayload> rolePayloads;
+        ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
     };
 
     Output createNode(QSGNode* oldNode, const Input& input) const;

@@ -20,7 +20,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     QVector<RenderAdapter::Input::ImageLayer> imageLayers;
     imageLayers.reserve(synchronization.renderSnapshot.imageLayers.size());
     for (const ViewportRenderLayer& layer : synchronization.renderSnapshot.imageLayers) {
-        imageLayers.append({ layer.preparedPayload, layer.targetRect, layer.sourceRect,
+        imageLayers.append({ layer.role, layer.preparedPayload, layer.targetRect, layer.sourceRect,
             layer.mirrorHorizontally, layer.mirrorVertically });
     }
     const bool imagePresent = !imageLayers.isEmpty();
@@ -41,7 +41,13 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             window(),
         });
     if (render.result == RenderAdapter::CommitResult::Failed) {
-        const auto changes = controller.acknowledgeRenderFailure({ render.preparedPayload });
+        QVector<ViewportRenderRolePayload> rolePayloads;
+        rolePayloads.reserve(render.rolePayloads.size());
+        for (const RenderAdapter::Output::RolePayload& payload : render.rolePayloads) {
+            rolePayloads.append({ payload.role, payload.preparedPayload });
+        }
+        const auto changes = controller.acknowledgeRenderFailure(
+            { render.preparedPayload, rolePayloads, render.failedRole });
         applyControllerChanges(changes);
         if (changes.playbackPhase) {
             syncPlaybackTimer();
@@ -50,8 +56,13 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     }
 
     if (render.result == RenderAdapter::CommitResult::Committed) {
+        QVector<ViewportRenderRolePayload> rolePayloads;
+        rolePayloads.reserve(render.rolePayloads.size());
+        for (const RenderAdapter::Output::RolePayload& payload : render.rolePayloads) {
+            rolePayloads.append({ payload.role, payload.preparedPayload });
+        }
         const auto changes = controller.acknowledgeRenderCommit(
-            { render.preparedPayload }, imagePresent, synchronization);
+            { render.preparedPayload, rolePayloads }, imagePresent, synchronization);
         applyControllerChanges(changes);
         if (changes.playbackPhase) {
             syncPlaybackTimer();

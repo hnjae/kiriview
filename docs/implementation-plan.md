@@ -902,12 +902,12 @@ Spread render acknowledgement is not complete-role scoped; render path rebuilds 
 
 #### Tasks
 
-- [ ] Add render acknowledgement characterization for stale secondary payload acknowledgement, secondary-layer render failure, and complete spread commit requiring all active role payload identities.
-- [ ] Define acknowledgement identity fields for target spread identity, primary payload identity, optional secondary payload identity, and role-scoped failure identity.
-- [ ] Extend `RenderAdapter::Output` to report complete spread commit or role-scoped failure identity.
-- [ ] Extend `ViewportRenderAcknowledgement` to carry complete role identity data instead of one payload identity for multi-role spreads.
-- [ ] Update controller acknowledgement validation to accept commit only when every required current role payload identity matches the active target spread.
-- [ ] Ensure stale secondary acknowledgement or stale role failure is ignored without affecting newer accepted spread state.
+- [x] Add render acknowledgement characterization for stale secondary payload acknowledgement, secondary-layer render failure, and complete spread commit requiring all active role payload identities.
+- [x] Define acknowledgement identity fields for target spread identity, primary payload identity, optional secondary payload identity, and role-scoped failure identity.
+- [x] Extend `RenderAdapter::Output` to report complete spread commit or role-scoped failure identity.
+- [x] Extend `ViewportRenderAcknowledgement` to carry complete role identity data instead of one payload identity for multi-role spreads.
+- [x] Update controller acknowledgement validation to accept commit only when every required current role payload identity matches the active target spread.
+- [x] Ensure stale secondary acknowledgement or stale role failure is ignored without affecting newer accepted spread state.
 
 #### Acceptance criteria
 
@@ -923,6 +923,14 @@ Spread render acknowledgement is not complete-role scoped; render path rebuilds 
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph)$'`
 - `ctest --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Characterization failure before implementation was `imageviewport_render_commit`: a legacy single-payload acknowledgement incorrectly promoted a two-page pending spread to `Ready`.
+- Render adapter output now carries per-role payload identities and a failed role identity. `ViewportRenderAcknowledgement` carries the complete role payload list; the target spread is validated through each prepared payload's generation and active request identity.
+- Controller commit acknowledgement requires the primary payload plus the current secondary role payload when a secondary sequence participates in the spread. Secondary role failures are accepted only when the failed role identity matches the active spread and stale secondary failures are ignored.
+- Private test probes were extended only under `IMAGEVIEWPORT_PRIVATE_TEST_PROBES`; the installed public header stripper was updated so no normal public API was added.
+- Verification passed: `cmake --build build`; focused filter selected 2 tests; focused CTest passed 2/2; full CTest passed 20/20.
 
 #### Risks / notes
 

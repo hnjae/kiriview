@@ -6,8 +6,16 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    const quint64 generation = item.pendingRenderGenerationForTest();
+    const quint64 requestId = item.activeRequestIdForTest();
+    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest();
+    if (secondaryPayloadId > 0) {
+        item.acknowledgeRenderCommitForTest(
+            generation, requestId, primaryPayloadId, secondaryPayloadId);
+        return;
+    }
+    item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
 }
 
 }
