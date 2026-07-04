@@ -474,6 +474,15 @@ void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
     controller.setNextProviderRequestTokenForTest(token);
 }
 
+void ImageViewportPrivate::failNextProviderCommandDeliveryForTest(PageRole role)
+{
+    if (role == PageRole::Secondary) {
+        secondaryProviderBridge.failNextCommandDeliveryForTest();
+        return;
+    }
+    providerBridge.failNextCommandDeliveryForTest();
+}
+
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
     return controller.hasPendingRenderCommitForTest();

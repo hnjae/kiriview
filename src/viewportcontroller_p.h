@@ -80,6 +80,12 @@ struct ViewportProviderTerminalEvent
     QString diagnostic;
 };
 
+struct ViewportProviderDispatchFailureEvent
+{
+    ImageSequenceProviderRequestToken token;
+    QString diagnostic;
+};
+
 struct ViewportProviderMetadataContradiction
 {
     QString diagnostic;
@@ -523,6 +529,8 @@ public:
         const ViewportProviderTerminalEvent& event);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
         ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
+    ViewportProviderTerminalEventResult handleProviderDispatchFailure(
+        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataEventAcceptance acceptSecondaryProviderMetadataEvent(

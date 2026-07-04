@@ -3330,6 +3330,53 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
     return result;
 }
 
+ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFailure(
+    ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event)
+{
+    const ViewportProviderTerminalEvent terminalEvent {
+        event.token,
+        ViewportProviderTerminalEvent::Kind::Failure,
+        ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+        event.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
+                                   : event.diagnostic,
+    };
+
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (!hasSecondaryProviderSequence(viewport)) {
+            return {};
+        }
+        if (activeSecondaryProviderFrameTokenMatchesActiveRequest(
+                viewport, state.secondaryProvider, event.token)) {
+            return { handleSecondaryProviderFrameTerminalResult(
+                         frameTerminalResultFor(terminalEvent)),
+                closeProviderSession(role) };
+        }
+        if (state.secondaryProvider.metadataReady
+            || !state.secondaryProvider.activeMetadataToken.isValid()
+            || event.token != state.secondaryProvider.activeMetadataToken) {
+            return {};
+        }
+        return { handleSecondaryProviderMetadataTerminalResult(
+                     metadataTerminalResultFor(terminalEvent)),
+            closeProviderSession(role) };
+    }
+
+    if (!viewport.hasProviderSequence()) {
+        return {};
+    }
+    if (activeProviderFrameTokenMatchesActiveRequest(viewport, event.token)) {
+        return { handleProviderFrameTerminalResult(frameTerminalResultFor(terminalEvent)),
+            closeProviderSession(role) };
+    }
+    if (viewportProviderState(viewport).metadataReady
+        || !viewportProviderState(viewport).activeMetadataToken.isValid()
+        || event.token != viewportProviderState(viewport).activeMetadataToken) {
+        return {};
+    }
+    return { handleProviderMetadataTerminalResult(metadataTerminalResultFor(terminalEvent)),
+        closeProviderSession(role) };
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(
     const ViewportProviderFrameTerminalResult& result)
 {

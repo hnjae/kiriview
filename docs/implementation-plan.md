@@ -438,15 +438,15 @@ Provider protocol coverage is too dependent on Qt event delivery; provider trans
 
 #### Tasks
 
-- [ ] Add a minimal controller provider harness for role, session serial, generation identity, request tokens, metadata events, frame events, terminal events, cancellation events, and transport effects.
-- [ ] Add harness tests for token scope and stale-result rejection that can run without full Qt event delivery.
-- [ ] Change internal bridge command helpers to return delivery success for metadata, frame, position, playback, cancellation, and close commands as needed.
-- [ ] Treat null session after controller acceptance as delivery failure for the active command rather than a silent no-op.
-- [ ] Check `QMetaObject::invokeMethod(...)` return values for affinity-bound delivery and propagate failure.
-- [ ] Add a controller event or transition for provider dispatch failure that validates role, generation, session, and active token identity.
-- [ ] Publish `requestStatus: Error`, `requestReason: ProviderFailure`, and bounded diagnostics for active accepted requests whose provider command could not be delivered.
-- [ ] Retire active tokens and close provider interest exactly once after dispatch failure.
-- [ ] Ensure stale dispatch failure reports for superseded or closed generations are ignored.
+- [x] Add a minimal controller provider harness for role, session serial, generation identity, request tokens, metadata events, frame events, terminal events, cancellation events, and transport effects.
+- [x] Add harness tests for token scope and stale-result rejection that can run without full Qt event delivery.
+- [x] Change internal bridge command helpers to return delivery success for metadata, frame, position, playback, cancellation, and close commands as needed.
+- [x] Treat null session after controller acceptance as delivery failure for the active command rather than a silent no-op.
+- [x] Check `QMetaObject::invokeMethod(...)` return values for affinity-bound delivery and propagate failure.
+- [x] Add a controller event or transition for provider dispatch failure that validates role, generation, session, and active token identity.
+- [x] Publish `requestStatus: Error`, `requestReason: ProviderFailure`, and bounded diagnostics for active accepted requests whose provider command could not be delivered.
+- [x] Retire active tokens and close provider interest exactly once after dispatch failure.
+- [x] Ensure stale dispatch failure reports for superseded or closed generations are ignored.
 
 #### Acceptance criteria
 
@@ -460,9 +460,18 @@ Provider protocol coverage is too dependent on Qt event delivery; provider trans
 
 - `cmake --build build`
 - `ctest -N --test-dir build`
-- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_terminal|viewportcontroller_playback|viewportcontroller_presentation)$'`
-- `ctest --test-dir build -R '^(imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_terminal|viewportcontroller_playback|viewportcontroller_presentation)$' --output-on-failure`
+- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_terminal|viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider)$'`
+- `ctest --test-dir build -R '^(imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_terminal|viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Added `viewportcontroller_provider` as a controller-level provider policy harness covering session serial scope, metadata/frame event token scope, cancellation terminal handling, active/stale dispatch failures, closed-generation rejection, and null-session-after-acceptance dispatch failure without constructing `ImageViewport`, event-loop drains, or worker threads.
+- Bridge provider command delivery now returns `bool` for metadata, frame, position, playback, cancellation, and close cleanup delivery. Affinity-bound commands propagate `QMetaObject::invokeMethod(...)` failure, and null current sessions report undelivered commands to the item transport.
+- Item provider transport converts undelivered controller-authorized metadata/frame/position/playback commands into a controller dispatch-failure event. Active primary and secondary requests publish `Error` with `ProviderFailure`, bounded diagnostics, token retirement, and provider close interest; stale or closed-generation reports are ignored.
+- Added private test-only delivery failure injection to exercise failed command delivery without exposing installed public API; updated installed-header sanitization to keep the probe out of package headers.
+- Stabilized the provider contract affinity cleanup assertion with `QTRY_COMPARE`, matching the documented asynchronous close/cleanup contract.
+- Verification passed: `cmake --build build`; `ctest -N --test-dir build` listed 20 tests; focused filter selected 6 tests; focused CTest passed 6/6; full CTest passed 20/20.
 
 #### Risks / notes
 

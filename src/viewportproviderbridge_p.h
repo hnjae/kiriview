@@ -66,18 +66,23 @@ public:
     explicit ViewportProviderBridge(ViewportProviderBridgeClient& client,
         ImageViewport::PageRole role = ImageViewport::PageRole::Primary);
 
-    void closeSession(ImageSequenceProviderRequestToken metadataToken,
+    bool closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     bool openSession();
-    void requestMetadata(ImageSequenceProviderRequestToken token);
-    void requestFrame(ImageSequenceProviderRequestToken token, int frame);
-    void requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
-    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
-    void cancelRequest(ImageSequenceProviderRequestToken token);
+    bool requestMetadata(ImageSequenceProviderRequestToken token);
+    bool requestFrame(ImageSequenceProviderRequestToken token, int frame);
+    bool requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
+    bool requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
+    bool cancelRequest(ImageSequenceProviderRequestToken token);
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    void failNextCommandDeliveryForTest();
+#endif
 
 private:
     ImageSequenceProviderThreadingContract threadingContract() const;
+    bool takeForcedDeliveryFailureForTest();
 
     ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    bool forceNextCommandDeliveryFailure = false;
 };

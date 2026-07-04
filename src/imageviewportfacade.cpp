@@ -257,6 +257,11 @@ void ImageViewport::setNextProviderRequestTokenForTest(quint64 token)
     d->setNextProviderRequestTokenForTest(token);
 }
 
+void ImageViewport::failNextProviderCommandDeliveryForTest(PageRole role)
+{
+    d->failNextProviderCommandDeliveryForTest(role);
+}
+
 bool ImageViewport::hasPendingRenderCommitForTest() const
 {
     return d->hasPendingRenderCommitForTest();

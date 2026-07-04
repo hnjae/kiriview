@@ -202,7 +202,10 @@ void ImageViewportPrivate::startProviderMetadataRequest()
             result.sessionClose.metadataToken, result.sessionClose.frameToken);
     }
     if (result.sendCommand) {
-        providerBridge.requestMetadata(result.token);
+        if (!providerBridge.requestMetadata(result.token)) {
+            handleProviderDispatchFailure(PageRole::Primary, result.token,
+                QStringLiteral("provider command delivery failed"));
+        }
     }
 }
 
@@ -215,7 +218,10 @@ void ImageViewportPrivate::applyProviderMetadataTransportEffect(
         bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
     }
     if (effect.sendCommand) {
-        bridge.requestMetadata(effect.token);
+        if (!bridge.requestMetadata(effect.token)) {
+            handleProviderDispatchFailure(
+                role, effect.token, QStringLiteral("provider command delivery failed"));
+        }
     }
 }
 
@@ -237,13 +243,32 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     if (!effect.sendCommand) {
         return;
     }
+    bool delivered = false;
     if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
-        bridge.requestPlayback(effect.command.token, effect.command.frame, effect.command.position);
+        delivered = bridge.requestPlayback(
+            effect.command.token, effect.command.frame, effect.command.position);
     } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
-        bridge.requestPosition(effect.command.token, effect.command.frame, effect.command.position);
+        delivered = bridge.requestPosition(
+            effect.command.token, effect.command.frame, effect.command.position);
     } else {
-        bridge.requestFrame(effect.command.token, effect.command.frame);
+        delivered = bridge.requestFrame(effect.command.token, effect.command.frame);
     }
+    if (!delivered) {
+        handleProviderDispatchFailure(
+            role, effect.command.token, QStringLiteral("provider command delivery failed"));
+    }
+}
+
+void ImageViewportPrivate::handleProviderDispatchFailure(
+    PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic)
+{
+    const ViewportProviderTerminalEventResult result
+        = controller.handleProviderDispatchFailure(role, { token, diagnostic });
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
+    applyProviderFrameTransportEffect(result.providerFrameTransport, role);
 }
 
 void ImageViewportPrivate::queueProviderFrameRequest(

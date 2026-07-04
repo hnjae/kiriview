@@ -415,7 +415,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         QCOMPARE(*cancelRequestThread, &workerThread);
     }
 
-    QCOMPARE(*closeThread, &workerThread);
+    QTRY_COMPARE(*closeThread, &workerThread);
 }
 
 void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseControllerAffinity()
