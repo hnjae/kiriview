@@ -123,7 +123,7 @@ double ImageViewportPrivate::zoomPercent() const
     const QSizeF spreadSize = orientedSpreadSize(state);
     const QRectF content = PresentationGeometry::contentRect(state);
     if (content.isEmpty() || !isPositiveSize(spreadSize)) {
-        return controller.presentationState().zoom * 100.0;
+        return controller.presentationState().manualZoom * 100.0;
     }
 
     return content.width() / spreadSize.width() * effectiveDevicePixelRatio(*this) * 100.0;
@@ -229,21 +229,24 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panBy(QPointF delta)
 {
-    const ViewportCommandResult result = controller.panBy(delta);
+    auto* const controllerAccess = &controller;
+    const ViewportCommandResult result = controllerAccess->panBy(delta);
     applyControllerChanges(result.changes);
     return result.outcome;
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToStart()
 {
-    const ViewportCommandResult result = controller.panToStart();
+    auto* const controllerAccess = &controller;
+    const ViewportCommandResult result = controllerAccess->panToStart();
     applyControllerChanges(result.changes);
     return result.outcome;
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToEnd()
 {
-    const ViewportCommandResult result = controller.panToEnd();
+    auto* const controllerAccess = &controller;
+    const ViewportCommandResult result = controllerAccess->panToEnd();
     applyControllerChanges(result.changes);
     return result.outcome;
 }

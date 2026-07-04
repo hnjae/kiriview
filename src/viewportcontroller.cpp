@@ -737,7 +737,7 @@ struct ControllerTransitionPolicy
 {
     PageSetTransitionPolicy::DisplayTransition displayTransition
         = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    PageSetTransitionPolicy::ZoomTransition zoomTransition
+    PageSetTransitionPolicy::ZoomTransition magnificationPolicy
         = PageSetTransitionPolicy::ZoomTransition::Preserve;
     PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
         = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
@@ -759,7 +759,8 @@ std::optional<ControllerTransitionPolicy> normalizeControllerTransitionPolicy(
         return std::nullopt;
     }
 
-    ControllerTransitionPolicy normalized { policy.displayTransition(), policy.zoomTransition(),
+    const PageSetTransitionPolicy* const policyAccess = &policy;
+    ControllerTransitionPolicy normalized { policy.displayTransition(), policyAccess->zoomTransition(),
         policy.contentPositionTransition(), policy.rotationTransition(), policy.mirrorTransition(),
         policy.replacementIntent() };
 
@@ -898,15 +899,12 @@ PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewp
         presentation.pageGap,
         presentation.spreadDirection,
         presentation.fitMode,
-        presentation.fillMode,
-        presentation.horizontalAlignment,
-        presentation.verticalAlignment,
         presentation.rotationDegrees,
         presentation.mirrorHorizontally,
         presentation.mirrorVertically,
-        presentation.zoom,
+        presentation.manualZoom,
         devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        presentation.pan,
+        presentation.contentPosition,
     };
 }
 
@@ -926,15 +924,12 @@ PresentationGeometry::State acceptedGeometryState(ViewportControllerPort viewpor
         presentation.pageGap,
         presentation.spreadDirection,
         presentation.fitMode,
-        presentation.fillMode,
-        presentation.horizontalAlignment,
-        presentation.verticalAlignment,
         presentation.rotationDegrees,
         presentation.mirrorHorizontally,
         presentation.mirrorVertically,
-        presentation.zoom,
+        presentation.manualZoom,
         devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        presentation.pan,
+        presentation.contentPosition,
     };
 }
 
@@ -1030,12 +1025,6 @@ ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort v
     return snapshot;
 }
 
-QRectF contentRectForPresentation(
-    ViewportControllerPort& viewport, const ImageViewportInternal::PresentationState& presentation)
-{
-    return PresentationGeometry::contentRect(controllerGeometryState(viewport, presentation));
-}
-
 QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
 {
     return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
@@ -1053,11 +1042,11 @@ bool applyContentPosition(ViewportControllerPort& viewport,
     const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
     const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
     const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
-    if (nextPosition == currentPosition) {
+    if (nextPosition == currentPosition && presentation.contentPosition == nextPosition) {
         return false;
     }
 
-    presentation.pan += currentPosition - nextPosition;
+    presentation.contentPosition = nextPosition;
     return true;
 }
 
@@ -1071,11 +1060,11 @@ bool applyContentPositionForGeometry(ImageViewportInternal::PresentationState& p
     const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
     const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
     const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
-    if (nextPosition == currentPosition) {
+    if (nextPosition == currentPosition && presentation.contentPosition == nextPosition) {
         return false;
     }
 
-    presentation.pan += currentPosition - nextPosition;
+    presentation.contentPosition = nextPosition;
     return true;
 }
 
@@ -1092,36 +1081,39 @@ QPointF controllerMaximumContentPosition(
         controllerGeometryState(viewport, presentation));
 }
 
-bool clampPresentationPanToBounds(
+bool clampPresentationContentPositionToBounds(
     ViewportControllerPort& viewport, ImageViewportInternal::PresentationState& presentation)
 {
-    const QPointF savedPan = presentation.pan;
-    const QRectF currentContent = contentRectForPresentation(viewport, presentation);
-    const QRectF bounds = viewport.itemBounds();
-    if (currentContent.isEmpty() || bounds.isEmpty()) {
-        return false;
-    }
-
-    presentation.pan = {};
-    const QRectF baseContent = contentRectForPresentation(viewport, presentation);
-    presentation.pan = savedPan;
-
     const PresentationGeometry::State currentGeometry
         = controllerGeometryState(viewport, presentation);
-    const QPointF maximum = PresentationGeometry::maximumContentPosition(currentGeometry);
-    const QPointF currentPosition = PresentationGeometry::contentPosition(currentGeometry);
-    const QPointF clampedPosition = clampedPoint(currentPosition, {}, maximum);
-    QPointF targetTopLeft = currentContent.topLeft();
-    targetTopLeft.setX(maximum.x() == 0.0 ? baseContent.x() : -clampedPosition.x());
-    targetTopLeft.setY(maximum.y() == 0.0 ? baseContent.y() : -clampedPosition.y());
-
-    const QPointF adjustment = targetTopLeft - currentContent.topLeft();
-    if (adjustment.isNull()) {
+    if (PresentationGeometry::contentRect(currentGeometry).isEmpty()
+        || currentGeometry.itemBounds.isEmpty()) {
         return false;
     }
 
-    presentation.pan += adjustment;
+    const QPointF clampedPosition = PresentationGeometry::contentPosition(currentGeometry);
+    if (presentation.contentPosition == clampedPosition) {
+        return false;
+    }
+
+    presentation.contentPosition = clampedPosition;
     return true;
+}
+
+void preserveAnchoredContentPosition(ViewportControllerPort& viewport,
+    ImageViewportInternal::PresentationState& presentation,
+    const PresentationGeometry::State& previousGeometry, QPointF anchor)
+{
+    const CoordinateResult anchoredSpreadPoint
+        = PresentationGeometry::itemToSpread(previousGeometry, anchor.x(), anchor.y());
+    if (!anchoredSpreadPoint.isValid()) {
+        clampPresentationContentPositionToBounds(viewport, presentation);
+        return;
+    }
+
+    const PresentationGeometry::State nextGeometry = controllerGeometryState(viewport, presentation);
+    presentation.contentPosition = PresentationGeometry::contentPositionForAnchoredSpreadPoint(
+        nextGeometry, QPointF(anchoredSpreadPoint.x(), anchoredSpreadPoint.y()), anchor);
 }
 
 ImageViewportInternal::ViewportChangeSet presentationChanges(
@@ -1178,10 +1170,12 @@ ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
     ImageViewportInternal::ViewportChangeSet changes;
     auto markChanged = [&]() { mergeChanges(changes, presentationChanges(viewport, true)); };
 
-    if (policy.zoomTransition == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
-        if (presentation.fitMode != ImageViewport::FitMode::Contain || presentation.zoom != 1.0) {
+    if (policy.magnificationPolicy
+        == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
+        if (presentation.fitMode != ImageViewport::FitMode::Contain
+            || presentation.manualZoom != 1.0) {
             presentation.fitMode = ImageViewport::FitMode::Contain;
-            presentation.zoom = 1.0;
+            presentation.manualZoom = 1.0;
             markChanged();
         }
     }
@@ -3009,7 +3003,7 @@ ViewportCommandResult ViewportController::setSpreadDirection(
     }
 
     state.presentation.spreadDirection = direction;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    clampPresentationContentPositionToBounds(viewport, state.presentation);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3023,7 +3017,7 @@ ViewportCommandResult ViewportController::setPageGap(double gap)
     }
 
     state.presentation.pageGap = gap;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    clampPresentationContentPositionToBounds(viewport, state.presentation);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3037,8 +3031,10 @@ ViewportCommandResult ViewportController::setFitMode(ImageViewport::FitMode mode
         return acceptedPresentationCommand(viewport);
     }
 
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
     state.presentation.fitMode = mode;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3050,15 +3046,17 @@ ViewportCommandResult ViewportController::setZoomPercent(double percent, QPointF
         return invalidPresentationCommand(viewport);
     }
 
-    const double zoom = percent / 100.0;
+    const double manualZoom = percent / 100.0;
     if (state.presentation.fitMode == ImageViewport::FitMode::Manual
-        && state.presentation.zoom == zoom) {
+        && state.presentation.manualZoom == manualZoom) {
         return acceptedPresentationCommand(viewport);
     }
 
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
     state.presentation.fitMode = ImageViewport::FitMode::Manual;
-    state.presentation.zoom = zoom;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    state.presentation.manualZoom = manualZoom;
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3125,8 +3123,10 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
         return invalidPresentationCommand(viewport);
     }
 
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
     state.presentation.rotationDegrees = (state.presentation.rotationDegrees + 90) % 360;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3136,8 +3136,10 @@ ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
         return invalidPresentationCommand(viewport);
     }
 
+    const PresentationGeometry::State previousGeometry
+        = controllerGeometryState(viewport, state.presentation);
     state.presentation.rotationDegrees = (state.presentation.rotationDegrees + 270) % 360;
-    clampPresentationPanToBounds(viewport, state.presentation);
+    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -3162,11 +3164,12 @@ ViewportCommandResult ViewportController::setMirrorVertically(bool enabled, QPoi
 ViewportCommandResult ViewportController::resetView()
 {
     const bool changed = state.presentation.fitMode != ImageViewport::FitMode::Contain
-        || state.presentation.zoom != 1.0 || state.presentation.pan.x() != 0.0
-        || state.presentation.pan.y() != 0.0;
+        || state.presentation.manualZoom != 1.0
+        || state.presentation.contentPosition.x() != 0.0
+        || state.presentation.contentPosition.y() != 0.0;
     state.presentation.fitMode = ImageViewport::FitMode::Contain;
-    state.presentation.zoom = 1.0;
-    state.presentation.pan = {};
+    state.presentation.manualZoom = 1.0;
+    state.presentation.contentPosition = {};
 
     return acceptedPresentationCommand(viewport,
         changed ? presentationChanges(viewport, true)

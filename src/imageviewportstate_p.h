@@ -173,18 +173,12 @@ struct PresentationState
 {
     ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
     ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
-    ImageViewportInternal::ContentPlacementMode fillMode
-        = ImageViewportInternal::ContentPlacementMode::Contain;
-    ImageViewportInternal::ContentHorizontalPlacement horizontalAlignment
-        = ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter;
-    ImageViewportInternal::ContentVerticalPlacement verticalAlignment
-        = ImageViewportInternal::ContentVerticalPlacement::AlignVCenter;
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
     QColor backgroundColor = Qt::transparent;
-    double zoom = 1.0;
+    double manualZoom = 1.0;
     double pageGap = 0.0;
     int rotationDegrees = 0;
-    QPointF pan;
+    QPointF contentPosition;
     bool smoothing = true;
     bool mipmap = false;
     bool mirrorHorizontally = false;

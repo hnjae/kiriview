@@ -15,18 +15,12 @@ public:
         ImageViewport::SpreadDirection spreadDirection
             = ImageViewport::SpreadDirection::LeftToRight;
         ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
-        ImageViewportInternal::ContentPlacementMode fillMode
-            = ImageViewportInternal::ContentPlacementMode::Contain;
-        ImageViewportInternal::ContentHorizontalPlacement horizontalAlignment
-            = ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter;
-        ImageViewportInternal::ContentVerticalPlacement verticalAlignment
-            = ImageViewportInternal::ContentVerticalPlacement::AlignVCenter;
         int rotationDegrees = 0;
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
-        double zoom = 1.0;
+        double manualZoom = 1.0;
         double devicePixelRatio = 1.0;
-        QPointF pan;
+        QPointF contentPosition;
     };
 
     static QSizeF spreadSize(const State& state);
@@ -35,6 +29,8 @@ public:
     static QRectF contentRect(const State& state);
     static QSizeF contentSize(const State& state);
     static QPointF contentPosition(const State& state);
+    static QPointF contentPositionForAnchoredSpreadPoint(
+        const State& state, QPointF spreadPoint, QPointF itemPoint);
     static QPointF maximumContentPosition(const State& state);
     static bool horizontalPannable(const State& state);
     static bool verticalPannable(const State& state);

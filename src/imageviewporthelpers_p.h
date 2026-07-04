@@ -8,25 +8,6 @@
 
 namespace ImageViewportInternal {
 
-enum class ContentPlacementMode {
-    Contain,
-    Cover,
-    Stretch,
-    Center,
-};
-
-enum class ContentHorizontalPlacement {
-    AlignLeft,
-    AlignHCenter,
-    AlignRight,
-};
-
-enum class ContentVerticalPlacement {
-    AlignTop,
-    AlignVCenter,
-    AlignBottom,
-};
-
 constexpr int minimumMaximumLogicalSide = 8192;
 constexpr qint64 minimumMaximumPixelsPerFrame = 67108864LL;
 constexpr qint64 minimumMaximumPayloadBytesPerFrame = 268435456LL;
@@ -183,19 +164,6 @@ inline bool providerFactsContradictMetadata(
     return false;
 }
 
-inline bool isValidContentPlacementMode(ContentPlacementMode mode)
-{
-    switch (mode) {
-    case ContentPlacementMode::Contain:
-    case ContentPlacementMode::Cover:
-    case ContentPlacementMode::Stretch:
-    case ContentPlacementMode::Center:
-        return true;
-    }
-
-    return false;
-}
-
 inline bool isValidFitMode(ImageViewport::FitMode mode)
 {
     switch (mode) {
@@ -225,30 +193,6 @@ inline bool isValidPageRole(ImageViewport::PageRole role)
     switch (role) {
     case ImageViewport::PageRole::Primary:
     case ImageViewport::PageRole::Secondary:
-        return true;
-    }
-
-    return false;
-}
-
-inline bool isValidContentHorizontalPlacement(ContentHorizontalPlacement alignment)
-{
-    switch (alignment) {
-    case ContentHorizontalPlacement::AlignLeft:
-    case ContentHorizontalPlacement::AlignHCenter:
-    case ContentHorizontalPlacement::AlignRight:
-        return true;
-    }
-
-    return false;
-}
-
-inline bool isValidContentVerticalPlacement(ContentVerticalPlacement alignment)
-{
-    switch (alignment) {
-    case ContentVerticalPlacement::AlignTop:
-    case ContentVerticalPlacement::AlignVCenter:
-    case ContentVerticalPlacement::AlignBottom:
         return true;
     }
 

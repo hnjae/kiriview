@@ -146,7 +146,7 @@ void ViewportControllerPresentationTest::standalonePresentationCommandsMutateCon
     const ViewportCommandResult zoom = controller.setZoomPercent(250.0, QPointF());
     QCOMPARE(zoom.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Manual);
-    QCOMPARE(controller.presentationState().zoom, 2.5);
+    QCOMPARE(controller.presentationState().manualZoom, 2.5);
     QCOMPARE(zoom.changes.presentation, true);
     QCOMPARE(zoom.changes.displayRevision, true);
     QCOMPARE(zoom.changes.geometryState, false);
@@ -181,13 +181,13 @@ void ViewportControllerPresentationTest::
     const ViewportCommandResult pan = controller.panBy(QPointF(4.0, 0.0));
     QCOMPARE(pan.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(pan.changes.geometryState, true);
-    QVERIFY(controller.presentationState().pan.x() != 0.0);
+    QVERIFY(controller.presentationState().contentPosition.x() != 0.0);
 
     const ViewportCommandResult reset = controller.resetView();
     QCOMPARE(reset.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Contain);
-    QCOMPARE(controller.presentationState().zoom, 1.0);
-    QCOMPARE(controller.presentationState().pan, QPointF());
+    QCOMPARE(controller.presentationState().manualZoom, 1.0);
+    QCOMPARE(controller.presentationState().contentPosition, QPointF());
     QCOMPARE(reset.changes.geometryState, true);
 }
 
@@ -228,7 +228,7 @@ void ViewportControllerPresentationTest::
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(result.changes.presentation, true);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::FitHeight);
-    QCOMPARE(controller.presentationState().zoom, 3.0);
+    QCOMPARE(controller.presentationState().manualZoom, 3.0);
     QCOMPARE(controller.presentationState().rotationDegrees, 0);
     QCOMPARE(controller.presentationState().mirrorHorizontally, false);
     QCOMPARE(controller.presentationState().spreadDirection,

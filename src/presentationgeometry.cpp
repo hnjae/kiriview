@@ -213,7 +213,7 @@ QRectF orientedRectToSpreadRect(const PresentationGeometry::State& state, const 
     return QRectF(QPointF(left, top), QPointF(right, bottom));
 }
 
-QRectF contentRectForReadyState(const PresentationGeometry::State& state)
+QSizeF placedContentSizeForReadyState(const PresentationGeometry::State& state)
 {
     const QSizeF spreadSize = spreadSizeForState(state);
     if (!state.hasReadyDisplay || state.itemBounds.isEmpty() || !isPositiveSize(spreadSize)) {
@@ -221,65 +221,49 @@ QRectF contentRectForReadyState(const PresentationGeometry::State& state)
     }
 
     const QSizeF fittingSize = rotatedSize(spreadSize, state.rotationDegrees);
-    QSizeF placedSize;
     if (state.fitMode == ImageViewport::FitMode::FitWidth) {
         const double scale = state.itemBounds.width() / fittingSize.width();
-        placedSize = fittingSize * scale;
-    } else if (state.fitMode == ImageViewport::FitMode::FitHeight) {
+        return fittingSize * scale;
+    }
+    if (state.fitMode == ImageViewport::FitMode::FitHeight) {
         const double scale = state.itemBounds.height() / fittingSize.height();
-        placedSize = fittingSize * scale;
-    } else if (state.fitMode == ImageViewport::FitMode::Manual) {
+        return fittingSize * scale;
+    }
+    if (state.fitMode == ImageViewport::FitMode::Manual) {
         const double devicePixelRatio = state.devicePixelRatio > 0.0 ? state.devicePixelRatio : 1.0;
-        placedSize = fittingSize * (state.zoom / devicePixelRatio);
-    } else {
-        switch (state.fillMode) {
-        case ImageViewportInternal::ContentPlacementMode::Contain: {
-            const double scale = std::min(state.itemBounds.width() / fittingSize.width(),
-                state.itemBounds.height() / fittingSize.height());
-            placedSize = fittingSize * scale;
-            break;
-        }
-        case ImageViewportInternal::ContentPlacementMode::Cover: {
-            const double scale = std::max(state.itemBounds.width() / fittingSize.width(),
-                state.itemBounds.height() / fittingSize.height());
-            placedSize = fittingSize * scale;
-            break;
-        }
-        case ImageViewportInternal::ContentPlacementMode::Stretch:
-            placedSize = state.itemBounds.size();
-            break;
-        case ImageViewportInternal::ContentPlacementMode::Center:
-            placedSize = fittingSize;
-            break;
-        }
+        return fittingSize * (state.manualZoom / devicePixelRatio);
     }
 
-    double x = 0.0;
-    if (state.horizontalAlignment
-        == ImageViewportInternal::ContentHorizontalPlacement::AlignHCenter) {
-        x = (state.itemBounds.width() - placedSize.width()) / 2.0;
-    } else if (state.horizontalAlignment
-        == ImageViewportInternal::ContentHorizontalPlacement::AlignRight) {
-        x = state.itemBounds.width() - placedSize.width();
+    const double scale = std::min(state.itemBounds.width() / fittingSize.width(),
+        state.itemBounds.height() / fittingSize.height());
+    return fittingSize * scale;
+}
+
+QPointF maximumContentPositionForPlacedSize(
+    const PresentationGeometry::State& state, QSizeF placedSize)
+{
+    if (placedSize.isEmpty() || state.itemBounds.isEmpty()) {
+        return {};
     }
 
-    double y = 0.0;
-    if (state.verticalAlignment == ImageViewportInternal::ContentVerticalPlacement::AlignVCenter) {
-        y = (state.itemBounds.height() - placedSize.height()) / 2.0;
-    } else if (state.verticalAlignment
-        == ImageViewportInternal::ContentVerticalPlacement::AlignBottom) {
-        y = state.itemBounds.height() - placedSize.height();
+    return QPointF(std::max(0.0, placedSize.width() - state.itemBounds.width()),
+        std::max(0.0, placedSize.height() - state.itemBounds.height()));
+}
+
+QRectF contentRectForReadyState(const PresentationGeometry::State& state)
+{
+    const QSizeF placedSize = placedContentSizeForReadyState(state);
+    if (!isPositiveSize(placedSize)) {
+        return {};
     }
 
-    QRectF rect(x, y, placedSize.width(), placedSize.height());
-    if (state.fitMode == ImageViewport::FitMode::Contain) {
-        const QPointF center = rect.center();
-        rect.setSize(rect.size() * state.zoom);
-        rect.moveCenter(center + state.pan);
-    } else {
-        rect.translate(state.pan);
-    }
-    return rect;
+    const QPointF maximum = maximumContentPositionForPlacedSize(state, placedSize);
+    const QPointF position = clampedPoint(state.contentPosition, {}, maximum);
+    const double centeredX = (state.itemBounds.width() - placedSize.width()) / 2.0;
+    const double centeredY = (state.itemBounds.height() - placedSize.height()) / 2.0;
+    const double x = maximum.x() == 0.0 ? centeredX : -position.x();
+    const double y = maximum.y() == 0.0 ? centeredY : -position.y();
+    return QRectF(x, y, placedSize.width(), placedSize.height());
 }
 
 QRectF visibleItemRectForState(const PresentationGeometry::State& state)
@@ -293,24 +277,39 @@ QRectF visibleItemRectForState(const PresentationGeometry::State& state)
 
 QPointF maximumContentPositionForState(const PresentationGeometry::State& state)
 {
-    const QRectF content = contentRectForReadyState(state);
-    if (content.isEmpty() || state.itemBounds.isEmpty()) {
-        return {};
-    }
-
-    return QPointF(std::max(0.0, content.width() - state.itemBounds.width()),
-        std::max(0.0, content.height() - state.itemBounds.height()));
+    return maximumContentPositionForPlacedSize(state, placedContentSizeForReadyState(state));
 }
 
 QPointF contentPositionForState(const PresentationGeometry::State& state)
 {
-    const QRectF content = contentRectForReadyState(state);
-    if (content.isEmpty() || state.itemBounds.isEmpty()) {
+    const QSizeF placedSize = placedContentSizeForReadyState(state);
+    if (!isPositiveSize(placedSize) || state.itemBounds.isEmpty()) {
         return {};
     }
 
-    return clampedPoint(QPointF(-content.x(), -content.y()), {},
-        maximumContentPositionForState(state));
+    return clampedPoint(state.contentPosition, {},
+        maximumContentPositionForPlacedSize(state, placedSize));
+}
+
+QPointF contentPositionForAnchoredSpreadPointForState(
+    const PresentationGeometry::State& state, QPointF spreadPoint, QPointF itemPoint)
+{
+    const QSizeF placedSize = placedContentSizeForReadyState(state);
+    const QSizeF fittingSize = rotatedSize(spreadSizeForState(state), state.rotationDegrees);
+    if (!isPositiveSize(placedSize) || !isPositiveSize(fittingSize)
+        || !std::isfinite(spreadPoint.x()) || !std::isfinite(spreadPoint.y())
+        || !std::isfinite(itemPoint.x()) || !std::isfinite(itemPoint.y())) {
+        return contentPositionForState(state);
+    }
+
+    const QPointF orientedPoint = spreadToOrientedPoint(state, spreadPoint);
+    const QPointF topLeft(
+        itemPoint.x() - orientedPoint.x() / fittingSize.width() * placedSize.width(),
+        itemPoint.y() - orientedPoint.y() / fittingSize.height() * placedSize.height());
+    const QPointF maximum = maximumContentPositionForPlacedSize(state, placedSize);
+    return clampedPoint(QPointF(maximum.x() == 0.0 ? 0.0 : -topLeft.x(),
+                            maximum.y() == 0.0 ? 0.0 : -topLeft.y()),
+        {}, maximum);
 }
 
 QPointF itemToOrientedPoint(
@@ -408,6 +407,12 @@ QSizeF PresentationGeometry::contentSize(const State& state)
 QPointF PresentationGeometry::contentPosition(const State& state)
 {
     return contentPositionForState(state);
+}
+
+QPointF PresentationGeometry::contentPositionForAnchoredSpreadPoint(
+    const State& state, QPointF spreadPoint, QPointF itemPoint)
+{
+    return contentPositionForAnchoredSpreadPointForState(state, spreadPoint, itemPoint);
 }
 
 QPointF PresentationGeometry::maximumContentPosition(const State& state)
