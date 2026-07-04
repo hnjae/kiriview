@@ -26,6 +26,7 @@ public:
             ImageViewportInternal::PreparedPayload preparedPayload;
             QRectF targetRect;
             QRectF sourceRect;
+            int rotationDegrees = 0;
             bool mirrorHorizontally = false;
             bool mirrorVertically = false;
         };
@@ -36,6 +37,7 @@ public:
         ImageViewportInternal::PreparedPayload preparedPayload;
         QRectF targetRect;
         QRectF sourceRect;
+        int rotationDegrees = 0;
         bool smoothing = true;
         bool mipmap = false;
         bool mirrorHorizontally = false;

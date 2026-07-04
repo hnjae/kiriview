@@ -743,8 +743,8 @@ void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::Page
     if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
         return;
     }
-    layers.append({ role, payload, targetRect, sourceRect, presentation.mirrorHorizontally,
-        presentation.mirrorVertically });
+    layers.append({ role, payload, targetRect, sourceRect, presentation.rotationDegrees,
+        presentation.mirrorHorizontally, presentation.mirrorVertically });
 }
 
 ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort viewport,
@@ -757,6 +757,7 @@ ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort v
     snapshot.backgroundColor = presentation.backgroundColor;
     snapshot.smoothing = presentation.smoothing;
     snapshot.mipmap = presentation.mipmap;
+    snapshot.rotationDegrees = presentation.rotationDegrees;
     snapshot.mirrorHorizontally = presentation.mirrorHorizontally;
     snapshot.mirrorVertically = presentation.mirrorVertically;
 

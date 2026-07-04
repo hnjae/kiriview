@@ -2,6 +2,7 @@
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+#include <QtGui/QMatrix4x4>
 
 class ImageViewportRenderSceneGraphTest : public QObject
 {
@@ -26,6 +27,8 @@ private slots:
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
     void solidBackgroundRendersBehindImageNode();
     void qualityAndMirroringConfigureTextureNode();
+    void rotatedImageTextureNodeUsesTransform_data();
+    void rotatedImageTextureNodeUsesTransform();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
@@ -574,6 +577,89 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     }
     QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally);
     QVERIFY(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically);
+}
+
+void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform_data()
+{
+    QTest::addColumn<int>("rotationDegrees");
+    QTest::addColumn<bool>("mirrorHorizontally");
+    QTest::addColumn<bool>("mirrorVertically");
+
+    for (int rotationDegrees : { 90, 180, 270 }) {
+        QTest::addRow("rotate-%d", rotationDegrees) << rotationDegrees << false << false;
+        QTest::addRow("rotate-%d-mirror-h", rotationDegrees) << rotationDegrees << true << false;
+        QTest::addRow("rotate-%d-mirror-v", rotationDegrees) << rotationDegrees << false << true;
+        QTest::addRow("rotate-%d-mirror-both", rotationDegrees) << rotationDegrees << true
+                                                               << true;
+    }
+}
+
+void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
+{
+    QFETCH(int, rotationDegrees);
+    QFETCH(bool, mirrorHorizontally);
+    QFETCH(bool, mirrorVertically);
+
+    ImageSequenceFactory factory;
+    QImage image(10, 20, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(100, 100);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setMirrorHorizontally(mirrorHorizontally);
+    item.setMirrorVertically(mirrorVertically);
+    item.setSequence(result->sequence());
+    for (int degrees = 0; degrees < rotationDegrees; degrees += 90) {
+        QCOMPARE(
+            item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    }
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+    QVERIFY(root);
+    QCOMPARE(root->childCount(), 1);
+
+    auto* transformNode = dynamic_cast<QSGTransformNode*>(root->firstChild());
+    QVERIFY(transformNode);
+    QCOMPARE(transformNode->childCount(), 1);
+
+    auto* imageNode = dynamic_cast<QSGImageNode*>(transformNode->firstChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+
+    const QRectF targetRect = item.property("contentRect").toRectF();
+    const bool swapsAxes = rotationDegrees == 90 || rotationDegrees == 270;
+    const QSizeF unrotatedSize = swapsAxes
+        ? QSizeF(targetRect.height(), targetRect.width())
+        : targetRect.size();
+    const QRectF unrotatedRect(
+        targetRect.center().x() - unrotatedSize.width() / 2.0,
+        targetRect.center().y() - unrotatedSize.height() / 2.0,
+        unrotatedSize.width(),
+        unrotatedSize.height());
+    QCOMPARE(imageNode->rect(), unrotatedRect);
+    QCOMPARE(imageNode->sourceRect(), item.property("visibleImageRect").toRectF());
+    QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally),
+        mirrorHorizontally);
+    QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically),
+        mirrorVertically);
+
+    QMatrix4x4 expectedTransform;
+    expectedTransform.translate(targetRect.center().x(), targetRect.center().y());
+    expectedTransform.rotate(rotationDegrees, 0.0f, 0.0f, 1.0f);
+    expectedTransform.translate(-targetRect.center().x(), -targetRect.center().y());
+    const QMatrix4x4 actualTransform = transformNode->matrix();
+    for (int row = 0; row < 4; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            QVERIFY(qFuzzyCompare(actualTransform(row, column) + 1.0f,
+                expectedTransform(row, column) + 1.0f));
+        }
+    }
 }
 
 void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRect()

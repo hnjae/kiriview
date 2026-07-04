@@ -655,11 +655,23 @@ Display rotation affects geometry but not rendered pixels; minimal geometry proj
 
 #### Tasks
 
-- [ ] Add normalized rotation to `ViewportRenderLayer`, `ViewportRenderSnapshot`, and `RenderAdapter::Input::ImageLayer`.
-- [ ] Apply quarter-turn rotation through node transforms or equivalent texture-coordinate mapping.
-- [ ] Add a test matrix for 90, 180, and 270 degrees crossed with horizontal mirror, vertical mirror, and both mirrors.
-- [ ] Use pixel assertions, transform assertions, or a pure render-layer mapping assertion that is stable across Qt backends.
-- [ ] Verify source rectangles remain in public logical page space and half-open coordinate behavior is preserved.
+- [x] Add normalized rotation to `ViewportRenderLayer`, `ViewportRenderSnapshot`, and `RenderAdapter::Input::ImageLayer`.
+- [x] Apply quarter-turn rotation through node transforms or equivalent texture-coordinate mapping.
+- [x] Add a test matrix for 90, 180, and 270 degrees crossed with horizontal mirror, vertical mirror, and both mirrors.
+- [x] Use pixel assertions, transform assertions, or a pure render-layer mapping assertion that is stable across Qt backends.
+- [x] Verify source rectangles remain in public logical page space and half-open coordinate behavior is preserved.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/spec/image-viewport.md` and `docs/architecture/rendering.md` already define display rotation and mirroring as rendering-affecting viewport presentation state, with source rectangles remaining in public logical page space. No spec or architecture change was needed before implementation.
+
+Added failing scene graph tests in commit `42acbdc`: `ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform_data` and `rotatedImageTextureNodeUsesTransform` cover 90, 180, and 270 degree display rotation crossed with horizontal, vertical, and combined mirroring.
+
+Added normalized rotation to controller render snapshots and render adapter input. `RenderAdapter` now keeps source rectangles and mirror texture-coordinate flags in logical page space, then wraps rotated image nodes in a `QSGTransformNode` whose matrix rotates the unrotated target rectangle into the controller-authored item-space target rectangle.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_render_scenegraph|imageviewport_presentation_state' --output-on-failure` and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

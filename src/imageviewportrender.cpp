@@ -21,7 +21,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     imageLayers.reserve(synchronization.renderSnapshot.imageLayers.size());
     for (const ViewportRenderLayer& layer : synchronization.renderSnapshot.imageLayers) {
         imageLayers.append({ layer.role, layer.preparedPayload, layer.targetRect, layer.sourceRect,
-            layer.mirrorHorizontally, layer.mirrorVertically });
+            layer.rotationDegrees, layer.mirrorHorizontally, layer.mirrorVertically });
     }
     const bool imagePresent = !imageLayers.isEmpty();
 
@@ -33,6 +33,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             synchronization.renderSnapshot.preparedPayload,
             synchronization.renderSnapshot.targetRect,
             synchronization.renderSnapshot.sourceRect,
+            synchronization.renderSnapshot.rotationDegrees,
             synchronization.renderSnapshot.smoothing,
             synchronization.renderSnapshot.mipmap,
             synchronization.renderSnapshot.mirrorHorizontally,

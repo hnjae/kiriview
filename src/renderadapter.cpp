@@ -1,9 +1,46 @@
 #include "renderadapter_p.h"
 
+#include <QtGui/QMatrix4x4>
 #include <QtQuick/QSGSimpleRectNode>
+#include <QtQuick/QSGTransformNode>
 
 #include <algorithm>
 #include <cmath>
+
+namespace {
+
+int normalizedRotation(int degrees)
+{
+    int normalized = degrees % 360;
+    if (normalized < 0) {
+        normalized += 360;
+    }
+    return normalized;
+}
+
+QRectF unrotatedTargetRect(const QRectF& targetRect, int rotationDegrees)
+{
+    const int rotation = normalizedRotation(rotationDegrees);
+    if (rotation != 90 && rotation != 270) {
+        return targetRect;
+    }
+    const QSizeF unrotatedSize(targetRect.height(), targetRect.width());
+    return QRectF(targetRect.center().x() - unrotatedSize.width() / 2.0,
+        targetRect.center().y() - unrotatedSize.height() / 2.0,
+        unrotatedSize.width(),
+        unrotatedSize.height());
+}
+
+QMatrix4x4 rotationTransform(const QRectF& targetRect, int rotationDegrees)
+{
+    QMatrix4x4 matrix;
+    matrix.translate(targetRect.center().x(), targetRect.center().y());
+    matrix.rotate(normalizedRotation(rotationDegrees), 0.0f, 0.0f, 1.0f);
+    matrix.translate(-targetRect.center().x(), -targetRect.center().y());
+    return matrix;
+}
+
+}
 
 RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& input) const
 {
@@ -18,6 +55,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
     if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
         imageLayers.append({ ImageViewport::PageRole::Primary, input.preparedPayload,
             input.targetRect, input.sourceRect,
+            input.rotationDegrees,
             input.mirrorHorizontally, input.mirrorVertically });
     }
     const auto firstPayloadIdentity = [&]() {
@@ -99,7 +137,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 
         imageNode->setTexture(texture);
         imageNode->setOwnsTexture(true);
-        imageNode->setRect(layer.targetRect);
+        imageNode->setRect(unrotatedTargetRect(layer.targetRect, layer.rotationDegrees));
         const qreal devicePixelRatio = payload.image.devicePixelRatio();
         const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
             layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
@@ -115,7 +153,15 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
             transform |= QSGImageNode::MirrorVertically;
         }
         imageNode->setTextureCoordinatesTransform(transform);
-        root->appendChildNode(imageNode);
+        const int rotation = normalizedRotation(layer.rotationDegrees);
+        if (rotation == 0) {
+            root->appendChildNode(imageNode);
+        } else {
+            auto* transformNode = new QSGTransformNode;
+            transformNode->setMatrix(rotationTransform(layer.targetRect, rotation));
+            transformNode->appendChildNode(imageNode);
+            root->appendChildNode(transformNode);
+        }
     }
     return { root, CommitResult::Committed, firstPayloadIdentity(), rolePayloads };
 }
