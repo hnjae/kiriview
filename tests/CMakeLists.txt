@@ -84,3 +84,9 @@ add_test(
         -DIMAGEVIEWPORT_OPENGL_GLX_LIBRARY=${OPENGL_glx_LIBRARY}
         -DIMAGEVIEWPORT_OPENGL_GL_LIBRARY=${OPENGL_gl_LIBRARY} -P
         ${CMAKE_CURRENT_SOURCE_DIR}/install_consumer/run.cmake)
+
+add_test(
+    NAME structural::ownerSpecificHelperHeadersOnly
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/owner_specific_helper_headers_only.cmake)
