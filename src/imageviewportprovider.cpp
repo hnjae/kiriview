@@ -18,12 +18,6 @@ void applyProviderTerminalEvent(ImageViewportPrivate& viewport, ImageViewport::P
     }
     viewport.applyProviderFrameTransportEffect(result.providerFrameTransport, role);
 }
-
-void applyProviderAcceptedMetadataFacts(
-    ImageViewportPrivate& viewport, const ViewportProviderAcceptedMetadataFacts& facts)
-{
-    viewport.applyControllerChanges(viewport.controller.handleProviderAcceptedMetadataFacts(facts));
-}
 }
 
 bool ImageViewportPrivate::openProviderSession(PageRole role)
@@ -328,17 +322,12 @@ void ImageViewportPrivate::queueProviderFrameRequest(
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()
 {
-    const ViewportProviderFrameQueueFlush flush = controller.flushQueuedProviderFrameRequest();
-    if (!flush.startRequest) {
-        return;
-    }
-
-    startProviderFrameRequest(flush.frame, flush.targetKind);
-    incrementRequestRevision();
-    emit q->requestStateChanged();
-    if (controller.requestState().status == RequestStatus::Error
-        && controller.requestState().reason == RequestReason::ProviderFailure) {
-        emit q->diagnosticsChanged();
+    const ViewportProviderFrameQueueFlushResult result
+        = controller.flushQueuedProviderFrameRequestEvent();
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
+        syncPlaybackTimer();
     }
 }
 
@@ -361,30 +350,11 @@ bool ImageViewportPrivate::startProviderFrameRequest(
 void ImageViewportPrivate::handleProviderMetadataReady(
     ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
 {
-    const ViewportProviderMetadataEventAcceptance metadataEvent
-        = controller.acceptProviderMetadataEvent({ token });
-    if (!metadataEvent.accepted) {
-        return;
-    }
-
-    const ViewportProviderMetadataAdmissionResult metadataAdmission
-        = controller.handleProviderMetadataAdmission(metadata);
-    if (!metadataAdmission.accepted) {
-        applyControllerChanges(metadataAdmission.changes);
-        if (metadataAdmission.changes.playbackPhase) {
-            syncPlaybackTimer();
-        }
-        applyProviderFrameTransportEffect(metadataAdmission.providerFrameTransport);
-        return;
-    }
-    const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
-
-    applyProviderAcceptedMetadataFacts(*this, metadataFacts);
-    const ViewportProviderMetadataTargetPolicyResult targetResult
-        = controller.handleProviderMetadataTargetPolicy(metadataFacts);
-    applyProviderFrameTransportEffect(targetResult.providerFrameTransport);
-    applyControllerChanges(targetResult.changes);
-    if (targetResult.changes.playbackPhase) {
+    const ViewportProviderMetadataReadyResult result
+        = controller.handleProviderMetadataReadyEvent(PageRole::Primary, { token, metadata });
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
         syncPlaybackTimer();
     }
 }
@@ -392,30 +362,13 @@ void ImageViewportPrivate::handleProviderMetadataReady(
 void ImageViewportPrivate::handleSecondaryProviderMetadataReady(
     ImageSequenceProviderRequestToken token, const ImageSequenceProviderMetadata& metadata)
 {
-    const ViewportProviderMetadataEventAcceptance metadataEvent
-        = controller.acceptSecondaryProviderMetadataEvent({ token });
-    if (!metadataEvent.accepted) {
-        return;
+    const ViewportProviderMetadataReadyResult result
+        = controller.handleProviderMetadataReadyEvent(PageRole::Secondary, { token, metadata });
+    applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
+        syncPlaybackTimer();
     }
-
-    const ViewportProviderMetadataAdmissionResult metadataAdmission
-        = controller.handleSecondaryProviderMetadataAdmission(metadata);
-    if (!metadataAdmission.accepted) {
-        applyControllerChanges(metadataAdmission.changes);
-        if (metadataAdmission.changes.playbackPhase) {
-            syncPlaybackTimer();
-        }
-        applyProviderFrameTransportEffect(
-            metadataAdmission.providerFrameTransport, PageRole::Secondary);
-        return;
-    }
-
-    const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
-    applyControllerChanges(controller.handleSecondaryProviderAcceptedMetadataFacts(metadataFacts));
-    const ViewportProviderMetadataTargetPolicyResult targetResult
-        = controller.handleSecondaryProviderMetadataTargetPolicy(metadataFacts);
-    applyControllerChanges(targetResult.changes);
-    applyProviderFrameTransportEffect(targetResult.providerFrameTransport, PageRole::Secondary);
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(

@@ -4504,6 +4504,39 @@ ViewportController::handleSecondaryProviderMetadataAdmission(
     return handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary, metadata);
 }
 
+ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataReadyEvent(
+    ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event)
+{
+    const ViewportProviderMetadataEventAcceptance metadataEvent
+        = role == ImageViewport::PageRole::Secondary
+        ? acceptSecondaryProviderMetadataEvent({ event.token })
+        : acceptProviderMetadataEvent({ event.token });
+    if (!metadataEvent.accepted) {
+        return {};
+    }
+
+    ViewportProviderMetadataReadyResult result;
+    const ViewportProviderMetadataAdmissionResult admission
+        = handleProviderMetadataAdmission(role, event.metadata);
+    if (!admission.accepted) {
+        result.changes = admission.changes;
+        result.providerFrameTransport = admission.providerFrameTransport;
+        return result;
+    }
+
+    mergeChanges(result.changes,
+        role == ImageViewport::PageRole::Secondary
+            ? handleSecondaryProviderAcceptedMetadataFacts(admission.facts)
+            : handleProviderAcceptedMetadataFacts(admission.facts));
+    const ViewportProviderMetadataTargetPolicyResult targetPolicy
+        = role == ImageViewport::PageRole::Secondary
+        ? handleSecondaryProviderMetadataTargetPolicy(admission.facts)
+        : handleProviderMetadataTargetPolicy(admission.facts);
+    mergeChanges(result.changes, targetPolicy.changes);
+    result.providerFrameTransport = targetPolicy.providerFrameTransport;
+    return result;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
     const FramePreparation::ProviderFrameAdmissionResult& admission)
 {
@@ -5627,6 +5660,30 @@ ViewportProviderFrameQueueFlush ViewportController::flushQueuedProviderFrameRequ
     flush.frame = queuedFrame;
     flush.targetKind = queuedTargetKind;
     return flush;
+}
+
+ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFrameRequestEvent()
+{
+    ViewportProviderFrameQueueFlushResult result;
+    const ViewportProviderFrameQueueFlush flush = flushQueuedProviderFrameRequest();
+    if (!flush.startRequest) {
+        return result;
+    }
+
+    const DisplayRequestTarget target {
+        flush.frame,
+        viewportRequestState(viewport).activeRequest.target.position,
+        flush.targetKind,
+    };
+    const ViewportProviderFrameRequestStartResult start = startProviderFrameRequest({ target });
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    result.changes.requestRevision = true;
+    result.changes.requestState = true;
+    if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Error
+        && viewportRequestState(viewport).reason == ImageViewport::RequestReason::ProviderFailure) {
+        result.changes.diagnostics = true;
+    }
+    return result;
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(

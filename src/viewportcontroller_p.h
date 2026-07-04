@@ -91,6 +91,12 @@ struct ViewportProviderMetadataEvent
     ImageSequenceProviderRequestToken token;
 };
 
+struct ViewportProviderMetadataReadyEvent
+{
+    ImageSequenceProviderRequestToken token;
+    ImageSequenceProviderMetadata metadata;
+};
+
 struct ViewportProviderMetadataEventAcceptance
 {
     bool accepted = false;
@@ -283,6 +289,12 @@ struct ViewportProviderFrameDispatchResult
     ViewportProviderFrameTransportEffect transport;
 };
 
+struct ViewportProviderFrameQueueFlushResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
 struct ViewportProviderSessionOpenResult
 {
     ViewportProviderMetadataTransportEffect providerMetadataTransport;
@@ -310,6 +322,12 @@ struct ViewportProviderEndOfSequenceResult
 };
 
 struct ViewportProviderMetadataTargetPolicyResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+};
+
+struct ViewportProviderMetadataReadyResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
@@ -609,6 +627,8 @@ public:
         ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
         ViewportProviderMetadataEvent event);
+    ViewportProviderMetadataReadyResult handleProviderMetadataReadyEvent(
+        ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
         const QString& diagnostic);
     ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
@@ -674,6 +694,7 @@ public:
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
+    ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent();
     ViewportProviderFrameRequestStartResult startProviderFrameRequest(
         ViewportProviderFrameRequestStart request);
     ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(

@@ -928,15 +928,15 @@ Provider callback flow is item-orchestrated; primary and secondary pipelines are
 
 #### Tasks
 
-- [ ] Add event-shaped controller methods for metadata ready callbacks, including primary and secondary roles.
-- [ ] Add event-shaped controller methods for frame ready callbacks, including borrowed frames and owned frame handles.
-- [ ] Add event-shaped controller methods for provider terminal callbacks: failed, unsupported with cause, unsupported without cause, and cancelled.
-- [ ] Add event-shaped controller methods for provider waiting and progress callbacks.
-- [ ] Add event-shaped controller methods for end-of-sequence callbacks.
-- [ ] Add event-shaped controller methods for dispatch failure callbacks.
-- [ ] Replace queued provider flush item-side start/revision emission with a controller result carrying `ViewportChangeSet` and transport effects.
-- [ ] Convert item handlers to callback receipt, controller forwarding, transport delivery, change application, and timer sync only.
-- [ ] Add controller tests for queued request state, stale queued flush rejection, dispatch failure, event-family stale handling, and revision effects without relying on event-loop draining.
+- [x] Add event-shaped controller methods for metadata ready callbacks, including primary and secondary roles.
+- [x] Add event-shaped controller methods for frame ready callbacks, including borrowed frames and owned frame handles.
+- [x] Add event-shaped controller methods for provider terminal callbacks: failed, unsupported with cause, unsupported without cause, and cancelled.
+- [x] Add event-shaped controller methods for provider waiting and progress callbacks.
+- [x] Add event-shaped controller methods for end-of-sequence callbacks.
+- [x] Add event-shaped controller methods for dispatch failure callbacks.
+- [x] Replace queued provider flush item-side start/revision emission with a controller result carrying `ViewportChangeSet` and transport effects.
+- [x] Convert item handlers to callback receipt, controller forwarding, transport delivery, change application, and timer sync only.
+- [x] Add controller tests for queued request state, stale queued flush rejection, dispatch failure, event-family stale handling, and revision effects without relying on event-loop draining.
 
 #### Acceptance criteria
 
@@ -954,6 +954,20 @@ Provider callback flow is item-orchestrated; primary and secondary pipelines are
 #### Risks / notes
 
 - Event-boundary changes can expose hidden ordering assumptions. Convert one callback family at a time and preserve transport effects exactly.
+
+#### Execution record
+
+Authoritative-doc check: `docs/architecture/provider-protocol.md`, `docs/architecture/subsystem-boundaries.md`, and `docs/spec/image-viewport-api.md` were re-read for this milestone. No durable doc update was needed because the existing docs already require provider callback flow through typed controller event boundaries.
+
+Added `ViewportProviderMetadataReadyEvent` and `ViewportProviderMetadataReadyResult`, plus `ViewportController::handleProviderMetadataReadyEvent(PageRole, ...)`. The combined controller method now validates the metadata token, admits metadata, applies accepted metadata facts, evaluates metadata-bound target policy, and returns one change set plus role-local frame transport. Primary and secondary metadata-ready callbacks now use the same event shape.
+
+Added `ViewportProviderFrameQueueFlushResult` and `ViewportController::flushQueuedProviderFrameRequestEvent()`. Queued provider frame flush now starts the queued request inside the controller and returns the request-state/revision and diagnostics changes that `ImageViewportPrivate` previously emitted manually, along with the provider frame transport effect.
+
+Converted `ImageViewportPrivate::handleProviderMetadataReady`, `handleSecondaryProviderMetadataReady`, and `flushQueuedProviderFrameRequest` to forward to controller event methods, deliver transport, apply `ViewportChangeSet`, and resync playback if requested. The frame-ready, terminal, waiting/progress, end-of-sequence, and dispatch-failure families already had event-shaped controller entry points before this milestone and remain covered by the same item forwarding pattern.
+
+Coverage added in `ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTargetPolicy`, `secondaryMetadataReadyEventUsesSameShape`, and `queuedProviderFlushReturnsChangesAndTransport`. Existing controller tests retained for M10 coverage include `metadataAndFrameEventsRejectStaleTokens`, `metadataDispatchFailureRejectsStaleTokenAndClosesActiveGeneration`, `frameDispatchFailureRejectsStaleTokenAndClosesActiveGeneration`, `cancellationTerminalEventClosesActiveMetadataGeneration`, `failureScopeTableClassifiesTerminalInputs`, and `requiredRoleWaitPriorityAggregatesBeforeProjection`.
+
+Structural inspection: `rg -n "incrementRequestRevision\\(|emit q->requestStateChanged\\(|handleProviderMetadataAdmission\\(|handleProviderMetadataTargetPolicy\\(" src/imageviewportprovider.cpp` reports no hits. Provider callback handlers in `ImageViewportPrivate` no longer manually emit request-state revisions or sequence metadata admission and target-policy calls.
 
 ### Milestone 11: Add Role-Indexed Compatibility Accessors
 
