@@ -1783,6 +1783,15 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         return result;
     }
 
+    if (!assignment.sequence) {
+        const ViewportCommandResult clearResult = clear();
+        result.outcome = clearResult.outcome;
+        result.changes = clearResult.changes;
+        result.providerFrameTransport = clearResult.providerFrameTransport;
+        result.secondaryProviderFrameTransport = clearResult.secondaryProviderFrameTransport;
+        return result;
+    }
+
     result.providerFrameTransport = closeProviderSession();
     result.secondaryProviderFrameTransport = closeSecondaryProviderSession();
 
@@ -1796,14 +1805,11 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const ImageViewportInternal::ViewportChangeSet transitionChanges
         = applyPresentationTransition(viewport, state.presentation, *transitionPolicy);
 
-    ImageSequence* secondarySequence = assignment.sequence ? assignment.secondarySequence : nullptr;
-    std::shared_ptr<ImageSequence> secondarySequenceOwner
-        = assignment.sequence ? std::move(assignment.secondarySequenceOwner) : nullptr;
-
     viewportRequestState(viewport).sequence = assignment.sequence;
     viewportRequestState(viewport).sequenceOwner = std::move(assignment.sequenceOwner);
-    viewportRequestState(viewport).secondarySequence = secondarySequence;
-    viewportRequestState(viewport).secondarySequenceOwner = std::move(secondarySequenceOwner);
+    viewportRequestState(viewport).secondarySequence = assignment.secondarySequence;
+    viewportRequestState(viewport).secondarySequenceOwner
+        = std::move(assignment.secondarySequenceOwner);
     viewportRequestState(viewport).secondarySequenceIsProvider = assignment.secondaryIsProvider;
     ++viewportRequestState(viewport).sequenceGeneration;
     viewportRequestState(viewport).clearDisplayRequests();
@@ -2230,10 +2236,12 @@ ViewportCommandResult ViewportController::clear()
     const bool closeProviderSession = viewportProviderState(viewport).session != nullptr;
     result.providerFrameTransport.sessionClose = handleProviderSessionClose();
     result.providerFrameTransport.closeSession = closeProviderSession;
+    result.secondaryProviderFrameTransport = closeSecondaryProviderSession();
     viewportRequestState(viewport).sequence = nullptr;
     viewportRequestState(viewport).sequenceOwner.reset();
     viewportRequestState(viewport).secondarySequence = nullptr;
     viewportRequestState(viewport).secondarySequenceOwner.reset();
+    viewportRequestState(viewport).secondarySequenceIsProvider = false;
     ++viewportRequestState(viewport).sequenceGeneration;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).clearDisplayedDisplay();
@@ -2253,7 +2261,16 @@ ViewportCommandResult ViewportController::clear()
     viewportProviderState(viewport).timingIntervals = {};
     viewportProviderState(viewport).activeMetadataToken = {};
     viewportProviderState(viewport).activeFrameToken = {};
+    state.secondaryProvider.metadataReady = false;
+    state.secondaryProvider.timedMetadata = false;
+    state.secondaryProvider.timedPlaybackSupport = false;
+    state.secondaryProvider.frameSeekSupport = false;
+    state.secondaryProvider.positionSeekSupport = false;
     state.secondaryProvider.authoredAnimationFacts = {};
+    state.secondaryProvider.logicalSize = {};
+    state.secondaryProvider.timingIntervals = {};
+    state.secondaryProvider.activeMetadataToken = {};
+    state.secondaryProvider.activeFrameToken = {};
     viewportRequestState(viewport).errorString.clear();
     viewportRequestState(viewport).warningString.clear();
     clearCommandDiagnosticForAcceptedCommand(viewport, result);
@@ -4657,6 +4674,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
     flushPlaybackTimerElapsed();
     const ViewportCommandResult result = controller.clear();
     applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;

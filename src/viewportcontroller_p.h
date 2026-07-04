@@ -264,6 +264,7 @@ struct ViewportCommandResult
     ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
 };
 
 struct ViewportPlaybackAdvanceResult

@@ -16,7 +16,7 @@ private slots:
     void resetViewPreservesNonTransformPresentationState();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
-    void nullSequenceAssignmentPreservesCommandDiagnostic();
+    void nullSequenceAssignmentClearsCommandDiagnostic();
     void clearActiveRequestClearsCommandDiagnostic();
     void clearPreservesPresentationState();
     void clearReadyDisplayEmitsGeometryStateChanged();
@@ -302,7 +302,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsDisplayObservations()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
 }
 
-void ImageViewportStillTest::nullSequenceAssignmentPreservesCommandDiagnostic()
+void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -332,9 +332,9 @@ void ImageViewportStillTest::nullSequenceAssignmentPreservesCommandDiagnostic()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("commandReason").toInt(),
-        enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
-    QCOMPARE(commandSpy.count(), 0);
+        enumValue(metaObject, "CommandReason", "NoCommand"));
+    verifyRevisionChanged(item, "commandRevision", commandRevision);
+    QCOMPARE(commandSpy.count(), 1);
 }
 
 void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()

@@ -29,6 +29,8 @@ private slots:
     void setPageSetAcceptsPrimaryAndSecondaryAtomically();
     void compatibilitySequenceAssignmentClearsSecondaryRole();
     void clearStylePageSetWithSecondaryClearsAcceptedRoles();
+    void clearStylePageSetWithProviderSecondaryDoesNotStartProvider();
+    void clearStylePageSetPolicyPreservesPresentationPreferences();
     void invalidPageSetSecondaryPreservesAcceptedRoles();
     void pageSetTransitionClearBeforeLoadClearsRetainedDisplay();
     void invalidPageSetTransitionPolicyPreservesState();
@@ -1023,6 +1025,134 @@ void ImageViewportPublicApiTest::clearStylePageSetWithSecondaryClearsAcceptedRol
         enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("displayStatus").toInt(),
         enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+}
+
+void ImageViewportPublicApiTest::clearStylePageSetWithProviderSecondaryDoesNotStartProvider()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame primaryFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(primaryResult->sequence());
+
+    const auto outcome
+        = item.setPageSet(QVariant(), QVariant::fromValue<QObject*>(secondaryResult->sequence()));
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
+    QCOMPARE(item.sequence(), nullptr);
+    QCOMPARE(item.property("primarySequence").value<QObject*>(), nullptr);
+    QCOMPARE(item.property("secondarySequence").value<QObject*>(), nullptr);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(item.metaObject(), "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(),
+        enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+    QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF());
+    QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF());
+    QCOMPARE(item.property("secondaryPageRect").toRectF(), QRectF());
+}
+
+void ImageViewportPublicApiTest::clearStylePageSetPolicyPreservesPresentationPreferences()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    QCOMPARE(item.setZoomPercent(250.0, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(9.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setMirrorHorizontally(true, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setMirrorVertically(true, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    item.setSmoothing(false);
+    item.setMipmap(true);
+    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    item.setLooping(true);
+
+    const auto fitMode = item.fitMode();
+    const double zoomPercent = item.zoomPercent();
+    const QPointF contentPosition = item.property("contentPosition").toPointF();
+    const auto spreadDirection = item.spreadDirection();
+    const double pageGap = item.pageGap();
+    const int rotationDegrees = item.rotationDegrees();
+    const bool mirrorHorizontally = item.mirrorHorizontally();
+    const bool mirrorVertically = item.mirrorVertically();
+    const bool smoothing = item.smoothing();
+    const bool mipmap = item.mipmap();
+    const auto backgroundMode = item.backgroundMode();
+    const QColor backgroundColor = item.backgroundColor();
+    const bool looping = item.looping();
+
+    PageSetTransitionPolicy policy;
+    policy.setDisplayTransition(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    policy.setZoomTransition(PageSetTransitionPolicy::ZoomTransition::ResetToContain);
+    policy.setContentPositionTransition(
+        PageSetTransitionPolicy::ContentPositionTransition::ScanEnd);
+    policy.setRotationTransition(PageSetTransitionPolicy::RotationTransition::Reset);
+    policy.setMirrorTransition(PageSetTransitionPolicy::MirrorTransition::Reset);
+    policy.setFitModeTransition(PageSetTransitionPolicy::FitModeTransition::SetExplicit);
+    policy.setFitMode(ImageViewport::FitMode::Contain);
+    policy.setSpreadDirectionTransition(
+        PageSetTransitionPolicy::SpreadDirectionTransition::SetExplicit);
+    policy.setSpreadDirection(ImageViewport::SpreadDirection::LeftToRight);
+    policy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    policy.setPageGap(0.0);
+    policy.setReplacementIntent(PageSetTransitionPolicy::ReplacementIntent::SameTargetRefinement);
+
+    const auto outcome = item.setPageSet(QVariant(), QVariant(), policy);
+
+    QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("displayStatus").toInt(),
+        enumValue(item.metaObject(), "DisplayStatus", "Empty"));
+    QCOMPARE(item.fitMode(), fitMode);
+    QCOMPARE(item.zoomPercent(), zoomPercent);
+    QCOMPARE(item.property("contentPosition").toPointF(), contentPosition);
+    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.pageGap(), pageGap);
+    QCOMPARE(item.rotationDegrees(), rotationDegrees);
+    QCOMPARE(item.mirrorHorizontally(), mirrorHorizontally);
+    QCOMPARE(item.mirrorVertically(), mirrorVertically);
+    QCOMPARE(item.smoothing(), smoothing);
+    QCOMPARE(item.mipmap(), mipmap);
+    QCOMPARE(item.backgroundMode(), backgroundMode);
+    QCOMPARE(item.backgroundColor(), backgroundColor);
+    QCOMPARE(item.looping(), looping);
 }
 
 void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()

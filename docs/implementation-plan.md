@@ -213,16 +213,16 @@ Clear-style operations are not true clear transactions; provider role behavior i
 
 #### Tasks
 
-- [ ] Add characterization tests for `setPageSet(null, providerSecondary, validPolicy)`: outcome `Accepted`, no secondary provider command/session startup, both accepted role observations null, retained content removed, `requestStatus: NoRequest`, `displayStatus: Empty`, and empty geometry observations.
-- [ ] Add characterization tests for `setPageSet(null, null, policyWithResetAndExplicitFields)`: transition fields validate but preserve fit, manual zoom, effective zoom preference where applicable, content position preference, rotation, mirror flags, spread direction, page gap, scan preference, background, quality preferences, and looping.
-- [ ] Add characterization tests for `clear()` with primary and secondary provider work active: primary and secondary tokens are cancelled or retired, sessions are closed exactly once, playback stops, retained content is removed, accepted roles are null, request/display/geometry observations are empty, and presentation preferences are preserved.
-- [ ] Add characterization tests proving late secondary metadata, frame, terminal, waiting/progress, cancellation, and end-of-sequence callbacks after clear cannot change request status, display status, diagnostics, playback phase, or revisions.
-- [ ] In `ImageViewportPrivate::setPageSet(...)`, ensure null-primary assignment does not preserve a secondary provider flag or secondary sequence as request intent after argument validation.
-- [ ] In `ViewportController::assignSequence(...)`, branch to clear-style handling after policy validation and before `applyPresentationTransition(...)` or provider request startup.
-- [ ] Ensure clear-style handling ignores transition effects for display transition, zoom, fit mode, content position, rotation, mirror flags, spread direction, page gap, scan state, and replacement intent.
-- [ ] Introduce or reuse a role-local provider close helper so primary and secondary provider generations retire active metadata/frame/playback tokens, queued provider work, and session serials consistently.
-- [ ] Extend clear and assignment result transport shapes as needed so secondary cancellation/close effects are delivered by item-private provider transport.
-- [ ] Keep compatibility `sequence = null`, `setPageSet(null, null)`, `setPageSet(null, null, policy)`, `setPageSet(null, secondary, policy)`, and `clear()` behavior aligned with the public clear-style contract.
+- [x] Add characterization tests for `setPageSet(null, providerSecondary, validPolicy)`: outcome `Accepted`, no secondary provider command/session startup, both accepted role observations null, retained content removed, `requestStatus: NoRequest`, `displayStatus: Empty`, and empty geometry observations.
+- [x] Add characterization tests for `setPageSet(null, null, policyWithResetAndExplicitFields)`: transition fields validate but preserve fit, manual zoom, effective zoom preference where applicable, content position preference, rotation, mirror flags, spread direction, page gap, scan preference, background, quality preferences, and looping.
+- [x] Add characterization tests for `clear()` with primary and secondary provider work active: primary and secondary tokens are cancelled or retired, sessions are closed exactly once, playback stops, retained content is removed, accepted roles are null, request/display/geometry observations are empty, and presentation preferences are preserved.
+- [x] Add characterization tests proving late secondary metadata, frame, terminal, waiting/progress, cancellation, and end-of-sequence callbacks after clear cannot change request status, display status, diagnostics, playback phase, or revisions.
+- [x] In `ImageViewportPrivate::setPageSet(...)`, ensure null-primary assignment does not preserve a secondary provider flag or secondary sequence as request intent after argument validation.
+- [x] In `ViewportController::assignSequence(...)`, branch to clear-style handling after policy validation and before `applyPresentationTransition(...)` or provider request startup.
+- [x] Ensure clear-style handling ignores transition effects for display transition, zoom, fit mode, content position, rotation, mirror flags, spread direction, page gap, scan state, and replacement intent.
+- [x] Introduce or reuse a role-local provider close helper so primary and secondary provider generations retire active metadata/frame/playback tokens, queued provider work, and session serials consistently.
+- [x] Extend clear and assignment result transport shapes as needed so secondary cancellation/close effects are delivered by item-private provider transport.
+- [x] Keep compatibility `sequence = null`, `setPageSet(null, null)`, `setPageSet(null, null, policy)`, `setPageSet(null, secondary, policy)`, and `clear()` behavior aligned with the public clear-style contract.
 
 #### Acceptance criteria
 
@@ -239,6 +239,12 @@ Clear-style operations are not true clear transactions; provider role behavior i
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_playback)$'`
 - `ctest --test-dir build -R '^(imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_playback)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Characterization failures before implementation were `imageviewport_public_api` for secondary-provider clear-style startup and transition-field mutation, plus `imageviewport_provider_lifecycle` for missing secondary provider cancellation/close on clear.
+- Compatibility `sequence = null` now routes through the same controller clear transaction as `clear()`, so the stale still-image test expectation that command diagnostics were preserved was updated to expect diagnostics to clear.
+- Verification passed: `cmake --build build`; `ctest -N --test-dir build`; focused filter selected 4 tests; focused CTest passed 4/4; full CTest passed 19/19.
 
 #### Risks / notes
 
@@ -944,7 +950,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 ## Suggested `/goal` Execution Order
 
 - [x] Milestone 1: Baseline Verification And Test Selection
-- [ ] Milestone 2: Clear Transaction Characterization And Fix
+- [x] Milestone 2: Clear Transaction Characterization And Fix
 - [ ] Milestone 3: Mechanical Controller/Item Separation Precursor
 - [ ] Milestone 4: Command Diagnostics For Invalid And Absent Roles
 - [ ] Milestone 5: Provider Harness And Dispatch-Failure Foundation

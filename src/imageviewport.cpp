@@ -853,6 +853,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
             = { 0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
         secondaryInitialResolvedFrame = { 0, position };
     }
+    if (!primarySequence) {
+        secondarySequence = nullptr;
+        secondaryOwner.reset();
+        secondaryInitialTarget = {};
+        secondaryInitialResolvedFrame = {};
+    }
     ViewportSequenceAssignment assignment;
     assignment.sequence = primarySequence;
     assignment.sequenceOwner = std::move(primaryOwner);
@@ -862,7 +868,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     assignment.secondaryInitialResolvedFrame = secondaryInitialResolvedFrame;
     assignment.retainPreviousDisplay
         = policy.displayTransition() == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    assignment.secondaryIsProvider = secondarySequence && secondarySequence->isProvider();
+    assignment.secondaryIsProvider = primarySequence && secondarySequence
+        && secondarySequence->isProvider();
     assignment.transitionPolicy = policy;
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     if (result.outcome != CommandOutcome::Accepted) {
