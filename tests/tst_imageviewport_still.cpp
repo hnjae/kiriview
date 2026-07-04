@@ -930,7 +930,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(350);
+    advancePlaybackForTest(item, 350);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -949,7 +949,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));

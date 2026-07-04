@@ -9,8 +9,8 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 }
 
 }
@@ -646,7 +646,7 @@ void ImageSequenceFactoryTest::imageFrameRetainsImmutablePayload()
     ImageFrame frame(image);
     image.fill(QColor(0, 0, 255, 255));
 
-    const QImage retained = frame.imageForTest();
+    const QImage retained = imageForTest(frame);
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
@@ -740,10 +740,10 @@ void ImageSequenceFactoryTest::imageFrameOrientationPoliciesNormalizePayload()
         QCOMPARE(frame.isValid(), true);
         QCOMPARE(frame.orientationPolicy(), policy);
         QCOMPARE(frame.logicalSize(), expected.deviceIndependentSize());
-        QCOMPARE(frame.imageForTest().size(), expected.size());
+        QCOMPARE(imageForTest(frame).size(), expected.size());
         for (int y = 0; y < expected.height(); ++y) {
             for (int x = 0; x < expected.width(); ++x) {
-                QCOMPARE(frame.imageForTest().pixelColor(x, y), expected.pixelColor(x, y));
+                QCOMPARE(imageForTest(frame).pixelColor(x, y), expected.pixelColor(x, y));
             }
         }
     }
@@ -859,7 +859,7 @@ void ImageSequenceFactoryTest::stillImageSequenceRetainsFactoryPayload()
         QVERIFY(result->sequence());
     }
 
-    const QImage retained = result->sequence()->frameImageForTest(0);
+    const QImage retained = frameImageForTest(*result->sequence(), 0);
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
@@ -884,11 +884,11 @@ void ImageSequenceFactoryTest::timedFrameListSequenceRetainsFactoryPayloads()
         QVERIFY(result->sequence());
     }
 
-    const QImage firstRetained = result->sequence()->frameImageForTest(0);
+    const QImage firstRetained = frameImageForTest(*result->sequence(), 0);
     QCOMPARE(firstRetained.size(), QSize(2, 1));
     QCOMPARE(firstRetained.pixelColor(0, 0), QColor(255, 0, 0, 255));
 
-    const QImage secondRetained = result->sequence()->frameImageForTest(1);
+    const QImage secondRetained = frameImageForTest(*result->sequence(), 1);
     QCOMPARE(secondRetained.size(), QSize(2, 1));
     QCOMPARE(secondRetained.pixelColor(0, 0), QColor(0, 255, 0, 255));
 }

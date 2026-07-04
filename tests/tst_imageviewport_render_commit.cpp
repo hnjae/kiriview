@@ -6,24 +6,24 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 }
 
 void acknowledgePendingSpreadRenderCommit(ImageViewport& item)
 {
-    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest() != 0
-        ? item.secondaryPendingRenderPayloadIdForTest()
+    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item) != 0
+        ? secondaryPendingRenderPayloadIdForTest(item)
         : primaryPayloadId;
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), primaryPayloadId, secondaryPayloadId);
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), primaryPayloadId, secondaryPayloadId);
 }
 
 void acknowledgePendingRenderFailure(ImageViewport& item)
 {
-    item.acknowledgeRenderFailureForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderFailureForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 }
 
 }
@@ -90,8 +90,8 @@ void ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPosit
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
-    QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
 
     acknowledgePendingRenderCommit(item);
 
@@ -103,7 +103,7 @@ void ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPosit
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::timedListAssignmentWaitsForRenderCommitWithPositiveGeometry()
@@ -135,7 +135,7 @@ void ImageViewportRenderCommitTest::timedListAssignmentWaitsForRenderCommitWithP
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommit(item);
 
@@ -148,7 +148,7 @@ void ImageViewportRenderCommitTest::timedListAssignmentWaitsForRenderCommitWithP
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCommit()
@@ -179,15 +179,15 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -198,7 +198,7 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingSpreadRenderCommit(item);
 
@@ -210,7 +210,7 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(10.0, 20.0));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit_data()
@@ -271,13 +271,13 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, primaryPayloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -285,7 +285,7 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingSpreadRenderCommit(item);
 
@@ -296,7 +296,7 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
@@ -319,18 +319,18 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId + 1);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -345,7 +345,7 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::stillImagePaintFailureReportsRenderFailure()
@@ -481,7 +481,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlaybackPaintFailureStopsPlayb
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(0.0, 20.0));
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(
@@ -597,9 +597,9 @@ void ImageViewportRenderCommitTest::successfulPaintClearsRenderFailureInterest()
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -608,7 +608,7 @@ void ImageViewportRenderCommitTest::successfulPaintClearsRenderFailureInterest()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    item.acknowledgeRenderFailureForTest(generation, requestId, payloadId);
+    acknowledgeRenderFailureForTest(item, generation, requestId, payloadId);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -632,25 +632,25 @@ void ImageViewportRenderCommitTest::builtInSameFrameSeekCreatesFreshRequestIdent
     item.setSize(QSizeF(40.0, 20.0));
     item.setSequence(result->sequence());
 
-    const quint64 initialRequestId = item.activeRequestIdForTest();
+    const quint64 initialRequestId = activeRequestIdForTest(item);
     QVERIFY(initialRequestId > 0);
-    QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
-    QCOMPARE(item.displayedRequestIdForTest(), 0U);
+    QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
+    QCOMPARE(displayedRequestIdForTest(item), 0U);
 
     acknowledgePendingRenderCommit(item);
-    QCOMPARE(item.displayedRequestIdForTest(), initialRequestId);
-    QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
+    QCOMPARE(displayedRequestIdForTest(item), initialRequestId);
+    QCOMPARE(pendingRenderPayloadIdForTest(item), 0U);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
 
-    const quint64 seekRequestId = item.activeRequestIdForTest();
+    const quint64 seekRequestId = activeRequestIdForTest(item);
     QVERIFY(seekRequestId > initialRequestId);
-    QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
-    QCOMPARE(item.displayedRequestIdForTest(), initialRequestId);
+    QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
+    QCOMPARE(displayedRequestIdForTest(item), initialRequestId);
 
     acknowledgePendingRenderCommit(item);
-    QCOMPARE(item.displayedRequestIdForTest(), seekRequestId);
-    QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
+    QCOMPARE(displayedRequestIdForTest(item), seekRequestId);
+    QCOMPARE(pendingRenderPayloadIdForTest(item), 0U);
 }
 
 void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviousDisplay()
@@ -762,7 +762,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
 
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*lastPlaybackFrame, 1);
@@ -929,14 +929,14 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
     acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
@@ -947,7 +947,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
@@ -957,7 +957,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
@@ -999,7 +999,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
@@ -1010,7 +1010,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
@@ -1070,17 +1070,17 @@ void ImageViewportRenderCommitTest::
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "UploadPending"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
-    QCOMPARE(item.displayedRequestIdForTest(), 0U);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QCOMPARE(displayedRequestIdForTest(item), 0U);
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     QVERIFY(generation > 0);
     QVERIFY(requestId > 0);
     QVERIFY(payloadId > 0);
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1090,8 +1090,8 @@ void ImageViewportRenderCommitTest::
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.displayedRequestIdForTest(), requestId);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QCOMPARE(displayedRequestIdForTest(item), requestId);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsPreviousDisplay()
@@ -1170,7 +1170,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderFailure(item);
 
@@ -1183,7 +1183,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsIncomplete()
@@ -1232,17 +1232,17 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
     QVERIFY(secondaryPayloadId > 0);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1252,9 +1252,9 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId, secondaryPayloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId, secondaryPayloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1262,8 +1262,8 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
         item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.displayedRequestIdForTest(), requestId);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QCOMPARE(displayedRequestIdForTest(item), requestId);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWithoutSceneGraph()
@@ -1312,11 +1312,11 @@ void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWith
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    item.acknowledgeRenderFailureForTest(ImageViewport::PageRole::Secondary,
-        item.pendingRenderGenerationForTest(), item.activeRequestIdForTest(),
-        item.secondaryPendingRenderPayloadIdForTest());
+    acknowledgeRenderFailureForTest(item, ImageViewport::PageRole::Secondary,
+        pendingRenderGenerationForTest(item), activeRequestIdForTest(item),
+        secondaryPendingRenderPayloadIdForTest(item));
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -1324,10 +1324,10 @@ void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWith
         enumValue(metaObject, "RequestReason", "RenderFailure"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.displayedRequestIdForTest(), 0U);
+    QCOMPARE(displayedRequestIdForTest(item), 0U);
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWithoutSceneGraph()
@@ -1376,18 +1376,18 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.secondaryPendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = secondaryPendingRenderPayloadIdForTest(item);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.acknowledgeRenderFailureForTest(
+    acknowledgeRenderFailureForTest(item,
         ImageViewport::PageRole::Secondary, generation, requestId, payloadId + 1);
 
     QCOMPARE(
@@ -1402,7 +1402,7 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWithoutSceneGraph()
@@ -1443,18 +1443,18 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId + 1);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1470,7 +1470,7 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWithoutSceneGraph()
@@ -1502,8 +1502,8 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -1519,18 +1519,18 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.acknowledgeRenderFailureForTest(generation, requestId, payloadId + 1);
+    acknowledgeRenderFailureForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1546,7 +1546,7 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderCommitTest::
@@ -1579,8 +1579,8 @@ void ImageViewportRenderCommitTest::
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -1598,16 +1598,16 @@ void ImageViewportRenderCommitTest::
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.acknowledgeRenderFailureForTest(generation, requestId, payloadId);
+    acknowledgeRenderFailureForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -1622,7 +1622,7 @@ void ImageViewportRenderCommitTest::
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QVERIFY(!hasPendingRenderCommitForTest(item));
     QCOMPARE(requestStateSpy.count(), 1);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 1);
@@ -1662,11 +1662,11 @@ void ImageViewportRenderCommitTest::
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*lastPlaybackFrame, 1);
     QCOMPARE(*lastPlaybackPosition, 100);
@@ -1682,14 +1682,14 @@ void ImageViewportRenderCommitTest::
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 payloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
 
-    item.acknowledgeRenderCommitForTest(generation, requestId, payloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1703,8 +1703,8 @@ void ImageViewportRenderCommitTest::
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
-    QCOMPARE(item.displayedRequestIdForTest(), requestId);
-    QVERIFY(!item.hasPendingRenderCommitForTest());
+    QCOMPARE(displayedRequestIdForTest(item), requestId);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
     QCOMPARE(playbackSpy.count(), 1);
 }
 
@@ -1728,13 +1728,13 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
     acknowledgePendingRenderCommit(item);
-    const quint64 initialRequestId = item.activeRequestIdForTest();
+    const quint64 initialRequestId = activeRequestIdForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(0.0, 20.0));
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
 
-    const quint64 waitingRequestId = item.activeRequestIdForTest();
+    const quint64 waitingRequestId = activeRequestIdForTest(item);
     QVERIFY(waitingRequestId > initialRequestId);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
@@ -1765,10 +1765,10 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
-    QCOMPARE(item.activeRequestIdForTest(), waitingRequestId);
-    QVERIFY(item.hasPendingRenderCommitForTest());
-    QCOMPARE(item.pendingRenderGenerationForTest(), 1U);
-    QVERIFY(item.pendingRenderPayloadIdForTest() > 0);
+    QCOMPARE(activeRequestIdForTest(item), waitingRequestId);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QCOMPARE(pendingRenderGenerationForTest(item), 1U);
+    QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
     QCOMPARE(playbackSpy.count(), 0);
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);

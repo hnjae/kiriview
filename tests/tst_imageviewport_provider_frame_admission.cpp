@@ -7,16 +7,16 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
     if (secondaryPayloadId > 0) {
-        item.acknowledgeRenderCommitForTest(
+        acknowledgeRenderCommitForTest(item,
             generation, requestId, primaryPayloadId, secondaryPayloadId);
         return;
     }
-    item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, primaryPayloadId);
 }
 
 }
@@ -209,7 +209,7 @@ void ImageViewportProviderFrameAdmissionTest::
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(2.0, 3.0));
 
-    const QImage normalized = frame.imageForTest();
+    const QImage normalized = imageForTest(frame);
     QCOMPARE(normalized.size(), QSize(2, 3));
     QCOMPARE(
         normalized.pixelColor(0, 0), image.transformed(QTransform().rotate(90)).pixelColor(0, 0));
@@ -813,9 +813,9 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
-    ImageFrame frame(image, -1);
+    const std::unique_ptr<ImageFrame> frame = makeImageFrameWithPayloadByteSizeForTest(image, -1);
     emit sessionFactory->lastSession()->imageFrameReady(
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+        sessionFactory->lastSession()->lastFrameToken(), frame.get());
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -1090,7 +1090,7 @@ void ImageViewportProviderFrameAdmissionTest::
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "UploadPending"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommit(item);
 
@@ -1147,7 +1147,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     const RevisionToken uploadPendingRevision = revisionTokenProperty(item, "requestRevision");
     acknowledgePendingRenderCommit(item);
@@ -1200,7 +1200,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     const RevisionToken renderWaitingRevision = revisionTokenProperty(item, "requestRevision");
     item.setSize(QSizeF(100.0, 100.0));

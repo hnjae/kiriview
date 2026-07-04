@@ -6,8 +6,8 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 }
 
 }
@@ -164,7 +164,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    const quint64 preMetadataRequestId = item.activeRequestIdForTest();
+    const quint64 preMetadataRequestId = activeRequestIdForTest(item);
     QVERIFY(preMetadataRequestId > 0);
     const RevisionToken preMetadataRequestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
@@ -183,7 +183,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    QVERIFY(item.activeRequestIdForTest() > preMetadataRequestId);
+    QVERIFY(activeRequestIdForTest(item) > preMetadataRequestId);
     QCOMPARE(item.property("frameCount").toInt(), 2);
     QCOMPARE(item.property("totalDuration").toInt(), 350);
     verifyRevisionChanged(item, "requestRevision", preMetadataRequestRevision);
@@ -983,7 +983,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     CountingProviderSession* session = sessionFactory->lastSession();
     const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
     QVERIFY(initialFrameToken.isValid());
-    const quint64 initialRequestId = item.activeRequestIdForTest();
+    const quint64 initialRequestId = activeRequestIdForTest(item);
     QVERIFY(initialRequestId > 0);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -1015,7 +1015,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     const ImageSequenceProviderRequestToken activeFrameToken = session->lastFrameToken();
     QVERIFY(activeFrameToken.isValid());
     QVERIFY(activeFrameToken != initialFrameToken);
-    const quint64 activeRequestId = item.activeRequestIdForTest();
+    const quint64 activeRequestId = activeRequestIdForTest(item);
     QVERIFY(activeRequestId > initialRequestId);
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -1047,7 +1047,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     QCOMPARE(item.property("displayedPosition").toInt(), -1);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
-    QCOMPARE(item.activeRequestIdForTest(), activeRequestId);
+    QCOMPARE(activeRequestIdForTest(item), activeRequestId);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), activeRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
@@ -1063,7 +1063,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommit(item);
 

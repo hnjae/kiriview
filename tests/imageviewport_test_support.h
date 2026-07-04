@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewport_testhooks_p.h"
 
 #include <QtCore/QList>
 #include <QtCore/QMetaEnum>
@@ -22,6 +23,8 @@ static_assert(std::is_abstract_v<ImageSequenceProviderAdapter>,
     "ImageSequenceProviderAdapter must remain an abstract public extension-point base");
 
 namespace {
+
+using namespace ImageViewportTestHooks;
 
 int enumValue(const QMetaObject* metaObject, const char* enumName, const char* key)
 {
@@ -90,15 +93,15 @@ RevisionToken revisionTokenProperty(const QObject& object, const char* propertyN
 
 void acknowledgePendingRenderCommitForTest(ImageViewport& item)
 {
-    if (!item.hasPendingRenderCommitForTest()) {
+    if (!hasPendingRenderCommitForTest(item)) {
         return;
     }
-    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest() != 0
-        ? item.secondaryPendingRenderPayloadIdForTest()
+    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item) != 0
+        ? secondaryPendingRenderPayloadIdForTest(item)
         : primaryPayloadId;
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), primaryPayloadId, secondaryPayloadId);
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), primaryPayloadId, secondaryPayloadId);
 }
 
 void verifyRevisionChanged(

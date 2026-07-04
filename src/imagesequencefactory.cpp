@@ -1,4 +1,5 @@
 #include "framepreparation_p.h"
+#include "imagesequence_p.h"
 #include "imagesequenceownership_p.h"
 #include "imageviewporthelpers_p.h"
 
@@ -88,8 +89,8 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
             nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, limitViolation);
     }
 
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(frame->logicalSize(), frame->imagePayload()));
+    std::shared_ptr<ImageSequence> sequence
+        = ImageSequencePrivateAccess::createStill(frame->logicalSize(), frame->imagePayload());
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
@@ -103,8 +104,9 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList must contain at least one frame"));
     }
 
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(list->logicalSize(),
-        list->frameDurations(), list->frameImages(), list->authoredAnimationFacts()));
+    std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createTimedList(
+        list->logicalSize(), list->frameDurations(), list->frameImages(),
+        list->authoredAnimationFacts());
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
@@ -183,9 +185,10 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
             QStringLiteral("provider construction facts contradict declared capabilities"));
     }
 
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(std::move(sessionFactory), knownFacts,
-        effectiveTimedPlaybackCapability, effectiveFrameSeekCapability,
-        effectivePositionSeekCapability, authoredAnimationFacts, threadingContract));
+    std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createProvider(
+        std::move(sessionFactory), knownFacts, effectiveTimedPlaybackCapability,
+        effectiveFrameSeekCapability, effectivePositionSeekCapability, authoredAnimationFacts,
+        threadingContract);
     registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});

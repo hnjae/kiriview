@@ -503,7 +503,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
     QScopedPointer<QSGNode> partialRoot(item.takePaintNode());
     QVERIFY(partialRoot.isNull());
     QCOMPARE(
@@ -1068,8 +1068,8 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
-    const quint64 pendingPayloadId = item.pendingRenderPayloadIdForTest();
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    const quint64 pendingPayloadId = pendingRenderPayloadIdForTest(item);
 
     QScopedPointer<QSGNode> zeroSizeRoot(item.takePaintNode());
     QVERIFY(zeroSizeRoot.isNull());
@@ -1081,8 +1081,8 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
-    QCOMPARE(item.pendingRenderPayloadIdForTest(), pendingPayloadId);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    QCOMPARE(pendingRenderPayloadIdForTest(item), pendingPayloadId);
 
     item.setSize(QSizeF(40.0, 20.0));
     QCOMPARE(
@@ -1096,7 +1096,7 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
-    QCOMPARE(item.pendingRenderPayloadIdForTest(), 0U);
+    QCOMPARE(pendingRenderPayloadIdForTest(item), 0U);
 }
 
 QTEST_MAIN(ImageViewportRenderSceneGraphTest)

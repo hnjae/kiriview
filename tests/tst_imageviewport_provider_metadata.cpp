@@ -2012,7 +2012,7 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(*closeCount, 0);
-    QVERIFY(item.hasPendingRenderCommitForTest());
+    QVERIFY(hasPendingRenderCommitForTest(item));
 
     const RevisionToken renderWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");

@@ -1,3 +1,4 @@
+#include "imagesequence_p.h"
 #include "imageviewporthelpers_p.h"
 #include "timingintervals_p.h"
 
@@ -81,133 +82,257 @@ bool ImageSequenceAuthoredAnimationFacts::setFiniteLoopCount(int loopCount)
     return true;
 }
 
-ImageSequence::ImageSequence(QObject* parent)
-    : QObject(parent)
+std::unique_ptr<ImageSequenceData> ImageSequenceData::still(QSizeF logicalSize, QImage stillImage)
 {
+    auto data = std::make_unique<ImageSequenceData>();
+    data->kind = Kind::Still;
+    data->logicalSize = logicalSize;
+    data->stillImage = std::move(stillImage);
+    return data;
 }
 
-ImageSequence::ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent)
-    : QObject(parent)
-    , m_timingModel(TimingModel::Still)
-    , m_logicalSize(logicalSize)
-    , m_stillImage(std::move(stillImage))
+std::unique_ptr<ImageSequenceData> ImageSequenceData::timedList(QSizeF logicalSize,
+    const QVector<int>& frameDurations, QVector<QImage> frameImages,
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
+    auto data = std::make_unique<ImageSequenceData>();
+    data->kind = Kind::TimedList;
+    data->logicalSize = logicalSize;
+    data->timingIntervals
+        = std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations));
+    data->frameImages = std::move(frameImages);
+    data->authoredAnimationFacts = authoredAnimationFacts;
+    return data;
 }
 
-ImageSequence::ImageSequence(QSizeF logicalSize, const QVector<int>& frameDurations,
-    QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
-    QObject* parent)
-    : QObject(parent)
-    , m_timingModel(TimingModel::TimedList)
-    , m_logicalSize(logicalSize)
-    , m_timingIntervals(
-          std::make_shared<TimingIntervals>(TimingIntervals::fromFrameDurations(frameDurations)))
-    , m_frameImages(std::move(frameImages))
-    , m_authoredAnimationFacts(authoredAnimationFacts)
-{
-}
-
-ImageSequence::ImageSequence(
+std::unique_ptr<ImageSequenceData> ImageSequenceData::provider(
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
     ImageSequenceProviderKnownFacts providerKnownFacts,
     ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
     ImageSequenceProviderCapabilitySupport frameSeekCapability,
     ImageSequenceProviderCapabilitySupport positionSeekCapability,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
-    ImageSequenceProviderThreadingContract providerThreadingContract, QObject* parent)
+    ImageSequenceProviderThreadingContract providerThreadingContract)
+{
+    auto data = std::make_unique<ImageSequenceData>();
+    data->kind = Kind::Provider;
+    data->authoredAnimationFacts = authoredAnimationFacts;
+    data->providerSessionFactory = std::move(providerSessionFactory);
+    data->providerKnownFacts = std::move(providerKnownFacts);
+    data->hasCompleteProviderKnownMetadata = data->providerKnownFacts.isComplete();
+    data->providerKnownLogicalSize
+        = data->providerKnownFacts.isSpecified() ? data->providerKnownFacts.logicalSize() : QSizeF();
+    data->providerKnownTimingIntervals = data->providerKnownFacts.isTimedFrameList()
+        ? std::make_shared<TimingIntervals>(
+              TimingIntervals::fromFrameDurations(data->providerKnownFacts.frameDurations()))
+        : nullptr;
+    data->providerTimedPlaybackCapability = timedPlaybackCapability;
+    data->providerFrameSeekCapability = frameSeekCapability;
+    data->providerPositionSeekCapability = positionSeekCapability;
+    data->providerThreadingContract = providerThreadingContract;
+    return data;
+}
+
+ImageSequence::ImageSequence(std::unique_ptr<ImageSequenceData> data, QObject* parent)
     : QObject(parent)
-    , m_timingModel(TimingModel::Provider)
-    , m_authoredAnimationFacts(authoredAnimationFacts)
-    , m_providerSessionFactory(std::move(providerSessionFactory))
-    , m_providerKnownFacts(std::move(providerKnownFacts))
-    , m_hasProviderKnownMetadata(m_providerKnownFacts.isSpecified())
-    , m_hasCompleteProviderKnownMetadata(m_providerKnownFacts.isComplete())
-    , m_providerKnownLogicalSize(
-          m_providerKnownFacts.isSpecified() ? m_providerKnownFacts.logicalSize() : QSizeF())
-    , m_providerKnownFrameCount(m_providerKnownFacts.frameCount())
-    , m_providerKnownTimingIntervals(m_providerKnownFacts.isTimedFrameList()
-              ? std::make_shared<TimingIntervals>(
-                    TimingIntervals::fromFrameDurations(m_providerKnownFacts.frameDurations()))
-              : nullptr)
-    , m_providerTimedPlaybackCapability(timedPlaybackCapability)
-    , m_providerFrameSeekCapability(frameSeekCapability)
-    , m_providerPositionSeekCapability(positionSeekCapability)
-    , m_providerThreadingContract(providerThreadingContract)
+    , d(std::move(data))
 {
 }
 
-bool ImageSequence::isValid() const
+ImageSequence::~ImageSequence() = default;
+
+std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createStill(
+    QSizeF logicalSize, QImage stillImage)
 {
-    if (isProvider()) {
-        return m_providerSessionFactory != nullptr;
+    return std::shared_ptr<ImageSequence>(
+        new ImageSequence(ImageSequenceData::still(logicalSize, std::move(stillImage))));
+}
+
+std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createTimedList(QSizeF logicalSize,
+    const QVector<int>& frameDurations, QVector<QImage> frameImages,
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
+{
+    return std::shared_ptr<ImageSequence>(new ImageSequence(ImageSequenceData::timedList(
+        logicalSize, frameDurations, std::move(frameImages), authoredAnimationFacts)));
+}
+
+std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
+    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
+    ImageSequenceProviderKnownFacts providerKnownFacts,
+    ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+    ImageSequenceProviderCapabilitySupport frameSeekCapability,
+    ImageSequenceProviderCapabilitySupport positionSeekCapability,
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
+    ImageSequenceProviderThreadingContract providerThreadingContract)
+{
+    return std::shared_ptr<ImageSequence>(new ImageSequence(ImageSequenceData::provider(
+        std::move(providerSessionFactory), std::move(providerKnownFacts), timedPlaybackCapability,
+        frameSeekCapability, positionSeekCapability, authoredAnimationFacts,
+        providerThreadingContract)));
+}
+
+bool ImageSequencePrivateAccess::isValid(const ImageSequence* sequence)
+{
+    if (!sequence || !sequence->d) {
+        return false;
+    }
+    if (isProvider(sequence)) {
+        return sequence->d->providerSessionFactory != nullptr;
     }
 
-    return m_timingModel != TimingModel::None && m_logicalSize.isValid()
-        && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0
-        && (isStill() || (m_timingIntervals && m_timingIntervals->isValid()));
+    return sequence->d->kind != ImageSequenceData::Kind::None && sequence->d->logicalSize.isValid()
+        && sequence->d->logicalSize.width() > 0.0 && sequence->d->logicalSize.height() > 0.0
+        && (isStill(sequence)
+            || (sequence->d->timingIntervals && sequence->d->timingIntervals->isValid()));
 }
 
-bool ImageSequence::isStill() const { return m_timingModel == TimingModel::Still; }
-
-bool ImageSequence::isTimedList() const { return m_timingModel == TimingModel::TimedList; }
-
-bool ImageSequence::isProvider() const { return m_timingModel == TimingModel::Provider; }
-
-QSizeF ImageSequence::logicalSize() const { return m_logicalSize; }
-
-int ImageSequence::frameCount() const
+bool ImageSequencePrivateAccess::isStill(const ImageSequence* sequence)
 {
-    if (isStill()) {
+    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::Still;
+}
+
+bool ImageSequencePrivateAccess::isTimedList(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::TimedList;
+}
+
+bool ImageSequencePrivateAccess::isProvider(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->kind == ImageSequenceData::Kind::Provider;
+}
+
+QSizeF ImageSequencePrivateAccess::logicalSize(const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->logicalSize : QSizeF {};
+}
+
+int ImageSequencePrivateAccess::frameCount(const ImageSequence* sequence)
+{
+    if (isStill(sequence)) {
         return 1;
     }
-    if (isTimedList()) {
-        return m_timingIntervals ? m_timingIntervals->frameCount() : -1;
+    if (isTimedList(sequence)) {
+        return sequence->d->timingIntervals ? sequence->d->timingIntervals->frameCount() : -1;
     }
 
     return -1;
 }
 
-int ImageSequence::totalDuration() const
+int ImageSequencePrivateAccess::totalDuration(const ImageSequence* sequence)
 {
-    if (!isTimedList()) {
+    if (!isTimedList(sequence)) {
         return -1;
     }
 
-    return m_timingIntervals ? m_timingIntervals->totalDuration() : -1;
+    return sequence->d->timingIntervals ? sequence->d->timingIntervals->totalDuration() : -1;
 }
 
-int ImageSequence::frameStartPosition(int frame) const
+int ImageSequencePrivateAccess::frameStartPosition(const ImageSequence* sequence, int frame)
 {
-    if (!isTimedList()) {
+    if (!isTimedList(sequence)) {
         return -1;
     }
 
-    return m_timingIntervals ? m_timingIntervals->frameStartPosition(frame) : -1;
+    return sequence->d->timingIntervals ? sequence->d->timingIntervals->frameStartPosition(frame)
+                                        : -1;
 }
 
-int ImageSequence::frameIndexForPosition(int position) const
+int ImageSequencePrivateAccess::frameIndexForPosition(const ImageSequence* sequence, int position)
 {
-    if (!isTimedList()) {
+    if (!isTimedList(sequence)) {
         return -1;
     }
 
-    return m_timingIntervals ? m_timingIntervals->frameIndexForPosition(position) : -1;
+    return sequence->d->timingIntervals
+        ? sequence->d->timingIntervals->frameIndexForPosition(position)
+        : -1;
 }
 
-QImage ImageSequence::frameImage(int frame) const
+QImage ImageSequencePrivateAccess::frameImage(const ImageSequence* sequence, int frame)
 {
-    if (isStill() && frame == 0) {
-        return m_stillImage;
+    if (isStill(sequence) && frame == 0) {
+        return sequence->d->stillImage;
     }
-    if (isTimedList() && frame >= 0 && frame < m_frameImages.size()) {
-        return m_frameImages.at(frame);
+    if (isTimedList(sequence) && frame >= 0 && frame < sequence->d->frameImages.size()) {
+        return sequence->d->frameImages.at(frame);
     }
     return {};
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageSequence::frameImageForTest(int frame) const { return frameImage(frame); }
-#endif
+TimingIntervals ImageSequencePrivateAccess::timingIntervals(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->timingIntervals
+        ? *sequence->d->timingIntervals
+        : TimingIntervals {};
+}
+
+ImageSequenceAuthoredAnimationFacts ImageSequencePrivateAccess::authoredAnimationFacts(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->authoredAnimationFacts
+                                   : ImageSequenceAuthoredAnimationFacts {};
+}
+
+bool ImageSequencePrivateAccess::hasCompleteProviderKnownMetadata(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->hasCompleteProviderKnownMetadata;
+}
+
+ImageSequenceProviderKnownFacts ImageSequencePrivateAccess::providerKnownFacts(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->providerKnownFacts
+                                   : ImageSequenceProviderKnownFacts {};
+}
+
+QSizeF ImageSequencePrivateAccess::providerKnownLogicalSize(const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->providerKnownLogicalSize : QSizeF {};
+}
+
+TimingIntervals ImageSequencePrivateAccess::providerKnownTimingIntervals(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d && sequence->d->providerKnownTimingIntervals
+        ? *sequence->d->providerKnownTimingIntervals
+        : TimingIntervals {};
+}
+
+ImageSequenceProviderCapabilitySupport ImageSequencePrivateAccess::providerTimedPlaybackCapability(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->providerTimedPlaybackCapability
+                                   : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport ImageSequencePrivateAccess::providerFrameSeekCapability(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->providerFrameSeekCapability
+                                   : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport ImageSequencePrivateAccess::providerPositionSeekCapability(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->providerPositionSeekCapability
+                                   : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+std::shared_ptr<ImageSequenceProviderSessionFactory>
+ImageSequencePrivateAccess::providerSessionFactory(const ImageSequence* sequence)
+{
+    return sequence && sequence->d && isProvider(sequence) ? sequence->d->providerSessionFactory
+                                                          : nullptr;
+}
+
+ImageSequenceProviderThreadingContract ImageSequencePrivateAccess::providerThreadingContract(
+    const ImageSequence* sequence)
+{
+    return sequence && sequence->d && isProvider(sequence)
+        ? sequence->d->providerThreadingContract
+        : ImageSequenceProviderThreadingContract::AffinityBound;
+}
 
 ImageFrame::ImageFrame(QObject* parent)
     : QObject(parent)
@@ -236,20 +361,18 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
     }
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeForTest, QObject* parent)
+ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent)
     : QObject(parent)
 {
     const QSizeF logicalSize = image.deviceIndependentSize();
     if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
         && isPositiveFiniteInteger(logicalSize.height())) {
         m_logicalSize = logicalSize;
-        m_payloadByteSize = payloadByteSizeForTest;
+        m_payloadByteSize = payloadByteSizeOverride;
         m_hasAlphaChannel = image.hasAlphaChannel();
         m_image = image.copy();
     }
 }
-#endif
 
 bool ImageFrame::isValid() const
 {
@@ -300,9 +423,13 @@ void ImageSequenceProviderFrameHandle::release()
     }
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-QImage ImageFrame::imageForTest() const { return m_image; }
-#endif
+std::unique_ptr<ImageFrame> ImageFramePrivateAccess::createWithPayloadByteSize(
+    const QImage& image, qsizetype payloadByteSize)
+{
+    return std::unique_ptr<ImageFrame>(new ImageFrame(image, payloadByteSize));
+}
+
+QImage ImageFramePrivateAccess::image(const ImageFrame& frame) { return frame.m_image; }
 
 TimedImageFrameList::TimedImageFrameList(QObject* parent)
     : QObject(parent)
@@ -371,7 +498,7 @@ bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMillisecond
     }
 
     m_frameDurations.append(durationMilliseconds);
-    m_frameImages.append(frame->imagePayload());
+    m_images.append(frame->imagePayload());
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
         emit diagnosticsChanged();
@@ -391,7 +518,7 @@ void TimedImageFrameList::clear()
         = !m_errorString.isEmpty() || !m_warningString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
-    m_frameImages.clear();
+    m_images.clear();
     m_errorString.clear();
     m_warningString.clear();
     if (shouldEmitCountChanged) {
@@ -412,7 +539,7 @@ QSizeF TimedImageFrameList::logicalSize() const { return m_logicalSize; }
 
 QVector<int> TimedImageFrameList::frameDurations() const { return m_frameDurations; }
 
-QVector<QImage> TimedImageFrameList::frameImages() const { return m_frameImages; }
+QVector<QImage> TimedImageFrameList::frameImages() const { return m_images; }
 
 int TimedImageFrameList::totalDuration() const
 {

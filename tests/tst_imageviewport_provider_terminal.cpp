@@ -6,16 +6,16 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    const quint64 generation = item.pendingRenderGenerationForTest();
-    const quint64 requestId = item.activeRequestIdForTest();
-    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest();
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
     if (secondaryPayloadId > 0) {
-        item.acknowledgeRenderCommitForTest(
+        acknowledgeRenderCommitForTest(item,
             generation, requestId, primaryPayloadId, secondaryPayloadId);
         return;
     }
-    item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
+    acknowledgeRenderCommitForTest(item, generation, requestId, primaryPayloadId);
 }
 
 void emitTerminal(CountingProviderSession* session, ImageSequenceProviderRequestToken token,
@@ -175,7 +175,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     QCOMPARE(*playbackRequestCount, 1);
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -756,7 +756,7 @@ void ImageViewportProviderTerminalTest::
 
     QCOMPARE(
         item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
 
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*lastPlaybackFrame, 1);
@@ -2579,7 +2579,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackStopsOnFrameFailure
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
 
@@ -2655,7 +2655,7 @@ void ImageViewportProviderTerminalTest::
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken failedToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -2764,7 +2764,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackCancellationReports
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -2845,7 +2845,7 @@ void ImageViewportProviderTerminalTest::
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken cancelledToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -2951,7 +2951,7 @@ void ImageViewportProviderTerminalTest::providerTimedPlaybackUnsupportedReportsU
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
     QCOMPARE(
@@ -3029,7 +3029,7 @@ void ImageViewportProviderTerminalTest::
     acknowledgePendingRenderCommit(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-    item.advancePlaybackForTest(100);
+    advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken unsupportedToken
         = sessionFactory->lastSession()->lastFrameToken();
 

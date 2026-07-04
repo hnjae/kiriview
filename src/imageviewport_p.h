@@ -31,6 +31,11 @@ public:
 
     explicit ImageViewportPrivate(ImageViewport* viewport);
     ~ImageViewportPrivate();
+    static ImageViewportPrivate* get(ImageViewport& viewport) { return viewport.d.get(); }
+    static const ImageViewportPrivate* get(const ImageViewport& viewport)
+    {
+        return viewport.d.get();
+    }
 
     ImageSequence* sequence() const;
     void setSequence(ImageSequence* sequence);

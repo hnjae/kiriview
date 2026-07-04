@@ -1,4 +1,6 @@
+#include "imagesequence_p.h"
 #include "imageviewport_p.h"
+#include "imageviewport_testhooks_p.h"
 
 #include <QtQuick/QSGNode>
 
@@ -256,82 +258,6 @@ bool ImageViewport::containsVisibleImagePoint(double x, double y) const
     return d->containsVisibleImagePoint(x, y);
 }
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-void ImageViewport::advancePlaybackForTest(int elapsedMilliseconds)
-{
-    d->advancePlaybackForTest(elapsedMilliseconds);
-}
-
-void ImageViewport::setNextProviderRequestTokenForTest(quint64 token)
-{
-    d->setNextProviderRequestTokenForTest(token);
-}
-
-void ImageViewport::setNextProviderRequestTokenForTest(PageRole role, quint64 token)
-{
-    d->setNextProviderRequestTokenForTest(role, token);
-}
-
-void ImageViewport::failNextProviderCommandDeliveryForTest(PageRole role)
-{
-    d->failNextProviderCommandDeliveryForTest(role);
-}
-
-void ImageViewport::useSynchronousProviderExecutorForTest()
-{
-    d->useSynchronousProviderExecutorForTest();
-}
-
-bool ImageViewport::hasPendingRenderCommitForTest() const
-{
-    return d->hasPendingRenderCommitForTest();
-}
-
-quint64 ImageViewport::activeRequestIdForTest() const { return d->activeRequestIdForTest(); }
-
-quint64 ImageViewport::displayedRequestIdForTest() const { return d->displayedRequestIdForTest(); }
-
-quint64 ImageViewport::pendingRenderGenerationForTest() const
-{
-    return d->pendingRenderGenerationForTest();
-}
-
-quint64 ImageViewport::pendingRenderPayloadIdForTest() const
-{
-    return d->pendingRenderPayloadIdForTest();
-}
-
-quint64 ImageViewport::secondaryPendingRenderPayloadIdForTest() const
-{
-    return d->secondaryPendingRenderPayloadIdForTest();
-}
-
-void ImageViewport::acknowledgeRenderCommitForTest(
-    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
-{
-    d->acknowledgeRenderCommitForTest(generation, requestId, preparedPayloadId);
-}
-
-void ImageViewport::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
-    quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
-{
-    d->acknowledgeRenderCommitForTest(
-        generation, requestId, primaryPreparedPayloadId, secondaryPreparedPayloadId);
-}
-
-void ImageViewport::acknowledgeRenderFailureForTest(
-    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
-{
-    d->acknowledgeRenderFailureForTest(generation, requestId, preparedPayloadId);
-}
-
-void ImageViewport::acknowledgeRenderFailureForTest(ImageViewport::PageRole failedRole,
-    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
-{
-    d->acknowledgeRenderFailureForTest(failedRole, generation, requestId, preparedPayloadId);
-}
-#endif
-
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
     return d->updatePaintNode(oldNode);
@@ -347,3 +273,108 @@ void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldG
     QQuickItem::geometryChange(newGeometry, oldGeometry);
     d->geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
 }
+
+namespace ImageViewportTestHooks {
+
+void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds)
+{
+    ImageViewportPrivate::get(item)->advancePlaybackForTest(elapsedMilliseconds);
+}
+
+void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token)
+{
+    ImageViewportPrivate::get(item)->setNextProviderRequestTokenForTest(token);
+}
+
+void setNextProviderRequestTokenForTest(
+    ImageViewport& item, ImageViewport::PageRole role, quint64 token)
+{
+    ImageViewportPrivate::get(item)->setNextProviderRequestTokenForTest(role, token);
+}
+
+void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role)
+{
+    ImageViewportPrivate::get(item)->failNextProviderCommandDeliveryForTest(role);
+}
+
+void useSynchronousProviderExecutorForTest(ImageViewport& item)
+{
+    ImageViewportPrivate::get(item)->useSynchronousProviderExecutorForTest();
+}
+
+bool hasPendingRenderCommitForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->hasPendingRenderCommitForTest();
+}
+
+quint64 activeRequestIdForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->activeRequestIdForTest();
+}
+
+quint64 displayedRequestIdForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->displayedRequestIdForTest();
+}
+
+quint64 pendingRenderGenerationForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->pendingRenderGenerationForTest();
+}
+
+quint64 pendingRenderPayloadIdForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->pendingRenderPayloadIdForTest();
+}
+
+quint64 secondaryPendingRenderPayloadIdForTest(const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->secondaryPendingRenderPayloadIdForTest();
+}
+
+void acknowledgeRenderCommitForTest(
+    ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    ImageViewportPrivate::get(item)->acknowledgeRenderCommitForTest(
+        generation, requestId, preparedPayloadId);
+}
+
+void acknowledgeRenderCommitForTest(ImageViewport& item, quint64 generation, quint64 requestId,
+    quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
+{
+    ImageViewportPrivate::get(item)->acknowledgeRenderCommitForTest(
+        generation, requestId, primaryPreparedPayloadId, secondaryPreparedPayloadId);
+}
+
+void acknowledgeRenderFailureForTest(
+    ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    ImageViewportPrivate::get(item)->acknowledgeRenderFailureForTest(
+        generation, requestId, preparedPayloadId);
+}
+
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    ImageViewportPrivate::get(item)->acknowledgeRenderFailureForTest(
+        failedRole, generation, requestId, preparedPayloadId);
+}
+
+std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
+    const QImage& image, qsizetype payloadByteSize)
+{
+    return ImageViewportInternal::ImageFramePrivateAccess::createWithPayloadByteSize(
+        image, payloadByteSize);
+}
+
+QImage imageForTest(const ImageFrame& frame)
+{
+    return ImageViewportInternal::ImageFramePrivateAccess::image(frame);
+}
+
+QImage frameImageForTest(const ImageSequence& sequence, int frame)
+{
+    return ImageViewportInternal::ImageSequencePrivateAccess::frameImage(&sequence, frame);
+}
+
+} // namespace ImageViewportTestHooks

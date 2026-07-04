@@ -6,8 +6,8 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
-    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
-        item.activeRequestIdForTest(), item.pendingRenderPayloadIdForTest());
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
 }
 
 }
@@ -407,7 +407,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         acknowledgePendingRenderCommit(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-        item.advancePlaybackForTest(100);
+        advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, &workerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
@@ -469,7 +469,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         acknowledgePendingRenderCommit(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
-        item.advancePlaybackForTest(100);
+        advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, controllerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 

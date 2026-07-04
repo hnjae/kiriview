@@ -23,6 +23,12 @@ class ImageViewportPrivate;
 class PageSetTransitionPolicy;
 class TimingIntervals;
 
+namespace ImageViewportInternal {
+class ImageFramePrivateAccess;
+class ImageSequenceData;
+class ImageSequencePrivateAccess;
+}
+
 enum class ImageSequenceProviderThreadingContract {
     AffinityBound,
     ThreadSafe,
@@ -116,72 +122,16 @@ class ImageSequence : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("Use ImageSequenceFactory to create sequence handles")
 
-private:
-    enum class TimingModel {
-        None,
-        Still,
-        TimedList,
-        Provider,
-    };
-
-    explicit ImageSequence(QObject* parent = nullptr);
-    explicit ImageSequence(QSizeF logicalSize, QImage stillImage, QObject* parent = nullptr);
-    explicit ImageSequence(QSizeF logicalSize, const QVector<int>& frameDurations,
-        QVector<QImage> frameImages, ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
-        QObject* parent = nullptr);
-    explicit ImageSequence(
-        std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory,
-        ImageSequenceProviderKnownFacts providerKnownFacts,
-        ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
-        ImageSequenceProviderCapabilitySupport frameSeekCapability,
-        ImageSequenceProviderCapabilitySupport positionSeekCapability,
-        ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
-        ImageSequenceProviderThreadingContract providerThreadingContract,
-        QObject* parent = nullptr);
-
-    bool isValid() const;
-    bool isStill() const;
-    bool isTimedList() const;
-    bool isProvider() const;
-    QSizeF logicalSize() const;
-    int frameCount() const;
-    int totalDuration() const;
-    int frameStartPosition(int frame) const;
-    int frameIndexForPosition(int position) const;
-    QImage frameImage(int frame) const;
-
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 public:
-    QImage frameImageForTest(int frame) const;
+    ~ImageSequence() override;
 
 private:
-#endif
+    explicit ImageSequence(
+        std::unique_ptr<ImageViewportInternal::ImageSequenceData> data, QObject* parent = nullptr);
 
-    TimingModel m_timingModel = TimingModel::None;
-    QSizeF m_logicalSize;
-    QImage m_stillImage;
-    std::shared_ptr<const TimingIntervals> m_timingIntervals;
-    QVector<QImage> m_frameImages;
-    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
-    std::shared_ptr<ImageSequenceProviderSessionFactory> m_providerSessionFactory;
-    ImageSequenceProviderKnownFacts m_providerKnownFacts;
-    bool m_hasProviderKnownMetadata = false;
-    bool m_hasCompleteProviderKnownMetadata = false;
-    QSizeF m_providerKnownLogicalSize;
-    int m_providerKnownFrameCount = -1;
-    std::shared_ptr<const TimingIntervals> m_providerKnownTimingIntervals;
-    ImageSequenceProviderCapabilitySupport m_providerTimedPlaybackCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_providerFrameSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_providerPositionSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderThreadingContract m_providerThreadingContract
-        = ImageSequenceProviderThreadingContract::AffinityBound;
+    std::unique_ptr<ImageViewportInternal::ImageSequenceData> d;
 
-    friend class ImageSequenceFactory;
-    friend class ImageViewport;
-    friend class ImageViewportPrivate;
+    friend class ImageViewportInternal::ImageSequencePrivateAccess;
 };
 
 class ImageFrame : public QObject
@@ -211,9 +161,6 @@ public:
     explicit ImageFrame(QObject* parent = nullptr);
     explicit ImageFrame(const QImage& image, QObject* parent = nullptr);
     ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent = nullptr);
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    ImageFrame(const QImage& image, qsizetype payloadByteSizeForTest, QObject* parent = nullptr);
-#endif
 
     bool isValid() const;
     QSizeF logicalSize() const;
@@ -221,11 +168,8 @@ public:
     bool hasAlphaChannel() const;
     OrientationPolicy orientationPolicy() const;
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    QImage imageForTest() const;
-#endif
-
 private:
+    ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent = nullptr);
     const QImage& imagePayload() const;
 
     QImage m_image;
@@ -238,7 +182,7 @@ private:
     friend class TimedImageFrameList;
     friend class FramePreparation;
     friend class ImageViewport;
-    friend class ImageViewportPrivate;
+    friend class ImageViewportInternal::ImageFramePrivateAccess;
 };
 
 class ImageSequenceProviderFrameHandle : public QObject
@@ -299,7 +243,7 @@ private:
 
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
-    QVector<QImage> m_frameImages;
+    QVector<QImage> m_images;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     QString m_errorString;
     QString m_warningString;
@@ -355,7 +299,7 @@ private:
 class ImageSequenceProviderMetadata
 {
 public:
-    enum class TimingModel {
+    enum class Kind {
         Invalid,
         Still,
         FixedDurationFrames,
@@ -386,7 +330,7 @@ public:
     bool positionSeekSupport() const;
 
 private:
-    TimingModel m_timingModel = TimingModel::Invalid;
+    Kind m_kind = Kind::Invalid;
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     bool m_hasAuthoredAnimationFacts = false;
@@ -399,7 +343,7 @@ private:
 class ImageSequenceProviderFrameMetadata
 {
 public:
-    enum class TimingModel {
+    enum class Kind {
         Invalid,
         Still,
         TimedFrame,
@@ -418,7 +362,7 @@ public:
     int frameDuration() const;
 
 private:
-    TimingModel m_timingModel = TimingModel::Invalid;
+    Kind m_kind = Kind::Invalid;
     int m_frame = -1;
     int m_frameStartPosition = -1;
     int m_frameDuration = -1;
@@ -1020,27 +964,6 @@ public:
     Q_INVOKABLE CoordinateResult itemToImage(double x, double y) const;
     Q_INVOKABLE CoordinateResult imageToItem(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    void advancePlaybackForTest(int elapsedMilliseconds);
-    void setNextProviderRequestTokenForTest(quint64 token);
-    void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
-    void failNextProviderCommandDeliveryForTest(ImageViewport::PageRole role);
-    void useSynchronousProviderExecutorForTest();
-    bool hasPendingRenderCommitForTest() const;
-    quint64 activeRequestIdForTest() const;
-    quint64 displayedRequestIdForTest() const;
-    quint64 pendingRenderGenerationForTest() const;
-    quint64 pendingRenderPayloadIdForTest() const;
-    quint64 secondaryPendingRenderPayloadIdForTest() const;
-    void acknowledgeRenderCommitForTest(
-        quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-    void acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
-        quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId);
-    void acknowledgeRenderFailureForTest(
-        quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-    void acknowledgeRenderFailureForTest(ImageViewport::PageRole failedRole,
-        quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-#endif
 
 signals:
     void sequenceChanged();
@@ -1061,7 +984,7 @@ protected:
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
-    friend class ImageViewportPrivate;
+    friend ImageViewportPrivate;
 
     std::unique_ptr<ImageViewportPrivate> d;
 };

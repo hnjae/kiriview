@@ -1,4 +1,5 @@
 #include "imagesequenceownership_p.h"
+#include "imagesequence_p.h"
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
 
@@ -336,12 +337,12 @@ int ImageViewportPrivate::secondaryRequestedPosition() const
     if (!sequence) {
         return -1;
     }
-    if (sequence->isProvider()
+    if (ImageSequencePrivateAccess::isProvider(sequence)
         && (controller.secondaryProviderTimedMetadata()
             || controller.requestState().secondaryActiveRequest.target.position >= 0)) {
         return controller.requestState().secondaryActiveRequest.target.position;
     }
-    if (sequence->isTimedList()) {
+    if (ImageSequencePrivateAccess::isTimedList(sequence)) {
         return controller.requestState().secondaryActiveRequest.target.position;
     }
 
@@ -361,44 +362,52 @@ int ImageViewportPrivate::totalDuration() const
 bool ImageViewportPrivate::hasSecondaryTimedSequence() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && sequence->isTimedList();
+    return ImageSequencePrivateAccess::isTimedList(sequence);
 }
 
 int ImageViewportPrivate::secondarySequenceFrameCount() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && !sequence->isProvider() ? sequence->frameCount() : -1;
+    return sequence && !ImageSequencePrivateAccess::isProvider(sequence)
+        ? ImageSequencePrivateAccess::frameCount(sequence)
+        : -1;
 }
 
 int ImageViewportPrivate::secondarySequenceTotalDuration() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && !sequence->isProvider() ? sequence->totalDuration() : -1;
+    return sequence && !ImageSequencePrivateAccess::isProvider(sequence)
+        ? ImageSequencePrivateAccess::totalDuration(sequence)
+        : -1;
 }
 
 int ImageViewportPrivate::secondarySequenceFrameIndexForPosition(int position) const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && sequence->isTimedList() ? sequence->frameIndexForPosition(position) : -1;
+    return ImageSequencePrivateAccess::isTimedList(sequence)
+        ? ImageSequencePrivateAccess::frameIndexForPosition(sequence, position)
+        : -1;
 }
 
 int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && sequence->isTimedList() ? sequence->frameStartPosition(frame) : -1;
+    return ImageSequencePrivateAccess::isTimedList(sequence)
+        ? ImageSequencePrivateAccess::frameStartPosition(sequence, frame)
+        : -1;
 }
 
 ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::sequenceAuthoredAnimationFacts() const
 {
     ImageSequence* sequence = controller.requestState().sequence;
-    return sequence ? sequence->m_authoredAnimationFacts : ImageSequenceAuthoredAnimationFacts {};
+    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
 }
 
 ImageSequenceAuthoredAnimationFacts
 ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_authoredAnimationFacts : ImageSequenceAuthoredAnimationFacts {};
+    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
 }
 
 ImageViewportRange ImageViewportPrivate::frameSeekBounds() const
@@ -581,20 +590,21 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
     const auto roleSourceForSequence = [](ImageSequence* sequence) {
         ViewportSequenceRoleSource source;
-        if (!sequence || !sequence->isValid()) {
+        if (!ImageSequencePrivateAccess::isValid(sequence)) {
             return source;
         }
 
         source.present = true;
-        source.provider = sequence->isProvider();
-        source.timed = sequence->isTimedList();
-        source.authoredAnimationFacts = sequence->m_authoredAnimationFacts;
+        source.provider = ImageSequencePrivateAccess::isProvider(sequence);
+        source.timed = ImageSequencePrivateAccess::isTimedList(sequence);
+        source.authoredAnimationFacts = ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
         if (!source.provider) {
-            source.frameCount = sequence->frameCount();
-            source.firstFramePosition = source.timed ? sequence->frameStartPosition(0) : -1;
-            source.timingIntervals
-                = source.timed && sequence->m_timingIntervals ? *sequence->m_timingIntervals
-                                                              : TimingIntervals {};
+            source.frameCount = ImageSequencePrivateAccess::frameCount(sequence);
+            source.firstFramePosition
+                = source.timed ? ImageSequencePrivateAccess::frameStartPosition(sequence, 0) : -1;
+            source.timingIntervals = source.timed
+                ? ImageSequencePrivateAccess::timingIntervals(sequence)
+                : TimingIntervals {};
         }
         return source;
     };

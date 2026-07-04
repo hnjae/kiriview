@@ -1,3 +1,4 @@
+#include "imagesequence_p.h"
 #include "imageviewport_p.h"
 
 #include <QtCore/QMetaObject>
@@ -54,95 +55,81 @@ ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession(PageR
 
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
 {
-    return controller.requestState().sequence
-        && controller.requestState().sequence->m_hasCompleteProviderKnownMetadata;
+    return ImageSequencePrivateAccess::hasCompleteProviderKnownMetadata(
+        controller.requestState().sequence);
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
 {
-    return controller.requestState().sequence
-        ? controller.requestState().sequence->m_providerKnownFacts
-        : ImageSequenceProviderKnownFacts {};
+    return ImageSequencePrivateAccess::providerKnownFacts(controller.requestState().sequence);
 }
 
 QSizeF ImageViewportPrivate::providerKnownLogicalSize() const
 {
-    return controller.requestState().sequence
-        ? controller.requestState().sequence->m_providerKnownLogicalSize
-        : QSizeF {};
+    return ImageSequencePrivateAccess::providerKnownLogicalSize(controller.requestState().sequence);
 }
 
 TimingIntervals ImageViewportPrivate::providerKnownTimingIntervals() const
 {
-    return controller.requestState().sequence
-            && controller.requestState().sequence->m_providerKnownTimingIntervals
-        ? *controller.requestState().sequence->m_providerKnownTimingIntervals
-        : TimingIntervals();
+    return ImageSequencePrivateAccess::providerKnownTimingIntervals(
+        controller.requestState().sequence);
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
 {
-    return controller.requestState().sequence
-        ? controller.requestState().sequence->m_providerTimedPlaybackCapability
-        : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerTimedPlaybackCapability(
+        controller.requestState().sequence);
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
 {
-    return controller.requestState().sequence
-        ? controller.requestState().sequence->m_providerFrameSeekCapability
-        : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerFrameSeekCapability(
+        controller.requestState().sequence);
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
 {
-    return controller.requestState().sequence
-        ? controller.requestState().sequence->m_providerPositionSeekCapability
-        : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerPositionSeekCapability(
+        controller.requestState().sequence);
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::secondaryProviderKnownFacts() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
+    return ImageSequencePrivateAccess::providerKnownFacts(sequence);
 }
 
 QSizeF ImageViewportPrivate::secondaryProviderKnownLogicalSize() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_providerKnownLogicalSize : QSizeF {};
+    return ImageSequencePrivateAccess::providerKnownLogicalSize(sequence);
 }
 
 TimingIntervals ImageViewportPrivate::secondaryProviderKnownTimingIntervals() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence && sequence->m_providerKnownTimingIntervals
-        ? *sequence->m_providerKnownTimingIntervals
-        : TimingIntervals();
+    return ImageSequencePrivateAccess::providerKnownTimingIntervals(sequence);
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderTimedPlaybackCapability() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_providerTimedPlaybackCapability
-                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerTimedPlaybackCapability(sequence);
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderFrameSeekCapability() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_providerFrameSeekCapability
-                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerFrameSeekCapability(sequence);
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderPositionSeekCapability() const
 {
     ImageSequence* sequence = secondarySequence();
-    return sequence ? sequence->m_providerPositionSeekCapability
-                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+    return ImageSequencePrivateAccess::providerPositionSeekCapability(sequence);
 }
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
@@ -531,17 +518,14 @@ std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::provi
     PageRole role) const
 {
     ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
-    return sequence && sequence->isProvider() ? sequence->m_providerSessionFactory : nullptr;
+    return ImageSequencePrivateAccess::providerSessionFactory(sequence);
 }
 
 ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract(
     PageRole role) const
 {
     ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
-    if (sequence && sequence->isProvider()) {
-        return sequence->m_providerThreadingContract;
-    }
-    return ImageSequenceProviderThreadingContract::AffinityBound;
+    return ImageSequencePrivateAccess::providerThreadingContract(sequence);
 }
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
@@ -563,5 +547,5 @@ ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::providerAuthoredAnimat
     if (controller.providerMetadataReady()) {
         return controller.providerAuthoredAnimationFacts();
     }
-    return sequence->m_authoredAnimationFacts;
+    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
 }

@@ -197,7 +197,7 @@ QVector<int> ImageSequenceProviderKnownFacts::frameDurations() const { return m_
 ImageSequenceProviderMetadata ImageSequenceProviderMetadata::still(QSizeF logicalSize)
 {
     ImageSequenceProviderMetadata metadata;
-    metadata.m_timingModel = TimingModel::Still;
+    metadata.m_kind = Kind::Still;
     metadata.m_logicalSize = logicalSize;
     return metadata;
 }
@@ -206,7 +206,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames
     QSizeF logicalSize, int frameCount, int frameDuration)
 {
     ImageSequenceProviderMetadata metadata;
-    metadata.m_timingModel = TimingModel::FixedDurationFrames;
+    metadata.m_kind = Kind::FixedDurationFrames;
     metadata.m_logicalSize = logicalSize;
     if (frameCount > 0) {
         const int retainedFrameCount
@@ -220,7 +220,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
     QSizeF logicalSize, QVector<int> frameDurations)
 {
     ImageSequenceProviderMetadata metadata;
-    metadata.m_timingModel = TimingModel::TimedFrameList;
+    metadata.m_kind = Kind::TimedFrameList;
     metadata.m_logicalSize = logicalSize;
     metadata.m_frameDurations = std::move(frameDurations);
     return metadata;
@@ -252,15 +252,15 @@ bool ImageSequenceProviderMetadata::isValid() const
 
 bool ImageSequenceProviderMetadata::isSpecified() const
 {
-    return m_timingModel != TimingModel::Invalid;
+    return m_kind != Kind::Invalid;
 }
 
-bool ImageSequenceProviderMetadata::isStill() const { return m_timingModel == TimingModel::Still; }
+bool ImageSequenceProviderMetadata::isStill() const { return m_kind == Kind::Still; }
 
 bool ImageSequenceProviderMetadata::isTimedFrameList() const
 {
-    return m_timingModel == TimingModel::FixedDurationFrames
-        || m_timingModel == TimingModel::TimedFrameList;
+    return m_kind == Kind::FixedDurationFrames
+        || m_kind == Kind::TimedFrameList;
 }
 
 QSizeF ImageSequenceProviderMetadata::logicalSize() const { return m_logicalSize; }
@@ -317,7 +317,7 @@ bool ImageSequenceProviderMetadata::positionSeekSupport() const
 ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
 {
     ImageSequenceProviderFrameMetadata metadata;
-    metadata.m_timingModel = TimingModel::Still;
+    metadata.m_kind = Kind::Still;
     metadata.m_frame = 0;
     return metadata;
 }
@@ -326,7 +326,7 @@ ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::timedFram
     int frame, int frameStartPosition, int frameDuration)
 {
     ImageSequenceProviderFrameMetadata metadata;
-    metadata.m_timingModel = TimingModel::TimedFrame;
+    metadata.m_kind = Kind::TimedFrame;
     metadata.m_frame = frame;
     metadata.m_frameStartPosition = frameStartPosition;
     metadata.m_frameDuration = frameDuration;
@@ -348,12 +348,12 @@ bool ImageSequenceProviderFrameMetadata::isValid() const
 
 bool ImageSequenceProviderFrameMetadata::isStillFrame() const
 {
-    return m_timingModel == TimingModel::Still;
+    return m_kind == Kind::Still;
 }
 
 bool ImageSequenceProviderFrameMetadata::isTimedFrame() const
 {
-    return m_timingModel == TimingModel::TimedFrame;
+    return m_kind == Kind::TimedFrame;
 }
 
 int ImageSequenceProviderFrameMetadata::frame() const { return m_frame; }
