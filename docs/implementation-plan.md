@@ -314,6 +314,8 @@ F4, F5.
 
 ### Milestone 4: Introduce a Deferred Provider Scheduler Seam
 
+Status: Complete. Verified against the provider protocol and subsystem-boundary docs before execution. Provider queue flushing now travels as the typed deferred controller event `FlushQueuedFrameRequest`; production still schedules it through Qt queued delivery at the item/provider transport boundary, while private tests can enable synchronous queue-flush scheduling without replacing real provider callback, affinity, cleanup, or scene graph event-loop coverage.
+
 #### Objective
 
 Move queued provider flush scheduling behind an explicit scheduler effect before refactoring provider dispatch, so the new role-parametric dispatch path does not bake in raw Qt event-loop assumptions.
@@ -350,13 +352,13 @@ F7.
 
 #### Tasks
 
-- [ ] Identify tests that call `drainQueuedProviderResults()` only to flush queued provider dispatch, starting with `ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrameRequest`.
-- [ ] Define a typed provider queue-flush scheduler effect in the controller transport-effect model rather than a direct `QMetaObject::invokeMethod` call.
-- [ ] Implement a Qt queued production scheduler in `ImageViewportPrivate::applyProviderFrameTransportEffect(...)` or the narrow provider transport effect application path.
-- [ ] Expose a private test hook or provider test-support path that installs synchronous provider queue-flush scheduling for tests that do not assert Qt event-loop or affinity behavior.
-- [ ] Convert queue-dispatch tests such as `providerFrameSeekQueuesBehindActiveFrameRequest` to use synchronous scheduler support instead of draining global `MetaCall` events solely to leave `RequestQueued`.
-- [ ] Keep lifecycle and affinity tests using real queued delivery where they assert entry-point queueing, QObject affinity, or cleanup ordering.
-- [ ] Add preservation characterization for failed cleanup/cancel delivery before editing transport behavior: public request/display status, request/display revisions, playback phase, retained display, and error string must not change solely because best-effort cleanup delivery failed.
+- [x] Identify tests that call `drainQueuedProviderResults()` only to flush queued provider dispatch, starting with `ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrameRequest`.
+- [x] Define a typed provider queue-flush scheduler effect in the controller transport-effect model rather than a direct `QMetaObject::invokeMethod` call.
+- [x] Implement a Qt queued production scheduler in `ImageViewportPrivate::applyProviderFrameTransportEffect(...)` or the narrow provider transport effect application path.
+- [x] Expose a private test hook or provider test-support path that installs synchronous provider queue-flush scheduling for tests that do not assert Qt event-loop or affinity behavior.
+- [x] Convert queue-dispatch tests such as `providerFrameSeekQueuesBehindActiveFrameRequest` to use synchronous scheduler support instead of draining global `MetaCall` events solely to leave `RequestQueued`.
+- [x] Keep lifecycle and affinity tests using real queued delivery where they assert entry-point queueing, QObject affinity, or cleanup ordering.
+- [x] Add preservation characterization for failed cleanup/cancel delivery before editing transport behavior: public request/display status, request/display revisions, playback phase, retained display, and error string must not change solely because best-effort cleanup delivery failed.
 
 #### Acceptance criteria
 

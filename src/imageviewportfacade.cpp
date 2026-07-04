@@ -302,6 +302,11 @@ void useSynchronousProviderExecutorForTest(ImageViewport& item)
     ImageViewportPrivate::get(item)->useSynchronousProviderExecutorForTest();
 }
 
+void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item)
+{
+    ImageViewportPrivate::get(item)->useSynchronousProviderQueueFlushSchedulerForTest();
+}
+
 bool hasPendingRenderCommitForTest(const ImageViewport& item)
 {
     return ImageViewportPrivate::get(item)->hasPendingRenderCommitForTest();

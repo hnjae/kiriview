@@ -137,6 +137,7 @@ public:
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void failNextProviderCommandDeliveryForTest(PageRole role);
     void useSynchronousProviderExecutorForTest();
+    void useSynchronousProviderQueueFlushSchedulerForTest();
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;
@@ -223,6 +224,7 @@ public:
         const ViewportProviderMetadataTransportEffect& effect, PageRole role = PageRole::Primary);
     void applyProviderFrameTransportEffect(
         const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
+    void scheduleProviderDeferredControllerEvent(ViewportProviderDeferredControllerEvent event);
     void handleProviderDispatchFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
@@ -325,4 +327,7 @@ public:
     QTimer playbackTimer;
     QElapsedTimer playbackClockTimebase;
     ImageViewportInternal::PlaybackClock playbackClock;
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    bool synchronousProviderQueueFlushScheduler = false;
+#endif
 };

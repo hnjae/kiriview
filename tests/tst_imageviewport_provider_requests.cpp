@@ -776,6 +776,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    useSynchronousProviderQueueFlushSchedulerForTest(item);
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -800,22 +801,6 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
-    QCOMPARE(*frameRequestCount, 1);
-    QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
-        enumValue(metaObject, "RequestReason", "RequestQueued"));
-    QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
-    QCOMPARE(requestStateSpy.count(), 1);
-    QCOMPARE(requestRevisionSpy.count(), 1);
-
-    const RevisionToken queuedRevision = revisionTokenProperty(item, "requestRevision");
-    drainQueuedProviderResults();
-
     const ImageSequenceProviderRequestToken seekFrameToken = session->lastFrameToken();
     QVERIFY(seekFrameToken.isValid());
     QVERIFY(seekFrameToken != initialFrameToken);
@@ -825,9 +810,11 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    verifyRevisionChanged(item, "requestRevision", queuedRevision);
+    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
     QCOMPARE(requestStateSpy.count(), 2);
     QCOMPARE(requestRevisionSpy.count(), 2);
 

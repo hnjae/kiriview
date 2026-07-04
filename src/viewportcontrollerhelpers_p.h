@@ -954,7 +954,7 @@ void appendProviderFrameQueueResult(
     ViewportProviderFrameTransportEffect& effect, ViewportProviderFrameQueueResult queue)
 {
     effect.cancelToken = queue.cancelToken;
-    effect.scheduleFlush = queue.scheduleFlush;
+    effect.deferredControllerEvent = queue.deferredControllerEvent;
 }
 
 void appendProviderFrameStartResult(ViewportProviderFrameTransportEffect& effect,

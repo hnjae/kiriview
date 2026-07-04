@@ -419,6 +419,11 @@ void ImageViewportPrivate::useSynchronousProviderExecutorForTest()
     secondaryProviderBridge.setExecutor(executor);
 }
 
+void ImageViewportPrivate::useSynchronousProviderQueueFlushSchedulerForTest()
+{
+    synchronousProviderQueueFlushScheduler = true;
+}
+
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
     return controller.hasPendingRenderCommitForTest();

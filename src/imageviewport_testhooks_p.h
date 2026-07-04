@@ -12,6 +12,7 @@ void setNextProviderRequestTokenForTest(
     ImageViewport& item, ImageViewport::PageRole role, quint64 token);
 void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role);
 void useSynchronousProviderExecutorForTest(ImageViewport& item);
+void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item);
 bool hasPendingRenderCommitForTest(const ImageViewport& item);
 quint64 activeRequestIdForTest(const ImageViewport& item);
 quint64 displayedRequestIdForTest(const ImageViewport& item);

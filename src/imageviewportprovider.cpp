@@ -259,9 +259,8 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     if (effect.cancelToken.isValid()) {
         bridge.cancelRequest(effect.cancelToken);
     }
-    if (effect.scheduleFlush) {
-        QMetaObject::invokeMethod(
-            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+    if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
+        scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent);
     }
     if (effect.closeSession) {
         bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
@@ -304,8 +303,27 @@ void ImageViewportPrivate::queueProviderFrameRequest(
         = controller.queueProviderFrameRequest({ frame, targetKind });
     ViewportProviderFrameTransportEffect effect;
     effect.cancelToken = result.cancelToken;
-    effect.scheduleFlush = result.scheduleFlush;
+    effect.deferredControllerEvent = result.deferredControllerEvent;
     applyProviderFrameTransportEffect(effect);
+}
+
+void ImageViewportPrivate::scheduleProviderDeferredControllerEvent(
+    ViewportProviderDeferredControllerEvent event)
+{
+    switch (event) {
+    case ViewportProviderDeferredControllerEvent::None:
+        return;
+    case ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest:
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+        if (synchronousProviderQueueFlushScheduler) {
+            flushQueuedProviderFrameRequest();
+            return;
+        }
+#endif
+        QMetaObject::invokeMethod(
+            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+        return;
+    }
 }
 
 void ImageViewportPrivate::flushQueuedProviderFrameRequest()

@@ -491,7 +491,8 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
 
     const ViewportCommandResult seek = controller.seek(1);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(seek.providerFrameTransport.scheduleFlush, true);
+    QCOMPARE(seek.providerFrameTransport.deferredControllerEvent,
+        ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RequestQueued);
 
     const ViewportProviderFrameQueueFlushResult flush

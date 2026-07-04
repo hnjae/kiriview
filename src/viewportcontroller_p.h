@@ -237,10 +237,16 @@ struct ViewportProviderFrameQueueRequest
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 };
 
+enum class ViewportProviderDeferredControllerEvent {
+    None,
+    FlushQueuedFrameRequest,
+};
+
 struct ViewportProviderFrameQueueResult
 {
     ImageSequenceProviderRequestToken cancelToken;
-    bool scheduleFlush = false;
+    ViewportProviderDeferredControllerEvent deferredControllerEvent
+        = ViewportProviderDeferredControllerEvent::None;
 };
 
 struct ViewportProviderFrameQueueFlush
@@ -277,7 +283,8 @@ struct ViewportProviderFrameRequestStartResult
 struct ViewportProviderFrameTransportEffect
 {
     ImageSequenceProviderRequestToken cancelToken;
-    bool scheduleFlush = false;
+    ViewportProviderDeferredControllerEvent deferredControllerEvent
+        = ViewportProviderDeferredControllerEvent::None;
     bool closeSession = false;
     ViewportProviderSessionClose sessionClose;
     bool sendCommand = false;

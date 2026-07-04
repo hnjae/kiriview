@@ -1397,7 +1397,8 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
     viewportProviderState(viewport).queuedFrameFromPlayback
         = request.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
     viewportProviderState(viewport).queuedFrameTargetKind = request.targetKind;
-    result.scheduleFlush = true;
+    result.deferredControllerEvent
+        = ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest;
     return result;
 }
 
