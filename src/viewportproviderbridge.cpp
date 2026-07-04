@@ -7,50 +7,102 @@
 #include <utility>
 
 namespace {
-template <typename Function>
-bool invokeSessionCommand(ImageSequenceProviderSession* session,
-    ImageSequenceProviderThreadingContract threadingContract, Function function)
+class QtViewportProviderExecutor final : public ViewportProviderExecutor
 {
-    if (!session) {
-        return false;
+public:
+    bool invokeSessionCommand(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract threadingContract,
+        std::function<void()> command) override
+    {
+        if (!session) {
+            return false;
+        }
+        if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
+            command();
+            return true;
+        }
+        if (session->thread() == QThread::currentThread()) {
+            command();
+            return true;
+        }
+        return QMetaObject::invokeMethod(
+            session, std::move(command), Qt::BlockingQueuedConnection);
     }
-    if (threadingContract == ImageSequenceProviderThreadingContract::ThreadSafe) {
-        function();
-        return true;
+
+    bool queueSessionCleanup(ImageSequenceProviderSession* session,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken) override
+    {
+        if (!session) {
+            return false;
+        }
+        if (session->thread() == QThread::currentThread()) {
+            session->setParent(nullptr);
+        }
+        const bool queued = QMetaObject::invokeMethod(
+            session,
+            [session, metadataToken, frameToken]() {
+                if (metadataToken.isValid()) {
+                    session->cancelRequest(metadataToken);
+                }
+                if (frameToken.isValid() && frameToken != metadataToken) {
+                    session->cancelRequest(frameToken);
+                }
+                session->close();
+                delete session;
+            },
+            Qt::QueuedConnection);
+        if (!queued) {
+            qWarning("ImageViewport provider cleanup could not be queued");
+        }
+        return queued;
     }
-    if (session->thread() == QThread::currentThread()) {
-        function();
-        return true;
-    }
-    return QMetaObject::invokeMethod(session, std::move(function), Qt::BlockingQueuedConnection);
+};
+
+ViewportProviderExecutor& qtViewportProviderExecutor()
+{
+    static QtViewportProviderExecutor executor;
+    return executor;
 }
 
-bool queueSessionCleanup(ImageSequenceProviderSession* session,
-    ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+class SynchronousViewportProviderExecutor final : public ViewportProviderExecutor
 {
-    if (!session) {
-        return false;
+public:
+    bool invokeSessionCommand(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract, std::function<void()> command) override
+    {
+        if (!session) {
+            return false;
+        }
+        command();
+        return true;
     }
-    if (session->thread() == QThread::currentThread()) {
+
+    bool queueSessionCleanup(ImageSequenceProviderSession* session,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken) override
+    {
+        if (!session) {
+            return false;
+        }
         session->setParent(nullptr);
+        if (metadataToken.isValid()) {
+            session->cancelRequest(metadataToken);
+        }
+        if (frameToken.isValid() && frameToken != metadataToken) {
+            session->cancelRequest(frameToken);
+        }
+        session->close();
+        delete session;
+        return true;
     }
-    const bool queued = QMetaObject::invokeMethod(
-        session,
-        [session, metadataToken, frameToken]() {
-            if (metadataToken.isValid()) {
-                session->cancelRequest(metadataToken);
-            }
-            if (frameToken.isValid() && frameToken != metadataToken) {
-                session->cancelRequest(frameToken);
-            }
-            session->close();
-            delete session;
-        },
-        Qt::QueuedConnection);
-    if (!queued) {
-        qWarning("ImageViewport provider cleanup could not be queued");
-    }
-    return queued;
+};
+#endif
+
+ViewportProviderExecutor* defaultProviderExecutor()
+{
+    return &qtViewportProviderExecutor();
 }
 
 ViewportProviderEvent providerEvent(ImageViewport::PageRole role, quint64 sessionSerial,
@@ -69,6 +121,7 @@ ViewportProviderBridge::ViewportProviderBridge(
     ViewportProviderBridgeClient& client, ImageViewport::PageRole role)
     : client(client)
     , role(role)
+    , providerExecutor(defaultProviderExecutor())
 {
 }
 
@@ -80,7 +133,7 @@ bool ViewportProviderBridge::closeSession(
         return false;
     }
 
-    return queueSessionCleanup(session, metadataToken, frameToken);
+    return executor().queueSessionCleanup(session, metadataToken, frameToken);
 }
 
 bool ViewportProviderBridge::openSession()
@@ -226,7 +279,7 @@ bool ViewportProviderBridge::requestMetadata(ImageSequenceProviderRequestToken t
         return false;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    return invokeSessionCommand(
+    return executor().invokeSessionCommand(
         session, threadingContract(), [session, token]() { session->requestMetadata(token); });
 }
 
@@ -239,7 +292,7 @@ bool ViewportProviderBridge::requestFrame(ImageSequenceProviderRequestToken toke
         return false;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    return invokeSessionCommand(session, threadingContract(),
+    return executor().invokeSessionCommand(session, threadingContract(),
         [session, token, frame]() { session->requestFrame(token, frame); });
 }
 
@@ -253,7 +306,7 @@ bool ViewportProviderBridge::requestPosition(
         return false;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    return invokeSessionCommand(session, threadingContract(),
+    return executor().invokeSessionCommand(session, threadingContract(),
         [session, token, frame, position]() { session->requestPosition(token, frame, position); });
 }
 
@@ -267,7 +320,7 @@ bool ViewportProviderBridge::requestPlayback(
         return false;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    return invokeSessionCommand(session, threadingContract(),
+    return executor().invokeSessionCommand(session, threadingContract(),
         [session, token, frame, position]() { session->requestPlayback(token, frame, position); });
 }
 
@@ -280,8 +333,18 @@ bool ViewportProviderBridge::cancelRequest(ImageSequenceProviderRequestToken tok
         return false;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    return invokeSessionCommand(
+    return executor().invokeSessionCommand(
         session, threadingContract(), [session, token]() { session->cancelRequest(token); });
+}
+
+void ViewportProviderBridge::setExecutor(ViewportProviderExecutor& executor)
+{
+    providerExecutor = &executor;
+}
+
+ViewportProviderExecutor& ViewportProviderBridge::executor() const
+{
+    return providerExecutor ? *providerExecutor : qtViewportProviderExecutor();
 }
 
 ImageSequenceProviderThreadingContract ViewportProviderBridge::threadingContract() const
@@ -304,5 +367,11 @@ bool ViewportProviderBridge::takeForcedDeliveryFailureForTest()
 void ViewportProviderBridge::failNextCommandDeliveryForTest()
 {
     forceNextCommandDeliveryFailure = true;
+}
+
+ViewportProviderExecutor& synchronousViewportProviderExecutorForTest()
+{
+    static SynchronousViewportProviderExecutor executor;
+    return executor;
 }
 #endif

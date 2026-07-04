@@ -2,6 +2,7 @@
 
 #include "imageviewport.h"
 
+#include <functional>
 #include <memory>
 
 class QObject;
@@ -60,6 +61,23 @@ public:
     virtual void handleProviderEvent(const ViewportProviderEvent& event) = 0;
 };
 
+class ViewportProviderExecutor
+{
+public:
+    ViewportProviderExecutor() = default;
+    ViewportProviderExecutor(const ViewportProviderExecutor&) = delete;
+    ViewportProviderExecutor& operator=(const ViewportProviderExecutor&) = delete;
+    virtual ~ViewportProviderExecutor() = default;
+
+    virtual bool invokeSessionCommand(ImageSequenceProviderSession* session,
+        ImageSequenceProviderThreadingContract threadingContract, std::function<void()> command)
+        = 0;
+    virtual bool queueSessionCleanup(ImageSequenceProviderSession* session,
+        ImageSequenceProviderRequestToken metadataToken,
+        ImageSequenceProviderRequestToken frameToken)
+        = 0;
+};
+
 class ViewportProviderBridge
 {
 public:
@@ -74,6 +92,7 @@ public:
     bool requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     bool requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
     bool cancelRequest(ImageSequenceProviderRequestToken token);
+    void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
 #endif
@@ -81,8 +100,14 @@ public:
 private:
     ImageSequenceProviderThreadingContract threadingContract() const;
     bool takeForcedDeliveryFailureForTest();
+    ViewportProviderExecutor& executor() const;
 
     ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ViewportProviderExecutor* providerExecutor = nullptr;
     bool forceNextCommandDeliveryFailure = false;
 };
+
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+ViewportProviderExecutor& synchronousViewportProviderExecutorForTest();
+#endif

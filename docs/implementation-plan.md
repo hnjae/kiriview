@@ -1070,11 +1070,25 @@ Provider transport is too coupled to external effects; core behavior depends on 
 
 #### Tasks
 
-- [ ] Add a scheduler/executor interface limited to provider command delivery and cleanup queueing.
-- [ ] Implement the production Qt scheduler/executor using existing `QMetaObject::invokeMethod` and thread-affinity behavior.
-- [ ] Add a synchronous fake scheduler/executor for tests.
-- [ ] Migrate cancellation, close, dispatch failure, and queued-result tests that do not require real Qt affinity to the fake.
-- [ ] Keep an explicit allowlist of tests that may still use `QThread`, `QTRY_*`, or manual event draining because they verify Qt integration.
+- [x] Add a scheduler/executor interface limited to provider command delivery and cleanup queueing.
+- [x] Implement the production Qt scheduler/executor using existing `QMetaObject::invokeMethod` and thread-affinity behavior.
+- [x] Add a synchronous fake scheduler/executor for tests.
+- [x] Migrate cancellation, close, dispatch failure, and queued-result tests that do not require real Qt affinity to the fake.
+- [x] Keep an explicit allowlist of tests that may still use `QThread`, `QTRY_*`, or manual event draining because they verify Qt integration.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/architecture/provider-protocol.md` was updated in commit `fe2a92e` before code to declare the provider transport execution seam. The public adapter API remains unchanged; the new test hook is stripped from installed headers by the installed-header generation step.
+
+Added failing test coverage in commit `0a83e28`: `ImageViewportProviderLifecycleTest::providerTransportFakeRunsCancellationCloseAndDispatchSynchronously` initially failed to compile because the synchronous executor test probe did not exist.
+
+Implemented `ViewportProviderExecutor` as the provider transport seam for session command delivery and session cleanup scheduling. The production executor preserves the previous Qt behavior: thread-safe providers run directly, same-affinity providers run directly, cross-affinity providers use blocking queued command delivery, and cleanup remains queued on the session affinity. The private synchronous executor runs commands and cleanup immediately for non-affinity protocol tests and can be installed on both provider bridges through `useSynchronousProviderExecutorForTest()`.
+
+Migrated token-overflow close, primary and secondary metadata dispatch failure, frame dispatch failure, and the new cancellation/close/dispatch fake test to the synchronous executor. Existing queued-result callback cases remain on the explicit event-loop allowlist because they verify queued provider result delivery itself rather than executor-neutral protocol interpretation. Remaining manual event drains are allowlisted at `drainQueuedProviderResults()` for queued provider callback delivery, Qt-affinity cleanup, or event-loop handoff coverage that the synchronous executor must not replace.
+
+Verification: `ctest --test-dir build-ninja -R 'viewportcontroller_provider|imageviewport_provider_lifecycle|imageviewport_provider_contract|imageviewport_provider_requests' --output-on-failure`, `rg -n "QTRY|QThread|processEvents|drainQueuedProviderResults" tests/tst_imageviewport_provider_lifecycle.cpp tests/tst_imageviewport_provider_contract.cpp tests/tst_imageviewport_provider_requests.cpp tests/imageviewport_provider_test_support.h`, and `just test` passed on 2026-07-04. The `rg` command still reports the documented allowlist sites. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

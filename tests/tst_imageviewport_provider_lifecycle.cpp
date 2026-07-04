@@ -46,6 +46,7 @@ private slots:
     void providerClearCancelsPrimaryAndSecondaryMetadataRequestsBeforeClose();
     void providerClearIgnoresLateSecondaryCallbacks();
     void providerClearDoesNotBlockOnSessionCleanup();
+    void providerTransportFakeRunsCancellationCloseAndDispatchSynchronously();
     void providerNullSequenceCancelsActiveFrameRequestBeforeClose();
     void providerReplacementIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledMetadataAcknowledgement();
@@ -151,6 +152,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowClosesSessionWitho
     QCOMPARE(*frameRequestCount, 0);
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -158,7 +160,6 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowClosesSessionWitho
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -191,6 +192,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(secondaryResult->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.setSize(QSizeF(100.0, 100.0));
     item.setNextProviderRequestTokenForTest(
         ImageViewport::PageRole::Secondary, std::numeric_limits<quint64>::max());
@@ -202,7 +204,6 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -234,6 +235,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.setNextProviderRequestTokenForTest(std::numeric_limits<quint64>::max());
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -242,7 +244,6 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*lastRequestedFrame, -1);
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -332,6 +333,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -358,7 +360,6 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 1);
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
     QCOMPARE(
@@ -388,6 +389,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.failNextProviderCommandDeliveryForTest(ImageViewport::PageRole::Primary);
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -403,7 +405,6 @@ void ImageViewportProviderLifecycleTest::
                 .toString()
                 .contains(QStringLiteral("provider command delivery failed")));
 
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
 }
@@ -444,7 +445,6 @@ void ImageViewportProviderLifecycleTest::
                 .toString()
                 .contains(QStringLiteral("provider command delivery failed")));
 
-    drainQueuedProviderResults();
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
 }
@@ -473,6 +473,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(secondaryResult->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.failNextProviderCommandDeliveryForTest(ImageViewport::PageRole::Secondary);
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
@@ -490,7 +491,6 @@ void ImageViewportProviderLifecycleTest::
                 .toString()
                 .contains(QStringLiteral("provider command delivery failed")));
 
-    drainQueuedProviderResults();
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(secondarySessionFactory->lastSession(), nullptr);
 }
@@ -700,6 +700,7 @@ void ImageViewportProviderLifecycleTest::providerClearCancelsActiveFrameRequestB
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
@@ -926,6 +927,51 @@ void ImageViewportProviderLifecycleTest::providerClearDoesNotBlockOnSessionClean
         qPrintable(QStringLiteral("clear() blocked for %1 ms").arg(clearElapsedMilliseconds)));
     QTRY_COMPARE(*cancelRequestCount, 1);
     QTRY_COMPARE(*closeCount, 1);
+}
+
+void ImageViewportProviderLifecycleTest::
+    providerTransportFakeRunsCancellationCloseAndDispatchSynchronously()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
+        cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.useSynchronousProviderExecutorForTest();
+    item.setSequence(result->sequence());
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*cancelRequestCount, 0);
+    QCOMPARE(*closeCount, 0);
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
+
+    item.failNextProviderCommandDeliveryForTest(ImageViewport::PageRole::Primary);
+    item.setSequence(result->sequence());
+    QCOMPARE(*sessionCount, 2);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 2);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
+    const QMetaObject* metaObject = item.metaObject();
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
 }
 
 void ImageViewportProviderLifecycleTest::providerNullSequenceCancelsActiveFrameRequestBeforeClose()

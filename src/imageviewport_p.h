@@ -131,6 +131,7 @@ public:
     void setNextProviderRequestTokenForTest(quint64 token);
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void failNextProviderCommandDeliveryForTest(PageRole role);
+    void useSynchronousProviderExecutorForTest();
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;

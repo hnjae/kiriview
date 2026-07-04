@@ -422,6 +422,13 @@ void ImageViewportPrivate::failNextProviderCommandDeliveryForTest(PageRole role)
     providerBridge.failNextCommandDeliveryForTest();
 }
 
+void ImageViewportPrivate::useSynchronousProviderExecutorForTest()
+{
+    ViewportProviderExecutor& executor = synchronousViewportProviderExecutorForTest();
+    providerBridge.setExecutor(executor);
+    secondaryProviderBridge.setExecutor(executor);
+}
+
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
     return controller.hasPendingRenderCommitForTest();

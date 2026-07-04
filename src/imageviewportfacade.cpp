@@ -277,6 +277,11 @@ void ImageViewport::failNextProviderCommandDeliveryForTest(PageRole role)
     d->failNextProviderCommandDeliveryForTest(role);
 }
 
+void ImageViewport::useSynchronousProviderExecutorForTest()
+{
+    d->useSynchronousProviderExecutorForTest();
+}
+
 bool ImageViewport::hasPendingRenderCommitForTest() const
 {
     return d->hasPendingRenderCommitForTest();
