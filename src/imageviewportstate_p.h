@@ -43,6 +43,39 @@ enum class DisplayRequestOrigin {
     StopRestore,
 };
 
+enum class FailureScope {
+    None,
+    Generation,
+    DisplayRequest,
+};
+
+struct TargetSpreadRoleTerminalState
+{
+    bool terminal = false;
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
+    FailureScope failureScope = FailureScope::None;
+    QString diagnostic;
+};
+
+struct TargetSpreadTerminalState
+{
+    void clear()
+    {
+        sealed = false;
+        generation = 0;
+        requestId = 0;
+        primary = {};
+        secondary = {};
+    }
+
+    bool sealed = false;
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    TargetSpreadRoleTerminalState primary;
+    TargetSpreadRoleTerminalState secondary;
+};
+
 struct DisplayRequestIdentity
 {
     quint64 id = 0;
@@ -251,10 +284,12 @@ struct RequestState
         playbackPosition = -1;
         playbackRole = ImageViewport::PageRole::Primary;
         playbackLoopIterationsCompleted = 0;
+        targetSpreadTerminal.clear();
     }
 
     void beginDisplayRequest(DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
     {
+        targetSpreadTerminal.clear();
         activeRequest.identity.id = ++nextRequestId;
         activeRequest.identity.origin = origin;
         activeRequest.providerFrameToken = {};
@@ -339,6 +374,7 @@ struct RequestState
     int playbackLoopIterationsCompleted = 0;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
+    TargetSpreadTerminalState targetSpreadTerminal;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

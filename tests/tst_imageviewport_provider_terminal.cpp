@@ -18,6 +18,21 @@ void acknowledgePendingRenderCommit(ImageViewport& item)
     item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
 }
 
+void emitTerminal(CountingProviderSession* session, ImageSequenceProviderRequestToken token,
+    int terminalKind, int unsupportedCause, const QString& diagnostic)
+{
+    if (terminalKind == 0) {
+        emit session->providerFailed(token, diagnostic);
+    } else if (terminalKind == 1) {
+        emit session->providerUnsupportedWithCause(token,
+            static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause),
+            diagnostic);
+    } else {
+        emit session->providerCancelled(token, diagnostic);
+    }
+    drainQueuedProviderResults();
+}
+
 }
 
 class ImageViewportProviderTerminalTest : public QObject
@@ -35,6 +50,11 @@ private slots:
     void providerPlaybackUnsupportedPayloadReportsPayloadRejection();
     void providerMetadataFailureReportsProviderFailure();
     void secondaryProviderMetadataFailureReportsAggregateProviderFailure();
+    void targetSpreadTerminalProjectionPrefersErrorOverUnsupported_data();
+    void targetSpreadTerminalProjectionPrefersErrorOverUnsupported();
+    void secondaryTerminalFailureSealsSpreadAgainstLatePrimaryReady();
+    void primaryTerminalFailureSealsSpreadAgainstLateSecondaryReady();
+    void clearAndReplacementEscapeSealedTargetSpread();
     void secondaryProviderFrameTerminalResultsProjectThroughSpread_data();
     void secondaryProviderFrameTerminalResultsProjectThroughSpread();
     void secondaryProviderPlaybackTerminalResultsProjectThroughSpread_data();
@@ -270,6 +290,309 @@ void ImageViewportProviderTerminalTest::
     QVERIFY(item.property("errorString")
             .toString()
             .contains(QStringLiteral("secondary metadata service unavailable")));
+}
+
+void ImageViewportProviderTerminalTest::clearAndReplacementEscapeSealedTargetSpread()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerFailed(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        QStringLiteral("metadata generation failed"));
+    drainQueuedProviderResults();
+
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Unsupported);
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("errorString").toString(), QString());
+
+    item.setSequence(result->sequence());
+    QCOMPARE(*sessionCount, 2);
+    QCOMPARE(*metadataRequestCount, 2);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("errorString").toString(), QString());
+}
+
+void ImageViewportProviderTerminalTest::
+    targetSpreadTerminalProjectionPrefersErrorOverUnsupported_data()
+{
+    QTest::addColumn<int>("firstRole");
+    QTest::addColumn<int>("firstKind");
+    QTest::addColumn<int>("firstUnsupportedCause");
+    QTest::addColumn<QString>("firstDiagnostic");
+    QTest::addColumn<int>("secondRole");
+    QTest::addColumn<int>("secondKind");
+    QTest::addColumn<int>("secondUnsupportedCause");
+    QTest::addColumn<QString>("secondDiagnostic");
+    QTest::addColumn<QString>("expectedStatus");
+    QTest::addColumn<QString>("expectedReason");
+    QTest::addColumn<QString>("expectedDiagnostic");
+
+    const int primary = static_cast<int>(ImageViewport::PageRole::Primary);
+    const int secondary = static_cast<int>(ImageViewport::PageRole::Secondary);
+    const int unsupportedRequest
+        = static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest);
+    const int payloadRejection
+        = static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection);
+
+    QTest::newRow("primary-error-then-secondary-unsupported")
+        << primary << 0 << payloadRejection << QStringLiteral("primary frame failed") << secondary
+        << 1 << payloadRejection << QStringLiteral("secondary payload unsupported")
+        << QStringLiteral("Error") << QStringLiteral("ProviderFailure")
+        << QStringLiteral("primary frame failed");
+    QTest::newRow("secondary-error-then-primary-unsupported")
+        << secondary << 0 << payloadRejection << QStringLiteral("secondary frame failed")
+        << primary << 1 << unsupportedRequest << QStringLiteral("primary operation unsupported")
+        << QStringLiteral("Error") << QStringLiteral("ProviderFailure")
+        << QStringLiteral("secondary frame failed");
+    QTest::newRow("primary-unsupported-then-secondary-unsupported")
+        << primary << 1 << unsupportedRequest << QStringLiteral("primary operation unsupported")
+        << secondary << 1 << payloadRejection << QStringLiteral("secondary payload unsupported")
+        << QStringLiteral("Unsupported") << QStringLiteral("UnsupportedRequest")
+        << QStringLiteral("primary operation unsupported");
+    QTest::newRow("secondary-unsupported-then-primary-unsupported")
+        << secondary << 1 << payloadRejection << QStringLiteral("secondary payload unsupported")
+        << primary << 1 << unsupportedRequest << QStringLiteral("primary operation unsupported")
+        << QStringLiteral("Unsupported") << QStringLiteral("UnsupportedRequest")
+        << QStringLiteral("primary operation unsupported");
+}
+
+void ImageViewportProviderTerminalTest::
+    targetSpreadTerminalProjectionPrefersErrorOverUnsupported()
+{
+    QFETCH(int, firstRole);
+    QFETCH(int, firstKind);
+    QFETCH(int, firstUnsupportedCause);
+    QFETCH(QString, firstDiagnostic);
+    QFETCH(int, secondRole);
+    QFETCH(int, secondKind);
+    QFETCH(int, secondUnsupportedCause);
+    QFETCH(QString, secondDiagnostic);
+    QFETCH(QString, expectedStatus);
+    QFETCH(QString, expectedReason);
+    QFETCH(QString, expectedDiagnostic);
+
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
+        primaryLastRequestedFrame, primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* primarySession = primarySessionFactory->lastSession();
+    CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
+    QVERIFY(primarySession);
+    QVERIFY(secondarySession);
+    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
+    drainQueuedProviderResults();
+    QCOMPARE(*primaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+
+    const auto emitForRole = [&](int role, int kind, int unsupportedCause,
+                                 const QString& diagnostic) {
+        CountingProviderSession* session
+            = role == static_cast<int>(ImageViewport::PageRole::Primary) ? primarySession
+                                                                         : secondarySession;
+        emitTerminal(session, session->lastFrameToken(), kind, unsupportedCause, diagnostic);
+    };
+
+    emitForRole(firstRole, firstKind, firstUnsupportedCause, firstDiagnostic);
+    emitForRole(secondRole, secondKind, secondUnsupportedCause, secondDiagnostic);
+
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", expectedStatus.toUtf8().constData()));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", expectedReason.toUtf8().constData()));
+    QVERIFY(item.property("errorString").toString().contains(expectedDiagnostic));
+}
+
+void ImageViewportProviderTerminalTest::
+    secondaryTerminalFailureSealsSpreadAgainstLatePrimaryReady()
+{
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
+        primaryLastRequestedFrame, primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* primarySession = primarySessionFactory->lastSession();
+    CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
+    QVERIFY(primarySession);
+    QVERIFY(secondarySession);
+    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    emit secondarySession->providerFailed(
+        secondarySession->lastFrameToken(), QStringLiteral("secondary frame failed"));
+    drainQueuedProviderResults();
+
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    emitTimedProviderFrameReady(primarySession, &primaryFrame, 0, 0);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("secondary frame failed")));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+}
+
+void ImageViewportProviderTerminalTest::
+    primaryTerminalFailureSealsSpreadAgainstLateSecondaryReady()
+{
+    ImageSequenceFactory factory;
+    const auto primarySessionCount = std::make_shared<int>(0);
+    const auto primaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto primaryFrameRequestCount = std::make_shared<int>(0);
+    const auto primaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto primaryCloseCount = std::make_shared<int>(0);
+    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
+        primaryLastRequestedFrame, primaryCloseCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    CountingProviderSession* primarySession = primarySessionFactory->lastSession();
+    CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
+    QVERIFY(primarySession);
+    QVERIFY(secondarySession);
+    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    emit primarySession->providerFailed(
+        primarySession->lastFrameToken(), QStringLiteral("primary frame failed"));
+    drainQueuedProviderResults();
+
+    QImage secondaryImage(20, 10, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame secondaryFrame(secondaryImage);
+    emitTimedProviderFrameReady(secondarySession, &secondaryFrame, 0, 0);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("primary frame failed")));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
 }
 
 void ImageViewportProviderTerminalTest::

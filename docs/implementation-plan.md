@@ -293,15 +293,29 @@ Target-spread terminal state; provider callback flow; primary and secondary pipe
 
 #### Tasks
 
-- [ ] Add a failure-scope table in code or tests covering at least: session-open failure, metadata production failure, malformed/contradictory metadata, metadata public-limit/protocol violation, accurate unsupported metadata, active request unsupported, active request provider failure, payload admission failure, and render failure.
-- [ ] Encode escape paths: generation-terminal failures are escaped only by `clear()` or page-set/sequence replacement; display-request-terminal failures may be superseded by later valid explicit seek or playback-selected targets when generation metadata remains valid.
-- [ ] Introduce target-spread terminal state with per-required-role status, reason, diagnostics, failure scope, and sealed identity.
-- [ ] Implement aggregate terminal projection with `Error` over `Unsupported`, primary diagnostics on same-status ties, and winning-role diagnostics otherwise.
-- [ ] Add a narrow role-scoped provider event gate used by all seal-sensitive callbacks: metadata, frame, waiting/progress, terminal, cancellation, end-of-sequence, dispatch failure, preparation result, and render acknowledgement.
-- [ ] Convert primary and secondary provider frame terminal handlers to update role terminal state instead of directly writing aggregate request status.
-- [ ] Convert metadata terminal and session-open failure handling to role-aware generation-terminal state.
-- [ ] Gate display/playback commands according to failure scope.
-- [ ] Add and pass tests for terminal order matrices, secondary provider metadata/session-open failure, late opposite-role callbacks, and clear/replacement escape paths.
+- [x] Add a failure-scope table in code or tests covering at least: session-open failure, metadata production failure, malformed/contradictory metadata, metadata public-limit/protocol violation, accurate unsupported metadata, active request unsupported, active request provider failure, payload admission failure, and render failure.
+- [x] Encode escape paths: generation-terminal failures are escaped only by `clear()` or page-set/sequence replacement; display-request-terminal failures may be superseded by later valid explicit seek or playback-selected targets when generation metadata remains valid.
+- [x] Introduce target-spread terminal state with per-required-role status, reason, diagnostics, failure scope, and sealed identity.
+- [x] Implement aggregate terminal projection with `Error` over `Unsupported`, primary diagnostics on same-status ties, and winning-role diagnostics otherwise.
+- [x] Add a narrow role-scoped provider event gate used by all seal-sensitive callbacks: metadata, frame, waiting/progress, terminal, cancellation, end-of-sequence, dispatch failure, preparation result, and render acknowledgement.
+- [x] Convert primary and secondary provider frame terminal handlers to update role terminal state instead of directly writing aggregate request status.
+- [x] Convert metadata terminal and session-open failure handling to role-aware generation-terminal state.
+- [x] Gate display/playback commands according to failure scope.
+- [x] Add and pass tests for terminal order matrices, secondary provider metadata/session-open failure, late opposite-role callbacks, and clear/replacement escape paths.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Implemented target-spread terminal state in `RequestState` with role-scoped status, reason, diagnostic, failure scope, sealed generation, and request identity. Provider frame, metadata, metadata admission/target policy, end-of-sequence protocol violation, session-open failure, payload admission, dispatch failure, and render-failure paths now publish through the aggregate terminal projection where they affect the active required spread. The projection uses `Error` over `Unsupported`, preserves primary diagnostics on same-status ties, and blocks non-terminal late callbacks from moving sealed spreads back to loading or ready.
+
+Failure-scope coverage added in `ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs_data` and `failureScopeTableClassifiesTerminalInputs`: session-open failure, metadata production failure, malformed metadata, contradictory metadata, metadata target unsupported by accurate runtime metadata, active frame unsupported, active frame provider failure, frame payload admission failure, metadata end-of-sequence protocol violation, frame end-of-sequence protocol violation, and render failure. Generation-terminal rows reject later display commands; display-request-terminal rows accept a later valid seek.
+
+Spread-order and escape coverage added in `ImageViewportProviderTerminalTest::targetSpreadTerminalProjectionPrefersErrorOverUnsupported`, `secondaryTerminalFailureSealsSpreadAgainstLatePrimaryReady`, `primaryTerminalFailureSealsSpreadAgainstLateSecondaryReady`, and `clearAndReplacementEscapeSealedTargetSpread`. Secondary session-open generation-terminal behavior is covered by `ImageViewportProviderLifecycleTest::secondarySessionOpenFailureIsGenerationTerminalForSpread`.
+
+Provider request token exhaustion remains a direct status assignment because its start-result structs do not carry change sets; this path is already covered by existing lifecycle token-overflow tests and is outside this milestone's narrow event/projection refactor.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal|imageviewport_provider_lifecycle|viewportcontroller_provider' --output-on-failure`, `ctest --test-dir build-ninja -R 'imageviewport_render_commit' --output-on-failure`, and `just test` all passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

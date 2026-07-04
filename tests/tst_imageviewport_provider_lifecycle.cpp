@@ -38,6 +38,7 @@ private slots:
     void providerMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
     void providerFrameDispatchFailureClosesSessionAndReportsProviderFailure();
     void secondaryProviderMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
+    void secondarySessionOpenFailureIsGenerationTerminalForSpread();
     void providerSessionClosesWhenViewportIsDestroyed();
     void providerDestructionCancelsActiveFrameRequestBeforeClose();
     void providerReplacementCancelsActiveFrameRequestBeforeClose();
@@ -491,6 +492,56 @@ void ImageViewportProviderLifecycleTest::
     drainQueuedProviderResults();
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(secondarySessionFactory->lastSession(), nullptr);
+}
+
+void ImageViewportProviderLifecycleTest::secondarySessionOpenFailureIsGenerationTerminalForSpread()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame primaryFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    auto secondarySessionFactory
+        = std::make_shared<FailingProviderSessionFactory>(secondarySessionCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(*secondarySessionCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(item.property("errorString")
+            .toString()
+            .contains(QStringLiteral("provider session creation failed")));
+
+    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 0),
+        ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
+        ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(item.property("errorString").toString(), QString());
 }
 
 void ImageViewportProviderLifecycleTest::providerSessionClosesWhenViewportIsDestroyed()

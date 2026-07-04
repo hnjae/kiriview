@@ -48,6 +48,20 @@ private:
     ImageSequenceProviderMetadata m_knownMetadata;
 };
 
+enum class TerminalScopeCase {
+    SessionOpenFailure,
+    MetadataProductionFailure,
+    MalformedMetadata,
+    ContradictoryMetadata,
+    MetadataTargetUnsupported,
+    FrameUnsupported,
+    FrameProviderFailure,
+    FrameAdmissionFailure,
+    MetadataEndOfSequenceProtocolViolation,
+    FrameEndOfSequenceProtocolViolation,
+    RenderFailure,
+};
+
 class ProviderControllerContext final : public ViewportControllerContext
 {
 public:
@@ -143,6 +157,8 @@ private slots:
     void metadataAndFrameEventsRejectStaleTokens();
     void providerFrameRenderAcknowledgementCommitsFromControllerSnapshot();
     void cancellationTerminalEventClosesActiveMetadataGeneration();
+    void failureScopeTableClassifiesTerminalInputs_data();
+    void failureScopeTableClassifiesTerminalInputs();
     void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
     void secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest();
 };
@@ -437,6 +453,175 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("cancelled")));
+}
+
+void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs_data()
+{
+    QTest::addColumn<int>("terminalCase");
+    QTest::addColumn<bool>("generationTerminal");
+
+    QTest::newRow("session-open-failure")
+        << static_cast<int>(TerminalScopeCase::SessionOpenFailure) << true;
+    QTest::newRow("metadata-production-failure")
+        << static_cast<int>(TerminalScopeCase::MetadataProductionFailure) << true;
+    QTest::newRow("malformed-metadata")
+        << static_cast<int>(TerminalScopeCase::MalformedMetadata) << true;
+    QTest::newRow("contradictory-metadata")
+        << static_cast<int>(TerminalScopeCase::ContradictoryMetadata) << true;
+    QTest::newRow("metadata-target-unsupported")
+        << static_cast<int>(TerminalScopeCase::MetadataTargetUnsupported) << false;
+    QTest::newRow("frame-unsupported")
+        << static_cast<int>(TerminalScopeCase::FrameUnsupported) << false;
+    QTest::newRow("frame-provider-failure")
+        << static_cast<int>(TerminalScopeCase::FrameProviderFailure) << false;
+    QTest::newRow("frame-admission-failure")
+        << static_cast<int>(TerminalScopeCase::FrameAdmissionFailure) << false;
+    QTest::newRow("metadata-end-of-sequence-protocol-violation")
+        << static_cast<int>(TerminalScopeCase::MetadataEndOfSequenceProtocolViolation) << true;
+    QTest::newRow("frame-end-of-sequence-protocol-violation")
+        << static_cast<int>(TerminalScopeCase::FrameEndOfSequenceProtocolViolation) << false;
+    QTest::newRow("render-failure")
+        << static_cast<int>(TerminalScopeCase::RenderFailure) << false;
+}
+
+void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
+{
+    QFETCH(int, terminalCase);
+    QFETCH(bool, generationTerminal);
+
+    const auto scopeCase = static_cast<TerminalScopeCase>(terminalCase);
+    using UnsupportedCause = ImageSequenceProviderSession::UnsupportedCause;
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    if (scopeCase == TerminalScopeCase::ContradictoryMetadata) {
+        context.knownFacts = ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0));
+    }
+    const ImageSequenceProviderMetadata knownMetadata
+        = scopeCase == TerminalScopeCase::RenderFailure
+        ? ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))
+        : ImageSequenceProviderMetadata {};
+    std::unique_ptr<ImageSequenceFactoryResult> sequence
+        = makeProviderSequence(factory, context, knownMetadata);
+    QVERIFY(sequence);
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = sequence->sequence();
+    const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
+    QCOMPARE(assigned.openProviderSession, true);
+
+    if (scopeCase == TerminalScopeCase::SessionOpenFailure) {
+        const ImageViewportInternal::ViewportChangeSet changes
+            = controller.handleProviderSessionOpenFailure(QStringLiteral("session failed"));
+        QCOMPARE(changes.requestState, true);
+    } else {
+        StubProviderSession session;
+        QVERIFY(controller.installProviderSession(&session) != 0);
+        const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
+        if (scopeCase == TerminalScopeCase::RenderFailure) {
+            QCOMPARE(opened.providerFrameTransport.sendCommand, true);
+            const ImageSequenceProviderRequestToken frameToken
+                = opened.providerFrameTransport.command.token;
+            QVERIFY(frameToken.isValid());
+            QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+            image.fill(Qt::transparent);
+            ImageFrame frame(image);
+            const ImageViewportInternal::ViewportChangeSet frameChanges
+                = controller.handleProviderFrameEvent(
+                    { frameToken }, &frame, ImageSequenceProviderFrameMetadata::stillFrame());
+            QCOMPARE(frameChanges.requestState, true);
+            QVERIFY(controller.displayState().pendingRenderPayload.commitPending);
+            const ImageViewportInternal::PreparedPayloadIdentity payload
+                = controller.displayState().pendingRenderPayload.identity();
+            const ImageViewportInternal::ViewportChangeSet renderFailure
+                = controller.acknowledgeRenderFailure({ payload });
+            QCOMPARE(renderFailure.requestState, true);
+        } else {
+            const ImageSequenceProviderRequestToken metadataToken
+                = opened.providerMetadataTransport.token;
+            QVERIFY(metadataToken.isValid());
+
+            if (scopeCase == TerminalScopeCase::MetadataProductionFailure) {
+                const ViewportProviderTerminalEventResult terminal
+                    = controller.handleProviderTerminalEvent(
+                        { metadataToken, ViewportProviderTerminalEvent::Kind::Failure,
+                            UnsupportedCause::PayloadRejection,
+                            QStringLiteral("metadata failed") });
+                QCOMPARE(terminal.changes.requestState, true);
+            } else if (scopeCase == TerminalScopeCase::MetadataEndOfSequenceProtocolViolation) {
+                const ViewportProviderEndOfSequenceResult endOfSequence
+                    = controller.handleProviderEndOfSequenceEvent({ metadataToken });
+                QCOMPARE(endOfSequence.changes.requestState, true);
+            } else {
+                QCOMPARE(controller.acceptProviderMetadataEvent({ metadataToken }).accepted, true);
+                ImageSequenceProviderMetadata metadata
+                    = ImageSequenceProviderMetadata::timedFrameList(
+                        QSizeF(16.0, 8.0), { 100, 250 });
+                if (scopeCase == TerminalScopeCase::MalformedMetadata) {
+                    metadata = {};
+                } else if (scopeCase == TerminalScopeCase::ContradictoryMetadata) {
+                    metadata = ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0));
+                } else if (scopeCase == TerminalScopeCase::MetadataTargetUnsupported) {
+                    const ViewportCommandResult play = controller.play();
+                    QCOMPARE(play.outcome, ImageViewport::CommandOutcome::Accepted);
+                    metadata.setTimedPlaybackSupport(false);
+                    metadata.setPositionSeekSupport(false);
+                }
+
+                const ViewportProviderMetadataAdmissionResult admission
+                    = controller.handleProviderMetadataAdmission(metadata);
+                if (!admission.accepted) {
+                    QCOMPARE(admission.changes.requestState, true);
+                } else {
+                    controller.handleProviderAcceptedMetadataFacts(admission.facts);
+                    const ViewportProviderMetadataTargetPolicyResult targetPolicy
+                        = controller.handleProviderMetadataTargetPolicy(admission.facts);
+                    if (scopeCase == TerminalScopeCase::MetadataTargetUnsupported) {
+                        QCOMPARE(targetPolicy.changes.requestState, true);
+                    } else {
+                        QCOMPARE(targetPolicy.providerFrameTransport.sendCommand, true);
+                        const ImageSequenceProviderRequestToken frameToken
+                            = targetPolicy.providerFrameTransport.command.token;
+                        QVERIFY(frameToken.isValid());
+
+                        if (scopeCase == TerminalScopeCase::FrameUnsupported) {
+                            const ViewportProviderTerminalEventResult terminal
+                                = controller.handleProviderTerminalEvent(
+                                    { frameToken,
+                                        ViewportProviderTerminalEvent::Kind::Unsupported,
+                                        UnsupportedCause::UnsupportedRequest,
+                                        QStringLiteral("frame unsupported") });
+                            QCOMPARE(terminal.changes.requestState, true);
+                        } else if (scopeCase == TerminalScopeCase::FrameProviderFailure) {
+                            const ViewportProviderTerminalEventResult terminal
+                                = controller.handleProviderTerminalEvent(
+                                    { frameToken, ViewportProviderTerminalEvent::Kind::Failure,
+                                        UnsupportedCause::PayloadRejection,
+                                        QStringLiteral("frame failed") });
+                            QCOMPARE(terminal.changes.requestState, true);
+                        } else if (scopeCase == TerminalScopeCase::FrameAdmissionFailure) {
+                            const ImageViewportInternal::ViewportChangeSet changes
+                                = controller.handleProviderFrameEvent({ frameToken }, nullptr,
+                                    ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 100));
+                            QCOMPARE(changes.requestState, true);
+                        } else if (scopeCase
+                            == TerminalScopeCase::FrameEndOfSequenceProtocolViolation) {
+                            const ViewportProviderEndOfSequenceResult endOfSequence
+                                = controller.handleProviderEndOfSequenceEvent({ frameToken });
+                            QCOMPARE(endOfSequence.changes.requestState, true);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    QVERIFY(controller.requestState().status == ImageViewport::RequestStatus::Error
+        || controller.requestState().status == ImageViewport::RequestStatus::Unsupported);
+
+    const ViewportCommandResult seek = controller.seek(0);
+    QCOMPARE(seek.outcome, generationTerminal ? ImageViewport::CommandOutcome::Unsupported
+                                              : ImageViewport::CommandOutcome::Accepted);
 }
 
 void ViewportControllerProviderTest::

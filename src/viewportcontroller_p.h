@@ -578,6 +578,8 @@ public:
         ViewportProviderMetadataEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
         const QString& diagnostic);
+    ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult handleProviderSessionOpened();
     ViewportProviderSessionOpenResult handleProviderSessionOpened(ImageViewport::PageRole role);
     ViewportProviderMetadataRequestStartResult handleSecondaryProviderSessionOpened();
@@ -684,10 +686,16 @@ private:
         const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
         const ViewportProviderMetadataContradiction& contradiction);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
+        ImageViewport::PageRole role, const ViewportProviderMetadataContradiction& contradiction);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
         const ViewportProviderMetadataAdmissionRejection& rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
+        ImageViewport::PageRole role, const ViewportProviderMetadataAdmissionRejection& rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
         ViewportProviderMetadataTargetRejection rejection);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
+        ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection);
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetSelection(
         ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(

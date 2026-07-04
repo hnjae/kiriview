@@ -869,7 +869,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     }
     if (result.openSecondaryProviderSession && !openProviderSession(PageRole::Secondary)) {
         mergeControllerChanges(result.changes,
-            controller.handleProviderSessionOpenFailure(
+            controller.handleProviderSessionOpenFailure(PageRole::Secondary,
                 QStringLiteral("provider session creation failed")));
     }
     applyControllerChanges(result.changes);
