@@ -2,6 +2,7 @@
 
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
+#include "renderfailurecause_p.h"
 
 #include <QtCore/QVector>
 #include <QtQuick/QQuickWindow>
@@ -16,6 +17,15 @@ public:
         Empty,
         Committed,
         Failed,
+    };
+
+    class SceneGraphFactory
+    {
+    public:
+        virtual ~SceneGraphFactory() = default;
+        virtual QSGTexture* createTexture(QQuickWindow* window, const QImage& image,
+            QQuickWindow::CreateTextureOptions options) const;
+        virtual QSGImageNode* createImageNode(QQuickWindow* window) const;
     };
 
     struct Input
@@ -44,6 +54,7 @@ public:
         bool mirrorVertically = false;
         QVector<ImageLayer> imageLayers;
         QQuickWindow* window = nullptr;
+        const SceneGraphFactory* sceneGraphFactory = nullptr;
     };
 
     struct Output
@@ -59,6 +70,7 @@ public:
         ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
         QVector<RolePayload> rolePayloads;
         ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+        RenderFailureCause failureCause = RenderFailureCause::None;
     };
 
     Output createNode(QSGNode* oldNode, const Input& input) const;

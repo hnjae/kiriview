@@ -1,5 +1,6 @@
 #include "imageviewport_paint_test_support.h"
 #include "imageviewport_provider_test_support.h"
+#include "renderadapter_p.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtGui/QMatrix4x4>
@@ -29,11 +30,64 @@ private slots:
     void qualityAndMirroringConfigureTextureNode();
     void rotatedImageTextureNodeUsesTransform_data();
     void rotatedImageTextureNodeUsesTransform();
+    void renderAdapterReportsMissingWindowFailureCause();
+    void renderAdapterReportsTextureCreationFailureCause();
+    void renderAdapterReportsImageNodeCreationFailureCause();
+    void renderAdapterReportsInvalidRolePayloadFailureCause();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
     void providerRetainedFrameWaitingForGeometryIgnoresEmptyPaint();
 };
+
+namespace {
+
+ImageViewportInternal::PreparedPayload renderAdapterPayload(QImage image)
+{
+    return { true, 1, 1, 1, image };
+}
+
+RenderAdapter::Input renderAdapterInputForPayload(
+    const ImageViewportInternal::PreparedPayload& payload, QQuickWindow* window = nullptr)
+{
+    RenderAdapter::Input input;
+    input.itemSize = QSizeF(10.0, 10.0);
+    input.preparedPayload = payload;
+    input.targetRect = QRectF(0.0, 0.0, 10.0, 10.0);
+    input.sourceRect = QRectF(0.0, 0.0, 2.0, 2.0);
+    input.window = window;
+    return input;
+}
+
+class NullTextureSceneGraphFactory final : public RenderAdapter::SceneGraphFactory
+{
+public:
+    QSGTexture* createTexture(
+        QQuickWindow*, const QImage&, QQuickWindow::CreateTextureOptions) const override
+    {
+        return nullptr;
+    }
+
+    QSGImageNode* createImageNode(QQuickWindow* window) const override
+    {
+        return window->createImageNode();
+    }
+};
+
+class NullImageNodeSceneGraphFactory final : public RenderAdapter::SceneGraphFactory
+{
+public:
+    QSGTexture* createTexture(
+        QQuickWindow* window, const QImage& image,
+        QQuickWindow::CreateTextureOptions options) const override
+    {
+        return window->createTextureFromImage(image, options);
+    }
+
+    QSGImageNode* createImageNode(QQuickWindow*) const override { return nullptr; }
+};
+
+}
 
 void ImageViewportRenderSceneGraphTest::transparentBackgroundDoesNotCreatePaintNode()
 {
@@ -660,6 +714,70 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
                 expectedTransform(row, column) + 1.0f));
         }
     }
+}
+
+void ImageViewportRenderSceneGraphTest::renderAdapterReportsMissingWindowFailureCause()
+{
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+
+    RenderAdapter adapter;
+    const RenderAdapter::Output output
+        = adapter.createNode(nullptr, renderAdapterInputForPayload(renderAdapterPayload(image)));
+
+    QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(output.failureCause, RenderFailureCause::MissingWindow);
+}
+
+void ImageViewportRenderSceneGraphTest::renderAdapterReportsTextureCreationFailureCause()
+{
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    QQuickWindow window;
+    NullTextureSceneGraphFactory sceneGraphFactory;
+    RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(image), &window);
+    input.sceneGraphFactory = &sceneGraphFactory;
+
+    RenderAdapter adapter;
+    const RenderAdapter::Output output = adapter.createNode(nullptr, input);
+
+    QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(output.failureCause, RenderFailureCause::TextureCreationFailure);
+}
+
+void ImageViewportRenderSceneGraphTest::renderAdapterReportsImageNodeCreationFailureCause()
+{
+    QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    QQuickWindow window;
+    NullImageNodeSceneGraphFactory sceneGraphFactory;
+    RenderAdapter::Input input
+        = renderAdapterInputForPayload(renderAdapterPayload(image), &window);
+    input.sceneGraphFactory = &sceneGraphFactory;
+
+    RenderAdapter adapter;
+    const RenderAdapter::Output output = adapter.createNode(nullptr, input);
+
+    QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(output.failureCause, RenderFailureCause::ImageNodeCreationFailure);
+}
+
+void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFailureCause()
+{
+    QQuickWindow window;
+    RenderAdapter::Input input;
+    input.itemSize = QSizeF(10.0, 10.0);
+    input.window = &window;
+    input.imageLayers.append({ ImageViewport::PageRole::Primary,
+        renderAdapterPayload({}), QRectF(0.0, 0.0, 10.0, 10.0),
+        QRectF(0.0, 0.0, 2.0, 2.0) });
+
+    RenderAdapter adapter;
+    const RenderAdapter::Output output = adapter.createNode(nullptr, input);
+
+    QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(output.failureCause, RenderFailureCause::InvalidRolePayload);
 }
 
 void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRect()

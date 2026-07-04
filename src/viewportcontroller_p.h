@@ -4,6 +4,7 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
+#include "renderfailurecause_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -24,6 +25,7 @@ struct ViewportRenderAcknowledgement
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     QVector<ViewportRenderRolePayload> rolePayloads;
     ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+    RenderFailureCause failureCause = RenderFailureCause::None;
 };
 
 struct ViewportRenderLayer

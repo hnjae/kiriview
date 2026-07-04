@@ -225,10 +225,8 @@ Implementation test inventory:
 | 5 | `ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCommit` | Built-in primary plus built-in secondary spread publishes `Ready` only after both required role payload identities commit as one target spread. | Keep red in Milestone 5 until fixed. |
 | 5 | `ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit_data` and `mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit` | Built-in/provider and provider/built-in spreads stay loading until all required role payloads have matching render acknowledgements. | Keep red in Milestone 5 until fixed. |
 | 5 | `ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored` | A render acknowledgement for a superseded built-in prepared payload identity cannot publish readiness or alter diagnostics. | Keep red in Milestone 5 until fixed. |
-| 6 | `ImageViewportRenderSceneGraphTest::renderLayerCarriesQuarterTurnRotation_data` and `renderLayerCarriesQuarterTurnRotation` | Render-layer snapshots for 90, 180, and 270 degrees carry normalized display rotation matching public geometry. | Keep red in Milestone 6 until fixed. |
-| 6 | `ImageViewportRenderSceneGraphTest::rotationMirrorCompositionMapsLayerCorners_data` and `rotationMirrorCompositionMapsLayerCorners` | Render mapping or pixel assertions match public coordinate conversion for rotation crossed with horizontal, vertical, and combined mirrors. | Keep red in Milestone 6 until fixed. |
-| 6 | `ImageViewportRenderSceneGraphTest::rotatedSourceRectsRemainLogicalPageSpace` | Source rectangles remain in public logical page space and preserve half-open edge behavior under display rotation. | Keep red in Milestone 6 until fixed. |
-| 7 | `ImageViewportRenderCommitTest::renderFailureCauseIsPreservedInternally_data` and `renderFailureCauseIsPreservedInternally` | Missing window, texture creation failure, image-node creation failure, invalid or empty role payload, and unknown backend failure are distinguishable internally while public status remains `Error/RenderFailure`. | Keep red in Milestone 7 until fixed. |
+| 6 | `ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform_data` and `rotatedImageTextureNodeUsesTransform` | Scene graph mapping for 90, 180, and 270 degree display rotation uses a stable transform node while source rectangles stay in public logical page space and mirror flags compose with rotation. | Keep red in Milestone 6 until fixed. |
+| 7 | `ImageViewportRenderSceneGraphTest::renderAdapterReportsMissingWindowFailureCause`, `renderAdapterReportsTextureCreationFailureCause`, `renderAdapterReportsImageNodeCreationFailureCause`, and `renderAdapterReportsInvalidRolePayloadFailureCause` | Missing window, texture creation failure, image-node creation failure, and invalid or empty role payload are distinguishable internally while public render-failure projection remains `Error/RenderFailure`. | Keep red in Milestone 7 until fixed. |
 | 8 | `ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath_data` and `roleScopedMetadataProjectionUsesOnePath` | Unknown facts, partial known facts, complete metadata, runtime metadata, still, timed-list, primary role, and secondary role project through identical controller-owned metadata semantics. | Keep red in Milestone 8 until fixed. |
 | 9 | `ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data` and `roleCommandAdmissionOrder` | Role command admission order is malformed role, absent role, intrinsic target validity, failure scope, capability support, then accepted dispatch. | Keep red in Milestone 9 until fixed. |
 | 9 | `ImageViewportPublicApiTest::secondaryCommandAdmissionMatchesController` | Item-level secondary commands and controller-level role commands produce identical outcomes, diagnostics, request state, display state, and playback phase. | Keep red in Milestone 9 until fixed. |
@@ -722,11 +720,23 @@ Render failures collapse distinct backend causes.
 
 #### Tasks
 
-- [ ] Add `RenderFailureCause` values for missing window, texture creation failure, image-node creation failure, invalid or empty role payload, and unknown backend failure.
-- [ ] Add cause field to internal render output and render acknowledgement.
-- [ ] Populate distinct causes in `RenderAdapter::createNode`.
-- [ ] Preserve public `requestStatus: Error`, `requestReason: RenderFailure`, and bounded `errorString`.
-- [ ] Add tests that distinguish internal causes while asserting public status remains unchanged.
+- [x] Add `RenderFailureCause` values for missing window, texture creation failure, image-node creation failure, invalid or empty role payload, and unknown backend failure.
+- [x] Add cause field to internal render output and render acknowledgement.
+- [x] Populate distinct causes in `RenderAdapter::createNode`.
+- [x] Preserve public `requestStatus: Error`, `requestReason: RenderFailure`, and bounded `errorString`.
+- [x] Add tests that distinguish internal causes while asserting public status remains unchanged.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/architecture/rendering.md` was updated in commit `63d82b0` before tests and implementation to declare internal render failure causes while keeping public projection unchanged. No user-facing spec change was needed because public behavior remains `Error/RenderFailure`.
+
+Added failing render-adapter tests in commit `2893f63`: `ImageViewportRenderSceneGraphTest::renderAdapterReportsMissingWindowFailureCause`, `renderAdapterReportsTextureCreationFailureCause`, `renderAdapterReportsImageNodeCreationFailureCause`, and `renderAdapterReportsInvalidRolePayloadFailureCause`.
+
+Added `RenderFailureCause` as a private internal enum, propagated it through render adapter output and render acknowledgements, and added a small `RenderAdapter::SceneGraphFactory` seam for deterministic texture and image-node failure tests. `ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs` now sends a non-default render failure cause and asserts the public reason remains `RenderFailure`.
+
+Verification: `ctest --test-dir build-ninja -R 'viewportcontroller_provider|imageviewport_render_commit|imageviewport_render_scenegraph' --output-on-failure` and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

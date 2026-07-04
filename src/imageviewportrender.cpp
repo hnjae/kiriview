@@ -48,7 +48,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         const auto changes = controller.acknowledgeRenderFailure(
-            { render.preparedPayload, rolePayloads, render.failedRole });
+            { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause });
         applyControllerChanges(changes);
         if (changes.playbackPhase) {
             syncPlaybackTimer();

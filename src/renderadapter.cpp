@@ -42,6 +42,17 @@ QMatrix4x4 rotationTransform(const QRectF& targetRect, int rotationDegrees)
 
 }
 
+QSGTexture* RenderAdapter::SceneGraphFactory::createTexture(QQuickWindow* window,
+    const QImage& image, QQuickWindow::CreateTextureOptions options) const
+{
+    return window ? window->createTextureFromImage(image, options) : nullptr;
+}
+
+QSGImageNode* RenderAdapter::SceneGraphFactory::createImageNode(QQuickWindow* window) const
+{
+    return window ? window->createImageNode() : nullptr;
+}
+
 RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& input) const
 {
     delete oldNode;
@@ -106,9 +117,14 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 
     if (!input.window) {
         delete root;
-        return { nullptr, CommitResult::Failed, firstPayloadIdentity() };
+        return { nullptr, CommitResult::Failed, firstPayloadIdentity(), {},
+            ImageViewport::PageRole::Primary, RenderFailureCause::MissingWindow };
     }
 
+    const SceneGraphFactory defaultSceneGraphFactory;
+    const SceneGraphFactory& sceneGraphFactory = input.sceneGraphFactory
+        ? *input.sceneGraphFactory
+        : defaultSceneGraphFactory;
     QVector<Output::RolePayload> rolePayloads;
     for (const Input::ImageLayer& layer : imageLayers) {
         const auto& payload = layer.preparedPayload;
@@ -118,7 +134,9 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
             payload.payloadId,
         };
         if (payload.image.isNull()) {
-            continue;
+            delete root;
+            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role,
+                RenderFailureCause::InvalidRolePayload };
         }
         rolePayloads.append({ layer.role, payloadIdentity });
 
@@ -126,13 +144,19 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         if (input.mipmap) {
             textureOptions |= QQuickWindow::TextureHasMipmaps;
         }
-        QSGTexture* texture = input.window->createTextureFromImage(payload.image, textureOptions);
-        QSGImageNode* imageNode = input.window->createImageNode();
-        if (!texture || !imageNode) {
-            delete texture;
-            delete imageNode;
+        QSGTexture* texture
+            = sceneGraphFactory.createTexture(input.window, payload.image, textureOptions);
+        if (!texture) {
             delete root;
-            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role };
+            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role,
+                RenderFailureCause::TextureCreationFailure };
+        }
+        QSGImageNode* imageNode = sceneGraphFactory.createImageNode(input.window);
+        if (!imageNode) {
+            delete texture;
+            delete root;
+            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role,
+                RenderFailureCause::ImageNodeCreationFailure };
         }
 
         imageNode->setTexture(texture);

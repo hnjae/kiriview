@@ -594,7 +594,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
             const ImageViewportInternal::PreparedPayloadIdentity payload
                 = controller.displayState().pendingRenderPayload.identity();
             const ImageViewportInternal::ViewportChangeSet renderFailure
-                = controller.acknowledgeRenderFailure({ payload });
+                = controller.acknowledgeRenderFailure(
+                    { payload, {}, ImageViewport::PageRole::Primary,
+                        RenderFailureCause::TextureCreationFailure });
             QCOMPARE(renderFailure.requestState, true);
         } else {
             const ImageSequenceProviderRequestToken metadataToken
@@ -678,6 +680,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
 
     QVERIFY(controller.requestState().status == ImageViewport::RequestStatus::Error
         || controller.requestState().status == ImageViewport::RequestStatus::Unsupported);
+    if (scopeCase == TerminalScopeCase::RenderFailure) {
+        QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RenderFailure);
+    }
 
     const ViewportCommandResult seek = controller.seek(0);
     QCOMPARE(seek.outcome, generationTerminal ? ImageViewport::CommandOutcome::Unsupported
