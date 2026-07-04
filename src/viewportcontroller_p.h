@@ -726,6 +726,8 @@ public:
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
     quint64 secondaryPendingRenderPayloadIdForTest() const;
+    ImageViewportInternal::RenderFailureDiagnostic lastAcceptedRenderFailureDiagnosticForTest()
+        const;
 #endif
 
 private:

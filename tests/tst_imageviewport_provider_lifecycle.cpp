@@ -32,6 +32,7 @@ private slots:
     void providerClearDoesNotBlockOnSessionCleanup();
     void providerTransportFakeRunsCancellationCloseAndDispatchSynchronously();
     void providerCancelDeliveryFailurePreservesQueuedRequestState();
+    void providerCloseDeliveryFailureRecordsDiagnosticAndPreservesClearState();
     void providerNullSequenceCancelsActiveFrameRequestBeforeClose();
     void providerReplacementIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledMetadataAcknowledgement();
@@ -973,9 +974,13 @@ void ImageViewportProviderLifecycleTest::
         int displayedPosition = -1;
         RevisionToken requestRevision;
         RevisionToken displayRevision;
+        QSizeF displayedImageSize;
         QString errorString;
+        QString warningString;
         int frameRequestCount = 0;
         int cancelRequestCount = 0;
+        quint64 cancelTokenValue = 0;
+        ProviderTransportDiagnosticForTest diagnostic;
     };
 
     const auto runScenario = [](bool failCancelDelivery, Snapshot& snapshot) {
@@ -1010,6 +1015,9 @@ void ImageViewportProviderLifecycleTest::
         QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*frameRequestCount, 2);
         QCOMPARE(*cancelRequestCount, 0);
+        const ImageSequenceProviderRequestToken cancelToken
+            = sessionFactory->lastSession()->lastFrameToken();
+        QVERIFY(cancelToken.isValid());
         if (failCancelDelivery) {
             failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
         }
@@ -1025,9 +1033,13 @@ void ImageViewportProviderLifecycleTest::
         snapshot.displayedPosition = item.property("displayedPosition").toInt();
         snapshot.requestRevision = revisionTokenProperty(item, "requestRevision");
         snapshot.displayRevision = revisionTokenProperty(item, "displayRevision");
+        snapshot.displayedImageSize = item.property("displayedImageSize").toSizeF();
         snapshot.errorString = item.property("errorString").toString();
+        snapshot.warningString = item.property("warningString").toString();
         snapshot.frameRequestCount = *frameRequestCount;
         snapshot.cancelRequestCount = *cancelRequestCount;
+        snapshot.cancelTokenValue = cancelToken.id();
+        snapshot.diagnostic = lastProviderTransportDiagnosticForTest(item);
     };
 
     Snapshot delivered;
@@ -1045,10 +1057,126 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(failed.displayedPosition, delivered.displayedPosition);
     QCOMPARE(failed.requestRevision, delivered.requestRevision);
     QCOMPARE(failed.displayRevision, delivered.displayRevision);
+    QCOMPARE(failed.displayedImageSize, delivered.displayedImageSize);
     QCOMPARE(failed.errorString, delivered.errorString);
+    QCOMPARE(failed.warningString, delivered.warningString);
     QCOMPARE(failed.frameRequestCount, delivered.frameRequestCount);
     QCOMPARE(delivered.cancelRequestCount, 1);
     QCOMPARE(failed.cancelRequestCount, 0);
+    QVERIFY(!delivered.diagnostic.valid);
+    QVERIFY(failed.diagnostic.valid);
+    QCOMPARE(failed.diagnostic.role, ImageViewport::PageRole::Primary);
+    QCOMPARE(failed.diagnostic.operation, ProviderTransportOperationForTest::Cancel);
+    QVERIFY(!failed.diagnostic.metadataTokenValid);
+    QCOMPARE(failed.diagnostic.metadataTokenValue, 0U);
+    QVERIFY(failed.diagnostic.frameTokenValid);
+    QCOMPARE(failed.diagnostic.frameTokenValue, failed.cancelTokenValue);
+    QVERIFY(!failed.diagnostic.queued);
+}
+
+void ImageViewportProviderLifecycleTest::
+    providerCloseDeliveryFailureRecordsDiagnosticAndPreservesClearState()
+{
+    struct Snapshot
+    {
+        int requestStatus = -1;
+        int requestReason = -1;
+        int displayStatus = -1;
+        int playbackPhase = -1;
+        int requestedFrame = -1;
+        int requestedPosition = -1;
+        int displayedFrame = -1;
+        int displayedPosition = -1;
+        RevisionToken requestRevision;
+        RevisionToken displayRevision;
+        QSizeF displayedImageSize;
+        QString errorString;
+        QString warningString;
+        int cancelRequestCount = 0;
+        int closeCount = 0;
+        quint64 metadataTokenValue = 0;
+        ProviderTransportDiagnosticForTest diagnostic;
+    };
+
+    const auto runScenario = [](bool failCloseDelivery, Snapshot& snapshot) {
+        ImageSequenceFactory factory;
+        const auto sessionCount = std::make_shared<int>(0);
+        const auto metadataRequestCount = std::make_shared<int>(0);
+        const auto frameRequestCount = std::make_shared<int>(0);
+        const auto lastRequestedFrame = std::make_shared<int>(-1);
+        const auto cancelRequestCount = std::make_shared<int>(0);
+        const auto closeCount = std::make_shared<int>(0);
+        auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+            metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+            std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
+            cancelRequestCount);
+        CountingProviderAdapter adapter(sessionFactory);
+        QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+        QVERIFY(result->sequence());
+
+        ImageViewport item;
+        useSynchronousProviderExecutorForTest(item);
+        item.setSequence(result->sequence());
+        QVERIFY(sessionFactory->lastSession());
+        const ImageSequenceProviderRequestToken metadataToken
+            = sessionFactory->lastSession()->lastMetadataToken();
+        QVERIFY(metadataToken.isValid());
+        if (failCloseDelivery) {
+            failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
+        }
+
+        QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+
+        snapshot.requestStatus = item.property("requestStatus").toInt();
+        snapshot.requestReason = item.property("requestReason").toInt();
+        snapshot.displayStatus = item.property("displayStatus").toInt();
+        snapshot.playbackPhase = item.property("playbackPhase").toInt();
+        snapshot.requestedFrame = item.property("requestedFrame").toInt();
+        snapshot.requestedPosition = item.property("requestedPosition").toInt();
+        snapshot.displayedFrame = item.property("displayedFrame").toInt();
+        snapshot.displayedPosition = item.property("displayedPosition").toInt();
+        snapshot.requestRevision = revisionTokenProperty(item, "requestRevision");
+        snapshot.displayRevision = revisionTokenProperty(item, "displayRevision");
+        snapshot.displayedImageSize = item.property("displayedImageSize").toSizeF();
+        snapshot.errorString = item.property("errorString").toString();
+        snapshot.warningString = item.property("warningString").toString();
+        snapshot.cancelRequestCount = *cancelRequestCount;
+        snapshot.closeCount = *closeCount;
+        snapshot.metadataTokenValue = metadataToken.id();
+        snapshot.diagnostic = lastProviderTransportDiagnosticForTest(item);
+    };
+
+    Snapshot delivered;
+    Snapshot failed;
+    runScenario(false, delivered);
+    runScenario(true, failed);
+
+    QCOMPARE(failed.requestStatus, delivered.requestStatus);
+    QCOMPARE(failed.requestReason, delivered.requestReason);
+    QCOMPARE(failed.displayStatus, delivered.displayStatus);
+    QCOMPARE(failed.playbackPhase, delivered.playbackPhase);
+    QCOMPARE(failed.requestedFrame, delivered.requestedFrame);
+    QCOMPARE(failed.requestedPosition, delivered.requestedPosition);
+    QCOMPARE(failed.displayedFrame, delivered.displayedFrame);
+    QCOMPARE(failed.displayedPosition, delivered.displayedPosition);
+    QCOMPARE(failed.requestRevision, delivered.requestRevision);
+    QCOMPARE(failed.displayRevision, delivered.displayRevision);
+    QCOMPARE(failed.displayedImageSize, delivered.displayedImageSize);
+    QCOMPARE(failed.errorString, delivered.errorString);
+    QCOMPARE(failed.warningString, delivered.warningString);
+    QCOMPARE(delivered.cancelRequestCount, 1);
+    QCOMPARE(failed.cancelRequestCount, 0);
+    QCOMPARE(delivered.closeCount, 1);
+    QCOMPARE(failed.closeCount, 0);
+    QVERIFY(!delivered.diagnostic.valid);
+    QVERIFY(failed.diagnostic.valid);
+    QCOMPARE(failed.diagnostic.role, ImageViewport::PageRole::Primary);
+    QCOMPARE(failed.diagnostic.operation, ProviderTransportOperationForTest::Close);
+    QVERIFY(failed.diagnostic.metadataTokenValid);
+    QCOMPARE(failed.diagnostic.metadataTokenValue, failed.metadataTokenValue);
+    QVERIFY(!failed.diagnostic.frameTokenValid);
+    QCOMPARE(failed.diagnostic.frameTokenValue, 0U);
+    QVERIFY(!failed.diagnostic.queued);
 }
 
 void ImageViewportProviderLifecycleTest::providerNullSequenceCancelsActiveFrameRequestBeforeClose()

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportstate_p.h"
 
 #include <functional>
 #include <memory>
@@ -79,20 +80,26 @@ public:
         = 0;
 };
 
+struct ViewportProviderTransportResult
+{
+    bool delivered = false;
+    ImageViewportInternal::ProviderTransportDiagnostic diagnostic;
+};
+
 class ViewportProviderBridge
 {
 public:
     explicit ViewportProviderBridge(ViewportProviderBridgeClient& client,
         ImageViewport::PageRole role = ImageViewport::PageRole::Primary);
 
-    bool closeSession(ImageSequenceProviderRequestToken metadataToken,
+    ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     bool openSession();
     bool requestMetadata(ImageSequenceProviderRequestToken token);
     bool requestFrame(ImageSequenceProviderRequestToken token, int frame);
     bool requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
     bool requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
-    bool cancelRequest(ImageSequenceProviderRequestToken token);
+    ViewportProviderTransportResult cancelRequest(ImageSequenceProviderRequestToken token);
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();

@@ -38,6 +38,9 @@ private slots:
     void staleRenderCommitAcknowledgementIsIgnoredWithoutSceneGraph();
     void staleRenderFailureAcknowledgementIsIgnoredWithoutSceneGraph();
     void activeRenderFailureAcknowledgementReportsFailureWithoutSceneGraph();
+    void activeRenderFailureDiagnosticsPreserveCause_data();
+    void activeRenderFailureDiagnosticsPreserveCause();
+    void staleRenderFailureDoesNotOverwriteActiveDiagnostics();
     void playbackWaitingRenderCommitAcknowledgementResumesWithoutSceneGraph();
     void geometryChangeRecoversRenderWaitingWithoutSceneGraph();
 };
@@ -1599,6 +1602,97 @@ void ImageViewportRenderCommitTest::
     QCOMPARE(requestStateSpy.count(), 1);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 1);
+}
+
+void ImageViewportRenderCommitTest::activeRenderFailureDiagnosticsPreserveCause_data()
+{
+    QTest::addColumn<RenderFailureCause>("cause");
+
+    QTest::newRow("missing-window") << RenderFailureCause::MissingWindow;
+    QTest::newRow("texture-creation") << RenderFailureCause::TextureCreationFailure;
+    QTest::newRow("image-node-creation") << RenderFailureCause::ImageNodeCreationFailure;
+    QTest::newRow("invalid-role-payload") << RenderFailureCause::InvalidRolePayload;
+    QTest::newRow("unknown-backend") << RenderFailureCause::UnknownBackendFailure;
+}
+
+void ImageViewportRenderCommitTest::activeRenderFailureDiagnosticsPreserveCause()
+{
+    QFETCH(RenderFailureCause, cause);
+
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
+    QVERIFY(generation > 0);
+    QVERIFY(requestId > 0);
+    QVERIFY(payloadId > 0);
+
+    acknowledgeRenderFailureForTest(
+        item, ImageViewport::PageRole::Primary, generation, requestId, payloadId, cause);
+
+    const RenderFailureDiagnosticForTest diagnostic
+        = lastAcceptedRenderFailureDiagnosticForTest(item);
+    QVERIFY(diagnostic.valid);
+    QCOMPARE(diagnostic.role, ImageViewport::PageRole::Primary);
+    QCOMPARE(diagnostic.generation, generation);
+    QCOMPARE(diagnostic.requestId, requestId);
+    QCOMPARE(diagnostic.preparedPayloadId, payloadId);
+    QCOMPARE(diagnostic.cause, cause);
+
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QVERIFY(
+        item.property("errorString").toString().contains(QStringLiteral("render commit failed")));
+}
+
+void ImageViewportRenderCommitTest::staleRenderFailureDoesNotOverwriteActiveDiagnostics()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+
+    const quint64 generation = pendingRenderGenerationForTest(item);
+    const quint64 requestId = activeRequestIdForTest(item);
+    const quint64 payloadId = pendingRenderPayloadIdForTest(item);
+    acknowledgeRenderFailureForTest(item, ImageViewport::PageRole::Primary, generation, requestId,
+        payloadId, RenderFailureCause::TextureCreationFailure);
+
+    const RenderFailureDiagnosticForTest activeDiagnostic
+        = lastAcceptedRenderFailureDiagnosticForTest(item);
+    QVERIFY(activeDiagnostic.valid);
+    QCOMPARE(activeDiagnostic.cause, RenderFailureCause::TextureCreationFailure);
+
+    acknowledgeRenderFailureForTest(item, ImageViewport::PageRole::Primary, generation, requestId,
+        payloadId + 1, RenderFailureCause::ImageNodeCreationFailure);
+
+    const RenderFailureDiagnosticForTest staleDiagnostic
+        = lastAcceptedRenderFailureDiagnosticForTest(item);
+    QVERIFY(staleDiagnostic.valid);
+    QCOMPARE(staleDiagnostic.role, activeDiagnostic.role);
+    QCOMPARE(staleDiagnostic.generation, activeDiagnostic.generation);
+    QCOMPARE(staleDiagnostic.requestId, activeDiagnostic.requestId);
+    QCOMPARE(staleDiagnostic.preparedPayloadId, activeDiagnostic.preparedPayloadId);
+    QCOMPARE(staleDiagnostic.cause, activeDiagnostic.cause);
 }
 
 void ImageViewportRenderCommitTest::

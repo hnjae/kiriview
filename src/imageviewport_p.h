@@ -144,6 +144,10 @@ public:
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
     quint64 secondaryPendingRenderPayloadIdForTest() const;
+    ImageViewportInternal::RenderFailureDiagnostic lastAcceptedRenderFailureDiagnosticForTest()
+        const;
+    ImageViewportInternal::ProviderTransportDiagnostic lastProviderTransportDiagnosticForTest()
+        const;
     void acknowledgeRenderCommitForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
     void acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
@@ -152,6 +156,8 @@ public:
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
     void acknowledgeRenderFailureForTest(
         PageRole failedRole, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
+    void acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation,
+        quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause);
 #endif
     QRectF contentRect() const override;
     QRectF visibleImageRect() const override;
@@ -224,6 +230,7 @@ public:
         const ViewportProviderMetadataTransportEffect& effect, PageRole role = PageRole::Primary);
     void applyProviderFrameTransportEffect(
         const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
+    void recordProviderTransportResult(const ViewportProviderTransportResult& result);
     void scheduleProviderDeferredControllerEvent(
         ViewportProviderDeferredControllerEvent event, PageRole role);
     void handleProviderDispatchFailure(
@@ -325,5 +332,6 @@ public:
     ImageViewportInternal::PlaybackClock playbackClock;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousProviderQueueFlushScheduler = false;
+    ImageViewportInternal::ProviderTransportDiagnostic lastProviderTransportDiagnostic;
 #endif
 };

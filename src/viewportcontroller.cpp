@@ -987,4 +987,10 @@ quint64 ViewportController::secondaryPendingRenderPayloadIdForTest() const
 {
     return state.display.secondaryPendingRenderPayload.payloadId;
 }
+
+ImageViewportInternal::RenderFailureDiagnostic
+ViewportController::lastAcceptedRenderFailureDiagnosticForTest() const
+{
+    return state.request.lastAcceptedRenderFailure;
+}
 #endif

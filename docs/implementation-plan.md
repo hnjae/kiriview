@@ -804,12 +804,12 @@ F12.
 
 #### Tasks
 
-- [ ] Add private test hooks or structured internal diagnostics for last accepted active render failure cause with role, generation, request, prepared payload, and `RenderFailureCause`.
-- [ ] Add render tests proving each active render failure cause survives controller acknowledgement and stale render failures do not overwrite active diagnostics.
-- [ ] Thread `acknowledgement.failureCause` through controller diagnostics without changing public request projection.
-- [ ] Add provider lifecycle tests for failed cancel and close delivery diagnostics, including role, operation, token validity/value, and queued-delivery result.
-- [ ] Return and handle structured transport diagnostic results from provider close/cancel paths without mutating public request/display state.
-- [ ] Assert cleanup/cancel delivery failure leaves public request status, request reason, display status, error string, request/display revisions, playback phase, and retained display unchanged unless a separate documented event changes them.
+- [x] Add private test hooks or structured internal diagnostics for last accepted active render failure cause with role, generation, request, prepared payload, and `RenderFailureCause`.
+- [x] Add render tests proving each active render failure cause survives controller acknowledgement and stale render failures do not overwrite active diagnostics.
+- [x] Thread `acknowledgement.failureCause` through controller diagnostics without changing public request projection.
+- [x] Add provider lifecycle tests for failed cancel and close delivery diagnostics, including role, operation, token validity/value, and queued-delivery result.
+- [x] Return and handle structured transport diagnostic results from provider close/cancel paths without mutating public request/display state.
+- [x] Assert cleanup/cancel delivery failure leaves public request status, request reason, display status, error string, request/display revisions, playback phase, and retained display unchanged unless a separate documented event changes them.
 
 #### Acceptance criteria
 

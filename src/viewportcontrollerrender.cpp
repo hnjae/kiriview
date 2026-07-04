@@ -163,6 +163,17 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     const ImageViewport::DisplayStatus oldDisplayStatus = viewportDisplayState(viewport).status;
 
+    const ImageViewportInternal::PreparedPayloadIdentity failedPayload
+        = acknowledgementPayloadForRole(acknowledgement, acknowledgement.failedRole);
+    viewportRequestState(viewport).lastAcceptedRenderFailure = {
+        true,
+        acknowledgement.failedRole,
+        failedPayload.generation,
+        failedPayload.requestId,
+        failedPayload.payloadId,
+        acknowledgement.failureCause,
+    };
+
     viewportDisplayState(viewport).clearPendingRenderPayload();
     if (viewportDisplayState(viewport).renderFailureRetainedDisplayValid) {
         viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Retained;

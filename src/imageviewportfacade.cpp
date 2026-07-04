@@ -365,6 +365,25 @@ void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRol
         failedRole, generation, requestId, preparedPayloadId);
 }
 
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause)
+{
+    ImageViewportPrivate::get(item)->acknowledgeRenderFailureForTest(
+        failedRole, generation, requestId, preparedPayloadId, cause);
+}
+
+RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(
+    const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->lastAcceptedRenderFailureDiagnosticForTest();
+}
+
+ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
+    const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->lastProviderTransportDiagnosticForTest();
+}
+
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize)
 {

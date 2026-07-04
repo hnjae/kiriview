@@ -173,8 +173,8 @@ void ImageViewportPrivate::startProviderMetadataRequest()
     const ViewportProviderMetadataRequestStartResult result
         = controller.startProviderMetadataRequest();
     if (result.closeSession) {
-        providerBridge.closeSession(
-            result.sessionClose.metadataToken, result.sessionClose.frameToken);
+        recordProviderTransportResult(providerBridge.closeSession(
+            result.sessionClose.metadataToken, result.sessionClose.frameToken));
     }
     if (result.sendCommand) {
         if (!providerBridge.requestMetadata(result.token)) {
@@ -190,7 +190,8 @@ void ImageViewportPrivate::applyProviderMetadataTransportEffect(
     ViewportProviderBridge& bridge
         = role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
     if (effect.closeSession) {
-        bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+        recordProviderTransportResult(
+            bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
     }
     if (effect.sendCommand) {
         if (!bridge.requestMetadata(effect.token)) {
@@ -206,13 +207,14 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
     ViewportProviderBridge& bridge
         = role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
     if (effect.cancelToken.isValid()) {
-        bridge.cancelRequest(effect.cancelToken);
+        recordProviderTransportResult(bridge.cancelRequest(effect.cancelToken));
     }
     if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
         scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent, role);
     }
     if (effect.closeSession) {
-        bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
+        recordProviderTransportResult(
+            bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
     }
     if (!effect.sendCommand) {
         return;
@@ -231,6 +233,18 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
         handleProviderDispatchFailure(
             role, effect.command.token, QStringLiteral("provider command delivery failed"));
     }
+}
+
+void ImageViewportPrivate::recordProviderTransportResult(
+    const ViewportProviderTransportResult& result)
+{
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    if (result.diagnostic.valid) {
+        lastProviderTransportDiagnostic = result.diagnostic;
+    }
+#else
+    Q_UNUSED(result);
+#endif
 }
 
 void ImageViewportPrivate::handleProviderDispatchFailure(

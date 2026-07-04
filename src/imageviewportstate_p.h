@@ -2,6 +2,7 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewport.h"
+#include "renderfailurecause_p.h"
 #include "timingintervals_p.h"
 
 #include <QtCore/QPointer>
@@ -26,6 +27,34 @@ struct ViewportChangeSet
     bool requestRevision = false;
     bool commandRevision = false;
     bool scheduleUpdate = false;
+};
+
+struct RenderFailureDiagnostic
+{
+    bool valid = false;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    quint64 preparedPayloadId = 0;
+    RenderFailureCause cause = RenderFailureCause::None;
+};
+
+enum class ProviderTransportOperation {
+    None,
+    Cancel,
+    Close,
+};
+
+struct ProviderTransportDiagnostic
+{
+    bool valid = false;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ProviderTransportOperation operation = ProviderTransportOperation::None;
+    bool metadataTokenValid = false;
+    quint64 metadataTokenValue = 0;
+    bool frameTokenValid = false;
+    quint64 frameTokenValue = 0;
+    bool queued = false;
 };
 
 enum class ProviderRequestTargetKind {
@@ -317,11 +346,13 @@ struct RequestState
         playbackRole = ImageViewport::PageRole::Primary;
         playbackLoopIterationsCompleted = 0;
         targetSpreadTerminal.clear();
+        lastAcceptedRenderFailure = {};
     }
 
     void beginDisplayRequest(DisplayRequestOrigin origin, bool rememberAsLatestNonPlayback)
     {
         targetSpreadTerminal.clear();
+        lastAcceptedRenderFailure = {};
         activeRequest.identity.id = ++nextRequestId;
         activeRequest.identity.origin = origin;
         activeRequest.providerFrameToken = {};
@@ -407,6 +438,7 @@ struct RequestState
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     TargetSpreadTerminalState targetSpreadTerminal;
+    RenderFailureDiagnostic lastAcceptedRenderFailure;
     uint requestRevision = 0;
     uint commandRevision = 0;
     QString errorString;

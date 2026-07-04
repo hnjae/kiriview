@@ -1,10 +1,15 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportstate_p.h"
 
 #include <memory>
 
 namespace ImageViewportTestHooks {
+
+using RenderFailureDiagnosticForTest = ImageViewportInternal::RenderFailureDiagnostic;
+using ProviderTransportOperationForTest = ImageViewportInternal::ProviderTransportOperation;
+using ProviderTransportDiagnosticForTest = ImageViewportInternal::ProviderTransportDiagnostic;
 
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
@@ -27,6 +32,12 @@ void acknowledgeRenderFailureForTest(
     ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
 void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
     quint64 generation, quint64 requestId, quint64 preparedPayloadId);
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+    quint64 generation, quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause);
+RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(
+    const ImageViewport& item);
+ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
+    const ImageViewport& item);
 
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize);

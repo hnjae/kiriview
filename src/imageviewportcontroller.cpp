@@ -448,6 +448,18 @@ quint64 ImageViewportPrivate::secondaryPendingRenderPayloadIdForTest() const
     return controller.secondaryPendingRenderPayloadIdForTest();
 }
 
+ImageViewportInternal::RenderFailureDiagnostic
+ImageViewportPrivate::lastAcceptedRenderFailureDiagnosticForTest() const
+{
+    return controller.lastAcceptedRenderFailureDiagnosticForTest();
+}
+
+ImageViewportInternal::ProviderTransportDiagnostic
+ImageViewportPrivate::lastProviderTransportDiagnosticForTest() const
+{
+    return lastProviderTransportDiagnostic;
+}
+
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
@@ -492,16 +504,19 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
-    const auto changes
-        = controller.acknowledgeRenderFailure({ { generation, requestId, preparedPayloadId } });
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        syncPlaybackTimer();
-    }
+    acknowledgeRenderFailureForTest(
+        PageRole::Primary, generation, requestId, preparedPayloadId, RenderFailureCause::None);
 }
 
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
     PageRole failedRole, quint64 generation, quint64 requestId, quint64 preparedPayloadId)
+{
+    acknowledgeRenderFailureForTest(
+        failedRole, generation, requestId, preparedPayloadId, RenderFailureCause::None);
+}
+
+void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation,
+    quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause)
 {
     const ImageViewportInternal::PreparedPayloadIdentity failedPayload {
         generation,
@@ -509,7 +524,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(
         preparedPayloadId,
     };
     const auto changes = controller.acknowledgeRenderFailure(
-        { failedPayload, { { failedRole, failedPayload } }, failedRole });
+        { failedPayload, { { failedRole, failedPayload } }, failedRole, cause });
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();
