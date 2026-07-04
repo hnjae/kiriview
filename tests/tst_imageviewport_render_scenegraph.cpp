@@ -20,6 +20,7 @@ private slots:
     void checkerboardBackgroundCreatesPaintNode();
     void stillImageCreatesTexturePaintNode();
     void twoPageStillSpreadCreatesRoleTextureNodes();
+    void retainedTwoPageSpreadKeepsSecondaryLayerAfterPrimaryReplacement();
     void secondaryProviderFrameCompletesSpreadTextureNodes();
     void primaryAndSecondaryProviderFramesCommitOneSpread();
     void deviceIndependentStillImageUsesPhysicalTextureSourceRect();
@@ -219,6 +220,83 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     QVERIFY(secondaryNode->texture());
     QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
     QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
+}
+
+void ImageViewportRenderSceneGraphTest::
+    retainedTwoPageSpreadKeepsSecondaryLayerAfterPrimaryReplacement()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(255, 0, 0, 255));
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    QQuickWindow window;
+    window.resize(88, 44);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(88.0, 44.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QScopedPointer<QSGNode> readyRoot(item.takePaintNode());
+    QVERIFY(readyRoot);
+    QCOMPARE(readyRoot->childCount(), 2);
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> loadingResult(factory.fromProvider(&adapter));
+    QVERIFY(loadingResult->sequence());
+
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(loadingResult->sequence()), {}),
+        ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("secondaryDisplayedImageSize").toSizeF(), QSizeF(30.0, 20.0));
+
+    QScopedPointer<QSGNode> retainedRoot(item.takePaintNode());
+    QVERIFY(retainedRoot);
+    QCOMPARE(retainedRoot->childCount(), 2);
+
+    auto* primaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild());
+    QVERIFY(primaryNode);
+    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
+
+    auto* secondaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild()->nextSibling());
+    QVERIFY(secondaryNode);
+    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
+    QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
+
+    QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QScopedPointer<QSGNode> clearedRoot(item.takePaintNode());
+    QVERIFY(clearedRoot.isNull());
 }
 
 void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTextureNodes()

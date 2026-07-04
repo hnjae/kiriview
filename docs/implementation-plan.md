@@ -827,12 +827,12 @@ Render path rebuilds target spread decisions from mutable state; geometry has mu
 
 #### Tasks
 
-- [ ] Add characterization tests for stale secondary payload or render attempt after replacement and clear.
-- [ ] Define snapshot fields for layer list, role payload identities, source rectangles, target rectangles, presentation mapping, background mode/color, smoothing, mipmap, fit/zoom/pan, rotation, mirror, spread direction, page gap, and any presentation identity needed by render.
-- [ ] Ensure `beginRenderSynchronization()` returns a complete immutable layer list or equivalent role payload map authorized by the controller.
-- [ ] Remove render-time calls that query `secondarySequence()`, `sequence->frameImage(...)`, secondary requested/displayed frame state, or provider logical size to construct target layers after snapshot creation.
-- [ ] Route `RenderAdapter::Input` construction entirely from the controller-authorized snapshot plus render-node ownership handles.
-- [ ] Preserve presentation-only updates that reuse latest committed payload identities and advance display revision without resetting request readiness.
+- [x] Add characterization tests for stale secondary payload or render attempt after replacement and clear.
+- [x] Define snapshot fields for layer list, role payload identities, source rectangles, target rectangles, presentation mapping, background mode/color, smoothing, mipmap, fit/zoom/pan, rotation, mirror, spread direction, page gap, and any presentation identity needed by render.
+- [x] Ensure `beginRenderSynchronization()` returns a complete immutable layer list or equivalent role payload map authorized by the controller.
+- [x] Remove render-time calls that query `secondarySequence()`, `sequence->frameImage(...)`, secondary requested/displayed frame state, or provider logical size to construct target layers after snapshot creation.
+- [x] Route `RenderAdapter::Input` construction entirely from the controller-authorized snapshot plus render-node ownership handles.
+- [x] Preserve presentation-only updates that reuse latest committed payload identities and advance display revision without resetting request readiness.
 
 #### Acceptance criteria
 
@@ -848,6 +848,15 @@ Render path rebuilds target spread decisions from mutable state; geometry has mu
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph|imageviewport_presentation_state|imageviewport_provider_frame_admission)$'`
 - `ctest --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph|imageviewport_presentation_state|imageviewport_provider_frame_admission)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04 by adding `ViewportRenderSnapshot` and `ViewportRenderLayer`, populating the ordered layer list in `ViewportController::beginRenderSynchronization(...)`, and reducing `ImageViewportPrivate::updatePaintNode()` to snapshot-to-`RenderAdapter::Input` glue plus Qt Quick ownership handles.
+- Added retained two-page scenegraph coverage for a primary-only loading replacement followed by clear; the pre-fix failure rendered only the primary retained layer because render code queried the live accepted secondary sequence after snapshot creation.
+- Built-in secondary display image data is now stored with committed display state so retained rendering does not need the current accepted secondary sequence.
+- Focused filter selection passed: `ctest -N --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph|imageviewport_presentation_state|imageviewport_provider_frame_admission)$'` selected 4 tests.
+- Focused verification passed: `ctest --test-dir build -R '^(imageviewport_render_commit|imageviewport_render_scenegraph|imageviewport_presentation_state|imageviewport_provider_frame_admission)$' --output-on-failure`, 4/4 tests.
+- Full verification passed: `ctest --test-dir build --output-on-failure`, 20/20 tests.
 
 #### Risks / notes
 
@@ -1015,7 +1024,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - [x] Milestone 7: Role-Symmetric Explicit Provider Requests
 - [x] Milestone 8: Role-Symmetric Provider Playback And Terminal Lifecycle
 - [x] Milestone 9: Controller-Authored Geometry Projection
-- [ ] Milestone 10: Immutable Render Snapshot
+- [x] Milestone 10: Immutable Render Snapshot
 - [ ] Milestone 11: Complete-Role Spread Render Acknowledgement
 - [ ] Milestone 12: Controller Boundary Decoupling And Layered Tests
 

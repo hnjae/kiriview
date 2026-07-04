@@ -144,6 +144,8 @@ QSizeF ViewportControllerContext::secondarySequenceLogicalSize() const { return 
 
 QImage ViewportControllerContext::sequenceFrameImage(int) const { return {}; }
 
+QImage ViewportControllerContext::secondarySequenceFrameImage(int) const { return {}; }
+
 double ViewportControllerContext::width() const { return 0.0; }
 
 double ViewportControllerContext::height() const { return 0.0; }
@@ -399,6 +401,11 @@ QImage ViewportControllerPort::sequenceFrameImage(int frame) const
     return context.sequenceFrameImage(frame);
 }
 
+QImage ViewportControllerPort::secondarySequenceFrameImage(int frame) const
+{
+    return context.secondarySequenceFrameImage(frame);
+}
+
 double ViewportControllerPort::width() const { return context.width(); }
 
 double ViewportControllerPort::height() const { return context.height(); }
@@ -595,6 +602,97 @@ PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewp
         devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
         presentation.pan,
     };
+}
+
+QRectF renderTargetRect(
+    const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
+{
+    return PresentationGeometry::pageItemRect(geometry, role).intersected(geometry.itemBounds);
+}
+
+QRectF renderSourceRect(
+    const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
+{
+    return PresentationGeometry::visiblePageRect(geometry, role);
+}
+
+ImageViewportInternal::PreparedPayload primaryRenderPayload(
+    ViewportControllerPort viewport, const ViewportRenderSynchronization& synchronization)
+{
+    ImageViewportInternal::PreparedPayload payload = synchronization.preparedPayload;
+    if (payload.image.isNull() && viewportDisplayState(viewport).hasReadyDisplay(
+                                      viewport.hasDisplayableSequence())) {
+        payload.image = viewportDisplayState(viewport).displayedImage;
+    }
+    return payload;
+}
+
+ImageViewportInternal::PreparedPayload secondaryRenderPayload(ViewportControllerPort viewport,
+    const ViewportRenderSynchronization& synchronization,
+    const ImageViewportInternal::PreparedPayload& primaryPayload)
+{
+    const auto& display = viewportDisplayState(viewport);
+    const auto& request = viewportRequestState(viewport);
+    ImageViewportInternal::PreparedPayload payload = primaryPayload;
+    if (synchronization.pendingSecondaryCommit
+        && !display.secondaryPendingRenderPayload.image.isNull()) {
+        return display.secondaryPendingRenderPayload;
+    }
+    if ((synchronization.pendingProviderCommit || synchronization.pendingSecondaryCommit)
+        && request.secondarySequence && !request.secondarySequenceIsProvider) {
+        payload.image
+            = viewport.secondarySequenceFrameImage(request.secondaryActiveRequest.target.frame);
+        return payload;
+    }
+    payload.image = display.secondaryDisplayedImage;
+    return payload;
+}
+
+void appendRenderLayer(QVector<ViewportRenderLayer>& layers,
+    const ImageViewportInternal::PreparedPayload& payload, const QRectF& targetRect,
+    const QRectF& sourceRect, const ImageViewportInternal::PresentationState& presentation,
+    bool requirePresentableRects)
+{
+    if (payload.image.isNull()) {
+        return;
+    }
+    if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
+        return;
+    }
+    layers.append({ payload, targetRect, sourceRect, presentation.mirrorHorizontally,
+        presentation.mirrorVertically });
+}
+
+ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort viewport,
+    const ViewportRenderSynchronization& synchronization,
+    const ImageViewportInternal::PresentationState& presentation)
+{
+    ViewportRenderSnapshot snapshot;
+    snapshot.itemSize = QSizeF(viewport.width(), viewport.height());
+    snapshot.backgroundMode = presentation.backgroundMode;
+    snapshot.backgroundColor = presentation.backgroundColor;
+    snapshot.smoothing = presentation.smoothing;
+    snapshot.mipmap = presentation.mipmap;
+    snapshot.mirrorHorizontally = presentation.mirrorHorizontally;
+    snapshot.mirrorVertically = presentation.mirrorVertically;
+
+    const ImageViewportInternal::PreparedPayload primaryPayload
+        = primaryRenderPayload(viewport, synchronization);
+    snapshot.preparedPayload = primaryPayload;
+    snapshot.targetRect
+        = renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
+    snapshot.sourceRect
+        = renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
+    appendRenderLayer(snapshot.imageLayers, primaryPayload, snapshot.targetRect,
+        snapshot.sourceRect, presentation, false);
+
+    const ImageViewportInternal::PreparedPayload secondaryPayload
+        = secondaryRenderPayload(viewport, synchronization, primaryPayload);
+    appendRenderLayer(snapshot.imageLayers, secondaryPayload,
+        renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
+        renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
+        presentation, true);
+    return snapshot;
 }
 
 QRectF contentRectForPresentation(
@@ -1222,6 +1320,10 @@ void publishSecondaryDisplayedRequest(ViewportControllerPort& viewport)
         = viewportRequestState(viewport).secondarySequenceIsProvider
         ? viewport.secondaryProviderState().logicalSize
         : viewport.secondarySequenceLogicalSize();
+    if (!viewportRequestState(viewport).secondarySequenceIsProvider) {
+        viewportDisplayState(viewport).secondaryDisplayedImage
+            = viewport.secondarySequenceFrameImage(snapshot.request.target.frame);
+    }
 }
 
 void stageBuiltInPrimarySpreadPayload(ViewportControllerPort& viewport)
@@ -4810,6 +4912,8 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(dou
         synchronization.pendingProviderCommit || synchronization.pendingSecondaryCommit
             ? GeometryProjectionTarget::PendingRender
             : GeometryProjectionTarget::CurrentDisplay);
+    synchronization.renderSnapshot
+        = renderSnapshotForSynchronization(viewport, synchronization, state.presentation);
     return synchronization;
 }
 

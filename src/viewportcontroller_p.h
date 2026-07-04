@@ -8,6 +8,7 @@
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
+#include <QtCore/QVector>
 #include <QtGui/QImage>
 
 #include <memory>
@@ -19,6 +20,30 @@ struct ViewportRenderAcknowledgement
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
 };
 
+struct ViewportRenderLayer
+{
+    ImageViewportInternal::PreparedPayload preparedPayload;
+    QRectF targetRect;
+    QRectF sourceRect;
+    bool mirrorHorizontally = false;
+    bool mirrorVertically = false;
+};
+
+struct ViewportRenderSnapshot
+{
+    QSizeF itemSize;
+    ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
+    QColor backgroundColor = Qt::transparent;
+    ImageViewportInternal::PreparedPayload preparedPayload;
+    QRectF targetRect;
+    QRectF sourceRect;
+    bool smoothing = true;
+    bool mipmap = false;
+    bool mirrorHorizontally = false;
+    bool mirrorVertically = false;
+    QVector<ViewportRenderLayer> imageLayers;
+};
+
 struct ViewportRenderSynchronization
 {
     bool pendingProviderCommit = false;
@@ -28,6 +53,7 @@ struct ViewportRenderSynchronization
     QRectF oldContentRect;
     QRectF oldVisibleImageRect;
     PresentationGeometry::State geometryState;
+    ViewportRenderSnapshot renderSnapshot;
 };
 
 struct ViewportProviderFrameTerminalResult
@@ -370,6 +396,7 @@ public:
     virtual QSizeF sequenceLogicalSize() const;
     virtual QSizeF secondarySequenceLogicalSize() const;
     virtual QImage sequenceFrameImage(int frame) const;
+    virtual QImage secondarySequenceFrameImage(int frame) const;
     virtual double width() const;
     virtual double height() const;
 };
@@ -435,6 +462,7 @@ public:
     QSizeF sequenceLogicalSize() const;
     QSizeF secondarySequenceLogicalSize() const;
     QImage sequenceFrameImage(int frame) const;
+    QImage secondarySequenceFrameImage(int frame) const;
     double width() const;
     double height() const;
 

@@ -181,6 +181,13 @@ QImage ImageViewportPrivate::sequenceFrameImage(int frame) const
         : QImage();
 }
 
+QImage ImageViewportPrivate::secondarySequenceFrameImage(int frame) const
+{
+    return controller.requestState().secondarySequence
+        ? controller.requestState().secondarySequence->frameImage(frame)
+        : QImage();
+}
+
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
 {
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);
