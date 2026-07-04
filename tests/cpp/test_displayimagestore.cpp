@@ -26,6 +26,8 @@ private Q_SLOTS:
     void providerHandlesRequestedSizeAsDownscaleOnly();
     void evictsLeastRecentlyUsedImagesByPriority();
     void pinLeasesPreventEvictionAndReleaseDefersRemoval();
+    void reusableAcquisitionReturnsBufferedEntryForMatchingKey();
+    void reusableAcquisitionRequiresExactKeyMatch();
     void providerRequestsAreThreadSafeReads();
 };
 
@@ -50,6 +52,21 @@ kiriview::DisplayImageEntry testEntry(
         priority,
         42,
         QStringLiteral("test-entry"),
+    };
+}
+
+kiriview::DisplayImageReuseKey testReuseKey(
+    const QString& sourceIdentity = QStringLiteral("file:///tmp/image.png"))
+{
+    return kiriview::DisplayImageReuseKey {
+        sourceIdentity,
+        sourceIdentity,
+        {},
+        QSize(16, 8),
+        QSize(8, 4),
+        kiriview::DisplayImageQuality::Exact,
+        kiriview::DisplayImagePreviewOrigin::None,
+        kiriview::DisplayedPageRole::Primary,
     };
 }
 }
@@ -166,6 +183,51 @@ void TestDisplayImageStore::pinLeasesPreventEvictionAndReleaseDefersRemoval()
     QVERIFY(store.entry(pinned).has_value());
     store.releasePinLease(pinned, kiriview::DisplayImagePinKind::Visible);
     QVERIFY(store.entry(pinned) == std::nullopt);
+}
+
+void TestDisplayImageStore::reusableAcquisitionReturnsBufferedEntryForMatchingKey()
+{
+    kiriview::DisplayImageStore store(1024);
+    const kiriview::DisplayImageReuseKey key = testReuseKey();
+
+    const QString first = store.acquireReusable(testEntry(QSize(8, 4)), key);
+    QVERIFY(!first.isEmpty());
+    QVERIFY(store.acquirePinLease(first, kiriview::DisplayImagePinKind::BufferedDisplay));
+    store.release(first);
+    QVERIFY(store.entry(first).has_value());
+
+    const QString second = store.acquireReusable(testEntry(QSize(8, 4)), key);
+
+    QCOMPARE(second, first);
+    QCOMPARE(store.size(), qsizetype(1));
+
+    store.releasePinLease(first, kiriview::DisplayImagePinKind::BufferedDisplay);
+    QVERIFY(store.entry(first).has_value());
+
+    store.release(second);
+    QVERIFY(!store.entry(first).has_value());
+}
+
+void TestDisplayImageStore::reusableAcquisitionRequiresExactKeyMatch()
+{
+    kiriview::DisplayImageStore store(1024);
+    const kiriview::DisplayImageReuseKey firstKey = testReuseKey(QStringLiteral("page-a"));
+    kiriview::DisplayImageReuseKey secondKey = firstKey;
+    secondKey.sourceIdentity = QStringLiteral("page-b");
+    secondKey.locationIdentity = QStringLiteral("page-b");
+
+    const QString first = store.acquireReusable(testEntry(QSize(8, 4)), firstKey);
+    QVERIFY(!first.isEmpty());
+    QVERIFY(store.acquirePinLease(first, kiriview::DisplayImagePinKind::BufferedDisplay));
+    store.release(first);
+
+    const QString second = store.acquireReusable(testEntry(QSize(8, 4)), secondKey);
+
+    QVERIFY(!second.isEmpty());
+    QVERIFY(first != second);
+    QCOMPARE(store.size(), qsizetype(2));
+    QVERIFY(store.entry(first).has_value());
+    QVERIFY(store.entry(second).has_value());
 }
 
 void TestDisplayImageStore::providerRequestsAreThreadSafeReads()

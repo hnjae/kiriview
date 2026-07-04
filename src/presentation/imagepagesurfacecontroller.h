@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QObject;
 
@@ -75,11 +76,23 @@ public:
         const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
 private:
+    struct BufferedStaticDisplayEntry
+    {
+        DisplayImageReuseKey reuseKey;
+        QString entryId;
+    };
+
     void acceptImageState(QSize imageSize, bool predecodeCacheable,
         std::optional<StaticDisplayImagePayload> displayImage);
+    DisplayImageReuseKey staticDisplayReuseKey(const StaticDisplayImagePayload& displayImage) const;
     void publishDisplaySource(const StaticDisplayImagePayload& displayImage);
     void publishAnimationFrameDisplaySource(const QImage& image, const QString& sourceIdentity);
     void clearDisplaySource();
+    void releaseBufferedStaticDisplayEntriesForSource(const DisplayImageReuseKey& reuseKey);
+    void retainBufferedStaticDisplayEntry(
+        const DisplayImageReuseKey& reuseKey, const QString& entryId);
+    void trimBufferedStaticDisplayEntries();
+    void releaseBufferedStaticDisplayEntries();
     void releaseCurrentDisplayEntry();
     void releaseShadowDisplayEntry();
     void releaseRetainedStillImageEntry();
@@ -122,6 +135,7 @@ private:
     bool m_animationFrameDisplayLoadPending = false;
     ImageDisplaySourceSlot m_displaySource;
     quint64 m_displaySourceRevision = 0;
+    std::vector<BufferedStaticDisplayEntry> m_bufferedStaticDisplayEntries;
     std::optional<RasterDisplayRefinementDemandKey> m_rasterDisplayRefinementDemand;
     ImageAsyncTicket m_rasterDisplayRefinementTicket;
     std::unique_ptr<ImageAnimationPlayer> m_animationPlayer;

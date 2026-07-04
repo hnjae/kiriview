@@ -93,6 +93,10 @@ Before code, update `docs/architecture/provider-rendering.md` or add an ADR if t
 - Cache eviction remains bounded by the existing display-image byte budget and active navigation window.
 - Existing semantics for load acknowledgment, stale retention, clear transitions, two-page spread, and source replacement remain covered by tests or unchanged focused assertions.
 
+### Status
+
+Completed. The slice records reusable display-handle ownership in the provider-rendering architecture, adds display-store reuse keys and a `BufferedDisplay` lease kind, and teaches the page-surface owner to keep a bounded two-entry static display buffer. Alternating A/B static page payloads with distinct source identities reuse the original provider entry id while the buffer retains them, same-source refinement or replacement drops older buffered keys, and clear/destruction paths release buffer leases. Focused display-store and page-surface tests cover reusable acquisition, exact-key matching, release-request clearing after reacquisition, A/B/A provider URL reuse, bounded buffer eviction, same-source replacement, and existing load/refinement behavior.
+
 ### Suggested Verification
 
 - Add focused unit tests for display-store lookup/acquire and lease release behavior.

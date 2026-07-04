@@ -19,6 +19,21 @@
 #include <vector>
 
 namespace kiriview {
+bool operator==(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right)
+{
+    return left.locationIdentity == right.locationIdentity
+        && left.sourceIdentity == right.sourceIdentity
+        && left.imageReaderTransformations == right.imageReaderTransformations
+        && left.originalSize == right.originalSize && left.rasterSize == right.rasterSize
+        && left.quality == right.quality && left.previewOrigin == right.previewOrigin
+        && left.pageRole == right.pageRole;
+}
+
+bool operator!=(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right)
+{
+    return !(left == right);
+}
+
 namespace {
     int priorityRank(DisplayImageRetentionPriority priority)
     {
@@ -128,10 +143,13 @@ public:
         int staleRetainedPins = 0;
         int pendingLoadPins = 0;
         int frameRetentionPins = 0;
+        int bufferedDisplayPins = 0;
+        std::optional<DisplayImageReuseKey> reuseKey;
 
         int totalPinCount() const
         {
-            return visiblePins + staleRetainedPins + pendingLoadPins + frameRetentionPins;
+            return visiblePins + staleRetainedPins + pendingLoadPins + frameRetentionPins
+                + bufferedDisplayPins;
         }
     };
 
@@ -154,6 +172,13 @@ public:
             images.cbegin(), images.cend(), [&id](const Entry& entry) { return entry.id == id; });
     }
 
+    std::vector<Entry>::iterator findReusableEntry(const DisplayImageReuseKey& reuseKey)
+    {
+        return std::find_if(images.begin(), images.end(), [&reuseKey](const Entry& entry) {
+            return entry.reuseKey.has_value() && *entry.reuseKey == reuseKey;
+        });
+    }
+
     int& pinCount(Entry& entry, DisplayImagePinKind kind)
     {
         switch (kind) {
@@ -165,6 +190,8 @@ public:
             return entry.pendingLoadPins;
         case DisplayImagePinKind::FrameRetention:
             return entry.frameRetentionPins;
+        case DisplayImagePinKind::BufferedDisplay:
+            return entry.bufferedDisplayPins;
         }
 
         return entry.visiblePins;
@@ -185,7 +212,54 @@ public:
             entry.generation,
             entry.debugLabel,
             entry.previewOrigin,
+            entry.reuseKey,
         };
+    }
+
+    QString nextEntryId()
+    {
+        QString id;
+        do {
+            id = QStringLiteral("display-%1").arg(nextId++);
+            if (nextId == 0) {
+                ++nextId;
+            }
+        } while (findEntry(id) != images.end());
+        return id;
+    }
+
+    QString insertNewEntry(DisplayImageEntry entry, qsizetype entryByteCost,
+        std::optional<DisplayImageReuseKey> reuseKey = std::nullopt)
+    {
+        const QString id = nextEntryId();
+        const QSize originalSize = normalizedOriginalSize(entry);
+        const QSize rasterSize = normalizedRasterSize(entry);
+
+        images.push_back(Entry {
+            id,
+            std::move(entry.image),
+            originalSize,
+            rasterSize,
+            std::move(entry.sourceIdentity),
+            entry.pageRole,
+            entry.quality,
+            entry.priority,
+            entryByteCost,
+            entry.generation,
+            std::move(entry.debugLabel),
+            entry.previewOrigin,
+            ++useClock,
+            false,
+            0,
+            0,
+            0,
+            0,
+            0,
+            std::move(reuseKey),
+        });
+        byteCost = saturatedQtByteSum(byteCost, entryByteCost);
+        trimToBudget();
+        return findEntry(id) == images.end() ? QString() : id;
     }
 
     void removeEntry(std::vector<Entry>::iterator entry)
@@ -244,35 +318,31 @@ QString DisplayImageStore::insert(DisplayImageEntry entry)
         return {};
     }
 
-    QString id;
-    do {
-        id = QStringLiteral("display-%1").arg(d->nextId++);
-        if (d->nextId == 0) {
-            ++d->nextId;
-        }
-    } while (d->findEntry(id) != d->images.end());
+    return d->insertNewEntry(std::move(entry), byteCost);
+}
 
-    const QSize originalSize = normalizedOriginalSize(entry);
-    const QSize rasterSize = normalizedRasterSize(entry);
+QString DisplayImageStore::acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey)
+{
+    if (entry.image.isNull()) {
+        return {};
+    }
 
-    d->images.push_back(Private::Entry {
-        id,
-        std::move(entry.image),
-        originalSize,
-        rasterSize,
-        std::move(entry.sourceIdentity),
-        entry.pageRole,
-        entry.quality,
-        entry.priority,
-        byteCost,
-        entry.generation,
-        std::move(entry.debugLabel),
-        entry.previewOrigin,
-        ++d->useClock,
-    });
-    d->byteCost = saturatedQtByteSum(d->byteCost, byteCost);
-    d->trimToBudget();
-    return d->findEntry(id) == d->images.end() ? QString() : id;
+    const qsizetype byteCost = imageByteCost(entry.image);
+    QMutexLocker locker(&d->mutex);
+    auto reusable = d->findReusableEntry(reuseKey);
+    if (reusable != d->images.end()) {
+        reusable->priority = entry.priority;
+        reusable->releaseRequested = false;
+        reusable->lastUse = ++d->useClock;
+        d->trimToBudget();
+        return reusable->id;
+    }
+
+    if (byteCost <= 0 || byteCost > d->byteBudget) {
+        return {};
+    }
+
+    return d->insertNewEntry(std::move(entry), byteCost, std::move(reuseKey));
 }
 
 std::optional<DisplayImageStoreEntry> DisplayImageStore::entry(const QString& id) const

@@ -35,6 +35,8 @@ class TestImagePageSurfaceController : public QObject
 
 private Q_SLOTS:
     void providerEntriesAreReleasedOnSupersessionAndClear();
+    void staticDisplayReusesBufferedProviderEntryForSamePayload();
+    void staticDisplayBufferKeepsOnlyCurrentAndPreviousPages();
     void setImageWithoutProviderPublishesDisplayErrorSnapshot();
     void visibleProjectionPinsAndPrioritizesProviderEntry();
     void shadowThumbnailPreviewEntryIsReleasedOnDecodedReplacement();
@@ -134,6 +136,13 @@ kiriview::StaticDisplayImagePayload displayPayload(const QSize& size)
 {
     return kiriview::TestSupport::staticDisplayTestImagePayload(
         kiriview::TestSupport::testImage(size));
+}
+
+kiriview::StaticDisplayImagePayload displayPayload(const QSize& size, const QString& sourceIdentity)
+{
+    kiriview::StaticDisplayImagePayload payload = displayPayload(size);
+    payload.sourceIdentity = sourceIdentity;
+    return payload;
 }
 
 QString entryId(const kiriview::ImageDisplaySourceSlot& slot)
@@ -373,6 +382,58 @@ void TestImagePageSurfaceController::providerEntriesAreReleasedOnSupersessionAnd
     QVERIFY(!store->entry(entryId(second)).has_value());
     QCOMPARE(
         controller.snapshot().displaySource().status, kiriview::ImageDisplaySourceStatus::Missing);
+}
+
+void TestImagePageSurfaceController::staticDisplayReusesBufferedProviderEntryForSamePayload()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-a")), false, renderContext());
+    const kiriview::ImageDisplaySourceSlot first = controller.snapshot().displaySource();
+    QVERIFY(!first.providerUrl.isEmpty());
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-b")), false, renderContext());
+    const kiriview::ImageDisplaySourceSlot second = controller.snapshot().displaySource();
+    QVERIFY(!second.providerUrl.isEmpty());
+    QVERIFY(first.providerUrl != second.providerUrl);
+    QVERIFY(store->entry(entryId(first)).has_value());
+    QCOMPARE(store->size(), qsizetype(2));
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-a")), false, renderContext());
+    const kiriview::ImageDisplaySourceSlot third = controller.snapshot().displaySource();
+
+    QCOMPARE(third.providerUrl, first.providerUrl);
+    QCOMPARE(third.revision, quint64(3));
+    QCOMPARE(third.sourceIdentity, QStringLiteral("page-a"));
+    QVERIFY(third.loadAcknowledgmentRequired);
+    QCOMPARE(store->size(), qsizetype(2));
+}
+
+void TestImagePageSurfaceController::staticDisplayBufferKeepsOnlyCurrentAndPreviousPages()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-a")), false, renderContext());
+    const QString firstId = entryId(controller.snapshot().displaySource());
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-b")), false, renderContext());
+    const QString secondId = entryId(controller.snapshot().displaySource());
+
+    controller.setStaticDisplayImage(
+        displayPayload(QSize(8, 4), QStringLiteral("page-c")), false, renderContext());
+    const QString thirdId = entryId(controller.snapshot().displaySource());
+
+    QVERIFY(!store->entry(firstId).has_value());
+    QVERIFY(store->entry(secondId).has_value());
+    QVERIFY(store->entry(thirdId).has_value());
+    QCOMPARE(store->size(), qsizetype(2));
 }
 
 void TestImagePageSurfaceController::setImageWithoutProviderPublishesDisplayErrorSnapshot()

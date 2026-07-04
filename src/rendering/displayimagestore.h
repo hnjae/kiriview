@@ -8,6 +8,7 @@
 #include "rendering/imagerendercontext.h"
 
 #include <QImage>
+#include <QImageIOHandler>
 #include <QQuickImageProvider>
 #include <QSize>
 #include <QString>
@@ -28,7 +29,24 @@ enum class DisplayImagePinKind {
     StaleRetained,
     PendingLoad,
     FrameRetention,
+    BufferedDisplay,
 };
+
+struct DisplayImageReuseKey
+{
+    QString locationIdentity;
+    QString sourceIdentity;
+    QImageIOHandler::Transformations imageReaderTransformations
+        = QImageIOHandler::TransformationNone;
+    QSize originalSize;
+    QSize rasterSize;
+    DisplayImageQuality quality = DisplayImageQuality::Exact;
+    DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
+    DisplayedPageRole pageRole = DisplayedPageRole::Primary;
+};
+
+bool operator==(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right);
+bool operator!=(const DisplayImageReuseKey& left, const DisplayImageReuseKey& right);
 
 struct DisplayImageEntry
 {
@@ -58,6 +76,7 @@ struct DisplayImageStoreEntry
     quint64 generation = 0;
     QString debugLabel;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
+    std::optional<DisplayImageReuseKey> reuseKey;
 };
 
 class DisplayImageStore final
@@ -67,6 +86,7 @@ public:
     ~DisplayImageStore();
 
     QString insert(DisplayImageEntry entry);
+    QString acquireReusable(DisplayImageEntry entry, DisplayImageReuseKey reuseKey);
     std::optional<DisplayImageStoreEntry> entry(const QString& id) const;
     void updatePriority(const QString& id, DisplayImageRetentionPriority priority);
     bool acquirePinLease(const QString& id, DisplayImagePinKind kind);

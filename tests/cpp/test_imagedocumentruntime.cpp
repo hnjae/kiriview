@@ -1035,7 +1035,14 @@ void TestImageDocumentRuntime::sameScopeTargetDisplaySourceRetainsPreviousImageU
             imageDocumentPageCandidate(secondImageUrl),
         });
 
-    RuntimeHandle runtime = createRuntime(this, candidateProvider, dataLoader);
+    auto dataDecoder = [](const QByteArray&, const kiriview::ImageDecodeRequest& request) {
+        kiriview::StaticDisplayImagePayload payload = staticDisplayTestImagePayload(testImage(2));
+        payload.sourceIdentity = request.imageUrl().toString();
+        return kiriview::successfulDecodedImageResult(
+            kiriview::StaticDecodedImage { std::move(payload) });
+    };
+    RuntimeHandle runtime
+        = createRuntime(this, candidateProvider, dataLoader, std::move(dataDecoder));
     runtime->setViewportSize(QSizeF(400.0, 300.0));
     runtime->setSourceUrl(archiveUrl);
     finishLoad(dataLoader);

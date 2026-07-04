@@ -17,6 +17,8 @@
 
 namespace kiriview {
 namespace {
+    constexpr qsizetype staticDisplayBufferCapacity = 2;
+
     struct RasterDisplayRefinementWork
     {
         quint64 ticket = 0;
@@ -170,6 +172,7 @@ ImagePageSurfaceController::~ImagePageSurfaceController()
     releaseShadowDisplayEntry();
     releaseRetainedStillImageEntry();
     releaseRetainedAnimationFrameEntry();
+    releaseBufferedStaticDisplayEntries();
     releaseCurrentDisplayEntry();
 }
 
@@ -205,6 +208,7 @@ void ImagePageSurfaceController::setImage(const QImage& image, bool predecodeCac
     cancelRasterDisplayRefinement();
     clearShadowDisplayImage();
     clearDisplaySource();
+    releaseBufferedStaticDisplayEntries();
     m_animationFrameSourceIdentity.clear();
     if (!image.isNull()) {
         ++m_displaySourceRevision;
@@ -260,6 +264,7 @@ void ImagePageSurfaceController::clearImage()
     stopAnimation();
     clearShadowDisplayImage();
     clearDisplaySource();
+    releaseBufferedStaticDisplayEntries();
     m_animationFrameSourceIdentity.clear();
     m_imageSize = {};
     m_hasImage = false;
@@ -285,6 +290,22 @@ void ImagePageSurfaceController::acceptImageState(
     ++m_imageRevision;
 }
 
+DisplayImageReuseKey ImagePageSurfaceController::staticDisplayReuseKey(
+    const StaticDisplayImagePayload& displayImage) const
+{
+    const QSize rasterSize = displayImage.image.size();
+    return DisplayImageReuseKey {
+        displayImage.sourceIdentity,
+        displayImage.sourceIdentity,
+        displayImage.imageReaderTransform.transformations,
+        displayImage.originalSize,
+        rasterSize,
+        displayImage.quality,
+        displayImage.previewOrigin,
+        m_pageRole,
+    };
+}
+
 void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePayload& displayImage)
 {
     releaseRetainedAnimationFrameEntry();
@@ -294,20 +315,23 @@ void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePa
 
     ++m_displaySourceRevision;
     const QSize rasterSize = displayImage.image.size();
+    const DisplayImageReuseKey reuseKey = staticDisplayReuseKey(displayImage);
     const QString entryId = m_displayImageStore == nullptr
         ? QString()
-        : m_displayImageStore->insert(DisplayImageEntry {
-              displayImage.image,
-              displayImage.originalSize,
-              rasterSize,
-              displayImage.sourceIdentity,
-              m_pageRole,
-              displayImage.quality,
-              DisplayImageRetentionPriority::Nearby,
-              m_displaySourceRevision,
-              QStringLiteral("static-display"),
-              displayImage.previewOrigin,
-          });
+        : m_displayImageStore->acquireReusable(
+              DisplayImageEntry {
+                  displayImage.image,
+                  displayImage.originalSize,
+                  rasterSize,
+                  displayImage.sourceIdentity,
+                  m_pageRole,
+                  displayImage.quality,
+                  DisplayImageRetentionPriority::Nearby,
+                  m_displaySourceRevision,
+                  QStringLiteral("static-display"),
+                  displayImage.previewOrigin,
+              },
+              reuseKey);
     const QUrl providerUrl = displayImageSourceForId(entryId);
     const bool loadAcknowledgmentRequired = m_displayImageStore != nullptr && !entryId.isEmpty()
         && m_displayImageStore->acquirePinLease(entryId, DisplayImagePinKind::PendingLoad);
@@ -345,6 +369,8 @@ void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePa
         << "quality" << static_cast<int>(displayImage.quality) << "previewOrigin"
         << static_cast<int>(displayImage.previewOrigin) << "loadAcknowledgmentRequired"
         << loadAcknowledgmentRequired << "retainedReplacement" << retainedReplacement;
+    releaseBufferedStaticDisplayEntriesForSource(reuseKey);
+    retainBufferedStaticDisplayEntry(reuseKey, entryId);
 }
 
 void ImagePageSurfaceController::publishAnimationFrameDisplaySource(
@@ -474,6 +500,95 @@ void ImagePageSurfaceController::clearDisplaySource()
     clearAnimationFrameLoadContract();
     releaseCurrentDisplayEntry();
     m_displaySource = {};
+}
+
+void ImagePageSurfaceController::releaseBufferedStaticDisplayEntriesForSource(
+    const DisplayImageReuseKey& reuseKey)
+{
+    if (m_displayImageStore == nullptr) {
+        m_bufferedStaticDisplayEntries.clear();
+        return;
+    }
+
+    auto entry = m_bufferedStaticDisplayEntries.begin();
+    while (entry != m_bufferedStaticDisplayEntries.end()) {
+        const DisplayImageReuseKey& bufferedKey = entry->reuseKey;
+        if (bufferedKey.locationIdentity == reuseKey.locationIdentity
+            && bufferedKey.sourceIdentity == reuseKey.sourceIdentity
+            && bufferedKey.pageRole == reuseKey.pageRole && bufferedKey != reuseKey) {
+            m_displayImageStore->releasePinLease(
+                entry->entryId, DisplayImagePinKind::BufferedDisplay);
+            entry = m_bufferedStaticDisplayEntries.erase(entry);
+            continue;
+        }
+        ++entry;
+    }
+}
+
+void ImagePageSurfaceController::retainBufferedStaticDisplayEntry(
+    const DisplayImageReuseKey& reuseKey, const QString& entryId)
+{
+    if (m_displayImageStore == nullptr || entryId.isEmpty()) {
+        return;
+    }
+
+    auto existing = std::find_if(m_bufferedStaticDisplayEntries.begin(),
+        m_bufferedStaticDisplayEntries.end(), [&reuseKey](const BufferedStaticDisplayEntry& entry) {
+            return entry.reuseKey == reuseKey;
+        });
+    if (existing != m_bufferedStaticDisplayEntries.end()) {
+        BufferedStaticDisplayEntry retained = *existing;
+        m_bufferedStaticDisplayEntries.erase(existing);
+        if (retained.entryId != entryId) {
+            m_displayImageStore->releasePinLease(
+                retained.entryId, DisplayImagePinKind::BufferedDisplay);
+            retained.entryId = entryId;
+            if (!m_displayImageStore->acquirePinLease(
+                    retained.entryId, DisplayImagePinKind::BufferedDisplay)) {
+                trimBufferedStaticDisplayEntries();
+                return;
+            }
+        }
+        m_bufferedStaticDisplayEntries.push_back(std::move(retained));
+        trimBufferedStaticDisplayEntries();
+        return;
+    }
+
+    if (!m_displayImageStore->acquirePinLease(entryId, DisplayImagePinKind::BufferedDisplay)) {
+        return;
+    }
+
+    m_bufferedStaticDisplayEntries.push_back(BufferedStaticDisplayEntry {
+        reuseKey,
+        entryId,
+    });
+    trimBufferedStaticDisplayEntries();
+}
+
+void ImagePageSurfaceController::trimBufferedStaticDisplayEntries()
+{
+    if (m_displayImageStore == nullptr) {
+        m_bufferedStaticDisplayEntries.clear();
+        return;
+    }
+
+    while (static_cast<qsizetype>(m_bufferedStaticDisplayEntries.size())
+        > staticDisplayBufferCapacity) {
+        const QString entryId = m_bufferedStaticDisplayEntries.front().entryId;
+        m_displayImageStore->releasePinLease(entryId, DisplayImagePinKind::BufferedDisplay);
+        m_bufferedStaticDisplayEntries.erase(m_bufferedStaticDisplayEntries.begin());
+    }
+}
+
+void ImagePageSurfaceController::releaseBufferedStaticDisplayEntries()
+{
+    if (m_displayImageStore != nullptr) {
+        for (const BufferedStaticDisplayEntry& entry : m_bufferedStaticDisplayEntries) {
+            m_displayImageStore->releasePinLease(
+                entry.entryId, DisplayImagePinKind::BufferedDisplay);
+        }
+    }
+    m_bufferedStaticDisplayEntries.clear();
 }
 
 void ImagePageSurfaceController::cancelRasterDisplayRefinement()
