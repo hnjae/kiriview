@@ -855,12 +855,12 @@ Item-private owns controller responsibilities; secondary command invariants are 
 
 #### Tasks
 
-- [ ] Add controller APIs that accept `ImageViewport::PageRole` for play, pause, stop, seek, and seek-to-position.
-- [ ] Move role presence, intrinsic target validation, capability checks, failure-scope checks, and provider/built-in dispatch into those controller APIs.
-- [ ] Make item role-command methods perform only public value normalization, controller call, transport effect application, change application, and timer sync.
-- [ ] Add `RoleSource` or equivalent role-facts inputs for page-set assignment: construction facts, capabilities, authored facts, provider session factory, and narrow payload access.
-- [ ] Move secondary initial target derivation and provider/built-in classification from `ImageViewportPrivate::setPageSet` into controller-owned assignment logic.
-- [ ] Add explicit admission tests for absent secondary role, malformed role, negative target, out-of-range target, unsupported capability, generation-terminal failure, display-request-terminal failure, and accepted valid target.
+- [x] Add controller APIs that accept `ImageViewport::PageRole` for play, pause, stop, seek, and seek-to-position.
+- [x] Move role presence, intrinsic target validation, capability checks, failure-scope checks, and provider/built-in dispatch into those controller APIs.
+- [x] Make item role-command methods perform only public value normalization, controller call, transport effect application, change application, and timer sync.
+- [x] Add `RoleSource` or equivalent role-facts inputs for page-set assignment: construction facts, capabilities, authored facts, provider session factory, and narrow payload access.
+- [x] Move secondary initial target derivation and provider/built-in classification from `ImageViewportPrivate::setPageSet` into controller-owned assignment logic.
+- [x] Add explicit admission tests for absent secondary role, malformed role, negative target, out-of-range target, unsupported capability, generation-terminal failure, display-request-terminal failure, and accepted valid target.
 
 #### Acceptance criteria
 
@@ -877,6 +877,20 @@ Item-private owns controller responsibilities; secondary command invariants are 
 #### Risks / notes
 
 - Some item-side sequence reads may remain for boundary conversion or transport lookup. Keep an explicit allowlist in commit notes until later role-source migration removes them.
+
+#### Execution record
+
+Authoritative-doc check: `docs/spec/image-viewport.md`, `docs/spec/image-viewport-api.md`, `docs/architecture/subsystem-boundaries.md`, `docs/architecture/provider-protocol.md`, and `docs/architecture/playback-state-machine.md` were re-read for this milestone. No durable spec or architecture update was needed: the existing docs already state controller-owned role command admission and controller-owned initial target selection.
+
+Added role-aware controller commands for play, pause, stop, seek, and seek-to-position. The wrappers reject malformed roles first, reject absent secondary roles before command effects, route secondary provider commands through role-local transport, and perform secondary built-in bounds, timing capability, and position mapping checks in the controller. `ImageViewportPrivate` role-command methods now only validate malformed public enum values without flushing playback time, forward to the controller, apply primary and secondary transport effects, apply change sets, and resync the playback timer.
+
+Added `ViewportSequenceRoleSource` for the migrated page-set assignment path. The secondary role source carries role presence, provider classification, built-in timing facts, authored animation facts, and assignment-time initial target facts into the controller; the controller stores the resolved secondary source and uses it for secondary built-in command admission. Provider session creation and frame payload access still use the existing sequence owner/transport boundary and context callbacks; those are allowed by this milestone and remain explicit follow-up work for the provider-event and role-indexing milestones.
+
+Moved secondary initial target derivation and provider/built-in classification out of `ImageViewportPrivate::setPageSet` and into `ViewportController::assignSequence`. Direct tests that omit a full role source still fall back to the controller test context so older focused controller fixtures remain valid.
+
+Coverage added in `ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data` and `roleCommandAdmissionOrder` for malformed role, absent secondary role, negative target, out-of-range target, unsupported capability, generation-terminal failure, display-request-terminal failure, and accepted valid secondary target. Existing public tests retained for the item boundary include `ImageViewportPublicApiTest::roleCommandsWithInvalidRolePublishCommandDiagnostics`, `secondaryRoleCommandsWithoutSecondaryPublishNoRequestDiagnostics`, `ImageViewportProviderRequestsTest::secondaryProviderInvalidAndUnsupportedSeekCommandsPreserveRequest`, and secondary provider request tests for accepted role-target dispatch before and after metadata readiness.
+
+Structural inspection: `rg -n "isProvider\\(|isTimedList\\(|frameCount\\(|totalDuration\\(|providerKnownFacts" src/imageviewportcontroller.cpp src/imageviewport.cpp` still reports item-side boundary getters and page-set role-source projection in `src/imageviewport.cpp`, plus existing primary provider fact callbacks in `src/imageviewportcontroller.cpp`. No role-command method contains sequence-type, capability, or target-bound admission logic after this milestone.
 
 ### Milestone 10: Collapse Provider Events Into Controller Event Boundaries
 

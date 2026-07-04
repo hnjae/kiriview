@@ -7,15 +7,62 @@
 
 namespace {
 
+class StubProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    using ImageSequenceProviderSession::ImageSequenceProviderSession;
+
+    void requestMetadata(ImageSequenceProviderRequestToken) override { }
+};
+
+class StubProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new StubProviderSession(parent);
+    }
+};
+
+class StubProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return std::make_shared<StubProviderSessionFactory>();
+    }
+};
+
+enum class RoleCommandAdmissionCase {
+    MalformedRole,
+    AbsentSecondaryRole,
+    NegativeTarget,
+    OutOfRangeTarget,
+    UnsupportedCapability,
+    GenerationTerminalFailure,
+    DisplayRequestTerminalFailure,
+    AcceptedValidTarget,
+};
+
+enum class RoleCommandKind {
+    Play,
+    SeekFrame,
+    SeekPosition,
+};
+
 class PlaybackControllerContext final : public ViewportControllerContext
 {
 public:
     ImageSequence* sequence = nullptr;
+    ImageSequence* secondarySequence = nullptr;
+    bool providerSequence = false;
     bool timed = true;
     QSizeF size { 100.0, 100.0 };
     QSizeF logicalSize { 16.0, 8.0 };
     QVector<int> durations { 100, 250 };
+    QVector<int> secondaryDurations { 100, 250 };
     QVector<QImage> images;
+    QVector<QImage> secondaryImages;
 
     QRectF contentRect() const override
     {
@@ -37,6 +84,7 @@ public:
 
     bool hasActiveRequest() const override { return sequence != nullptr; }
     bool hasDisplayableSequence() const override { return sequence != nullptr; }
+    bool hasProviderSequence() const override { return sequence != nullptr && providerSequence; }
     bool hasTimedSequence() const override { return sequence != nullptr && timed; }
     int frameCount() const override { return durations.size(); }
     int totalDuration() const override { return sequenceTotalDuration(); }
@@ -44,33 +92,32 @@ public:
     QSizeF sequenceLogicalSize() const override { return logicalSize; }
     double width() const override { return size.width(); }
     double height() const override { return size.height(); }
+    bool hasSecondaryTimedSequence() const override { return secondarySequence != nullptr; }
+    int secondarySequenceFrameCount() const override { return secondaryDurations.size(); }
+    int secondarySequenceTotalDuration() const override
+    {
+        return totalDurationFor(secondaryDurations);
+    }
+    QSizeF secondarySequenceLogicalSize() const override { return logicalSize; }
 
     int sequenceFrameStartPosition(int frame) const override
     {
-        if (frame < 0 || frame >= durations.size()) {
-            return -1;
-        }
-        int position = 0;
-        for (int index = 0; index < frame; ++index) {
-            position += durations.at(index);
-        }
-        return position;
+        return frameStartPositionFor(durations, frame);
     }
 
     int sequenceFrameIndexForPosition(int position) const override
     {
-        if (position < 0) {
-            return -1;
-        }
-        int start = 0;
-        for (int index = 0; index < durations.size(); ++index) {
-            const int end = start + durations.at(index);
-            if (position >= start && position < end) {
-                return index;
-            }
-            start = end;
-        }
-        return -1;
+        return frameIndexForPositionIn(durations, position);
+    }
+
+    int secondarySequenceFrameStartPosition(int frame) const override
+    {
+        return frameStartPositionFor(secondaryDurations, frame);
+    }
+
+    int secondarySequenceFrameIndexForPosition(int position) const override
+    {
+        return frameIndexForPositionIn(secondaryDurations, position);
     }
 
     QImage sequenceFrameImage(int frame) const override
@@ -78,19 +125,60 @@ public:
         return frame >= 0 && frame < images.size() ? images.at(frame) : QImage();
     }
 
+    QImage secondarySequenceFrameImage(int frame) const override
+    {
+        return frame >= 0 && frame < secondaryImages.size() ? secondaryImages.at(frame)
+                                                            : QImage();
+    }
+
 private:
-    int sequenceTotalDuration() const override
+    static int totalDurationFor(const QVector<int>& frameDurations)
     {
         int total = 0;
-        for (int duration : durations) {
+        for (int duration : frameDurations) {
             total += duration;
         }
         return total;
     }
+
+    static int frameStartPositionFor(const QVector<int>& frameDurations, int frame)
+    {
+        if (frame < 0 || frame >= frameDurations.size()) {
+            return -1;
+        }
+        int position = 0;
+        for (int index = 0; index < frame; ++index) {
+            position += frameDurations.at(index);
+        }
+        return position;
+    }
+
+    static int frameIndexForPositionIn(const QVector<int>& frameDurations, int position)
+    {
+        if (position < 0) {
+            return -1;
+        }
+        int start = 0;
+        for (int index = 0; index < frameDurations.size(); ++index) {
+            const int end = start + frameDurations.at(index);
+            if (position >= start && position < end) {
+                return index;
+            }
+            start = end;
+        }
+        return position == start && !frameDurations.isEmpty() ? frameDurations.size() - 1 : -1;
+    }
+
+    int sequenceTotalDuration() const override
+    {
+        return totalDurationFor(durations);
+    }
 };
 
-std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
-    ImageSequenceFactory& factory, PlaybackControllerContext& context)
+std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequenceFor(
+    ImageSequenceFactory& factory,
+    QVector<QImage>& retainedImages,
+    const QVector<int>& durations)
 {
     QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     firstImage.fill(Qt::transparent);
@@ -99,16 +187,50 @@ std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
     ImageFrame firstFrame(firstImage);
     ImageFrame secondFrame(secondImage);
     TimedImageFrameList list;
-    if (!list.appendFrame(&firstFrame, context.durations.at(0))
-        || !list.appendFrame(&secondFrame, context.durations.at(1))) {
+    if (!list.appendFrame(&firstFrame, durations.at(0))
+        || !list.appendFrame(&secondFrame, durations.at(1))) {
         return {};
     }
-    context.images = { firstImage, secondImage };
+    retainedImages = { firstImage, secondImage };
     auto result = std::unique_ptr<ImageSequenceFactoryResult>(factory.fromTimedFrameList(&list));
     if (!result || !result->sequence()) {
         return {};
     }
+    return result;
+}
+
+std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
+    ImageSequenceFactory& factory, PlaybackControllerContext& context)
+{
+    auto result = makeTimedSequenceFor(factory, context.images, context.durations);
+    if (!result || !result->sequence()) {
+        return {};
+    }
     context.sequence = result->sequence();
+    return result;
+}
+
+std::unique_ptr<ImageSequenceFactoryResult> makeSecondaryTimedSequence(
+    ImageSequenceFactory& factory, PlaybackControllerContext& context)
+{
+    auto result = makeTimedSequenceFor(factory, context.secondaryImages, context.secondaryDurations);
+    if (!result || !result->sequence()) {
+        return {};
+    }
+    context.secondarySequence = result->sequence();
+    return result;
+}
+
+std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
+    ImageSequenceFactory& factory, PlaybackControllerContext& context)
+{
+    StubProviderAdapter adapter;
+    auto result = std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
+    if (!result || !result->sequence()) {
+        return {};
+    }
+    context.sequence = result->sequence();
+    context.providerSequence = true;
     return result;
 }
 
@@ -137,6 +259,34 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
         { primaryPayload, rolePayloads }, true, synchronization);
 }
 
+void failPendingRenderCommit(ViewportController& controller)
+{
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    QVERIFY(synchronization.pendingTargetCommit);
+    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
+        = controller.displayState().pendingRenderPayload.identity().isValid()
+        ? controller.displayState().pendingRenderPayload.identity()
+        : synchronization.preparedPayload.identity();
+    QVERIFY(primaryPayload.isValid());
+    controller.acknowledgeRenderFailure(
+        { primaryPayload, {}, ImageViewport::PageRole::Primary,
+            RenderFailureCause::TextureCreationFailure });
+}
+
+ViewportCommandResult invokeRoleCommand(ViewportController& controller, RoleCommandKind kind,
+    ImageViewport::PageRole role, int value)
+{
+    switch (kind) {
+    case RoleCommandKind::Play:
+        return controller.play(role);
+    case RoleCommandKind::SeekFrame:
+        return controller.seek(role, value);
+    case RoleCommandKind::SeekPosition:
+        return controller.seekToPosition(role, value);
+    }
+    return {};
+}
+
 } // namespace
 
 class ViewportControllerPlaybackTest : public QObject
@@ -150,6 +300,8 @@ public:
     }
 
 private slots:
+    void roleCommandAdmissionOrder_data();
+    void roleCommandAdmissionOrder();
     void builtInPlaybackAdvanceUsesExplicitElapsedWithoutTimer();
     void pauseWhileRenderWaitingCommitsWithoutResumingPlayback();
     void explicitSeekWhilePlayingWaitsForRenderCommit();
@@ -157,6 +309,124 @@ private slots:
     void unsupportedPlayForUntimedSequencePreservesStoppedPhase();
     void invalidSeekWhilePlayingPreservesPlaybackPhase();
 };
+
+void ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data()
+{
+    QTest::addColumn<int>("admissionCase");
+    QTest::addColumn<int>("commandKind");
+    QTest::addColumn<int>("role");
+    QTest::addColumn<int>("value");
+    QTest::addColumn<int>("expectedOutcome");
+    QTest::addColumn<int>("expectedCommandReason");
+
+    const auto addRow = [](const char* name, RoleCommandAdmissionCase admissionCase,
+                            RoleCommandKind commandKind, ImageViewport::PageRole role, int value,
+                            ImageViewport::CommandOutcome expectedOutcome,
+                            ImageViewport::CommandReason expectedCommandReason) {
+        QTest::newRow(name) << static_cast<int>(admissionCase) << static_cast<int>(commandKind)
+                            << static_cast<int>(role) << value << static_cast<int>(expectedOutcome)
+                            << static_cast<int>(expectedCommandReason);
+    };
+
+    addRow("malformed-role-before-no-request", RoleCommandAdmissionCase::MalformedRole,
+        RoleCommandKind::SeekFrame, static_cast<ImageViewport::PageRole>(99), 0,
+        ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
+    addRow("absent-secondary-role", RoleCommandAdmissionCase::AbsentSecondaryRole,
+        RoleCommandKind::SeekFrame, ImageViewport::PageRole::Secondary, 0,
+        ImageViewport::CommandOutcome::IgnoredNoRequest,
+        ImageViewport::CommandReason::IgnoredNoRequest);
+    addRow("negative-target-before-failure-scope", RoleCommandAdmissionCase::NegativeTarget,
+        RoleCommandKind::SeekFrame, ImageViewport::PageRole::Primary, -1,
+        ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
+    addRow("known-out-of-range-before-failure-scope",
+        RoleCommandAdmissionCase::OutOfRangeTarget, RoleCommandKind::SeekFrame,
+        ImageViewport::PageRole::Primary, 2, ImageViewport::CommandOutcome::Invalid,
+        ImageViewport::CommandReason::InvalidRequest);
+    addRow("unsupported-capability-after-valid-input",
+        RoleCommandAdmissionCase::UnsupportedCapability, RoleCommandKind::SeekPosition,
+        ImageViewport::PageRole::Primary, 0, ImageViewport::CommandOutcome::Unsupported,
+        ImageViewport::CommandReason::UnsupportedRequest);
+    addRow("generation-terminal-after-valid-input",
+        RoleCommandAdmissionCase::GenerationTerminalFailure, RoleCommandKind::SeekFrame,
+        ImageViewport::PageRole::Primary, 0, ImageViewport::CommandOutcome::Unsupported,
+        ImageViewport::CommandReason::UnsupportedRequest);
+    addRow("display-request-terminal-allows-valid-seek",
+        RoleCommandAdmissionCase::DisplayRequestTerminalFailure, RoleCommandKind::SeekFrame,
+        ImageViewport::PageRole::Primary, 0, ImageViewport::CommandOutcome::Accepted,
+        ImageViewport::CommandReason::NoCommand);
+    addRow("accepted-secondary-valid-target", RoleCommandAdmissionCase::AcceptedValidTarget,
+        RoleCommandKind::SeekFrame, ImageViewport::PageRole::Secondary, 1,
+        ImageViewport::CommandOutcome::Accepted, ImageViewport::CommandReason::NoCommand);
+}
+
+void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
+{
+    QFETCH(int, admissionCase);
+    QFETCH(int, commandKind);
+    QFETCH(int, role);
+    QFETCH(int, value);
+    QFETCH(int, expectedOutcome);
+    QFETCH(int, expectedCommandReason);
+
+    ImageSequenceFactory factory;
+    PlaybackControllerContext context;
+    ViewportController controller(context);
+    std::unique_ptr<ImageSequenceFactoryResult> primarySequence;
+    std::unique_ptr<ImageSequenceFactoryResult> secondarySequence;
+
+    switch (static_cast<RoleCommandAdmissionCase>(admissionCase)) {
+    case RoleCommandAdmissionCase::MalformedRole:
+        break;
+    case RoleCommandAdmissionCase::UnsupportedCapability:
+        context.timed = false;
+        primarySequence = makeTimedSequence(factory, context);
+        QVERIFY(primarySequence);
+        controller.assignSequence({ primarySequence->sequence() });
+        break;
+    case RoleCommandAdmissionCase::GenerationTerminalFailure:
+        primarySequence = makeProviderSequence(factory, context);
+        QVERIFY(primarySequence);
+        controller.assignSequence({ primarySequence->sequence() });
+        controller.handleProviderSessionOpenFailure(QStringLiteral("session failed"));
+        QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
+        break;
+    case RoleCommandAdmissionCase::DisplayRequestTerminalFailure:
+        primarySequence = makeTimedSequence(factory, context);
+        QVERIFY(primarySequence);
+        controller.assignSequence({ primarySequence->sequence() });
+        failPendingRenderCommit(controller);
+        QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
+        break;
+    case RoleCommandAdmissionCase::AcceptedValidTarget: {
+        primarySequence = makeTimedSequence(factory, context);
+        secondarySequence = makeSecondaryTimedSequence(factory, context);
+        QVERIFY(primarySequence);
+        QVERIFY(secondarySequence);
+        ViewportSequenceAssignment assignment;
+        assignment.sequence = primarySequence->sequence();
+        assignment.secondarySequence = secondarySequence->sequence();
+        controller.assignSequence(assignment);
+        QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, 0);
+        QCOMPARE(controller.requestState().secondaryActiveRequest.target.position, 0);
+        break;
+    }
+    case RoleCommandAdmissionCase::AbsentSecondaryRole:
+    case RoleCommandAdmissionCase::NegativeTarget:
+    case RoleCommandAdmissionCase::OutOfRangeTarget:
+        primarySequence = makeTimedSequence(factory, context);
+        QVERIFY(primarySequence);
+        controller.assignSequence({ primarySequence->sequence() });
+        break;
+    }
+
+    const ViewportCommandResult result
+        = invokeRoleCommand(controller, static_cast<RoleCommandKind>(commandKind),
+            static_cast<ImageViewport::PageRole>(role), value);
+    QCOMPARE(result.outcome, static_cast<ImageViewport::CommandOutcome>(expectedOutcome));
+    QCOMPARE(
+        controller.requestState().commandReason,
+        static_cast<ImageViewport::CommandReason>(expectedCommandReason));
+}
 
 void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWithoutTimer()
 {

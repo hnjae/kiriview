@@ -84,9 +84,9 @@ ViewportSequenceAssignment replacementSpreadAssignment(
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary;
     assignment.secondarySequence = secondary;
-    assignment.secondaryInitialTarget
-        = { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
-    assignment.secondaryInitialResolvedFrame = { 0, -1 };
+    assignment.secondarySource.present = secondary != nullptr;
+    assignment.secondarySource.frameCount = secondary ? 1 : -1;
+    assignment.secondarySource.firstFramePosition = -1;
     assignment.transitionPolicy = policy;
     return assignment;
 }
@@ -377,9 +377,9 @@ void ViewportControllerPresentationTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
     assignment.secondarySequence = secondary->sequence();
-    assignment.secondaryInitialTarget
-        = { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
-    assignment.secondaryInitialResolvedFrame = { 0, -1 };
+    assignment.secondarySource.present = true;
+    assignment.secondarySource.frameCount = 1;
+    assignment.secondarySource.firstFramePosition = -1;
     QCOMPARE(controller.assignSequence(assignment).outcome, ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.setPageGap(4.0).outcome, ImageViewport::CommandOutcome::Accepted);

@@ -266,40 +266,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play()
 ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        const ViewportCommandResult result = controller.play(role);
         applyControllerChanges(result.changes);
         return result.outcome;
     }
-    if (role == PageRole::Secondary) {
-        ImageSequence* sequence = secondarySequence();
-        if (!sequence || !sequence->isValid()) {
-            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && !sequence->isTimedList()) {
-            const ViewportCommandResult result = controller.rejectUnsupportedCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && sequence->isTimedList()) {
-            flushPlaybackTimerElapsed();
-            const ViewportCommandResult result = controller.playSecondaryBuiltIn();
-            applyControllerChanges(result.changes);
-            syncPlaybackTimer();
-            return result.outcome;
-        }
-        if (sequence->isProvider()) {
-            flushPlaybackTimerElapsed();
-            const ViewportCommandResult result = controller.playSecondaryProvider();
-            applyControllerChanges(result.changes);
-            syncPlaybackTimer();
-            return result.outcome;
-        }
-        return CommandOutcome::IgnoredNoRequest;
-    }
 
-    return play();
+    flushPlaybackTimerElapsed();
+    const ViewportCommandResult result = controller.play(role);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    syncPlaybackTimer();
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::pause()
@@ -315,25 +293,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        const ViewportCommandResult result = controller.pause(role);
         applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-    if (role == PageRole::Secondary) {
-        ImageSequence* sequence = secondarySequence();
-        if (!sequence || !sequence->isValid()) {
-            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        flushPlaybackTimerElapsed();
-        const ViewportCommandResult result = controller.pause(PageRole::Secondary);
-        applyControllerChanges(result.changes);
-        syncPlaybackTimer();
         return result.outcome;
     }
 
-    return pause();
+    flushPlaybackTimerElapsed();
+    const ViewportCommandResult result = controller.pause(role);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    syncPlaybackTimer();
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop()
@@ -349,26 +320,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        const ViewportCommandResult result = controller.stop(role);
         applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-    if (role == PageRole::Secondary) {
-        ImageSequence* sequence = secondarySequence();
-        if (!sequence || !sequence->isValid()) {
-            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        flushPlaybackTimerElapsed();
-        const ViewportCommandResult result = controller.stop(PageRole::Secondary);
-        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
-        applyControllerChanges(result.changes);
-        syncPlaybackTimer();
         return result.outcome;
     }
 
-    return stop();
+    flushPlaybackTimerElapsed();
+    const ViewportCommandResult result = controller.stop(role);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    syncPlaybackTimer();
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
@@ -384,44 +347,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        const ViewportCommandResult result = controller.seek(role, frame);
         applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-    if (role == PageRole::Secondary) {
-        ImageSequence* sequence = secondarySequence();
-        if (!sequence || !sequence->isValid()) {
-            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (frame < 0) {
-            const ViewportCommandResult result = controller.rejectInvalidCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && frame >= sequence->frameCount()) {
-            const ViewportCommandResult result = controller.rejectInvalidCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider()) {
-            const int position = sequence->isTimedList() ? sequence->frameStartPosition(frame) : -1;
-            const ViewportCommandResult result = controller.seekSecondaryBuiltIn(
-                { frame, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown },
-                { frame, position });
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        flushPlaybackTimerElapsed();
-        const ViewportCommandResult result = controller.seekSecondaryProvider(frame);
-        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
-        applyControllerChanges(result.changes);
-        syncPlaybackTimer();
         return result.outcome;
     }
 
-    return seek(frame);
+    flushPlaybackTimerElapsed();
+    const ViewportCommandResult result = controller.seek(role, frame);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    syncPlaybackTimer();
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
@@ -437,52 +374,18 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
         applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-    if (role == PageRole::Secondary) {
-        ImageSequence* sequence = secondarySequence();
-        if (!sequence || !sequence->isValid()) {
-            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (milliseconds < 0) {
-            const ViewportCommandResult result = controller.rejectInvalidCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && !sequence->isTimedList()) {
-            const ViewportCommandResult result = controller.rejectUnsupportedCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && sequence->isTimedList()
-            && milliseconds > sequence->totalDuration()) {
-            const ViewportCommandResult result = controller.rejectInvalidCommand();
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        if (!sequence->isProvider() && sequence->isTimedList()) {
-            const int frame = sequence->frameIndexForPosition(milliseconds);
-            const int position = sequence->frameStartPosition(frame);
-            const ViewportCommandResult result = controller.seekSecondaryBuiltIn(
-                { frame, milliseconds, ImageViewportInternal::ProviderRequestTargetKind::Unknown },
-                { frame, position });
-            applyControllerChanges(result.changes);
-            return result.outcome;
-        }
-        flushPlaybackTimerElapsed();
-        const ViewportCommandResult result
-            = controller.seekSecondaryProviderToPosition(milliseconds);
-        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
-        applyControllerChanges(result.changes);
-        syncPlaybackTimer();
         return result.outcome;
     }
 
-    return seekToPosition(milliseconds);
+    flushPlaybackTimerElapsed();
+    const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
+    applyProviderFrameTransportEffect(result.providerFrameTransport);
+    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    applyControllerChanges(result.changes);
+    syncPlaybackTimer();
+    return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()

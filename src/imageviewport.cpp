@@ -579,32 +579,39 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
 {
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
-    ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
-    ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
-    if (secondarySequence && secondarySequence->isValid() && !secondarySequence->isProvider()) {
-        const int position
-            = secondarySequence->isTimedList() ? secondarySequence->frameStartPosition(0) : -1;
-        secondaryInitialTarget
-            = { 0, position, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
-        secondaryInitialResolvedFrame = { 0, position };
-    }
+    const auto roleSourceForSequence = [](ImageSequence* sequence) {
+        ViewportSequenceRoleSource source;
+        if (!sequence || !sequence->isValid()) {
+            return source;
+        }
+
+        source.present = true;
+        source.provider = sequence->isProvider();
+        source.timed = sequence->isTimedList();
+        source.authoredAnimationFacts = sequence->m_authoredAnimationFacts;
+        if (!source.provider) {
+            source.frameCount = sequence->frameCount();
+            source.firstFramePosition = source.timed ? sequence->frameStartPosition(0) : -1;
+            source.timingIntervals
+                = source.timed && sequence->m_timingIntervals ? *sequence->m_timingIntervals
+                                                              : TimingIntervals {};
+        }
+        return source;
+    };
+    ViewportSequenceRoleSource secondarySource = roleSourceForSequence(secondarySequence);
     if (!primarySequence) {
         secondarySequence = nullptr;
         secondaryOwner.reset();
-        secondaryInitialTarget = {};
-        secondaryInitialResolvedFrame = {};
+        secondarySource = {};
     }
     ViewportSequenceAssignment assignment;
     assignment.sequence = primarySequence;
     assignment.sequenceOwner = std::move(primaryOwner);
     assignment.secondarySequence = secondarySequence;
     assignment.secondarySequenceOwner = std::move(secondaryOwner);
-    assignment.secondaryInitialTarget = secondaryInitialTarget;
-    assignment.secondaryInitialResolvedFrame = secondaryInitialResolvedFrame;
+    assignment.secondarySource = secondarySource;
     assignment.retainPreviousDisplay
         = policy.displayTransition() == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    assignment.secondaryIsProvider = primarySequence && secondarySequence
-        && secondarySequence->isProvider();
     assignment.transitionPolicy = policy;
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     if (result.outcome != CommandOutcome::Accepted) {

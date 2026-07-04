@@ -704,7 +704,8 @@ void ViewportControllerProviderTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
     assignment.secondarySequence = secondary->sequence();
-    assignment.secondaryIsProvider = true;
+    assignment.secondarySource.present = true;
+    assignment.secondarySource.provider = true;
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
     QCOMPARE(assigned.openSecondaryProviderSession, true);
 
@@ -741,7 +742,8 @@ void ViewportControllerProviderTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
     assignment.secondarySequence = secondary->sequence();
-    assignment.secondaryIsProvider = true;
+    assignment.secondarySource.present = true;
+    assignment.secondarySource.provider = true;
     controller.assignSequence(assignment);
 
     StubProviderSession session;

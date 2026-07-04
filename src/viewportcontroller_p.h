@@ -330,16 +330,25 @@ struct ViewportPlaybackAdvanceResult
     ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
 };
 
+struct ViewportSequenceRoleSource
+{
+    bool present = false;
+    bool provider = false;
+    bool timed = false;
+    int frameCount = -1;
+    int firstFramePosition = -1;
+    TimingIntervals timingIntervals;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+};
+
 struct ViewportSequenceAssignment
 {
     ImageSequence* sequence = nullptr;
     std::shared_ptr<ImageSequence> sequenceOwner;
     ImageSequence* secondarySequence = nullptr;
     std::shared_ptr<ImageSequence> secondarySequenceOwner;
-    ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;
-    ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame;
+    ViewportSequenceRoleSource secondarySource;
     bool retainPreviousDisplay = true;
-    bool secondaryIsProvider = false;
     PageSetTransitionPolicy transitionPolicy;
 };
 
@@ -360,6 +369,7 @@ struct ViewportControllerState
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
     ImageViewportInternal::ProviderGenerationState secondaryProvider;
+    ViewportSequenceRoleSource secondarySource;
 };
 
 class ViewportControllerContext
@@ -556,6 +566,7 @@ public:
     ViewportCommandResult acceptNoopCommand();
     ViewportCommandResult clear();
     ViewportCommandResult play();
+    ViewportCommandResult play(ImageViewport::PageRole role);
     ViewportCommandResult playSecondaryBuiltIn();
     ViewportCommandResult playSecondaryProvider();
     ViewportCommandResult pause();
@@ -563,7 +574,9 @@ public:
     ViewportCommandResult stop();
     ViewportCommandResult stop(ImageViewport::PageRole role);
     ViewportCommandResult seek(int frame);
+    ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
+    ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
     ViewportCommandResult seekSecondaryProvider(int frame);
