@@ -580,6 +580,8 @@ F9.
 
 ### Milestone 8: Introduce a Sequence-Source Handle
 
+Status: Complete. Verified against the sequence boundary, provider-backed lifetime, and provider protocol docs before execution. Added an internal `ImageSequenceSource` snapshot that carries the raw sequence handle, factory-held strong owner, built-in timing facts, authored animation facts, provider construction facts, provider session factory, and provider threading contract. Item assignment now constructs sequence-source handles through `factorySequenceSource(...)` and projects the existing transitional assignment fields from those handles without changing public APIs. Existing provider adapter destruction and factory-result destruction tests confirm provider-backed lifetime; a new factory test covers explicit source-handle facts. The process-global owner registry remains as the transitional factory lookup until Milestone 9 routes accepted role facts and ownership entirely through sequence source.
+
 #### Objective
 
 Introduce the internal sequence-source ownership type without trying to retire every old assignment path in one step.
@@ -614,11 +616,11 @@ F8.
 
 #### Tasks
 
-- [ ] Add or confirm tests proving provider-backed sequences survive adapter QObject destruction after successful construction.
-- [ ] Add controller-level tests that can provide explicit sequence-source fixtures without requiring the full item context, if current seams permit.
-- [ ] Introduce an internal sequence-source type that carries the strong owner plus immutable/provider construction facts needed by assignment.
-- [ ] Adapt factory result creation and item assignment to construct the sequence-source handle without changing public API.
-- [ ] Keep old owner lookup in place only as a transitional fallback, and mark every remaining call site for removal in Milestone 9.
+- [x] Add or confirm tests proving provider-backed sequences survive adapter QObject destruction after successful construction.
+- [x] Add controller-level tests that can provide explicit sequence-source fixtures without requiring the full item context, if current seams permit. A factory-level private source fixture was added instead because controller assignment still accepts transitional raw fields until Milestone 9.
+- [x] Introduce an internal sequence-source type that carries the strong owner plus immutable/provider construction facts needed by assignment.
+- [x] Adapt factory result creation and item assignment to construct the sequence-source handle without changing public API.
+- [x] Keep old owner lookup in place only as a transitional fallback, and mark every remaining call site for removal in Milestone 9.
 
 #### Acceptance criteria
 

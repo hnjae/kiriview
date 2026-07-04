@@ -1,4 +1,5 @@
 #include "framepreparation_p.h"
+#include "imagesequenceownership_p.h"
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 #include "timingintervals_p.h"
@@ -26,6 +27,7 @@ private slots:
     void exposesImageSequenceLimits();
     void exposesImageViewportDisplayLimits();
     void factoryResultSequenceSurvivesFactoryDestruction();
+    void factorySequenceSourceCarriesOwnerAndConstructionFacts();
     void assignedFactorySequenceSurvivesResultDestruction();
     void assignedProviderSequenceSurvivesResultDestruction();
     void sharedFactorySequenceSurvivesFirstViewportDestruction();
@@ -489,6 +491,68 @@ void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+}
+
+void ImageSequenceFactoryTest::factorySequenceSourceCarriesOwnerAndConstructionFacts()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame firstFrame(image);
+    ImageFrame secondFrame(image);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> timedResult(factory.fromTimedFrameList(&list));
+    QVERIFY(timedResult->sequence());
+
+    const ImageViewportInternal::ImageSequenceSource timedSource
+        = ImageViewportInternal::factorySequenceSource(timedResult->sequence());
+    QCOMPARE(timedSource.sequence, timedResult->sequence());
+    QVERIFY(timedSource.owner);
+    QCOMPARE(timedSource.facts.present, true);
+    QCOMPARE(timedSource.facts.provider, false);
+    QCOMPARE(timedSource.facts.timed, true);
+    QCOMPARE(timedSource.facts.frameCount, 2);
+    QCOMPARE(timedSource.facts.totalDuration, 350);
+    QCOMPARE(timedSource.facts.firstFramePosition, 0);
+    QCOMPARE(timedSource.facts.timingIntervals.frameStartPosition(1), 100);
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    const ImageSequenceProviderKnownFacts knownFacts
+        = ImageSequenceProviderKnownFacts::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+    CountingProviderAdapter adapter(sessionFactory, knownFacts,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
+        ImageSequenceProviderThreadingContract::ThreadSafe);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
+    QVERIFY(providerResult->sequence());
+
+    const ImageViewportInternal::ImageSequenceSource providerSource
+        = ImageViewportInternal::factorySequenceSource(providerResult->sequence());
+    QCOMPARE(providerSource.sequence, providerResult->sequence());
+    QVERIFY(providerSource.owner);
+    QCOMPARE(providerSource.providerSessionFactory, sessionFactory);
+    QCOMPARE(providerSource.facts.present, true);
+    QCOMPARE(providerSource.facts.provider, true);
+    QCOMPARE(providerSource.facts.hasCompleteProviderKnownMetadata, true);
+    QCOMPARE(providerSource.facts.providerKnownFacts.isTimedFrameList(), true);
+    QCOMPARE(providerSource.facts.providerKnownFacts.frameDurations(), QVector<int>({ 100, 250 }));
+    QCOMPARE(providerSource.facts.providerTimedPlaybackCapability,
+        ImageSequenceProviderCapabilitySupport::DeclaredTrue);
+    QCOMPARE(providerSource.facts.providerFrameSeekCapability,
+        ImageSequenceProviderCapabilitySupport::DeclaredTrue);
+    QCOMPARE(providerSource.facts.providerPositionSeekCapability,
+        ImageSequenceProviderCapabilitySupport::DeclaredTrue);
+    QCOMPARE(providerSource.facts.providerThreadingContract,
+        ImageSequenceProviderThreadingContract::ThreadSafe);
 }
 
 void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction()
