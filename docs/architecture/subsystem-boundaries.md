@@ -85,7 +85,7 @@ Provider lifecycle and callback handling use a single controller event boundary.
 
 Provider frame dispatch is controller-owned. Command, playback, metadata-bound target, and playback end-of-sequence transitions use one dispatch boundary for queueing, token allocation, cancellation intent, close intent, and stale-deferred-work validation. Transport must only deliver controller-authorized provider commands and callbacks.
 
-The controller projects unknown provider metadata as loading state and unavailable metadata observations. It does not synthesize frame counts, durations, seek bounds, frame seek support, position seek support, or timed playback support before a construction-time declaration or validated metadata result provides those facts. Validated metadata changes to those public observations advance the request revision token even when the accepted request identity, status, reason, and target do not otherwise change.
+The controller projects unknown provider metadata as loading state and unavailable metadata observations. It owns one role-scoped metadata projection path for primary and secondary frame counts, durations, seek bounds, frame seek support, position seek support, and timed playback support, using construction-time declarations and validated runtime metadata as the only fact sources. It does not synthesize frame counts, durations, seek bounds, frame seek support, position seek support, or timed playback support before a construction-time declaration or validated metadata result provides those facts. Validated metadata changes to those public observations advance the request revision token even when the accepted request identity, status, reason, and target do not otherwise change.
 
 ## Preparation Boundary
 
