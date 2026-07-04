@@ -1,5 +1,5 @@
 #include "imagesequence_p.h"
-#include "imageviewporthelpers_p.h"
+#include "imageviewportlimits_p.h"
 #include "timingintervals_p.h"
 
 #include <QtGui/QTransform>

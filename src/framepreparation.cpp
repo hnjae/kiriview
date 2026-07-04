@@ -1,6 +1,7 @@
 #include "framepreparation_p.h"
 
-#include "imageviewporthelpers_p.h"
+#include "imageviewportdiagnostics_p.h"
+#include "imageviewportlimits_p.h"
 #include "timingintervals_p.h"
 
 #include <utility>

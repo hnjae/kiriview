@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewporthelpers_p.h"
+#include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "playbackclock_p.h"
 #include "renderadapter_p.h"

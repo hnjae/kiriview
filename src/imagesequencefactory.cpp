@@ -1,7 +1,8 @@
 #include "framepreparation_p.h"
 #include "imagesequence_p.h"
 #include "imagesequenceownership_p.h"
-#include "imageviewporthelpers_p.h"
+#include "imageviewportlimits_p.h"
+#include "imageviewportproviderfacts_p.h"
 
 #include <utility>
 

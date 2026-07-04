@@ -1,7 +1,10 @@
 #include "viewportcontroller_p.h"
 
+#include "imageviewportproviderfacts_p.h"
+#include "imageviewportvalidation_p.h"
 #include "playbacktimeline_p.h"
 #include "presentationgeometry_p.h"
+#include "viewportgeometryhelpers_p.h"
 
 #include <algorithm>
 #include <cmath>

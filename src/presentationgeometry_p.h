@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewporthelpers_p.h"
+#include "imageviewport.h"
 
 class PresentationGeometry
 {

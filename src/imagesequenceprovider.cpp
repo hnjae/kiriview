@@ -1,4 +1,4 @@
-#include "imageviewporthelpers_p.h"
+#include "imageviewportlimits_p.h"
 
 #include <algorithm>
 #include <utility>

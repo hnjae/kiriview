@@ -1,5 +1,7 @@
 #include "framepreparation_p.h"
 #include "imagesequence_p.h"
+#include "imageviewportproviderfacts_p.h"
+#include "imageviewportvalidation_p.h"
 #include "imageviewport_p.h"
 
 using namespace ImageViewportInternal;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "imageviewporthelpers_p.h"
+#include "imageviewport.h"
 #include "timingintervals_p.h"
 
 #include <QtCore/QPointer>
