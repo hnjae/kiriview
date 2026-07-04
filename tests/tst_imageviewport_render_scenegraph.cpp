@@ -5,6 +5,8 @@
 #include <QtCore/QElapsedTimer>
 #include <QtGui/QMatrix4x4>
 
+#include <utility>
+
 class ImageViewportRenderSceneGraphTest : public QObject
 {
     Q_OBJECT
@@ -47,7 +49,7 @@ namespace {
 
 ImageViewportInternal::PreparedPayload renderAdapterPayload(QImage image)
 {
-    return { true, 1, 1, 1, image };
+    return { true, 1, 1, 1, std::move(image) };
 }
 
 RenderAdapter::Input renderAdapterInputForPayload(
@@ -805,6 +807,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWith
 
 void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutSceneGraph()
 {
+    QQuickWindow window;
     QImage secondaryImage(4, 4, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 255, 0, 255));
     secondaryImage.setDevicePixelRatio(2.0);
@@ -820,7 +823,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
         QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
     input.imageLayers.append({ ImageViewport::PageRole::Primary, primaryPayload,
         QRectF(0.0, 0.0, 10.0, 20.0), QRectF(0.0, 0.0, 2.0, 2.0), 0, false, true });
-    input.window = reinterpret_cast<QQuickWindow*>(quintptr(1));
+    input.window = &window;
 
     RenderAdapter adapter;
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
@@ -845,6 +848,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
 void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailureIntent()
 {
     RenderAdapter adapter;
+    QQuickWindow window;
 
     RenderAdapter::Input missingWindow = renderAdapterInputForPayload(
         renderAdapterPayload(QImage(2, 2, QImage::Format_ARGB32_Premultiplied)));
@@ -854,7 +858,7 @@ void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailu
 
     RenderAdapter::Input invalidPayload;
     invalidPayload.itemSize = QSizeF(10.0, 10.0);
-    invalidPayload.window = reinterpret_cast<QQuickWindow*>(quintptr(1));
+    invalidPayload.window = &window;
     invalidPayload.imageLayers.append({ ImageViewport::PageRole::Secondary,
         renderAdapterPayload({}), QRectF(0.0, 0.0, 10.0, 10.0),
         QRectF(0.0, 0.0, 2.0, 2.0) });

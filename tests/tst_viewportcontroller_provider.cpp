@@ -10,6 +10,8 @@ namespace {
 
 class StubProviderSession final : public ImageSequenceProviderSession
 {
+    Q_OBJECT
+
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
@@ -27,6 +29,8 @@ public:
 
 class StubProviderAdapter final : public ImageSequenceProviderAdapter
 {
+    Q_OBJECT
+
 public:
     explicit StubProviderAdapter(ImageSequenceProviderMetadata knownMetadata = {},
         QObject* parent = nullptr)
@@ -111,13 +115,13 @@ public:
 std::unique_ptr<ImageSequenceFactoryResult> makeDetachedProviderSequence(
     ImageSequenceFactory& factory, ImageSequenceProviderMetadata knownMetadata = {})
 {
-    StubProviderAdapter adapter(knownMetadata);
+    StubProviderAdapter adapter(std::move(knownMetadata));
     return std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
 }
 
 std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
     ImageSequenceFactory& factory, ProviderControllerContext& context,
-    ImageSequenceProviderMetadata knownMetadata = {})
+    const ImageSequenceProviderMetadata& knownMetadata = ImageSequenceProviderMetadata {})
 {
     auto result = makeDetachedProviderSequence(factory, knownMetadata);
     if (!result || !result->sequence()) {

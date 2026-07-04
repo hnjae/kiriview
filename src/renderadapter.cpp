@@ -183,6 +183,7 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         ? *input.sceneGraphFactory
         : defaultSceneGraphFactory;
     QVector<Output::RolePayload> rolePayloads;
+    rolePayloads.reserve(plan.imageLayers.size());
     for (const RenderPlan::ImageLayer& layer : plan.imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity

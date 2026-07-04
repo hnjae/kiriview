@@ -22,6 +22,9 @@ public:
     class SceneGraphFactory
     {
     public:
+        SceneGraphFactory() = default;
+        SceneGraphFactory(const SceneGraphFactory&) = delete;
+        SceneGraphFactory& operator=(const SceneGraphFactory&) = delete;
         virtual ~SceneGraphFactory() = default;
         virtual QSGTexture* createTexture(QQuickWindow* window, const QImage& image,
             QQuickWindow::CreateTextureOptions options) const;

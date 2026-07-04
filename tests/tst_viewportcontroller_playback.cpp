@@ -4,11 +4,14 @@
 #include <QtTest/QTest>
 
 #include <memory>
+#include <utility>
 
 namespace {
 
 class StubProviderSession final : public ImageSequenceProviderSession
 {
+    Q_OBJECT
+
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
@@ -26,7 +29,14 @@ public:
 
 class StubProviderAdapter final : public ImageSequenceProviderAdapter
 {
+    Q_OBJECT
+
 public:
+    explicit StubProviderAdapter(QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
     std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
     {
         return std::make_shared<StubProviderSessionFactory>();
@@ -329,7 +339,9 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data()
     };
 
     addRow("malformed-role-before-no-request", RoleCommandAdmissionCase::MalformedRole,
-        RoleCommandKind::SeekFrame, static_cast<ImageViewport::PageRole>(99), 0,
+        RoleCommandKind::SeekFrame,
+        static_cast<ImageViewport::PageRole>(99), // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+        0,
         ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
     addRow("absent-secondary-role", RoleCommandAdmissionCase::AbsentSecondaryRole,
         RoleCommandKind::SeekFrame, ImageViewport::PageRole::Secondary, 0,

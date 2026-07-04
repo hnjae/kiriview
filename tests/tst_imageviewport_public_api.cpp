@@ -1308,7 +1308,8 @@ void ImageViewportPublicApiTest::roleCommandsWithInvalidRolePublishCommandDiagno
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const auto invalidRole = static_cast<ImageViewport::PageRole>(999);
+    const auto invalidRole
+        = static_cast<ImageViewport::PageRole>(999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");

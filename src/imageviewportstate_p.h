@@ -91,7 +91,7 @@ struct TargetSpreadWaitState
     bool requiresSecondary = false;
 };
 
-inline ImageViewport::RequestReason projectWaitReason(const TargetSpreadWaitState& waitState)
+inline ImageViewport::RequestReason projectWaitReason(TargetSpreadWaitState waitState)
 {
     const auto anyRequired = [&waitState](auto member) {
         return waitState.primary.*member

@@ -703,10 +703,10 @@ public:
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
-        ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
+        const ViewportRenderAcknowledgement& acknowledgement, bool renderedImagePresent,
         const ViewportRenderSynchronization& synchronization);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
-        ViewportRenderAcknowledgement acknowledgement);
+        const ViewportRenderAcknowledgement& acknowledgement);
     int playbackTimerInterval() const;
     ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

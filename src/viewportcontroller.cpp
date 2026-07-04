@@ -722,15 +722,14 @@ RequestStatusSnapshot requestStatusSnapshot(ViewportControllerPort& viewport)
     return { viewportRequestState(viewport).status, viewportRequestState(viewport).reason };
 }
 
-bool requestStatusChanged(
-    ViewportControllerPort& viewport, const RequestStatusSnapshot& snapshot)
+bool requestStatusChanged(ViewportControllerPort& viewport, RequestStatusSnapshot snapshot)
 {
     return viewportRequestState(viewport).status != snapshot.status
         || viewportRequestState(viewport).reason != snapshot.reason;
 }
 
 void publishLoadingWaitState(
-    ViewportControllerPort& viewport, const ImageViewportInternal::TargetSpreadWaitState& waitState)
+    ViewportControllerPort& viewport, ImageViewportInternal::TargetSpreadWaitState waitState)
 {
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewportInternal::projectWaitReason(waitState);
@@ -1625,7 +1624,7 @@ const ImageViewportInternal::TargetSpreadRoleTerminalState* targetSpreadTerminal
                                                     : &request.targetSpreadTerminal.secondary;
 }
 
-bool targetSpreadTerminalMatchesActiveRequest(const ViewportControllerPort& viewport)
+bool targetSpreadTerminalMatchesActiveRequest(ViewportControllerPort viewport)
 {
     const auto& request = viewportRequestState(viewport);
     return request.targetSpreadTerminal.sealed
@@ -1633,18 +1632,18 @@ bool targetSpreadTerminalMatchesActiveRequest(const ViewportControllerPort& view
         && request.targetSpreadTerminal.requestId == request.activeRequest.identity.id;
 }
 
-bool targetSpreadTerminalSealedForActiveRequest(const ViewportControllerPort& viewport)
+bool targetSpreadTerminalSealedForActiveRequest(ViewportControllerPort viewport)
 {
     return targetSpreadTerminalMatchesActiveRequest(viewport);
 }
 
-bool targetSpreadRequiresRole(const ViewportControllerPort& viewport, ImageViewport::PageRole role)
+bool targetSpreadRequiresRole(ViewportControllerPort viewport, ImageViewport::PageRole role)
 {
     return static_cast<bool>(sequenceForRole(viewportRequestState(viewport), role));
 }
 
 const ImageViewportInternal::TargetSpreadRoleTerminalState* currentTerminalForRole(
-    const ViewportControllerPort& viewport, ImageViewport::PageRole role)
+    ViewportControllerPort viewport, ImageViewport::PageRole role)
 {
     if (!targetSpreadTerminalMatchesActiveRequest(viewport)
         || !targetSpreadRequiresRole(viewport, role)) {
@@ -1657,7 +1656,7 @@ const ImageViewportInternal::TargetSpreadRoleTerminalState* currentTerminalForRo
 }
 
 const ImageViewportInternal::TargetSpreadRoleTerminalState* projectedTargetSpreadTerminal(
-    const ViewportControllerPort& viewport)
+    ViewportControllerPort viewport)
 {
     const auto* primary = currentTerminalForRole(viewport, ImageViewport::PageRole::Primary);
     const auto* secondary = currentTerminalForRole(viewport, ImageViewport::PageRole::Secondary);
@@ -1676,7 +1675,7 @@ const ImageViewportInternal::TargetSpreadRoleTerminalState* projectedTargetSprea
     return primary ? primary : secondary;
 }
 
-bool targetSpreadTerminalHasGenerationScope(const ViewportControllerPort& viewport)
+bool targetSpreadTerminalHasGenerationScope(ViewportControllerPort viewport)
 {
     if (!targetSpreadTerminalMatchesActiveRequest(viewport)) {
         return false;
@@ -1689,7 +1688,7 @@ bool targetSpreadTerminalHasGenerationScope(const ViewportControllerPort& viewpo
             && terminal.secondary.failureScope == ImageViewportInternal::FailureScope::Generation);
 }
 
-bool hasGenerationTerminalProviderFailure(const ViewportControllerPort& viewport)
+bool hasGenerationTerminalProviderFailure(ViewportControllerPort viewport)
 {
     return viewport.hasGenerationTerminalProviderFailure()
         || targetSpreadTerminalHasGenerationScope(viewport);
@@ -4327,8 +4326,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     ViewportProviderFrameEvent event, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    return handleProviderFrameEvent(
-        ImageViewport::PageRole::Primary, event, frame, std::move(metadata));
+    return handleProviderFrameEvent(ImageViewport::PageRole::Primary, event, frame, metadata);
 }
 
 ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
@@ -5783,7 +5781,7 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(dou
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCommit(
-    ViewportRenderAcknowledgement acknowledgement, bool renderedImagePresent,
+    const ViewportRenderAcknowledgement& acknowledgement, bool renderedImagePresent,
     const ViewportRenderSynchronization& synchronization)
 {
     ImageViewportInternal::ViewportChangeSet changes;
@@ -5843,7 +5841,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFailure(
-    ViewportRenderAcknowledgement acknowledgement)
+    const ViewportRenderAcknowledgement& acknowledgement)
 {
     ImageViewportInternal::ViewportChangeSet changes;
     if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
