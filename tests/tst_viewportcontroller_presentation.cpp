@@ -14,6 +14,7 @@ public:
     bool readyDisplay = false;
     QSizeF itemSize { 100.0, 100.0 };
     QSizeF logicalSize { 16.0, 8.0 };
+    QSizeF secondaryLogicalSize { 8.0, 8.0 };
 
     QRectF itemBounds() const override
     {
@@ -27,17 +28,36 @@ public:
     bool hasReadyDisplay() const override { return readyDisplay; }
     bool hasDisplayableSequence() const override { return sequence != nullptr; }
     QSizeF sequenceLogicalSize() const override { return logicalSize; }
+    QSizeF secondarySequenceLogicalSize() const override { return secondaryLogicalSize; }
+    QImage sequenceFrameImage(int) const override
+    {
+        QImage image(logicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        return image;
+    }
+    QImage secondarySequenceFrameImage(int) const override
+    {
+        QImage image(secondaryLogicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        return image;
+    }
     double width() const override { return itemSize.width(); }
     double height() const override { return itemSize.height(); }
 };
 
 std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
-    ImageSequenceFactory& factory, PresentationControllerContext& context)
+    ImageSequenceFactory& factory, QSizeF logicalSize)
 {
-    QImage image(context.logicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
+    QImage image(logicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    auto result = std::unique_ptr<ImageSequenceFactoryResult>(factory.fromFrame(&frame));
+    return std::unique_ptr<ImageSequenceFactoryResult>(factory.fromFrame(&frame));
+}
+
+std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
+    ImageSequenceFactory& factory, PresentationControllerContext& context)
+{
+    auto result = makeStillSequence(factory, context.logicalSize);
     if (!result || !result->sequence()) {
         return {};
     }
@@ -61,6 +81,7 @@ private slots:
     void standalonePresentationCommandsMutateControllerState();
     void presentationCommandsReportGeometryChangesWhenDisplayIsReady();
     void assignmentAppliesPresentationTransitionInControllerTransaction();
+    void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
 };
 
 void ViewportControllerPresentationTest::standalonePresentationCommandsMutateControllerState()
@@ -158,6 +179,48 @@ void ViewportControllerPresentationTest::
     QCOMPARE(controller.presentationState().spreadDirection,
         ImageViewport::SpreadDirection::RightToLeft);
     QCOMPARE(controller.presentationState().pageGap, 4.0);
+}
+
+void ViewportControllerPresentationTest::
+    manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry()
+{
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    context.logicalSize = QSizeF(16.0, 8.0);
+    context.secondaryLogicalSize = QSizeF(8.0, 8.0);
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeStillSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> secondary
+        = makeStillSequence(factory, context.secondaryLogicalSize);
+    QVERIFY(primary);
+    QVERIFY(secondary);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primary->sequence();
+    assignment.secondarySequence = secondary->sequence();
+    assignment.secondaryInitialTarget
+        = { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
+    assignment.secondaryInitialResolvedFrame = { 0, -1 };
+    QCOMPARE(controller.assignSequence(assignment).outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setPageGap(4.0).outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setZoomPercent(100.0, QPointF()).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+
+    const PresentationGeometry::State geometry = controller.geometryState(2.0);
+    QCOMPARE(geometry.devicePixelRatio, 2.0);
+    QCOMPARE(PresentationGeometry::contentRect(geometry).size(), QSizeF(14.0, 4.0));
+    QCOMPARE(PresentationGeometry::pageItemRect(geometry, ImageViewport::PageRole::Primary).size(),
+        QSizeF(8.0, 4.0));
+    QCOMPARE(
+        PresentationGeometry::pageItemRect(geometry, ImageViewport::PageRole::Secondary).size(),
+        QSizeF(4.0, 4.0));
+
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization(2.0);
+    QCOMPARE(synchronization.geometryState.devicePixelRatio, 2.0);
+    QCOMPARE(synchronization.renderSnapshot.imageLayers.size(), 2);
+    QCOMPARE(synchronization.renderSnapshot.imageLayers.at(0).targetRect.size(), QSizeF(8.0, 4.0));
+    QCOMPARE(synchronization.renderSnapshot.imageLayers.at(1).targetRect.size(), QSizeF(4.0, 4.0));
 }
 
 QTEST_MAIN(ViewportControllerPresentationTest)

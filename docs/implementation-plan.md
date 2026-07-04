@@ -778,7 +778,7 @@ Geometry has multiple runtime authorities; render path rebuilds target spread de
 - Completed on 2026-07-04 by moving canonical `PresentationGeometry::State` construction into `ViewportController`, routing public presentation getters through `ViewportController::geometryState(...)`, and carrying the same projection through `ViewportRenderSynchronization` for render target/source rectangle mapping.
 - Characterization added two-page manual pan, rotated right-to-left manual pan, non-positive item geometry, and retained two-page display coverage in `imageviewport_presentation_state`.
 - Production construction paths after the refactor: controller command logic uses the controller projection helper; public getter projection adapts `ViewportController::geometryState(...)`; render synchronization stores the controller-authored `PresentationGeometry::State` snapshot for the render attempt. The remaining item-side helpers only adapt that state to public values.
-- DPR characterization remains deferred because the repository still lacks a stable effective-DPR test hook; the controller snapshot now carries the effective DPR supplied by item/render callers.
+- DPR characterization is covered by a controller-level two-page spread test using the explicit `ViewportController::geometryState(...)` and `beginRenderSynchronization(...)` DPR inputs. This avoids unstable Qt offscreen-window DPR control while still verifying the controller-owned public geometry and render snapshot contract.
 - Focused filter selection passed: `ctest -N --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$'` selected 4 tests.
 - Focused verification passed: `ctest --test-dir build -R '^(imageviewport_presentation_state|imageviewport_render_commit|imageviewport_render_scenegraph|viewportcontroller_presentation)$' --output-on-failure`, 4/4 tests.
 - Full verification passed: `ctest --test-dir build --output-on-failure`, 20/20 tests.
@@ -1024,9 +1024,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 ## Deferred / Needs Investigation
 
-- Direct controller-level provider harness feasibility. Blocked behavior: role-symmetric provider metadata, token, terminal, cancellation, overflow, and stale-result policy refactors. Missing evidence: a safe test seam that feeds normalized provider events and observes transport effects without full `ImageViewport`/Qt event delivery. Dependent milestones: 5, 6, 7, and 8. Exit criterion: controller harness tests cover token scope and stale-result rejection for both roles, or this plan is amended with a concrete alternative before provider-policy refactors proceed.
-- Provider command delivery failure simulation. Blocked behavior: classifying null/destroyed session and failed queued invocation as `ProviderFailure`. Missing evidence: the least invasive bridge test hook to simulate failed delivery without public API changes. Dependent milestone: 5. Exit criterion: focused tests can simulate null session and failed `invokeMethod`/delivery and observe terminal `Error` with `ProviderFailure`.
-- Device-pixel-ratio characterization for two-page spreads. Blocked behavior: final proof that physical-pixel-aware zoom geometry agrees between controller, public getters, and render for non-1 DPR. Missing evidence: a stable Qt offscreen-window or test hook for effective DPR. Dependent milestone: 9. M9 narrowed implementation and tests to DPR-independent geometry while carrying effective DPR through the controller snapshot. Exit criterion: reliable DPR test exists, or the plan is amended to add a narrow internal test seam for DPR input.
+- None remaining. The provider harness and command-delivery failure gates were resolved by Milestone 5 and exercised through `viewportcontroller_provider` plus provider lifecycle tests. The device-pixel-ratio gate was resolved with a controller-level two-page spread geometry/render-snapshot test that uses explicit DPR inputs instead of relying on window DPR control.
 
 ## Suggested `/goal` Execution Order
 
@@ -1046,7 +1044,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 ## Plan Review Notes
 
 - Concerns addressed: The plan now avoids a broad up-front red characterization suite, confirms CTest selection before focused runs, gates `Needs investigation` items to dependent milestones, makes the controller provider harness required before provider-policy refactors, moves transport delivery failure shape before provider dispatch unification, narrows command diagnostics work so valid provider commands are not accepted before dispatch exists, adds a behavior-preserving controller/item separation precursor, splits provider pipeline work into metadata, explicit request, and playback/terminal lifecycle milestones, separates immutable render snapshot work from complete-role acknowledgement, and keeps complete-role render acknowledgement required by architecture rather than optional.
-- Concerns deferred: Device-pixel-ratio test control and provider delivery failure simulation details remain explicit investigation gates with exit criteria.
+- Concerns deferred: None.
 - Remaining known limitations: Exact new test function names are intentionally not prescribed; future sessions should use `ctest -N --test-dir build` after configuring to confirm current executable names before running narrow filters. The plan names likely affected areas from the design review and repository scan, but implementation should re-read nearby code before editing.
 
 ## Non-Goals
