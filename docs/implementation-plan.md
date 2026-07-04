@@ -830,6 +830,8 @@ F12.
 
 ### Milestone 12: Move Mutating Controller Transitions Out of the Shared Helper Header
 
+Status: Complete. The broad provider queue, provider token, render synchronization, presentation transition, playback stop-restore, explicit seek, command diagnostic, terminal projection, display publication, and playback request helpers were moved to their owning controller implementation units. The remaining shared controller helper header entries are role accessors, predicates, value projections, and value helpers. The targeted controller/provider/render test set and structural helper-header check pass.
+
 #### Objective
 
 Clarify controller ownership by moving mutating transition logic from `viewportcontrollerhelpers_p.h` into responsibility-owned controller modules after behavior-sensitive dispatch, transaction, sequence-source, and render boundaries are stable.
@@ -864,14 +866,14 @@ F10.
 
 #### Tasks
 
-- [ ] Inventory mutating functions in `viewportcontrollerhelpers_p.h` and group them by owning controller subsystem.
-- [ ] Move provider token, queue, cancellation, and terminal helper logic into provider-owned controller code.
-- [ ] Move render snapshot and acknowledgement helper logic into render-owned controller code.
-- [ ] Move presentation transition mutation logic into presentation-owned controller code.
-- [ ] Move playback stop restoration and explicit seek acceptance helpers into playback/request-owned controller code.
-- [ ] Leave only pure utilities, role selectors, and value projections in `viewportcontrollerhelpers_p.h`.
-- [ ] Update structural tests or add a structural check that the helper header does not contain broad mutating transition functions.
-- [ ] Run the full targeted controller/provider/render test set after each cluster move.
+- [x] Inventory mutating functions in `viewportcontrollerhelpers_p.h` and group them by owning controller subsystem.
+- [x] Move provider token, queue, cancellation, and terminal helper logic into provider-owned controller code.
+- [x] Move render snapshot and acknowledgement helper logic into render-owned controller code.
+- [x] Move presentation transition mutation logic into presentation-owned controller code.
+- [x] Move playback stop restoration and explicit seek acceptance helpers into playback/request-owned controller code.
+- [x] Leave only pure utilities, role selectors, and value projections in `viewportcontrollerhelpers_p.h`.
+- [x] Update structural tests or add a structural check that the helper header does not contain broad mutating transition functions.
+- [x] Run the full targeted controller/provider/render test set after each cluster move.
 
 #### Acceptance criteria
 

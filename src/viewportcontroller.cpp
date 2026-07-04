@@ -407,7 +407,7 @@ bool ViewportControllerPort::hasProviderSequence() const
 
 bool ViewportControllerPort::hasGenerationTerminalProviderFailure() const
 {
-    return false;
+    return context.hasGenerationTerminalProviderFailure();
 }
 
 bool ViewportControllerPort::providerHasCompleteKnownMetadata() const
