@@ -290,10 +290,10 @@ Controller depends on item-private context and ambient mutable reads; role-scope
 
 #### Tasks
 
-- [ ] Move `ImageViewportPrivate` command wrapper definitions currently implemented in `src/viewportcontroller.cpp` into item/private implementation files such as `src/imageviewportcontroller.cpp`, preserving call order and result application behavior.
-- [ ] Replace controller calls to `ImageViewportPrivate::boundedDiagnostic(...)` with `FramePreparation::boundedDiagnostic(...)` or another neutral helper that does not require `ImageViewportPrivate`.
-- [ ] Remove any unnecessary `imageviewport_p.h` include from `src/viewportcontroller.cpp` if possible without changing behavior.
-- [ ] Run focused command, provider, and public API tests to prove the move was mechanical.
+- [x] Move `ImageViewportPrivate` command wrapper definitions currently implemented in `src/viewportcontroller.cpp` into item/private implementation files such as `src/imageviewportcontroller.cpp`, preserving call order and result application behavior.
+- [x] Replace controller calls to `ImageViewportPrivate::boundedDiagnostic(...)` with `FramePreparation::boundedDiagnostic(...)` or another neutral helper that does not require `ImageViewportPrivate`.
+- [x] Remove any unnecessary `imageviewport_p.h` include from `src/viewportcontroller.cpp` if possible without changing behavior.
+- [x] Run focused command, provider, and public API tests to prove the move was mechanical.
 
 #### Acceptance criteria
 
@@ -308,6 +308,12 @@ Controller depends on item-private context and ambient mutable reads; role-scope
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_public_api|imageviewport_still|imageviewport_timed|imageviewport_provider_requests|imageviewport_provider_playback|viewportcontroller_playback)$'`
 - `ctest --test-dir build -R '^(imageviewport_public_api|imageviewport_still|imageviewport_timed|imageviewport_provider_requests|imageviewport_provider_playback|viewportcontroller_playback)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04 as a mechanical move: `ImageViewportPrivate` command wrappers, controller change application, and item-private test-probe wrappers moved from `src/viewportcontroller.cpp` to `src/imageviewportcontroller.cpp`.
+- `src/viewportcontroller.cpp` now uses `FramePreparation::boundedDiagnostic(...)` directly and no longer includes `imageviewport_p.h` or references `ImageViewportPrivate`.
+- Verification passed: `cmake --build build`; `ctest -N --test-dir build`; focused filter selected 6 tests; focused CTest passed 6/6; full CTest passed 19/19.
 
 #### Risks / notes
 
@@ -951,7 +957,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 - [x] Milestone 1: Baseline Verification And Test Selection
 - [x] Milestone 2: Clear Transaction Characterization And Fix
-- [ ] Milestone 3: Mechanical Controller/Item Separation Precursor
+- [x] Milestone 3: Mechanical Controller/Item Separation Precursor
 - [ ] Milestone 4: Command Diagnostics For Invalid And Absent Roles
 - [ ] Milestone 5: Provider Harness And Dispatch-Failure Foundation
 - [ ] Milestone 6: Role-Indexed Provider State And Shared Metadata Admission
