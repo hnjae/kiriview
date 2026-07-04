@@ -70,54 +70,6 @@ namespace {
         return entry.image.size();
     }
 
-    QSize oneDimensionalDownscaleSize(QSize imageSize, int requestedWidth, int requestedHeight)
-    {
-        if (requestedWidth > 0) {
-            if (requestedWidth >= imageSize.width()) {
-                return imageSize;
-            }
-            const int targetHeight = std::max(1,
-                qRound(
-                    static_cast<qreal>(requestedWidth) * imageSize.height() / imageSize.width()));
-            return QSize(requestedWidth, std::min(targetHeight, imageSize.height()));
-        }
-
-        if (requestedHeight >= imageSize.height()) {
-            return imageSize;
-        }
-        const int targetWidth = std::max(1,
-            qRound(static_cast<qreal>(requestedHeight) * imageSize.width() / imageSize.height()));
-        return QSize(std::min(targetWidth, imageSize.width()), requestedHeight);
-    }
-
-    QSize downscaleTargetSize(QSize imageSize, QSize requestedSize)
-    {
-        if (imageSize.isEmpty()) {
-            return imageSize;
-        }
-
-        const int requestedWidth = requestedSize.width();
-        const int requestedHeight = requestedSize.height();
-        if (requestedWidth < 0 || requestedHeight < 0
-            || (requestedWidth == 0 && requestedHeight == 0)) {
-            return imageSize;
-        }
-
-        if (requestedWidth == 0 || requestedHeight == 0) {
-            return oneDimensionalDownscaleSize(imageSize, requestedWidth, requestedHeight);
-        }
-
-        if (requestedWidth >= imageSize.width() && requestedHeight >= imageSize.height()) {
-            return imageSize;
-        }
-
-        const QSize target = imageSize.scaled(requestedSize, Qt::KeepAspectRatio);
-        if (target.isEmpty()
-            || (target.width() >= imageSize.width() && target.height() >= imageSize.height())) {
-            return imageSize;
-        }
-        return target;
-    }
 }
 
 class DisplayImageStore::Private
@@ -511,13 +463,7 @@ QImage DisplayImageProvider::requestImage(
         *size = entry->originalSize;
     }
 
-    const QSize targetSize = downscaleTargetSize(entry->image.size(), requestedSize);
-    QImage result;
-    if (targetSize == entry->image.size()) {
-        result = entry->image;
-    } else {
-        result = entry->image.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    }
+    const QImage result = entry->image;
 
     if (logRequest) {
         const qint64 elapsedUs = elapsedTimer.nsecsElapsed() / 1000;
@@ -527,8 +473,8 @@ QImage DisplayImageProvider::requestImage(
             << "returnedSize" << result.size() << "sourceIdentity" << entry->sourceIdentity
             << "pageRole" << static_cast<int>(entry->pageRole) << "quality"
             << static_cast<int>(entry->quality) << "generation" << entry->generation << "debugLabel"
-            << entry->debugLabel << "scaled" << (targetSize != entry->image.size()) << "null"
-            << result.isNull() << "elapsedUs" << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
+            << entry->debugLabel << "scaled" << false << "null" << result.isNull() << "elapsedUs"
+            << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
     }
 
     return result;

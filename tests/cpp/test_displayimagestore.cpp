@@ -23,7 +23,7 @@ private Q_SLOTS:
     void storesImagesAndMetadata();
     void urlShapeUsesNeverReusedIds();
     void providerReportsOriginalSizeAndMissesReturnEmpty();
-    void providerHandlesRequestedSizeAsDownscaleOnly();
+    void providerReturnsStoredRasterForRequestedSize();
     void evictsLeastRecentlyUsedImagesByPriority();
     void pinLeasesPreventEvictionAndReleaseDefersRemoval();
     void reusableAcquisitionReturnsBufferedEntryForMatchingKey();
@@ -127,17 +127,17 @@ void TestDisplayImageStore::providerReportsOriginalSizeAndMissesReturnEmpty()
     QCOMPARE(missSize, QSize());
 }
 
-void TestDisplayImageStore::providerHandlesRequestedSizeAsDownscaleOnly()
+void TestDisplayImageStore::providerReturnsStoredRasterForRequestedSize()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(32768);
     const QString id = store->insert(testEntry(QSize(80, 40)));
     kiriview::DisplayImageProvider provider(store);
 
     QSize originalSize;
-    QCOMPARE(provider.requestImage(id, &originalSize, QSize(40, 40)).size(), QSize(40, 20));
+    QCOMPARE(provider.requestImage(id, &originalSize, QSize(40, 40)).size(), QSize(80, 40));
     QCOMPARE(originalSize, QSize(160, 80));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(20, 0)).size(), QSize(20, 10));
-    QCOMPARE(provider.requestImage(id, nullptr, QSize(0, 10)).size(), QSize(20, 10));
+    QCOMPARE(provider.requestImage(id, nullptr, QSize(20, 0)).size(), QSize(80, 40));
+    QCOMPARE(provider.requestImage(id, nullptr, QSize(0, 10)).size(), QSize(80, 40));
     QCOMPARE(provider.requestImage(id, nullptr, QSize(0, 0)).size(), QSize(80, 40));
     QCOMPARE(provider.requestImage(id, nullptr, QSize(-20, 10)).size(), QSize(80, 40));
     QCOMPARE(provider.requestImage(id, nullptr, QSize(160, 80)).size(), QSize(80, 40));
@@ -243,7 +243,7 @@ void TestDisplayImageStore::providerRequestsAreThreadSafeReads()
     }
 
     for (std::future<QSize>& future : futures) {
-        QCOMPARE(future.get(), QSize(8, 4));
+        QCOMPARE(future.get(), QSize(16, 8));
     }
 }
 

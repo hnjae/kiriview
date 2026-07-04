@@ -175,6 +175,10 @@ Update `docs/architecture/provider-rendering.md` before changing provider or QML
 - Load acknowledgment still releases only the matching current provider URL, revision, source identity, and page role.
 - Texture/cache behavior is documented well enough that future changes do not reintroduce stale image display.
 
+### Status
+
+Completed. The slice records the cheap-provider request boundary in provider-rendering architecture, changes the main display provider to return stored raster entries without request-time smooth downscaling, and updates provider tests so requested sizes and concurrent reads expect the stored raster. QML policy remains unchanged because no QML presenter behavior was required once provider requests became cache-only and cheap.
+
 ### Suggested Verification
 
 - Add focused tests for provider downscale policy where practical.
