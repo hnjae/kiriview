@@ -137,12 +137,12 @@ Provider protocol coverage is too dependent on Qt event delivery; all findings n
 
 #### Tasks
 
-- [ ] Run `cmake -S . -B build -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF`.
-- [ ] Run `cmake --build build`.
-- [ ] Run `ctest -N --test-dir build` and confirm the expected tests are present: `imageviewport_public_api`, `imagesequence_factory`, `playback_clock`, `playback_timeline`, `viewportcontroller_playback`, `viewportcontroller_presentation`, `imageviewport_still`, `imageviewport_timed`, `imageviewport_provider_contract`, `imageviewport_provider_lifecycle`, `imageviewport_provider_metadata`, `imageviewport_provider_requests`, `imageviewport_provider_frame_admission`, `imageviewport_provider_terminal`, `imageviewport_provider_playback`, `imageviewport_render_scenegraph`, `imageviewport_render_commit`, `imageviewport_presentation_state`, and `imageviewport_install_consumer`.
-- [ ] Run `ctest --test-dir build --output-on-failure` and record any pre-existing failures before starting behavior work.
-- [ ] For each later milestone, confirm its focused `ctest -R` filter selects at least one expected test before using it as verification.
-- [ ] If a focused filter selects zero tests, stop and correct the filter or the plan before implementation proceeds.
+- [x] Run `cmake -S . -B build -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF`.
+- [x] Run `cmake --build build`.
+- [x] Run `ctest -N --test-dir build` and confirm the expected tests are present: `imageviewport_public_api`, `imagesequence_factory`, `playback_clock`, `playback_timeline`, `viewportcontroller_playback`, `viewportcontroller_presentation`, `imageviewport_still`, `imageviewport_timed`, `imageviewport_provider_contract`, `imageviewport_provider_lifecycle`, `imageviewport_provider_metadata`, `imageviewport_provider_requests`, `imageviewport_provider_frame_admission`, `imageviewport_provider_terminal`, `imageviewport_provider_playback`, `imageviewport_render_scenegraph`, `imageviewport_render_commit`, `imageviewport_presentation_state`, and `imageviewport_install_consumer`.
+- [x] Run `ctest --test-dir build --output-on-failure` and record any pre-existing failures before starting behavior work.
+- [x] For each later milestone, confirm its focused `ctest -R` filter selects at least one expected test before using it as verification.
+- [x] If a focused filter selects zero tests, stop and correct the filter or the plan before implementation proceeds.
 
 #### Acceptance criteria
 
@@ -156,6 +156,12 @@ Provider protocol coverage is too dependent on Qt event delivery; all findings n
 - `cmake --build build`
 - `ctest -N --test-dir build`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04 after regenerating `build`; stale pre-configure CTest output listed only `imageviewport` and `imageviewport_install_consumer`, while the fresh configure produced all 19 expected test names.
+- Baseline full-suite result: `ctest --test-dir build --output-on-failure` passed, 19/19 tests.
+- Milestone 2 focused filter was checked as a sample of the rule: `ctest -N --test-dir build -R '^(imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_provider_requests|imageviewport_provider_playback)$'` selected the expected 4 tests.
 
 #### Risks / notes
 
@@ -937,7 +943,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 ## Suggested `/goal` Execution Order
 
-- [ ] Milestone 1: Baseline Verification And Test Selection
+- [x] Milestone 1: Baseline Verification And Test Selection
 - [ ] Milestone 2: Clear Transaction Characterization And Fix
 - [ ] Milestone 3: Mechanical Controller/Item Separation Precursor
 - [ ] Milestone 4: Command Diagnostics For Invalid And Absent Roles
