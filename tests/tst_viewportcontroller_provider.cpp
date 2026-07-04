@@ -33,10 +33,12 @@ class StubProviderAdapter final : public ImageSequenceProviderAdapter
 
 public:
     explicit StubProviderAdapter(ImageSequenceProviderMetadata knownMetadata = {},
+        ImageSequenceProviderKnownFacts knownFacts = {},
         QObject* parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
         , m_factory(std::make_shared<StubProviderSessionFactory>())
         , m_knownMetadata(std::move(knownMetadata))
+        , m_knownFacts(std::move(knownFacts))
     {
     }
 
@@ -46,10 +48,12 @@ public:
     }
 
     ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
+    ImageSequenceProviderKnownFacts knownFacts() const override { return m_knownFacts; }
 
 private:
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
     ImageSequenceProviderMetadata m_knownMetadata;
+    ImageSequenceProviderKnownFacts m_knownFacts;
 };
 
 enum class TerminalScopeCase {
@@ -113,9 +117,10 @@ public:
 };
 
 std::unique_ptr<ImageSequenceFactoryResult> makeDetachedProviderSequence(
-    ImageSequenceFactory& factory, ImageSequenceProviderMetadata knownMetadata = {})
+    ImageSequenceFactory& factory, ImageSequenceProviderMetadata knownMetadata = {},
+    ImageSequenceProviderKnownFacts knownFacts = {})
 {
-    StubProviderAdapter adapter(std::move(knownMetadata));
+    StubProviderAdapter adapter(std::move(knownMetadata), std::move(knownFacts));
     return std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
 }
 
@@ -123,7 +128,7 @@ std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
     ImageSequenceFactory& factory, ProviderControllerContext& context,
     const ImageSequenceProviderMetadata& knownMetadata = ImageSequenceProviderMetadata {})
 {
-    auto result = makeDetachedProviderSequence(factory, knownMetadata);
+    auto result = makeDetachedProviderSequence(factory, knownMetadata, context.knownFacts);
     if (!result || !result->sequence()) {
         return {};
     }
@@ -1008,9 +1013,10 @@ void ViewportControllerProviderTest::
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
     QVERIFY(primary);
-    std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
-    QVERIFY(secondary);
     context.secondaryKnownFacts = ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0));
+    std::unique_ptr<ImageSequenceFactoryResult> secondary
+        = makeDetachedProviderSequence(factory, {}, context.secondaryKnownFacts);
+    QVERIFY(secondary);
     ViewportController controller(context);
 
     ViewportSequenceAssignment assignment;

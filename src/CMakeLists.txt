@@ -14,8 +14,8 @@ qt_add_qml_module(
     SOURCES
     imagesequence.cpp
     imagesequencefactory.cpp
-    imagesequenceownership.cpp
-    imagesequenceownership_p.h
+    imagesequencesource.cpp
+    imagesequencesource_p.h
     imagesequenceprovider.cpp
     framepreparation.cpp
     framepreparation_p.h

@@ -1,4 +1,3 @@
-#include "imagesequence_p.h"
 #include "imageviewport_p.h"
 
 #include <QtCore/QMetaObject>
@@ -55,81 +54,71 @@ ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession(PageR
 
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
 {
-    return ImageSequencePrivateAccess::hasCompleteProviderKnownMetadata(
-        controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.hasCompleteProviderKnownMetadata;
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::providerKnownFacts() const
 {
-    return ImageSequencePrivateAccess::providerKnownFacts(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerKnownFacts;
 }
 
 QSizeF ImageViewportPrivate::providerKnownLogicalSize() const
 {
-    return ImageSequencePrivateAccess::providerKnownLogicalSize(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerKnownLogicalSize;
 }
 
 TimingIntervals ImageViewportPrivate::providerKnownTimingIntervals() const
 {
-    return ImageSequencePrivateAccess::providerKnownTimingIntervals(
-        controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerKnownTimingIntervals;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerTimedPlaybackCapability() const
 {
-    return ImageSequencePrivateAccess::providerTimedPlaybackCapability(
-        controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerTimedPlaybackCapability;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerFrameSeekCapability() const
 {
-    return ImageSequencePrivateAccess::providerFrameSeekCapability(
-        controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerFrameSeekCapability;
 }
 
 ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSeekCapability() const
 {
-    return ImageSequencePrivateAccess::providerPositionSeekCapability(
-        controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.providerPositionSeekCapability;
 }
 
 ImageSequenceProviderKnownFacts ImageViewportPrivate::secondaryProviderKnownFacts() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerKnownFacts(sequence);
+    return controller.requestState().secondarySequenceSource.facts.providerKnownFacts;
 }
 
 QSizeF ImageViewportPrivate::secondaryProviderKnownLogicalSize() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerKnownLogicalSize(sequence);
+    return controller.requestState().secondarySequenceSource.facts.providerKnownLogicalSize;
 }
 
 TimingIntervals ImageViewportPrivate::secondaryProviderKnownTimingIntervals() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerKnownTimingIntervals(sequence);
+    return controller.requestState().secondarySequenceSource.facts.providerKnownTimingIntervals;
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderTimedPlaybackCapability() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerTimedPlaybackCapability(sequence);
+    return controller.requestState().secondarySequenceSource.facts.providerTimedPlaybackCapability;
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderFrameSeekCapability() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerFrameSeekCapability(sequence);
+    return controller.requestState().secondarySequenceSource.facts.providerFrameSeekCapability;
 }
 
 ImageSequenceProviderCapabilitySupport
 ImageViewportPrivate::secondaryProviderPositionSeekCapability() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::providerPositionSeekCapability(sequence);
+    return controller.requestState()
+        .secondarySequenceSource.facts.providerPositionSeekCapability;
 }
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
@@ -455,15 +444,19 @@ void ImageViewportPrivate::handleProviderCancellation(
 std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::providerSessionFactory(
     PageRole role) const
 {
-    ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
-    return ImageSequencePrivateAccess::providerSessionFactory(sequence);
+    const ImageSequenceSource& source = role == PageRole::Secondary
+        ? controller.requestState().secondarySequenceSource
+        : controller.requestState().sequenceSource;
+    return source.providerSessionFactory;
 }
 
 ImageSequenceProviderThreadingContract ImageViewportPrivate::providerThreadingContract(
     PageRole role) const
 {
-    ImageSequence* sequence = role == PageRole::Secondary ? secondarySequence() : this->sequence();
-    return ImageSequencePrivateAccess::providerThreadingContract(sequence);
+    const ImageSequenceSource& source = role == PageRole::Secondary
+        ? controller.requestState().secondarySequenceSource
+        : controller.requestState().sequenceSource;
+    return source.facts.providerThreadingContract;
 }
 
 int ImageViewportPrivate::providerFrameStartPosition(int frame) const
@@ -478,12 +471,12 @@ int ImageViewportPrivate::providerFrameIndexForPosition(int position) const
 
 ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::providerAuthoredAnimationFacts() const
 {
-    ImageSequence* sequence = this->sequence();
-    if (!sequence) {
+    const ImageSequenceSource& source = controller.requestState().sequenceSource;
+    if (!source.sequence) {
         return {};
     }
     if (controller.providerMetadataReady()) {
         return controller.providerAuthoredAnimationFacts();
     }
-    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
+    return source.facts.authoredAnimationFacts;
 }

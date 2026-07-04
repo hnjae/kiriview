@@ -1,5 +1,4 @@
 #include "framepreparation_p.h"
-#include "imagesequence_p.h"
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
 #include "imageviewport_p.h"
@@ -78,22 +77,22 @@ bool ImageViewportPrivate::hasReadyDisplay() const
 
 bool ImageViewportPrivate::hasDisplayableSequence() const
 {
-    return ImageSequencePrivateAccess::isValid(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.present;
 }
 
 bool ImageViewportPrivate::hasStillSequence() const
 {
-    return ImageSequencePrivateAccess::isStill(controller.requestState().sequence);
+    return sourceIsStill(controller.requestState().sequenceSource);
 }
 
 bool ImageViewportPrivate::hasTimedSequence() const
 {
-    return ImageSequencePrivateAccess::isTimedList(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.timed;
 }
 
 bool ImageViewportPrivate::hasProviderSequence() const
 {
-    return ImageSequencePrivateAccess::isProvider(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.provider;
 }
 
 bool ImageViewportPrivate::hasGenerationTerminalProviderFailure() const
@@ -105,83 +104,78 @@ bool ImageViewportPrivate::hasGenerationTerminalProviderFailure() const
 
 bool ImageViewportPrivate::providerTimedPlaybackCapabilityKnownFalse() const
 {
-    return providerCapabilityKnownFalse(ImageSequencePrivateAccess::providerTimedPlaybackCapability(
-        controller.requestState().sequence));
+    return providerCapabilityKnownFalse(
+        controller.requestState().sequenceSource.facts.providerTimedPlaybackCapability);
 }
 
 bool ImageViewportPrivate::providerFrameSeekCapabilityKnownFalse() const
 {
-    return providerCapabilityKnownFalse(ImageSequencePrivateAccess::providerFrameSeekCapability(
-        controller.requestState().sequence));
+    return providerCapabilityKnownFalse(
+        controller.requestState().sequenceSource.facts.providerFrameSeekCapability);
 }
 
 bool ImageViewportPrivate::providerFrameSeekCapabilityKnownTrue() const
 {
-    return providerCapabilityKnownTrue(ImageSequencePrivateAccess::providerFrameSeekCapability(
-        controller.requestState().sequence));
+    return providerCapabilityKnownTrue(
+        controller.requestState().sequenceSource.facts.providerFrameSeekCapability);
 }
 
 bool ImageViewportPrivate::providerPositionSeekCapabilityKnownFalse() const
 {
-    return providerCapabilityKnownFalse(ImageSequencePrivateAccess::providerPositionSeekCapability(
-        controller.requestState().sequence));
+    return providerCapabilityKnownFalse(
+        controller.requestState().sequenceSource.facts.providerPositionSeekCapability);
 }
 
 bool ImageViewportPrivate::providerKnownFactsTimedFrameCount() const
 {
-    return ImageSequencePrivateAccess::providerKnownFacts(controller.requestState().sequence)
-        .isTimedFrameCount();
+    return controller.requestState().sequenceSource.facts.providerKnownFacts.isTimedFrameCount();
 }
 
 int ImageViewportPrivate::providerKnownFactsFrameCount() const
 {
     return providerKnownFactsTimedFrameCount()
-        ? ImageSequencePrivateAccess::providerKnownFacts(controller.requestState().sequence)
-              .frameCount()
+        ? controller.requestState().sequenceSource.facts.providerKnownFacts.frameCount()
         : 0;
 }
 
 int ImageViewportPrivate::sequenceFrameCount() const
 {
-    return ImageSequencePrivateAccess::frameCount(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.frameCount;
 }
 
 int ImageViewportPrivate::sequenceTotalDuration() const
 {
-    return ImageSequencePrivateAccess::totalDuration(controller.requestState().sequence);
+    return controller.requestState().sequenceSource.facts.totalDuration;
 }
 
 int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
 {
-    return ImageSequencePrivateAccess::frameIndexForPosition(
-        controller.requestState().sequence, position);
+    return sourceFrameIndexForPosition(controller.requestState().sequenceSource, position);
 }
 
 int ImageViewportPrivate::sequenceFrameStartPosition(int frame) const
 {
-    return ImageSequencePrivateAccess::frameStartPosition(
-        controller.requestState().sequence, frame);
+    return sourceFrameStartPosition(controller.requestState().sequenceSource, frame);
 }
 
 QSizeF ImageViewportPrivate::sequenceLogicalSize() const
 {
-    return ImageSequencePrivateAccess::logicalSize(controller.requestState().sequence);
+    return sourceLogicalSize(controller.requestState().sequenceSource);
 }
 
 QSizeF ImageViewportPrivate::secondarySequenceLogicalSize() const
 {
-    return ImageSequencePrivateAccess::logicalSize(controller.requestState().secondarySequence);
+    return sourceLogicalSize(controller.requestState().secondarySequenceSource);
 }
 
 QImage ImageViewportPrivate::sequenceFrameImage(int frame) const
 {
-    return ImageSequencePrivateAccess::frameImage(controller.requestState().sequence, frame);
+    return sourceFrameImage(controller.requestState().sequenceSource, frame);
 }
 
 QImage ImageViewportPrivate::secondarySequenceFrameImage(int frame) const
 {
-    return ImageSequencePrivateAccess::frameImage(
-        controller.requestState().secondarySequence, frame);
+    return sourceFrameImage(controller.requestState().secondarySequenceSource, frame);
 }
 
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)

@@ -1,5 +1,4 @@
-#include "imagesequenceownership_p.h"
-#include "imagesequence_p.h"
+#include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
 
@@ -196,8 +195,9 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     }
 
     ImageSequenceSource source = factorySequenceSource(sequence);
-    ViewportSequenceAssignmentResult result
-        = controller.assignSequence({ source.sequence, std::move(source.owner) });
+    ViewportSequenceAssignment assignment;
+    assignment.source = std::move(source);
+    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
@@ -337,12 +337,13 @@ int ImageViewportPrivate::secondaryRequestedPosition() const
     if (!sequence) {
         return -1;
     }
-    if (ImageSequencePrivateAccess::isProvider(sequence)
+    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
+    if (source.facts.provider
         && (controller.secondaryProviderTimedMetadata()
             || controller.requestState().secondaryActiveRequest.target.position >= 0)) {
         return controller.requestState().secondaryActiveRequest.target.position;
     }
-    if (ImageSequencePrivateAccess::isTimedList(sequence)) {
+    if (source.facts.timed) {
         return controller.requestState().secondaryActiveRequest.target.position;
     }
 
@@ -361,53 +362,41 @@ int ImageViewportPrivate::totalDuration() const
 
 bool ImageViewportPrivate::hasSecondaryTimedSequence() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::isTimedList(sequence);
+    return controller.requestState().secondarySequenceSource.facts.timed;
 }
 
 int ImageViewportPrivate::secondarySequenceFrameCount() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return sequence && !ImageSequencePrivateAccess::isProvider(sequence)
-        ? ImageSequencePrivateAccess::frameCount(sequence)
-        : -1;
+    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
+    return source.facts.present && !source.facts.provider ? source.facts.frameCount : -1;
 }
 
 int ImageViewportPrivate::secondarySequenceTotalDuration() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return sequence && !ImageSequencePrivateAccess::isProvider(sequence)
-        ? ImageSequencePrivateAccess::totalDuration(sequence)
-        : -1;
+    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
+    return source.facts.present && !source.facts.provider ? source.facts.totalDuration : -1;
 }
 
 int ImageViewportPrivate::secondarySequenceFrameIndexForPosition(int position) const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::isTimedList(sequence)
-        ? ImageSequencePrivateAccess::frameIndexForPosition(sequence, position)
-        : -1;
+    return sourceFrameIndexForPosition(
+        controller.requestState().secondarySequenceSource, position);
 }
 
 int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::isTimedList(sequence)
-        ? ImageSequencePrivateAccess::frameStartPosition(sequence, frame)
-        : -1;
+    return sourceFrameStartPosition(controller.requestState().secondarySequenceSource, frame);
 }
 
 ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::sequenceAuthoredAnimationFacts() const
 {
-    ImageSequence* sequence = controller.requestState().sequence;
-    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
+    return controller.requestState().sequenceSource.facts.authoredAnimationFacts;
 }
 
 ImageSequenceAuthoredAnimationFacts
 ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
 {
-    ImageSequence* sequence = secondarySequence();
-    return ImageSequencePrivateAccess::authoredAnimationFacts(sequence);
+    return controller.requestState().secondarySequenceSource.facts.authoredAnimationFacts;
 }
 
 ImageViewportRange ImageViewportPrivate::frameSeekBounds() const
@@ -590,35 +579,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
 {
     ImageSequenceSource primarySource = factorySequenceSource(primarySequence);
     ImageSequenceSource secondarySourceHandle = factorySequenceSource(secondarySequence);
-    const auto roleSourceForSequence = [](const ImageSequenceSource& sequenceSource) {
-        ViewportSequenceRoleSource roleSource;
-        if (!sequenceSource.facts.present) {
-            return roleSource;
-        }
-
-        roleSource.present = true;
-        roleSource.provider = sequenceSource.facts.provider;
-        roleSource.timed = sequenceSource.facts.timed;
-        roleSource.authoredAnimationFacts = sequenceSource.facts.authoredAnimationFacts;
-        if (!roleSource.provider) {
-            roleSource.frameCount = sequenceSource.facts.frameCount;
-            roleSource.firstFramePosition = sequenceSource.facts.firstFramePosition;
-            roleSource.timingIntervals = sequenceSource.facts.timingIntervals;
-        }
-        return roleSource;
-    };
-    ViewportSequenceRoleSource secondarySource = roleSourceForSequence(secondarySourceHandle);
     if (!primarySequence) {
-        secondarySequence = nullptr;
         secondarySourceHandle = {};
-        secondarySource = {};
     }
     ViewportSequenceAssignment assignment;
-    assignment.sequence = primarySource.sequence;
-    assignment.sequenceOwner = std::move(primarySource.owner);
-    assignment.secondarySequence = secondarySequence;
-    assignment.secondarySequenceOwner = std::move(secondarySourceHandle.owner);
-    assignment.secondarySource = secondarySource;
+    assignment.source = std::move(primarySource);
+    assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     if (result.outcome != CommandOutcome::Accepted) {

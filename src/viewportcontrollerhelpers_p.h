@@ -210,18 +210,22 @@ ViewportMetadataProjection projectBuiltInMetadata(
 ViewportSequenceRoleSource resolvedSecondarySource(
     ViewportControllerPort& viewport, const ViewportSequenceAssignment& assignment)
 {
+    Q_UNUSED(viewport);
     ViewportSequenceRoleSource source = assignment.secondarySource;
-    if (!assignment.secondarySequence) {
+    if (!assignment.secondarySourceHandle.sequence) {
         return {};
     }
     if (!source.present) {
-        source.present = true;
-        source.provider = false;
-        source.timed = viewport.hasSecondaryTimedSequence();
-        source.frameCount = viewport.secondarySequenceFrameCount();
+        source.present = assignment.secondarySourceHandle.facts.present;
+        source.provider = assignment.secondarySourceHandle.facts.provider;
+        source.timed = assignment.secondarySourceHandle.facts.timed;
+        source.authoredAnimationFacts = assignment.secondarySourceHandle.facts.authoredAnimationFacts;
+    }
+    if (source.present && !source.provider && source.frameCount < 0) {
+        source.frameCount = assignment.secondarySourceHandle.facts.frameCount;
         source.firstFramePosition
-            = source.timed ? viewport.secondarySequenceFrameStartPosition(0) : -1;
-        source.authoredAnimationFacts = viewport.secondarySequenceAuthoredAnimationFacts();
+            = source.timed ? sourceFrameStartPosition(assignment.secondarySourceHandle, 0) : -1;
+        source.timingIntervals = assignment.secondarySourceHandle.facts.timingIntervals;
     }
     return source;
 }
@@ -248,25 +252,27 @@ ImageViewportInternal::ResolvedFrameIdentity resolvedFrameForRoleSource(
 int frameStartPositionForRoleSource(
     ViewportControllerPort& viewport, const ViewportSequenceRoleSource& source, int frame)
 {
+    Q_UNUSED(viewport);
     if (!source.timed) {
         return -1;
     }
     if (source.timingIntervals.isValid()) {
         return source.timingIntervals.frameStartPosition(frame);
     }
-    return viewport.secondarySequenceFrameStartPosition(frame);
+    return -1;
 }
 
 int frameIndexForRoleSource(
     ViewportControllerPort& viewport, const ViewportSequenceRoleSource& source, int position)
 {
+    Q_UNUSED(viewport);
     if (!source.timed) {
         return -1;
     }
     if (source.timingIntervals.isValid()) {
         return source.timingIntervals.frameIndexForPosition(position);
     }
-    return viewport.secondarySequenceFrameIndexForPosition(position);
+    return -1;
 }
 
 ViewportCommandResult commandResultWithSecondaryTransport(ViewportCommandResult result)

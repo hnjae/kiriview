@@ -3,6 +3,8 @@
 #include "imageviewport.h"
 #include "timingintervals_p.h"
 
+#include <QtGui/QImage>
+
 #include <memory>
 
 namespace ImageViewportInternal {
@@ -15,6 +17,7 @@ struct ImageSequenceSourceFacts
     int frameCount = -1;
     int totalDuration = -1;
     int firstFramePosition = -1;
+    QSizeF logicalSize;
     TimingIntervals timingIntervals;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     bool hasCompleteProviderKnownMetadata = false;
@@ -39,11 +42,13 @@ struct ImageSequenceSource
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory;
 };
 
-void registerFactorySequenceOwner(const std::shared_ptr<ImageSequence>& sequence);
 ImageSequenceSource makeImageSequenceSource(
     ImageSequence* sequence, std::shared_ptr<ImageSequence> owner = {});
 ImageSequenceSource factorySequenceSource(ImageSequence* sequence);
-// Transitional wrapper for legacy owner-only callers until assignments store ImageSequenceSource.
-std::shared_ptr<ImageSequence> factorySequenceOwner(ImageSequence* sequence);
+bool sourceIsStill(const ImageSequenceSource& source);
+int sourceFrameStartPosition(const ImageSequenceSource& source, int frame);
+int sourceFrameIndexForPosition(const ImageSequenceSource& source, int position);
+QSizeF sourceLogicalSize(const ImageSequenceSource& source);
+QImage sourceFrameImage(const ImageSequenceSource& source, int frame);
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "imagesequencesource_p.h"
 #include "imageviewport.h"
 #include "timingintervals_p.h"
 
@@ -384,10 +385,10 @@ struct RequestState
             && identity.payloadId == activeRequest.preparedPayloadId;
     }
 
+    ImageSequenceSource sequenceSource;
     QPointer<ImageSequence> sequence;
-    std::shared_ptr<ImageSequence> sequenceOwner;
+    ImageSequenceSource secondarySequenceSource;
     QPointer<ImageSequence> secondarySequence;
-    std::shared_ptr<ImageSequence> secondarySequenceOwner;
     bool secondarySequenceIsProvider = false;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;

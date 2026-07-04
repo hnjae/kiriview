@@ -37,6 +37,7 @@ public:
     QVector<QImage> frameImages;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory;
+    std::weak_ptr<ImageSequence> owner;
     ImageSequenceProviderKnownFacts providerKnownFacts;
     bool hasCompleteProviderKnownMetadata = false;
     QSizeF providerKnownLogicalSize;
@@ -94,6 +95,7 @@ public:
         const ImageSequence* sequence);
     static ImageSequenceProviderThreadingContract providerThreadingContract(
         const ImageSequence* sequence);
+    static std::shared_ptr<ImageSequence> owner(const ImageSequence* sequence);
 };
 
 class ImageFramePrivateAccess

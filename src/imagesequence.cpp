@@ -32,6 +32,7 @@ QImage normalizedImageForOrientation(
     }
     return image;
 }
+
 }
 
 ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::finiteLoop(int loopCount)
@@ -144,16 +145,20 @@ ImageSequence::~ImageSequence() = default;
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createStill(
     QSizeF logicalSize, QImage stillImage)
 {
-    return std::shared_ptr<ImageSequence>(
+    std::shared_ptr<ImageSequence> sequence(
         new ImageSequence(ImageSequenceData::still(logicalSize, std::move(stillImage))));
+    sequence->d->owner = sequence;
+    return sequence;
 }
 
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createTimedList(QSizeF logicalSize,
     const QVector<int>& frameDurations, QVector<QImage> frameImages,
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
-    return std::shared_ptr<ImageSequence>(new ImageSequence(ImageSequenceData::timedList(
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequenceData::timedList(
         logicalSize, frameDurations, std::move(frameImages), authoredAnimationFacts)));
+    sequence->d->owner = sequence;
+    return sequence;
 }
 
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
@@ -165,10 +170,12 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
-    return std::shared_ptr<ImageSequence>(new ImageSequence(ImageSequenceData::provider(
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequenceData::provider(
         std::move(providerSessionFactory), std::move(providerKnownFacts), timedPlaybackCapability,
         frameSeekCapability, positionSeekCapability, authoredAnimationFacts,
         providerThreadingContract)));
+    sequence->d->owner = sequence;
+    return sequence;
 }
 
 bool ImageSequencePrivateAccess::isValid(const ImageSequence* sequence)
@@ -332,6 +339,11 @@ ImageSequenceProviderThreadingContract ImageSequencePrivateAccess::providerThrea
     return sequence && sequence->d && isProvider(sequence)
         ? sequence->d->providerThreadingContract
         : ImageSequenceProviderThreadingContract::AffinityBound;
+}
+
+std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::owner(const ImageSequence* sequence)
+{
+    return sequence && sequence->d ? sequence->d->owner.lock() : nullptr;
 }
 
 ImageFrame::ImageFrame(QObject* parent)

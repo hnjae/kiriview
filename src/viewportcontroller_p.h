@@ -369,10 +369,10 @@ struct ViewportSequenceRoleSource
 
 struct ViewportSequenceAssignment
 {
+    ImageViewportInternal::ImageSequenceSource source;
+    ImageViewportInternal::ImageSequenceSource secondarySourceHandle;
     ImageSequence* sequence = nullptr;
-    std::shared_ptr<ImageSequence> sequenceOwner;
     ImageSequence* secondarySequence = nullptr;
-    std::shared_ptr<ImageSequence> secondarySequenceOwner;
     ViewportSequenceRoleSource secondarySource;
     PageSetTransitionPolicy transitionPolicy;
 };

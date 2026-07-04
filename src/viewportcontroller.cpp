@@ -212,216 +212,251 @@ QRectF ViewportControllerPort::visibleImageRect() const { return context.visible
 
 QRectF ViewportControllerPort::itemBounds() const { return context.itemBounds(); }
 
-bool ViewportControllerPort::hasActiveRequest() const { return context.hasActiveRequest(); }
+bool ViewportControllerPort::hasActiveRequest() const
+{
+    return state.request.status != ImageViewport::RequestStatus::NoRequest;
+}
 
-bool ViewportControllerPort::hasReadyDisplay() const { return context.hasReadyDisplay(); }
+bool ViewportControllerPort::hasReadyDisplay() const
+{
+    return state.display.hasReadyDisplay(hasDisplayableSequence());
+}
 
 bool ViewportControllerPort::hasDisplayableSequence() const
 {
-    return context.hasDisplayableSequence();
+    return state.request.sequenceSource.facts.present;
 }
 
-bool ViewportControllerPort::hasTimedSequence() const { return context.hasTimedSequence(); }
+bool ViewportControllerPort::hasTimedSequence() const
+{
+    return state.request.sequenceSource.facts.timed;
+}
 
-bool ViewportControllerPort::hasProviderSequence() const { return context.hasProviderSequence(); }
+bool ViewportControllerPort::hasProviderSequence() const
+{
+    return state.request.sequenceSource.facts.provider;
+}
 
 bool ViewportControllerPort::hasGenerationTerminalProviderFailure() const
 {
-    return context.hasGenerationTerminalProviderFailure();
+    return false;
 }
 
 bool ViewportControllerPort::providerHasCompleteKnownMetadata() const
 {
-    return context.providerHasCompleteKnownMetadata();
+    return state.request.sequenceSource.facts.hasCompleteProviderKnownMetadata;
 }
 
 ImageSequenceProviderKnownFacts ViewportControllerPort::providerKnownFacts() const
 {
-    return context.providerKnownFacts();
+    return state.request.sequenceSource.facts.providerKnownFacts;
 }
 
 QSizeF ViewportControllerPort::providerKnownLogicalSize() const
 {
-    return context.providerKnownLogicalSize();
+    return state.request.sequenceSource.facts.providerKnownLogicalSize;
 }
 
 TimingIntervals ViewportControllerPort::providerKnownTimingIntervals() const
 {
-    return context.providerKnownTimingIntervals();
+    return state.request.sequenceSource.facts.providerKnownTimingIntervals;
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::providerTimedPlaybackCapability() const
 {
-    return context.providerTimedPlaybackCapability();
+    return state.request.sequenceSource.facts.providerTimedPlaybackCapability;
 }
 
 ImageSequenceProviderCapabilitySupport ViewportControllerPort::providerFrameSeekCapability() const
 {
-    return context.providerFrameSeekCapability();
+    return state.request.sequenceSource.facts.providerFrameSeekCapability;
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::providerPositionSeekCapability() const
 {
-    return context.providerPositionSeekCapability();
+    return state.request.sequenceSource.facts.providerPositionSeekCapability;
 }
 
 bool ViewportControllerPort::providerTimedPlaybackCapabilityKnownFalse() const
 {
-    return context.providerTimedPlaybackCapabilityKnownFalse();
+    return ImageViewportInternal::providerCapabilityKnownFalse(providerTimedPlaybackCapability());
 }
 
 bool ViewportControllerPort::providerFrameSeekCapabilityKnownFalse() const
 {
-    return context.providerFrameSeekCapabilityKnownFalse();
+    return ImageViewportInternal::providerCapabilityKnownFalse(providerFrameSeekCapability());
 }
 
 bool ViewportControllerPort::providerFrameSeekCapabilityKnownTrue() const
 {
-    return context.providerFrameSeekCapabilityKnownTrue();
+    return ImageViewportInternal::providerCapabilityKnownTrue(providerFrameSeekCapability());
 }
 
 bool ViewportControllerPort::providerPositionSeekCapabilityKnownFalse() const
 {
-    return context.providerPositionSeekCapabilityKnownFalse();
+    return ImageViewportInternal::providerCapabilityKnownFalse(providerPositionSeekCapability());
 }
 
 bool ViewportControllerPort::providerKnownFactsTimedFrameCount() const
 {
-    return context.providerKnownFactsTimedFrameCount();
+    return providerKnownFacts().isTimedFrameCount();
 }
 
 int ViewportControllerPort::providerKnownFactsFrameCount() const
 {
-    return context.providerKnownFactsFrameCount();
+    return providerKnownFactsTimedFrameCount() ? providerKnownFacts().frameCount() : 0;
 }
 
 int ViewportControllerPort::providerFrameStartPosition(int frame) const
 {
-    return context.providerFrameStartPosition(frame);
+    return state.provider.timedMetadata ? state.provider.timingIntervals.frameStartPosition(frame)
+                                        : providerKnownTimingIntervals().frameStartPosition(frame);
 }
 
 int ViewportControllerPort::providerFrameIndexForPosition(int position) const
 {
-    return context.providerFrameIndexForPosition(position);
+    return state.provider.timedMetadata
+        ? state.provider.timingIntervals.frameIndexForPosition(position)
+        : providerKnownTimingIntervals().frameIndexForPosition(position);
 }
 
 ImageSequenceAuthoredAnimationFacts ViewportControllerPort::providerAuthoredAnimationFacts() const
 {
-    return context.providerAuthoredAnimationFacts();
+    return state.provider.authoredAnimationFacts;
 }
 
-int ViewportControllerPort::frameCount() const { return context.frameCount(); }
+int ViewportControllerPort::frameCount() const
+{
+    return hasProviderSequence() && state.provider.metadataReady
+        ? (state.provider.timedMetadata ? state.provider.timingIntervals.frameCount() : 1)
+        : sequenceFrameCount();
+}
 
-int ViewportControllerPort::totalDuration() const { return context.totalDuration(); }
+int ViewportControllerPort::totalDuration() const
+{
+    return hasProviderSequence() && state.provider.metadataReady
+        ? (state.provider.timedMetadata ? state.provider.timingIntervals.totalDuration() : -1)
+        : sequenceTotalDuration();
+}
 
-int ViewportControllerPort::sequenceFrameCount() const { return context.sequenceFrameCount(); }
+int ViewportControllerPort::sequenceFrameCount() const
+{
+    return state.request.sequenceSource.facts.frameCount;
+}
 
 int ViewportControllerPort::sequenceTotalDuration() const
 {
-    return context.sequenceTotalDuration();
+    return state.request.sequenceSource.facts.totalDuration;
 }
 
 int ViewportControllerPort::sequenceFrameIndexForPosition(int position) const
 {
-    return context.sequenceFrameIndexForPosition(position);
+    return sourceFrameIndexForPosition(state.request.sequenceSource, position);
 }
 
 int ViewportControllerPort::sequenceFrameStartPosition(int frame) const
 {
-    return context.sequenceFrameStartPosition(frame);
+    return sourceFrameStartPosition(state.request.sequenceSource, frame);
 }
 
 ImageSequenceAuthoredAnimationFacts ViewportControllerPort::sequenceAuthoredAnimationFacts() const
 {
-    return context.sequenceAuthoredAnimationFacts();
+    return state.request.sequenceSource.facts.authoredAnimationFacts;
 }
 
 bool ViewportControllerPort::hasSecondaryTimedSequence() const
 {
-    return context.hasSecondaryTimedSequence();
+    return state.request.secondarySequenceSource.facts.timed;
 }
 
 int ViewportControllerPort::secondarySequenceFrameCount() const
 {
-    return context.secondarySequenceFrameCount();
+    return state.request.secondarySequenceSource.facts.frameCount;
 }
 
 int ViewportControllerPort::secondarySequenceTotalDuration() const
 {
-    return context.secondarySequenceTotalDuration();
+    return state.request.secondarySequenceSource.facts.totalDuration;
 }
 
 int ViewportControllerPort::secondaryTotalDuration() const
 {
-    return context.secondaryTotalDuration();
+    return state.request.secondarySequenceIsProvider && state.secondaryProvider.metadataReady
+        ? (state.secondaryProvider.timedMetadata
+                ? state.secondaryProvider.timingIntervals.totalDuration()
+                : -1)
+        : secondarySequenceTotalDuration();
 }
 
 int ViewportControllerPort::secondarySequenceFrameIndexForPosition(int position) const
 {
-    return context.secondarySequenceFrameIndexForPosition(position);
+    return sourceFrameIndexForPosition(state.request.secondarySequenceSource, position);
 }
 
 int ViewportControllerPort::secondarySequenceFrameStartPosition(int frame) const
 {
-    return context.secondarySequenceFrameStartPosition(frame);
+    return sourceFrameStartPosition(state.request.secondarySequenceSource, frame);
 }
 
 ImageSequenceAuthoredAnimationFacts
 ViewportControllerPort::secondarySequenceAuthoredAnimationFacts() const
 {
-    return context.secondarySequenceAuthoredAnimationFacts();
+    return state.request.secondarySequenceSource.facts.authoredAnimationFacts;
 }
 
 ImageSequenceProviderKnownFacts ViewportControllerPort::secondaryProviderKnownFacts() const
 {
-    return context.secondaryProviderKnownFacts();
+    return state.request.secondarySequenceSource.facts.providerKnownFacts;
 }
 
 QSizeF ViewportControllerPort::secondaryProviderKnownLogicalSize() const
 {
-    return context.secondaryProviderKnownLogicalSize();
+    return state.request.secondarySequenceSource.facts.providerKnownLogicalSize;
 }
 
 TimingIntervals ViewportControllerPort::secondaryProviderKnownTimingIntervals() const
 {
-    return context.secondaryProviderKnownTimingIntervals();
+    return state.request.secondarySequenceSource.facts.providerKnownTimingIntervals;
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::secondaryProviderTimedPlaybackCapability() const
 {
-    return context.secondaryProviderTimedPlaybackCapability();
+    return state.request.secondarySequenceSource.facts.providerTimedPlaybackCapability;
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::secondaryProviderFrameSeekCapability() const
 {
-    return context.secondaryProviderFrameSeekCapability();
+    return state.request.secondarySequenceSource.facts.providerFrameSeekCapability;
 }
 
 ImageSequenceProviderCapabilitySupport
 ViewportControllerPort::secondaryProviderPositionSeekCapability() const
 {
-    return context.secondaryProviderPositionSeekCapability();
+    return state.request.secondarySequenceSource.facts.providerPositionSeekCapability;
 }
 
-QSizeF ViewportControllerPort::sequenceLogicalSize() const { return context.sequenceLogicalSize(); }
+QSizeF ViewportControllerPort::sequenceLogicalSize() const
+{
+    return sourceLogicalSize(state.request.sequenceSource);
+}
 
 QSizeF ViewportControllerPort::secondarySequenceLogicalSize() const
 {
-    return context.secondarySequenceLogicalSize();
+    return sourceLogicalSize(state.request.secondarySequenceSource);
 }
 
 QImage ViewportControllerPort::sequenceFrameImage(int frame) const
 {
-    return context.sequenceFrameImage(frame);
+    return sourceFrameImage(state.request.sequenceSource, frame);
 }
 
 QImage ViewportControllerPort::secondarySequenceFrameImage(int frame) const
 {
-    return context.secondarySequenceFrameImage(frame);
+    return sourceFrameImage(state.request.secondarySequenceSource, frame);
 }
 
 double ViewportControllerPort::width() const { return context.width(); }
@@ -578,6 +613,23 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {
     ViewportSequenceAssignmentResult result;
+    if (assignment.source.sequence && !assignment.source.facts.present) {
+        assignment.source = ImageViewportInternal::makeImageSequenceSource(
+            assignment.source.sequence, std::move(assignment.source.owner));
+    }
+    if (assignment.secondarySourceHandle.sequence
+        && !assignment.secondarySourceHandle.facts.present) {
+        assignment.secondarySourceHandle = ImageViewportInternal::makeImageSequenceSource(
+            assignment.secondarySourceHandle.sequence,
+            std::move(assignment.secondarySourceHandle.owner));
+    }
+    if (!assignment.source.sequence && assignment.sequence) {
+        assignment.source = ImageViewportInternal::makeImageSequenceSource(assignment.sequence);
+    }
+    if (!assignment.secondarySourceHandle.sequence && assignment.secondarySequence) {
+        assignment.secondarySourceHandle
+            = ImageViewportInternal::makeImageSequenceSource(assignment.secondarySequence);
+    }
     const std::optional<ControllerTransitionPolicy> transitionPolicy
         = normalizeControllerTransitionPolicy(assignment.transitionPolicy);
     if (!transitionPolicy) {
@@ -591,7 +643,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const bool retainDisplay = transitionPolicy->displayTransition
         == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
 
-    if (!assignment.sequence) {
+    if (!assignment.source.sequence) {
         const ViewportCommandResult clearResult = clear();
         result.outcome = clearResult.outcome;
         result.changes = clearResult.changes;
@@ -620,11 +672,12 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const ImageViewportInternal::ResolvedFrameIdentity secondaryInitialResolvedFrame
         = resolvedFrameForRoleSource(secondarySource);
 
-    viewportRequestState(viewport).sequence = assignment.sequence;
-    viewportRequestState(viewport).sequenceOwner = std::move(assignment.sequenceOwner);
-    viewportRequestState(viewport).secondarySequence = assignment.secondarySequence;
-    viewportRequestState(viewport).secondarySequenceOwner
-        = std::move(assignment.secondarySequenceOwner);
+    viewportRequestState(viewport).sequenceSource = std::move(assignment.source);
+    viewportRequestState(viewport).sequence = viewportRequestState(viewport).sequenceSource.sequence;
+    viewportRequestState(viewport).secondarySequenceSource
+        = std::move(assignment.secondarySourceHandle);
+    viewportRequestState(viewport).secondarySequence
+        = viewportRequestState(viewport).secondarySequenceSource.sequence;
     viewportRequestState(viewport).secondarySequenceIsProvider = secondarySource.provider;
     state.secondarySource = secondarySource;
     ++viewportRequestState(viewport).sequenceGeneration;
@@ -645,8 +698,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     viewportProviderState(viewport).timedPlaybackSupport = false;
     viewportProviderState(viewport).frameSeekSupport = false;
     viewportProviderState(viewport).positionSeekSupport = false;
-    viewportProviderState(viewport).authoredAnimationFacts = viewport.hasProviderSequence()
-        ? viewport.providerAuthoredAnimationFacts()
+    viewportProviderState(viewport).authoredAnimationFacts
+        = viewport.hasProviderSequence()
+        ? viewportRequestState(viewport).sequenceSource.facts.authoredAnimationFacts
         : ImageSequenceAuthoredAnimationFacts {};
     viewportProviderState(viewport).logicalSize = {};
     viewportProviderState(viewport).timingIntervals = {};
@@ -826,10 +880,10 @@ ViewportCommandResult ViewportController::clear()
     result.providerFrameTransport.closeSession = hasProviderSession;
     result.secondaryProviderFrameTransport
         = closeProviderSession(ImageViewport::PageRole::Secondary);
+    viewportRequestState(viewport).sequenceSource = {};
     viewportRequestState(viewport).sequence = nullptr;
-    viewportRequestState(viewport).sequenceOwner.reset();
+    viewportRequestState(viewport).secondarySequenceSource = {};
     viewportRequestState(viewport).secondarySequence = nullptr;
-    viewportRequestState(viewport).secondarySequenceOwner.reset();
     viewportRequestState(viewport).secondarySequenceIsProvider = false;
     state.secondarySource = {};
     ++viewportRequestState(viewport).sequenceGeneration;

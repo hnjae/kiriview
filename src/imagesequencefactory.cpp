@@ -1,6 +1,5 @@
 #include "framepreparation_p.h"
 #include "imagesequence_p.h"
-#include "imagesequenceownership_p.h"
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"
 
@@ -92,7 +91,6 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
 
     std::shared_ptr<ImageSequence> sequence
         = ImageSequencePrivateAccess::createStill(frame->logicalSize(), frame->imagePayload());
-    registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
@@ -108,7 +106,6 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
     std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createTimedList(
         list->logicalSize(), list->frameDurations(), list->frameImages(),
         list->authoredAnimationFacts());
-    registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
@@ -155,6 +152,18 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     }
 
     const bool hasKnownMetadata = knownMetadata.isSpecified();
+    ImageSequenceProviderKnownFacts effectiveKnownFacts = knownFacts;
+    if (hasKnownMetadata) {
+        if (providerFactsContradictMetadata(knownFacts, knownMetadata)) {
+            return new ImageSequenceFactoryResult(nullptr,
+                ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+                QStringLiteral("provider construction facts contradict known metadata"));
+        }
+        effectiveKnownFacts = knownMetadata.isStill()
+            ? ImageSequenceProviderKnownFacts::still(knownMetadata.logicalSize())
+            : ImageSequenceProviderKnownFacts::timedFrameList(
+                  knownMetadata.logicalSize(), knownMetadata.frameDurations());
+    }
     if (hasKnownMetadata
         && (providerCapabilityContradictsMetadata(
                 timedPlaybackCapability, knownMetadata.timedPlaybackSupport())
@@ -179,7 +188,7 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
         ? (knownMetadata.positionSeekSupport() ? ImageSequenceProviderCapabilitySupport::KnownTrue
                                                : ImageSequenceProviderCapabilitySupport::KnownFalse)
         : positionSeekCapability;
-    if (providerFactsContradictCapabilities(knownFacts, effectiveTimedPlaybackCapability,
+    if (providerFactsContradictCapabilities(effectiveKnownFacts, effectiveTimedPlaybackCapability,
             effectiveFrameSeekCapability, effectivePositionSeekCapability)) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
@@ -187,10 +196,9 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
     }
 
     std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createProvider(
-        std::move(sessionFactory), knownFacts, effectiveTimedPlaybackCapability,
+        std::move(sessionFactory), effectiveKnownFacts, effectiveTimedPlaybackCapability,
         effectiveFrameSeekCapability, effectivePositionSeekCapability, authoredAnimationFacts,
         threadingContract);
-    registerFactorySequenceOwner(sequence);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }

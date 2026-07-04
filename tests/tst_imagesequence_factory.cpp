@@ -1,5 +1,5 @@
 #include "framepreparation_p.h"
-#include "imagesequenceownership_p.h"
+#include "imagesequencesource_p.h"
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 #include "timingintervals_p.h"
@@ -507,7 +507,7 @@ void ImageSequenceFactoryTest::factorySequenceSourceCarriesOwnerAndConstructionF
     QVERIFY(timedResult->sequence());
 
     const ImageViewportInternal::ImageSequenceSource timedSource
-        = ImageViewportInternal::factorySequenceSource(timedResult->sequence());
+        = ImageViewportInternal::makeImageSequenceSource(timedResult->sequence());
     QCOMPARE(timedSource.sequence, timedResult->sequence());
     QVERIFY(timedSource.owner);
     QCOMPARE(timedSource.facts.present, true);
@@ -536,7 +536,7 @@ void ImageSequenceFactoryTest::factorySequenceSourceCarriesOwnerAndConstructionF
     QVERIFY(providerResult->sequence());
 
     const ImageViewportInternal::ImageSequenceSource providerSource
-        = ImageViewportInternal::factorySequenceSource(providerResult->sequence());
+        = ImageViewportInternal::makeImageSequenceSource(providerResult->sequence());
     QCOMPARE(providerSource.sequence, providerResult->sequence());
     QVERIFY(providerSource.owner);
     QCOMPARE(providerSource.providerSessionFactory, sessionFactory);

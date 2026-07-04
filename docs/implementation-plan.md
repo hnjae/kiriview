@@ -680,12 +680,14 @@ F8, F9.
 
 #### Tasks
 
-- [ ] Pass sequence-source handles into `ViewportSequenceAssignment` or equivalent controller assignment input for both roles.
-- [ ] Move assignment-time role fact extraction from `ImageViewportPrivate::setPageSet(...)` to the controller/sequence-source boundary.
-- [ ] Update role request state to store one sequence-source owner per accepted role generation.
-- [ ] Remove controller context getters that only proxy sequence facts or payloads from `ImageViewportPrivate`.
-- [ ] Delete or retire `imagesequenceownership` registry code after `registerImageSequenceOwner(...)` and `lookupImageSequenceOwner(...)` have no assignment path users.
-- [ ] Add structural verification that no viewport assignment path calls global owner lookup or item-side sequence fact getters.
+- [x] Pass sequence-source handles into `ViewportSequenceAssignment` or equivalent controller assignment input for both roles.
+- [x] Move assignment-time role fact extraction from `ImageViewportPrivate::setPageSet(...)` to the controller/sequence-source boundary.
+- [x] Update role request state to store one sequence-source owner per accepted role generation.
+- [x] Remove controller context getters that only proxy sequence facts or payloads from `ImageViewportPrivate`.
+- [x] Delete or retire `imagesequenceownership` registry code after `registerImageSequenceOwner(...)` and `lookupImageSequenceOwner(...)` have no assignment path users.
+- [x] Add structural verification that no viewport assignment path calls global owner lookup or item-side sequence fact getters.
+
+Status: Complete. Verified against the sequence boundary, page-set assignment contract, provider-backed construction facts, and provider protocol docs before execution. Replaced the process-global factory owner registry with intrinsic weak owner recovery on `ImageSequence`, renamed the private sequence-source unit, stored full source handles for accepted primary and secondary generations, and moved assignment-time role fact and provider session lookup through the sequence-source boundary. `ImageViewportPrivate::setPageSet(...)` now normalizes public inputs and transfers source handles to the controller without deriving role facts itself. Provider `knownMetadata()` now persists as construction facts so source-state assignment preserves the public compatibility declaration path.
 
 #### Acceptance criteria
 
@@ -702,6 +704,7 @@ F8, F9.
 - `ctest --test-dir build-ninja -R 'imagesequence_factory|imageviewport_provider_contract|imageviewport_provider_lifecycle|viewportcontroller_provider' --output-on-failure`
 - `rg -n 'registerImageSequenceOwner|lookupImageSequenceOwner|ImageSequenceOwnership|imagesequenceownership' src`
 - `rg -n 'ImageSequencePrivateAccess' src/imageviewport.cpp src/imageviewportcontroller.cpp src/imageviewportprovider.cpp`
+- Additional regression check: `cmake --build build-ninja --target viewportcontroller_presentation` and `ctest --test-dir build-ninja -R 'viewportcontroller_presentation' --output-on-failure`
 
 #### Risks / notes
 
