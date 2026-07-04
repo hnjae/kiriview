@@ -20,7 +20,7 @@ Shared async support owns reusable callback delivery, cancelable job wrappers, o
 
 Session runtime dependencies own active-navigation thumbnail worker scheduling. If the session resolves thumbnail lookup or generation providers, it must bind them to the session's thumbnail worker scheduler before constructing the thumbnail runtime.
 
-Image page-surface owners must schedule raster display refinement through an injected worker scheduler. Refinement completions carry the display-source demand key back to the page-surface owner, which accepts or rejects them before publishing a new provider entry.
+Image page-surface owners must schedule raster display refinement through an injected worker scheduler. Refinement work carries both a refinement cache key and the active display-source demand key; completions return both keys to the page-surface owner, which may cache a ready payload by cache key but may publish a new provider entry only after accepting the current full demand key. In-flight refinement coalescing and worker start gates are owner-owned best-effort cancellation tools, not alternate publication authority.
 
 Timer-backed owners must receive monotonic time and timer firing through dependency ports when behavior depends on elapsed time. Production adapters may use `QElapsedTimer` and `QTimer`, but runtime state must consume plain timestamps and scheduled callback events so tests can advance time or fire callbacks without waiting on wall-clock delays.
 
