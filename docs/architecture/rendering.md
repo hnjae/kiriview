@@ -14,6 +14,8 @@ Render data is immutable for the duration of one synchronization attempt. Payloa
 
 Render acknowledgements identify the target spread plus every required role payload identity for that snapshot. A commit acknowledgement is complete only when all required role identities match the controller's active target spread, and a failure acknowledgement carries the failed role identity so stale or non-required role failures can be discarded without changing newer request or display state.
 
+Render failure acknowledgements carry an internal cause selected at the render boundary, such as missing scene graph window, texture creation failure, image-node creation failure, invalid role payload, or unknown backend failure. The cause is for internal diagnostics and deterministic tests only; public request projection remains bounded `Error` with `RenderFailure` unless a later public spec explicitly exposes more detail.
+
 The controller-authorized render snapshot owns the ordered role layer list for a synchronization attempt: prepared payload identities and upload-ready image data, source rectangles, target rectangles, mirror flags, quality requests, background presentation, and presentation mapping. Item-side synchronization adapts that snapshot to the render adapter input contract and supplies Qt Quick ownership handles such as the previous node and window; it must not query live sequences, requested/displayed frame state, provider state, or mutable display payload fields to assemble or repair layers after snapshot creation.
 
 ## Geometry
