@@ -246,12 +246,16 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play()
 ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
     if (role == PageRole::Secondary) {
         ImageSequence* sequence = secondarySequence();
         if (!sequence || !sequence->isValid()) {
-            return CommandOutcome::IgnoredNoRequest;
+            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
         }
         if (!sequence->isProvider() && !sequence->isTimedList()) {
             const ViewportCommandResult result = controller.rejectUnsupportedCommand();
@@ -291,12 +295,16 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
     if (role == PageRole::Secondary) {
         ImageSequence* sequence = secondarySequence();
         if (!sequence || !sequence->isValid()) {
-            return CommandOutcome::IgnoredNoRequest;
+            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
         }
         flushPlaybackTimerElapsed();
         const ViewportCommandResult result = controller.pause(PageRole::Secondary);
@@ -321,12 +329,16 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
     if (role == PageRole::Secondary) {
         ImageSequence* sequence = secondarySequence();
         if (!sequence || !sequence->isValid()) {
-            return CommandOutcome::IgnoredNoRequest;
+            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
         }
         flushPlaybackTimerElapsed();
         const ViewportCommandResult result = controller.stop(PageRole::Secondary);
@@ -352,12 +364,16 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
     if (role == PageRole::Secondary) {
         ImageSequence* sequence = secondarySequence();
         if (!sequence || !sequence->isValid()) {
-            return CommandOutcome::IgnoredNoRequest;
+            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
         }
         if (frame < 0) {
             const ViewportCommandResult result = controller.rejectInvalidCommand();
@@ -396,12 +412,16 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseco
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
-        return CommandOutcome::Invalid;
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
     }
     if (role == PageRole::Secondary) {
         ImageSequence* sequence = secondarySequence();
         if (!sequence || !sequence->isValid()) {
-            return CommandOutcome::IgnoredNoRequest;
+            const ViewportCommandResult result = controller.rejectIgnoredNoRequestCommand();
+            applyControllerChanges(result.changes);
+            return result.outcome;
         }
         if (milliseconds < 0) {
             const ViewportCommandResult result = controller.rejectInvalidCommand();

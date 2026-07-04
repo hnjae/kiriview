@@ -2214,6 +2214,15 @@ ViewportCommandResult ViewportController::rejectUnsupportedCommand()
     return result;
 }
 
+ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+    state.request.setCommandDiagnostic(ImageViewport::CommandReason::IgnoredNoRequest);
+    result.changes.commandRevision = true;
+    return result;
+}
+
 ViewportCommandResult ViewportController::clear()
 {
     ViewportCommandResult result;

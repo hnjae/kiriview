@@ -32,6 +32,8 @@ private slots:
     void clearStylePageSetWithProviderSecondaryDoesNotStartProvider();
     void clearStylePageSetPolicyPreservesPresentationPreferences();
     void invalidPageSetSecondaryPreservesAcceptedRoles();
+    void roleCommandsWithInvalidRolePublishCommandDiagnostics();
+    void secondaryRoleCommandsWithoutSecondaryPublishNoRequestDiagnostics();
     void pageSetTransitionClearBeforeLoadClearsRetainedDisplay();
     void invalidPageSetTransitionPolicyPreservesState();
     void invalidClearStyleTransitionPolicyPreservesState();
@@ -1184,6 +1186,83 @@ void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()
         item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+}
+
+void ImageViewportPublicApiTest::roleCommandsWithInvalidRolePublishCommandDiagnostics()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+    const auto invalidRole = static_cast<ImageViewport::PageRole>(999);
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+
+    const auto verifyInvalidCommand = [&](ImageViewport::CommandOutcome outcome) {
+        QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
+        QCOMPARE(item.property("commandReason").toInt(),
+            enumValue(metaObject, "CommandReason", "InvalidRequest"));
+        verifyRevisionChanged(item, "commandRevision", commandRevision);
+        commandRevision = revisionTokenProperty(item, "commandRevision");
+        QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+        QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+        QCOMPARE(
+            item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(
+            item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    };
+
+    verifyInvalidCommand(item.play(invalidRole));
+    verifyInvalidCommand(item.pause(invalidRole));
+    verifyInvalidCommand(item.stop(invalidRole));
+    verifyInvalidCommand(item.seek(invalidRole, 0));
+    verifyInvalidCommand(item.seekToPosition(invalidRole, 0));
+}
+
+void ImageViewportPublicApiTest::secondaryRoleCommandsWithoutSecondaryPublishNoRequestDiagnostics()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+
+    const auto verifyIgnoredCommand = [&](ImageViewport::CommandOutcome outcome) {
+        QCOMPARE(outcome, ImageViewport::CommandOutcome::IgnoredNoRequest);
+        QCOMPARE(item.property("commandReason").toInt(),
+            enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+        verifyRevisionChanged(item, "commandRevision", commandRevision);
+        commandRevision = revisionTokenProperty(item, "commandRevision");
+        QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+        QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+        QCOMPARE(
+            item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        QCOMPARE(
+            item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    };
+
+    verifyIgnoredCommand(item.play(ImageViewport::PageRole::Secondary));
+    verifyIgnoredCommand(item.pause(ImageViewport::PageRole::Secondary));
+    verifyIgnoredCommand(item.stop(ImageViewport::PageRole::Secondary));
+    verifyIgnoredCommand(item.seek(ImageViewport::PageRole::Secondary, 0));
+    verifyIgnoredCommand(item.seekToPosition(ImageViewport::PageRole::Secondary, 0));
 }
 
 void ImageViewportPublicApiTest::pageSetTransitionClearBeforeLoadClearsRetainedDisplay()

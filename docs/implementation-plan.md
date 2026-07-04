@@ -362,13 +362,13 @@ Role-scoped command admission and command diagnostics are split; controller depe
 
 #### Tasks
 
-- [ ] Add characterization tests for invalid role values across `play`, `pause`, `stop`, `seek`, and `seekToPosition`: expected outcome, `commandReason`, `commandRevision`, unchanged request revision, and unchanged display revision.
-- [ ] Add characterization tests for absent secondary-role commands across `play`, `pause`, `stop`, `seek`, and `seekToPosition`: expected `IgnoredNoRequest`, `commandReason`, `commandRevision`, unchanged request revision, and unchanged display revision.
-- [ ] Add a controller helper for `IgnoredNoRequest` that updates `commandReason` and `commandRevision` consistently with invalid and unsupported command helpers.
-- [ ] Route invalid enum values that reach the typed viewport boundary through controller invalid-command diagnostics.
-- [ ] Route absent primary or secondary role commands through the controller `IgnoredNoRequest` path.
-- [ ] Preserve validation ordering for the covered cases: malformed role/value first, absent role next, then leave present-role domain/capability dispatch to existing behavior or later provider milestones.
-- [ ] Ensure command-only failures leave request status, request reason, accepted target, display status, retained content, playback phase, provider work, request revision, and display revision unchanged.
+- [x] Add characterization tests for invalid role values across `play`, `pause`, `stop`, `seek`, and `seekToPosition`: expected outcome, `commandReason`, `commandRevision`, unchanged request revision, and unchanged display revision.
+- [x] Add characterization tests for absent secondary-role commands across `play`, `pause`, `stop`, `seek`, and `seekToPosition`: expected `IgnoredNoRequest`, `commandReason`, `commandRevision`, unchanged request revision, and unchanged display revision.
+- [x] Add a controller helper for `IgnoredNoRequest` that updates `commandReason` and `commandRevision` consistently with invalid and unsupported command helpers.
+- [x] Route invalid enum values that reach the typed viewport boundary through controller invalid-command diagnostics.
+- [x] Route absent primary or secondary role commands through the controller `IgnoredNoRequest` path.
+- [x] Preserve validation ordering for the covered cases: malformed role/value first, absent role next, then leave present-role domain/capability dispatch to existing behavior or later provider milestones.
+- [x] Ensure command-only failures leave request status, request reason, accepted target, display status, retained content, playback phase, provider work, request revision, and display revision unchanged.
 
 #### Acceptance criteria
 
@@ -384,6 +384,12 @@ Role-scoped command admission and command diagnostics are split; controller depe
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_public_api|imageviewport_still|imageviewport_timed|imageviewport_provider_requests|imageviewport_provider_playback|viewportcontroller_playback)$'`
 - `ctest --test-dir build -R '^(imageviewport_public_api|imageviewport_still|imageviewport_timed|imageviewport_provider_requests|imageviewport_provider_playback|viewportcontroller_playback)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Characterization failures before implementation were stale `NoCommand` diagnostics and unchanged command revisions for invalid role values and absent secondary-role commands in `imageviewport_public_api`.
+- Added `ViewportController::rejectIgnoredNoRequestCommand()` and routed invalid-role and absent-secondary item wrapper paths through controller-owned diagnostic results; valid secondary provider command outcomes were left unchanged for later provider dispatch milestones.
+- Verification passed: `cmake --build build`; `ctest -N --test-dir build`; focused filter selected 6 tests; focused CTest passed 6/6; full CTest passed 19/19.
 
 #### Risks / notes
 
@@ -958,7 +964,7 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - [x] Milestone 1: Baseline Verification And Test Selection
 - [x] Milestone 2: Clear Transaction Characterization And Fix
 - [x] Milestone 3: Mechanical Controller/Item Separation Precursor
-- [ ] Milestone 4: Command Diagnostics For Invalid And Absent Roles
+- [x] Milestone 4: Command Diagnostics For Invalid And Absent Roles
 - [ ] Milestone 5: Provider Harness And Dispatch-Failure Foundation
 - [ ] Milestone 6: Role-Indexed Provider State And Shared Metadata Admission
 - [ ] Milestone 7: Role-Symmetric Explicit Provider Requests
