@@ -34,6 +34,9 @@ private slots:
     void renderAdapterReportsTextureCreationFailureCause();
     void renderAdapterReportsImageNodeCreationFailureCause();
     void renderAdapterReportsInvalidRolePayloadFailureCause();
+    void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
+    void renderPlanBuildsRoleLayerMappingWithoutSceneGraph();
+    void renderPlanReportsPreMaterializationFailureIntent();
     void coverImageTextureNodeUsesVisibleSourceRect();
     void providerStillFrameCreatesTexturePaintNode();
     void providerStillFrameWaitingForGeometryCreatesTexturePaintNode();
@@ -778,6 +781,87 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFa
 
     QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
     QCOMPARE(output.failureCause, RenderFailureCause::InvalidRolePayload);
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph()
+{
+    RenderAdapter::Input input;
+    input.itemSize = QSizeF(18.0, 10.0);
+    input.backgroundMode = ImageViewport::BackgroundMode::Checkerboard;
+
+    RenderAdapter adapter;
+    const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Empty);
+    QCOMPARE(plan.backgroundRects.size(), 6);
+    QCOMPARE(plan.backgroundRects.at(0).rect, QRectF(0.0, 0.0, 8.0, 8.0));
+    QCOMPARE(plan.backgroundRects.at(0).color, QColor(238, 238, 238));
+    QCOMPARE(plan.backgroundRects.at(1).rect, QRectF(8.0, 0.0, 8.0, 8.0));
+    QCOMPARE(plan.backgroundRects.at(1).color, QColor(204, 204, 204));
+    QCOMPARE(plan.backgroundRects.at(5).rect, QRectF(16.0, 8.0, 2.0, 2.0));
+    QCOMPARE(plan.backgroundRects.at(5).color, QColor(204, 204, 204));
+    QVERIFY(plan.imageLayers.isEmpty());
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutSceneGraph()
+{
+    QImage secondaryImage(4, 4, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(QColor(0, 255, 0, 255));
+    secondaryImage.setDevicePixelRatio(2.0);
+    QImage primaryImage(2, 2, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(QColor(255, 0, 0, 255));
+    ImageViewportInternal::PreparedPayload secondaryPayload
+        = { true, 3, 5, 7, secondaryImage };
+    ImageViewportInternal::PreparedPayload primaryPayload = { true, 3, 5, 8, primaryImage };
+
+    RenderAdapter::Input input;
+    input.itemSize = QSizeF(30.0, 20.0);
+    input.imageLayers.append({ ImageViewport::PageRole::Secondary, secondaryPayload,
+        QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
+    input.imageLayers.append({ ImageViewport::PageRole::Primary, primaryPayload,
+        QRectF(0.0, 0.0, 10.0, 20.0), QRectF(0.0, 0.0, 2.0, 2.0), 0, false, true });
+    input.window = reinterpret_cast<QQuickWindow*>(quintptr(1));
+
+    RenderAdapter adapter;
+    const RenderAdapter::RenderPlan plan = adapter.createPlan(input);
+
+    QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
+    QCOMPARE(plan.imageLayers.size(), 2);
+    QCOMPARE(plan.imageLayers.at(0).role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(plan.imageLayers.at(0).preparedPayload.payloadId, quint64(7));
+    QCOMPARE(plan.imageLayers.at(0).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
+    QCOMPARE(plan.imageLayers.at(0).physicalSourceRect, QRectF(2.0, 4.0, 6.0, 8.0));
+    QCOMPARE(plan.imageLayers.at(0).rotationDegrees, 90);
+    QCOMPARE(plan.imageLayers.at(0).mirrorHorizontally, true);
+    QCOMPARE(plan.imageLayers.at(0).mirrorVertically, false);
+    QCOMPARE(plan.imageLayers.at(1).role, ImageViewport::PageRole::Primary);
+    QCOMPARE(plan.imageLayers.at(1).preparedPayload.payloadId, quint64(8));
+    QCOMPARE(plan.rolePayloads.size(), 2);
+    QCOMPARE(plan.rolePayloads.at(0).role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(7));
+    QCOMPARE(plan.preparedPayload.payloadId, quint64(7));
+}
+
+void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailureIntent()
+{
+    RenderAdapter adapter;
+
+    RenderAdapter::Input missingWindow = renderAdapterInputForPayload(
+        renderAdapterPayload(QImage(2, 2, QImage::Format_ARGB32_Premultiplied)));
+    const RenderAdapter::RenderPlan missingWindowPlan = adapter.createPlan(missingWindow);
+    QCOMPARE(missingWindowPlan.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(missingWindowPlan.failureCause, RenderFailureCause::MissingWindow);
+
+    RenderAdapter::Input invalidPayload;
+    invalidPayload.itemSize = QSizeF(10.0, 10.0);
+    invalidPayload.window = reinterpret_cast<QQuickWindow*>(quintptr(1));
+    invalidPayload.imageLayers.append({ ImageViewport::PageRole::Secondary,
+        renderAdapterPayload({}), QRectF(0.0, 0.0, 10.0, 10.0),
+        QRectF(0.0, 0.0, 2.0, 2.0) });
+    const RenderAdapter::RenderPlan invalidPayloadPlan = adapter.createPlan(invalidPayload);
+    QCOMPARE(invalidPayloadPlan.result, RenderAdapter::CommitResult::Failed);
+    QCOMPARE(invalidPayloadPlan.failureCause, RenderFailureCause::InvalidRolePayload);
+    QCOMPARE(invalidPayloadPlan.failedRole, ImageViewport::PageRole::Secondary);
 }
 
 void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRect()

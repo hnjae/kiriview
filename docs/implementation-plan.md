@@ -1140,11 +1140,25 @@ Render planning is coupled to scene graph allocation; core render/request behavi
 
 #### Tasks
 
-- [ ] Extract pure render planning for background primitives, role layer order, source rectangles, rotation/mirror composition, and failure intent.
-- [ ] Add render-plan tests that run without `QQuickWindow` or QSG allocation.
-- [ ] Keep scene graph tests focused on materializing a known valid plan and a small set of backend failures.
-- [ ] Compare private item probes against controller/render-plan coverage and remove only probes with equivalent internal tests.
-- [ ] Keep an explicit allowlist of remaining probes and the tests that still require them.
+- [x] Extract pure render planning for background primitives, role layer order, source rectangles, rotation/mirror composition, and failure intent.
+- [x] Add render-plan tests that run without `QQuickWindow` or QSG allocation.
+- [x] Keep scene graph tests focused on materializing a known valid plan and a small set of backend failures.
+- [x] Compare private item probes against controller/render-plan coverage and remove only probes with equivalent internal tests.
+- [x] Keep an explicit allowlist of remaining probes and the tests that still require them.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/architecture/rendering.md` was updated in commit `7d93025` before code to declare pure render planning as a value step before scene graph materialization.
+
+Added failing render-plan tests in commit `f907fc3`: `ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph`, `renderPlanBuildsRoleLayerMappingWithoutSceneGraph`, and `renderPlanReportsPreMaterializationFailureIntent`. The tests initially failed to compile because `RenderAdapter::RenderPlan` and `RenderAdapter::createPlan` did not exist.
+
+Extracted `RenderAdapter::RenderPlan` and `createPlan` for background primitives, ordered role layers, prepared payload identities, unrotated target rectangles, physical source rectangles, normalized rotation, mirror flags, quality requests, and pre-materialization failure intent. `createNode` now consumes a plan and remains responsible for QSG node, texture, and image-node materialization failures. The new render-plan tests cover checkerboard primitives, role layer ordering, physical source rect mapping, quarter-turn target mapping, mirror flags, missing-window failure intent, and invalid-role-payload failure intent without allocating `QQuickWindow` or QSG objects.
+
+Private item probes were compared against the new controller and render-plan coverage. No public item test probe was removed in this milestone because the remaining probe uses are still required by render commit, playback, provider, or factory tests that do not yet have equivalent internal coverage. The explicit allowlist remains the `rg -n "ForTest|IMAGEVIEWPORT_PRIVATE_TEST_PROBES" src tests` output recorded during verification.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_render_scenegraph|imageviewport_render_commit' --output-on-failure`, `rg -n "ForTest|IMAGEVIEWPORT_PRIVATE_TEST_PROBES" src tests`, and `just test` passed on 2026-07-04. The probe `rg` still reports the documented allowlist sites. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

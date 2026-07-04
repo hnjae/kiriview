@@ -53,13 +53,15 @@ QSGImageNode* RenderAdapter::SceneGraphFactory::createImageNode(QQuickWindow* wi
     return window ? window->createImageNode() : nullptr;
 }
 
-RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& input) const
+RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
 {
-    delete oldNode;
-
+    RenderPlan plan;
+    plan.smoothing = input.smoothing;
+    plan.mipmap = input.mipmap;
     const ImageViewportInternal::PreparedPayloadIdentity emptyPayload;
     if (input.itemSize.width() <= 0.0 || input.itemSize.height() <= 0.0) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
+        plan.result = RenderAdapter::CommitResult::Empty;
+        return plan;
     }
 
     QVector<Input::ImageLayer> imageLayers = input.imageLayers;
@@ -81,16 +83,10 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
         };
     };
 
-    const bool hasBackground = input.backgroundMode != ImageViewport::BackgroundMode::Transparent;
-    if (!hasBackground && imageLayers.isEmpty()) {
-        return { nullptr, RenderAdapter::CommitResult::Empty, emptyPayload };
-    }
-
-    auto* root = new QSGNode;
     if (input.backgroundMode == ImageViewport::BackgroundMode::SolidColor) {
-        root->appendChildNode(
-            new QSGSimpleRectNode(QRectF(0.0, 0.0, input.itemSize.width(), input.itemSize.height()),
-                input.backgroundColor));
+        plan.backgroundRects.append(
+            { QRectF(0.0, 0.0, input.itemSize.width(), input.itemSize.height()),
+                input.backgroundColor });
     } else if (input.backgroundMode == ImageViewport::BackgroundMode::Checkerboard) {
         constexpr double checkerboardTileSize = 8.0;
         const QColor lightSquare(238, 238, 238);
@@ -106,26 +102,28 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
                 const QColor color = ((row + column) % 2 == 0) ? lightSquare : darkSquare;
                 const QRectF tile(x, y, std::min(checkerboardTileSize, input.itemSize.width() - x),
                     std::min(checkerboardTileSize, input.itemSize.height() - y));
-                root->appendChildNode(new QSGSimpleRectNode(tile, color));
+                plan.backgroundRects.append({ tile, color });
             }
         }
     }
 
+    if (plan.backgroundRects.isEmpty() && imageLayers.isEmpty()) {
+        plan.result = RenderAdapter::CommitResult::Empty;
+        return plan;
+    }
+
     if (imageLayers.isEmpty()) {
-        return { root, CommitResult::Empty, emptyPayload };
+        plan.result = CommitResult::Empty;
+        return plan;
     }
 
     if (!input.window) {
-        delete root;
-        return { nullptr, CommitResult::Failed, firstPayloadIdentity(), {},
-            ImageViewport::PageRole::Primary, RenderFailureCause::MissingWindow };
+        plan.result = CommitResult::Failed;
+        plan.preparedPayload = firstPayloadIdentity();
+        plan.failureCause = RenderFailureCause::MissingWindow;
+        return plan;
     }
 
-    const SceneGraphFactory defaultSceneGraphFactory;
-    const SceneGraphFactory& sceneGraphFactory = input.sceneGraphFactory
-        ? *input.sceneGraphFactory
-        : defaultSceneGraphFactory;
-    QVector<Output::RolePayload> rolePayloads;
     for (const Input::ImageLayer& layer : imageLayers) {
         const auto& payload = layer.preparedPayload;
         const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity {
@@ -134,14 +132,65 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
             payload.payloadId,
         };
         if (payload.image.isNull()) {
-            delete root;
-            return { nullptr, CommitResult::Failed, payloadIdentity, rolePayloads, layer.role,
-                RenderFailureCause::InvalidRolePayload };
+            plan.result = CommitResult::Failed;
+            plan.preparedPayload = payloadIdentity;
+            plan.failedRole = layer.role;
+            plan.failureCause = RenderFailureCause::InvalidRolePayload;
+            return plan;
         }
+        plan.rolePayloads.append({ layer.role, payloadIdentity });
+        const qreal devicePixelRatio = payload.image.devicePixelRatio();
+        const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
+            layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
+            layer.sourceRect.height() * devicePixelRatio);
+        plan.imageLayers.append({ layer.role, payload, payloadIdentity, layer.targetRect,
+            unrotatedTargetRect(layer.targetRect, layer.rotationDegrees),
+            layer.sourceRect, physicalSourceRect, normalizedRotation(layer.rotationDegrees),
+            layer.mirrorHorizontally, layer.mirrorVertically });
+    }
+
+    plan.result = CommitResult::Committed;
+    plan.preparedPayload = firstPayloadIdentity();
+    return plan;
+}
+
+RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& input) const
+{
+    delete oldNode;
+
+    const RenderPlan plan = createPlan(input);
+    if (plan.result == CommitResult::Failed) {
+        return { nullptr, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+            plan.failureCause };
+    }
+    if (plan.backgroundRects.isEmpty() && plan.imageLayers.isEmpty()) {
+        return { nullptr, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+            plan.failureCause };
+    }
+
+    auto* root = new QSGNode;
+    for (const RenderPlan::BackgroundRect& background : plan.backgroundRects) {
+        root->appendChildNode(new QSGSimpleRectNode(background.rect, background.color));
+    }
+
+    if (plan.imageLayers.isEmpty()) {
+        return { root, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+            plan.failureCause };
+    }
+
+    const SceneGraphFactory defaultSceneGraphFactory;
+    const SceneGraphFactory& sceneGraphFactory = input.sceneGraphFactory
+        ? *input.sceneGraphFactory
+        : defaultSceneGraphFactory;
+    QVector<Output::RolePayload> rolePayloads;
+    for (const RenderPlan::ImageLayer& layer : plan.imageLayers) {
+        const auto& payload = layer.preparedPayload;
+        const ImageViewportInternal::PreparedPayloadIdentity payloadIdentity
+            = layer.preparedPayloadIdentity;
         rolePayloads.append({ layer.role, payloadIdentity });
 
         QQuickWindow::CreateTextureOptions textureOptions;
-        if (input.mipmap) {
+        if (plan.mipmap) {
             textureOptions |= QQuickWindow::TextureHasMipmaps;
         }
         QSGTexture* texture
@@ -161,14 +210,10 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
 
         imageNode->setTexture(texture);
         imageNode->setOwnsTexture(true);
-        imageNode->setRect(unrotatedTargetRect(layer.targetRect, layer.rotationDegrees));
-        const qreal devicePixelRatio = payload.image.devicePixelRatio();
-        const QRectF physicalSourceRect(layer.sourceRect.x() * devicePixelRatio,
-            layer.sourceRect.y() * devicePixelRatio, layer.sourceRect.width() * devicePixelRatio,
-            layer.sourceRect.height() * devicePixelRatio);
-        imageNode->setSourceRect(physicalSourceRect);
-        imageNode->setFiltering(input.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
-        imageNode->setMipmapFiltering(input.mipmap ? QSGTexture::Linear : QSGTexture::None);
+        imageNode->setRect(layer.unrotatedTargetRect);
+        imageNode->setSourceRect(layer.physicalSourceRect);
+        imageNode->setFiltering(plan.smoothing ? QSGTexture::Linear : QSGTexture::Nearest);
+        imageNode->setMipmapFiltering(plan.mipmap ? QSGTexture::Linear : QSGTexture::None);
         QSGImageNode::TextureCoordinatesTransformMode transform = {};
         if (layer.mirrorHorizontally) {
             transform |= QSGImageNode::MirrorHorizontally;
@@ -177,15 +222,14 @@ RenderAdapter::Output RenderAdapter::createNode(QSGNode* oldNode, const Input& i
             transform |= QSGImageNode::MirrorVertically;
         }
         imageNode->setTextureCoordinatesTransform(transform);
-        const int rotation = normalizedRotation(layer.rotationDegrees);
-        if (rotation == 0) {
+        if (layer.rotationDegrees == 0) {
             root->appendChildNode(imageNode);
         } else {
             auto* transformNode = new QSGTransformNode;
-            transformNode->setMatrix(rotationTransform(layer.targetRect, rotation));
+            transformNode->setMatrix(rotationTransform(layer.targetRect, layer.rotationDegrees));
             transformNode->appendChildNode(imageNode);
             root->appendChildNode(transformNode);
         }
     }
-    return { root, CommitResult::Committed, firstPayloadIdentity(), rolePayloads };
+    return { root, plan.result, plan.preparedPayload, rolePayloads };
 }

@@ -73,5 +73,39 @@ public:
         RenderFailureCause failureCause = RenderFailureCause::None;
     };
 
+    struct RenderPlan
+    {
+        struct BackgroundRect
+        {
+            QRectF rect;
+            QColor color;
+        };
+
+        struct ImageLayer
+        {
+            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+            ImageViewportInternal::PreparedPayload preparedPayload;
+            ImageViewportInternal::PreparedPayloadIdentity preparedPayloadIdentity;
+            QRectF targetRect;
+            QRectF unrotatedTargetRect;
+            QRectF sourceRect;
+            QRectF physicalSourceRect;
+            int rotationDegrees = 0;
+            bool mirrorHorizontally = false;
+            bool mirrorVertically = false;
+        };
+
+        CommitResult result = CommitResult::Empty;
+        ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
+        QVector<Output::RolePayload> rolePayloads;
+        ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+        RenderFailureCause failureCause = RenderFailureCause::None;
+        QVector<BackgroundRect> backgroundRects;
+        QVector<ImageLayer> imageLayers;
+        bool smoothing = true;
+        bool mipmap = false;
+    };
+
+    RenderPlan createPlan(const Input& input) const;
     Output createNode(QSGNode* oldNode, const Input& input) const;
 };
