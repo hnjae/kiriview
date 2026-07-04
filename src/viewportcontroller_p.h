@@ -13,6 +13,7 @@
 #include <QtGui/QImage>
 
 #include <memory>
+#include <optional>
 
 struct ViewportRenderRolePayload
 {
@@ -367,6 +368,25 @@ struct ViewportSequenceRoleSource
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
 };
 
+struct ControllerTransitionPolicy
+{
+    PageSetTransitionPolicy::DisplayTransition displayTransition
+        = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+    PageSetTransitionPolicy::ZoomTransition magnificationPolicy
+        = PageSetTransitionPolicy::ZoomTransition::Preserve;
+    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
+        = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
+    PageSetTransitionPolicy::RotationTransition rotationTransition
+        = PageSetTransitionPolicy::RotationTransition::Preserve;
+    PageSetTransitionPolicy::MirrorTransition mirrorTransition
+        = PageSetTransitionPolicy::MirrorTransition::Preserve;
+    PageSetTransitionPolicy::ReplacementIntent replacementIntent
+        = PageSetTransitionPolicy::ReplacementIntent::NewTarget;
+    std::optional<ImageViewport::FitMode> explicitFitMode;
+    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
+    std::optional<double> explicitPageGap;
+};
+
 struct ViewportSequenceAssignment
 {
     ImageViewportInternal::ImageSequenceSource source;
@@ -582,6 +602,33 @@ public:
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void incrementCommandRevision();
+    void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
+    void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
+        ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
+    void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
+        ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+        bool rememberAsLatestNonPlayback);
+    void discardPendingRenderCommit();
+    void setSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+        bool rememberAsLatestNonPlayback = false);
+    void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
+    void publishReadyDisplayState();
+    void stageBuiltInPrimarySpreadPayload();
+    void publishRenderWaitingState();
+    void publishUploadPendingState();
+    void publishPendingRenderState();
+    void publishSequenceReadyState(const QImage& providerImage = {});
+    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
+    void publishStagedBuiltInPrimarySpreadReadyState();
+    void publishAcceptedTargetState(const QImage& providerImage = {});
+    void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
+    void publishProviderFrameLoadingState();
+    void setPlaybackPhase(ViewportCommandResult& result, ImageViewport::PlaybackPhase phase);
+    void setPlaybackPhase(
+        ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase);
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult rejectInvalidCommand();
@@ -731,6 +778,15 @@ public:
 #endif
 
 private:
+    ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
+        const ControllerTransitionPolicy& policy, QPointF previousContentPosition);
+    bool targetSpreadTerminalSealedForActiveRequest();
+    bool hasGenerationTerminalProviderFailure();
+    void recordTargetSpreadTerminal(ImageViewport::PageRole role,
+        ImageViewport::RequestStatus status, ImageViewport::RequestReason reason,
+        ImageViewportInternal::FailureScope failureScope, const QString& diagnostic,
+        ImageViewportInternal::ViewportChangeSet& changes);
+    void armAuthoredAutoplayIfEligible();
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
     FramePreparation::ProviderFrameState providerFramePreparationState(
         ImageViewport::PageRole role) const;

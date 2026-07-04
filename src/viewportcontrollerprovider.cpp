@@ -1,5 +1,125 @@
 #include "viewportcontrollerhelpers_p.h"
 
+namespace {
+ViewportProviderFrameTerminalResult frameTerminalResultFor(
+    const ViewportProviderTerminalEvent& event)
+{
+    switch (event.kind) {
+    case ViewportProviderTerminalEvent::Kind::Unsupported:
+        return {
+            ImageViewport::RequestStatus::Unsupported,
+            event.unsupportedCause
+                    == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
+                ? ImageViewport::RequestReason::UnsupportedRequest
+                : ImageViewport::RequestReason::PayloadRejection,
+            event.diagnostic,
+            QStringLiteral("provider unsupported"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Cancellation:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider cancelled request"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Failure:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider failure"),
+        };
+    }
+
+    return {};
+}
+
+ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
+    const ViewportProviderTerminalEvent& event)
+{
+    switch (event.kind) {
+    case ViewportProviderTerminalEvent::Kind::Unsupported:
+        return {
+            ImageViewport::RequestStatus::Unsupported,
+            event.unsupportedCauseExplicit
+                    && event.unsupportedCause
+                        == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection
+                ? ImageViewport::RequestReason::PayloadRejection
+                : ImageViewport::RequestReason::UnsupportedRequest,
+            event.diagnostic,
+            QStringLiteral("provider unsupported"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Cancellation:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider cancelled request"),
+        };
+    case ViewportProviderTerminalEvent::Kind::Failure:
+        return {
+            ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::ProviderFailure,
+            event.diagnostic,
+            QStringLiteral("provider failure"),
+        };
+    }
+
+    return {};
+}
+
+void appendProviderFrameQueueResult(
+    ViewportProviderFrameTransportEffect& effect, ViewportProviderFrameQueueResult queue)
+{
+    effect.cancelToken = queue.cancelToken;
+    effect.deferredControllerEvent = queue.deferredControllerEvent;
+}
+
+void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& effect,
+    const ViewportProviderMetadataRequestStartResult& start)
+{
+    effect.closeSession = start.closeSession;
+    effect.sessionClose = start.sessionClose;
+    effect.sendCommand = start.sendCommand;
+    effect.token = start.token;
+}
+
+void clearQueuedProviderFrameRequest(ImageViewportInternal::ProviderGenerationState& provider)
+{
+    provider.queuedFrameRequest = false;
+    provider.queuedFrameGeneration = 0;
+    provider.queuedFrameRequestId = 0;
+    provider.queuedFrame = -1;
+    provider.queuedPosition = -1;
+    provider.queuedResolvedFrame = {};
+    provider.queuedFrameFromPlayback = false;
+    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+}
+
+void clearQueuedProviderFrameRequest(
+    ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    clearQueuedProviderFrameRequest(providerGenerationStateForRole(state, role));
+}
+
+void publishProviderTokenExhaustion(
+    ViewportControllerPort& viewport, ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    clearQueuedProviderFrameRequest(provider);
+    provider.activeMetadataToken = {};
+    provider.activeFrameToken = {};
+    viewportRequestState(viewport).providerPlaybackStartPending = false;
+    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Error;
+    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderFailure;
+    viewportRequestState(viewport).errorString = QStringLiteral("provider request token exhausted");
+    viewportRequestState(viewport).playbackPhase = ImageViewport::PlaybackPhase::Stopped;
+    viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
+}
+}
+
 FramePreparation::ProviderFrameState ViewportController::providerFramePreparationState() const
 {
     return providerFramePreparationState(ImageViewport::PageRole::Primary);
@@ -34,7 +154,7 @@ FramePreparation::ProviderFrameState ViewportController::providerFramePreparatio
 ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
     ImageViewport::PageRole role, ViewportProviderFrameEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
     ImageViewportInternal::ProviderGenerationState& provider
@@ -100,7 +220,7 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
 ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
     ImageViewport::PageRole role, ViewportProviderMetadataEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
     ImageViewportInternal::ProviderGenerationState& provider
@@ -130,7 +250,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessi
         = providerGenerationStateForRole(state, role);
     provider.activeMetadataToken = {};
     provider.activeFrameToken = {};
-    recordTargetSpreadTerminal(viewport, role, ImageViewport::RequestStatus::Error,
+    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::ProviderFailure,
         ImageViewportInternal::FailureScope::Generation, diagnostic, changes);
     return changes;
@@ -144,7 +264,7 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened(
     ImageViewport::PageRole role)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
 
@@ -152,7 +272,7 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
     if (provider.metadataReady) {
-        discardPendingRenderCommit(viewport);
+        discardPendingRenderCommit();
         appendProviderFrameStartResult(result.providerFrameTransport,
             startProviderFrameRequest(role,
                 { activeRequestForRole(viewportRequestState(viewport), role).target }));
@@ -250,7 +370,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
 
@@ -356,10 +476,10 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     if (!admission.accepted()) {
         clearQueuedProviderFrameRequest(state, role);
         provider.activeFrameToken = {};
-        recordTargetSpreadTerminal(viewport, role, admission.status,
+        recordTargetSpreadTerminal(role, admission.status,
             admission.reason, ImageViewportInternal::FailureScope::DisplayRequest,
             admission.diagnostic, changes);
-        setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+        setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
         return changes;
     }
 
@@ -386,13 +506,13 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
             waitState.primary.providerWaiting = true;
             waitState.secondary.uploadPending = true;
         }
-        publishLoadingWaitState(viewport, waitState);
+        publishLoadingWaitState(waitState);
         viewportDisplayState(viewport).status
             = viewportDisplayState(viewport).displayedImageSize.isValid()
             ? ImageViewport::DisplayStatus::Retained
             : ImageViewport::DisplayStatus::Empty;
     } else {
-        publishAcceptedTargetState(viewport, admission.preparedPayload);
+        publishAcceptedTargetState(admission.preparedPayload);
         if (hasSecondaryProviderSequence(viewport)
             && viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
             ImageViewportInternal::TargetSpreadWaitState waitState;
@@ -403,7 +523,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
                 waitState.primary.uploadPending = true;
             }
             waitState.secondary.providerWaiting = true;
-            publishLoadingWaitState(viewport, waitState);
+            publishLoadingWaitState(waitState);
             viewportDisplayState(viewport).status
                 = viewportDisplayState(viewport).displayedImageSize.isValid()
                 ? ImageViewport::DisplayStatus::Retained
@@ -412,8 +532,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
         if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
             && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready
             && !viewportDisplayState(viewport).pendingRenderPayload.commitPending) {
-            setPlaybackPhase(viewport, changes,
-                viewportRequestState(viewport).stopPlaybackWhenRequestReady
+            setPlaybackPhase(changes, viewportRequestState(viewport).stopPlaybackWhenRequestReady
                     ? ImageViewport::PlaybackPhase::Stopped
                     : ImageViewport::PlaybackPhase::Playing);
             viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
@@ -498,10 +617,10 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
     ImageViewportInternal::ViewportChangeSet changes;
     clearQueuedProviderFrameRequest(state, role);
     providerGenerationStateForRole(state, role).activeFrameToken = {};
-    recordTargetSpreadTerminal(viewport, role, result.status, result.reason,
+    recordTargetSpreadTerminal(role, result.status, result.reason,
         ImageViewportInternal::FailureScope::DisplayRequest,
         FramePreparation::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic), changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     return changes;
 }
 
@@ -517,10 +636,10 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     ImageViewportInternal::ViewportChangeSet changes;
     providerGenerationStateForRole(state, role).activeMetadataToken = {};
     viewportRequestState(viewport).providerPlaybackStartPending = false;
-    recordTargetSpreadTerminal(viewport, role, result.status, result.reason,
+    recordTargetSpreadTerminal(role, result.status, result.reason,
         ImageViewportInternal::FailureScope::Generation,
         FramePreparation::boundedDiagnostic(result.diagnostic, result.fallbackDiagnostic), changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     return changes;
 }
 
@@ -541,10 +660,10 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
 {
     ImageViewportInternal::ViewportChangeSet changes;
     viewportRequestState(viewport).providerPlaybackStartPending = false;
-    recordTargetSpreadTerminal(viewport, role, ImageViewport::RequestStatus::Error,
+    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::PayloadRejection,
         ImageViewportInternal::FailureScope::Generation, contradiction.diagnostic, changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     return changes;
 }
 
@@ -561,10 +680,10 @@ ViewportController::handleProviderMetadataAdmissionRejection(
 {
     ImageViewportInternal::ViewportChangeSet changes;
     viewportRequestState(viewport).providerPlaybackStartPending = false;
-    recordTargetSpreadTerminal(viewport, role, ImageViewport::RequestStatus::Error,
+    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::PayloadRejection,
         ImageViewportInternal::FailureScope::Generation, rejection.diagnostic, changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     return changes;
 }
 
@@ -591,9 +710,9 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     if (rejection.clearPlaybackStartPending) {
         viewportRequestState(viewport).providerPlaybackStartPending = false;
     }
-    recordTargetSpreadTerminal(viewport, role, rejection.status, rejection.reason,
+    recordTargetSpreadTerminal(role, rejection.status, rejection.reason,
         ImageViewportInternal::FailureScope::DisplayRequest, {}, changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     changes.diagnostics = changes.diagnostics || diagnosticsValueChanged;
     return changes;
 }
@@ -607,7 +726,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
     ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
 
@@ -762,8 +881,7 @@ ViewportController::handleProviderMetadataTargetSelection(
         selection.selectedFrame,
         selection.timedMetadata ? viewport.providerFrameStartPosition(selection.selectedFrame) : -1,
     };
-    beginAcceptedDisplayRequest(viewport,
-        ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
+    beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
         { selection.selectedFrame, selectedPosition, selection.targetKind }, resolvedFrame,
         rememberAsLatestNonPlayback);
     if (carrySecondaryInitialRequest) {
@@ -774,7 +892,7 @@ ViewportController::handleProviderMetadataTargetSelection(
     }
     viewportRequestState(viewport).playbackPosition
         = viewportRequestState(viewport).activeRequest.target.position;
-    publishProviderFrameLoadingState(viewport);
+    publishProviderFrameLoadingState();
 
     viewportRequestState(viewport).providerPlaybackStartPending = false;
     const ViewportProviderFrameRequestStartResult start
@@ -801,7 +919,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAccep
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
     ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
 
@@ -833,7 +951,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
     ImageViewport::PageRole role, ViewportProviderWaitingEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest(viewport)) {
+    if (targetSpreadTerminalSealedForActiveRequest()) {
         return {};
     }
     ImageViewportInternal::ProviderGenerationState& provider
@@ -882,7 +1000,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
     ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event)
 {
-    const bool sealed = targetSpreadTerminalSealedForActiveRequest(viewport);
+    const bool sealed = targetSpreadTerminalSealedForActiveRequest();
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
     if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
@@ -939,12 +1057,12 @@ ViewportController::handleProviderEndOfSequenceProtocolViolation(
     }
     viewportRequestState(viewport).providerPlaybackStartPending = false;
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    recordTargetSpreadTerminal(viewport, role,
+    recordTargetSpreadTerminal(role,
         ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::PayloadRejection,
         violation.activeMetadataToken ? ImageViewportInternal::FailureScope::Generation
                                       : ImageViewportInternal::FailureScope::DisplayRequest,
         QStringLiteral("provider protocol violation"), changes);
-    setPlaybackPhase(viewport, changes, ImageViewport::PlaybackPhase::Stopped);
+    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
     return changes;
 }
 
@@ -982,11 +1100,9 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     if (role == ImageViewport::PageRole::Secondary) {
         const ImageViewportInternal::DisplayRequest primaryRequest
             = viewportRequestState(viewport).activeRequest;
-        beginAcceptedDisplayRequest(viewport,
-            ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
+        beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
             primaryRequest.resolvedFrame, false);
-        setSecondaryActiveRequest(
-            viewport, providerTarget, { selectedFrame, selectedPosition }, false);
+        setSecondaryActiveRequest(providerTarget, { selectedFrame, selectedPosition }, false);
     } else {
         viewportRequestState(viewport).activeRequest.target = providerTarget;
         viewportRequestState(viewport).activeRequest.resolvedFrame
@@ -1001,8 +1117,8 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
             == selectedFrame
         && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.position
             == selectedPosition) {
-        publishReadyDisplayState(viewport);
-        setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Stopped);
+        publishReadyDisplayState();
+        setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Stopped);
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         result.changes.requestRevision = true;
         result.changes.displayRevision = true;
@@ -1013,7 +1129,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         return result;
     }
 
-    publishProviderFrameLoadingState(viewport);
+    publishProviderFrameLoadingState();
     const ViewportProviderFrameDispatchResult dispatch
         = dispatchProviderFrameRequest(role, { providerTarget });
     result.providerFrameTransport = dispatch.transport;
@@ -1023,7 +1139,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         result.changes.diagnostics = true;
         return result;
     }
-    setPlaybackPhase(viewport, result.changes, ImageViewport::PlaybackPhase::Waiting);
+    setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Waiting);
     result.changes.requestRevision = true;
     result.changes.displayRevision = true;
     result.changes.requestState = true;
@@ -1133,7 +1249,7 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     } else {
         waitState.primary.providerWaiting = true;
     }
-    publishLoadingWaitState(viewport, waitState);
+    publishLoadingWaitState(waitState);
 
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
@@ -1150,7 +1266,7 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
         const int resolvedPosition = provider.timedMetadata
             ? provider.timingIntervals.frameStartPosition(request.target.frame)
             : -1;
-        setSecondaryActiveRequest(viewport, request.target,
+        setSecondaryActiveRequest(request.target,
             { request.target.frame, resolvedPosition },
             request.target.providerTargetKind
                 != ImageViewportInternal::ProviderRequestTargetKind::Playback);
@@ -1185,12 +1301,12 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
     } else {
         waitState.primary.requestQueued = true;
     }
-    publishLoadingWaitState(viewport, waitState);
+    publishLoadingWaitState(waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
-    discardPendingRenderCommit(viewport);
+    discardPendingRenderCommit();
 
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);

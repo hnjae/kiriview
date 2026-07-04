@@ -1,5 +1,198 @@
 #include "viewportcontrollerhelpers_p.h"
 
+#include <algorithm>
+#include <cmath>
+
+namespace {
+void setCommandDiagnostic(ViewportControllerPort& viewport, ViewportCommandResult& result,
+    ImageViewport::CommandReason reason)
+{
+    viewportRequestState(viewport).setCommandDiagnostic(reason);
+    result.changes.commandRevision = true;
+}
+
+void clearCommandDiagnosticForAcceptedCommand(
+    ViewportControllerPort& viewport, ViewportCommandResult& result)
+{
+    result.changes.commandRevision
+        = viewportRequestState(viewport).clearCommandDiagnosticForAcceptedCommand()
+        || result.changes.commandRevision;
+}
+
+QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
+{
+    return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
+        std::clamp(point.y(), minimum.y(), maximum.y()));
+}
+
+bool applyContentPosition(ViewportControllerPort& viewport,
+    ImageViewportInternal::PresentationState& presentation, QPointF requestedPosition)
+{
+    const PresentationGeometry::State geometry = controllerGeometryState(viewport, presentation);
+    if (PresentationGeometry::contentRect(geometry).isEmpty() || geometry.itemBounds.isEmpty()) {
+        return false;
+    }
+
+    const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
+    const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
+    if (nextPosition == currentPosition && presentation.contentPosition == nextPosition) {
+        return false;
+    }
+
+    presentation.contentPosition = nextPosition;
+    return true;
+}
+
+bool applyContentPositionForGeometry(ImageViewportInternal::PresentationState& presentation,
+    const PresentationGeometry::State& geometry, QPointF requestedPosition)
+{
+    if (PresentationGeometry::contentRect(geometry).isEmpty() || geometry.itemBounds.isEmpty()) {
+        return false;
+    }
+
+    const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
+    const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
+    if (nextPosition == currentPosition && presentation.contentPosition == nextPosition) {
+        return false;
+    }
+
+    presentation.contentPosition = nextPosition;
+    return true;
+}
+
+bool clampPresentationContentPositionToBounds(
+    ViewportControllerPort& viewport, ImageViewportInternal::PresentationState& presentation)
+{
+    const PresentationGeometry::State currentGeometry
+        = controllerGeometryState(viewport, presentation);
+    if (PresentationGeometry::contentRect(currentGeometry).isEmpty()
+        || currentGeometry.itemBounds.isEmpty()) {
+        return false;
+    }
+
+    const QPointF clampedPosition = PresentationGeometry::contentPosition(currentGeometry);
+    if (presentation.contentPosition == clampedPosition) {
+        return false;
+    }
+
+    presentation.contentPosition = clampedPosition;
+    return true;
+}
+
+void preserveAnchoredContentPosition(ViewportControllerPort& viewport,
+    ImageViewportInternal::PresentationState& presentation,
+    const PresentationGeometry::State& previousGeometry, QPointF anchor)
+{
+    const CoordinateResult anchoredSpreadPoint
+        = PresentationGeometry::itemToSpread(previousGeometry, anchor.x(), anchor.y());
+    if (!anchoredSpreadPoint.isValid()) {
+        clampPresentationContentPositionToBounds(viewport, presentation);
+        return;
+    }
+
+    const PresentationGeometry::State nextGeometry
+        = controllerGeometryState(viewport, presentation);
+    presentation.contentPosition = PresentationGeometry::contentPositionForAnchoredSpreadPoint(
+        nextGeometry, QPointF(anchoredSpreadPoint.x(), anchoredSpreadPoint.y()), anchor);
+}
+
+ImageViewportInternal::ViewportChangeSet presentationChanges(
+    ViewportControllerPort& viewport, bool affectsGeometry)
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    changes.presentation = true;
+    changes.displayRevision = true;
+    changes.geometryState
+        = affectsGeometry && viewport.hasReadyDisplay() && !viewport.itemBounds().isEmpty();
+    changes.scheduleUpdate = true;
+    return changes;
+}
+
+ViewportCommandResult acceptedPresentationCommand(
+    ViewportControllerPort& viewport, ImageViewportInternal::ViewportChangeSet changes = {})
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    result.changes = changes;
+    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    return result;
+}
+
+ViewportCommandResult invalidPresentationCommand(ViewportControllerPort& viewport)
+{
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Invalid;
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+    return result;
+}
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTransition(
+    const ControllerTransitionPolicy& policy, QPointF previousContentPosition)
+{
+    auto& presentation = state.presentation;
+    ImageViewportInternal::ViewportChangeSet changes;
+    auto markChanged = [&]() { mergeChanges(changes, presentationChanges(viewport, true)); };
+
+    if (policy.magnificationPolicy == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
+        if (presentation.fitMode != ImageViewport::FitMode::Contain
+            || presentation.manualZoom != 1.0) {
+            presentation.fitMode = ImageViewport::FitMode::Contain;
+            presentation.manualZoom = 1.0;
+            markChanged();
+        }
+    }
+    if (policy.explicitFitMode && presentation.fitMode != *policy.explicitFitMode) {
+        presentation.fitMode = *policy.explicitFitMode;
+        markChanged();
+    }
+    if (policy.rotationTransition == PageSetTransitionPolicy::RotationTransition::Reset
+        && presentation.rotationDegrees != 0) {
+        presentation.rotationDegrees = 0;
+        markChanged();
+    }
+    if (policy.mirrorTransition == PageSetTransitionPolicy::MirrorTransition::Reset
+        && (presentation.mirrorHorizontally || presentation.mirrorVertically)) {
+        presentation.mirrorHorizontally = false;
+        presentation.mirrorVertically = false;
+        markChanged();
+    }
+    if (policy.explicitSpreadDirection
+        && presentation.spreadDirection != *policy.explicitSpreadDirection) {
+        presentation.spreadDirection = *policy.explicitSpreadDirection;
+        markChanged();
+    }
+    if (policy.explicitPageGap && presentation.pageGap != *policy.explicitPageGap) {
+        presentation.pageGap = *policy.explicitPageGap;
+        markChanged();
+    }
+
+    if (policy.contentPositionTransition
+        == PageSetTransitionPolicy::ContentPositionTransition::ScanStart) {
+        if (applyContentPositionForGeometry(
+                presentation, acceptedGeometryState(viewport, presentation), {})) {
+            markChanged();
+        }
+    } else if (policy.contentPositionTransition
+        == PageSetTransitionPolicy::ContentPositionTransition::ScanEnd) {
+        const PresentationGeometry::State geometry = acceptedGeometryState(viewport, presentation);
+        if (applyContentPositionForGeometry(
+                presentation, geometry, PresentationGeometry::maximumContentPosition(geometry))) {
+            markChanged();
+        }
+    } else if (policy.contentPositionTransition
+        == PageSetTransitionPolicy::ContentPositionTransition::Clamp) {
+        if (applyContentPositionForGeometry(presentation,
+                acceptedGeometryState(viewport, presentation), previousContentPosition)) {
+            markChanged();
+        }
+    }
+
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::setSmoothing(bool smoothing)
 {
     if (state.presentation.smoothing == smoothing) {

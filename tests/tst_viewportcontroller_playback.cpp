@@ -220,6 +220,23 @@ std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
     return result;
 }
 
+std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
+    ImageSequenceFactory& factory, PlaybackControllerContext& context)
+{
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    auto result = std::unique_ptr<ImageSequenceFactoryResult>(factory.fromFrame(&frame));
+    if (!result || !result->sequence()) {
+        return {};
+    }
+    context.sequence = result->sequence();
+    context.timed = false;
+    context.durations = { 100 };
+    context.images = { image };
+    return result;
+}
+
 std::unique_ptr<ImageSequenceFactoryResult> makeSecondaryTimedSequence(
     ImageSequenceFactory& factory, PlaybackControllerContext& context)
 {
@@ -390,8 +407,7 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
     case RoleCommandAdmissionCase::MalformedRole:
         break;
     case RoleCommandAdmissionCase::UnsupportedCapability:
-        context.timed = false;
-        primarySequence = makeTimedSequence(factory, context);
+        primarySequence = makeStillSequence(factory, context);
         QVERIFY(primarySequence);
         controller.assignSequence({ primarySequence->sequence() });
         break;
@@ -566,8 +582,7 @@ void ViewportControllerPlaybackTest::unsupportedPlayForUntimedSequencePreservesS
 {
     ImageSequenceFactory factory;
     PlaybackControllerContext context;
-    context.timed = false;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
