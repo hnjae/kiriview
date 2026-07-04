@@ -991,6 +991,9 @@ public:
         const QVariant& primary, const QVariant& secondary);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
+    ImageViewport::CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
+    ImageViewport::CommandOutcome setPageSet(
+        ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);
     Q_INVOKABLE ImageViewport::CommandOutcome setSpreadDirection(
         ImageViewport::SpreadDirection direction);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageGap(double gap);

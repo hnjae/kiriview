@@ -33,6 +33,11 @@ public:
     static QRectF primaryPageRect(const State& state);
     static QRectF secondaryPageRect(const State& state);
     static QRectF contentRect(const State& state);
+    static QSizeF contentSize(const State& state);
+    static QPointF contentPosition(const State& state);
+    static QPointF maximumContentPosition(const State& state);
+    static bool horizontalPannable(const State& state);
+    static bool verticalPannable(const State& state);
     static QRectF visibleImageRect(const State& state);
     static QRectF visibleSpreadRect(const State& state);
     static QRectF visiblePageRect(const State& state, ImageViewport::PageRole role);

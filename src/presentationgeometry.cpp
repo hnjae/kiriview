@@ -16,6 +16,12 @@ bool containsHalfOpen(const QRectF& rect, QPointF point)
         && point.x() < rect.right() && point.y() < rect.bottom();
 }
 
+QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
+{
+    return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
+        std::clamp(point.y(), minimum.y(), maximum.y()));
+}
+
 CoordinateResult coordinateResult(QPointF point)
 {
     return CoordinateResult(true, point.x(), point.y());
@@ -285,6 +291,28 @@ QRectF visibleItemRectForState(const PresentationGeometry::State& state)
     return content.intersected(state.itemBounds);
 }
 
+QPointF maximumContentPositionForState(const PresentationGeometry::State& state)
+{
+    const QRectF content = contentRectForReadyState(state);
+    if (content.isEmpty() || state.itemBounds.isEmpty()) {
+        return {};
+    }
+
+    return QPointF(std::max(0.0, content.width() - state.itemBounds.width()),
+        std::max(0.0, content.height() - state.itemBounds.height()));
+}
+
+QPointF contentPositionForState(const PresentationGeometry::State& state)
+{
+    const QRectF content = contentRectForReadyState(state);
+    if (content.isEmpty() || state.itemBounds.isEmpty()) {
+        return {};
+    }
+
+    return clampedPoint(QPointF(-content.x(), -content.y()), {},
+        maximumContentPositionForState(state));
+}
+
 QPointF itemToOrientedPoint(
     const PresentationGeometry::State& state, const QRectF& content, QPointF point)
 {
@@ -370,6 +398,31 @@ QRectF PresentationGeometry::secondaryPageRect(const State& state)
 QRectF PresentationGeometry::contentRect(const State& state)
 {
     return contentRectForReadyState(state);
+}
+
+QSizeF PresentationGeometry::contentSize(const State& state)
+{
+    return contentRectForReadyState(state).size();
+}
+
+QPointF PresentationGeometry::contentPosition(const State& state)
+{
+    return contentPositionForState(state);
+}
+
+QPointF PresentationGeometry::maximumContentPosition(const State& state)
+{
+    return maximumContentPositionForState(state);
+}
+
+bool PresentationGeometry::horizontalPannable(const State& state)
+{
+    return maximumContentPositionForState(state).x() > 0.0;
+}
+
+bool PresentationGeometry::verticalPannable(const State& state)
+{
+    return maximumContentPositionForState(state).y() > 0.0;
 }
 
 QRectF PresentationGeometry::visibleImageRect(const State& state)

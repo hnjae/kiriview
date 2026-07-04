@@ -707,38 +707,16 @@ QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
         std::clamp(point.y(), minimum.y(), maximum.y()));
 }
 
-QPointF contentPositionForRect(const QRectF& contentRect, const QRectF& itemBounds)
-{
-    if (contentRect.isEmpty() || itemBounds.isEmpty()) {
-        return {};
-    }
-
-    const QPointF maximum(std::max(0.0, contentRect.width() - itemBounds.width()),
-        std::max(0.0, contentRect.height() - itemBounds.height()));
-    return clampedPoint(QPointF(-contentRect.x(), -contentRect.y()), {}, maximum);
-}
-
-QPointF maximumContentPositionForRect(const QRectF& contentRect, const QRectF& itemBounds)
-{
-    if (contentRect.isEmpty() || itemBounds.isEmpty()) {
-        return {};
-    }
-
-    return QPointF(std::max(0.0, contentRect.width() - itemBounds.width()),
-        std::max(0.0, contentRect.height() - itemBounds.height()));
-}
-
 bool applyContentPosition(ViewportControllerPort& viewport,
     ImageViewportInternal::PresentationState& presentation, QPointF requestedPosition)
 {
-    const QRectF content = contentRectForPresentation(viewport, presentation);
-    const QRectF bounds = viewport.itemBounds();
-    if (content.isEmpty() || bounds.isEmpty()) {
+    const PresentationGeometry::State geometry = controllerGeometryState(viewport, presentation);
+    if (PresentationGeometry::contentRect(geometry).isEmpty() || geometry.itemBounds.isEmpty()) {
         return false;
     }
 
-    const QPointF currentPosition = contentPositionForRect(content, bounds);
-    const QPointF maximum = maximumContentPositionForRect(content, bounds);
+    const QPointF currentPosition = PresentationGeometry::contentPosition(geometry);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
     const QPointF nextPosition = clampedPoint(requestedPosition, {}, maximum);
     if (nextPosition == currentPosition) {
         return false;
@@ -751,15 +729,14 @@ bool applyContentPosition(ViewportControllerPort& viewport,
 QPointF controllerContentPosition(
     ViewportControllerPort& viewport, const ImageViewportInternal::PresentationState& presentation)
 {
-    return contentPositionForRect(
-        contentRectForPresentation(viewport, presentation), viewport.itemBounds());
+    return PresentationGeometry::contentPosition(controllerGeometryState(viewport, presentation));
 }
 
 QPointF controllerMaximumContentPosition(
     ViewportControllerPort& viewport, const ImageViewportInternal::PresentationState& presentation)
 {
-    return maximumContentPositionForRect(
-        contentRectForPresentation(viewport, presentation), viewport.itemBounds());
+    return PresentationGeometry::maximumContentPosition(
+        controllerGeometryState(viewport, presentation));
 }
 
 bool clampPresentationPanToBounds(
@@ -776,8 +753,10 @@ bool clampPresentationPanToBounds(
     const QRectF baseContent = contentRectForPresentation(viewport, presentation);
     presentation.pan = savedPan;
 
-    const QPointF maximum = maximumContentPositionForRect(currentContent, bounds);
-    const QPointF currentPosition = contentPositionForRect(currentContent, bounds);
+    const PresentationGeometry::State currentGeometry
+        = controllerGeometryState(viewport, presentation);
+    const QPointF maximum = PresentationGeometry::maximumContentPosition(currentGeometry);
+    const QPointF currentPosition = PresentationGeometry::contentPosition(currentGeometry);
     const QPointF clampedPosition = clampedPoint(currentPosition, {}, maximum);
     QPointF targetTopLeft = currentContent.topLeft();
     targetTopLeft.setX(maximum.x() == 0.0 ? baseContent.x() : -clampedPosition.x());

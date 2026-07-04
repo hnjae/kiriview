@@ -114,6 +114,9 @@ public:
     CommandOutcome setPageSet(const QVariant& primary, const QVariant& secondary);
     CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
+    CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
+    CommandOutcome setPageSet(
+        ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);
     CommandOutcome setSpreadDirection(SpreadDirection direction);
     CommandOutcome setPageGap(double gap);
     CommandOutcome setFitMode(FitMode mode, QPointF anchor);

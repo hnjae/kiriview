@@ -628,6 +628,30 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    ImageViewport typedPageSetViewport;
+    if (typedPageSetViewport.setPageSet(stillResult->sequence(), timedResult->sequence())
+        != ImageViewport::CommandOutcome::Accepted) {
+        return 1;
+    }
+    if (typedPageSetViewport.primarySequence() != stillResult->sequence()
+        || typedPageSetViewport.secondarySequence() != timedResult->sequence()) {
+        return 1;
+    }
+    PageSetTransitionPolicy typedPageSetPolicy;
+    typedPageSetPolicy.setPageGapTransition(
+        PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    typedPageSetPolicy.setPageGap(2.0);
+    if (typedPageSetViewport.setPageSet(
+            deviceIndependentStillResult->sequence(), nullptr, typedPageSetPolicy)
+        != ImageViewport::CommandOutcome::Accepted) {
+        return 1;
+    }
+    if (typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()
+        || typedPageSetViewport.secondarySequence() != nullptr
+        || typedPageSetViewport.pageGap() != 2.0) {
+        return 1;
+    }
+
     QVector<QImage> deviceIndependentTimedImages;
     deviceIndependentTimedImages.append(deviceIndependentImage);
     deviceIndependentTimedImages.append(deviceIndependentImage);

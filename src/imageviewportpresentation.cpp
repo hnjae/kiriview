@@ -1,9 +1,6 @@
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
 
-#include <algorithm>
-#include <cmath>
-
 using namespace ImageViewportInternal;
 
 namespace {
@@ -29,33 +26,6 @@ PresentationGeometry::State geometryStateForItemBounds(
 {
     return viewport.controller.geometryStateForItemBounds(
         bounds, effectiveDevicePixelRatio(viewport));
-}
-
-QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
-{
-    return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
-        std::clamp(point.y(), minimum.y(), maximum.y()));
-}
-
-QPointF contentPositionForRect(const QRectF& contentRect, const QRectF& itemBounds)
-{
-    if (contentRect.isEmpty() || itemBounds.isEmpty()) {
-        return {};
-    }
-
-    const QPointF maximum(std::max(0.0, contentRect.width() - itemBounds.width()),
-        std::max(0.0, contentRect.height() - itemBounds.height()));
-    return clampedPoint(QPointF(-contentRect.x(), -contentRect.y()), {}, maximum);
-}
-
-QPointF maximumContentPositionForRect(const QRectF& contentRect, const QRectF& itemBounds)
-{
-    if (contentRect.isEmpty() || itemBounds.isEmpty()) {
-        return {};
-    }
-
-    return QPointF(std::max(0.0, contentRect.width() - itemBounds.width()),
-        std::max(0.0, contentRect.height() - itemBounds.height()));
 }
 
 QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
@@ -115,21 +85,30 @@ QRectF ImageViewportPrivate::visibleSecondaryPageRect() const
     return PresentationGeometry::visiblePageRect(geometryState(*this), PageRole::Secondary);
 }
 
-QSizeF ImageViewportPrivate::contentSize() const { return contentRect().size(); }
+QSizeF ImageViewportPrivate::contentSize() const
+{
+    return PresentationGeometry::contentSize(geometryState(*this));
+}
 
 QPointF ImageViewportPrivate::contentPosition() const
 {
-    return contentPositionForRect(contentRect(), itemBounds());
+    return PresentationGeometry::contentPosition(geometryState(*this));
 }
 
 QPointF ImageViewportPrivate::maximumContentPosition() const
 {
-    return maximumContentPositionForRect(contentRect(), itemBounds());
+    return PresentationGeometry::maximumContentPosition(geometryState(*this));
 }
 
-bool ImageViewportPrivate::horizontalPannable() const { return maximumContentPosition().x() > 0.0; }
+bool ImageViewportPrivate::horizontalPannable() const
+{
+    return PresentationGeometry::horizontalPannable(geometryState(*this));
+}
 
-bool ImageViewportPrivate::verticalPannable() const { return maximumContentPosition().y() > 0.0; }
+bool ImageViewportPrivate::verticalPannable() const
+{
+    return PresentationGeometry::verticalPannable(geometryState(*this));
+}
 
 ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
 {

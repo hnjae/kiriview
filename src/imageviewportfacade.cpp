@@ -174,6 +174,16 @@ ImageViewport::CommandOutcome ImageViewport::setPageSet(
 {
     return d->setPageSet(primary, secondary, policy);
 }
+ImageViewport::CommandOutcome ImageViewport::setPageSet(
+    ImageSequence* primary, ImageSequence* secondary)
+{
+    return d->setPageSet(primary, secondary);
+}
+ImageViewport::CommandOutcome ImageViewport::setPageSet(
+    ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy)
+{
+    return d->setPageSet(primary, secondary, policy);
+}
 ImageViewport::CommandOutcome ImageViewport::setSpreadDirection(SpreadDirection direction)
 {
     return d->setSpreadDirection(direction);

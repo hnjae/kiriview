@@ -1,5 +1,6 @@
 #include "imagesequenceownership_p.h"
 #include "imageviewport_p.h"
+#include "presentationgeometry_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -759,19 +760,8 @@ QSizeF ImageViewportPrivate::displayedImageSize() const
 
 QSizeF ImageViewportPrivate::displayedSpreadSize() const
 {
-    const QSizeF primarySize = primaryDisplayedImageSize();
-    if (!isPositiveSize(primarySize)) {
-        return QSizeF(0.0, 0.0);
-    }
-
-    const QSizeF secondarySize = secondaryDisplayedImageSize();
-    if (!isPositiveSize(secondarySize)) {
-        return primarySize;
-    }
-
-    return QSizeF(
-        primarySize.width() + controller.presentationState().pageGap + secondarySize.width(),
-        std::max(primarySize.height(), secondarySize.height()));
+    const QSizeF spreadSize = PresentationGeometry::spreadSize(controller.geometryState());
+    return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
 }
 
 QSizeF ImageViewportPrivate::primaryDisplayedImageSize() const { return displayedImageSize(); }
@@ -826,6 +816,20 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         return CommandOutcome::Invalid;
     }
 
+    return setPageSet(primarySequence, secondarySequence, policy);
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    ImageSequence* primary, ImageSequence* secondary)
+{
+    return setPageSet(primary, secondary, PageSetTransitionPolicy {});
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    ImageSequence* primarySequence,
+    ImageSequence* secondarySequence,
+    PageSetTransitionPolicy policy)
+{
     std::shared_ptr<ImageSequence> primaryOwner = factorySequenceOwner(primarySequence);
     std::shared_ptr<ImageSequence> secondaryOwner = factorySequenceOwner(secondarySequence);
     ImageViewportInternal::DisplayRequestTarget secondaryInitialTarget;

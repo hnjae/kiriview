@@ -372,13 +372,27 @@ Page-set content-position transition; C++ page-set API; geometry projection spli
 
 #### Tasks
 
-- [ ] Add typed C++ `setPageSet(ImageSequence*, ImageSequence*, ...)` overloads and route internals through typed values.
-- [ ] Keep `QVariant` conversion as compatibility glue only if needed for QML, with tests proving invalid role values do not mutate viewport state or revision tokens.
-- [ ] Add install-consumer or public-header compile coverage that calls typed page-set overloads without `QVariant`.
-- [ ] Add typed internal page-set assignment input so `ImageViewportPrivate` supplies normalized sequences and policy only.
-- [ ] Add controller/geometry projection fields for content position, maximum content position, visible spread rect, per-role page rects, per-role item rects, rotation, mirror, gap, and render snapshot mapping.
-- [ ] Replace item-side duplicate formulas only for the geometry fields needed by page-set transition and render snapshot correctness.
-- [ ] Add tests for invalid page-role arguments, `setPageSet(null, secondary, policy)` clear-style behavior, and no revision changes on rejected values.
+- [x] Add typed C++ `setPageSet(ImageSequence*, ImageSequence*, ...)` overloads and route internals through typed values.
+- [x] Keep `QVariant` conversion as compatibility glue only if needed for QML, with tests proving invalid role values do not mutate viewport state or revision tokens.
+- [x] Add install-consumer or public-header compile coverage that calls typed page-set overloads without `QVariant`.
+- [x] Add typed internal page-set assignment input so `ImageViewportPrivate` supplies normalized sequences and policy only.
+- [x] Add controller/geometry projection fields for content position, maximum content position, visible spread rect, per-role page rects, per-role item rects, rotation, mirror, gap, and render snapshot mapping.
+- [x] Replace item-side duplicate formulas only for the geometry fields needed by page-set transition and render snapshot correctness.
+- [x] Add tests for invalid page-role arguments, `setPageSet(null, secondary, policy)` clear-style behavior, and no revision changes on rejected values.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/spec/image-viewport.md`, `docs/spec/image-viewport-api.md`, and `docs/architecture/subsystem-boundaries.md` were re-read for this milestone. The durable specs already state the typed page-set end state and clear-style validation behavior, so no spec or architecture edits were required during plan execution.
+
+Implemented public C++ typed `setPageSet(ImageSequence*, ImageSequence*)` and `setPageSet(ImageSequence*, ImageSequence*, PageSetTransitionPolicy)` overloads while preserving the existing `QVariant` invokable compatibility surface. `ImageViewportPrivate` now performs page-set assignment through typed `ImageSequence*` values after the item boundary normalizes dynamic inputs, so the transaction builder no longer depends on `QVariant` decoding.
+
+Typed page-set coverage was added in `ImageViewportPublicApiTest::cppTypedPageSetOverloadsCompileAndReplaceSpread`; invalid dynamic page-role rejection is covered by `ImageViewportPublicApiTest::invalidPageRoleArgumentsPreserveRevisionTokens`; installed public-header coverage was added to `tests/install_consumer/main.cpp`.
+
+Geometry projection now exposes content size, content position, maximum content position, pannability, visible spread/page rects, page item rects, rotation, mirror, gap, and spread sizing through `PresentationGeometry` and controller geometry state. Item-side duplicate formulas for displayed spread size and content-position-derived public properties now read from that projection path, and controller content-position helpers use the same projection for transition/pan calculations.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_public_api|imageviewport_install_consumer|viewportcontroller_presentation|imageviewport_presentation_state' --output-on-failure` and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

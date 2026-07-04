@@ -27,11 +27,13 @@ private slots:
     void typedPageSetTransitionPolicyPreservesStateWhenInvalid();
     void qmlFinalApiScaffoldDefaultsAndCommands();
     void setPageSetAcceptsPrimaryAndSecondaryAtomically();
+    void cppTypedPageSetOverloadsCompileAndReplaceSpread();
     void compatibilitySequenceAssignmentClearsSecondaryRole();
     void clearStylePageSetWithSecondaryClearsAcceptedRoles();
     void clearStylePageSetWithProviderSecondaryDoesNotStartProvider();
     void clearStylePageSetPolicyPreservesPresentationPreferences();
     void invalidPageSetSecondaryPreservesAcceptedRoles();
+    void invalidPageRoleArgumentsPreserveRevisionTokens();
     void roleCommandsWithInvalidRolePublishCommandDiagnostics();
     void secondaryRoleCommandsWithoutSecondaryPublishNoRequestDiagnostics();
     void pageSetTransitionClearBeforeLoadClearsRetainedDisplay();
@@ -969,6 +971,54 @@ void ImageViewportPublicApiTest::setPageSetAcceptsPrimaryAndSecondaryAtomically(
         enumValue(item.metaObject(), "TriState", "False"));
 }
 
+void ImageViewportPublicApiTest::cppTypedPageSetOverloadsCompileAndReplaceSpread()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    QImage secondaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(secondaryResult->sequence());
+
+    QImage replacementImage(12, 6, QImage::Format_ARGB32_Premultiplied);
+    replacementImage.fill(Qt::transparent);
+    ImageFrame replacementFrame(replacementImage);
+    QScopedPointer<ImageSequenceFactoryResult> replacementResult(
+        factory.fromFrame(&replacementFrame));
+    QVERIFY(replacementResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+
+    const auto spreadOutcome
+        = item.setPageSet(primaryResult->sequence(), secondaryResult->sequence());
+
+    QCOMPARE(spreadOutcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), primaryResult->sequence());
+    QCOMPARE(item.primarySequence(), primaryResult->sequence());
+    QCOMPARE(item.secondarySequence(), secondaryResult->sequence());
+    QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
+
+    PageSetTransitionPolicy policy;
+    policy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    policy.setPageGap(4.0);
+
+    const auto replacementOutcome
+        = item.setPageSet(replacementResult->sequence(), nullptr, policy);
+
+    QCOMPARE(replacementOutcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.sequence(), replacementResult->sequence());
+    QCOMPARE(item.primarySequence(), replacementResult->sequence());
+    QCOMPARE(item.secondarySequence(), nullptr);
+    QCOMPARE(item.pageGap(), 4.0);
+}
+
 void ImageViewportPublicApiTest::compatibilitySequenceAssignmentClearsSecondaryRole()
 {
     ImageSequenceFactory factory;
@@ -1186,6 +1236,53 @@ void ImageViewportPublicApiTest::invalidPageSetSecondaryPreservesAcceptedRoles()
         item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+}
+
+void ImageViewportPublicApiTest::invalidPageRoleArgumentsPreserveRevisionTokens()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame primaryFrame(image);
+    ImageFrame secondaryFrame(image);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+
+    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
+    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
+
+    const auto invalidPrimaryOutcome = item.setPageSet(QVariant(QStringLiteral("bad primary")),
+        QVariant::fromValue<QObject*>(secondaryResult->sequence()));
+
+    QCOMPARE(invalidPrimaryOutcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.primarySequence(), primaryResult->sequence());
+    QCOMPARE(item.secondarySequence(), secondaryResult->sequence());
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
+
+    const auto invalidSecondaryOutcome = item.setPageSet(
+        QVariant::fromValue<QObject*>(primaryResult->sequence()),
+        QVariant(QStringLiteral("bad secondary")));
+
+    QCOMPARE(invalidSecondaryOutcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.primarySequence(), primaryResult->sequence());
+    QCOMPARE(item.secondarySequence(), secondaryResult->sequence());
+    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(displaySpy.count(), 0);
 }
 
 void ImageViewportPublicApiTest::roleCommandsWithInvalidRolePublishCommandDiagnostics()
