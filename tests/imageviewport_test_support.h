@@ -104,6 +104,18 @@ void acknowledgePendingRenderCommitForTest(ImageViewport& item)
         activeRequestIdForTest(item), primaryPayloadId, secondaryPayloadId);
 }
 
+void acknowledgePendingPrimaryRenderCommitForTest(ImageViewport& item)
+{
+    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
+}
+
+void acknowledgePendingPrimaryRenderFailureForTest(ImageViewport& item)
+{
+    acknowledgeRenderFailureForTest(item, pendingRenderGenerationForTest(item),
+        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
+}
+
 void verifyRevisionChanged(
     const QObject& object, const char* propertyName, RevisionToken previousToken)
 {

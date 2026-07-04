@@ -2,16 +2,6 @@
 
 #include <QtCore/QElapsedTimer>
 
-namespace {
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
-}
-
-}
-
 class ImageViewportProviderRequestsTest : public QObject
 {
     Q_OBJECT
@@ -603,7 +593,7 @@ void ImageViewportProviderRequestsTest::providerTotalDurationSeekBeforeMetadataR
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -755,7 +745,7 @@ void ImageViewportProviderRequestsTest::providerPlaybackBeforeStillMetadataKeeps
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -864,8 +854,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     QCOMPARE(requestRevisionSpy.count(), 2);
 }
 
-void ImageViewportProviderRequestsTest::
-    waitProjectionRevisionChangesOnlyWhenPublicReasonChanges()
+void ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPublicReasonChanges()
 {
     ImageSequenceFactory factory;
     const auto primarySessionCount = std::make_shared<int>(0);
@@ -876,8 +865,8 @@ void ImageViewportProviderRequestsTest::
     auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
         primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
         primaryLastRequestedFrame, primaryCloseCount);
-    CountingProviderAdapter primaryAdapter(primarySessionFactory,
-        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    CountingProviderAdapter primaryAdapter(
+        primarySessionFactory, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
     QVERIFY(primaryResult->sequence());
 
@@ -928,8 +917,8 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), providerWaitingRevision);
     QCOMPARE(requestRevisionSpy.count(), 0);
 
-    emit secondarySessionFactory->lastSession()->metadataReady(secondaryMetadataToken,
-        ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
+    emit secondarySessionFactory->lastSession()->metadataReady(
+        secondaryMetadataToken, ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
     drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken secondaryFrameToken
         = secondarySessionFactory->lastSession()->lastFrameToken();
@@ -1065,7 +1054,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1109,7 +1098,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
@@ -1160,7 +1149,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekWithoutDiagnostics
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
 
@@ -1202,7 +1191,7 @@ void ImageViewportProviderRequestsTest::
     firstImage.fill(Qt::transparent);
     ImageFrame firstFrame(firstImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
 
@@ -1215,7 +1204,7 @@ void ImageViewportProviderRequestsTest::
     secondImage.fill(Qt::black);
     ImageFrame secondFrame(secondImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondFrame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
@@ -1254,7 +1243,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
@@ -1349,7 +1338,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
 
@@ -1374,7 +1363,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(item.seekToPosition(350), ImageViewport::CommandOutcome::Accepted);
 
@@ -1394,7 +1383,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1436,8 +1425,8 @@ void ImageViewportProviderRequestsTest::
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 1),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*secondaryFrameRequestCount, 0);
     QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
     QCOMPARE(item.property("secondaryRequestedPosition").toInt(), -1);
@@ -1563,8 +1552,8 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekUsesFrameReque
     QCOMPARE(*secondaryFrameRequestCount, 1);
     QCOMPARE(*secondaryLastRequestedFrame, 0);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 1),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
 
     QCOMPARE(*secondaryFrameRequestCount, 2);
@@ -1670,8 +1659,8 @@ void ImageViewportProviderRequestsTest::
     drainQueuedProviderResults();
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 1),
-        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
@@ -1689,8 +1678,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(item.property("secondaryRequestedPosition").toInt(), -1);
 }
 
-void ImageViewportProviderRequestsTest::
-    secondaryProviderFrameSeekIgnoresSupersededFrameResult()
+void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSupersededFrameResult()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1728,8 +1716,8 @@ void ImageViewportProviderRequestsTest::
     const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
     QVERIFY(initialFrameToken.isValid());
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 1),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
     QCOMPARE(*secondaryFrameRequestCount, 2);
     QCOMPARE(*secondaryLastRequestedFrame, 1);

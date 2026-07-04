@@ -3,24 +3,6 @@
 
 #include <QtCore/QElapsedTimer>
 
-namespace {
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    const quint64 generation = pendingRenderGenerationForTest(item);
-    const quint64 requestId = activeRequestIdForTest(item);
-    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
-    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
-    if (secondaryPayloadId > 0) {
-        acknowledgeRenderCommitForTest(item,
-            generation, requestId, primaryPayloadId, secondaryPayloadId);
-        return;
-    }
-    acknowledgeRenderCommitForTest(item, generation, requestId, primaryPayloadId);
-}
-
-}
-
 class ImageViewportProviderFrameAdmissionTest : public QObject
 {
     Q_OBJECT
@@ -87,7 +69,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -203,7 +185,7 @@ void ImageViewportProviderFrameAdmissionTest::
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -257,7 +239,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
 
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -771,7 +753,7 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     validImage.fill(Qt::transparent);
     ImageFrame validFrame(validImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &validFrame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1024,7 +1006,7 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "UploadPending"));
 
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*releaseCount, 1);
     QCOMPARE(
@@ -1092,7 +1074,7 @@ void ImageViewportProviderFrameAdmissionTest::
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*releaseCount, 1);
     QCOMPARE(
@@ -1150,7 +1132,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QVERIFY(hasPendingRenderCommitForTest(item));
 
     const RevisionToken uploadPendingRevision = revisionTokenProperty(item, "requestRevision");
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -1204,7 +1186,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
 
     const RevisionToken renderWaitingRevision = revisionTokenProperty(item, "requestRevision");
     item.setSize(QSizeF(100.0, 100.0));
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));

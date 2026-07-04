@@ -2,22 +2,6 @@
 
 #include <QtCore/QElapsedTimer>
 
-namespace {
-
-void acknowledgePendingRenderFailure(ImageViewport& item)
-{
-    acknowledgeRenderFailureForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
-}
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
-}
-
-}
-
 class ImageViewportProviderLifecycleTest : public QObject
 {
     Q_OBJECT
@@ -99,7 +83,7 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     item.setSize(QSizeF(0.0, 100.0));
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(100.0, 100.0));
-    acknowledgePendingRenderFailure(item);
+    acknowledgePendingPrimaryRenderFailureForTest(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -194,8 +178,8 @@ void ImageViewportProviderLifecycleTest::
     ImageViewport item;
     useSynchronousProviderExecutorForTest(item);
     item.setSize(QSizeF(100.0, 100.0));
-    setNextProviderRequestTokenForTest(item,
-        ImageViewport::PageRole::Secondary, std::numeric_limits<quint64>::max());
+    setNextProviderRequestTokenForTest(
+        item, ImageViewport::PageRole::Secondary, std::numeric_limits<quint64>::max());
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
@@ -348,7 +332,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
@@ -402,8 +386,8 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(item.property("errorString")
-                .toString()
-                .contains(QStringLiteral("provider command delivery failed")));
+            .toString()
+            .contains(QStringLiteral("provider command delivery failed")));
 
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
@@ -442,8 +426,8 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(item.property("errorString")
-                .toString()
-                .contains(QStringLiteral("provider command delivery failed")));
+            .toString()
+            .contains(QStringLiteral("provider command delivery failed")));
 
     QCOMPARE(*closeCount, 1);
     QCOMPARE(sessionFactory->lastSession(), nullptr);
@@ -488,8 +472,8 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(item.property("errorString")
-                .toString()
-                .contains(QStringLiteral("provider command delivery failed")));
+            .toString()
+            .contains(QStringLiteral("provider command delivery failed")));
 
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(secondarySessionFactory->lastSession(), nullptr);
@@ -530,8 +514,8 @@ void ImageViewportProviderLifecycleTest::secondarySessionOpenFailureIsGeneration
 
     QCOMPARE(item.seek(ImageViewport::PageRole::Secondary, 0),
         ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary),
-        ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(
+        item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(item.property("requestReason").toInt(),
@@ -738,11 +722,11 @@ void ImageViewportProviderLifecycleTest::
     const auto primaryCloseCount = std::make_shared<int>(0);
     const auto primaryCancelRequestCount = std::make_shared<int>(0);
     const auto primaryLastCancelledTokenId = std::make_shared<quint64>(0);
-    auto primarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        primarySessionCount, primaryMetadataRequestCount, primaryFrameRequestCount,
-        primaryLastRequestedFrame, primaryCloseCount, std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<int>(), primaryCancelRequestCount,
-        primaryLastCancelledTokenId);
+    auto primarySessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(primarySessionCount,
+            primaryMetadataRequestCount, primaryFrameRequestCount, primaryLastRequestedFrame,
+            primaryCloseCount, std::shared_ptr<int>(), std::shared_ptr<int>(),
+            std::shared_ptr<int>(), primaryCancelRequestCount, primaryLastCancelledTokenId);
     CountingProviderAdapter primaryAdapter(primarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromProvider(&primaryAdapter));
     QVERIFY(primaryResult->sequence());
@@ -754,11 +738,11 @@ void ImageViewportProviderLifecycleTest::
     const auto secondaryCloseCount = std::make_shared<int>(0);
     const auto secondaryCancelRequestCount = std::make_shared<int>(0);
     const auto secondaryLastCancelledTokenId = std::make_shared<quint64>(0);
-    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
-        secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<int>(), secondaryCancelRequestCount,
-        secondaryLastCancelledTokenId);
+    auto secondarySessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(secondarySessionCount,
+            secondaryMetadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame,
+            secondaryCloseCount, std::shared_ptr<int>(), std::shared_ptr<int>(),
+            std::shared_ptr<int>(), secondaryCancelRequestCount, secondaryLastCancelledTokenId);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -799,8 +783,8 @@ void ImageViewportProviderLifecycleTest::
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("playbackPhase").toInt(),
-        enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 }
 
 void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallbacks()
@@ -856,8 +840,8 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallba
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("playbackPhase").toInt(),
-        enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QImage lateImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     lateImage.fill(Qt::transparent);
@@ -887,8 +871,8 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallba
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("playbackPhase").toInt(),
-        enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), -1);
     QCOMPARE(item.property("errorString").toString(), QString());
@@ -941,8 +925,7 @@ void ImageViewportProviderLifecycleTest::
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
-        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        cancelRequestCount);
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());

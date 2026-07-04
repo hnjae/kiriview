@@ -52,6 +52,11 @@ function(add_imageviewport_qt_test target source)
 endfunction()
 
 add_imageviewport_qt_test(imageviewport_public_api tst_imageviewport_public_api.cpp)
+add_imageviewport_qt_test(imageviewport_public_api_commands
+                          tst_imageviewport_public_api_commands.cpp)
+add_imageviewport_qt_test(imageviewport_public_api_provider_roles
+                          tst_imageviewport_public_api_provider_roles.cpp)
+add_imageviewport_qt_test(imageviewport_public_api_qml tst_imageviewport_public_api_qml.cpp)
 add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
 add_imageviewport_core_qt_test(playback_clock tst_playback_clock.cpp)
 add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)
@@ -68,6 +73,14 @@ add_imageviewport_qt_test(imageviewport_provider_requests tst_imageviewport_prov
 add_imageviewport_qt_test(imageviewport_provider_frame_admission
                           tst_imageviewport_provider_frame_admission.cpp)
 add_imageviewport_qt_test(imageviewport_provider_terminal tst_imageviewport_provider_terminal.cpp)
+add_imageviewport_qt_test(imageviewport_provider_terminal_diagnostics
+                          tst_imageviewport_provider_terminal_diagnostics.cpp)
+add_imageviewport_qt_test(imageviewport_provider_terminal_playback
+                          tst_imageviewport_provider_terminal_playback.cpp)
+add_imageviewport_qt_test(imageviewport_provider_terminal_projection
+                          tst_imageviewport_provider_terminal_projection.cpp)
+add_imageviewport_qt_test(imageviewport_provider_terminal_recovery
+                          tst_imageviewport_provider_terminal_recovery.cpp)
 add_imageviewport_qt_test(imageviewport_provider_playback tst_imageviewport_provider_playback.cpp)
 add_imageviewport_qt_test(imageviewport_render_scenegraph tst_imageviewport_render_scenegraph.cpp)
 add_imageviewport_qt_test(imageviewport_render_commit tst_imageviewport_render_commit.cpp)

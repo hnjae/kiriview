@@ -2,16 +2,6 @@
 
 #include <QtCore/QElapsedTimer>
 
-namespace {
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
-}
-
-}
-
 class ImageViewportProviderContractTest : public QObject
 {
     Q_OBJECT
@@ -404,7 +394,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
             ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
         drainQueuedProviderResults();
-        acknowledgePendingRenderCommit(item);
+        acknowledgePendingPrimaryRenderCommitForTest(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
@@ -466,7 +456,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
             ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
         drainQueuedProviderResults();
-        acknowledgePendingRenderCommit(item);
+        acknowledgePendingPrimaryRenderCommitForTest(item);
 
         QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);

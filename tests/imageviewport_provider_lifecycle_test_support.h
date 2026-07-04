@@ -1,0 +1,190 @@
+#pragma once
+
+#include "imageviewport_test_support.h"
+
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
+#include <QtCore/QPointer>
+#include <QtCore/QThread>
+#include <QtTest/QTest>
+
+namespace {
+
+class SlowCleanupProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit SlowCleanupProviderSession(const std::shared_ptr<int>& cancelRequestCount,
+        const std::shared_ptr<int>& closeCount, int cleanupDelayMilliseconds,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+    }
+
+    void cancelRequest(ImageSequenceProviderRequestToken) override { ++*m_cancelRequestCount; }
+
+    void close() override
+    {
+        QTest::qSleep(m_cleanupDelayMilliseconds);
+        ++*m_closeCount;
+    }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+private:
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class SlowCleanupProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit SlowCleanupProviderSessionFactory(QThread* thread,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount,
+        int cleanupDelayMilliseconds)
+        : m_thread(thread)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+        , m_cleanupDelayMilliseconds(cleanupDelayMilliseconds)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        auto* session = new SlowCleanupProviderSession(
+            m_cancelRequestCount, m_closeCount, m_cleanupDelayMilliseconds);
+        session->moveToThread(m_thread);
+        m_lastSession = session;
+        return session;
+    }
+
+    SlowCleanupProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    QThread* m_thread = nullptr;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    int m_cleanupDelayMilliseconds = 0;
+    QPointer<SlowCleanupProviderSession> m_lastSession;
+};
+
+class FailingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit FailingProviderSessionFactory(const std::shared_ptr<int>& sessionCount)
+        : m_sessionCount(sessionCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject*) override
+    {
+        ++*m_sessionCount;
+        return nullptr;
+    }
+
+private:
+    std::shared_ptr<int> m_sessionCount;
+};
+
+class CancellingAcknowledgementProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit CancellingAcknowledgementProviderSession(
+        const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        m_lastMetadataToken = token;
+        ++*m_metadataRequestCount;
+    }
+
+    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
+
+    void cancelRequest(ImageSequenceProviderRequestToken token) override
+    {
+        ++*m_cancelRequestCount;
+        emit providerCancelled(token, QStringLiteral("request cleanup complete"));
+    }
+
+    void close() override { ++*m_closeCount; }
+
+    ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
+
+private:
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    ImageSequenceProviderRequestToken m_lastMetadataToken;
+};
+
+class CancellingAcknowledgementProviderSessionFactory final
+    : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit CancellingAcknowledgementProviderSessionFactory(
+        const std::shared_ptr<int>& sessionCount, const std::shared_ptr<int>& metadataRequestCount,
+        const std::shared_ptr<int>& frameRequestCount,
+        const std::shared_ptr<int>& cancelRequestCount, const std::shared_ptr<int>& closeCount)
+        : m_sessionCount(sessionCount)
+        , m_metadataRequestCount(metadataRequestCount)
+        , m_frameRequestCount(frameRequestCount)
+        , m_cancelRequestCount(cancelRequestCount)
+        , m_closeCount(closeCount)
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        ++*m_sessionCount;
+        auto* session = new CancellingAcknowledgementProviderSession(m_metadataRequestCount,
+            m_frameRequestCount, m_cancelRequestCount, m_closeCount, parent);
+        m_lastSession = session;
+        return session;
+    }
+
+    CancellingAcknowledgementProviderSession* lastSession() const { return m_lastSession; }
+
+private:
+    std::shared_ptr<int> m_sessionCount;
+    std::shared_ptr<int> m_metadataRequestCount;
+    std::shared_ptr<int> m_frameRequestCount;
+    std::shared_ptr<int> m_cancelRequestCount;
+    std::shared_ptr<int> m_closeCount;
+    QPointer<CancellingAcknowledgementProviderSession> m_lastSession;
+};
+
+class NullSessionFactoryProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit NullSessionFactoryProviderAdapter(QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+    {
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return {};
+    }
+};
+
+}

@@ -5,16 +5,6 @@
 
 #include <cmath>
 
-namespace {
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    acknowledgeRenderCommitForTest(item, pendingRenderGenerationForTest(item),
-        activeRequestIdForTest(item), pendingRenderPayloadIdForTest(item));
-}
-
-}
-
 class ImageSequenceFactoryTest : public QObject
 {
     Q_OBJECT
@@ -258,7 +248,7 @@ Item {
     QVERIFY2(object, qPrintable(componentErrors(component)));
     auto* viewport = object->findChild<ImageViewport*>(QStringLiteral("viewport"));
     QVERIFY(viewport);
-    acknowledgePendingRenderCommit(*viewport);
+    acknowledgePendingPrimaryRenderCommitForTest(*viewport);
     QCOMPARE(object->property("frameFactoryCreated").toBool(), true);
     QCOMPARE(object->property("timedListAcceptedFrame").toBool(), true);
     QCOMPARE(object->property("timedFactoryCreated").toBool(), true);
@@ -460,7 +450,7 @@ void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
     item.setSequence(result->sequence());
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.sequence(), result->sequence());
@@ -486,7 +476,7 @@ void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction(
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
     item.setSequence(result->sequence());
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
     result.reset();
@@ -502,7 +492,7 @@ void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction(
     QCOMPARE(item.property("frameCount").toInt(), 1);
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
 }
@@ -557,7 +547,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -591,8 +581,8 @@ void ImageSequenceFactoryTest::sharedFactorySequenceSurvivesFirstViewportDestruc
         first.setSize(QSizeF(100.0, 50.0));
         first.setSequence(result->sequence());
         second.setSequence(result->sequence());
-        acknowledgePendingRenderCommit(first);
-        acknowledgePendingRenderCommit(second);
+        acknowledgePendingPrimaryRenderCommitForTest(first);
+        acknowledgePendingPrimaryRenderCommitForTest(second);
 
         QCOMPARE(first.property("requestStatus").toInt(),
             enumValue(metaObject, "RequestStatus", "Ready"));
@@ -611,7 +601,7 @@ void ImageSequenceFactoryTest::sharedFactorySequenceSurvivesFirstViewportDestruc
     QCOMPARE(second.property("frameCount").toInt(), 1);
     QCOMPARE(second.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
     QCOMPARE(second.seek(0), ImageViewport::CommandOutcome::Accepted);
-    acknowledgePendingRenderCommit(second);
+    acknowledgePendingPrimaryRenderCommitForTest(second);
     QCOMPARE(
         second.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
 }
@@ -781,7 +771,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     ImageViewport item;
     item.setSize(QSizeF(20.0, 20.0));
     item.setSequence(result->sequence());
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
@@ -791,7 +781,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     ImageViewport nativeFrameItem;
     nativeFrameItem.setSize(QSizeF(20.0, 20.0));
     nativeFrameItem.setSequence(nativeFrameResult->sequence());
-    acknowledgePendingRenderCommit(nativeFrameItem);
+    acknowledgePendingPrimaryRenderCommitForTest(nativeFrameItem);
     QCOMPARE(nativeFrameItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
     QCOMPARE(nativeFrameItem.property("contentRect").toRectF(), QRectF(0.0, 5.0, 20.0, 10.0));
 
@@ -801,7 +791,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     ImageViewport nativeTimedItem;
     nativeTimedItem.setSize(QSizeF(20.0, 20.0));
     nativeTimedItem.setSequence(nativeTimedResult->sequence());
-    acknowledgePendingRenderCommit(nativeTimedItem);
+    acknowledgePendingPrimaryRenderCommitForTest(nativeTimedItem);
     QCOMPARE(nativeTimedItem.property("displayedImageSize").toSizeF(), QSizeF(2.0, 1.0));
     QCOMPARE(nativeTimedItem.property("frameCount").toInt(), 2);
     QCOMPARE(nativeTimedItem.property("totalDuration").toInt(), 300);

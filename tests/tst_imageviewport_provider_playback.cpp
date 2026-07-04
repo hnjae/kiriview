@@ -2,25 +2,6 @@
 
 #include <QtCore/QElapsedTimer>
 
-namespace {
-
-void acknowledgePendingRenderCommit(ImageViewport& item)
-{
-    if (!hasPendingRenderCommitForTest(item)) {
-        return;
-    }
-    const quint64 generation = pendingRenderGenerationForTest(item);
-    const quint64 requestId = activeRequestIdForTest(item);
-    const quint64 primaryPayloadId = pendingRenderPayloadIdForTest(item);
-    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item) != 0
-        ? secondaryPendingRenderPayloadIdForTest(item)
-        : primaryPayloadId;
-    acknowledgeRenderCommitForTest(item,
-        generation, requestId, primaryPayloadId, secondaryPayloadId);
-}
-
-}
-
 class ImageViewportProviderPlaybackTest : public QObject
 {
     Q_OBJECT
@@ -94,7 +75,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackCommandsUpdatePhase
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
@@ -148,7 +129,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlayCommandPreservesElapsed
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 80);
@@ -201,7 +182,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesDeterminist
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 99);
@@ -237,7 +218,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesDeterminist
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -304,7 +285,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesFromRuntime
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -361,7 +342,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackFrameReadyWaitsForR
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
@@ -395,7 +376,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackFrameReadyWaitsForR
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -456,7 +437,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPausedPlaybackFrameCommitSt
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
@@ -477,7 +458,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPausedPlaybackFrameCommitSt
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Paused"));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), playbackToken, &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Paused"));
@@ -523,7 +504,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceReques
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 350);
@@ -564,7 +545,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceReques
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
@@ -770,7 +751,7 @@ void ImageViewportProviderPlaybackTest::
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), nonPlaybackToken, &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -818,10 +799,10 @@ void ImageViewportProviderPlaybackTest::
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
@@ -909,7 +890,7 @@ void ImageViewportProviderPlaybackTest::providerTimedStopCancelsPlaybackRequest(
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
@@ -951,7 +932,7 @@ void ImageViewportProviderPlaybackTest::providerTimedStopSupersedesPlaybackReque
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
@@ -1078,7 +1059,7 @@ void ImageViewportProviderPlaybackTest::providerTimedSeekWhilePlayingWaitsForFra
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
@@ -1096,7 +1077,7 @@ void ImageViewportProviderPlaybackTest::providerTimedSeekWhilePlayingWaitsForFra
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1141,9 +1122,9 @@ void ImageViewportProviderPlaybackTest::
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
@@ -1228,7 +1209,7 @@ void ImageViewportProviderPlaybackTest::
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 350);
@@ -1290,7 +1271,7 @@ void ImageViewportProviderPlaybackTest::providerTimedLoopingPlaybackWrapsToFirst
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
@@ -1301,7 +1282,7 @@ void ImageViewportProviderPlaybackTest::providerTimedLoopingPlaybackWrapsToFirst
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1352,7 +1333,7 @@ void ImageViewportProviderPlaybackTest::providerTimedLoopingPlaybackWrapsToFirst
     QCOMPARE(item.property("displayedPosition").toInt(), 100);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1398,7 +1379,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancementUsesPlay
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*playbackRequestCount, 0);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1461,7 +1442,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackWaitsForMetadata()
     image.fill(Qt::transparent);
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1694,7 +1675,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackWaitsForMe
     secondaryImage.fill(Qt::black);
     ImageFrame secondaryFrame(secondaryImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1706,7 +1687,8 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackWaitsForMe
     QCOMPARE(item.property("secondaryDisplayedPosition").toInt(), 0);
 }
 
-void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackKnownFalseRejectsBeforeMetadata()
+void ImageViewportProviderPlaybackTest::
+    secondaryProviderTimedPlaybackKnownFalseRejectsBeforeMetadata()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1911,7 +1893,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackUsesRoleLo
     secondaryImage.fill(Qt::black);
     ImageFrame secondaryFrame(secondaryImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
@@ -1973,7 +1955,7 @@ void ImageViewportProviderPlaybackTest::
     secondaryImage.fill(Qt::black);
     ImageFrame secondaryFrame(secondaryImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
@@ -2011,7 +1993,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 1, 100);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
@@ -2070,7 +2052,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
     secondaryImage.fill(Qt::black);
     ImageFrame secondaryFrame(secondaryImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 0, 0);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
         item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
@@ -2085,7 +2067,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
 
     QCOMPARE(
         item.stop(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
-    acknowledgePendingRenderCommit(item);
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, playbackToken.id());
