@@ -4,11 +4,10 @@
 #include "imageviewportstate_p.h"
 #include "renderfailurecause_p.h"
 
+#include <QtCore/QRectF>
+#include <QtCore/QSizeF>
 #include <QtCore/QVector>
-#include <QtQuick/QQuickWindow>
-#include <QtQuick/QSGImageNode>
-#include <QtQuick/QSGNode>
-#include <QtQuick/QSGTexture>
+#include <QtGui/QColor>
 
 class RenderAdapter
 {
@@ -19,16 +18,10 @@ public:
         Failed,
     };
 
-    class SceneGraphFactory
+    struct RolePayload
     {
-    public:
-        SceneGraphFactory() = default;
-        SceneGraphFactory(const SceneGraphFactory&) = delete;
-        SceneGraphFactory& operator=(const SceneGraphFactory&) = delete;
-        virtual ~SceneGraphFactory() = default;
-        virtual QSGTexture* createTexture(QQuickWindow* window, const QImage& image,
-            QQuickWindow::CreateTextureOptions options) const;
-        virtual QSGImageNode* createImageNode(QQuickWindow* window) const;
+        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+        ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     };
 
     struct Input
@@ -56,24 +49,6 @@ public:
         bool mirrorHorizontally = false;
         bool mirrorVertically = false;
         QVector<ImageLayer> imageLayers;
-        QQuickWindow* window = nullptr;
-        const SceneGraphFactory* sceneGraphFactory = nullptr;
-    };
-
-    struct Output
-    {
-        struct RolePayload
-        {
-            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-            ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
-        };
-
-        QSGNode* node = nullptr;
-        CommitResult result = CommitResult::Empty;
-        ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
-        QVector<RolePayload> rolePayloads;
-        ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
-        RenderFailureCause failureCause = RenderFailureCause::None;
     };
 
     struct RenderPlan
@@ -100,7 +75,7 @@ public:
 
         CommitResult result = CommitResult::Empty;
         ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
-        QVector<Output::RolePayload> rolePayloads;
+        QVector<RolePayload> rolePayloads;
         ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
         RenderFailureCause failureCause = RenderFailureCause::None;
         QVector<BackgroundRect> backgroundRects;
@@ -110,5 +85,4 @@ public:
     };
 
     RenderPlan createPlan(const Input& input) const;
-    Output createNode(QSGNode* oldNode, const Input& input) const;
 };

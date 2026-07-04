@@ -1,4 +1,5 @@
 #include "imageviewport_p.h"
+#include "renderadapter_scenegraph_p.h"
 
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGNode>
@@ -25,26 +26,26 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     }
     const bool imagePresent = !imageLayers.isEmpty();
 
-    const RenderAdapter::Output render = renderAdapter.createNode(oldNode,
-        {
-            synchronization.renderSnapshot.itemSize,
-            synchronization.renderSnapshot.backgroundMode,
-            synchronization.renderSnapshot.backgroundColor,
-            synchronization.renderSnapshot.preparedPayload,
-            synchronization.renderSnapshot.targetRect,
-            synchronization.renderSnapshot.sourceRect,
-            synchronization.renderSnapshot.rotationDegrees,
-            synchronization.renderSnapshot.smoothing,
-            synchronization.renderSnapshot.mipmap,
-            synchronization.renderSnapshot.mirrorHorizontally,
-            synchronization.renderSnapshot.mirrorVertically,
-            imageLayers,
-            window(),
-        });
+    const RenderAdapter::Input planInput {
+        synchronization.renderSnapshot.itemSize,
+        synchronization.renderSnapshot.backgroundMode,
+        synchronization.renderSnapshot.backgroundColor,
+        synchronization.renderSnapshot.preparedPayload,
+        synchronization.renderSnapshot.targetRect,
+        synchronization.renderSnapshot.sourceRect,
+        synchronization.renderSnapshot.rotationDegrees,
+        synchronization.renderSnapshot.smoothing,
+        synchronization.renderSnapshot.mipmap,
+        synchronization.renderSnapshot.mirrorHorizontally,
+        synchronization.renderSnapshot.mirrorVertically,
+        imageLayers,
+    };
+    const RenderAdapterSceneGraph::Output render = RenderAdapterSceneGraph::createNode(
+        renderAdapter, oldNode, { planInput, window() });
     if (render.result == RenderAdapter::CommitResult::Failed) {
         QVector<ViewportRenderRolePayload> rolePayloads;
         rolePayloads.reserve(render.rolePayloads.size());
-        for (const RenderAdapter::Output::RolePayload& payload : render.rolePayloads) {
+        for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         const auto changes = controller.acknowledgeRenderFailure(
@@ -59,7 +60,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     if (render.result == RenderAdapter::CommitResult::Committed) {
         QVector<ViewportRenderRolePayload> rolePayloads;
         rolePayloads.reserve(render.rolePayloads.size());
-        for (const RenderAdapter::Output::RolePayload& payload : render.rolePayloads) {
+        for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         const auto changes = controller.acknowledgeRenderCommit(

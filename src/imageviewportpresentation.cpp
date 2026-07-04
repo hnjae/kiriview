@@ -2,6 +2,8 @@
 #include "imageviewportvalidation_p.h"
 #include "presentationgeometry_p.h"
 
+#include <QtQuick/QQuickWindow>
+
 using namespace ImageViewportInternal;
 
 namespace {

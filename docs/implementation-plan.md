@@ -742,10 +742,12 @@ F11.
 
 #### Tasks
 
-- [ ] Add or update pure render-plan tests so role layer mapping, source/target rectangles, background primitives, quality flags, and payload identities can be verified without constructing `QQuickWindow`.
-- [ ] Split render planning input from scene graph materialization input so pure planning does not require `QQuickWindow`, `QSGNode`, `QSGTexture`, or `QSGImageNode`.
-- [ ] Move `MissingWindow` classification to materialization/preflight while preserving public render failure projection.
-- [ ] Keep scene graph tests for texture creation, image-node creation, ownership cleanup, and materialization failure causes.
+- [x] Add or update pure render-plan tests so role layer mapping, source/target rectangles, background primitives, quality flags, and payload identities can be verified without constructing `QQuickWindow`.
+- [x] Split render planning input from scene graph materialization input so pure planning does not require `QQuickWindow`, `QSGNode`, `QSGTexture`, or `QSGImageNode`.
+- [x] Move `MissingWindow` classification to materialization/preflight while preserving public render failure projection.
+- [x] Keep scene graph tests for texture creation, image-node creation, ownership cleanup, and materialization failure causes.
+
+Status: Complete. Verified against the rendering architecture and render-boundary docs before execution. The pure `RenderAdapter` plan input now contains only value data, role payloads, background state, quality flags, and layer mapping; Qt Quick window and scene graph allocation inputs moved to the private materialization header. Missing-window failures are now reported by scene graph materialization, while invalid payloads remain pre-materialization plan failures. Existing scene graph tests continue to cover missing window, texture creation, image-node creation, and invalid-payload failures, and pure plan tests no longer construct `QQuickWindow`.
 
 #### Acceptance criteria
 
