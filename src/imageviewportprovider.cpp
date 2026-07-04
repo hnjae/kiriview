@@ -107,6 +107,50 @@ ImageSequenceProviderCapabilitySupport ImageViewportPrivate::providerPositionSee
         : ImageSequenceProviderCapabilitySupport::Unavailable;
 }
 
+ImageSequenceProviderKnownFacts ImageViewportPrivate::secondaryProviderKnownFacts() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_providerKnownFacts : ImageSequenceProviderKnownFacts {};
+}
+
+QSizeF ImageViewportPrivate::secondaryProviderKnownLogicalSize() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_providerKnownLogicalSize : QSizeF {};
+}
+
+TimingIntervals ImageViewportPrivate::secondaryProviderKnownTimingIntervals() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence && sequence->m_providerKnownTimingIntervals
+        ? *sequence->m_providerKnownTimingIntervals
+        : TimingIntervals();
+}
+
+ImageSequenceProviderCapabilitySupport
+ImageViewportPrivate::secondaryProviderTimedPlaybackCapability() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_providerTimedPlaybackCapability
+                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ImageViewportPrivate::secondaryProviderFrameSeekCapability() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_providerFrameSeekCapability
+                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ImageViewportPrivate::secondaryProviderPositionSeekCapability() const
+{
+    ImageSequence* sequence = secondarySequence();
+    return sequence ? sequence->m_providerPositionSeekCapability
+                    : ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
 {
     if (!controller.acceptsProviderSessionResult(event.role, event.sessionSerial)) {
@@ -368,14 +412,10 @@ void ImageViewportPrivate::handleSecondaryProviderMetadataReady(
 
     const ViewportProviderAcceptedMetadataFacts metadataFacts = metadataAdmission.facts;
     applyControllerChanges(controller.handleSecondaryProviderAcceptedMetadataFacts(metadataFacts));
-    const ViewportProviderFrameRequestStartResult frameRequest
-        = controller.startSecondaryProviderFrameRequest(0);
-    ViewportProviderFrameTransportEffect frameEffect;
-    frameEffect.closeSession = frameRequest.closeSession;
-    frameEffect.sessionClose = frameRequest.sessionClose;
-    frameEffect.sendCommand = frameRequest.sendCommand;
-    frameEffect.command = frameRequest.command;
-    applyProviderFrameTransportEffect(frameEffect, PageRole::Secondary);
+    const ViewportProviderMetadataTargetPolicyResult targetResult
+        = controller.handleSecondaryProviderMetadataTargetPolicy(metadataFacts);
+    applyControllerChanges(targetResult.changes);
+    applyProviderFrameTransportEffect(targetResult.providerFrameTransport, PageRole::Secondary);
 }
 
 void ImageViewportPrivate::handleProviderFrameReady(

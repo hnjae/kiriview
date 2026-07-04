@@ -107,6 +107,37 @@ ViewportControllerContext::secondarySequenceAuthoredAnimationFacts() const
     return {};
 }
 
+ImageSequenceProviderKnownFacts
+ViewportControllerContext::secondaryProviderKnownFacts() const
+{
+    return {};
+}
+
+QSizeF ViewportControllerContext::secondaryProviderKnownLogicalSize() const { return {}; }
+
+TimingIntervals ViewportControllerContext::secondaryProviderKnownTimingIntervals() const
+{
+    return {};
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::secondaryProviderTimedPlaybackCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::secondaryProviderFrameSeekCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerContext::secondaryProviderPositionSeekCapability() const
+{
+    return ImageSequenceProviderCapabilitySupport::Unavailable;
+}
+
 QSizeF ViewportControllerContext::sequenceLogicalSize() const { return {}; }
 
 QImage ViewportControllerContext::sequenceFrameImage(int) const { return {}; }
@@ -308,6 +339,39 @@ ImageSequenceAuthoredAnimationFacts
 ViewportControllerPort::secondarySequenceAuthoredAnimationFacts() const
 {
     return context.secondarySequenceAuthoredAnimationFacts();
+}
+
+ImageSequenceProviderKnownFacts ViewportControllerPort::secondaryProviderKnownFacts() const
+{
+    return context.secondaryProviderKnownFacts();
+}
+
+QSizeF ViewportControllerPort::secondaryProviderKnownLogicalSize() const
+{
+    return context.secondaryProviderKnownLogicalSize();
+}
+
+TimingIntervals ViewportControllerPort::secondaryProviderKnownTimingIntervals() const
+{
+    return context.secondaryProviderKnownTimingIntervals();
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerPort::secondaryProviderTimedPlaybackCapability() const
+{
+    return context.secondaryProviderTimedPlaybackCapability();
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerPort::secondaryProviderFrameSeekCapability() const
+{
+    return context.secondaryProviderFrameSeekCapability();
+}
+
+ImageSequenceProviderCapabilitySupport
+ViewportControllerPort::secondaryProviderPositionSeekCapability() const
+{
+    return context.secondaryProviderPositionSeekCapability();
 }
 
 QSizeF ViewportControllerPort::sequenceLogicalSize() const { return context.sequenceLogicalSize(); }
@@ -979,6 +1043,17 @@ bool hasSecondarySequence(ViewportControllerPort& viewport)
 {
     return viewportRequestState(viewport).secondarySequence
         && viewportRequestState(viewport).secondaryActiveRequest.target.frame >= 0;
+}
+
+bool isUnknownMetadataInitialRequest(const ImageViewportInternal::DisplayRequest& request)
+{
+    return (request.identity.origin == ImageViewportInternal::DisplayRequestOrigin::Initial
+               || request.identity.origin == ImageViewportInternal::DisplayRequestOrigin::StopRestore
+               || request.identity.origin
+                   == ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection)
+        && request.target.frame < 0 && request.target.position < 0
+        && request.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 }
 
 void setSecondaryActiveRequest(ViewportControllerPort& viewport, DisplayRequestTarget target,
@@ -3099,35 +3174,66 @@ bool ViewportController::acceptsProviderSessionResult(
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     const ImageSequenceProviderMetadata& metadata)
 {
-    const auto generationTerminalResult = [this](ImageViewportInternal::ViewportChangeSet changes) {
-        ViewportProviderMetadataAdmissionResult result;
-        result.changes = changes;
-        result.providerFrameTransport.closeSession
-            = viewportProviderState(viewport).session != nullptr;
-        result.providerFrameTransport.sessionClose = handleProviderSessionClose();
-        return result;
-    };
+    return handleProviderMetadataAdmission(ImageViewport::PageRole::Primary, metadata);
+}
+
+ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
+    ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
+{
+    const auto generationTerminalResult
+        = [this, role](ImageViewportInternal::ViewportChangeSet changes) {
+              ViewportProviderMetadataAdmissionResult result;
+              result.changes = changes;
+              if (role == ImageViewport::PageRole::Secondary) {
+                  result.providerFrameTransport.closeSession
+                      = state.secondaryProvider.session != nullptr;
+                  result.providerFrameTransport.sessionClose
+                      = handleSecondaryProviderSessionClose();
+                  return result;
+              }
+
+              result.providerFrameTransport.closeSession
+                  = viewportProviderState(viewport).session != nullptr;
+              result.providerFrameTransport.sessionClose = handleProviderSessionClose();
+              return result;
+          };
 
     const auto admission = FramePreparation::admitProviderMetadata(metadata);
     if (!admission.accepted()) {
         return generationTerminalResult(
             handleProviderMetadataAdmissionRejection({ admission.diagnostic }));
     }
+
+    const bool secondary = role == ImageViewport::PageRole::Secondary;
+    const ImageSequenceProviderCapabilitySupport timedPlaybackCapability = secondary
+        ? viewport.secondaryProviderTimedPlaybackCapability()
+        : viewport.providerTimedPlaybackCapability();
+    const ImageSequenceProviderCapabilitySupport frameSeekCapability
+        = secondary ? viewport.secondaryProviderFrameSeekCapability()
+                    : viewport.providerFrameSeekCapability();
+    const ImageSequenceProviderCapabilitySupport positionSeekCapability = secondary
+        ? viewport.secondaryProviderPositionSeekCapability()
+        : viewport.providerPositionSeekCapability();
     if (ImageViewportInternal::providerCapabilityContradictsMetadata(
-            viewport.providerTimedPlaybackCapability(), metadata.timedPlaybackSupport())
+            timedPlaybackCapability, metadata.timedPlaybackSupport())
         || ImageViewportInternal::providerCapabilityContradictsMetadata(
-            viewport.providerFrameSeekCapability(), metadata.frameSeekSupport())
+            frameSeekCapability, metadata.frameSeekSupport())
         || ImageViewportInternal::providerCapabilityContradictsMetadata(
-            viewport.providerPositionSeekCapability(), metadata.positionSeekSupport())) {
+            positionSeekCapability, metadata.positionSeekSupport())) {
         return generationTerminalResult(handleProviderMetadataContradiction(
             { QStringLiteral("provider metadata contradicts construction-time capabilities") }));
     }
-    if (ImageViewportInternal::providerFactsContradictMetadata(
-            viewport.providerKnownFacts(), metadata)) {
+
+    const ImageSequenceProviderKnownFacts knownFacts
+        = secondary ? viewport.secondaryProviderKnownFacts() : viewport.providerKnownFacts();
+    if (ImageViewportInternal::providerFactsContradictMetadata(knownFacts, metadata)) {
         return generationTerminalResult(handleProviderMetadataContradiction(
             { QStringLiteral("provider metadata contradicts construction-time facts") }));
     }
 
+    const ImageSequenceAuthoredAnimationFacts fallbackAuthoredFacts = secondary
+        ? viewport.secondarySequenceAuthoredAnimationFacts()
+        : viewport.providerAuthoredAnimationFacts();
     ViewportProviderMetadataAdmissionResult result;
     result.accepted = true;
     result.facts = {
@@ -3138,7 +3244,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
         admission.logicalSize,
         admission.timingIntervals,
         metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
-                                             : viewport.providerAuthoredAnimationFacts(),
+                                             : fallbackAuthoredFacts,
     };
     return result;
 }
@@ -3147,33 +3253,7 @@ ViewportProviderMetadataAdmissionResult
 ViewportController::handleSecondaryProviderMetadataAdmission(
     const ImageSequenceProviderMetadata& metadata)
 {
-    const auto generationTerminalResult = [this](ImageViewportInternal::ViewportChangeSet changes) {
-        ViewportProviderMetadataAdmissionResult result;
-        result.changes = changes;
-        result.providerFrameTransport.closeSession = state.secondaryProvider.session != nullptr;
-        result.providerFrameTransport.sessionClose = handleSecondaryProviderSessionClose();
-        return result;
-    };
-
-    const auto admission = FramePreparation::admitProviderMetadata(metadata);
-    if (!admission.accepted()) {
-        return generationTerminalResult(
-            handleProviderMetadataAdmissionRejection({ admission.diagnostic }));
-    }
-
-    ViewportProviderMetadataAdmissionResult result;
-    result.accepted = true;
-    result.facts = {
-        admission.timedMetadata,
-        metadata.timedPlaybackSupport(),
-        metadata.frameSeekSupport(),
-        metadata.positionSeekSupport(),
-        admission.logicalSize,
-        admission.timingIntervals,
-        metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
-                                             : viewport.secondarySequenceAuthoredAnimationFacts(),
-    };
-    return result;
+    return handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary, metadata);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
@@ -3545,10 +3625,47 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
 }
 
 ViewportProviderMetadataTargetPolicyResult
+ViewportController::handleSecondaryProviderMetadataTargetPolicy(
+    const ViewportProviderAcceptedMetadataFacts& facts)
+{
+    ViewportProviderMetadataTargetPolicyResult result;
+    const ImageViewportInternal::DisplayRequest& request
+        = viewportRequestState(viewport).secondaryActiveRequest;
+    const bool currentIdentity = request.identity.id != 0
+        && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
+    if (!currentIdentity || !isUnknownMetadataInitialRequest(request)) {
+        return result;
+    }
+
+    const int selectedFrame = 0;
+    const int selectedPosition = facts.timedMetadata ? 0 : -1;
+    const ImageViewportInternal::DisplayRequestTarget target {
+        selectedFrame,
+        selectedPosition,
+        ImageViewportInternal::ProviderRequestTargetKind::Frame,
+    };
+    const ViewportProviderFrameRequestStartResult start
+        = startSecondaryProviderFrameRequest(target);
+    appendProviderFrameStartResult(result.providerFrameTransport, start);
+    result.changes.requestRevision = true;
+    result.changes.requestState = true;
+    if (!start.accepted) {
+        result.changes.diagnostics = true;
+    }
+    return result;
+}
+
+ViewportProviderMetadataTargetPolicyResult
 ViewportController::handleProviderMetadataTargetSelection(
     ViewportProviderMetadataTargetSelection selection)
 {
     ViewportProviderMetadataTargetPolicyResult result;
+    const bool carrySecondaryInitialRequest = hasSecondaryProviderSequence(viewport)
+        && viewportRequestState(viewport).secondaryActiveRequest.identity.id
+            == viewportRequestState(viewport).activeRequest.identity.id
+        && isUnknownMetadataInitialRequest(viewportRequestState(viewport).activeRequest)
+        && isUnknownMetadataInitialRequest(
+            viewportRequestState(viewport).secondaryActiveRequest);
     const bool rememberAsLatestNonPlayback
         = selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback;
     const int selectedPosition = selection.selectedFromPosition
@@ -3563,6 +3680,12 @@ ViewportController::handleProviderMetadataTargetSelection(
         ImageViewportInternal::DisplayRequestOrigin::MetadataBoundSelection,
         { selection.selectedFrame, selectedPosition, selection.targetKind }, resolvedFrame,
         rememberAsLatestNonPlayback);
+    if (carrySecondaryInitialRequest) {
+        viewportRequestState(viewport).secondaryActiveRequest.identity
+            = viewportRequestState(viewport).activeRequest.identity;
+        viewportRequestState(viewport).secondaryActiveRequest.preparedPayloadId
+            = viewportRequestState(viewport).activeRequest.preparedPayloadId;
+    }
     viewportRequestState(viewport).playbackPosition
         = viewportRequestState(viewport).activeRequest.target.position;
     publishProviderFrameLoadingState(viewport);

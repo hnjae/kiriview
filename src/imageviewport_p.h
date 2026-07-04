@@ -293,6 +293,12 @@ public:
     int sequenceFrameStartPosition(int frame) const override;
     ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const override;
     ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const override;
+    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const override;
+    QSizeF secondaryProviderKnownLogicalSize() const override;
+    TimingIntervals secondaryProviderKnownTimingIntervals() const override;
+    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const override;
+    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const override;
+    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override;
     QSizeF sequenceLogicalSize() const override;
     QImage sequenceFrameImage(int frame) const override;
 

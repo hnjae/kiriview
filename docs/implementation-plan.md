@@ -518,12 +518,12 @@ Provider role semantics are split between primary and secondary paths; provider 
 
 #### Tasks
 
-- [ ] Define a role-indexed provider state accessor that returns the correct `ProviderGenerationState`, accepted sequence facts, active display request, latest non-playback request, and transport result slot for `PageRole`.
-- [ ] Add characterization tests for secondary provider metadata contradictions against construction-time facts and declared capabilities: expected terminal `Error` with `PayloadRejection`, generation interest closed, and no secondary metadata observation update.
-- [ ] Replace secondary-specific metadata admission with the shared provider metadata validation path used for primary, including construction-time capability contradictions and known-fact contradictions.
-- [ ] Route secondary metadata-bound initial target selection through the same active-request policy as primary rather than always selecting frame `0`.
-- [ ] Ensure metadata updates generation facts without reviving superseded explicit seek, playback, stop, clear, or replacement state.
-- [ ] Keep aggregate spread status projection outside provider role helpers; provider role code should produce role-local outcomes only.
+- [x] Define a role-indexed provider state accessor that returns the correct `ProviderGenerationState`, accepted sequence facts, active display request, latest non-playback request, and transport result slot for `PageRole`.
+- [x] Add characterization tests for secondary provider metadata contradictions against construction-time facts and declared capabilities: expected terminal `Error` with `PayloadRejection`, generation interest closed, and no secondary metadata observation update.
+- [x] Replace secondary-specific metadata admission with the shared provider metadata validation path used for primary, including construction-time capability contradictions and known-fact contradictions.
+- [x] Route secondary metadata-bound initial target selection through the same active-request policy as primary rather than always selecting frame `0`.
+- [x] Ensure metadata updates generation facts without reviving superseded explicit seek, playback, stop, clear, or replacement state.
+- [x] Keep aggregate spread status projection outside provider role helpers; provider role code should produce role-local outcomes only.
 
 #### Acceptance criteria
 
@@ -536,9 +536,17 @@ Provider role semantics are split between primary and secondary paths; provider 
 
 - `cmake --build build`
 - `ctest -N --test-dir build`
-- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_metadata|imageviewport_provider_terminal|imageviewport_provider_lifecycle|viewportcontroller_playback|viewportcontroller_presentation)$'`
-- `ctest --test-dir build -R '^(imageviewport_provider_metadata|imageviewport_provider_terminal|imageviewport_provider_lifecycle|viewportcontroller_playback|viewportcontroller_presentation)$' --output-on-failure`
+- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_metadata|imageviewport_provider_terminal|imageviewport_provider_lifecycle|viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider)$'`
+- `ctest --test-dir build -R '^(imageviewport_provider_metadata|imageviewport_provider_terminal|imageviewport_provider_lifecycle|viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Secondary provider metadata now goes through the same admission helper as primary, including construction-time known-fact and declared-capability contradiction checks, generation-terminal `PayloadRejection` projection, and secondary generation close interest.
+- Added secondary provider construction-fact/capability context accessors and item-private implementations so the controller can validate role-local metadata without transport-layer decisions.
+- Added a secondary metadata target policy that starts the metadata-bound initial frame only for the current role-local unknown initial/stop-restoration request, carries secondary unknown-initial identity across primary metadata-bound selection, and leaves superseded explicit seek state authoritative while still accepting metadata facts.
+- Added item-level and controller-harness tests for secondary known-fact contradiction, declared-capability contradiction, generation close interest, no metadata observation update after rejection, and stale initial target non-revival after explicit seek supersession.
+- Verification passed: `cmake --build build`; focused filter selected 6 tests; focused CTest passed 6/6; `imageviewport_render_scenegraph` passed after the metadata-bound identity carry adjustment; full CTest passed 20/20.
 
 #### Risks / notes
 

@@ -55,23 +55,57 @@ public:
     bool providerSequence = false;
     bool completeKnownMetadata = false;
     ImageSequenceProviderKnownFacts knownFacts;
+    ImageSequenceProviderKnownFacts secondaryKnownFacts;
+    ImageSequenceProviderCapabilitySupport secondaryTimedPlaybackCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport secondaryFrameSeekCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
+    ImageSequenceProviderCapabilitySupport secondaryPositionSeekCapability
+        = ImageSequenceProviderCapabilitySupport::Unavailable;
 
     QRectF itemBounds() const override { return QRectF(0.0, 0.0, 100.0, 100.0); }
     bool hasActiveRequest() const override { return sequence != nullptr; }
+    bool hasDisplayableSequence() const override { return sequence != nullptr; }
     bool hasProviderSequence() const override { return sequence && providerSequence; }
     bool providerHasCompleteKnownMetadata() const override { return completeKnownMetadata; }
     ImageSequenceProviderKnownFacts providerKnownFacts() const override { return knownFacts; }
     QSizeF providerKnownLogicalSize() const override { return knownFacts.logicalSize(); }
+    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const override
+    {
+        return secondaryKnownFacts;
+    }
+    QSizeF secondaryProviderKnownLogicalSize() const override
+    {
+        return secondaryKnownFacts.logicalSize();
+    }
+    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const override
+    {
+        return secondaryTimedPlaybackCapability;
+    }
+    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const override
+    {
+        return secondaryFrameSeekCapability;
+    }
+    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override
+    {
+        return secondaryPositionSeekCapability;
+    }
     double width() const override { return 100.0; }
     double height() const override { return 100.0; }
 };
+
+std::unique_ptr<ImageSequenceFactoryResult> makeDetachedProviderSequence(
+    ImageSequenceFactory& factory, ImageSequenceProviderMetadata knownMetadata = {})
+{
+    StubProviderAdapter adapter(knownMetadata);
+    return std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
+}
 
 std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
     ImageSequenceFactory& factory, ProviderControllerContext& context,
     ImageSequenceProviderMetadata knownMetadata = {})
 {
-    StubProviderAdapter adapter(knownMetadata);
-    auto result = std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
+    auto result = makeDetachedProviderSequence(factory, knownMetadata);
     if (!result || !result->sequence()) {
         return {};
     }
@@ -108,6 +142,8 @@ private slots:
     void sessionSerialRejectsSupersededSessionResults();
     void metadataAndFrameEventsRejectStaleTokens();
     void cancellationTerminalEventClosesActiveMetadataGeneration();
+    void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
+    void secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest();
 };
 
 void ViewportControllerProviderTest::
@@ -350,6 +386,87 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("cancelled")));
+}
+
+void ViewportControllerProviderTest::
+    secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration()
+{
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
+    QVERIFY(primary);
+    std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
+    QVERIFY(secondary);
+    context.secondaryKnownFacts = ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0));
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primary->sequence();
+    assignment.secondarySequence = secondary->sequence();
+    assignment.secondaryIsProvider = true;
+    const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
+    QCOMPARE(assigned.openSecondaryProviderSession, true);
+
+    StubProviderSession session;
+    QVERIFY(controller.installProviderSession(ImageViewport::PageRole::Secondary, &session) != 0);
+    const ViewportProviderSessionOpenResult opened
+        = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
+    const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
+    QVERIFY(metadataToken.isValid());
+    QCOMPARE(controller.acceptSecondaryProviderMetadataEvent({ metadataToken }).accepted, true);
+
+    const ViewportProviderMetadataAdmissionResult admission
+        = controller.handleSecondaryProviderMetadataAdmission(
+            ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
+    QCOMPARE(admission.accepted, false);
+    QCOMPARE(admission.providerFrameTransport.closeSession, true);
+    QCOMPARE(controller.secondaryProviderMetadataReady(), false);
+    QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
+    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::PayloadRejection);
+    QVERIFY(controller.requestState().errorString.contains(QStringLiteral("construction-time")));
+}
+
+void ViewportControllerProviderTest::
+    secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest()
+{
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
+    QVERIFY(primary);
+    std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
+    QVERIFY(secondary);
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = primary->sequence();
+    assignment.secondarySequence = secondary->sequence();
+    assignment.secondaryIsProvider = true;
+    controller.assignSequence(assignment);
+
+    StubProviderSession session;
+    controller.installProviderSession(ImageViewport::PageRole::Secondary, &session);
+    const ViewportProviderSessionOpenResult opened
+        = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
+    const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
+    QVERIFY(metadataToken.isValid());
+
+    const ViewportCommandResult seek = controller.seek(0);
+    QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.requestState().activeRequest.identity.origin,
+        ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek);
+    QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
+
+    QCOMPARE(controller.acceptSecondaryProviderMetadataEvent({ metadataToken }).accepted, true);
+    const ViewportProviderMetadataAdmissionResult admission
+        = controller.handleSecondaryProviderMetadataAdmission(
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QCOMPARE(admission.accepted, true);
+    controller.handleSecondaryProviderAcceptedMetadataFacts(admission.facts);
+    const ViewportProviderMetadataTargetPolicyResult targetPolicy
+        = controller.handleSecondaryProviderMetadataTargetPolicy(admission.facts);
+    QCOMPARE(targetPolicy.providerFrameTransport.sendCommand, false);
+    QCOMPARE(controller.secondaryProviderMetadataReady(), true);
+    QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
 }
 
 QTEST_MAIN(ViewportControllerProviderTest)

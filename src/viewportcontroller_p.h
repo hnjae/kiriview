@@ -359,6 +359,12 @@ public:
     virtual int secondarySequenceFrameIndexForPosition(int position) const;
     virtual int secondarySequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
+    virtual ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
+    virtual QSizeF secondaryProviderKnownLogicalSize() const;
+    virtual TimingIntervals secondaryProviderKnownTimingIntervals() const;
+    virtual ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const;
+    virtual ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
+    virtual ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
     virtual QSizeF sequenceLogicalSize() const;
     virtual QImage sequenceFrameImage(int frame) const;
     virtual double width() const;
@@ -415,6 +421,12 @@ public:
     int secondarySequenceFrameIndexForPosition(int position) const;
     int secondarySequenceFrameStartPosition(int frame) const;
     ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
+    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
+    QSizeF secondaryProviderKnownLogicalSize() const;
+    TimingIntervals secondaryProviderKnownTimingIntervals() const;
+    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const;
+    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
+    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
     QSizeF sequenceLogicalSize() const;
     QImage sequenceFrameImage(int frame) const;
     double width() const;
@@ -523,6 +535,8 @@ public:
     bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
+    ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
+        ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
     ViewportProviderMetadataAdmissionResult handleSecondaryProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderTerminalEventResult handleProviderTerminalEvent(
@@ -538,6 +552,8 @@ public:
     ImageViewportInternal::ViewportChangeSet handleSecondaryProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
+        const ViewportProviderAcceptedMetadataFacts& facts);
+    ViewportProviderMetadataTargetPolicyResult handleSecondaryProviderMetadataTargetPolicy(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
