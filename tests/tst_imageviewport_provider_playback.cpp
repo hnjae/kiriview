@@ -6,16 +6,17 @@ namespace {
 
 void acknowledgePendingRenderCommit(ImageViewport& item)
 {
+    if (!item.hasPendingRenderCommitForTest()) {
+        return;
+    }
     const quint64 generation = item.pendingRenderGenerationForTest();
     const quint64 requestId = item.activeRequestIdForTest();
     const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
-    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest();
-    if (secondaryPayloadId > 0) {
-        item.acknowledgeRenderCommitForTest(
-            generation, requestId, primaryPayloadId, secondaryPayloadId);
-        return;
-    }
-    item.acknowledgeRenderCommitForTest(generation, requestId, primaryPayloadId);
+    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest() != 0
+        ? item.secondaryPendingRenderPayloadIdForTest()
+        : primaryPayloadId;
+    item.acknowledgeRenderCommitForTest(
+        generation, requestId, primaryPayloadId, secondaryPayloadId);
 }
 
 }
@@ -817,8 +818,10 @@ void ImageViewportProviderPlaybackTest::
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
+    acknowledgePendingRenderCommit(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("displayedFrame").toInt(), 1);
@@ -1138,7 +1141,9 @@ void ImageViewportProviderPlaybackTest::
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
+    acknowledgePendingRenderCommit(item);
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
@@ -2080,6 +2085,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
 
     QCOMPARE(
         item.stop(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(item);
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledTokenId, playbackToken.id());

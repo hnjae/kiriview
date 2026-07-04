@@ -53,8 +53,8 @@ struct ViewportRenderSnapshot
 
 struct ViewportRenderSynchronization
 {
-    bool pendingProviderCommit = false;
-    bool pendingSecondaryCommit = false;
+    bool pendingTargetCommit = false;
+    bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;
     ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
     QRectF oldContentRect;

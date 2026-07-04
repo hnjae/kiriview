@@ -220,7 +220,7 @@ Implementation test inventory:
 | 3 | `ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateAndRevisions` | Invalid transition policy preserves page set, presentation fields, retained display, playback phase, diagnostics, and request/display revisions exactly. | Keep red in Milestone 3 until fixed. |
 | 4 | `ViewportControllerProviderTest::requiredRoleWaitPriorityAggregatesBeforeProjection_data` and `requiredRoleWaitPriorityAggregatesBeforeProjection` | With simultaneous waits across required primary and secondary roles, public reason priority is provider waiting, request queued, upload pending, then render waiting. | Keep red in Milestone 4 until fixed. |
 | 4 | `ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPublicReasonChanges` | Toggling a lower-priority wait fact while the projected public reason is unchanged does not advance `requestRevision`; changing the projected reason does. | Keep red in Milestone 4 until fixed. |
-| 5 | `ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPositiveGeometry` | Built-in still assignment with positive item geometry stays `Loading/RenderWaiting` until a matching render commit acknowledgement. | Keep red in Milestone 5 until fixed. |
+| 5 | `ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPositiveGeometry` | Built-in still assignment with positive item geometry stays `Loading/UploadPending` until a matching render commit acknowledgement. | Keep red in Milestone 5 until fixed. |
 | 5 | `ImageViewportRenderCommitTest::timedListAssignmentWaitsForRenderCommitWithPositiveGeometry` | Built-in timed-list initial target does not publish request/display `Ready` until matching render commit. | Keep red in Milestone 5 until fixed. |
 | 5 | `ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCommit` | Built-in primary plus built-in secondary spread publishes `Ready` only after both required role payload identities commit as one target spread. | Keep red in Milestone 5 until fixed. |
 | 5 | `ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit_data` and `mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit` | Built-in/provider and provider/built-in spreads stay loading until all required role payloads have matching render acknowledgements. | Keep red in Milestone 5 until fixed. |
@@ -583,13 +583,27 @@ Built-in frames publish `Ready` before render acknowledgement; wait-state projec
 
 #### Tasks
 
-- [ ] Add pending render identity for built-in primary-only display requests.
-- [ ] Add pending render identity for built-in primary plus built-in secondary spread commits.
-- [ ] Add explicit handling and tests for built-in primary/provider secondary spread readiness.
-- [ ] Add explicit handling and tests for provider primary/built-in secondary spread readiness.
-- [ ] Update `beginRenderSynchronization` to include all built-in and mixed pending commits.
-- [ ] Update `acknowledgeRenderCommit` and `acknowledgeRenderFailure` to handle built-in and mixed pending commits with stale-identity checks.
-- [ ] Update request/display status projection so all display-critical content stays loading until matching render commit.
+- [x] Add pending render identity for built-in primary-only display requests.
+- [x] Add pending render identity for built-in primary plus built-in secondary spread commits.
+- [x] Add explicit handling and tests for built-in primary/provider secondary spread readiness.
+- [x] Add explicit handling and tests for provider primary/built-in secondary spread readiness.
+- [x] Update `beginRenderSynchronization` to include all built-in and mixed pending commits.
+- [x] Update `acknowledgeRenderCommit` and `acknowledgeRenderFailure` to handle built-in and mixed pending commits with stale-identity checks.
+- [x] Update request/display status projection so all display-critical content stays loading until matching render commit.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/spec/image-viewport.md`, `docs/architecture/rendering.md`, and `docs/architecture/subsystem-boundaries.md` were re-read for this milestone. The implementation follows the documented render boundary: prepared payloads and complete target spreads become public ready display ownership only after matching render acknowledgement, and non-positive geometry leaves uncommitted content loading with render waiting.
+
+Added failing render-commit tests in commit `7885b36`: `ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPositiveGeometry`, `timedListAssignmentWaitsForRenderCommitWithPositiveGeometry`, `builtInTwoPageSpreadWaitsForCompleteRenderCommit`, `mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit_data`, `mixedBuiltInProviderSpreadWaitsForCompleteRenderCommit`, and `staleBuiltInRenderAcknowledgementIsIgnored`.
+
+Converted render synchronization from provider-only pending commits to target-level pending commits. Built-in still and timed-list assignments now stage a prepared payload identity and publish `Loading/UploadPending` with an empty or retained display until commit acknowledgement. Built-in/built-in spreads, built-in/provider spreads, and provider/built-in spreads all require complete role payload acknowledgement before `Ready` publication. Render failure handling now recognizes built-in and mixed pending commits, and retrying a display-request-scoped built-in render failure clears the stale terminal seal before staging the retry payload.
+
+Updated still and timed item tests to acknowledge built-in render commits explicitly when the test scenario requires committed display content, retained pixels, or playback advancement beyond the render boundary.
+
+Verification: `ctest --test-dir build-ninja -R 'imageviewport_render_commit|imageviewport_still|imageviewport_timed|imageviewport_provider_frame_admission|viewportcontroller_provider' --output-on-failure` and `just test` passed on 2026-07-04. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 

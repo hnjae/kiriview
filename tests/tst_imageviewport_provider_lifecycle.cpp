@@ -87,6 +87,7 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(firstResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -663,6 +664,7 @@ void ImageViewportProviderLifecycleTest::providerReplacementCancelsActiveFrameRe
     QCOMPARE(*frameRequestCount, 1);
 
     item.setSequence(replacementResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
 
     drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
@@ -1016,6 +1018,7 @@ void ImageViewportProviderLifecycleTest::
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     item.setSequence(replacementResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const RevisionToken replacementRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.sequence(), replacementResult->sequence());

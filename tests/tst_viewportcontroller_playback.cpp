@@ -112,6 +112,31 @@ std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequence(
     return result;
 }
 
+void acknowledgePendingRenderCommit(ViewportController& controller)
+{
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    if (!synchronization.pendingTargetCommit) {
+        return;
+    }
+    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
+        = controller.displayState().pendingRenderPayload.identity().isValid()
+        ? controller.displayState().pendingRenderPayload.identity()
+        : synchronization.preparedPayload.identity();
+    QVector<ViewportRenderRolePayload> rolePayloads {
+        { ImageViewport::PageRole::Primary, primaryPayload }
+    };
+    if (controller.requestState().secondarySequence
+        && controller.requestState().secondaryActiveRequest.target.frame >= 0) {
+        const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload
+            = controller.displayState().secondaryPendingRenderPayload.identity().isValid()
+            ? controller.displayState().secondaryPendingRenderPayload.identity()
+            : primaryPayload;
+        rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
+    }
+    controller.acknowledgeRenderCommit(
+        { primaryPayload, rolePayloads }, true, synchronization);
+}
+
 } // namespace
 
 class ViewportControllerPlaybackTest : public QObject
@@ -142,6 +167,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
     QCOMPARE(controller.requestState().playbackPosition, 0);
@@ -168,6 +194,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
 
     context.size = QSizeF(100.0, 100.0);
     controller.handleGeometryChanged({}, {});
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.displayState().displayedRequest.request.target.frame, 1);
@@ -176,6 +203,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(controller.requestState().playbackPosition, 349);
     controller.advancePlayback(1);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Stopped);
     QCOMPARE(controller.requestState().activeRequest.target.frame, 1);
     QCOMPARE(controller.requestState().playbackPosition, 350);
@@ -190,6 +218,7 @@ void ViewportControllerPlaybackTest::pauseWhileRenderWaitingCommitsWithoutResumi
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
     controller.play();
     context.size = QSizeF(0.0, 100.0);
     controller.advancePlayback(100);
@@ -201,6 +230,7 @@ void ViewportControllerPlaybackTest::pauseWhileRenderWaitingCommitsWithoutResumi
 
     context.size = QSizeF(100.0, 100.0);
     controller.handleGeometryChanged({}, {});
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Paused);
     QCOMPARE(controller.displayState().displayedRequest.request.target.frame, 1);
@@ -215,6 +245,7 @@ void ViewportControllerPlaybackTest::explicitSeekWhilePlayingWaitsForRenderCommi
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
     controller.play();
     context.size = QSizeF(0.0, 100.0);
 
@@ -236,10 +267,12 @@ void ViewportControllerPlaybackTest::loopingPlaybackWrapsToStart()
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
     controller.setLooping(true);
     controller.play();
 
     controller.advancePlayback(350);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
@@ -257,6 +290,7 @@ void ViewportControllerPlaybackTest::unsupportedPlayForUntimedSequencePreservesS
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
 
     const ViewportCommandResult play = controller.play();
     QCOMPARE(play.outcome, ImageViewport::CommandOutcome::Unsupported);
@@ -274,6 +308,7 @@ void ViewportControllerPlaybackTest::invalidSeekWhilePlayingPreservesPlaybackPha
     ViewportController controller(context);
 
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
     controller.play();
 
     const ViewportCommandResult invalidSeek = controller.seek(-1);

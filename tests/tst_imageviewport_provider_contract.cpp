@@ -647,6 +647,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));

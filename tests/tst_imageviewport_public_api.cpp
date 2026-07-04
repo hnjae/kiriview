@@ -143,6 +143,7 @@ void ImageViewportPublicApiTest::unsupportedSequencePropertyWritesPreserveState(
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
@@ -199,6 +200,7 @@ void ImageViewportPublicApiTest::sequenceAssignmentPreservesCommandDiagnostic()
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.sequence(), result->sequence());
     QCOMPARE(
@@ -373,8 +375,7 @@ ImageViewport {
             && errorString === ""
     }
 
-    Component.onCompleted: {
-        sequence = suppliedSequence
+    function exerciseUnsupportedAssignments() {
         const requestRevisionBefore = requestRevision
         const displayRevisionBefore = displayRevision
         try {
@@ -408,6 +409,10 @@ ImageViewport {
         }
         providerAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
     }
+
+    Component.onCompleted: {
+        sequence = suppliedSequence
+    }
 }
 )",
         QUrl());
@@ -418,6 +423,10 @@ ImageViewport {
         QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject*>(result->sequence()));
     QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
     QVERIFY2(object, qPrintable(componentErrors(component)));
+    auto* viewport = qobject_cast<ImageViewport*>(object.data());
+    QVERIFY(viewport);
+    acknowledgePendingRenderCommitForTest(*viewport);
+    QVERIFY(QMetaObject::invokeMethod(object.data(), "exerciseUnsupportedAssignments"));
     QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
     QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
@@ -1297,6 +1306,7 @@ void ImageViewportPublicApiTest::roleCommandsWithInvalidRolePublishCommandDiagno
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const auto invalidRole = static_cast<ImageViewport::PageRole>(999);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
@@ -1336,6 +1346,7 @@ void ImageViewportPublicApiTest::secondaryRoleCommandsWithoutSecondaryPublishNoR
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
@@ -1385,6 +1396,7 @@ void ImageViewportPublicApiTest::pageSetTransitionClearBeforeLoadClearsRetainedD
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(readyResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
@@ -1425,6 +1437,7 @@ void ImageViewportPublicApiTest::invalidPageSetTransitionPolicyPreservesState()
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(firstResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
@@ -1706,24 +1719,23 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property bool readyValuesHaveDocumentedFields: false
+    property bool readyValuesHaveDocumentedFields: displayedImageSize.width === 16
+        && displayedImageSize.height === 8
+        && contentRect.x === 0
+        && contentRect.y === 25
+        && contentRect.width === 100
+        && contentRect.height === 50
+        && visibleImageRect.x === 0
+        && visibleImageRect.y === 0
+        && visibleImageRect.width === 16
+        && visibleImageRect.height === 8
+        && frameSeekBounds.minimum === 0
+        && frameSeekBounds.maximum === 0
+        && positionSeekBounds.minimum === -1
+        && positionSeekBounds.maximum === -1
 
     Component.onCompleted: {
         sequence = suppliedSequence
-        readyValuesHaveDocumentedFields = displayedImageSize.width === 16
-            && displayedImageSize.height === 8
-            && contentRect.x === 0
-            && contentRect.y === 25
-            && contentRect.width === 100
-            && contentRect.height === 50
-            && visibleImageRect.x === 0
-            && visibleImageRect.y === 0
-            && visibleImageRect.width === 16
-            && visibleImageRect.height === 8
-            && frameSeekBounds.minimum === 0
-            && frameSeekBounds.maximum === 0
-            && positionSeekBounds.minimum === -1
-            && positionSeekBounds.maximum === -1
     }
 }
 )",
@@ -1735,6 +1747,9 @@ ImageViewport {
         QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject*>(result->sequence()));
     QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
     QVERIFY2(object, qPrintable(componentErrors(component)));
+    auto* viewport = qobject_cast<ImageViewport*>(object.data());
+    QVERIFY(viewport);
+    acknowledgePendingRenderCommitForTest(*viewport);
     QCOMPARE(object->property("readyValuesHaveDocumentedFields").toBool(), true);
 }
 

@@ -91,6 +91,31 @@ ViewportSequenceAssignment replacementSpreadAssignment(
     return assignment;
 }
 
+void acknowledgePendingRenderCommit(ViewportController& controller)
+{
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    if (!synchronization.pendingTargetCommit) {
+        return;
+    }
+    const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
+        = controller.displayState().pendingRenderPayload.identity().isValid()
+        ? controller.displayState().pendingRenderPayload.identity()
+        : synchronization.preparedPayload.identity();
+    QVector<ViewportRenderRolePayload> rolePayloads {
+        { ImageViewport::PageRole::Primary, primaryPayload }
+    };
+    if (controller.requestState().secondarySequence
+        && controller.requestState().secondaryActiveRequest.target.frame >= 0) {
+        const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload
+            = controller.displayState().secondaryPendingRenderPayload.identity().isValid()
+            ? controller.displayState().secondaryPendingRenderPayload.identity()
+            : primaryPayload;
+        rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
+    }
+    controller.acknowledgeRenderCommit(
+        { primaryPayload, rolePayloads }, true, synchronization);
+}
+
 } // namespace
 
 class ViewportControllerPresentationTest : public QObject
@@ -147,6 +172,7 @@ void ViewportControllerPresentationTest::
     context.readyDisplay = true;
     ViewportController controller(context);
     controller.assignSequence({ sequence->sequence() });
+    acknowledgePendingRenderCommit(controller);
 
     const ViewportCommandResult zoom = controller.setZoomPercent(1000.0, QPointF(50.0, 50.0));
     QCOMPARE(zoom.outcome, ImageViewport::CommandOutcome::Accepted);
@@ -222,6 +248,7 @@ void ViewportControllerPresentationTest::
     ViewportController controller(context);
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.panToEnd().outcome, ImageViewport::CommandOutcome::Accepted);
@@ -243,6 +270,7 @@ void ViewportControllerPresentationTest::
             replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
 
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     const PresentationGeometry::State geometry = controller.geometryState();
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(300.0, 100.0));
     QCOMPARE(PresentationGeometry::primaryPageRect(geometry),
@@ -263,6 +291,7 @@ void ViewportControllerPresentationTest::pageSetTransitionScanEndUsesReplacement
     ViewportController controller(context);
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
         ImageViewport::CommandOutcome::Accepted);
 
@@ -283,6 +312,7 @@ void ViewportControllerPresentationTest::pageSetTransitionScanEndUsesReplacement
             replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
 
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     const PresentationGeometry::State geometry = controller.geometryState();
     const QPointF maximum = PresentationGeometry::maximumContentPosition(geometry);
     QCOMPARE(maximum, QPointF(500.0, 100.0));
@@ -300,6 +330,7 @@ void ViewportControllerPresentationTest::pageSetTransitionClampUsesReplacementBo
     ViewportController controller(context);
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.setZoomPercent(200.0, QPointF(50.0, 50.0)).outcome,
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.panToEnd().outcome, ImageViewport::CommandOutcome::Accepted);
@@ -321,6 +352,7 @@ void ViewportControllerPresentationTest::pageSetTransitionClampUsesReplacementBo
             replacementPrimary->sequence(), replacementSecondary->sequence(), policy));
 
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     const PresentationGeometry::State geometry = controller.geometryState();
     QCOMPARE(PresentationGeometry::maximumContentPosition(geometry), QPointF(500.0, 100.0));
     QCOMPARE(PresentationGeometry::contentPosition(geometry), QPointF(100.0, 100.0));
@@ -349,6 +381,7 @@ void ViewportControllerPresentationTest::
         = { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown };
     assignment.secondaryInitialResolvedFrame = { 0, -1 };
     QCOMPARE(controller.assignSequence(assignment).outcome, ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.setPageGap(4.0).outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.setZoomPercent(100.0, QPointF()).outcome,
         ImageViewport::CommandOutcome::Accepted);

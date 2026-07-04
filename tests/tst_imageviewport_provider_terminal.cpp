@@ -1867,6 +1867,7 @@ void ImageViewportProviderTerminalTest::
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(previousResult->sequence());
+    acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(

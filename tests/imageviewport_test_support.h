@@ -88,6 +88,19 @@ RevisionToken revisionTokenProperty(const QObject& object, const char* propertyN
     return object.property(propertyName).value<RevisionToken>();
 }
 
+void acknowledgePendingRenderCommitForTest(ImageViewport& item)
+{
+    if (!item.hasPendingRenderCommitForTest()) {
+        return;
+    }
+    const quint64 primaryPayloadId = item.pendingRenderPayloadIdForTest();
+    const quint64 secondaryPayloadId = item.secondaryPendingRenderPayloadIdForTest() != 0
+        ? item.secondaryPendingRenderPayloadIdForTest()
+        : primaryPayloadId;
+    item.acknowledgeRenderCommitForTest(item.pendingRenderGenerationForTest(),
+        item.activeRequestIdForTest(), primaryPayloadId, secondaryPayloadId);
+}
+
 void verifyRevisionChanged(
     const QObject& object, const char* propertyName, RevisionToken previousToken)
 {

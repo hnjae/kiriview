@@ -297,8 +297,9 @@ Item {
             && list.count === 1
             && timedResult.sequence !== null
             && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
-            && viewport.requestStatus === ImageViewport.RequestStatus.Ready
-            && viewport.displayStatus === ImageViewport.DisplayStatus.Ready
+            && viewport.requestStatus === ImageViewport.RequestStatus.Loading
+            && viewport.requestReason === ImageViewport.RequestReason.UploadPending
+            && viewport.displayStatus === ImageViewport.DisplayStatus.Empty
             && viewport.frameCount === 1
             && viewport.totalDuration === 100
     }
