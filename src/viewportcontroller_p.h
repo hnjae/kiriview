@@ -123,6 +123,7 @@ struct ViewportProviderTerminalEvent
     ImageSequenceProviderSession::UnsupportedCause unsupportedCause
         = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
     QString diagnostic;
+    bool unsupportedCauseExplicit = false;
 };
 
 struct ViewportProviderDispatchFailureEvent

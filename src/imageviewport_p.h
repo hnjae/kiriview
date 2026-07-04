@@ -259,9 +259,11 @@ public:
     void handleProviderFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
+        ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
+        const QString& diagnostic);
     void handleProviderUnsupported(PageRole role, ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
+        ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
+        const QString& diagnostic);
     void handleProviderCancellation(
         ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void handleProviderCancellation(

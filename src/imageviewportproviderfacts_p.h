@@ -64,7 +64,7 @@ inline bool providerResolvedCapability(
 
 inline bool providerFactsContradictCapabilities(const ImageSequenceProviderKnownFacts& facts,
     ImageSequenceProviderCapabilitySupport timedPlaybackSupport,
-    ImageSequenceProviderCapabilitySupport,
+    ImageSequenceProviderCapabilitySupport frameSeekSupport,
     ImageSequenceProviderCapabilitySupport positionSeekSupport)
 {
     if (!facts.isSpecified() || facts.isLogicalSizeOnly()) {
@@ -72,6 +72,9 @@ inline bool providerFactsContradictCapabilities(const ImageSequenceProviderKnown
     }
 
     const bool timedFacts = facts.isTimedFrameCount() || facts.isTimedFrameList();
+    if (facts.isStill() && providerCapabilityKnownFalse(frameSeekSupport)) {
+        return true;
+    }
     return providerCapabilityKnownTrue(timedPlaybackSupport) && !timedFacts
         || providerCapabilityKnownTrue(positionSeekSupport) && !timedFacts;
 }

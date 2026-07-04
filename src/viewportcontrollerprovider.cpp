@@ -517,6 +517,7 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFa
         ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
         event.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
                                    : event.diagnostic,
+        false,
     };
 
     ImageViewportInternal::ProviderGenerationState& provider

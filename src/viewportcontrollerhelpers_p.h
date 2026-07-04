@@ -912,7 +912,11 @@ ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
     case ViewportProviderTerminalEvent::Kind::Unsupported:
         return {
             ImageViewport::RequestStatus::Unsupported,
-            ImageViewport::RequestReason::UnsupportedRequest,
+            event.unsupportedCauseExplicit
+                    && event.unsupportedCause
+                        == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection
+                ? ImageViewport::RequestReason::PayloadRejection
+                : ImageViewport::RequestReason::UnsupportedRequest,
             event.diagnostic,
             QStringLiteral("provider unsupported"),
         };

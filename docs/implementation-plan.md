@@ -245,6 +245,8 @@ F1, F2, F3.
 
 ### Milestone 3: Centralize Provider Still Facts and Terminal Cause Semantics
 
+Status: Complete. Verified against the authoritative provider API, provider adapter, and provider protocol docs before execution. Still construction facts now reject frame-seek declared-false capabilities before a provider sequence is created; existing still-fact projection tests continue to prove the public still timing contract; explicit metadata-token unsupported causes now preserve `PayloadRejection` while legacy metadata unsupported results continue to default to `UnsupportedRequest` for both provider roles.
+
 #### Objective
 
 Make the documented provider still-fact invariant and explicit unsupported-cause mapping single-source before larger provider dispatch changes.
@@ -282,13 +284,13 @@ F4, F5.
 
 #### Tasks
 
-- [ ] Add provider construction tests for `ImageSequenceProviderKnownFacts::still(...)` combined with declared-false frame seek support.
-- [ ] Add assignment/projection tests proving valid still known facts expose frame count `1`, frame seek support `True`, frame seek bounds `0..0`, position seek support `False`, and timed playback support `False`.
-- [ ] Update provider fact/capability contradiction validation so still known facts cannot be combined with declared-false frame seek support.
-- [ ] Add provider metadata terminal tests for `providerUnsupportedWithCause(..., PayloadRejection, ...)` and legacy `providerUnsupported(...)`.
-- [ ] Preserve an explicit-cause bit across provider bridge events and terminal projection.
-- [ ] Update metadata terminal projection to honor explicit `PayloadRejection` while preserving legacy metadata-token default `UnsupportedRequest`.
-- [ ] Add a note to the deferred timed-fact item if implementation discovers durable docs already define a precise complete-timed-facts capability contradiction.
+- [x] Add provider construction tests for `ImageSequenceProviderKnownFacts::still(...)` combined with declared-false frame seek support.
+- [x] Add assignment/projection tests proving valid still known facts expose frame count `1`, frame seek support `True`, frame seek bounds `0..0`, position seek support `False`, and timed playback support `False`. Existing role-scoped projection coverage already proved this still timing contract.
+- [x] Update provider fact/capability contradiction validation so still known facts cannot be combined with declared-false frame seek support.
+- [x] Add provider metadata terminal tests for `providerUnsupportedWithCause(..., PayloadRejection, ...)` and legacy `providerUnsupported(...)`. New explicit-cause coverage was added for primary and secondary metadata tokens; existing legacy metadata-token coverage was preserved.
+- [x] Preserve an explicit-cause bit across provider bridge events and terminal projection.
+- [x] Update metadata terminal projection to honor explicit `PayloadRejection` while preserving legacy metadata-token default `UnsupportedRequest`.
+- [x] Add a note to the deferred timed-fact item if implementation discovers durable docs already define a precise complete-timed-facts capability contradiction. No durable complete-timed-facts contradiction rule was found during implementation, so no deferred note change was needed.
 
 #### Acceptance criteria
 
@@ -303,6 +305,7 @@ F4, F5.
 
 - `cmake --build build-ninja --target imagesequence_factory imageviewport_provider_metadata imageviewport_provider_terminal_projection imageviewport_provider_terminal_diagnostics`
 - `ctest --test-dir build-ninja -R 'imagesequence_factory|imageviewport_provider_metadata|imageviewport_provider_terminal_projection|imageviewport_provider_terminal_diagnostics' --output-on-failure`
+- Additional executed coverage: `cmake --build build-ninja --target imagesequence_factory viewportcontroller_provider imageviewport_provider_metadata imageviewport_provider_terminal imageviewport_provider_terminal_diagnostics imageviewport_provider_terminal_projection imageviewport_provider_terminal_recovery imageviewport_provider_terminal_playback && ctest --test-dir build-ninja -R 'imagesequence_factory|viewportcontroller_provider|imageviewport_provider_metadata|imageviewport_provider_terminal|imageviewport_provider_terminal_diagnostics|imageviewport_provider_terminal_projection|imageviewport_provider_terminal_recovery|imageviewport_provider_terminal_playback' --output-on-failure`
 
 #### Risks / notes
 

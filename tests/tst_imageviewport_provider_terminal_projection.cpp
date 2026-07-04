@@ -29,6 +29,8 @@ public:
 
 private slots:
     void secondaryProviderMetadataFailureReportsAggregateProviderFailure();
+    void providerMetadataUnsupportedCauseProjectsRequestReason_data();
+    void providerMetadataUnsupportedCauseProjectsRequestReason();
     void targetSpreadTerminalProjectionPrefersErrorOverUnsupported_data();
     void targetSpreadTerminalProjectionPrefersErrorOverUnsupported();
     void secondaryTerminalFailureSealsSpreadAgainstLatePrimaryReady();
@@ -90,6 +92,99 @@ void ImageViewportProviderTerminalProjectionTest::
     QVERIFY(item.property("errorString")
             .toString()
             .contains(QStringLiteral("secondary metadata service unavailable")));
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    providerMetadataUnsupportedCauseProjectsRequestReason_data()
+{
+    QTest::addColumn<bool>("secondaryRole");
+    QTest::addColumn<int>("unsupportedCause");
+    QTest::addColumn<QString>("diagnostic");
+    QTest::addColumn<QString>("expectedReason");
+
+    QTest::newRow("primary-unsupported-request")
+        << false
+        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << QStringLiteral("metadata operation unsupported") << QStringLiteral("UnsupportedRequest");
+    QTest::newRow("primary-payload-rejection")
+        << false
+        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << QStringLiteral("metadata payload rejected") << QStringLiteral("PayloadRejection");
+    QTest::newRow("secondary-unsupported-request")
+        << true
+        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest)
+        << QStringLiteral("secondary metadata operation unsupported")
+        << QStringLiteral("UnsupportedRequest");
+    QTest::newRow("secondary-payload-rejection")
+        << true
+        << static_cast<int>(ImageSequenceProviderSession::UnsupportedCause::PayloadRejection)
+        << QStringLiteral("secondary metadata payload rejected")
+        << QStringLiteral("PayloadRejection");
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    providerMetadataUnsupportedCauseProjectsRequestReason()
+{
+    QFETCH(bool, secondaryRole);
+    QFETCH(int, unsupportedCause);
+    QFETCH(QString, diagnostic);
+    QFETCH(QString, expectedReason);
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult;
+    if (secondaryRole) {
+        QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+        primaryImage.fill(Qt::transparent);
+        ImageFrame primaryFrame(primaryImage);
+        primaryResult.reset(factory.fromFrame(&primaryFrame));
+        QVERIFY(primaryResult->sequence());
+    }
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    if (secondaryRole) {
+        QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                     QVariant::fromValue<QObject*>(result->sequence())),
+            ImageViewport::CommandOutcome::Accepted);
+    } else {
+        item.setSequence(result->sequence());
+    }
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    const ImageSequenceProviderRequestToken metadataToken
+        = sessionFactory->lastSession()->lastMetadataToken();
+    emit sessionFactory->lastSession()->providerUnsupportedWithCause(metadataToken,
+        static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause), diagnostic);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", expectedReason.toUtf8().constData()));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+    if (secondaryRole) {
+        QCOMPARE(item.property("primaryRequestedFrame").toInt(), 0);
+        QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
+    } else {
+        QCOMPARE(item.property("requestedFrame").toInt(), -1);
+        QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    }
+    QVERIFY(item.property("errorString").toString().contains(diagnostic));
 }
 
 void ImageViewportProviderTerminalProjectionTest::

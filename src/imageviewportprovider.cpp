@@ -171,8 +171,8 @@ void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& even
             handleProviderFailure(event.role, event.token, event.diagnostic);
             break;
         case ViewportProviderEvent::Kind::Unsupported:
-            handleProviderUnsupported(
-                event.role, event.token, event.unsupportedCause, event.diagnostic);
+            handleProviderUnsupported(event.role, event.token, event.unsupportedCause,
+                event.unsupportedCauseExplicit, event.diagnostic);
             break;
         case ViewportProviderEvent::Kind::Cancellation:
             handleProviderCancellation(event.role, event.token, event.diagnostic);
@@ -210,7 +210,8 @@ void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& even
         handleProviderFailure(event.token, event.diagnostic);
         break;
     case ViewportProviderEvent::Kind::Unsupported:
-        handleProviderUnsupported(event.token, event.unsupportedCause, event.diagnostic);
+        handleProviderUnsupported(event.token, event.unsupportedCause,
+            event.unsupportedCauseExplicit, event.diagnostic);
         break;
     case ViewportProviderEvent::Kind::Cancellation:
         handleProviderCancellation(event.token, event.diagnostic);
@@ -483,21 +484,24 @@ void ImageViewportPrivate::handleProviderFailure(
 {
     applyProviderTerminalEvent(*this, role,
         { token, ViewportProviderTerminalEvent::Kind::Failure,
-            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic });
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic,
+            false });
 }
 
 void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-    ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic)
+    ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
+    const QString& diagnostic)
 {
-    handleProviderUnsupported(PageRole::Primary, token, cause, diagnostic);
+    handleProviderUnsupported(PageRole::Primary, token, cause, causeExplicit, diagnostic);
 }
 
 void ImageViewportPrivate::handleProviderUnsupported(PageRole role,
     ImageSequenceProviderRequestToken token, ImageSequenceProviderSession::UnsupportedCause cause,
-    const QString& diagnostic)
+    bool causeExplicit, const QString& diagnostic)
 {
     applyProviderTerminalEvent(*this, role,
-        { token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic });
+        { token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic,
+            causeExplicit });
 }
 
 void ImageViewportPrivate::handleProviderCancellation(
@@ -511,7 +515,8 @@ void ImageViewportPrivate::handleProviderCancellation(
 {
     applyProviderTerminalEvent(*this, role,
         { token, ViewportProviderTerminalEvent::Kind::Cancellation,
-            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic });
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic,
+            false });
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::providerSessionFactory(

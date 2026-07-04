@@ -38,6 +38,7 @@ private slots:
     void providerMetadataAdmissionRejectsInvalidTiming();
     void providerKnownFactsAdmissionAcceptsTimedFacts();
     void providerKnownFactsAdmissionRejectsDurationLimits();
+    void providerConstructionRejectsStillFactsWithFrameSeekDeclaredFalse();
     void providerFrameAdmissionUsesResolvedFrameIdentity();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
@@ -394,6 +395,32 @@ void ImageSequenceFactoryTest::providerKnownFactsAdmissionRejectsDurationLimits(
     QCOMPARE(admission.outcome, ImageSequenceFactoryResult::FactoryOutcome::Invalid);
     QVERIFY(!admission.timingIntervals.isValid());
     QVERIFY(admission.diagnostic.contains(QStringLiteral("maximumFrameDuration")));
+}
+
+void ImageSequenceFactoryTest::providerConstructionRejectsStillFactsWithFrameSeekDeclaredFalse()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderKnownFacts::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+
+    QVERIFY(result);
+    QCOMPARE(result->sequence(), nullptr);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
+    QVERIFY(result->errorString().contains(QStringLiteral("construction facts")));
+    QCOMPARE(result->warningString(), QString());
+    QCOMPARE(*sessionCount, 0);
 }
 
 void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()

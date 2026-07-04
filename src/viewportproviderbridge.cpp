@@ -244,6 +244,7 @@ bool ViewportProviderBridge::openSession()
             ViewportProviderEvent event = providerEvent(
                 role, sessionSerial, ViewportProviderEvent::Kind::Unsupported, token);
             event.unsupportedCause = cause;
+            event.unsupportedCauseExplicit = true;
             event.diagnostic = diagnostic;
             client.handleProviderEvent(event);
         },
