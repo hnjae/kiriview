@@ -165,6 +165,17 @@ struct ViewportProviderAcceptedMetadataFacts
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
 };
 
+struct ViewportMetadataProjection
+{
+    int frameCount = -1;
+    int totalDuration = -1;
+    ImageViewportRange frameSeekBounds;
+    ImageViewportRange positionSeekBounds;
+    ImageViewport::TriState timedPlaybackSupport = ImageViewport::TriState::Unavailable;
+    ImageViewport::TriState frameSeekSupport = ImageViewport::TriState::Unavailable;
+    ImageViewport::TriState positionSeekSupport = ImageViewport::TriState::Unavailable;
+};
+
 struct ViewportProviderWaitingEvent
 {
     ImageSequenceProviderRequestToken token;
@@ -398,6 +409,7 @@ public:
     virtual int frameCount() const;
     virtual int totalDuration() const;
     virtual int sequenceFrameCount() const;
+    virtual int sequenceTotalDuration() const;
     virtual int sequenceFrameIndexForPosition(int position) const;
     virtual int sequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
@@ -407,6 +419,7 @@ public:
     // Secondary built-in sequence facts and payload data.
     virtual bool hasSecondaryTimedSequence() const;
     virtual int secondarySequenceFrameCount() const;
+    virtual int secondarySequenceTotalDuration() const;
     virtual int secondaryTotalDuration() const;
     virtual int secondarySequenceFrameIndexForPosition(int position) const;
     virtual int secondarySequenceFrameStartPosition(int frame) const;
@@ -466,11 +479,13 @@ public:
     int frameCount() const;
     int totalDuration() const;
     int sequenceFrameCount() const;
+    int sequenceTotalDuration() const;
     int sequenceFrameIndexForPosition(int position) const;
     int sequenceFrameStartPosition(int frame) const;
     ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
     bool hasSecondaryTimedSequence() const;
     int secondarySequenceFrameCount() const;
+    int secondarySequenceTotalDuration() const;
     int secondaryTotalDuration() const;
     int secondarySequenceFrameIndexForPosition(int position) const;
     int secondarySequenceFrameStartPosition(int frame) const;
@@ -523,6 +538,7 @@ public:
     int providerFrameDuration(int frame) const;
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
+    ViewportMetadataProjection metadataProjection(ImageViewport::PageRole role) const;
     bool looping() const;
     PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;
     PresentationGeometry::State geometryStateForItemBounds(

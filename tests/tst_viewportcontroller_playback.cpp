@@ -79,7 +79,7 @@ public:
     }
 
 private:
-    int sequenceTotalDuration() const
+    int sequenceTotalDuration() const override
     {
         int total = 0;
         for (int duration : durations) {

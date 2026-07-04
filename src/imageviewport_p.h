@@ -36,13 +36,6 @@ public:
     void setSequence(ImageSequence* sequence);
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
-    int frameCountForSequence(ImageSequence* sequence) const;
-    int totalDurationForSequence(ImageSequence* sequence) const;
-    ImageViewportRange frameSeekBoundsForSequence(ImageSequence* sequence) const;
-    ImageViewportRange positionSeekBoundsForSequence(ImageSequence* sequence) const;
-    TriState timedPlaybackSupportForSequence(ImageSequence* sequence) const;
-    TriState frameSeekSupportForSequence(ImageSequence* sequence) const;
-    TriState positionSeekSupportForSequence(ImageSequence* sequence) const;
     SpreadDirection spreadDirection() const;
     void setSpreadDirectionProperty(SpreadDirection direction);
     double pageGap() const;
@@ -69,6 +62,8 @@ public:
     int totalDuration() const override;
     bool hasSecondaryTimedSequence() const override;
     int secondarySequenceFrameCount() const override;
+    int sequenceTotalDuration() const override;
+    int secondarySequenceTotalDuration() const override;
     int secondarySequenceFrameIndexForPosition(int position) const override;
     int secondarySequenceFrameStartPosition(int frame) const override;
     ImageViewportRange frameSeekBounds() const;

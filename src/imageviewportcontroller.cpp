@@ -147,6 +147,12 @@ int ImageViewportPrivate::sequenceFrameCount() const
                                               : 0;
 }
 
+int ImageViewportPrivate::sequenceTotalDuration() const
+{
+    return controller.requestState().sequence ? controller.requestState().sequence->totalDuration()
+                                              : -1;
+}
+
 int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
 {
     return controller.requestState().sequence

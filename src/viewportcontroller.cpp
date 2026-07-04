@@ -81,6 +81,8 @@ int ViewportControllerContext::totalDuration() const { return -1; }
 
 int ViewportControllerContext::sequenceFrameCount() const { return -1; }
 
+int ViewportControllerContext::sequenceTotalDuration() const { return -1; }
+
 int ViewportControllerContext::sequenceFrameIndexForPosition(int) const { return -1; }
 
 int ViewportControllerContext::sequenceFrameStartPosition(int) const { return -1; }
@@ -94,6 +96,8 @@ ViewportControllerContext::sequenceAuthoredAnimationFacts() const
 bool ViewportControllerContext::hasSecondaryTimedSequence() const { return false; }
 
 int ViewportControllerContext::secondarySequenceFrameCount() const { return -1; }
+
+int ViewportControllerContext::secondarySequenceTotalDuration() const { return -1; }
 
 int ViewportControllerContext::secondaryTotalDuration() const { return -1; }
 
@@ -310,6 +314,11 @@ int ViewportControllerPort::totalDuration() const { return context.totalDuration
 
 int ViewportControllerPort::sequenceFrameCount() const { return context.sequenceFrameCount(); }
 
+int ViewportControllerPort::sequenceTotalDuration() const
+{
+    return context.sequenceTotalDuration();
+}
+
 int ViewportControllerPort::sequenceFrameIndexForPosition(int position) const
 {
     return context.sequenceFrameIndexForPosition(position);
@@ -333,6 +342,11 @@ bool ViewportControllerPort::hasSecondaryTimedSequence() const
 int ViewportControllerPort::secondarySequenceFrameCount() const
 {
     return context.secondarySequenceFrameCount();
+}
+
+int ViewportControllerPort::secondarySequenceTotalDuration() const
+{
+    return context.secondarySequenceTotalDuration();
 }
 
 int ViewportControllerPort::secondaryTotalDuration() const
@@ -435,6 +449,131 @@ ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
     ViewportControllerState& state, ImageViewport::PageRole role)
 {
     return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider : state.provider;
+}
+
+const ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
+    const ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider : state.provider;
+}
+
+ImageViewport::TriState triStateFromSupport(bool supported)
+{
+    return supported ? ImageViewport::TriState::True : ImageViewport::TriState::False;
+}
+
+void projectFrameSeekBounds(ViewportMetadataProjection& projection)
+{
+    if (projection.frameSeekSupport == ImageViewport::TriState::True && projection.frameCount > 0) {
+        projection.frameSeekBounds = ImageViewportRange(0, projection.frameCount - 1);
+    }
+}
+
+void projectPositionSeekBounds(ViewportMetadataProjection& projection)
+{
+    if (projection.positionSeekSupport == ImageViewport::TriState::True
+        && projection.totalDuration >= 0) {
+        projection.positionSeekBounds = ImageViewportRange(0, projection.totalDuration);
+    }
+}
+
+ViewportMetadataProjection projectTimedMetadata(
+    int frameCount, int totalDuration, bool timedPlaybackSupport, bool frameSeekSupport,
+    bool positionSeekSupport)
+{
+    ViewportMetadataProjection projection;
+    projection.frameCount = frameCount;
+    projection.totalDuration = totalDuration;
+    projection.timedPlaybackSupport = triStateFromSupport(timedPlaybackSupport);
+    projection.frameSeekSupport = triStateFromSupport(frameSeekSupport);
+    projection.positionSeekSupport = triStateFromSupport(positionSeekSupport);
+    projectFrameSeekBounds(projection);
+    projectPositionSeekBounds(projection);
+    return projection;
+}
+
+ViewportMetadataProjection projectStillMetadata(bool frameSeekSupport)
+{
+    ViewportMetadataProjection projection;
+    projection.frameCount = 1;
+    projection.timedPlaybackSupport = ImageViewport::TriState::False;
+    projection.frameSeekSupport = triStateFromSupport(frameSeekSupport);
+    projection.positionSeekSupport = ImageViewport::TriState::False;
+    projectFrameSeekBounds(projection);
+    return projection;
+}
+
+ViewportMetadataProjection projectProviderRuntimeMetadata(
+    const ImageViewportInternal::ProviderGenerationState& provider)
+{
+    if (!provider.metadataReady) {
+        return {};
+    }
+    if (!provider.timedMetadata) {
+        return projectStillMetadata(provider.frameSeekSupport);
+    }
+    return projectTimedMetadata(provider.timingIntervals.frameCount(),
+        provider.timingIntervals.totalDuration(), provider.timedPlaybackSupport,
+        provider.frameSeekSupport, provider.positionSeekSupport);
+}
+
+ViewportMetadataProjection projectProviderConstructionMetadata(
+    const ImageSequenceProviderKnownFacts& facts,
+    ImageSequenceProviderCapabilitySupport timedPlaybackCapability,
+    ImageSequenceProviderCapabilitySupport frameSeekCapability,
+    ImageSequenceProviderCapabilitySupport positionSeekCapability)
+{
+    ViewportMetadataProjection projection;
+    projection.timedPlaybackSupport
+        = ImageViewportInternal::capabilitySupportToTriState(timedPlaybackCapability);
+    projection.frameSeekSupport
+        = ImageViewportInternal::capabilitySupportToTriState(frameSeekCapability);
+    projection.positionSeekSupport
+        = ImageViewportInternal::capabilitySupportToTriState(positionSeekCapability);
+
+    if (!facts.isSpecified() || facts.isLogicalSizeOnly()) {
+        return projection;
+    }
+
+    if (facts.isStill()) {
+        return projectStillMetadata(ImageViewportInternal::providerResolvedCapability(
+            frameSeekCapability, true));
+    }
+
+    if (facts.isTimedFrameList()) {
+        const TimingIntervals timingIntervals
+            = TimingIntervals::fromFrameDurations(facts.frameDurations());
+        return projectTimedMetadata(timingIntervals.frameCount(), timingIntervals.totalDuration(),
+            ImageViewportInternal::providerResolvedCapability(timedPlaybackCapability, true),
+            ImageViewportInternal::providerResolvedCapability(frameSeekCapability, true),
+            ImageViewportInternal::providerResolvedCapability(positionSeekCapability, true));
+    }
+
+    if (facts.isTimedFrameCount()
+        && ImageViewportInternal::providerCapabilityKnownTrue(frameSeekCapability)) {
+        projection.frameCount = facts.frameCount();
+        projectFrameSeekBounds(projection);
+    }
+
+    return projection;
+}
+
+ViewportMetadataProjection projectBuiltInMetadata(
+    bool present, bool timed, int frameCount, int totalDuration)
+{
+    if (!present) {
+        return {};
+    }
+    if (!timed) {
+        ViewportMetadataProjection projection;
+        projection.frameCount = frameCount;
+        projection.timedPlaybackSupport = ImageViewport::TriState::False;
+        projection.frameSeekSupport = ImageViewport::TriState::True;
+        projection.positionSeekSupport = ImageViewport::TriState::False;
+        projectFrameSeekBounds(projection);
+        return projection;
+    }
+    return projectTimedMetadata(frameCount, totalDuration, true, true, true);
 }
 
 enum class ExplicitSeekMaterialization {
@@ -2382,6 +2521,45 @@ int ViewportController::providerFrameIndexForPosition(int position) const
     return state.provider.timedMetadata
         ? state.provider.timingIntervals.frameIndexForPosition(position)
         : -1;
+}
+
+ViewportMetadataProjection ViewportController::metadataProjection(
+    ImageViewport::PageRole role) const
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        if (!state.request.secondarySequence) {
+            return {};
+        }
+        if (state.request.secondarySequenceIsProvider) {
+            const ImageViewportInternal::ProviderGenerationState& provider
+                = providerGenerationStateForRole(state, role);
+            if (provider.metadataReady) {
+                return projectProviderRuntimeMetadata(provider);
+            }
+            return projectProviderConstructionMetadata(viewport.secondaryProviderKnownFacts(),
+                viewport.secondaryProviderTimedPlaybackCapability(),
+                viewport.secondaryProviderFrameSeekCapability(),
+                viewport.secondaryProviderPositionSeekCapability());
+        }
+        return projectBuiltInMetadata(true, viewport.hasSecondaryTimedSequence(),
+            viewport.secondarySequenceFrameCount(), viewport.secondarySequenceTotalDuration());
+    }
+
+    if (!viewport.hasDisplayableSequence()) {
+        return {};
+    }
+    if (viewport.hasProviderSequence()) {
+        const ImageViewportInternal::ProviderGenerationState& provider
+            = providerGenerationStateForRole(state, ImageViewport::PageRole::Primary);
+        if (provider.metadataReady) {
+            return projectProviderRuntimeMetadata(provider);
+        }
+        return projectProviderConstructionMetadata(viewport.providerKnownFacts(),
+            viewport.providerTimedPlaybackCapability(), viewport.providerFrameSeekCapability(),
+            viewport.providerPositionSeekCapability());
+    }
+    return projectBuiltInMetadata(true, viewport.hasTimedSequence(), viewport.sequenceFrameCount(),
+        viewport.sequenceTotalDuration());
 }
 
 bool ViewportController::looping() const { return state.request.looping; }

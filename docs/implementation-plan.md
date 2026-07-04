@@ -785,11 +785,11 @@ Public metadata projections have multiple sources; sequence facts cross the cont
 
 #### Tasks
 
-- [ ] Define a role-scoped metadata projection type or controller getter set.
-- [ ] Move construction-time and runtime provider metadata observation projection out of `ImageViewportPrivate`.
-- [ ] Update item getters for primary and secondary frame count, duration, seek bounds, and capability support to forward projection values.
-- [ ] Add tests for unknown provider facts, partial known facts, complete known metadata, runtime metadata, still, timed-list, primary role, and secondary role.
-- [ ] Add structural inspection showing public metadata getters no longer branch on raw provider known facts in `ImageViewportPrivate`.
+- [x] Define a role-scoped metadata projection type or controller getter set.
+- [x] Move construction-time and runtime provider metadata observation projection out of `ImageViewportPrivate`.
+- [x] Update item getters for primary and secondary frame count, duration, seek bounds, and capability support to forward projection values.
+- [x] Add tests for unknown provider facts, partial known facts, complete known metadata, runtime metadata, still, timed-list, primary role, and secondary role.
+- [x] Add structural inspection showing public metadata getters no longer branch on raw provider known facts in `ImageViewportPrivate`.
 
 #### Acceptance criteria
 
@@ -806,6 +806,16 @@ Public metadata projections have multiple sources; sequence facts cross the cont
 #### Risks / notes
 
 - Some raw provider fact references may remain in assignment or provider setup paths. The structural check should verify getter/projection removal, not ban legitimate construction-time reads.
+
+#### Execution record
+
+Authoritative-doc check: `docs/architecture/subsystem-boundaries.md` was updated in commit `267e9b7` before tests and implementation to declare one controller-owned role-scoped metadata projection path. No user-facing spec change was needed because unavailable, false, zero, and known-value semantics remain unchanged.
+
+Added `ViewportMetadataProjection` and `ViewportController::metadataProjection(PageRole)`. The projection derives primary and secondary observations from provider runtime state when metadata is ready, provider construction facts when runtime metadata is not ready, and built-in still/timed sequence callbacks for non-provider roles. `ImageViewportPrivate` public metadata getters now forward the projection for primary and secondary frame counts, durations, seek bounds, and capability support.
+
+Coverage added in `ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath_data` and `roleScopedMetadataProjectionUsesOnePath` for unknown provider facts, partial timed-frame-count facts, complete still facts, complete timed facts, runtime still metadata, runtime timed metadata, primary role, secondary role, and legacy primary property aliases. The same test includes a source inspection that rejects raw provider metadata projection tokens in `src/imageviewport.cpp`.
+
+Structural inspection: `rg -n "m_providerKnown|providerKnownFacts|provider.*Capability" src/imageviewport.cpp src/imageviewportcontroller.cpp src/imageviewportprovider.cpp` now reports no `src/imageviewport.cpp` hits. Remaining hits are limited to `src/imageviewportprovider.cpp` construction/provider fact accessors and `src/imageviewportcontroller.cpp` command-admission fact callbacks, which are explicitly out of scope until the later controller event and role command admission milestones.
 
 ### Milestone 9: Move Role Command Admission and Page-Set Target Selection Into Controller
 
