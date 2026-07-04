@@ -39,6 +39,13 @@ qt_add_qml_module(
     timingintervals.cpp
     timingintervals_p.h
     viewportcontroller.cpp
+    viewportcontrollergeometry.cpp
+    viewportcontrollerhelpers_p.h
+    viewportcontrollermetadata.cpp
+    viewportcontrollerplayback.cpp
+    viewportcontrollerpresentation.cpp
+    viewportcontrollerprovider.cpp
+    viewportcontrollerrender.cpp
     viewportcontroller_p.h
     viewportproviderbridge.cpp
     viewportproviderbridge_p.h)
