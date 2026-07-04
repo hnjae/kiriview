@@ -701,12 +701,21 @@ public:
         ImageViewportInternal::DisplayRequestTarget target);
     ViewportProviderFrameQueueResult queueProviderFrameRequest(
         ViewportProviderFrameQueueRequest request);
+    ViewportProviderFrameQueueResult queueProviderFrameRequest(
+        ImageViewport::PageRole role, ViewportProviderFrameQueueRequest request);
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
+    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
     ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent();
+    ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent(
+        ImageViewport::PageRole role);
     ViewportProviderFrameRequestStartResult startProviderFrameRequest(
         ViewportProviderFrameRequestStart request);
+    ViewportProviderFrameRequestStartResult startProviderFrameRequest(
+        ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
     ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
         ViewportProviderFrameRequestStart request);
+    ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
+        ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);

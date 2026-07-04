@@ -578,20 +578,13 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
         setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
 
         if (dispatchNow) {
-            if (state.secondaryProvider.session
-                && state.secondaryProvider.activeFrameToken.isValid()) {
-                result.providerFrameTransport.cancelToken
-                    = state.secondaryProvider.activeFrameToken;
-            }
-            state.secondaryProvider.activeFrameToken = {};
-            publishProviderFrameLoadingState(viewport);
-            const ViewportProviderFrameRequestStartResult start
-                = startSecondaryProviderFrameRequest(target);
-            appendProviderFrameStartResult(result.providerFrameTransport, start);
+            const ViewportProviderFrameDispatchResult dispatch
+                = dispatchProviderFrameRequest(ImageViewport::PageRole::Secondary, { target });
+            result.providerFrameTransport = dispatch.transport;
             result.changes.displayRevision = true;
             result.changes.displayState = true;
             result.changes.scheduleUpdate = true;
-            if (!start.accepted) {
+            if (!dispatch.accepted) {
                 result.changes.diagnostics = true;
             }
         } else {
@@ -811,20 +804,13 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
         setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
 
         if (dispatchNow) {
-            if (state.secondaryProvider.session
-                && state.secondaryProvider.activeFrameToken.isValid()) {
-                result.providerFrameTransport.cancelToken
-                    = state.secondaryProvider.activeFrameToken;
-            }
-            state.secondaryProvider.activeFrameToken = {};
-            publishProviderFrameLoadingState(viewport);
-            const ViewportProviderFrameRequestStartResult start
-                = startSecondaryProviderFrameRequest(target);
-            appendProviderFrameStartResult(result.providerFrameTransport, start);
+            const ViewportProviderFrameDispatchResult dispatch
+                = dispatchProviderFrameRequest(ImageViewport::PageRole::Secondary, { target });
+            result.providerFrameTransport = dispatch.transport;
             result.changes.displayRevision = true;
             result.changes.displayState = true;
             result.changes.scheduleUpdate = true;
-            if (!start.accepted) {
+            if (!dispatch.accepted) {
                 result.changes.diagnostics = true;
             }
         } else {
@@ -1050,10 +1036,11 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
                 = viewportDisplayState(viewport).displayedImageSize.isValid()
                 ? ImageViewport::DisplayStatus::Retained
                 : ImageViewport::DisplayStatus::Empty;
-            const ViewportProviderFrameRequestStartResult start
-                = startSecondaryProviderFrameRequest(providerTarget);
-            appendProviderFrameStartResult(result.secondaryProviderFrameTransport, start);
-            if (start.accepted) {
+            const ViewportProviderFrameDispatchResult dispatch
+                = dispatchProviderFrameRequest(
+                    ImageViewport::PageRole::Secondary, { providerTarget });
+            result.secondaryProviderFrameTransport = dispatch.transport;
+            if (dispatch.accepted) {
                 updateLoopProgressForAcceptedPlaybackTarget(viewport, target);
             }
 
@@ -1066,7 +1053,7 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
             result.changes.requestState = true;
             result.changes.displayState = true;
             result.changes.scheduleUpdate = true;
-            if (!start.accepted) {
+            if (!dispatch.accepted) {
                 result.changes.diagnostics = true;
             }
             return result;

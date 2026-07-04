@@ -835,11 +835,7 @@ bool activeProviderFrameTokenMatchesActiveRequest(const ViewportControllerState&
 
     const ImageViewportInternal::DisplayRequest& request
         = activeRequestForRole(viewportRequestState(viewport), role);
-    if (role == ImageViewport::PageRole::Primary) {
-        return token.isValid() && token == request.providerFrameToken;
-    }
-    return request.identity.id != 0
-        && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
+    return token.isValid() && token == request.providerFrameToken;
 }
 
 bool activeProviderFrameTokenMatchesActiveRequest(
@@ -975,17 +971,27 @@ void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& 
     effect.token = start.token;
 }
 
+void clearQueuedProviderFrameRequest(ImageViewportInternal::ProviderGenerationState& provider)
+{
+    provider.queuedFrameRequest = false;
+    provider.queuedFrameGeneration = 0;
+    provider.queuedFrameRequestId = 0;
+    provider.queuedFrame = -1;
+    provider.queuedPosition = -1;
+    provider.queuedResolvedFrame = {};
+    provider.queuedFrameFromPlayback = false;
+    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+}
+
+void clearQueuedProviderFrameRequest(
+    ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    clearQueuedProviderFrameRequest(providerGenerationStateForRole(state, role));
+}
+
 void clearQueuedProviderFrameRequest(ViewportControllerPort& viewport)
 {
-    viewportProviderState(viewport).queuedFrameRequest = false;
-    viewportProviderState(viewport).queuedFrameGeneration = 0;
-    viewportProviderState(viewport).queuedFrameRequestId = 0;
-    viewportProviderState(viewport).queuedFrame = -1;
-    viewportProviderState(viewport).queuedPosition = -1;
-    viewportProviderState(viewport).queuedResolvedFrame = {};
-    viewportProviderState(viewport).queuedFrameFromPlayback = false;
-    viewportProviderState(viewport).queuedFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    clearQueuedProviderFrameRequest(viewportProviderState(viewport));
 }
 
 void publishProviderTokenExhaustion(ViewportControllerPort& viewport)
@@ -1165,6 +1171,23 @@ StopRestorePlan stopRestorePlanFor(ViewportControllerPort& viewport)
 void discardPendingRenderCommit(ViewportControllerPort& viewport)
 {
     viewportDisplayState(viewport).clearPendingRenderPayload();
+    viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
+}
+
+void publishProviderTokenExhaustion(
+    ViewportControllerPort& viewport, ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    clearQueuedProviderFrameRequest(provider);
+    provider.activeMetadataToken = {};
+    provider.activeFrameToken = {};
+    viewportRequestState(viewport).providerPlaybackStartPending = false;
+    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
+    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Error;
+    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderFailure;
+    viewportRequestState(viewport).errorString = QStringLiteral("provider request token exhausted");
+    viewportRequestState(viewport).playbackPhase = ImageViewport::PlaybackPhase::Stopped;
     viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
 }
 

@@ -260,7 +260,7 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
         bridge.cancelRequest(effect.cancelToken);
     }
     if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
-        scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent);
+        scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent, role);
     }
     if (effect.closeSession) {
         bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken);
@@ -308,7 +308,7 @@ void ImageViewportPrivate::queueProviderFrameRequest(
 }
 
 void ImageViewportPrivate::scheduleProviderDeferredControllerEvent(
-    ViewportProviderDeferredControllerEvent event)
+    ViewportProviderDeferredControllerEvent event, PageRole role)
 {
     switch (event) {
     case ViewportProviderDeferredControllerEvent::None:
@@ -316,21 +316,21 @@ void ImageViewportPrivate::scheduleProviderDeferredControllerEvent(
     case ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
         if (synchronousProviderQueueFlushScheduler) {
-            flushQueuedProviderFrameRequest();
+            flushQueuedProviderFrameRequest(role);
             return;
         }
 #endif
         QMetaObject::invokeMethod(
-            q, [this]() { flushQueuedProviderFrameRequest(); }, Qt::QueuedConnection);
+            q, [this, role]() { flushQueuedProviderFrameRequest(role); }, Qt::QueuedConnection);
         return;
     }
 }
 
-void ImageViewportPrivate::flushQueuedProviderFrameRequest()
+void ImageViewportPrivate::flushQueuedProviderFrameRequest(PageRole role)
 {
     const ViewportProviderFrameQueueFlushResult result
-        = controller.flushQueuedProviderFrameRequestEvent();
-    applyProviderFrameTransportEffect(result.providerFrameTransport);
+        = controller.flushQueuedProviderFrameRequestEvent(role);
+    applyProviderFrameTransportEffect(result.providerFrameTransport, role);
     applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
         syncPlaybackTimer();

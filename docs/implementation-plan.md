@@ -380,6 +380,8 @@ F7.
 
 ### Milestone 5: Make Provider Frame Dispatch Role-Parametric
 
+Status: Complete. Verified against the provider adapter and provider protocol docs before execution. Provider frame dispatch now accepts a role and owns active-token checks, cancellation intent, queueing, token allocation, token exhaustion handling, and queued-frame flush validation for primary and secondary requests. Secondary explicit seek, position seek, playback advance, metadata-bound target selection, and playback end-of-sequence paths now enter the shared dispatch boundary; stale secondary frame/playback results are covered by token-identity tests.
+
 #### Objective
 
 Replace primary-specialized provider frame dispatch and secondary direct-start paths with one controller-owned, role-parameterized dispatch boundary.
@@ -416,14 +418,14 @@ F6, F7.
 
 #### Tasks
 
-- [ ] Add focused tests for secondary provider supersession while a previous secondary frame token is active.
-- [ ] Add tests for secondary provider playback and seek paths using the same stale-result behavior as primary.
-- [ ] Introduce role-local provider state accessors around current fields before moving call sites.
-- [ ] Implement `dispatchProviderFrameRequest(PageRole, ...)` or equivalent role-parametric boundary.
-- [ ] Move secondary direct-start call sites to the shared dispatch path.
-- [ ] Ensure token exhaustion, cancellation intent, queued target identity, and stale deferred-work validation address the correct role.
-- [ ] Remove direct secondary active-token overwrite paths after tests cover the replacement behavior.
-- [ ] Add structural verification that no remaining secondary frame-start call site bypasses the shared dispatch boundary.
+- [x] Add focused tests for secondary provider supersession while a previous secondary frame token is active.
+- [x] Add tests for secondary provider playback and seek paths using the same stale-result behavior as primary.
+- [x] Introduce role-local provider state accessors around current fields before moving call sites.
+- [x] Implement `dispatchProviderFrameRequest(PageRole, ...)` or equivalent role-parametric boundary.
+- [x] Move secondary direct-start call sites to the shared dispatch path.
+- [x] Ensure token exhaustion, cancellation intent, queued target identity, and stale deferred-work validation address the correct role.
+- [x] Remove direct secondary active-token overwrite paths after tests cover the replacement behavior.
+- [x] Add structural verification that no remaining secondary frame-start call site bypasses the shared dispatch boundary.
 
 #### Acceptance criteria
 

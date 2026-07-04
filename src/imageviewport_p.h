@@ -224,11 +224,12 @@ public:
         const ViewportProviderMetadataTransportEffect& effect, PageRole role = PageRole::Primary);
     void applyProviderFrameTransportEffect(
         const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
-    void scheduleProviderDeferredControllerEvent(ViewportProviderDeferredControllerEvent event);
+    void scheduleProviderDeferredControllerEvent(
+        ViewportProviderDeferredControllerEvent event, PageRole role);
     void handleProviderDispatchFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
-    void flushQueuedProviderFrameRequest();
+    void flushQueuedProviderFrameRequest(PageRole role = PageRole::Primary);
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void handleProviderEvent(const ViewportProviderEvent& event) override;
     void handleProviderMetadataReady(

@@ -1991,8 +1991,26 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
     QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
+    const ImageSequenceProviderRequestToken finalFrameToken
+        = sessionFactory->lastSession()->lastFrameToken();
+    QVERIFY(finalFrameToken.isValid());
+    QVERIFY(finalFrameToken != playbackToken);
 
-    emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondaryFrame, 1, 100);
+    emitTimedProviderFrameReady(
+        sessionFactory->lastSession(), playbackToken, &secondaryFrame, 1, 100);
+
+    QCOMPARE(
+        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Waiting"));
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
+    QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
+
+    emitTimedProviderFrameReady(
+        sessionFactory->lastSession(), finalFrameToken, &secondaryFrame, 1, 100);
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(

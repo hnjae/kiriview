@@ -1679,9 +1679,13 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSuperse
     const auto secondaryFrameRequestCount = std::make_shared<int>(0);
     const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
     const auto secondaryCloseCount = std::make_shared<int>(0);
+    const auto secondaryCancelRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastCancelledTokenId = std::make_shared<quint64>(0);
     auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
-        secondaryLastRequestedFrame, secondaryCloseCount);
+        secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
+        std::shared_ptr<int>(), std::shared_ptr<int>(), secondaryCancelRequestCount,
+        secondaryLastCancelledTokenId);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1705,6 +1709,16 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSuperse
 
     QCOMPARE(
         item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(*secondaryCancelRequestCount, 1);
+    QCOMPARE(*secondaryLastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 1);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
+
     drainQueuedProviderResults();
     QCOMPARE(*secondaryFrameRequestCount, 2);
     QCOMPARE(*secondaryLastRequestedFrame, 1);
