@@ -620,9 +620,9 @@ public:
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
-        ViewportProviderFrameEvent event, ImageFrame* frame,
+        ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
-    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameEvent(
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
     ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
@@ -722,21 +722,23 @@ public:
 
 private:
     FramePreparation::ProviderFrameState providerFramePreparationState() const;
+    FramePreparation::ProviderFrameState providerFramePreparationState(
+        ImageViewport::PageRole role) const;
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
-        ViewportProviderFrameEvent event) const;
-    ViewportProviderFrameEventAcceptance acceptSecondaryProviderFrameEvent(
+        ImageViewport::PageRole role, ViewportProviderFrameEvent event);
+    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
         ViewportProviderFrameEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
-        const ViewportProviderFrameTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderFrameTerminalResult(
+        ImageViewport::PageRole role, const ViewportProviderFrameTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
         const ViewportProviderFrameTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
-        const ViewportProviderMetadataTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleSecondaryProviderMetadataTerminalResult(
+        ImageViewport::PageRole role, const ViewportProviderMetadataTerminalResult& result);
+    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
         const ViewportProviderMetadataTerminalResult& result);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
         const ViewportProviderMetadataContradiction& contradiction);

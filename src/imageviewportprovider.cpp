@@ -432,7 +432,8 @@ void ImageViewportPrivate::handleSecondaryProviderFrameReadyWithMetadata(
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    const auto changes = controller.handleSecondaryProviderFrameEvent({ token }, frame, metadata);
+    const auto changes
+        = controller.handleProviderFrameEvent(PageRole::Secondary, { token }, frame, metadata);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
         syncPlaybackTimer();

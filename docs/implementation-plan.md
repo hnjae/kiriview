@@ -1002,11 +1002,23 @@ Primary and secondary pipelines are duplicated; sequence facts cross controller 
 
 #### Tasks
 
-- [ ] Add role-indexed accessors for sequence pointer, active request, provider generation, metadata projection, pending payload, and terminal facts over existing storage.
-- [ ] Move provider generation lookup and token matching through role-indexed accessors.
-- [ ] Convert primary/secondary provider terminal handling to a role-parameterized implementation if not already done by earlier milestones.
-- [ ] Convert one additional duplicated `handleSecondary...` path into a role-parameterized helper.
-- [ ] Add parameterized tests that run the same token-validation and terminal cases for primary and secondary roles.
+- [x] Add role-indexed accessors for sequence pointer, active request, provider generation, metadata projection, pending payload, and terminal facts over existing storage.
+- [x] Move provider generation lookup and token matching through role-indexed accessors.
+- [x] Convert primary/secondary provider terminal handling to a role-parameterized implementation if not already done by earlier milestones.
+- [x] Convert one additional duplicated `handleSecondary...` path into a role-parameterized helper.
+- [x] Add parameterized tests that run the same token-validation and terminal cases for primary and secondary roles.
+
+#### Execution record
+
+Status: complete on 2026-07-04.
+
+Authoritative-doc check: `docs/architecture/subsystem-boundaries.md` and the provider protocol intent in `docs/spec/image-viewport.md` were re-read for this milestone. No durable behavior or architecture document change was required because the milestone keeps the public provider protocol and storage model stable while reducing controller duplication.
+
+Added parameterized role-validation coverage in commit `1b07358`: `ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole_data`, `providerFrameEventsRejectStaleTokensByRole`, `providerTerminalEventsCloseMetadataGenerationByRole_data`, and `providerTerminalEventsCloseMetadataGenerationByRole`.
+
+Added compatibility accessors over existing role-paired storage for sequences, active requests, provider generations, pending payloads, and existing terminal role state. Primary and secondary provider frame-token checks now share one role-parameterized helper. Provider terminal and dispatch-failure handling now use role-indexed provider/session/token lookup, and the secondary frame-ready controller path now calls the role-parameterized `handleProviderFrameEvent` entry point instead of a separate secondary handler. Full role-indexed storage replacement remains deferred.
+
+Verification: `ctest --test-dir build-ninja -R 'viewportcontroller_provider|imageviewport_provider_terminal' --output-on-failure`, `rg -n "activeSecondaryProviderFrameTokenMatchesActiveRequest|handleSecondaryProvider.*Terminal|handleSecondaryProviderFrameEvent" src/viewportcontroller.cpp src/viewportcontroller_p.h`, and `just test` passed on 2026-07-04. The structural `rg` command returned no matches. `just test` reported the non-fatal missing `WrapVulkanHeaders` CMake message, then passed 20/20 tests in `build-ninja`.
 
 #### Acceptance criteria
 
