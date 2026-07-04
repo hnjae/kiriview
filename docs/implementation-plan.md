@@ -592,12 +592,12 @@ Provider role semantics are split between primary and secondary paths; role-scop
 
 #### Tasks
 
-- [ ] Add characterization tests for secondary provider `seek(frame)` with unknown metadata, known valid bounds, known invalid bounds, unsupported frame seek, and stale result after supersession.
-- [ ] Add characterization tests for secondary provider `seekToPosition(milliseconds)` with unknown metadata, known valid bounds including `totalDuration`, known invalid bounds, unsupported position seek, and stale result after supersession.
-- [ ] Route secondary `seek(frame)` through shared target admission and dispatch, including unknown-metadata waiting, known bounds invalidity, unsupported frame seek, provider frame request dispatch, cancellation, and stale-result filtering.
-- [ ] Route secondary `seekToPosition(milliseconds)` through shared position target admission and dispatch, preserving public requested position while resolving frame identity after metadata.
-- [ ] Ensure role-symmetric transport effects include the correct role, token, request kind, resolved frame, and requested position.
-- [ ] Ensure command diagnostics for invalid or unsupported present-role seeks remain controller-owned.
+- [x] Add characterization tests for secondary provider `seek(frame)` with unknown metadata, known valid bounds, known invalid bounds, unsupported frame seek, and stale result after supersession.
+- [x] Add characterization tests for secondary provider `seekToPosition(milliseconds)` with unknown metadata, known valid bounds including `totalDuration`, known invalid bounds, unsupported position seek, and stale result after supersession.
+- [x] Route secondary `seek(frame)` through shared target admission and dispatch, including unknown-metadata waiting, known bounds invalidity, unsupported frame seek, provider frame request dispatch, cancellation, and stale-result filtering.
+- [x] Route secondary `seekToPosition(milliseconds)` through shared position target admission and dispatch, preserving public requested position while resolving frame identity after metadata.
+- [x] Ensure role-symmetric transport effects include the correct role, token, request kind, resolved frame, and requested position.
+- [x] Ensure command diagnostics for invalid or unsupported present-role seeks remain controller-owned.
 
 #### Acceptance criteria
 
@@ -613,6 +613,14 @@ Provider role semantics are split between primary and secondary paths; role-scop
 - Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(imageviewport_provider_requests|imageviewport_provider_metadata|imageviewport_provider_frame_admission|imageviewport_public_api)$'`
 - `ctest --test-dir build -R '^(imageviewport_provider_requests|imageviewport_provider_metadata|imageviewport_provider_frame_admission|imageviewport_public_api)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Added failing secondary-provider seek characterization tests first, covering pre-metadata frame seeks, metadata-ready frame seeks, metadata-ready position seeks including `totalDuration`, invalid/unsupported command diagnostics, and stale initial-frame result rejection after supersession.
+- Secondary provider `seek(frame)` now reaches controller-owned admission, waits on metadata when bounds are unknown, validates construction-time frame-seek impossibility and known bounds, dispatches role-scoped frame requests once metadata is ready, and cancels superseded secondary frame tokens before dispatch.
+- Secondary provider `seekToPosition(milliseconds)` now preserves the public requested position, resolves the frame identity from validated secondary timing metadata, dispatches role-scoped position requests, and waits on metadata when position bounds are unknown.
+- Secondary metadata target policy now resolves pending secondary explicit frame and position seeks after metadata admission, while invalid or unsupported pending targets become request-terminal outcomes without generation failure.
+- Verification passed: `cmake --build build`; focused filter selected 4 tests; focused CTest passed 4/4; full CTest passed 20/20.
 
 #### Risks / notes
 

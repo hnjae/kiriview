@@ -2811,6 +2811,119 @@ ViewportCommandResult ViewportController::seekSecondaryBuiltIn(
     return result;
 }
 
+ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
+{
+    if (!viewport.hasActiveRequest() || !hasSecondaryProviderSequence(viewport)) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+    if (frame < 0) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Invalid;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        return result;
+    }
+
+    const auto acceptTarget = [this](ImageViewportInternal::DisplayRequestTarget target,
+                                  ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+                                  bool dispatchNow) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
+        const ImageViewportInternal::DisplayRequest primaryRequest
+            = viewportRequestState(viewport).activeRequest;
+        beginAcceptedDisplayRequest(viewport,
+            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, primaryRequest.target,
+            primaryRequest.resolvedFrame, true);
+        setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
+
+        if (dispatchNow) {
+            if (state.secondaryProvider.session
+                && state.secondaryProvider.activeFrameToken.isValid()) {
+                result.providerFrameTransport.cancelToken
+                    = state.secondaryProvider.activeFrameToken;
+            }
+            state.secondaryProvider.activeFrameToken = {};
+            publishProviderFrameLoadingState(viewport);
+            const ViewportProviderFrameRequestStartResult start
+                = startSecondaryProviderFrameRequest(target);
+            appendProviderFrameStartResult(result.providerFrameTransport, start);
+            result.changes.displayRevision = true;
+            result.changes.displayState = true;
+            result.changes.scheduleUpdate = true;
+            if (!start.accepted) {
+                result.changes.diagnostics = true;
+            }
+        } else {
+            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
+            viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+            discardPendingRenderCommit(viewport);
+        }
+
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = result.changes.diagnostics || diagnosticsValueChanged;
+        return result;
+    };
+
+    if (state.secondaryProvider.metadataReady) {
+        if (!state.secondaryProvider.frameSeekSupport) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+        const int maximumFrame = state.secondaryProvider.timedMetadata
+            ? state.secondaryProvider.timingIntervals.frameCount() - 1
+            : 0;
+        if (frame > maximumFrame) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Invalid;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            return result;
+        }
+
+        const int position = state.secondaryProvider.timedMetadata
+            ? state.secondaryProvider.timingIntervals.frameStartPosition(frame)
+            : -1;
+        return acceptTarget(
+            { frame, position, ImageViewportInternal::ProviderRequestTargetKind::Frame },
+            { frame, position }, true);
+    }
+
+    if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading) {
+        const ImageSequenceProviderCapabilitySupport frameSeekCapability
+            = viewport.secondaryProviderFrameSeekCapability();
+        if (ImageViewportInternal::providerCapabilityKnownFalse(frameSeekCapability)) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(
+                viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+        const ImageSequenceProviderKnownFacts knownFacts = viewport.secondaryProviderKnownFacts();
+        if (ImageViewportInternal::providerCapabilityKnownTrue(frameSeekCapability)
+            && knownFacts.frameCount() >= 0 && frame >= knownFacts.frameCount()) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Invalid;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            return result;
+        }
+
+        return acceptTarget(
+            { frame, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame },
+            { -1, -1 }, false);
+    }
+
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Unsupported;
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    return result;
+}
+
 ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
 {
     if (!viewport.hasActiveRequest()) {
@@ -2885,6 +2998,128 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
         return acceptExplicitSeek(*this, viewport, DisplayRequestTarget { frame, milliseconds },
             { frame, viewport.sequenceFrameStartPosition(frame) },
             ExplicitSeekMaterialization::BuiltIn);
+    }
+
+    ViewportCommandResult result;
+    result.outcome = ImageViewport::CommandOutcome::Unsupported;
+    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    return result;
+}
+
+ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int milliseconds)
+{
+    if (!viewport.hasActiveRequest() || !hasSecondaryProviderSequence(viewport)) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        return result;
+    }
+    if (milliseconds < 0) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Invalid;
+        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        return result;
+    }
+
+    const auto acceptTarget = [this](ImageViewportInternal::DisplayRequestTarget target,
+                                  ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+                                  bool dispatchNow) {
+        ViewportCommandResult result;
+        result.outcome = ImageViewport::CommandOutcome::Accepted;
+        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
+        const ImageViewportInternal::DisplayRequest primaryRequest
+            = viewportRequestState(viewport).activeRequest;
+        beginAcceptedDisplayRequest(viewport,
+            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, primaryRequest.target,
+            primaryRequest.resolvedFrame, true);
+        setSecondaryActiveRequest(viewport, target, resolvedFrame, true);
+
+        if (dispatchNow) {
+            if (state.secondaryProvider.session
+                && state.secondaryProvider.activeFrameToken.isValid()) {
+                result.providerFrameTransport.cancelToken
+                    = state.secondaryProvider.activeFrameToken;
+            }
+            state.secondaryProvider.activeFrameToken = {};
+            publishProviderFrameLoadingState(viewport);
+            const ViewportProviderFrameRequestStartResult start
+                = startSecondaryProviderFrameRequest(target);
+            appendProviderFrameStartResult(result.providerFrameTransport, start);
+            result.changes.displayRevision = true;
+            result.changes.displayState = true;
+            result.changes.scheduleUpdate = true;
+            if (!start.accepted) {
+                result.changes.diagnostics = true;
+            }
+        } else {
+            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
+            viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
+            discardPendingRenderCommit(viewport);
+        }
+
+        result.changes.requestRevision = true;
+        result.changes.requestState = true;
+        result.changes.diagnostics = result.changes.diagnostics || diagnosticsValueChanged;
+        return result;
+    };
+
+    if (!state.secondaryProvider.metadataReady
+        && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading) {
+        const ImageSequenceProviderCapabilitySupport positionSeekCapability
+            = viewport.secondaryProviderPositionSeekCapability();
+        if (ImageViewportInternal::providerCapabilityKnownFalse(positionSeekCapability)) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(
+                viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+        const ImageSequenceProviderKnownFacts knownFacts = viewport.secondaryProviderKnownFacts();
+        if (ImageViewportInternal::providerCapabilityKnownTrue(positionSeekCapability)) {
+            if (knownFacts.isStill()) {
+                ViewportCommandResult result;
+                result.outcome = ImageViewport::CommandOutcome::Unsupported;
+                setCommandDiagnostic(
+                    viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+                return result;
+            }
+            if (knownFacts.isTimedFrameList()
+                && TimingIntervals::fromFrameDurations(knownFacts.frameDurations())
+                        .frameIndexForPosition(milliseconds)
+                    < 0) {
+                ViewportCommandResult result;
+                result.outcome = ImageViewport::CommandOutcome::Invalid;
+                setCommandDiagnostic(
+                    viewport, result, ImageViewport::CommandReason::InvalidRequest);
+                return result;
+            }
+        }
+
+        return acceptTarget(
+            { -1, milliseconds, ImageViewportInternal::ProviderRequestTargetKind::Position },
+            { -1, -1 }, false);
+    }
+
+    if (state.secondaryProvider.metadataReady && state.secondaryProvider.timedMetadata) {
+        if (!state.secondaryProvider.positionSeekSupport) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Unsupported;
+            setCommandDiagnostic(
+                viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+            return result;
+        }
+        const int frame = state.secondaryProvider.timingIntervals.frameIndexForPosition(milliseconds);
+        if (frame < 0) {
+            ViewportCommandResult result;
+            result.outcome = ImageViewport::CommandOutcome::Invalid;
+            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            return result;
+        }
+        const int frameStart = state.secondaryProvider.timingIntervals.frameStartPosition(frame);
+        return acceptTarget(
+            { frame, milliseconds, ImageViewportInternal::ProviderRequestTargetKind::Position },
+            { frame, frameStart }, true);
     }
 
     ViewportCommandResult result;
@@ -3633,17 +3868,58 @@ ViewportController::handleSecondaryProviderMetadataTargetPolicy(
         = viewportRequestState(viewport).secondaryActiveRequest;
     const bool currentIdentity = request.identity.id != 0
         && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
-    if (!currentIdentity || !isUnknownMetadataInitialRequest(request)) {
+    if (!currentIdentity) {
         return result;
     }
 
-    const int selectedFrame = 0;
-    const int selectedPosition = facts.timedMetadata ? 0 : -1;
-    const ImageViewportInternal::DisplayRequestTarget target {
-        selectedFrame,
-        selectedPosition,
-        ImageViewportInternal::ProviderRequestTargetKind::Frame,
-    };
+    ImageViewportInternal::DisplayRequestTarget target;
+    if (isUnknownMetadataInitialRequest(request)) {
+        target = {
+            0,
+            facts.timedMetadata ? 0 : -1,
+            ImageViewportInternal::ProviderRequestTargetKind::Frame,
+        };
+    } else if (request.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Frame) {
+        const int providerFrameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
+        if (request.target.frame < 0 || request.target.frame >= providerFrameCount) {
+            result.changes = handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, request.target.frame, false,
+                    false, false });
+            return result;
+        }
+        target = {
+            request.target.frame,
+            facts.timedMetadata ? facts.timingIntervals.frameStartPosition(request.target.frame)
+                                : -1,
+            ImageViewportInternal::ProviderRequestTargetKind::Frame,
+        };
+    } else if (request.target.providerTargetKind
+        == ImageViewportInternal::ProviderRequestTargetKind::Position) {
+        if (!facts.timedMetadata || !state.secondaryProvider.positionSeekSupport) {
+            result.changes = handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, false });
+            return result;
+        }
+        const int selectedFrame
+            = facts.timingIntervals.frameIndexForPosition(request.target.position);
+        if (selectedFrame < 0) {
+            result.changes = handleProviderMetadataTargetRejection(
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, -1, false, false, false });
+            return result;
+        }
+        target = {
+            selectedFrame,
+            request.target.position,
+            ImageViewportInternal::ProviderRequestTargetKind::Position,
+        };
+    } else {
+        return result;
+    }
+
     const ViewportProviderFrameRequestStartResult start
         = startSecondaryProviderFrameRequest(target);
     appendProviderFrameStartResult(result.providerFrameTransport, start);

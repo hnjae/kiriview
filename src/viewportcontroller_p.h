@@ -491,6 +491,8 @@ public:
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
+    ViewportCommandResult seekSecondaryProvider(int frame);
+    ViewportCommandResult seekSecondaryProviderToPosition(int milliseconds);
     ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
     ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
     ImageViewportInternal::ViewportChangeSet setMirrorHorizontally(bool enabled);

@@ -393,7 +393,12 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
             applyControllerChanges(result.changes);
             return result.outcome;
         }
-        return CommandOutcome::IgnoredNoRequest;
+        flushPlaybackTimerElapsed();
+        const ViewportCommandResult result = controller.seekSecondaryProvider(frame);
+        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
+        applyControllerChanges(result.changes);
+        syncPlaybackTimer();
+        return result.outcome;
     }
 
     return seek(frame);
@@ -448,7 +453,13 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
             applyControllerChanges(result.changes);
             return result.outcome;
         }
-        return CommandOutcome::IgnoredNoRequest;
+        flushPlaybackTimerElapsed();
+        const ViewportCommandResult result
+            = controller.seekSecondaryProviderToPosition(milliseconds);
+        applyProviderFrameTransportEffect(result.providerFrameTransport, PageRole::Secondary);
+        applyControllerChanges(result.changes);
+        syncPlaybackTimer();
+        return result.outcome;
     }
 
     return seekToPosition(milliseconds);
