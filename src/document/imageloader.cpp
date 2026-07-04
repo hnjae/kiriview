@@ -5,6 +5,8 @@
 
 #include "async/imagecallback.h"
 #include "decoding/decodedimageresult.h"
+#include "predecode/predecodelogging.h"
+#include <QDebug>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -151,10 +153,20 @@ void ImageLoader::startOpenedCollectionLoad(
             session.openedCollectionScope());
     if (candidateSnapshot.has_value()
         && imageDocumentPageCandidateSnapshotMatchesSource(*candidateSnapshot, candidateSource)) {
+        qCDebug(kiriviewPredecodeLog)
+            << "opened collection candidate snapshot reused for foreground load"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
+            << "openedCollectionRoot" << session.openedCollectionScope().rootUrl()
+            << "candidateCount" << static_cast<qsizetype>(candidateSnapshot->candidates.size());
         finishOpenedCollectionCandidates(session, candidateSnapshot->candidates);
         return;
     }
 
+    qCDebug(kiriviewPredecodeLog) << "opened collection candidates listed for foreground load"
+                                  << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
+                                  << "openedCollectionRoot"
+                                  << session.openedCollectionScope().rootUrl()
+                                  << "snapshotAvailable" << candidateSnapshot.has_value();
     m_openedCollectionCandidateLoadJob = m_candidateRepository.loadImages(
         this, candidateSource,
         [this, session](std::vector<ImageDocumentPageCandidate> candidates) mutable {
@@ -226,23 +238,45 @@ bool ImageLoader::tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession ses
 bool ImageLoader::tryDisplayPredecodedImage(ImageLoadSession session)
 {
     if (!m_callbacks.findPredecodedImage) {
+        qCDebug(kiriviewPredecodeLog)
+            << "foreground predecode lookup skipped without lookup port"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
         return false;
     }
 
     std::optional<PredecodedImage> predecoded = m_callbacks.findPredecodedImage(session.imageUrl());
     if (!predecoded.has_value()) {
+        qCDebug(kiriviewPredecodeLog)
+            << "foreground predecode lookup miss"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
         return false;
     }
     if (predecoded->location != session.location()) {
+        qCDebug(kiriviewPredecodeLog)
+            << "foreground predecode lookup rejected for location mismatch"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl() << "predecodedUrl"
+            << predecoded->location.imageUrl();
         return false;
     }
 
     std::optional<ImageLoadSession> predecodedSession
         = m_sessionTracker.claimPredecodedImage(session, predecoded->location);
     if (!predecodedSession.has_value()) {
+        qCDebug(kiriviewPredecodeLog)
+            << "foreground predecode lookup rejected for stale session"
+            << "sessionId" << session.id() << "imageUrl" << session.imageUrl();
         return false;
     }
 
+    qCDebug(kiriviewPredecodeLog) << "foreground predecode lookup hit"
+                                  << "sessionId" << predecodedSession->id() << "imageUrl"
+                                  << predecodedSession->imageUrl() << "sourceIdentity"
+                                  << predecoded->displayImage.sourceIdentity << "originalSize"
+                                  << predecoded->displayImage.originalSize << "rasterSize"
+                                  << predecoded->displayImage.image.size() << "quality"
+                                  << static_cast<int>(predecoded->displayImage.quality)
+                                  << "previewOrigin"
+                                  << static_cast<int>(predecoded->displayImage.previewOrigin);
     finishPredecodedImage(std::move(*predecodedSession), std::move(*predecoded));
     return true;
 }

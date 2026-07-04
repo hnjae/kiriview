@@ -6,12 +6,41 @@
 #include "async/imagecallback.h"
 #include "imagedocumentpagenavigationpolicy.h"
 #include "imageremovalfallback.h"
+#include "navigationlogging.h"
 
+#include <QDebug>
 #include <QString>
 #include <optional>
+#include <type_traits>
 #include <utility>
 
 namespace kiriview {
+namespace {
+    QString pageCandidateSourceKind(const ImageDocumentPageCandidateListSource& source)
+    {
+        return source.visit([](const auto& payload) -> QString {
+            using Source = std::decay_t<decltype(payload)>;
+            if constexpr (std::is_same_v<Source, ImageDocumentPageCandidateListSource::Directory>) {
+                return QStringLiteral("directory");
+            } else {
+                return QStringLiteral("openedCollection");
+            }
+        });
+    }
+
+    QUrl pageCandidateSourceRoot(const ImageDocumentPageCandidateListSource& source)
+    {
+        return source.visit([](const auto& payload) -> QUrl {
+            using Source = std::decay_t<decltype(payload)>;
+            if constexpr (std::is_same_v<Source, ImageDocumentPageCandidateListSource::Directory>) {
+                return payload.directoryUrl;
+            } else {
+                return payload.openedCollectionScope.rootUrl();
+            }
+        });
+    }
+}
+
 ImageDocumentPageNavigationController::ImageDocumentPageNavigationController(QObject* parent,
     const ImageDocumentPageCandidateRepository& candidateRepository, Callbacks callbacks)
     : QObject(parent)
@@ -65,28 +94,55 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
     cancelNavigation();
 
     if (m_model.hasKnownSelection()) {
+        qCDebug(kiriviewNavigationLog)
+            << "image document page adjacent navigation using known selection"
+            << "direction" << static_cast<int>(direction) << "currentPage"
+            << m_model.currentPageNumber() << "pageCount" << m_model.pageCount();
         const std::optional<ImageDocumentPageTarget> target = m_model.selectAdjacentPage(direction);
         if (target.has_value()) {
+            qCDebug(kiriviewNavigationLog)
+                << "image document page adjacent target selected from known model"
+                << "direction" << static_cast<int>(direction) << "targetUrl" << target->url
+                << "targetKind" << static_cast<int>(target->kind) << "currentPage"
+                << m_model.currentPageNumber() << "pageCount" << m_model.pageCount();
             notifyChanged();
             reportNavigationPlan(ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect {
                 *target,
             } });
+        } else {
+            qCDebug(kiriviewNavigationLog)
+                << "image document page adjacent navigation hit known boundary"
+                << "direction" << static_cast<int>(direction) << "currentPage"
+                << m_model.currentPageNumber() << "pageCount" << m_model.pageCount();
         }
         return;
     }
 
     if (!context.has_value()) {
+        qCDebug(kiriviewNavigationLog)
+            << "image document page adjacent navigation skipped without candidate context"
+            << "direction" << static_cast<int>(direction);
         return;
     }
 
     const quint64 operationId = m_nextNavigationOperationId++;
     m_activeNavigationOperationId = operationId;
+    qCDebug(kiriviewNavigationLog)
+        << "image document page adjacent navigation listing candidates"
+        << "operationId" << operationId << "direction" << static_cast<int>(direction)
+        << "currentUrl" << context->currentUrl() << "sourceKind"
+        << pageCandidateSourceKind(context->source()) << "sourceRoot"
+        << pageCandidateSourceRoot(context->source());
     m_navigationListerJob = m_candidateRepository.loadImages(
         this, *context,
         [this, operationId, direction, currentUrl = context->currentUrl(),
             candidateSource = context->source()](
             std::vector<ImageDocumentPageCandidate> candidates) mutable {
             if (operationId != m_activeNavigationOperationId) {
+                qCDebug(kiriviewNavigationLog)
+                    << "image document page adjacent navigation stale candidate list ignored"
+                    << "operationId" << operationId << "activeOperationId"
+                    << m_activeNavigationOperationId;
                 return;
             }
             m_activeNavigationOperationId = 0;
@@ -153,10 +209,21 @@ void ImageDocumentPageNavigationController::finishNavigation(
     const std::optional<ImageDocumentPageCandidate> candidate
         = adjacentImageDocumentPageCandidate(candidates, currentUrl, direction);
     if (!candidate.has_value()) {
+        qCDebug(kiriviewNavigationLog)
+            << "image document page adjacent navigation listed candidates without target"
+            << "direction" << static_cast<int>(direction) << "currentUrl" << currentUrl
+            << "candidateCount" << static_cast<qsizetype>(candidates.size());
         return;
     }
 
     const ImageDocumentPageTarget target { candidate->url, candidate->kind };
+    qCDebug(kiriviewNavigationLog)
+        << "image document page adjacent target selected from listed candidates"
+        << "direction" << static_cast<int>(direction) << "currentUrl" << currentUrl << "targetUrl"
+        << target.url << "targetKind" << static_cast<int>(target.kind) << "candidateCount"
+        << static_cast<qsizetype>(candidates.size()) << "sourceKind"
+        << pageCandidateSourceKind(candidateSource) << "sourceRoot"
+        << pageCandidateSourceRoot(candidateSource);
     if (m_model.completeRefresh(candidates, target.url, std::move(candidateSource))) {
         notifyChanged();
     }

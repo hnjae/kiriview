@@ -6,6 +6,7 @@
 #include "async/imagecallback.h"
 #include "presentation/animationlogging.h"
 #include "presentation/imageanimationplayer.h"
+#include "rendering/displayproviderlogging.h"
 #include "rendering/imagerendering.h"
 
 #include <QDebug>
@@ -335,6 +336,15 @@ void ImagePageSurfaceController::publishDisplaySource(const StaticDisplayImagePa
                             : ImageDisplaySourceRetentionStatus::None,
         retainedReplacement && loadAcknowledgmentRequired,
     };
+    qCDebug(kiriviewDisplayProviderLog)
+        << "static display source published"
+        << "providerUrl" << providerUrl << "revision" << m_displaySourceRevision << "entryId"
+        << entryId << "sourceIdentity" << displayImage.sourceIdentity << "pageRole"
+        << static_cast<int>(m_pageRole) << "originalSize" << displayImage.originalSize
+        << "rasterSize" << rasterSize << "sourceSizeHint" << m_displaySource.sourceSizeHint
+        << "quality" << static_cast<int>(displayImage.quality) << "previewOrigin"
+        << static_cast<int>(displayImage.previewOrigin) << "loadAcknowledgmentRequired"
+        << loadAcknowledgmentRequired << "retainedReplacement" << retainedReplacement;
 }
 
 void ImagePageSurfaceController::publishAnimationFrameDisplaySource(
@@ -435,6 +445,11 @@ void ImagePageSurfaceController::retainCurrentStaticDisplayImageForSameScopeNavi
     m_displaySource.loadAcknowledgmentRequired = false;
     m_displaySource.retentionStatus = ImageDisplaySourceRetentionStatus::StaleRetained;
     m_displaySource.retainWhileLoadingEligible = false;
+    qCDebug(kiriviewDisplayProviderLog)
+        << "static display source retained during same-scope navigation"
+        << "entryId" << m_retainedStillImageEntryId << "providerUrl" << m_displaySource.providerUrl
+        << "revision" << m_displaySource.revision << "sourceIdentity"
+        << m_displaySource.sourceIdentity << "pageRole" << static_cast<int>(m_pageRole);
 }
 
 void ImagePageSurfaceController::clearSameScopeImageNavigationRetention()
@@ -463,6 +478,15 @@ void ImagePageSurfaceController::clearDisplaySource()
 
 void ImagePageSurfaceController::cancelRasterDisplayRefinement()
 {
+    if (m_rasterDisplayRefinementDemand.has_value()) {
+        qCDebug(kiriviewDisplayProviderLog)
+            << "raster display refinement canceled"
+            << "sourceIdentity" << m_rasterDisplayRefinementDemand->sourceIdentity << "pageRole"
+            << static_cast<int>(m_rasterDisplayRefinementDemand->pageRole)
+            << "displaySourceRevision" << m_rasterDisplayRefinementDemand->displaySourceRevision
+            << "renderRevision" << m_rasterDisplayRefinementDemand->renderRevision << "bucketSize"
+            << m_rasterDisplayRefinementDemand->bucketKey.rasterSize;
+    }
     m_rasterDisplayRefinementTicket.invalidate();
     m_rasterDisplayRefinementDemand = std::nullopt;
 }
@@ -602,6 +626,15 @@ bool ImagePageSurfaceController::acknowledgeStillImageDisplayLoad(const QUrl& pr
     if (m_currentDisplayEntryIsAnimationFrame || !m_stillImageDisplayLoadPending
         || providerUrl != m_pendingStillImageProviderUrl || revision != m_pendingStillImageRevision
         || sourceIdentity != m_pendingStillImageSourceIdentity) {
+        qCDebug(kiriviewDisplayProviderLog)
+            << "static display load acknowledgment ignored"
+            << "providerUrl" << providerUrl << "revision" << revision << "sourceIdentity"
+            << sourceIdentity << "outcome" << static_cast<int>(outcome) << "pageRole"
+            << static_cast<int>(m_pageRole) << "pending" << m_stillImageDisplayLoadPending
+            << "pendingProviderUrl" << m_pendingStillImageProviderUrl << "pendingRevision"
+            << m_pendingStillImageRevision << "pendingSourceIdentity"
+            << m_pendingStillImageSourceIdentity << "currentIsAnimationFrame"
+            << m_currentDisplayEntryIsAnimationFrame;
         return false;
     }
 
@@ -611,6 +644,11 @@ bool ImagePageSurfaceController::acknowledgeStillImageDisplayLoad(const QUrl& pr
     m_displaySource.loadAcknowledgmentRequired = false;
     m_displaySource.retentionStatus = ImageDisplaySourceRetentionStatus::None;
     m_displaySource.retainWhileLoadingEligible = false;
+    qCDebug(kiriviewDisplayProviderLog)
+        << "static display load acknowledgment accepted"
+        << "providerUrl" << providerUrl << "revision" << revision << "sourceIdentity"
+        << sourceIdentity << "outcome" << static_cast<int>(outcome) << "pageRole"
+        << static_cast<int>(m_pageRole) << "status" << static_cast<int>(m_displaySource.status);
     notify(ImageDocumentChange::DisplaySource);
     return true;
 }
@@ -704,6 +742,12 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
         RasterDisplayRefinementDemandKey pendingDemand = *m_rasterDisplayRefinementDemand;
         pendingDemand.renderRevision = 0;
         if (pendingDemand == demandKey) {
+            qCDebug(kiriviewDisplayProviderLog)
+                << "raster display refinement demand already pending"
+                << "sourceIdentity" << demandKey.sourceIdentity << "pageRole"
+                << static_cast<int>(demandKey.pageRole) << "displaySourceRevision"
+                << demandKey.displaySourceRevision << "bucketSize" << demandKey.bucketKey.rasterSize
+                << "quality" << static_cast<int>(decision.quality);
             return;
         }
     }
@@ -711,6 +755,17 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
     const quint64 ticket = m_rasterDisplayRefinementTicket.next();
     demandKey.renderRevision = ticket;
     m_rasterDisplayRefinementDemand = demandKey;
+    qCDebug(kiriviewDisplayProviderLog)
+        << "raster display refinement scheduled"
+        << "ticket" << ticket << "sourceIdentity" << demandKey.sourceIdentity << "pageRole"
+        << static_cast<int>(demandKey.pageRole) << "displaySourceRevision"
+        << demandKey.displaySourceRevision << "zoomGeneration" << demandKey.zoomGeneration
+        << "renderContextGeneration" << demandKey.renderContextGeneration << "allocationGeneration"
+        << demandKey.allocationGeneration << "rotationGeneration" << demandKey.rotationGeneration
+        << "bucketSize" << demandKey.bucketKey.rasterSize << "exact" << demandKey.bucketKey.exact
+        << "maximumTextureSize" << demandKey.bucketKey.maximumTextureSize
+        << "displayImageByteBudget" << demandKey.bucketKey.displayImageByteBudget << "quality"
+        << static_cast<int>(decision.quality);
     m_workerScheduler.run(
         m_context,
         [work = RasterDisplayRefinementWork {
@@ -721,19 +776,44 @@ void ImagePageSurfaceController::scheduleRasterDisplayRefinement(
              std::move(source),
              decision.bucketKey.rasterSize,
              decision.quality,
-         }]() mutable { return runRasterDisplayRefinement(std::move(work)); },
+        }]() mutable { return runRasterDisplayRefinement(std::move(work)); },
         [this](RasterDisplayRefinementResult result) mutable {
             if (!m_rasterDisplayRefinementTicket.accepts(result.ticket)
                 || !m_rasterDisplayRefinementDemand.has_value()
                 || *m_rasterDisplayRefinementDemand != result.demandKey) {
+                qCDebug(kiriviewDisplayProviderLog)
+                    << "raster display refinement result dropped"
+                    << "ticket" << result.ticket << "sourceIdentity"
+                    << result.demandKey.sourceIdentity << "pageRole"
+                    << static_cast<int>(result.demandKey.pageRole)
+                    << "displaySourceRevision" << result.demandKey.displaySourceRevision
+                    << "renderRevision" << result.demandKey.renderRevision << "bucketSize"
+                    << result.demandKey.bucketKey.rasterSize << "ready" << result.ready
+                    << "hasCurrentDemand" << m_rasterDisplayRefinementDemand.has_value();
                 return;
             }
 
             m_rasterDisplayRefinementDemand = std::nullopt;
             if (!result.ready) {
+                qCDebug(kiriviewDisplayProviderLog)
+                    << "raster display refinement result failed"
+                    << "ticket" << result.ticket << "sourceIdentity"
+                    << result.demandKey.sourceIdentity << "pageRole"
+                    << static_cast<int>(result.demandKey.pageRole)
+                    << "displaySourceRevision" << result.demandKey.displaySourceRevision
+                    << "bucketSize" << result.demandKey.bucketKey.rasterSize;
                 return;
             }
 
+            qCDebug(kiriviewDisplayProviderLog)
+                << "raster display refinement result accepted"
+                << "ticket" << result.ticket << "sourceIdentity"
+                << result.demandKey.sourceIdentity << "pageRole"
+                << static_cast<int>(result.demandKey.pageRole) << "displaySourceRevision"
+                << result.demandKey.displaySourceRevision << "bucketSize"
+                << result.demandKey.bucketKey.rasterSize << "rasterSize"
+                << result.displayImage.image.size() << "quality"
+                << static_cast<int>(result.displayImage.quality);
             setStaticDisplayImage(std::move(result.displayImage), isPredecodeCacheable(),
                 result.renderContext);
             updateDisplaySourceVisibility(true);

@@ -13,6 +13,7 @@
 #include "imageopencontroller.h"
 #include "localization/activenavigationboundarytext.h"
 #include "navigation/navigationlogging.h"
+#include "predecode/predecodelogging.h"
 #include "presentation/imagepagesurfacecontroller.h"
 #include "presentation/imagespreadpresentationcontroller.h"
 
@@ -60,6 +61,15 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
               if (ports.predecodeController != nullptr && ports.spreadController != nullptr) {
                   std::optional<kiriview::DisplayedPredecodeImage> secondaryImage
                       = ports.spreadController->secondaryDisplayedPredecodeImage();
+                  qCDebug(kiriviewPredecodeLog)
+                      << "runtime scheduling adjacent image predecode"
+                      << "hasExplicitTarget" << operation.target.has_value() << "targetUrl"
+                      << (operation.target.has_value() ? operation.target->url : QUrl())
+                      << "targetKind"
+                      << (operation.target.has_value() ? static_cast<int>(operation.target->kind)
+                                                       : -1)
+                      << "targetPageIndex" << operation.targetPageIndex << "hasSecondaryImage"
+                      << (secondaryImage.has_value() && secondaryImage->hasLocation());
                   if (operation.target.has_value()) {
                       ports.predecodeController->scheduleImageNavigationTargetPredecode(
                           *operation.target, operation.targetPageIndex, std::move(secondaryImage));
@@ -177,6 +187,10 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
     operations.navigation.loadPageNavigationUrl =
         [ports](
             const kiriview::ImageDocumentPageTarget& target, bool preserveTwoPageSpreadTransition) {
+            qCDebug(kiriviewNavigationLog)
+                << "runtime loading page navigation target"
+                << "targetUrl" << target.url << "targetKind" << static_cast<int>(target.kind)
+                << "preserveTwoPageSpreadTransition" << preserveTwoPageSpreadTransition;
             if (ports.loadSource) {
                 ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromPageNavigationTarget(
                     target, preserveTwoPageSpreadTransition));

@@ -427,8 +427,12 @@ QImage DisplayImageProvider::requestImage(
             const qint64 elapsedUs = elapsedTimer.nsecsElapsed() / 1000;
             qCDebug(kiriviewDisplayProviderLog)
                 << "display provider request" << "id" << id << "originalSize" << QSize()
-                << "requestedSize" << requestedSize << "returnedSize" << QSize() << "null" << true
-                << "elapsedUs" << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
+                << "rasterSize" << QSize() << "requestedSize" << requestedSize << "returnedSize"
+                << QSize() << "sourceIdentity" << QString() << "pageRole"
+                << static_cast<int>(DisplayedPageRole::Primary) << "quality"
+                << static_cast<int>(DisplayImageQuality::Failed) << "generation" << quint64(0)
+                << "debugLabel" << QString() << "scaled" << false << "null" << true << "elapsedUs"
+                << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
         }
         return {};
     }
@@ -449,7 +453,11 @@ QImage DisplayImageProvider::requestImage(
         const qint64 elapsedUs = elapsedTimer.nsecsElapsed() / 1000;
         qCDebug(kiriviewDisplayProviderLog)
             << "display provider request" << "id" << id << "originalSize" << entry->originalSize
-            << "requestedSize" << requestedSize << "returnedSize" << result.size() << "null"
+            << "rasterSize" << entry->rasterSize << "requestedSize" << requestedSize
+            << "returnedSize" << result.size() << "sourceIdentity" << entry->sourceIdentity
+            << "pageRole" << static_cast<int>(entry->pageRole) << "quality"
+            << static_cast<int>(entry->quality) << "generation" << entry->generation << "debugLabel"
+            << entry->debugLabel << "scaled" << (targetSize != entry->image.size()) << "null"
             << result.isNull() << "elapsedUs" << elapsedUs << "elapsedMs" << elapsedUs / 1000.0;
     }
 

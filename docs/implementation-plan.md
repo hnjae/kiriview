@@ -51,6 +51,10 @@ Update architecture docs only if this milestone adds durable observability or ch
 - The codebase has at least one focused regression test for the known-selection adjacent-navigation branch or an equivalent lower-level policy test if GUI-level coverage is impractical.
 - No broad display-cache, QML cache, or refinement ownership redesign is included yet.
 
+### Status
+
+Completed. The slice adds focused opened-collection controller coverage for known-selection adjacent navigation without relisting, plus debug logs for adjacent target selection, foreground opened-collection candidate snapshot reuse/listing, foreground predecode hit/miss/rejection, page-navigation runtime load/predecode dispatch, static display-source publication and load acknowledgment, provider request scaling/timing, and raster refinement schedule/duplicate/drop/fail/accept/cancel outcomes. No spec or architecture document changed because this milestone only added diagnostics and a regression guardrail without changing user-visible behavior or durable ownership rules.
+
 ### Suggested Verification
 
 - Run the narrow C++ test target added or touched by this milestone.

@@ -20,6 +20,9 @@ using kiriview::ImageDocumentPageCandidateListContext;
 using kiriview::ImageDocumentPageCandidateRepository;
 using kiriview::ImageDocumentPageNavigationController;
 using kiriview::NavigationDirection;
+using kiriview::OpenedCollectionScopeKind;
+using kiriview::OpenedCollectionScopeLocation;
+using kiriview::TestSupport::archivePageUrl;
 using kiriview::TestSupport::imageDocumentPageCandidate;
 using kiriview::TestSupport::localUrl;
 
@@ -39,9 +42,14 @@ public:
             [](QObject*, QUrl, kiriview::ContainerCandidatesCallback, kiriview::ErrorCallback) {
                 return kiriview::ImageIoJob();
             },
-            [](QObject*, kiriview::OpenedCollectionScopeLocation,
-                kiriview::ImageDocumentPageCandidatesCallback,
-                kiriview::ErrorCallback) { return kiriview::ImageIoJob(); },
+            [this](QObject*, kiriview::OpenedCollectionScopeLocation openedCollectionScope,
+                kiriview::ImageDocumentPageCandidatesCallback callback, kiriview::ErrorCallback) {
+                m_openedCollectionLoads.push_back(OpenedCollectionLoad {
+                    std::move(openedCollectionScope),
+                    std::move(callback),
+                });
+                return kiriview::ImageIoJob();
+            },
             [](QObject*, QUrl, kiriview::ImageDocumentPageCandidatesCallback,
                 kiriview::ErrorCallback) { return kiriview::ImageIoJob(); },
         };
@@ -51,9 +59,21 @@ public:
 
     const QUrl& loadDirectory(std::size_t index) const { return m_loads.at(index).directoryUrl; }
 
+    std::size_t openedCollectionLoadCount() const { return m_openedCollectionLoads.size(); }
+
     void finishLoad(std::size_t index, std::vector<ImageDocumentPageCandidate> candidates)
     {
         kiriview::ImageDocumentPageCandidatesCallback callback = m_loads.at(index).callback;
+        if (callback) {
+            callback(std::move(candidates));
+        }
+    }
+
+    void finishOpenedCollectionLoad(
+        std::size_t index, std::vector<ImageDocumentPageCandidate> candidates)
+    {
+        kiriview::ImageDocumentPageCandidatesCallback callback
+            = m_openedCollectionLoads.at(index).callback;
         if (callback) {
             callback(std::move(candidates));
         }
@@ -66,7 +86,14 @@ private:
         kiriview::ImageDocumentPageCandidatesCallback callback;
     };
 
+    struct OpenedCollectionLoad
+    {
+        kiriview::OpenedCollectionScopeLocation openedCollectionScope;
+        kiriview::ImageDocumentPageCandidatesCallback callback;
+    };
+
     std::vector<Load> m_loads;
+    std::vector<OpenedCollectionLoad> m_openedCollectionLoads;
 };
 
 ImageDocumentPageNavigationController::Callbacks controllerCallbacks(
@@ -98,6 +125,20 @@ ImageDocumentPageCandidateListContext directoryContext(
 {
     return ImageDocumentPageCandidateListContext::forDirectory(currentUrl, directoryUrl);
 }
+
+OpenedCollectionScopeLocation archiveCollectionScope()
+{
+    return OpenedCollectionScopeLocation::fromUrls(localUrl(QStringLiteral("/books/book.cbz")),
+        QUrl(QStringLiteral("zip:///books/book.cbz!/")),
+        OpenedCollectionScopeKind::ComicBookArchive);
+}
+
+ImageDocumentPageCandidateListContext openedCollectionContext(
+    const QUrl& currentUrl, const OpenedCollectionScopeLocation& openedCollectionScope)
+{
+    return ImageDocumentPageCandidateListContext::forOpenedCollectionScope(
+        currentUrl, openedCollectionScope);
+}
 }
 
 class TestImageDocumentPageNavigationController : public QObject
@@ -109,6 +150,7 @@ private Q_SLOTS:
     void changedCandidatesRecoverRemovedImageAfterStateUpdate();
     void deletionInProgressSuppressesRemovedCurrentImageRecovery();
     void fallbackAdjacentNavigationPublishesTargetBeforeOpening();
+    void knownSelectionAdjacentNavigationDoesNotRelistCandidates();
     void canceledFallbackAdjacentNavigationCompletionIsIgnored();
     void staleUpdateCompletionCannotReplaceCurrentRefreshContext();
     void staleSameSourceUpdateCompletionIsRejected();
@@ -253,6 +295,41 @@ void TestImageDocumentPageNavigationController::
     QCOMPARE(pageCountAtOpen, 3);
     QCOMPARE(controller.currentPageNumber(), 2);
     QCOMPARE(controller.pageCount(), 3);
+}
+
+void TestImageDocumentPageNavigationController::
+    knownSelectionAdjacentNavigationDoesNotRelistCandidates()
+{
+    DelayedDirectoryImageProvider delayedProvider;
+    ImageDocumentPageCandidateRepository repository(delayedProvider.provider());
+    const OpenedCollectionScopeLocation archiveCollection = archiveCollectionScope();
+    const QUrl firstUrl = archivePageUrl(archiveCollection.rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondUrl = archivePageUrl(archiveCollection.rootUrl(), QStringLiteral("02.png"));
+    QUrl openedUrl;
+    int changeCount = 0;
+    ImageDocumentPageNavigationController controller(nullptr, repository,
+        controllerCallbacks([&openedUrl](const QUrl& url) { openedUrl = url; },
+            [&changeCount]() { ++changeCount; }));
+
+    controller.update(openedCollectionContext(firstUrl, archiveCollection));
+    QCOMPARE(delayedProvider.openedCollectionLoadCount(), std::size_t(1));
+    delayedProvider.finishOpenedCollectionLoad(0,
+        {
+            imageDocumentPageCandidate(firstUrl),
+            imageDocumentPageCandidate(secondUrl),
+        });
+    QCOMPARE(controller.currentPageNumber(), 1);
+    QCOMPARE(controller.pageCount(), 2);
+    QCOMPARE(changeCount, 1);
+
+    controller.openAdjacentPage(
+        openedCollectionContext(firstUrl, archiveCollection), NavigationDirection::Next);
+
+    QCOMPARE(openedUrl, secondUrl);
+    QCOMPARE(controller.currentPageNumber(), 2);
+    QCOMPARE(controller.pageCount(), 2);
+    QCOMPARE(delayedProvider.openedCollectionLoadCount(), std::size_t(1));
+    QCOMPARE(changeCount, 2);
 }
 
 void TestImageDocumentPageNavigationController::
