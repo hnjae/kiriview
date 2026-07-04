@@ -13,8 +13,6 @@
 
 #include <memory>
 
-class ImageViewportPrivate;
-
 struct ViewportRenderRolePayload
 {
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
@@ -359,15 +357,22 @@ public:
     ViewportControllerContext& operator=(ViewportControllerContext&&) = delete;
     virtual ~ViewportControllerContext() = default;
 
+    // Viewport geometry inputs.
     virtual QRectF contentRect() const;
     virtual QRectF visibleImageRect() const;
     virtual QRectF itemBounds() const;
+    virtual double width() const;
+    virtual double height() const;
+
+    // Page-set assignment and active request facts.
     virtual bool hasActiveRequest() const;
     virtual bool hasReadyDisplay() const;
     virtual bool hasDisplayableSequence() const;
     virtual bool hasTimedSequence() const;
     virtual bool hasProviderSequence() const;
     virtual bool hasGenerationTerminalProviderFailure() const;
+
+    // Primary provider construction/runtime facts.
     virtual bool providerHasCompleteKnownMetadata() const;
     virtual ImageSequenceProviderKnownFacts providerKnownFacts() const;
     virtual QSizeF providerKnownLogicalSize() const;
@@ -384,30 +389,34 @@ public:
     virtual int providerFrameStartPosition(int frame) const;
     virtual int providerFrameIndexForPosition(int position) const;
     virtual ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
+
+    // Primary built-in sequence facts and payload data.
     virtual int frameCount() const;
     virtual int totalDuration() const;
     virtual int sequenceFrameCount() const;
     virtual int sequenceFrameIndexForPosition(int position) const;
     virtual int sequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
+    virtual QSizeF sequenceLogicalSize() const;
+    virtual QImage sequenceFrameImage(int frame) const;
+
+    // Secondary built-in sequence facts and payload data.
     virtual bool hasSecondaryTimedSequence() const;
     virtual int secondarySequenceFrameCount() const;
     virtual int secondaryTotalDuration() const;
     virtual int secondarySequenceFrameIndexForPosition(int position) const;
     virtual int secondarySequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
+    virtual QSizeF secondarySequenceLogicalSize() const;
+    virtual QImage secondarySequenceFrameImage(int frame) const;
+
+    // Secondary provider construction/runtime facts.
     virtual ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
     virtual QSizeF secondaryProviderKnownLogicalSize() const;
     virtual TimingIntervals secondaryProviderKnownTimingIntervals() const;
     virtual ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const;
     virtual ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
     virtual ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
-    virtual QSizeF sequenceLogicalSize() const;
-    virtual QSizeF secondarySequenceLogicalSize() const;
-    virtual QImage sequenceFrameImage(int frame) const;
-    virtual QImage secondarySequenceFrameImage(int frame) const;
-    virtual double width() const;
-    virtual double height() const;
 };
 
 class ViewportControllerPort

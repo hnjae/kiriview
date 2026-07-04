@@ -141,6 +141,7 @@ private slots:
     void metadataDispatchFailureReportsNullSessionAfterAcceptance();
     void sessionSerialRejectsSupersededSessionResults();
     void metadataAndFrameEventsRejectStaleTokens();
+    void providerFrameRenderAcknowledgementCommitsFromControllerSnapshot();
     void cancellationTerminalEventClosesActiveMetadataGeneration();
     void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
     void secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest();
@@ -354,6 +355,56 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
             { frameToken }, &frame, ImageSequenceProviderFrameMetadata::stillFrame());
     QCOMPARE(activeFrame.requestState, true);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::UploadPending);
+}
+
+void ViewportControllerProviderTest::
+    providerFrameRenderAcknowledgementCommitsFromControllerSnapshot()
+{
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(
+        factory, context, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    QVERIFY(sequence);
+    ViewportController controller(context);
+
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = sequence->sequence();
+    const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
+    QCOMPARE(assigned.openProviderSession, true);
+
+    StubProviderSession session;
+    QVERIFY(controller.installProviderSession(&session) != 0);
+    const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
+    QCOMPARE(opened.providerFrameTransport.sendCommand, true);
+    const ImageSequenceProviderRequestToken frameToken
+        = opened.providerFrameTransport.command.token;
+    QVERIFY(frameToken.isValid());
+
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    const ImageViewportInternal::ViewportChangeSet frameChanges
+        = controller.handleProviderFrameEvent(
+            { frameToken }, &frame, ImageSequenceProviderFrameMetadata::stillFrame());
+    QCOMPARE(frameChanges.requestState, true);
+    QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
+    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::UploadPending);
+    QVERIFY(controller.displayState().pendingRenderPayload.commitPending);
+
+    const ImageViewportInternal::PreparedPayloadIdentity payload
+        = controller.displayState().pendingRenderPayload.identity();
+    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const ImageViewportInternal::ViewportChangeSet commitChanges
+        = controller.acknowledgeRenderCommit({ payload }, true, synchronization);
+
+    QCOMPARE(commitChanges.requestState, true);
+    QCOMPARE(commitChanges.displayState, true);
+    QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
+    QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::Ready);
+    QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(controller.displayState().displayedRequest.request.preparedPayloadId,
+        payload.payloadId);
+    QCOMPARE(controller.displayState().pendingRenderPayload.commitPending, false);
 }
 
 void ViewportControllerProviderTest::

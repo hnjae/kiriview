@@ -981,17 +981,17 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 #### Tasks
 
-- [ ] Remove `#include "imageviewport_p.h"` from `src/viewportcontroller.cpp`.
-- [ ] Replace any remaining `ImageViewportPrivate` references in controller code with neutral helpers or explicit controller inputs.
-- [ ] Classify `ViewportControllerContext` accessors into these buckets before editing: page-set assignment facts, provider construction/runtime facts, viewport geometry inputs, prepared payload identities/data, render snapshots/acknowledgements, time/playback inputs, public notification/item-only projection.
-- [ ] For page-set assignment transitions, replace mutable item reads with explicit assignment facts and provider generation facts.
-- [ ] For provider events, replace mutable item reads with normalized event values, role, session, generation, token, metadata, payload, terminal cause, and transport-effect inputs.
-- [ ] For geometry mutations and projection, consume the controller-authored geometry snapshot from Milestone 9 instead of item-side size or presentation reconstruction.
-- [ ] For preparation and render acknowledgement, consume prepared payload identities/data and render snapshots instead of live sequence/provider/item state.
-- [ ] For playback transitions, consume explicit monotonic time/playback inputs rather than sleeping wall-clock threads or item-side timer state.
-- [ ] Add or extend controller tests that instantiate controller state with value inputs for assignment, playback waiting, command admission, geometry changes, render acknowledgement, and normalized provider events.
-- [ ] Keep item tests for QML signal projection, provider bridge threading/queued delivery, timers, scene graph synchronization, and package behavior.
-- [ ] Remove dead role-specific provider or render helper paths only when their behavior is covered by role-parametric or render snapshot tests.
+- [x] Remove `#include "imageviewport_p.h"` from `src/viewportcontroller.cpp`.
+- [x] Replace any remaining `ImageViewportPrivate` references in controller code with neutral helpers or explicit controller inputs.
+- [x] Classify `ViewportControllerContext` accessors into these buckets before editing: page-set assignment facts, provider construction/runtime facts, viewport geometry inputs, prepared payload identities/data, render snapshots/acknowledgements, time/playback inputs, public notification/item-only projection.
+- [x] For page-set assignment transitions, replace mutable item reads with explicit assignment facts and provider generation facts.
+- [x] For provider events, replace mutable item reads with normalized event values, role, session, generation, token, metadata, payload, terminal cause, and transport-effect inputs.
+- [x] For geometry mutations and projection, consume the controller-authored geometry snapshot from Milestone 9 instead of item-side size or presentation reconstruction.
+- [x] For preparation and render acknowledgement, consume prepared payload identities/data and render snapshots instead of live sequence/provider/item state.
+- [x] For playback transitions, consume explicit monotonic time/playback inputs rather than sleeping wall-clock threads or item-side timer state.
+- [x] Add or extend controller tests that instantiate controller state with value inputs for assignment, playback waiting, command admission, geometry changes, render acknowledgement, and normalized provider events.
+- [x] Keep item tests for QML signal projection, provider bridge threading/queued delivery, timers, scene graph synchronization, and package behavior.
+- [x] Remove dead role-specific provider or render helper paths only when their behavior is covered by role-parametric or render snapshot tests.
 
 #### Acceptance criteria
 
@@ -1005,9 +1005,17 @@ Controller depends on item-private context and ambient mutable reads; provider p
 
 - `cmake --build build`
 - `ctest -N --test-dir build`
-- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(viewportcontroller_playback|viewportcontroller_presentation|imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_render_scenegraph|imageviewport_render_commit)$'`
-- `ctest --test-dir build -R '^(viewportcontroller_playback|viewportcontroller_presentation|imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_render_scenegraph|imageviewport_render_commit)$' --output-on-failure`
+- Confirm focused filter selects expected tests: `ctest -N --test-dir build -R '^(viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider|imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_render_scenegraph|imageviewport_render_commit)$'`
+- `ctest --test-dir build -R '^(viewportcontroller_playback|viewportcontroller_presentation|viewportcontroller_provider|imageviewport_public_api|imageviewport_provider_lifecycle|imageviewport_render_scenegraph|imageviewport_render_commit)$' --output-on-failure`
 - `ctest --test-dir build --output-on-failure`
+
+#### Implementation notes
+
+- Completed on 2026-07-04. Pre-edit audit found `src/viewportcontroller.cpp` already depended on `viewportcontroller_p.h` instead of `imageviewport_p.h`; the remaining controller-code `ImageViewportPrivate` reference was an unused forward declaration in `src/viewportcontroller_p.h`, which was removed.
+- `ViewportControllerContext` accessors are now grouped by boundary bucket in the private controller header: viewport geometry, page-set/request facts, primary provider facts, primary built-in sequence data, secondary built-in sequence data, and secondary provider facts.
+- Added a direct controller provider test for render acknowledgement: `providerFrameRenderAcknowledgementCommitsFromControllerSnapshot()` feeds a normalized provider frame event, creates a render synchronization snapshot, acknowledges the payload through `ViewportController`, and verifies ready request/display projection without constructing `ImageViewport`.
+- Earlier milestones already supplied the controller-owned assignment, command admission, provider event, playback, geometry, render snapshot, and complete-role acknowledgement behavior covered by M12; this milestone removed the leftover item-private symbol and tightened layered controller coverage.
+- Verification passed: `cmake --build build`; focused filter selected 7 tests; focused CTest passed 7/7; full CTest passed 20/20.
 
 #### Risks / notes
 
@@ -1019,7 +1027,6 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - Direct controller-level provider harness feasibility. Blocked behavior: role-symmetric provider metadata, token, terminal, cancellation, overflow, and stale-result policy refactors. Missing evidence: a safe test seam that feeds normalized provider events and observes transport effects without full `ImageViewport`/Qt event delivery. Dependent milestones: 5, 6, 7, and 8. Exit criterion: controller harness tests cover token scope and stale-result rejection for both roles, or this plan is amended with a concrete alternative before provider-policy refactors proceed.
 - Provider command delivery failure simulation. Blocked behavior: classifying null/destroyed session and failed queued invocation as `ProviderFailure`. Missing evidence: the least invasive bridge test hook to simulate failed delivery without public API changes. Dependent milestone: 5. Exit criterion: focused tests can simulate null session and failed `invokeMethod`/delivery and observe terminal `Error` with `ProviderFailure`.
 - Device-pixel-ratio characterization for two-page spreads. Blocked behavior: final proof that physical-pixel-aware zoom geometry agrees between controller, public getters, and render for non-1 DPR. Missing evidence: a stable Qt offscreen-window or test hook for effective DPR. Dependent milestone: 9. M9 narrowed implementation and tests to DPR-independent geometry while carrying effective DPR through the controller snapshot. Exit criterion: reliable DPR test exists, or the plan is amended to add a narrow internal test seam for DPR input.
-- Complete-role render acknowledgement characterization. Blocked behavior: safe implementation of complete spread acknowledgement identity. Missing evidence: focused failing test or trace for stale secondary acknowledgement, secondary-layer render failure, or partial-spread commit risk. Dependent milestone: 11. Exit criterion: characterization exists before acknowledgement logic changes; implementation remains required because architecture requires complete-role acknowledgement.
 
 ## Suggested `/goal` Execution Order
 
@@ -1033,13 +1040,13 @@ Controller depends on item-private context and ambient mutable reads; provider p
 - [x] Milestone 8: Role-Symmetric Provider Playback And Terminal Lifecycle
 - [x] Milestone 9: Controller-Authored Geometry Projection
 - [x] Milestone 10: Immutable Render Snapshot
-- [ ] Milestone 11: Complete-Role Spread Render Acknowledgement
-- [ ] Milestone 12: Controller Boundary Decoupling And Layered Tests
+- [x] Milestone 11: Complete-Role Spread Render Acknowledgement
+- [x] Milestone 12: Controller Boundary Decoupling And Layered Tests
 
 ## Plan Review Notes
 
 - Concerns addressed: The plan now avoids a broad up-front red characterization suite, confirms CTest selection before focused runs, gates `Needs investigation` items to dependent milestones, makes the controller provider harness required before provider-policy refactors, moves transport delivery failure shape before provider dispatch unification, narrows command diagnostics work so valid provider commands are not accepted before dispatch exists, adds a behavior-preserving controller/item separation precursor, splits provider pipeline work into metadata, explicit request, and playback/terminal lifecycle milestones, separates immutable render snapshot work from complete-role acknowledgement, and keeps complete-role render acknowledgement required by architecture rather than optional.
-- Concerns deferred: Device-pixel-ratio test control, provider delivery failure simulation details, and complete-role render acknowledgement characterization remain explicit investigation gates with exit criteria.
+- Concerns deferred: Device-pixel-ratio test control and provider delivery failure simulation details remain explicit investigation gates with exit criteria.
 - Remaining known limitations: Exact new test function names are intentionally not prescribed; future sessions should use `ctest -N --test-dir build` after configuring to confirm current executable names before running narrow filters. The plan names likely affected areas from the design review and repository scan, but implementation should re-read nearby code before editing.
 
 ## Non-Goals
