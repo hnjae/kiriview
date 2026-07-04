@@ -1,6 +1,79 @@
 #include "imageviewport_provider_test_support.h"
 
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QFile>
+#include <QtCore/QStringList>
+
+namespace {
+
+enum MetadataProjectionScenario {
+    UnknownProviderFacts,
+    PartialKnownFacts,
+    CompleteStillFacts,
+    CompleteTimedFacts,
+    RuntimeStillMetadata,
+    RuntimeTimedMetadata,
+};
+
+struct RoleMetadataProperties {
+    const char* frameCount;
+    const char* totalDuration;
+    const char* frameSeekBounds;
+    const char* positionSeekBounds;
+    const char* timedPlaybackSupport;
+    const char* frameSeekSupport;
+    const char* positionSeekSupport;
+};
+
+RoleMetadataProperties metadataPropertiesForRole(bool secondaryRole)
+{
+    if (secondaryRole) {
+        return {
+            "secondaryFrameCount",
+            "secondaryTotalDuration",
+            "secondaryFrameSeekBounds",
+            "secondaryPositionSeekBounds",
+            "secondaryTimedPlaybackSupport",
+            "secondaryFrameSeekSupport",
+            "secondaryPositionSeekSupport",
+        };
+    }
+    return {
+        "primaryFrameCount",
+        "primaryTotalDuration",
+        "primaryFrameSeekBounds",
+        "primaryPositionSeekBounds",
+        "primaryTimedPlaybackSupport",
+        "primaryFrameSeekSupport",
+        "primaryPositionSeekSupport",
+    };
+}
+
+void verifyImageViewportMetadataProjectionIsControllerForwarding()
+{
+    QFile sourceFile(QStringLiteral(IMAGEVIEWPORT_SOURCE_DIR "/src/imageviewport.cpp"));
+    QVERIFY2(sourceFile.open(QIODevice::ReadOnly | QIODevice::Text),
+        qPrintable(QStringLiteral("could not open %1").arg(sourceFile.fileName())));
+
+    const QString source = QString::fromUtf8(sourceFile.readAll());
+    const QStringList forbiddenTokens {
+        QStringLiteral("m_hasCompleteProviderKnownMetadata"),
+        QStringLiteral("m_providerKnown"),
+        QStringLiteral("m_providerTimedPlaybackCapability"),
+        QStringLiteral("m_providerFrameSeekCapability"),
+        QStringLiteral("m_providerPositionSeekCapability"),
+        QStringLiteral("providerCapabilityKnownTrue("),
+        QStringLiteral("providerResolvedCapability("),
+        QStringLiteral("capabilitySupportToTriState("),
+    };
+    for (const QString& token : forbiddenTokens) {
+        QVERIFY2(!source.contains(token),
+            qPrintable(QStringLiteral("ImageViewportPrivate metadata projection still uses %1")
+                           .arg(token)));
+    }
+}
+
+} // namespace
 
 class ImageViewportProviderMetadataTest : public QObject
 {
@@ -13,6 +86,8 @@ public:
     }
 
 private slots:
+    void roleScopedMetadataProjectionUsesOnePath_data();
+    void roleScopedMetadataProjectionUsesOnePath();
     void providerConstructionMetadataSelectsInitialFrameRequest();
     void providerFixedDurationConstructionMetadataSelectsInitialFrameRequest();
     void providerKnownConstructionMetadataSelectsInitialFrameWithoutDeclaredCapabilities();
@@ -53,6 +128,189 @@ private slots:
     void providerPositiveResizeWhileMetadataWaitingKeepsProviderWaiting();
     void providerMetadataReadySealsMetadataToken();
 };
+
+void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath_data()
+{
+    QTest::addColumn<bool>("secondaryRole");
+    QTest::addColumn<int>("scenario");
+    QTest::addColumn<int>("expectedFrameCount");
+    QTest::addColumn<int>("expectedTotalDuration");
+    QTest::addColumn<int>("expectedFrameMinimum");
+    QTest::addColumn<int>("expectedFrameMaximum");
+    QTest::addColumn<int>("expectedPositionMinimum");
+    QTest::addColumn<int>("expectedPositionMaximum");
+    QTest::addColumn<QByteArray>("expectedTimedPlaybackSupport");
+    QTest::addColumn<QByteArray>("expectedFrameSeekSupport");
+    QTest::addColumn<QByteArray>("expectedPositionSeekSupport");
+
+    const auto addRow = [](const char* name, bool secondaryRole,
+                            MetadataProjectionScenario scenario, int expectedFrameCount,
+                            int expectedTotalDuration, int expectedFrameMinimum,
+                            int expectedFrameMaximum, int expectedPositionMinimum,
+                            int expectedPositionMaximum, const char* expectedTimedPlaybackSupport,
+                            const char* expectedFrameSeekSupport,
+                            const char* expectedPositionSeekSupport) {
+        QTest::newRow(name) << secondaryRole << static_cast<int>(scenario) << expectedFrameCount
+                            << expectedTotalDuration << expectedFrameMinimum
+                            << expectedFrameMaximum << expectedPositionMinimum
+                            << expectedPositionMaximum << QByteArray(expectedTimedPlaybackSupport)
+                            << QByteArray(expectedFrameSeekSupport)
+                            << QByteArray(expectedPositionSeekSupport);
+    };
+
+    addRow("primary-unknown-provider-facts", false, UnknownProviderFacts, -1, -1, -1, -1, -1,
+        -1, "Unavailable", "Unavailable", "Unavailable");
+    addRow("secondary-unknown-provider-facts", true, UnknownProviderFacts, -1, -1, -1, -1, -1,
+        -1, "Unavailable", "Unavailable", "Unavailable");
+    addRow("primary-partial-known-facts", false, PartialKnownFacts, 3, -1, 0, 2, -1, -1,
+        "Unavailable", "True", "Unavailable");
+    addRow("secondary-partial-known-facts", true, PartialKnownFacts, 3, -1, 0, 2, -1, -1,
+        "Unavailable", "True", "Unavailable");
+    addRow("primary-complete-still-facts", false, CompleteStillFacts, 1, -1, 0, 0, -1, -1,
+        "False", "True", "False");
+    addRow("secondary-complete-still-facts", true, CompleteStillFacts, 1, -1, 0, 0, -1, -1,
+        "False", "True", "False");
+    addRow("primary-complete-timed-facts", false, CompleteTimedFacts, 2, 350, 0, 1, 0, 350,
+        "True", "True", "True");
+    addRow("secondary-complete-timed-facts", true, CompleteTimedFacts, 2, 350, 0, 1, 0, 350,
+        "True", "True", "True");
+    addRow("primary-runtime-still-metadata", false, RuntimeStillMetadata, 1, -1, 0, 0, -1, -1,
+        "False", "True", "False");
+    addRow("secondary-runtime-still-metadata", true, RuntimeStillMetadata, 1, -1, 0, 0, -1, -1,
+        "False", "True", "False");
+    addRow("primary-runtime-timed-metadata", false, RuntimeTimedMetadata, 2, 350, 0, 1, 0, 350,
+        "True", "True", "True");
+    addRow("secondary-runtime-timed-metadata", true, RuntimeTimedMetadata, 2, 350, 0, 1, 0, 350,
+        "True", "True", "True");
+}
+
+void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath()
+{
+    QFETCH(bool, secondaryRole);
+    QFETCH(int, scenario);
+    QFETCH(int, expectedFrameCount);
+    QFETCH(int, expectedTotalDuration);
+    QFETCH(int, expectedFrameMinimum);
+    QFETCH(int, expectedFrameMaximum);
+    QFETCH(int, expectedPositionMinimum);
+    QFETCH(int, expectedPositionMaximum);
+    QFETCH(QByteArray, expectedTimedPlaybackSupport);
+    QFETCH(QByteArray, expectedFrameSeekSupport);
+    QFETCH(QByteArray, expectedPositionSeekSupport);
+
+    if (!secondaryRole && scenario == UnknownProviderFacts) {
+        verifyImageViewportMetadataProjectionIsControllerForwarding();
+    }
+
+    ImageSequenceProviderKnownFacts knownFacts;
+    ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport
+        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
+    ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport
+        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
+    ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport
+        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
+
+    switch (static_cast<MetadataProjectionScenario>(scenario)) {
+    case UnknownProviderFacts:
+    case RuntimeStillMetadata:
+    case RuntimeTimedMetadata:
+        break;
+    case PartialKnownFacts:
+        knownFacts = ImageSequenceProviderKnownFacts::timedFrameCount(QSizeF(16.0, 8.0), 3);
+        frameSeekSupport = ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue;
+        break;
+    case CompleteStillFacts:
+        knownFacts = ImageSequenceProviderKnownFacts::still(QSizeF(16.0, 8.0));
+        break;
+    case CompleteTimedFacts:
+        knownFacts
+            = ImageSequenceProviderKnownFacts::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+        break;
+    }
+
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter providerAdapter(
+        sessionFactory, knownFacts, timedPlaybackSupport, frameSeekSupport, positionSeekSupport);
+    QScopedPointer<ImageSequenceFactoryResult> providerResult(
+        factory.fromProvider(&providerAdapter));
+    QVERIFY(providerResult->sequence());
+
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult;
+    ImageViewport item;
+    if (secondaryRole) {
+        QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+        primaryImage.fill(Qt::transparent);
+        ImageFrame primaryFrame(primaryImage);
+        primaryResult.reset(factory.fromFrame(&primaryFrame));
+        QVERIFY(primaryResult->sequence());
+        QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                     QVariant::fromValue<QObject*>(providerResult->sequence())),
+            ImageViewport::CommandOutcome::Accepted);
+    } else {
+        item.setSequence(providerResult->sequence());
+    }
+
+    switch (static_cast<MetadataProjectionScenario>(scenario)) {
+    case RuntimeStillMetadata:
+        QVERIFY(sessionFactory->lastSession());
+        emit sessionFactory->lastSession()->metadataReady(
+            sessionFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        drainQueuedProviderResults();
+        break;
+    case RuntimeTimedMetadata:
+        QVERIFY(sessionFactory->lastSession());
+        emit sessionFactory->lastSession()->metadataReady(
+            sessionFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+        drainQueuedProviderResults();
+        break;
+    case UnknownProviderFacts:
+    case PartialKnownFacts:
+    case CompleteStillFacts:
+    case CompleteTimedFacts:
+        break;
+    }
+
+    const RoleMetadataProperties properties = metadataPropertiesForRole(secondaryRole);
+    const QMetaObject* metaObject = item.metaObject();
+    QCOMPARE(item.property(properties.frameCount).toInt(), expectedFrameCount);
+    QCOMPARE(item.property(properties.totalDuration).toInt(), expectedTotalDuration);
+    QCOMPARE(rangeProperty(item, properties.frameSeekBounds).minimum(), expectedFrameMinimum);
+    QCOMPARE(rangeProperty(item, properties.frameSeekBounds).maximum(), expectedFrameMaximum);
+    QCOMPARE(
+        rangeProperty(item, properties.positionSeekBounds).minimum(), expectedPositionMinimum);
+    QCOMPARE(
+        rangeProperty(item, properties.positionSeekBounds).maximum(), expectedPositionMaximum);
+    QCOMPARE(item.property(properties.timedPlaybackSupport).toInt(),
+        enumValue(metaObject, "TriState", expectedTimedPlaybackSupport.constData()));
+    QCOMPARE(item.property(properties.frameSeekSupport).toInt(),
+        enumValue(metaObject, "TriState", expectedFrameSeekSupport.constData()));
+    QCOMPARE(item.property(properties.positionSeekSupport).toInt(),
+        enumValue(metaObject, "TriState", expectedPositionSeekSupport.constData()));
+
+    if (!secondaryRole) {
+        QCOMPARE(item.property("frameCount").toInt(), expectedFrameCount);
+        QCOMPARE(item.property("totalDuration").toInt(), expectedTotalDuration);
+        QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), expectedFrameMinimum);
+        QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), expectedFrameMaximum);
+        QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), expectedPositionMinimum);
+        QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), expectedPositionMaximum);
+        QCOMPARE(item.property("timedPlaybackSupport").toInt(),
+            enumValue(metaObject, "TriState", expectedTimedPlaybackSupport.constData()));
+        QCOMPARE(item.property("frameSeekSupport").toInt(),
+            enumValue(metaObject, "TriState", expectedFrameSeekSupport.constData()));
+        QCOMPARE(item.property("positionSeekSupport").toInt(),
+            enumValue(metaObject, "TriState", expectedPositionSeekSupport.constData()));
+    }
+}
 
 void ImageViewportProviderMetadataTest::providerConstructionMetadataSelectsInitialFrameRequest()
 {

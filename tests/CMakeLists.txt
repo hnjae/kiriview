@@ -17,7 +17,8 @@ target_link_libraries(imageviewport_test_support INTERFACE imageviewport_core_te
 
 target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
-                                         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
+                                         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src"
+                                         IMAGEVIEWPORT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 # M0 baseline conformance anchors before controller ownership refactors: - retained display after
 # failed replacement:
