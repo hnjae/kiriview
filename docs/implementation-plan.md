@@ -4,6 +4,13 @@ This plan breaks the next performance architecture changes into milestones that 
 
 Each milestone should follow the repository intent order when it changes behavior or structure: land architecture or spec intent first, add focused failing coverage when practical, then implement and commit. Pure maintenance inside a milestone may go directly to implementation.
 
+## End-State Documentation Gates
+
+- Do not update `docs/architecture/` or `docs/spec/` merely because this planning document names a future milestone. Those documents describe the intended end state for work being landed, not a queue of possible future implementation phases.
+- When a milestone intentionally changes structure or ownership, make the relevant `docs/architecture/` update the first commit of that milestone. The architecture update must describe the durable final boundary for that milestone, not temporary migration steps or deferred acceptance criteria.
+- When a milestone changes user-visible behavior, unsupported states, disabled controls, navigation behavior, or thumbnail guarantees, make the relevant `docs/spec/` update before tests and implementation. Internal provider, cache, snapshot, index, or ownership changes do not require a spec update when visible behavior remains unchanged.
+- The current plan expects architecture updates for Milestones 1, 4, and 10; Milestone 12 should update architecture only if the load-path identity contract is not already explicit enough; Milestone 15 should update architecture only if Milestone 14 justifies a shared prepared-display cache. The current plan does not require a `docs/spec/` update unless Milestone 10 changes the user-visible offscreen thumbnail expectation or another milestone explicitly changes product behavior.
+
 ## Goals
 
 - Make active-navigation thumbnail image delivery match the cheap provider boundary already used by the main display provider.
@@ -25,13 +32,14 @@ Each milestone should follow the repository intent order when it changes behavio
 - Provider-boundary milestones must reconcile every durable architecture contract that mentions provider request scaling, including `docs/architecture/extension-contracts.md`, so future milestones do not inherit contradictory intent.
 - Candidate snapshot milestones must distinguish candidate-list source identity, candidate-list revision, direct-media scope generation, public projection revision, and thumbnail navigation generation. These values serve different stale-rejection and reuse purposes and must not be collapsed into one token.
 - Performance-sensitive implementation milestones should add focused counters, fake ports, or test seams that prove the intended structural property, such as no by-value candidate return from projection ports, unchanged snapshot revisions skipping full row projection, indexed completion lookup, or background fill inspecting only demanded/windowed rows.
-- Display reuse milestones must cover both display-store reuse keys and refinement cache keys before any prepared-display cache measurement or implementation.
+- Display reuse milestones must cover both display-store reuse keys and refinement cache keys before any prepared-display cache measurement or implementation. Architecture must define how the presentation load path preserves displayed-location or opened-collection scope identity before implementation threads that identity through payloads.
+- Prepared-display cache architecture must not be added until Milestone 14 records a measured decision to build it. If the decision is negative, Milestones 15 through 18 remain skipped rather than becoming end-state documentation.
 
 ## Milestone 1: Thumbnail Provider Boundary Intent
 
 Suggested `/goal`: Update architecture intent so active-navigation thumbnail provider requests are cache-only and thumbnail bucket scaling is complete before image-provider publication.
 
-Scope: Update `docs/architecture/thumbnail-source-adapters.md`, `docs/architecture/provider-rendering.md`, and `docs/architecture/extension-contracts.md` to state that active-navigation thumbnail provider requests return stored bucket images only, do not rescale in `requestImage`, and receive entries already sized for the accepted demand bucket. Reconcile existing provider-request wording so the main display provider and thumbnail provider contracts do not conflict with any generic extension contract. Clarify that QML may report demand and render projected results, but ordinary provider request size is not a scaling contract.
+Scope: Update `docs/architecture/thumbnail-source-adapters.md`, `docs/architecture/provider-rendering.md`, and `docs/architecture/extension-contracts.md` to state that active-navigation thumbnail provider requests return stored bucket images only, do not rescale in `requestImage`, and receive entries already sized for the accepted demand bucket. Reconcile existing provider-request wording so the main display provider, thumbnail provider, and generic extension contract all agree that ordinary cache-only providers return published raster entries instead of performing hot-path requested-size downscale. Clarify that QML may report demand and render projected results, but ordinary provider request size is not a scaling contract.
 
 Acceptance: Architecture docs name the thumbnail provider boundary, bucket ownership, cache freshness expectations, and relation to the existing main display provider boundary. No durable architecture document still permits ordinary provider hot-path downscaling for these cache-only providers. No code changes are required in this milestone.
 
@@ -61,7 +69,7 @@ Verification: Run focused thumbnail image store tests, then `devenv tasks run --
 
 Suggested `/goal`: Define a revisioned immutable candidate-list snapshot boundary for direct media, image-document page navigation, opened collections, thumbnails, and predecode consumers.
 
-Scope: Update `docs/architecture/state-ownership.md`, `docs/architecture/workflow-shape.md`, and possibly `docs/architecture/extension-contracts.md` to define typed candidate snapshots with source identity, candidate-list revision, scope generation when applicable, current index facts, count, and shared immutable row storage. Preserve the rule that page navigation owns confirmed image-document snapshots and the document session owns direct-media active-navigation state. Define when each snapshot is invalidated, when consumers may reuse it, and how it differs from public projection revision and thumbnail navigation generation.
+Scope: Update `docs/architecture/state-ownership.md`, `docs/architecture/workflow-shape.md`, and possibly `docs/architecture/extension-contracts.md` to define typed candidate snapshots with source identity, candidate-list revision, scope generation when applicable, current index facts, count, and shared immutable row storage. Preserve the rule that page navigation owns confirmed image-document snapshots and the document session owns direct-media active-navigation state. Define when each snapshot is invalidated, when consumers may reuse it, and how it differs from public projection revision, direct-media scope generation, and thumbnail navigation generation. Do not put milestone sequencing, migration phases, or acceptance criteria into the architecture documents.
 
 Acceptance: The architecture describes how projection, active-navigation thumbnails, predecode planning, deletion fallback, and opened-collection foreground loading consume confirmed snapshots without keeping independent candidate-list state. The architecture explicitly distinguishes the revision and generation tokens used for stale rejection, public projection, and thumbnail work. The milestone also identifies performance test seams needed by later implementation work.
 
@@ -121,7 +129,7 @@ Verification: Run focused active-navigation thumbnail projection/model tests wit
 
 Suggested `/goal`: Define the active-navigation thumbnail runtime's visible/nearby demand window policy before changing background fill behavior.
 
-Scope: Update `docs/architecture/state-ownership.md`, `docs/architecture/thumbnail-source-adapters.md`, and `docs/spec/navigation.md` if the user-visible offscreen thumbnail expectation changes. Define demand expiry, visible versus nearby priority, background fill ordering, and whether full-list background fill is a best-effort optimization or a product guarantee.
+Scope: Update `docs/architecture/state-ownership.md` and `docs/architecture/thumbnail-source-adapters.md` to define demand expiry, visible versus nearby priority, background fill ordering, and whether full-list background fill is a runtime optimization or a durable product guarantee. Update `docs/spec/navigation.md` only if the user-visible offscreen thumbnail expectation changes from the current best-effort wording.
 
 Acceptance: The policy gives implementation tests a clear success condition for which rows may be inspected, scheduled, retained, or expired after QML reports visible or nearby demand. No code changes are required in this milestone.
 
@@ -141,7 +149,7 @@ Verification: Run focused active-navigation thumbnail runtime tests, then `deven
 
 Suggested `/goal`: Tighten architecture intent for display reuse and refinement cache keys so both include real displayed-location or opened-collection scope identity.
 
-Scope: Update `docs/architecture/provider-rendering.md` and `docs/architecture/state-ownership.md` only if the existing wording needs a narrower owner contract. State that `StaticDisplayImagePayload` or the presentation load path must preserve enough location/scope identity for page-surface owners to build correct display reuse keys and refinement cache keys.
+Scope: Update `docs/architecture/provider-rendering.md` and `docs/architecture/state-ownership.md` if the existing wording does not explicitly cover the load-path owner contract. State that `StaticDisplayImagePayload` or the presentation load path must preserve enough location/scope identity for page-surface owners to build correct display reuse keys and refinement cache keys. Keep this architecture update focused on the durable identity boundary, not on the implementation sequence for threading the field.
 
 Acceptance: Architecture docs cover display-store reuse keys, refinement cache keys, page role, predecode promotion, decoded foreground load, secondary-page load, and opened-collection identity. No code changes are required in this milestone.
 
@@ -171,7 +179,7 @@ Verification: Run only checks touched by instrumentation or docs. If code instru
 
 Suggested `/goal`: Define the shared prepared-display cache owner only if Milestone 14 justifies implementation.
 
-Scope: Update architecture docs to define the cache owner below document public state and above page-surface resource owners. Specify byte budget, identity keys, lease rules, stale rejection, relationship to predecode cache entries, page-surface promotion, display-store publication, and why the existing page-local refinement caches are insufficient.
+Scope: Update architecture docs to define the cache owner below document public state and above page-surface resource owners only after Milestone 14 records a measured decision to build this cache. Specify byte budget, identity keys, lease rules, stale rejection, relationship to predecode cache entries, page-surface promotion, display-store publication, and why the existing page-local refinement caches are insufficient. If Milestone 14 rejects a shared cache, do not add this end-state architecture.
 
 Acceptance: Architecture docs define one owner, allowed consumers, forbidden ownership bypasses, and test ownership. No implementation code is required in this milestone.
 
@@ -227,7 +235,7 @@ Verification: Run focused display image store/provider tests, then `devenv tasks
 
 ## Per-Session Closeout Checklist
 
-- Confirm whether the milestone changed user-visible behavior, architecture structure, tests, or code, and commit the applicable layers separately.
+- Confirm whether the milestone changed user-visible behavior, architecture structure, tests, or code, and commit the applicable layers separately. Do not update `docs/architecture/` or `docs/spec/` just to restate future work that remains outside the milestone's end state.
 - Keep commits scoped and conventional, for example `docs(architecture): define thumbnail provider boundary`, `test(session): cover thumbnail row revision reuse`, or `perf(rendering): index display image store lookups`.
 - Add `Co-authored-by: Codex <noreply@openai.com>` to commits materially authored by Codex.
 - Report focused checks run and any skipped final checks.
