@@ -42,6 +42,5 @@ ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(
     const QImage& image, qsizetype payloadByteSize);
 QImage imageForTest(const ImageFrame& frame);
-QImage frameImageForTest(const ImageSequence& sequence, int frame);
 
 } // namespace ImageViewportTestHooks

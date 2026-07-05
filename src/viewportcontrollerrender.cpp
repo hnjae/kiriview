@@ -27,17 +27,10 @@ ImageViewportInternal::PreparedPayload secondaryRenderPayload(ViewportController
     const ImageViewportInternal::PreparedPayload& primaryPayload)
 {
     const auto& display = viewportDisplayState(viewport);
-    const auto& request = viewportRequestState(viewport);
     ImageViewportInternal::PreparedPayload payload = primaryPayload;
-    if (synchronization.pendingSecondaryProviderCommit
+    if (synchronization.pendingTargetCommit
         && !display.secondaryPendingRenderPayload.image.isNull()) {
         return display.secondaryPendingRenderPayload;
-    }
-    if (synchronization.pendingTargetCommit && request.secondarySequence
-        && !request.secondarySequenceIsProvider) {
-        payload.image
-            = viewport.secondarySequenceFrameImage(request.secondaryActiveRequest.target.frame);
-        return payload;
     }
     payload.image = display.secondaryDisplayedImage;
     return payload;
@@ -96,10 +89,10 @@ bool secondaryPayloadReadyForPendingTarget(ViewportControllerPort& viewport)
     if (!targetRequiresSecondaryPayload(viewport)) {
         return true;
     }
-    if (hasSecondaryProviderSequence(viewport)) {
+    if (hasSecondarySequence(viewport)) {
         return !viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull();
     }
-    return viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame.isValid();
+    return false;
 }
 
 bool hasPendingTargetSpreadPayload(ViewportControllerPort& viewport)

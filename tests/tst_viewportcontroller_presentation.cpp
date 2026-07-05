@@ -29,18 +29,6 @@ public:
     bool hasDisplayableSequence() const override { return sequence != nullptr; }
     QSizeF sequenceLogicalSize() const override { return logicalSize; }
     QSizeF secondarySequenceLogicalSize() const override { return secondaryLogicalSize; }
-    QImage sequenceFrameImage(int) const override
-    {
-        QImage image(logicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        return image;
-    }
-    QImage secondarySequenceFrameImage(int) const override
-    {
-        QImage image(secondaryLogicalSize.toSize(), QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        return image;
-    }
     double width() const override { return itemSize.width(); }
     double height() const override { return itemSize.height(); }
 };

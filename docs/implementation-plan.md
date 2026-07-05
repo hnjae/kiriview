@@ -255,6 +255,8 @@ F1, F2.
 
 ### Milestone 3: Built-In Payload Preparation Boundary
 
+**Status:** Complete on 2026-07-05. Built-in primary and secondary frames now enter render as `PreparedPayload` values through `FramePreparation`, controller context/port frame-image accessors were removed, and a structural CTest guard enforces the controller/render boundary. `just test` passed all 29 configured tests. Assumption: built-in frame admission remains an internal preparation contract; the durable docs require the boundary but do not define a new public error mode for an invalid built-in payload.
+
 #### Objective
 
 Perform the behavior-preserving payload-boundary refactor before render-fallback behavior changes touch adjacent code.
@@ -292,13 +294,13 @@ F5.
 
 #### Tasks
 
-- [ ] Add the F5 intended-contract tests and static boundary checks from the matrix before changing production code.
-- [ ] Trace built-in still and timed sequence frame flow from source loading through controller state to render commit.
-- [ ] Remove `QImage sequenceFrameImage(...)` and `secondarySequenceFrameImage(...)` from controller context/port APIs.
-- [ ] Prevent `src/viewportcontroller*.cpp` from reaching `ImageSequencePrivateAccess::frameImage(...)` directly or through `sourceFrameImage(...)`.
-- [ ] Make built-in frame materialization return `PreparedPayload` or a structured preparation rejection through the preparation boundary.
-- [ ] Keep sequence ownership and frame identity behind the sequence boundary.
-- [ ] Add or update still, timed, playback, and render commit tests for displayed size, frame identity, render commit behavior, and playback behavior.
+- [x] Add the F5 intended-contract tests and static boundary checks from the matrix before changing production code.
+- [x] Trace built-in still and timed sequence frame flow from source loading through controller state to render commit.
+- [x] Remove `QImage sequenceFrameImage(...)` and `secondarySequenceFrameImage(...)` from controller context/port APIs.
+- [x] Prevent `src/viewportcontroller*.cpp` from reaching `ImageSequencePrivateAccess::frameImage(...)` directly or through `sourceFrameImage(...)`.
+- [x] Make built-in frame materialization return `PreparedPayload` or a structured preparation rejection through the preparation boundary.
+- [x] Keep sequence ownership and frame identity behind the sequence boundary.
+- [x] Add or update still, timed, playback, and render commit tests for displayed size, frame identity, render commit behavior, and playback behavior.
 
 #### Acceptance criteria
 
@@ -311,8 +313,8 @@ F5.
 #### Verification
 
 - `just test`
-- `ctest --test-dir build-ninja --output-on-failure -R 'imageviewport_still|imageviewport_timed|imageviewport_render_commit|viewportcontroller_playback'`
-- `rg -n 'sequenceFrameImage|secondarySequenceFrameImage|ImageSequencePrivateAccess::frameImage|sourceFrameImage' src` should show no controller/render-boundary hits; any remaining hits must be confined to the sequence/preparation owner.
+- `ctest --test-dir build-ninja --output-on-failure -R 'imageviewport_still|imageviewport_timed|imageviewport_render_commit|viewportcontroller_playback|imagesequence_factory|structural::builtInPayloadBoundary'`
+- `rg -n 'sequenceFrameImage|secondarySequenceFrameImage|ImageSequencePrivateAccess::frameImage|sourceFrameImage' src` shows only sequence/preparation-owner hits.
 
 #### Risks / notes
 

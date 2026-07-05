@@ -130,17 +130,6 @@ public:
         return frameIndexForPositionIn(secondaryDurations, position);
     }
 
-    QImage sequenceFrameImage(int frame) const override
-    {
-        return frame >= 0 && frame < images.size() ? images.at(frame) : QImage();
-    }
-
-    QImage secondarySequenceFrameImage(int frame) const override
-    {
-        return frame >= 0 && frame < secondaryImages.size() ? secondaryImages.at(frame)
-                                                            : QImage();
-    }
-
 private:
     static int totalDurationFor(const QVector<int>& frameDurations)
     {

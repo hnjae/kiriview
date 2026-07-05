@@ -2,6 +2,7 @@
 
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportlimits_p.h"
+#include "imagesequencesource_p.h"
 #include "timingintervals_p.h"
 
 #include <utility>
@@ -50,6 +51,17 @@ FramePreparation::ProviderFrameAdmissionResult providerFrameError(
         cause, ImageViewport::RequestStatus::Error, std::move(diagnostic));
 }
 
+FramePreparation::BuiltInFrameAdmissionResult builtInFrameError(
+    FramePreparation::BuiltInFrameAdmissionResult::Cause cause, QString diagnostic)
+{
+    return {
+        cause,
+        ImageViewport::RequestStatus::Error,
+        ImageViewport::RequestReason::PayloadRejection,
+        std::move(diagnostic),
+    };
+}
+
 } // namespace
 
 bool FramePreparation::ProviderMetadataAdmissionResult::accepted() const
@@ -63,6 +75,11 @@ bool FramePreparation::ProviderKnownFactsAdmissionResult::accepted() const
 }
 
 bool FramePreparation::ProviderFrameAdmissionResult::accepted() const
+{
+    return cause == Cause::Accepted;
+}
+
+bool FramePreparation::BuiltInFrameAdmissionResult::accepted() const
 {
     return cause == Cause::Accepted;
 }
@@ -300,6 +317,29 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         { state.preparedPayload.commitPending, state.preparedPayload.generation,
             state.preparedPayload.requestId, state.preparedPayload.payloadId,
             frame->imagePayload() },
+    };
+}
+
+FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFrame(
+    const ImageViewportInternal::ImageSequenceSource& source, int frame,
+    const ImageViewportInternal::PreparedPayload& preparedPayload)
+{
+    using Cause = BuiltInFrameAdmissionResult::Cause;
+
+    QImage image = sourceFrameImage(source, frame);
+    if (image.isNull()) {
+        return builtInFrameError(
+            Cause::InvalidFramePayload, QStringLiteral("built-in frame payload is invalid"));
+    }
+
+    ImageViewportInternal::PreparedPayload admittedPayload = preparedPayload;
+    admittedPayload.image = std::move(image);
+    return {
+        Cause::Accepted,
+        ImageViewport::RequestStatus::Ready,
+        ImageViewport::RequestReason::Ready,
+        {},
+        admittedPayload,
     };
 }
 

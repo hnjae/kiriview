@@ -940,7 +940,8 @@ void ImageSequenceFactoryTest::stillImageSequenceRetainsFactoryPayload()
         QVERIFY(result->sequence());
     }
 
-    const QImage retained = frameImageForTest(*result->sequence(), 0);
+    const QImage retained = ImageViewportInternal::sourceFrameImage(
+        ImageViewportInternal::factorySequenceSource(result->sequence()), 0);
     QCOMPARE(retained.size(), QSize(2, 1));
     QCOMPARE(retained.pixelColor(0, 0), QColor(255, 0, 0, 255));
     QCOMPARE(retained.pixelColor(1, 0), QColor(0, 255, 0, 255));
@@ -965,11 +966,13 @@ void ImageSequenceFactoryTest::timedFrameListSequenceRetainsFactoryPayloads()
         QVERIFY(result->sequence());
     }
 
-    const QImage firstRetained = frameImageForTest(*result->sequence(), 0);
+    const ImageViewportInternal::ImageSequenceSource source
+        = ImageViewportInternal::factorySequenceSource(result->sequence());
+    const QImage firstRetained = ImageViewportInternal::sourceFrameImage(source, 0);
     QCOMPARE(firstRetained.size(), QSize(2, 1));
     QCOMPARE(firstRetained.pixelColor(0, 0), QColor(255, 0, 0, 255));
 
-    const QImage secondRetained = frameImageForTest(*result->sequence(), 1);
+    const QImage secondRetained = ImageViewportInternal::sourceFrameImage(source, 1);
     QCOMPARE(secondRetained.size(), QSize(2, 1));
     QCOMPARE(secondRetained.pixelColor(0, 0), QColor(0, 255, 0, 255));
 }

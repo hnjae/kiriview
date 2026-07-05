@@ -168,16 +168,6 @@ QSizeF ImageViewportPrivate::secondarySequenceLogicalSize() const
     return sourceLogicalSize(controller.requestState().secondarySequenceSource);
 }
 
-QImage ImageViewportPrivate::sequenceFrameImage(int frame) const
-{
-    return sourceFrameImage(controller.requestState().sequenceSource, frame);
-}
-
-QImage ImageViewportPrivate::secondarySequenceFrameImage(int frame) const
-{
-    return sourceFrameImage(controller.requestState().secondarySequenceSource, frame);
-}
-
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)
 {
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);

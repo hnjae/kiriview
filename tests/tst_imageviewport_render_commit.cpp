@@ -161,6 +161,10 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
     const quint64 generation = pendingRenderGenerationForTest(item);
     const quint64 requestId = activeRequestIdForTest(item);
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
+    const quint64 secondaryPayloadId = secondaryPendingRenderPayloadIdForTest(item);
+    QVERIFY(payloadId > 0);
+    QVERIFY(secondaryPayloadId > 0);
+    QVERIFY(secondaryPayloadId != payloadId);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
@@ -177,7 +181,7 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    acknowledgePendingRenderCommitForTest(item);
+    acknowledgeRenderCommitForTest(item, generation, requestId, payloadId, secondaryPayloadId);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));

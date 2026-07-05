@@ -89,11 +89,30 @@ public:
         bool accepted() const;
     };
 
+    struct BuiltInFrameAdmissionResult
+    {
+        enum class Cause {
+            Accepted,
+            InvalidFramePayload,
+        };
+
+        Cause cause = Cause::Accepted;
+        ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Ready;
+        ImageViewport::RequestReason reason = ImageViewport::RequestReason::Ready;
+        QString diagnostic;
+        ImageViewportInternal::PreparedPayload preparedPayload;
+
+        bool accepted() const;
+    };
+
     static ProviderMetadataAdmissionResult admitProviderMetadata(
         const ImageSequenceProviderMetadata& metadata);
     static ProviderKnownFactsAdmissionResult admitProviderKnownFacts(
         const ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
+    static BuiltInFrameAdmissionResult admitBuiltInFrame(
+        const ImageViewportInternal::ImageSequenceSource& source, int frame,
+        const ImageViewportInternal::PreparedPayload& preparedPayload);
     static QString boundedDiagnostic(QString diagnostic, QString fallback);
 };

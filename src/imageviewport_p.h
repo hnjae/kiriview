@@ -317,8 +317,6 @@ public:
     ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override;
     QSizeF sequenceLogicalSize() const override;
     QSizeF secondarySequenceLogicalSize() const override;
-    QImage sequenceFrameImage(int frame) const override;
-    QImage secondarySequenceFrameImage(int frame) const override;
 
     double width() const override;
     double height() const override;

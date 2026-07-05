@@ -389,9 +389,9 @@ QSizeF pendingSecondaryGeometrySize(ViewportControllerPort viewport)
                                                    : displayedSecondaryGeometrySize(viewport);
     }
 
-    const QSizeF sequenceSize = viewport.secondarySequenceLogicalSize();
-    return isPositiveGeometrySize(sequenceSize) ? sequenceSize
-                                                : displayedSecondaryGeometrySize(viewport);
+    const QSizeF pendingSize = imageLogicalSize(display.secondaryPendingRenderPayload.image);
+    return isPositiveGeometrySize(pendingSize) ? pendingSize
+                                               : displayedSecondaryGeometrySize(viewport);
 }
 
 QSizeF acceptedPrimaryGeometrySize(ViewportControllerPort viewport)

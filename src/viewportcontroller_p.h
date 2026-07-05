@@ -469,7 +469,6 @@ public:
     virtual int sequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
     virtual QSizeF sequenceLogicalSize() const;
-    virtual QImage sequenceFrameImage(int frame) const;
 
     // Secondary built-in sequence facts and payload data.
     virtual bool hasSecondaryTimedSequence() const;
@@ -480,7 +479,6 @@ public:
     virtual int secondarySequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
     virtual QSizeF secondarySequenceLogicalSize() const;
-    virtual QImage secondarySequenceFrameImage(int frame) const;
 
     // Secondary provider construction/runtime facts.
     virtual ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
@@ -553,8 +551,6 @@ public:
     ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
     QSizeF sequenceLogicalSize() const;
     QSizeF secondarySequenceLogicalSize() const;
-    QImage sequenceFrameImage(int frame) const;
-    QImage secondarySequenceFrameImage(int frame) const;
     double width() const;
     double height() const;
 
@@ -620,10 +616,10 @@ public:
     void publishRenderWaitingState();
     void publishUploadPendingState();
     void publishPendingRenderState();
-    void publishSequenceReadyState(const QImage& providerImage = {});
+    void publishSequenceReadyState();
     void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishStagedBuiltInPrimarySpreadReadyState();
-    void publishAcceptedTargetState(const QImage& providerImage = {});
+    void publishAcceptedTargetState();
     void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishProviderFrameLoadingState();
     void setPlaybackPhase(ViewportCommandResult& result, ImageViewport::PlaybackPhase phase);

@@ -402,9 +402,4 @@ QImage imageForTest(const ImageFrame& frame)
     return ImageViewportInternal::ImageFramePrivateAccess::image(frame);
 }
 
-QImage frameImageForTest(const ImageSequence& sequence, int frame)
-{
-    return ImageViewportInternal::ImageSequencePrivateAccess::frameImage(&sequence, frame);
-}
-
 } // namespace ImageViewportTestHooks

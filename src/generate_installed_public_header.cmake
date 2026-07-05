@@ -56,14 +56,6 @@ foreach(
     ITEMS
         [=[
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-public:
-    QImage frameImageForTest(int frame) const;
-
-private:
-#endif
-]=]
-        [=[
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     ImageFrame(const QImage& image, qsizetype payloadByteSizeForTest, QObject* parent = nullptr);
 #endif
 ]=]
