@@ -19,6 +19,7 @@ private slots:
     void exposesTypedPublicValueSurfaces();
     void hasDocumentedDefaultState();
     void typedPublicValueDefaultsExposeDocumentedFields();
+    void pageGeometryValueTypeFields();
     void revisionTokensExposeValidityAndEquality();
     void typedPageSetTransitionPolicyPreservesStateWhenInvalid();
     void emptyGeometryChangeIncrementsDisplayRevision();
@@ -194,6 +195,8 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     const QList<QByteArray> properties = {
         "primarySequence",
         "secondarySequence",
+        "primaryPageGeometry",
+        "secondaryPageGeometry",
         "spreadDirection",
         "pageGap",
         "primaryDisplayedFrame",
@@ -262,6 +265,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
+        "pageGeometry(ImageViewport::PageRole)",
         "panToStart()",
         "panToEnd()",
         "scanNext()",
@@ -322,6 +326,22 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         QVERIFY2(index >= 0, methodName.constData());
         QCOMPARE(QByteArray(metaObject->method(index).typeName()), QByteArray("CoordinateResult"));
     }
+
+    const QList<QByteArray> pageGeometryProperties = {
+        "primaryPageGeometry",
+        "secondaryPageGeometry",
+    };
+    for (const QByteArray& propertyName : pageGeometryProperties) {
+        const int index = metaObject->indexOfProperty(propertyName.constData());
+        QVERIFY2(index >= 0, propertyName.constData());
+        QCOMPARE(QByteArray(metaObject->property(index).typeName()), QByteArray("PageGeometry"));
+    }
+
+    const int pageGeometryMethodIndex = metaObject->indexOfMethod(
+        QMetaObject::normalizedSignature("pageGeometry(ImageViewport::PageRole)"));
+    QVERIFY(pageGeometryMethodIndex >= 0);
+    QCOMPARE(QByteArray(metaObject->method(pageGeometryMethodIndex).typeName()),
+        QByteArray("PageGeometry"));
 
     const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {
@@ -423,6 +443,77 @@ void ImageViewportPublicApiTest::typedPublicValueDefaultsExposeDocumentedFields(
     QCOMPARE(imageToItem.isValid(), false);
     QCOMPARE(imageToItem.x(), 0.0);
     QCOMPARE(imageToItem.y(), 0.0);
+
+    const PageGeometry primaryGeometry = item.primaryPageGeometry();
+    QCOMPARE(primaryGeometry.role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(primaryGeometry.isAvailable(), false);
+    QCOMPARE(primaryGeometry.pageRect(), QRectF());
+    QCOMPARE(primaryGeometry.itemRect(), QRectF());
+    QCOMPARE(primaryGeometry.visiblePageRect(), QRectF());
+
+    const PageGeometry secondaryGeometry = item.secondaryPageGeometry();
+    QCOMPARE(secondaryGeometry.role(), ImageViewport::PageRole::Secondary);
+    QCOMPARE(secondaryGeometry.isAvailable(), false);
+    QCOMPARE(secondaryGeometry.pageRect(), QRectF());
+    QCOMPARE(secondaryGeometry.itemRect(), QRectF());
+    QCOMPARE(secondaryGeometry.visiblePageRect(), QRectF());
+}
+
+void ImageViewportPublicApiTest::pageGeometryValueTypeFields()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    QImage secondaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(26.0, 20.0));
+    QCOMPARE(item.setPageSet(primaryResult->sequence(), secondaryResult->sequence()),
+        ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(item);
+
+    const PageGeometry primaryGeometry = item.primaryPageGeometry();
+    QCOMPARE(primaryGeometry.role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(primaryGeometry.isAvailable(), true);
+    QCOMPARE(primaryGeometry.pageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(primaryGeometry.itemRect(), item.primaryItemRect());
+    QCOMPARE(primaryGeometry.itemRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(primaryGeometry.visiblePageRect(), item.visiblePrimaryPageRect());
+    QCOMPARE(primaryGeometry.visiblePageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+
+    const PageGeometry secondaryGeometry = item.secondaryPageGeometry();
+    QCOMPARE(secondaryGeometry.role(), ImageViewport::PageRole::Secondary);
+    QCOMPARE(secondaryGeometry.isAvailable(), true);
+    QCOMPARE(secondaryGeometry.pageRect(), QRectF(16.0, 0.0, 10.0, 20.0));
+    QCOMPARE(secondaryGeometry.itemRect(), item.secondaryItemRect());
+    QCOMPARE(secondaryGeometry.itemRect(), QRectF(16.0, 0.0, 10.0, 20.0));
+    QCOMPARE(secondaryGeometry.visiblePageRect(), item.visibleSecondaryPageRect());
+    QCOMPARE(secondaryGeometry.visiblePageRect(), QRectF(0.0, 0.0, 10.0, 20.0));
+
+    const PageGeometry selectedSecondaryGeometry
+        = item.pageGeometry(ImageViewport::PageRole::Secondary);
+    QCOMPARE(selectedSecondaryGeometry, secondaryGeometry);
+
+    ImageViewport primaryOnly;
+    primaryOnly.setSize(QSizeF(16.0, 8.0));
+    primaryOnly.setSequence(primaryResult->sequence());
+    acknowledgePendingRenderCommitForTest(primaryOnly);
+
+    const PageGeometry unavailableSecondary = primaryOnly.secondaryPageGeometry();
+    QCOMPARE(unavailableSecondary.role(), ImageViewport::PageRole::Secondary);
+    QCOMPARE(unavailableSecondary.isAvailable(), false);
+    QCOMPARE(unavailableSecondary.pageRect(), QRectF());
+    QCOMPARE(unavailableSecondary.itemRect(), QRectF());
+    QCOMPARE(unavailableSecondary.visiblePageRect(), QRectF());
+    QCOMPARE(primaryOnly.pageGeometry(ImageViewport::PageRole::Secondary), unavailableSecondary);
 }
 
 void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()

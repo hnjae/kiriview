@@ -127,6 +127,13 @@ ViewportCommandResult invalidPresentationCommand(ViewportControllerPort& viewpor
     setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
     return result;
 }
+
+ViewportCommandResult preservedPresentationCommand(ImageViewport::CommandOutcome outcome)
+{
+    ViewportCommandResult result;
+    result.outcome = outcome;
+    return result;
+}
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTransition(
@@ -259,10 +266,10 @@ ViewportCommandResult ViewportController::setSpreadDirection(
     ImageViewport::SpreadDirection direction)
 {
     if (!ImageViewportInternal::isValidSpreadDirection(direction)) {
-        return invalidPresentationCommand(viewport);
+        return preservedPresentationCommand(ImageViewport::CommandOutcome::Invalid);
     }
     if (state.presentation.spreadDirection == direction) {
-        return acceptedPresentationCommand(viewport);
+        return preservedPresentationCommand(ImageViewport::CommandOutcome::Accepted);
     }
 
     state.presentation.spreadDirection = direction;
@@ -273,10 +280,10 @@ ViewportCommandResult ViewportController::setSpreadDirection(
 ViewportCommandResult ViewportController::setPageGap(double gap)
 {
     if (!std::isfinite(gap) || gap < 0.0) {
-        return invalidPresentationCommand(viewport);
+        return preservedPresentationCommand(ImageViewport::CommandOutcome::Invalid);
     }
     if (state.presentation.pageGap == gap) {
-        return acceptedPresentationCommand(viewport);
+        return preservedPresentationCommand(ImageViewport::CommandOutcome::Accepted);
     }
 
     state.presentation.pageGap = gap;

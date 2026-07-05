@@ -179,6 +179,8 @@ F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11.
 
 ### Milestone 2: Public API Conformance For Page Geometry And Command Outcomes
 
+**Status:** Complete on 2026-07-05. Implemented typed page geometry as `primaryPageGeometry`, `secondaryPageGeometry`, and `pageGeometry(role)` plus C++/QML/install-consumer coverage; fixed standalone direction/gap invalid and no-op commands to preserve diagnostics and revision tokens. Assumption: the authoritative docs require typed page geometry but do not name the accessors, so the implementation follows the existing role-scoped geometry naming pattern.
+
 #### Objective
 
 Bring documented public page geometry and command outcome behavior into conformance with the durable API contract.
@@ -220,16 +222,16 @@ F1, F2.
 
 #### Tasks
 
-- [ ] Add the F1 and F2 intended-contract tests from the matrix before changing production code.
-- [ ] Locate the existing public value type pattern for range, rectangle, size, point, command outcome, and revision token.
-- [ ] Add a page-geometry value type using the project’s typed value pattern, such as `Q_GADGET`/`QML_VALUE_TYPE`, not a public `QVariantMap` contract.
-- [ ] Include fields for page role, page rect in spread coordinates, item rect, visible page rect, and availability.
-- [ ] Expose page-geometry accessors through C++ and QML consistently with the existing public API style.
-- [ ] Update installed public header generation, QML module metadata, and install-consumer coverage so package consumers see the value type without private headers.
-- [ ] Ensure page-geometry values are derived from existing presentation/domain state instead of introducing a second geometry source of truth.
-- [ ] Add C++ and QML tests for one-page geometry, two-page geometry, explicit unavailable secondary geometry, non-`QVariantMap` field access, and compatibility rectangle equality.
-- [ ] Change direction/gap command handling so rejected invalid requests and current-value no-ops leave diagnostics and revision tokens unchanged.
-- [ ] Add or update command tests to cover invalid, no-op, and valid changed values.
+- [x] Add the F1 and F2 intended-contract tests from the matrix before changing production code.
+- [x] Locate the existing public value type pattern for range, rectangle, size, point, command outcome, and revision token.
+- [x] Add a page-geometry value type using the project’s typed value pattern, such as `Q_GADGET`/`QML_VALUE_TYPE`, not a public `QVariantMap` contract.
+- [x] Include fields for page role, page rect in spread coordinates, item rect, visible page rect, and availability.
+- [x] Expose page-geometry accessors through C++ and QML consistently with the existing public API style.
+- [x] Update installed public header generation, QML module metadata, and install-consumer coverage so package consumers see the value type without private headers.
+- [x] Ensure page-geometry values are derived from existing presentation/domain state instead of introducing a second geometry source of truth.
+- [x] Add C++ and QML tests for one-page geometry, two-page geometry, explicit unavailable secondary geometry, non-`QVariantMap` field access, and compatibility rectangle equality.
+- [x] Change direction/gap command handling so rejected invalid requests and current-value no-ops leave diagnostics and revision tokens unchanged.
+- [x] Add or update command tests to cover invalid, no-op, and valid changed values.
 
 #### Acceptance criteria
 

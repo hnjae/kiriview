@@ -117,6 +117,8 @@ QRectF ImageViewport::primaryItemRect() const { return d->primaryItemRect(); }
 QRectF ImageViewport::secondaryItemRect() const { return d->secondaryItemRect(); }
 QRectF ImageViewport::visiblePrimaryPageRect() const { return d->visiblePrimaryPageRect(); }
 QRectF ImageViewport::visibleSecondaryPageRect() const { return d->visibleSecondaryPageRect(); }
+PageGeometry ImageViewport::primaryPageGeometry() const { return d->primaryPageGeometry(); }
+PageGeometry ImageViewport::secondaryPageGeometry() const { return d->secondaryPageGeometry(); }
 QSizeF ImageViewport::contentSize() const { return d->contentSize(); }
 QPointF ImageViewport::contentPosition() const { return d->contentPosition(); }
 QPointF ImageViewport::maximumContentPosition() const { return d->maximumContentPosition(); }
@@ -236,6 +238,10 @@ CoordinateResult ImageViewport::itemToPage(PageRole role, double x, double y) co
 CoordinateResult ImageViewport::pageToItem(PageRole role, double x, double y) const
 {
     return d->pageToItem(role, x, y);
+}
+PageGeometry ImageViewport::pageGeometry(PageRole role) const
+{
+    return d->pageGeometry(role);
 }
 bool ImageViewport::containsVisibleSpreadPoint(double x, double y) const
 {

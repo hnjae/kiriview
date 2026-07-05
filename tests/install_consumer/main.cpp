@@ -653,6 +653,25 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    const PageGeometry installedPrimaryGeometry = typedPageSetViewport.primaryPageGeometry();
+    const PageGeometry installedSecondaryGeometry = typedPageSetViewport.secondaryPageGeometry();
+    if (installedPrimaryGeometry.role() != ImageViewport::PageRole::Primary
+        || installedPrimaryGeometry.isAvailable()
+        || installedPrimaryGeometry.pageRect() != QRectF()
+        || installedPrimaryGeometry.itemRect() != QRectF()
+        || installedPrimaryGeometry.visiblePageRect() != QRectF()) {
+        return 1;
+    }
+    if (installedSecondaryGeometry.role() != ImageViewport::PageRole::Secondary
+        || installedSecondaryGeometry.isAvailable()
+        || installedSecondaryGeometry.pageRect() != QRectF()
+        || installedSecondaryGeometry.itemRect() != QRectF()
+        || installedSecondaryGeometry.visiblePageRect() != QRectF()
+        || typedPageSetViewport.pageGeometry(ImageViewport::PageRole::Secondary)
+            != installedSecondaryGeometry) {
+        return 1;
+    }
+
     QVector<QImage> deviceIndependentTimedImages;
     deviceIndependentTimedImages.append(deviceIndependentImage);
     deviceIndependentTimedImages.append(deviceIndependentImage);
