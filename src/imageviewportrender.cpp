@@ -43,6 +43,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
     const RenderAdapterSceneGraph::Output render = RenderAdapterSceneGraph::createNode(
         renderAdapter, oldNode, { planInput, window() });
     if (render.result == RenderAdapter::CommitResult::Failed) {
+        QSGNode* fallbackNode = render.node;
         QVector<ViewportRenderRolePayload> rolePayloads;
         rolePayloads.reserve(render.rolePayloads.size());
         for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
@@ -54,6 +55,10 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         if (changes.playbackPhase) {
             syncPlaybackTimer();
         }
+        if (fallbackNode && displayStatus() != DisplayStatus::Empty) {
+            return fallbackNode;
+        }
+        delete fallbackNode;
         return nullptr;
     }
 

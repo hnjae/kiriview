@@ -150,14 +150,13 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
 RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
     const RenderAdapter& adapter, QSGNode* oldNode, const Input& input)
 {
-    delete oldNode;
-
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input.planInput);
     if (plan.result == RenderAdapter::CommitResult::Failed) {
-        return { nullptr, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
+        return { oldNode, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
     if (plan.backgroundRects.isEmpty() && plan.imageLayers.isEmpty()) {
+        delete oldNode;
         return { nullptr, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
@@ -168,13 +167,14 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
     }
 
     if (plan.imageLayers.isEmpty()) {
+        delete oldNode;
         return { root, plan.result, plan.preparedPayload, plan.rolePayloads, plan.failedRole,
             plan.failureCause };
     }
 
     if (!input.window) {
         delete root;
-        return { nullptr, RenderAdapter::CommitResult::Failed, plan.preparedPayload,
+        return { oldNode, RenderAdapter::CommitResult::Failed, plan.preparedPayload,
             plan.rolePayloads, ImageViewport::PageRole::Primary,
             RenderFailureCause::MissingWindow };
     }
@@ -199,14 +199,14 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             = sceneGraphFactory.createTexture(input.window, payload.image, textureOptions);
         if (!texture) {
             delete root;
-            return { nullptr, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
+            return { oldNode, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
                 layer.role, RenderFailureCause::TextureCreationFailure };
         }
         QSGImageNode* imageNode = sceneGraphFactory.createImageNode(input.window);
         if (!imageNode) {
             delete texture;
             delete root;
-            return { nullptr, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
+            return { oldNode, RenderAdapter::CommitResult::Failed, payloadIdentity, rolePayloads,
                 layer.role, RenderFailureCause::ImageNodeCreationFailure };
         }
 
@@ -233,5 +233,6 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
             root->appendChildNode(transformNode);
         }
     }
+    delete oldNode;
     return { root, plan.result, plan.preparedPayload, rolePayloads };
 }

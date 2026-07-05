@@ -322,6 +322,8 @@ F5.
 
 ### Milestone 4: Retained Render Fallback Preserves Pixels
 
+**Status:** Complete on 2026-07-05. Render scene graph materialization now preserves the previous node until a replacement is fully built and returns it after an accepted failure when controller state still has visible content; initial failures without retained content still return `nullptr` and publish `DisplayStatus::Empty`. `just test` passed all 29 configured tests. Assumption: in the current unit seam, a non-null returned previous `QSGNode` is the observable retained-pixel proxy; full framebuffer pixel sampling is outside the existing render test harness.
+
 #### Objective
 
 Ensure render failure semantics match the documented retained display fallback: retained state must correspond to retained visible content.
@@ -353,13 +355,13 @@ F9.
 
 #### Tasks
 
-- [ ] Add the F9 intended-contract tests from the matrix before changing production code.
-- [ ] Trace the current render commit lifecycle for successful commit, failed commit, retained fallback, and empty fallback.
-- [ ] Identify the point where the old scene graph node or equivalent retained snapshot is destroyed.
-- [ ] Change the lifecycle so a failed new commit keeps or rebuilds retained visible content before publishing retained state.
-- [ ] Ensure render commit failure for the active request reports `requestStatus: Error` and `requestReason: RenderFailure`.
-- [ ] Add tests that distinguish retained state with pixels from retained state without pixels, including a scenegraph or pixel-visible assertion.
-- [ ] Ensure empty fallback behavior still clears content when no retained content is valid or clear-before-load applies.
+- [x] Add the F9 intended-contract tests from the matrix before changing production code.
+- [x] Trace the current render commit lifecycle for successful commit, failed commit, retained fallback, and empty fallback.
+- [x] Identify the point where the old scene graph node or equivalent retained snapshot is destroyed.
+- [x] Change the lifecycle so a failed new commit keeps or rebuilds retained visible content before publishing retained state.
+- [x] Ensure render commit failure for the active request reports `requestStatus: Error` and `requestReason: RenderFailure`.
+- [x] Add tests that distinguish retained state with pixels from retained state without pixels, including a scenegraph or pixel-visible assertion.
+- [x] Ensure empty fallback behavior still clears content when no retained content is valid or clear-before-load applies.
 
 #### Acceptance criteria
 

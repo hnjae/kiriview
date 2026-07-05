@@ -6,6 +6,7 @@
 #include <QtCore/QElapsedTimer>
 #include <QtGui/QMatrix4x4>
 
+#include <memory>
 #include <utility>
 
 class ImageViewportRenderSceneGraphTest : public QObject
@@ -37,6 +38,8 @@ private slots:
     void renderAdapterReportsTextureCreationFailureCause();
     void renderAdapterReportsImageNodeCreationFailureCause();
     void renderAdapterReportsInvalidRolePayloadFailureCause();
+    void initialRenderFailureWithoutRetainedContentReturnsNullNode();
+    void retainedRenderFailureKeepsOldPaintNode();
     void renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph();
     void renderPlanBuildsRoleLayerMappingWithoutSceneGraph();
     void renderPlanReportsPreMaterializationFailureIntent();
@@ -783,6 +786,90 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFa
 
     QCOMPARE(output.result, RenderAdapter::CommitResult::Failed);
     QCOMPARE(output.failureCause, RenderFailureCause::InvalidRolePayload);
+}
+
+void ImageViewportRenderSceneGraphTest::initialRenderFailureWithoutRetainedContentReturnsNullNode()
+{
+    ImageSequenceFactory factory;
+    QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(255, 0, 0, 255));
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    PaintProbeViewport item;
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QScopedPointer<QSGNode> root(item.takePaintNode());
+
+    QVERIFY(root.isNull());
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+}
+
+void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(QColor(255, 0, 0, 255));
+    QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(QColor(0, 255, 0, 255));
+    ImageFrame firstFrame(firstImage);
+    ImageFrame secondFrame(secondImage);
+    TimedImageFrameList list;
+    QVERIFY(list.appendFrame(&firstFrame, 100));
+    QVERIFY(list.appendFrame(&secondFrame, 250));
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromTimedFrameList(&list));
+    QVERIFY(result->sequence());
+
+    QQuickWindow window;
+    window.resize(40, 20);
+    PaintProbeViewport item;
+    item.setParentItem(window.contentItem());
+    item.setSize(QSizeF(40.0, 20.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    std::unique_ptr<QSGNode> readyRoot(item.takePaintNode());
+    QVERIFY(readyRoot);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+
+    QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QVERIFY(hasPendingRenderCommitForTest(item));
+
+    item.setParentItem(nullptr);
+    QSGNode* oldNode = readyRoot.release();
+    QScopedPointer<QSGNode> retainedRoot(item.takePaintNode(oldNode));
+
+    QCOMPARE(retainedRoot.data(), oldNode);
+    QCOMPARE(retainedRoot->childCount(), 1);
+    auto* imageNode = dynamic_cast<QSGImageNode*>(retainedRoot->lastChild());
+    QVERIFY(imageNode);
+    QVERIFY(imageNode->texture());
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "RenderFailure"));
+    QCOMPARE(
+        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
 void ImageViewportRenderSceneGraphTest::renderPlanBuildsBackgroundPrimitivesWithoutSceneGraph()
