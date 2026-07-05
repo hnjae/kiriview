@@ -238,6 +238,11 @@ public:
 
     ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
 
+    void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
+    {
+        m_authoredAnimationFacts = authoredAnimationFacts;
+    }
+
     ImageSequenceProviderKnownFacts knownFacts() const override
     {
         if (m_knownFacts.isSpecified()) {
@@ -252,6 +257,11 @@ public:
 
     CapabilitySupport positionSeekCapability() const override { return m_positionSeekSupport; }
 
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const override
+    {
+        return m_authoredAnimationFacts;
+    }
+
     ImageSequenceProviderThreadingContract threadingContract() const override
     {
         return m_threadingContract;
@@ -264,6 +274,7 @@ private:
     CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
     CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     ImageSequenceProviderThreadingContract m_threadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;
 };

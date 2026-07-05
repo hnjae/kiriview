@@ -637,6 +637,7 @@ public:
     void publishAcceptedTargetState();
     void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishProviderFrameLoadingState();
+    void publishProviderFrameLoadingState(ImageViewport::PageRole role);
     void setPlaybackPhase(ViewportCommandResult& result, ImageViewport::PlaybackPhase phase);
     void setPlaybackPhase(
         ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase);

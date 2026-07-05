@@ -561,6 +561,8 @@ F6, F8.
 
 ### Milestone 8: Provider Role-Aware Request And Playback Invariants
 
+**Status:** Complete on 2026-07-05. Secondary provider frame and position seeks now publish retained/empty fallback through the shared role-aware provider request start path, pending secondary provider targets use the same fallback publication before metadata is available, and provider EOS uses the playback-domain authored loop policy plus shared loop-progress accounting. `just test` passed all 30 configured tests. Assumption: a provider frame-request start may publish the role-aware wait state and retained/empty display fallback, but it must not discard in-flight upload/render payloads because metadata resolution can start one provider role while the other role already has a payload staged for the same spread.
+
 #### Objective
 
 Centralize provider request acceptance and provider end-of-sequence playback decisions so primary and secondary roles follow the same domain rules.
@@ -594,16 +596,16 @@ F3, F4.
 
 #### Tasks
 
-- [ ] Add the F3 and F4 intended-contract tests from the matrix before changing production code.
-- [ ] Identify the current accepted-request path for primary provider targets and the divergent secondary path.
-- [ ] Extract the minimum shared role-aware target materialization logic needed to preserve public behavior.
-- [ ] Route `seek(Secondary, frame)` through the same fallback, revision, and role-state update rules as primary seek.
-- [ ] Route `seekToPosition(Secondary, milliseconds)` through the same fallback, revision, and role-state update rules as primary position seek.
-- [ ] Ensure secondary seek and position seek publish `requestStatus: Loading` and `displayStatus: Retained` or `displayStatus: Empty` until complete spread commit.
-- [ ] Ensure `DisplayStatus::Ready` is not published until all required roles for the spread commit.
-- [ ] Identify the existing authored loop policy owner in playback code.
-- [ ] Replace provider-specific end-of-sequence target selection with the shared playback-domain selector.
-- [ ] Add tests for playback-token EOS handling, play-once final-frame pending/promotable behavior, no beyond-final requested target, `looping: true` override, `looping: false` authored finite policy, `looping: false` authored infinite policy, and secondary EOS using secondary role state.
+- [x] Add the F3 and F4 intended-contract tests from the matrix before changing production code.
+- [x] Identify the current accepted-request path for primary provider targets and the divergent secondary path.
+- [x] Extract the minimum shared role-aware target materialization logic needed to preserve public behavior.
+- [x] Route `seek(Secondary, frame)` through the same fallback, revision, and role-state update rules as primary seek.
+- [x] Route `seekToPosition(Secondary, milliseconds)` through the same fallback, revision, and role-state update rules as primary position seek.
+- [x] Ensure secondary seek and position seek publish `requestStatus: Loading` and `displayStatus: Retained` or `displayStatus: Empty` until complete spread commit.
+- [x] Ensure `DisplayStatus::Ready` is not published until all required roles for the spread commit.
+- [x] Identify the existing authored loop policy owner in playback code.
+- [x] Replace provider-specific end-of-sequence target selection with the shared playback-domain selector.
+- [x] Add tests for playback-token EOS handling, play-once final-frame pending/promotable behavior, no beyond-final requested target, `looping: true` override, `looping: false` authored finite policy, `looping: false` authored infinite policy, and secondary EOS using secondary role state.
 
 #### Acceptance criteria
 

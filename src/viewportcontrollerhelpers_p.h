@@ -686,6 +686,20 @@ bool effectiveLoopingForPlayback(
     return false;
 }
 
+void updateLoopProgressForAcceptedPlaybackTarget(
+    ViewportControllerPort& viewport, bool looped)
+{
+    if (looped && !viewportRequestState(viewport).looping) {
+        ++viewportRequestState(viewport).playbackLoopIterationsCompleted;
+    }
+}
+
+void updateLoopProgressForAcceptedPlaybackTarget(
+    ViewportControllerPort& viewport, const PlaybackAdvanceTarget& target)
+{
+    updateLoopProgressForAcceptedPlaybackTarget(viewport, target.looped);
+}
+
 ImageViewport::PlaybackPhase playbackAdvancePhaseForRequest(
     ImageViewport::RequestStatus requestStatus, bool reachedEnd)
 {

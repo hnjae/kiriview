@@ -429,14 +429,6 @@ void seedPlaybackPosition(ViewportControllerPort& viewport, FrameStartFor frameS
         = playbackStartPosition(viewport, frameStartFor);
 }
 
-void updateLoopProgressForAcceptedPlaybackTarget(
-    ViewportControllerPort& viewport, const PlaybackAdvanceTarget& target)
-{
-    if (target.looped && !viewportRequestState(viewport).looping) {
-        ++viewportRequestState(viewport).playbackLoopIterationsCompleted;
-    }
-}
-
 void applyPlaybackTarget(ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
     viewportRequestState(viewport).beginDisplayRequest(
@@ -1118,9 +1110,7 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
                 result.changes.diagnostics = true;
             }
         } else {
-            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-            viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-            discardPendingRenderCommit();
+            publishProviderFrameLoadingState(ImageViewport::PageRole::Secondary);
         }
 
         result.changes.requestRevision = true;
@@ -1343,9 +1333,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
                 result.changes.diagnostics = true;
             }
         } else {
-            viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
-            viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-            discardPendingRenderCommit();
+            publishProviderFrameLoadingState(ImageViewport::PageRole::Secondary);
         }
 
         result.changes.requestRevision = true;

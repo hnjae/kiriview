@@ -899,9 +899,19 @@ void ViewportController::publishAcceptedTargetState(
 
 void ViewportController::publishProviderFrameLoadingState()
 {
+    publishProviderFrameLoadingState(ImageViewport::PageRole::Primary);
+}
+
+void ViewportController::publishProviderFrameLoadingState(ImageViewport::PageRole role)
+{
     clearControllerDisplayRequestTerminalForAcceptedRequest(viewport);
     ImageViewportInternal::TargetSpreadWaitState waitState;
-    waitState.primary.providerWaiting = true;
+    if (role == ImageViewport::PageRole::Secondary) {
+        waitState.requiresSecondary = true;
+        waitState.secondary.providerWaiting = true;
+    } else {
+        waitState.primary.providerWaiting = true;
+    }
     publishLoadingWaitState(waitState);
     viewportDisplayState(viewport).status
         = viewportDisplayState(viewport).displayedImageSize.isValid()

@@ -1203,9 +1203,10 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     provider.activeFrameToken = {};
     const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
 
+    const bool loopPlayback = effectiveLoopingForPlayback(viewport, provider.authoredAnimationFacts);
     int selectedFrame = 0;
     int selectedPosition = 0;
-    if (viewportRequestState(viewport).looping) {
+    if (loopPlayback) {
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         viewportRequestState(viewport).playbackPosition = 0;
     } else {
@@ -1232,7 +1233,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
             = { selectedFrame, selectedPosition };
     }
 
-    if (role == ImageViewport::PageRole::Primary && !viewportRequestState(viewport).looping
+    if (role == ImageViewport::PageRole::Primary && !loopPlayback
         && viewport.hasReadyDisplay()
         && viewportDisplayState(viewport).displayedRequest.generation
             == viewportRequestState(viewport).sequenceGeneration
@@ -1252,7 +1253,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         return result;
     }
 
-    publishProviderFrameLoadingState();
+    publishProviderFrameLoadingState(role);
     const ViewportProviderFrameDispatchResult dispatch
         = dispatchProviderFrameRequest(role, { providerTarget });
     result.providerFrameTransport = dispatch.transport;
@@ -1262,6 +1263,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         result.changes.diagnostics = true;
         return result;
     }
+    updateLoopProgressForAcceptedPlaybackTarget(viewport, loopPlayback);
     setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Waiting);
     result.changes.requestRevision = true;
     result.changes.displayRevision = true;
@@ -1373,6 +1375,10 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
         waitState.primary.providerWaiting = true;
     }
     publishLoadingWaitState(waitState);
+    viewportDisplayState(viewport).status
+        = viewportDisplayState(viewport).displayedImageSize.isValid()
+        ? ImageViewport::DisplayStatus::Retained
+        : ImageViewport::DisplayStatus::Empty;
 
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
