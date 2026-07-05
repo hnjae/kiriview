@@ -108,6 +108,8 @@ No temporary design review finding was overridden by the authoritative docs. The
 
 ### Milestone 1: Baseline Verification And Contract-Test Matrix
 
+**Status:** Complete on 2026-07-05. `just test` passed all 28 configured tests before implementation changes, and `ctest --test-dir build-ninja --output-on-failure -N` confirmed the focused CTest targets named in the matrix.
+
 #### Objective
 
 Establish a green verification baseline and use the matrix below to guide red/green tests in the owning implementation milestones.
@@ -154,11 +156,11 @@ F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11.
 
 #### Tasks
 
-- [ ] Confirm the current verification commands by inspecting `justfile`, `CMakeLists.txt`, and `tests/CMakeLists.txt`.
-- [ ] Run `just test` before implementation changes.
-- [ ] If the baseline fails, stop and record the failing targets in this plan before beginning architectural work.
-- [ ] Confirm that each focused CTest target in the matrix exists or update the target name before adding tests.
-- [ ] Add only green characterization tests in this milestone; move any red intended-contract test into its owning implementation milestone.
+- [x] Confirm the current verification commands by inspecting `justfile`, `CMakeLists.txt`, and `tests/CMakeLists.txt`.
+- [x] Run `just test` before implementation changes.
+- [x] If the baseline fails, stop and record the failing targets in this plan before beginning architectural work.
+- [x] Confirm that each focused CTest target in the matrix exists or update the target name before adding tests.
+- [x] Add only green characterization tests in this milestone; move any red intended-contract test into its owning implementation milestone.
 
 #### Acceptance criteria
 
