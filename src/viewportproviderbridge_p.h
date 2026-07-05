@@ -4,6 +4,7 @@
 #include "imageviewportstate_p.h"
 #include "viewportproviderevent_p.h"
 
+#include <QtCore/QPointer>
 #include <QtCore/Qt>
 
 #include <functional>
@@ -88,6 +89,9 @@ private:
     ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
     ViewportProviderExecutor* providerExecutor = nullptr;
+    QPointer<ImageSequenceProviderSession> pendingCleanupSession;
+    ImageSequenceProviderRequestToken pendingCleanupMetadataToken;
+    ImageSequenceProviderRequestToken pendingCleanupFrameToken;
     bool forceNextCommandDeliveryFailure = false;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousEventDelivery = false;

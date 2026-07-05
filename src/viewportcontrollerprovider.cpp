@@ -3,11 +3,35 @@
 #include <memory>
 
 namespace {
+bool unsupportedCauseIsValid(ImageSequenceProviderSession::UnsupportedCause cause)
+{
+    switch (cause) {
+    case ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest:
+    case ImageSequenceProviderSession::UnsupportedCause::PayloadRejection:
+        return true;
+    }
+    return false;
+}
+
+bool terminalEventHasInvalidUnsupportedCause(const ViewportProviderTerminalEvent& event)
+{
+    return event.kind == ViewportProviderTerminalEvent::Kind::Unsupported
+        && event.unsupportedCauseExplicit && !unsupportedCauseIsValid(event.unsupportedCause);
+}
+
 ViewportProviderFrameTerminalResult frameTerminalResultFor(
     const ViewportProviderTerminalEvent& event)
 {
     switch (event.kind) {
     case ViewportProviderTerminalEvent::Kind::Unsupported:
+        if (terminalEventHasInvalidUnsupportedCause(event)) {
+            return {
+                ImageViewport::RequestStatus::Error,
+                ImageViewport::RequestReason::PayloadRejection,
+                {},
+                QStringLiteral("provider protocol violation"),
+            };
+        }
         return {
             ImageViewport::RequestStatus::Unsupported,
             event.unsupportedCause
@@ -41,6 +65,14 @@ ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
 {
     switch (event.kind) {
     case ViewportProviderTerminalEvent::Kind::Unsupported:
+        if (terminalEventHasInvalidUnsupportedCause(event)) {
+            return {
+                ImageViewport::RequestStatus::Error,
+                ImageViewport::RequestReason::PayloadRejection,
+                {},
+                QStringLiteral("provider protocol violation"),
+            };
+        }
         return {
             ImageViewport::RequestStatus::Unsupported,
             event.unsupportedCauseExplicit
@@ -690,7 +722,9 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
     }
 
     if (activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token)) {
-        return { handleProviderFrameTerminalResult(role, frameTerminalResultFor(event)), {} };
+        return { handleProviderFrameTerminalResult(role, frameTerminalResultFor(event)),
+            terminalEventHasInvalidUnsupportedCause(event) ? closeProviderSession(role)
+                                                          : ViewportProviderFrameTransportEffect {} };
     }
 
     if (provider.metadataReady || !provider.activeMetadataToken.isValid()

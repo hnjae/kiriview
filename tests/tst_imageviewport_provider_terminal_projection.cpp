@@ -40,6 +40,8 @@ private slots:
     void secondaryProviderFrameTerminalResultsProjectThroughSpread();
     void secondaryProviderPlaybackTerminalResultsProjectThroughSpread_data();
     void secondaryProviderPlaybackTerminalResultsProjectThroughSpread();
+    void invalidUnsupportedCauseIsProtocolViolation_data();
+    void invalidUnsupportedCauseIsProtocolViolation();
     void providerInvalidTerminalTokenBeforeMetadataIsIgnored();
     void providerInvalidTerminalTokenAfterMetadataIsIgnored();
 };
@@ -693,6 +695,95 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 100);
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), 0);
     QVERIFY(item.property("errorString").toString().contains(diagnostic));
+}
+
+void ImageViewportProviderTerminalProjectionTest::
+    invalidUnsupportedCauseIsProtocolViolation_data()
+{
+    QTest::addColumn<int>("tokenScope");
+    QTest::addColumn<QString>("suppliedDiagnostic");
+    QTest::addColumn<QString>("expectedDisplayStatus");
+
+    QTest::newRow("metadata") << 0 << QStringLiteral("metadata unsupported cause private detail")
+                              << QStringLiteral("Empty");
+    QTest::newRow("frame") << 1 << QStringLiteral("frame unsupported cause private detail")
+                           << QStringLiteral("Empty");
+    QTest::newRow("playback") << 2 << QStringLiteral("playback unsupported cause private detail")
+                              << QStringLiteral("Retained");
+}
+
+void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProtocolViolation()
+{
+    QFETCH(int, tokenScope);
+    QFETCH(QString, suppliedDiagnostic);
+    QFETCH(QString, expectedDisplayStatus);
+
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto playbackRequestCount = std::make_shared<int>(0);
+    const auto lastPlaybackFrame = std::make_shared<int>(-1);
+    const auto lastPlaybackPosition = std::make_shared<int>(-1);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        playbackRequestCount, lastPlaybackFrame, lastPlaybackPosition);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    ImageSequenceProviderRequestToken terminalToken;
+    if (tokenScope == 0) {
+        terminalToken = sessionFactory->lastSession()->lastMetadataToken();
+    } else if (tokenScope == 1) {
+        emit sessionFactory->lastSession()->metadataReady(
+            sessionFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        drainQueuedProviderResults();
+        terminalToken = sessionFactory->lastSession()->lastFrameToken();
+    } else {
+        emit sessionFactory->lastSession()->metadataReady(
+            sessionFactory->lastSession()->lastMetadataToken(),
+            ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+        drainQueuedProviderResults();
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        ImageFrame frame(image);
+        emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
+        acknowledgePendingRenderCommitForTest(item);
+        QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+        advancePlaybackForTest(item, 100);
+        terminalToken = sessionFactory->lastSession()->lastFrameToken();
+        QCOMPARE(*playbackRequestCount, 1);
+    }
+    QVERIFY(terminalToken.isValid());
+
+    emit sessionFactory->lastSession()->providerUnsupportedWithCause(terminalToken,
+        static_cast<ImageSequenceProviderSession::UnsupportedCause>(-1), suppliedDiagnostic);
+    drainQueuedProviderResults();
+
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(item.property("displayStatus").toInt(),
+        enumValue(metaObject, "DisplayStatus", expectedDisplayStatus.toUtf8().constData()));
+    if (tokenScope == 2) {
+        QCOMPARE(
+            item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    }
+    const QString errorString = item.property("errorString").toString();
+    QVERIFY(errorString.contains(QStringLiteral("provider protocol violation")));
+    QVERIFY(!errorString.contains(suppliedDiagnostic));
 }
 
 void ImageViewportProviderTerminalProjectionTest::

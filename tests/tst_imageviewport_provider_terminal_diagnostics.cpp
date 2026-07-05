@@ -14,6 +14,7 @@ private slots:
     void providerDiagnosticsUseUnicodeScalarLimit();
     void providerDiagnosticsRedactPrivateDetails();
     void providerUnsupportedAndCancellationDiagnosticsArePublicSafe();
+    void invalidUnsupportedCauseUsesProtocolDiagnostic();
     void providerDiagnosticsArePlainText();
 };
 
@@ -140,6 +141,44 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
             emit session->providerCancelled(token, diagnostic);
         });
+}
+
+void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesProtocolDiagnostic()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    const QString suppliedDiagnostic
+        = QStringLiteral("invalid cause for https://user:secret@example.test/image.png token=abc123");
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->providerUnsupportedWithCause(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        static_cast<ImageSequenceProviderSession::UnsupportedCause>(-1), suppliedDiagnostic);
+    drainQueuedProviderResults();
+
+    const QString errorString = item.property("errorString").toString();
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QVERIFY(errorString.contains(QStringLiteral("provider protocol violation")));
+    QVERIFY(!errorString.contains(QStringLiteral("https://")));
+    QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
+    QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
+    QVERIFY(errorString.size() <= ImageSequenceLimits::maximumDiagnosticStringLength());
 }
 
 void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainText()

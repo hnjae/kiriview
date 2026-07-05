@@ -1,6 +1,7 @@
 #include "viewportproviderbridge_p.h"
 
 #include <QtCore/QMetaObject>
+#include <QtCore/QPointer>
 #include <QtCore/QThread>
 
 #include <memory>
@@ -35,9 +36,6 @@ public:
     {
         if (!session) {
             return false;
-        }
-        if (session->thread() == QThread::currentThread()) {
-            session->setParent(nullptr);
         }
         const bool queued = QMetaObject::invokeMethod(
             session,
@@ -147,7 +145,46 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
 {
     ViewportProviderTransportResult result;
-    ImageSequenceProviderSession* session = client.takeProviderSession(role);
+    const auto queueCleanup = [this](ImageSequenceProviderSession* session,
+                                  ImageSequenceProviderRequestToken metadata,
+                                  ImageSequenceProviderRequestToken frame) {
+        ViewportProviderTransportResult cleanupResult;
+        QPointer<ImageSequenceProviderSession> sessionGuard(session);
+        cleanupResult.delivered = executor().queueSessionCleanup(session, metadata, frame);
+        if (!cleanupResult.delivered) {
+            cleanupResult.diagnostic = providerTransportDiagnostic(role,
+                ImageViewportInternal::ProviderTransportOperation::Close, metadata, frame, false);
+            return cleanupResult;
+        }
+        if (sessionGuard && sessionGuard->thread() == QThread::currentThread()) {
+            sessionGuard->setParent(nullptr);
+        }
+        return cleanupResult;
+    };
+    const auto rememberPendingCleanup = [this](ImageSequenceProviderSession* session,
+                                            ImageSequenceProviderRequestToken metadata,
+                                            ImageSequenceProviderRequestToken frame) {
+        pendingCleanupSession = session;
+        pendingCleanupMetadataToken = metadata;
+        pendingCleanupFrameToken = frame;
+    };
+
+    if (pendingCleanupSession) {
+        ImageSequenceProviderSession* pendingSession = pendingCleanupSession;
+        result = queueCleanup(
+            pendingSession, pendingCleanupMetadataToken, pendingCleanupFrameToken);
+        if (!result.delivered) {
+            return result;
+        }
+        if (client.currentProviderSession(role) == pendingSession) {
+            client.takeProviderSession(role);
+        }
+        pendingCleanupSession.clear();
+        pendingCleanupMetadataToken = {};
+        pendingCleanupFrameToken = {};
+    }
+
+    ImageSequenceProviderSession* session = client.currentProviderSession(role);
     if (!session) {
         return result;
     }
@@ -156,15 +193,16 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
         result.diagnostic = providerTransportDiagnostic(role,
             ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
             false);
+        rememberPendingCleanup(session, metadataToken, frameToken);
         return result;
     }
 
-    result.delivered = executor().queueSessionCleanup(session, metadataToken, frameToken);
+    result = queueCleanup(session, metadataToken, frameToken);
     if (!result.delivered) {
-        result.diagnostic = providerTransportDiagnostic(role,
-            ImageViewportInternal::ProviderTransportOperation::Close, metadataToken, frameToken,
-            false);
+        rememberPendingCleanup(session, metadataToken, frameToken);
+        return result;
     }
+    client.takeProviderSession(role);
     return result;
 }
 

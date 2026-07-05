@@ -34,6 +34,7 @@ private slots:
     void providerTransportFakeRunsCancellationCloseAndDispatchSynchronously();
     void providerCancelDeliveryFailurePreservesQueuedRequestState();
     void providerCloseDeliveryFailureRecordsDiagnosticAndPreservesClearState();
+    void providerCloseDeliveryFailureRetriesCleanupOnDestructionAndIgnoresLateCallbacks();
     void providerNullSequenceCancelsActiveFrameRequestBeforeClose();
     void providerReplacementIgnoresCancelledMetadataAcknowledgement();
     void providerClearIgnoresCancelledMetadataAcknowledgement();
@@ -1254,6 +1255,72 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(!failed.diagnostic.frameTokenValid);
     QCOMPARE(failed.diagnostic.frameTokenValue, 0U);
     QVERIFY(!failed.diagnostic.queued);
+}
+
+void ImageViewportProviderLifecycleTest::
+    providerCloseDeliveryFailureRetriesCleanupOnDestructionAndIgnoresLateCallbacks()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
+        cancelRequestCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    {
+        ImageViewport item;
+        useSynchronousProviderExecutorForTest(item);
+        useSynchronousProviderEventDeliveryForTest(item);
+        item.setSequence(result->sequence());
+        const QMetaObject* metaObject = item.metaObject();
+
+        CountingProviderSession* session = sessionFactory->lastSession();
+        QVERIFY(session);
+        const ImageSequenceProviderRequestToken metadataToken = session->lastMetadataToken();
+        QVERIFY(metadataToken.isValid());
+        failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
+
+        QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
+        const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+        const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+        const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+        QCOMPARE(*cancelRequestCount, 0);
+        QCOMPARE(*closeCount, 0);
+        QCOMPARE(item.property("requestStatus").toInt(),
+            enumValue(metaObject, "RequestStatus", "NoRequest"));
+        QCOMPARE(item.property("requestReason").toInt(),
+            enumValue(metaObject, "RequestReason", "NoRequest"));
+        QVERIFY(lastProviderTransportDiagnosticForTest(item).valid);
+
+        emit session->providerWaiting(metadataToken);
+        emit session->metadataReady(
+            metadataToken, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        emit session->providerUnsupportedWithCause(metadataToken,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+            QStringLiteral("late unsupported after failed close"));
+        emit session->providerFailed(metadataToken, QStringLiteral("late failure after failed close"));
+
+        QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
+        QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
+        QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
+        QCOMPARE(item.property("requestStatus").toInt(),
+            enumValue(metaObject, "RequestStatus", "NoRequest"));
+        QCOMPARE(item.property("requestReason").toInt(),
+            enumValue(metaObject, "RequestReason", "NoRequest"));
+        QCOMPARE(item.property("errorString").toString(), QString());
+    }
+
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
 }
 
 void ImageViewportProviderLifecycleTest::providerNullSequenceCancelsActiveFrameRequestBeforeClose()
