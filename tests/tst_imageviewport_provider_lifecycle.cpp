@@ -19,6 +19,7 @@ private slots:
     void providerKnownMetadataTokenOverflowClosesSessionWithoutFrameRequest();
     void providerTokenOverflowDoesNotPoisonReplacementSession();
     void providerTokenOverflowDuringSeekFailsAcceptedRequest();
+    void providerAssignmentPublishesBeforeDispatchFailure();
     void providerMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
     void providerFrameDispatchFailureClosesSessionAndReportsProviderFailure();
     void secondaryProviderMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
@@ -357,6 +358,81 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QVERIFY(
         item.property("errorString").toString().contains(QStringLiteral("provider request token")));
+}
+
+void ImageViewportProviderLifecycleTest::providerAssignmentPublishesBeforeDispatchFailure()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderExecutorForTest(item);
+    failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
+    const QMetaObject* metaObject = item.metaObject();
+    const int loadingStatus = enumValue(metaObject, "RequestStatus", "Loading");
+    const int providerWaitingReason = enumValue(metaObject, "RequestReason", "ProviderWaiting");
+    const int errorStatus = enumValue(metaObject, "RequestStatus", "Error");
+    const int providerFailureReason = enumValue(metaObject, "RequestReason", "ProviderFailure");
+
+    struct SignalSnapshot
+    {
+        QByteArray signal;
+        int status = -1;
+        int reason = -1;
+        bool assigned = false;
+    };
+    QVector<SignalSnapshot> snapshots;
+    auto record = [&](QByteArray signal) {
+        snapshots.append({ signal,
+            item.property("requestStatus").toInt(),
+            item.property("requestReason").toInt(),
+            item.sequence() == result->sequence() });
+    };
+    QObject::connect(&item, &ImageViewport::sequenceChanged, [&]() { record("sequence"); });
+    QObject::connect(&item, &ImageViewport::requestStateChanged, [&]() { record("request"); });
+
+    item.setSequence(result->sequence());
+
+    int sequenceIndex = -1;
+    int loadingIndex = -1;
+    int errorIndex = -1;
+    for (qsizetype index = 0; index < snapshots.size(); ++index) {
+        const SignalSnapshot& snapshot = snapshots.at(index);
+        if (sequenceIndex < 0 && snapshot.signal == "sequence" && snapshot.assigned) {
+            sequenceIndex = int(index);
+        }
+        if (loadingIndex < 0 && snapshot.signal == "request" && snapshot.assigned
+            && snapshot.status == loadingStatus && snapshot.reason == providerWaitingReason) {
+            loadingIndex = int(index);
+        }
+        if (errorIndex < 0 && snapshot.signal == "request" && snapshot.assigned
+            && snapshot.status == errorStatus && snapshot.reason == providerFailureReason) {
+            errorIndex = int(index);
+        }
+    }
+
+    QVERIFY(sequenceIndex >= 0);
+    QVERIFY(loadingIndex >= 0);
+    QVERIFY(errorIndex >= 0);
+    QVERIFY(sequenceIndex < errorIndex);
+    QVERIFY(loadingIndex < errorIndex);
+    QCOMPARE(*sessionCount, 1);
+    QCOMPARE(*metadataRequestCount, 0);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(*closeCount, 1);
+    QCOMPARE(sessionFactory->lastSession(), nullptr);
+    QCOMPARE(item.sequence(), result->sequence());
+    QCOMPARE(item.property("requestStatus").toInt(), errorStatus);
+    QCOMPARE(item.property("requestReason").toInt(), providerFailureReason);
 }
 
 void ImageViewportProviderLifecycleTest::

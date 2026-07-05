@@ -382,6 +382,8 @@ F9.
 
 ### Milestone 5: Provider Assignment Publication Ordering
 
+**Status:** Complete on 2026-07-05. Accepted provider assignments now emit their assignment state before provider transport effects can synchronously fail; forced dispatch failure then publishes the documented `Error/ProviderFailure` state as a later notification. `just test` passed all 29 configured tests.
+
 #### Objective
 
 Make provider assignment publication order deterministic before broader provider event-boundary changes.
@@ -410,10 +412,10 @@ F7.
 
 #### Tasks
 
-- [ ] Add the F7 intended-contract test from the matrix before changing production code.
-- [ ] Trace provider assignment mutation, signal emission, and effect execution order.
-- [ ] Reorder assignment publication so observers see the intended assignment state before synchronous provider-dispatch failure or recovery state.
-- [ ] Add assertions for signal order and final public state after forced dispatch failure.
+- [x] Add the F7 intended-contract test from the matrix before changing production code.
+- [x] Trace provider assignment mutation, signal emission, and effect execution order.
+- [x] Reorder assignment publication so observers see the intended assignment state before synchronous provider-dispatch failure or recovery state.
+- [x] Add assertions for signal order and final public state after forced dispatch failure.
 
 #### Acceptance criteria
 

@@ -137,22 +137,6 @@ bool isPositiveSize(QSizeF size)
     return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
 }
 
-void mergeControllerChanges(ViewportChangeSet& target, ViewportChangeSet source)
-{
-    target.requestState = target.requestState || source.requestState;
-    target.displayState = target.displayState || source.displayState;
-    target.geometryState = target.geometryState || source.geometryState;
-    target.playbackPhase = target.playbackPhase || source.playbackPhase;
-    target.diagnostics = target.diagnostics || source.diagnostics;
-    target.presentation = target.presentation || source.presentation;
-    target.sequence = target.sequence || source.sequence;
-    target.looping = target.looping || source.looping;
-    target.displayRevision = target.displayRevision || source.displayRevision;
-    target.requestRevision = target.requestRevision || source.requestRevision;
-    target.commandRevision = target.commandRevision || source.commandRevision;
-    target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
-}
-
 ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
 {
     if (!value.isValid() || value.isNull()) {
@@ -198,14 +182,13 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     ViewportSequenceAssignment assignment;
     assignment.source = std::move(source);
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
+    applyControllerChanges(result.changes);
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
-        mergeControllerChanges(result.changes,
-            controller.handleProviderSessionOpenFailure(
-                QStringLiteral("provider session creation failed")));
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(
+            QStringLiteral("provider session creation failed")));
     }
-    applyControllerChanges(result.changes);
     syncPlaybackTimer();
 }
 
@@ -591,19 +574,17 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         applyControllerChanges(result.changes);
         return result.outcome;
     }
+    applyControllerChanges(result.changes);
     applyProviderFrameTransportEffect(result.providerFrameTransport);
     applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !openProviderSession()) {
-        mergeControllerChanges(result.changes,
-            controller.handleProviderSessionOpenFailure(
-                QStringLiteral("provider session creation failed")));
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(
+            QStringLiteral("provider session creation failed")));
     }
     if (result.openSecondaryProviderSession && !openProviderSession(PageRole::Secondary)) {
-        mergeControllerChanges(result.changes,
-            controller.handleProviderSessionOpenFailure(PageRole::Secondary,
-                QStringLiteral("provider session creation failed")));
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(PageRole::Secondary,
+            QStringLiteral("provider session creation failed")));
     }
-    applyControllerChanges(result.changes);
     syncPlaybackTimer();
     return result.outcome;
 }
