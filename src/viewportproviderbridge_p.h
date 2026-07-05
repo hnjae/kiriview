@@ -2,42 +2,14 @@
 
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
+#include "viewportproviderevent_p.h"
+
+#include <QtCore/Qt>
 
 #include <functional>
 #include <memory>
 
 class QObject;
-
-struct ViewportProviderEvent
-{
-    enum class Kind {
-        MetadataReady,
-        ImageFrameReady,
-        ImageFrameWithMetadataReady,
-        FrameHandleReady,
-        FrameHandleWithMetadataReady,
-        Waiting,
-        Progress,
-        EndOfSequence,
-        Failure,
-        Unsupported,
-        Cancellation
-    };
-
-    Kind kind = Kind::Waiting;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-    quint64 sessionSerial = 0;
-    ImageSequenceProviderRequestToken token;
-    ImageSequenceProviderMetadata metadata;
-    ImageFrame* imageFrame = nullptr;
-    ImageSequenceProviderFrameHandle* frameHandle = nullptr;
-    ImageSequenceProviderFrameMetadata frameMetadata;
-    double progress = 0.0;
-    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
-        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-    bool unsupportedCauseExplicit = false;
-    QString diagnostic;
-};
 
 class ViewportProviderBridgeClient
 {
@@ -57,6 +29,7 @@ public:
     virtual ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role) = 0;
     virtual ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const
         = 0;
+    virtual quint64 currentProviderGeneration(ImageViewport::PageRole role) const = 0;
     virtual ImageSequenceProviderThreadingContract providerThreadingContract(
         ImageViewport::PageRole role) const
         = 0;
@@ -103,17 +76,22 @@ public:
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
+    void useSynchronousEventDeliveryForTest();
 #endif
 
 private:
     ImageSequenceProviderThreadingContract threadingContract() const;
     bool takeForcedDeliveryFailureForTest();
     ViewportProviderExecutor& executor() const;
+    Qt::ConnectionType eventDeliveryConnectionType() const;
 
     ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
     ViewportProviderExecutor* providerExecutor = nullptr;
     bool forceNextCommandDeliveryFailure = false;
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+    bool synchronousEventDelivery = false;
+#endif
 };
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

@@ -403,6 +403,12 @@ void ImageViewportPrivate::useSynchronousProviderExecutorForTest()
     secondaryProviderBridge.setExecutor(executor);
 }
 
+void ImageViewportPrivate::useSynchronousProviderEventDeliveryForTest()
+{
+    providerBridge.useSynchronousEventDeliveryForTest();
+    secondaryProviderBridge.useSynchronousEventDeliveryForTest();
+}
+
 void ImageViewportPrivate::useSynchronousProviderQueueFlushSchedulerForTest()
 {
     synchronousProviderQueueFlushScheduler = true;

@@ -40,6 +40,7 @@ private slots:
     void providerClosedGenerationTokenCollisionIsIgnoredAfterClear();
     void providerClearIgnoresCancelledFrameAcknowledgement();
     void providerResultsAreQueuedFromSessionEntryPoint();
+    void synchronousProviderEventDeliveryBypassesEventLoopForProtocolTests();
     void providerQueuedMetadataFromClosedGenerationIsIgnoredAfterReplacement();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
     void providerTerminalResultsAreQueuedFromSessionEntryPoint();
@@ -1582,6 +1583,44 @@ void ImageViewportProviderLifecycleTest::providerResultsAreQueuedFromSessionEntr
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+}
+
+void ImageViewportProviderLifecycleTest::
+    synchronousProviderEventDeliveryBypassesEventLoopForProtocolTests()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(*metadataRequestCount, 1);
+    QCOMPARE(*frameRequestCount, 0);
+    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+    QCOMPARE(item.property("requestStatus").toInt(),
+        enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);

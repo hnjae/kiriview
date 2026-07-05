@@ -1,5 +1,7 @@
 #include "viewportcontrollerhelpers_p.h"
 
+#include <memory>
+
 namespace {
 ViewportProviderFrameTerminalResult frameTerminalResultFor(
     const ViewportProviderTerminalEvent& event)
@@ -66,6 +68,39 @@ ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
     }
 
     return {};
+}
+
+ViewportProviderTerminalEvent terminalEventFor(const ViewportProviderEvent& event)
+{
+    ViewportProviderTerminalEvent terminalEvent;
+    terminalEvent.token = event.token;
+    terminalEvent.unsupportedCause = event.unsupportedCause;
+    terminalEvent.diagnostic = event.diagnostic;
+    terminalEvent.unsupportedCauseExplicit = event.unsupportedCauseExplicit;
+
+    switch (event.kind) {
+    case ViewportProviderEvent::Kind::Unsupported:
+        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Unsupported;
+        break;
+    case ViewportProviderEvent::Kind::Cancellation:
+        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Cancellation;
+        break;
+    case ViewportProviderEvent::Kind::Failure:
+        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Failure;
+        break;
+    case ViewportProviderEvent::Kind::MetadataReady:
+    case ViewportProviderEvent::Kind::ImageFrameReady:
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
+    case ViewportProviderEvent::Kind::FrameHandleReady:
+    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
+    case ViewportProviderEvent::Kind::Waiting:
+    case ViewportProviderEvent::Kind::Progress:
+    case ViewportProviderEvent::Kind::EndOfSequence:
+        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Failure;
+        break;
+    }
+
+    return terminalEvent;
 }
 
 void appendProviderFrameQueueResult(
@@ -344,6 +379,16 @@ ImageSequenceProviderSession* ViewportController::currentProviderSession(
     return viewportProviderState(viewport).session;
 }
 
+quint64 ViewportController::currentProviderGeneration() const
+{
+    return currentProviderGeneration(ImageViewport::PageRole::Primary);
+}
+
+quint64 ViewportController::currentProviderGeneration(ImageViewport::PageRole) const
+{
+    return viewportRequestState(viewport).sequenceGeneration;
+}
+
 bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
     return acceptsProviderSessionResult(ImageViewport::PageRole::Primary, sessionSerial);
@@ -359,6 +404,84 @@ bool ViewportController::acceptsProviderSessionResult(
 
     return viewportProviderState(viewport).session
         && viewportProviderState(viewport).sessionSerial == sessionSerial;
+}
+
+bool ViewportController::acceptsProviderSessionResult(
+    ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
+{
+    return generation != 0 && generation == currentProviderGeneration(role)
+        && acceptsProviderSessionResult(role, sessionSerial);
+}
+
+ViewportProviderEventResult ViewportController::handleProviderEvent(
+    const ViewportProviderEvent& event)
+{
+    if (!acceptsProviderSessionResult(event.role, event.sessionSerial, event.generation)) {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
+        return {};
+    }
+
+    ViewportProviderEventResult result;
+    switch (event.kind) {
+    case ViewportProviderEvent::Kind::MetadataReady: {
+        const ViewportProviderMetadataReadyResult metadataResult
+            = handleProviderMetadataReadyEvent(event.role, { event.token, event.metadata });
+        result.changes = metadataResult.changes;
+        result.providerFrameTransport = metadataResult.providerFrameTransport;
+        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
+        break;
+    }
+    case ViewportProviderEvent::Kind::ImageFrameReady:
+        result.changes = handleProviderFrameEvent(event.role, { event.token }, event.imageFrame,
+            ImageSequenceProviderFrameMetadata::stillFrame());
+        break;
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
+        result.changes = handleProviderFrameEvent(
+            event.role, { event.token }, event.imageFrame, event.frameMetadata);
+        break;
+    case ViewportProviderEvent::Kind::FrameHandleReady: {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(event.frameHandle);
+        result.changes = handleProviderFrameEvent(event.role, { event.token },
+            ownedFrame ? ownedFrame->frame() : nullptr,
+            ImageSequenceProviderFrameMetadata::stillFrame());
+        break;
+    }
+    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(event.frameHandle);
+        result.changes = handleProviderFrameEvent(event.role, { event.token },
+            ownedFrame ? ownedFrame->frame() : nullptr, event.frameMetadata);
+        break;
+    }
+    case ViewportProviderEvent::Kind::Waiting:
+        result.changes = handleProviderWaitingEvent(event.role, { event.token, false, 0.0 });
+        break;
+    case ViewportProviderEvent::Kind::Progress:
+        result.changes
+            = handleProviderWaitingEvent(event.role, { event.token, true, event.progress });
+        break;
+    case ViewportProviderEvent::Kind::EndOfSequence: {
+        const ViewportProviderEndOfSequenceResult endOfSequence
+            = handleProviderEndOfSequenceEvent(event.role, { event.token });
+        result.changes = endOfSequence.changes;
+        result.providerFrameTransport = endOfSequence.providerFrameTransport;
+        result.providerFrameTransportPhase = endOfSequence.providerFrameTransport.closeSession
+            ? ViewportProviderEventTransportPhase::AfterChanges
+            : ViewportProviderEventTransportPhase::BeforeChanges;
+        break;
+    }
+    case ViewportProviderEvent::Kind::Failure:
+    case ViewportProviderEvent::Kind::Unsupported:
+    case ViewportProviderEvent::Kind::Cancellation: {
+        const ViewportProviderTerminalEventResult terminal
+            = handleProviderTerminalEvent(event.role, terminalEventFor(event));
+        result.changes = terminal.changes;
+        result.providerFrameTransport = terminal.providerFrameTransport;
+        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
+        break;
+    }
+    }
+
+    return result;
 }
 
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(

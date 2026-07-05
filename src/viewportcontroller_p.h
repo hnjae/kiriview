@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "renderfailurecause_p.h"
+#include "viewportproviderevent_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -290,6 +291,20 @@ struct ViewportProviderFrameTransportEffect
     ViewportProviderSessionClose sessionClose;
     bool sendCommand = false;
     ViewportProviderFrameCommand command;
+};
+
+enum class ViewportProviderEventTransportPhase {
+    None,
+    BeforeChanges,
+    AfterChanges,
+};
+
+struct ViewportProviderEventResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportProviderEventTransportPhase providerFrameTransportPhase
+        = ViewportProviderEventTransportPhase::None;
 };
 
 struct ViewportProviderFrameDispatchResult
@@ -669,6 +684,7 @@ public:
     ViewportCommandResult setMirrorHorizontally(bool enabled, QPointF anchor);
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
+    ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
@@ -694,8 +710,12 @@ public:
     ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role);
     ImageSequenceProviderSession* currentProviderSession() const;
     ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const;
+    quint64 currentProviderGeneration() const;
+    quint64 currentProviderGeneration(ImageViewport::PageRole role) const;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
+    bool acceptsProviderSessionResult(
+        ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
         const ImageSequenceProviderMetadata& metadata);
     ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(

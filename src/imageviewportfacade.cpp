@@ -308,6 +308,11 @@ void useSynchronousProviderExecutorForTest(ImageViewport& item)
     ImageViewportPrivate::get(item)->useSynchronousProviderExecutorForTest();
 }
 
+void useSynchronousProviderEventDeliveryForTest(ImageViewport& item)
+{
+    ImageViewportPrivate::get(item)->useSynchronousProviderEventDeliveryForTest();
+}
+
 void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item)
 {
     ImageViewportPrivate::get(item)->useSynchronousProviderQueueFlushSchedulerForTest();

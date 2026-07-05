@@ -137,6 +137,7 @@ public:
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void failNextProviderCommandDeliveryForTest(PageRole role);
     void useSynchronousProviderExecutorForTest();
+    void useSynchronousProviderEventDeliveryForTest();
     void useSynchronousProviderQueueFlushSchedulerForTest();
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
@@ -221,6 +222,7 @@ public:
     quint64 installProviderSession(PageRole role, ImageSequenceProviderSession* session) override;
     ImageSequenceProviderSession* takeProviderSession(PageRole role) override;
     ImageSequenceProviderSession* currentProviderSession(PageRole role) const override;
+    quint64 currentProviderGeneration(PageRole role) const override;
     bool providerHasCompleteKnownMetadata() const override;
     ImageSequenceProviderKnownFacts providerKnownFacts() const override;
     QSizeF providerKnownLogicalSize() const override;
@@ -242,40 +244,6 @@ public:
     void flushQueuedProviderFrameRequest(PageRole role = PageRole::Primary);
     bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
     void handleProviderEvent(const ViewportProviderEvent& event) override;
-    void handleProviderMetadataReady(
-        PageRole role, ImageSequenceProviderRequestToken token,
-        const ImageSequenceProviderMetadata& metadata);
-    void handleProviderFrameReady(
-        PageRole role, ImageSequenceProviderRequestToken token, ImageFrame* frame);
-    void handleProviderFrameReadyWithMetadata(PageRole role,
-        ImageSequenceProviderRequestToken token, ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata);
-    void handleProviderFrameReady(
-        PageRole role, ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderFrameHandle* frame);
-    void handleProviderFrameReadyWithMetadata(PageRole role,
-        ImageSequenceProviderRequestToken token, ImageSequenceProviderFrameHandle* frame,
-        ImageSequenceProviderFrameMetadata metadata);
-    void handleProviderWaiting(ImageSequenceProviderRequestToken token);
-    void handleProviderWaiting(PageRole role, ImageSequenceProviderRequestToken token);
-    void handleProviderProgress(ImageSequenceProviderRequestToken token, double progress);
-    void handleProviderProgress(
-        PageRole role, ImageSequenceProviderRequestToken token, double progress);
-    void handleProviderEndOfSequence(ImageSequenceProviderRequestToken token);
-    void handleProviderEndOfSequence(PageRole role, ImageSequenceProviderRequestToken token);
-    void handleProviderFailure(ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    void handleProviderFailure(
-        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    void handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
-        const QString& diagnostic);
-    void handleProviderUnsupported(PageRole role, ImageSequenceProviderRequestToken token,
-        ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
-        const QString& diagnostic);
-    void handleProviderCancellation(
-        ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    void handleProviderCancellation(
-        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         PageRole role) const override;
     int providerFrameStartPosition(int frame) const override;

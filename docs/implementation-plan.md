@@ -434,6 +434,8 @@ F7.
 
 ### Milestone 6: Deterministic Provider Delivery Seam
 
+**Status:** Complete on 2026-07-05. Added a private synchronous provider event-delivery seam, covered it with a no-event-loop lifecycle protocol test, converted representative frame-admission protocol coverage to use the seam, and kept the explicit queued-delivery lifecycle test event-loop based. `just test` passed all 29 configured tests. Assumption: existing `drainQueuedProviderResults()` call sites remain valid only for the documented queued-callback, affinity-cleanup, or event-loop handoff allowlist until later provider admission refactors migrate more protocol coverage.
+
 #### Objective
 
 Add a behavior-preserving provider result delivery seam so later provider behavior changes can be tested without arbitrary event-loop waits.
@@ -465,11 +467,11 @@ F8.
 
 #### Tasks
 
-- [ ] Add the F8 seam tests from the matrix before changing production code.
-- [ ] Identify protocol tests that use `QCoreApplication::processEvents()`, arbitrary waits, or wall-clock timing without testing event-loop behavior.
-- [ ] Add the smallest internal seam that can drive provider result delivery deterministically in tests.
-- [ ] Convert protocol-only timing tests to the deterministic seam.
-- [ ] Preserve or add explicit event-loop tests for queued delivery, callback affinity, thread cleanup, and scene graph synchronization.
+- [x] Add the F8 seam tests from the matrix before changing production code.
+- [x] Identify protocol tests that use `QCoreApplication::processEvents()`, arbitrary waits, or wall-clock timing without testing event-loop behavior.
+- [x] Add the smallest internal seam that can drive provider result delivery deterministically in tests.
+- [x] Convert protocol-only timing tests to the deterministic seam.
+- [x] Preserve or add explicit event-loop tests for queued delivery, callback affinity, thread cleanup, and scene graph synchronization.
 
 #### Acceptance criteria
 
@@ -488,6 +490,8 @@ F8.
 - Keep this seam internal. If it starts becoming a public provider abstraction, stop and update the plan.
 
 ### Milestone 7: Controller-Owned Provider Event Admission
+
+**Status:** Complete on 2026-07-05. Added `structural::providerEventAdmissionBoundary`, moved the normalized provider-event DTO to `viewportproviderevent_p.h`, routed provider callbacks through `ViewportController::handleProviderEvent(...)`, and removed item-side per-kind provider event handlers and stale frame-handle release. `just test` passed all 30 configured tests. Assumption: the authoritative docs require an internal normalized provider event boundary but do not require a public provider signal redesign, so the public provider result channel remains unchanged and the smallest internal event shape preserves the existing fields, adds sequence generation identity, and returns controller-authored transport timing.
 
 #### Objective
 
@@ -522,15 +526,15 @@ F6, F8.
 
 #### Tasks
 
-- [ ] Add the F6 intended-contract tests from the matrix before changing production code.
-- [ ] Inventory each provider result entry point and note which layer currently validates session identity, rejects stale results, releases payloads, and emits side effects.
-- [ ] Define the smallest internal normalized provider event structure with session, generation, role, token, event kind, payload handle, terminal cause where relevant, change sets, follow-up effects, cleanup effects, and payload-release decision.
-- [ ] Route bridge and provider wrapper callbacks into the normalized event path without changing the public provider contract.
-- [ ] Move stale filtering and payload release ownership to a controller event admission function such as `handleProviderEvent(...)`.
-- [ ] Remove item-side calls to `acceptsProviderSessionResult(...)`.
-- [ ] Remove item/bridge ownership of stale frame-handle release.
-- [ ] Ensure bridge/provider wrapper code only transports normalized events and returned effects.
-- [ ] Add tests for metadata, frame, waiting, failure, unsupported, cancellation, EOS, stale-session, wrong-token, and payload-release behavior through the admission boundary.
+- [x] Add the F6 intended-contract tests from the matrix before changing production code.
+- [x] Inventory each provider result entry point and note which layer currently validates session identity, rejects stale results, releases payloads, and emits side effects.
+- [x] Define the smallest internal normalized provider event structure with session, generation, role, token, event kind, payload handle, terminal cause where relevant, change sets, follow-up effects, cleanup effects, and payload-release decision.
+- [x] Route bridge and provider wrapper callbacks into the normalized event path without changing the public provider contract.
+- [x] Move stale filtering and payload release ownership to a controller event admission function such as `handleProviderEvent(...)`.
+- [x] Remove item-side calls to `acceptsProviderSessionResult(...)`.
+- [x] Remove item/bridge ownership of stale frame-handle release.
+- [x] Ensure bridge/provider wrapper code only transports normalized events and returned effects.
+- [x] Add tests for metadata, frame, waiting, failure, unsupported, cancellation, EOS, stale-session, wrong-token, and payload-release behavior through the admission boundary.
 
 #### Acceptance criteria
 
@@ -552,6 +556,8 @@ F6, F8.
 
 - This milestone changes control flow. Keep public events and state transitions covered by tests from Milestones 1 and 6.
 - If the normalized event structure grows beyond internal admission needs, split the milestone before continuing.
+- Inventory result: before this milestone the bridge normalized public provider signals into `ViewportProviderEvent`, the item validated session identity and released stale frame handles, and controller per-kind handlers validated token scope and produced change/effect results. The end state keeps bridge callbacks as event transport, moves session validation, stale ownership-bearing payload release, kind classification, and terminal-cause conversion into `ViewportController::handleProviderEvent(...)`, and leaves the item responsible only for applying the controller-returned transport effects, change set, and playback timer sync.
+- Coverage note: the new structural test verifies the boundary ownership directly, while existing provider request, frame-admission, lifecycle, and controller-provider tests cover active metadata, frame, waiting/progress, terminal, EOS, stale-session, wrong-token, and owned-payload release behavior through the centralized path.
 
 ### Milestone 8: Provider Role-Aware Request And Playback Invariants
 

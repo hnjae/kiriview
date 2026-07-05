@@ -109,3 +109,9 @@ add_test(
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
         ${CMAKE_CURRENT_SOURCE_DIR}/built_in_payload_boundary.cmake)
+
+add_test(
+    NAME structural::providerEventAdmissionBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/provider_event_admission_boundary.cmake)

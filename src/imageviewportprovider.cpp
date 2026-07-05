@@ -2,23 +2,7 @@
 
 #include <QtCore/QMetaObject>
 
-#include <memory>
-
 using namespace ImageViewportInternal;
-
-namespace {
-void applyProviderTerminalEvent(ImageViewportPrivate& viewport, ImageViewport::PageRole role,
-    const ViewportProviderTerminalEvent& event)
-{
-    const ViewportProviderTerminalEventResult result
-        = viewport.controller.handleProviderTerminalEvent(role, event);
-    viewport.applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
-    }
-    viewport.applyProviderFrameTransportEffect(result.providerFrameTransport, role);
-}
-}
 
 bool ImageViewportPrivate::openProviderSession(PageRole role)
 {
@@ -50,6 +34,11 @@ ImageSequenceProviderSession* ImageViewportPrivate::takeProviderSession(PageRole
 ImageSequenceProviderSession* ImageViewportPrivate::currentProviderSession(PageRole role) const
 {
     return controller.currentProviderSession(role);
+}
+
+quint64 ImageViewportPrivate::currentProviderGeneration(PageRole role) const
+{
+    return controller.currentProviderGeneration(role);
 }
 
 bool ImageViewportPrivate::providerHasCompleteKnownMetadata() const
@@ -123,48 +112,16 @@ ImageViewportPrivate::secondaryProviderPositionSeekCapability() const
 
 void ImageViewportPrivate::handleProviderEvent(const ViewportProviderEvent& event)
 {
-    if (!controller.acceptsProviderSessionResult(event.role, event.sessionSerial)) {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
-        return;
+    const ViewportProviderEventResult result = controller.handleProviderEvent(event);
+    if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::BeforeChanges) {
+        applyProviderFrameTransportEffect(result.providerFrameTransport, event.role);
     }
-
-    switch (event.kind) {
-    case ViewportProviderEvent::Kind::MetadataReady:
-        handleProviderMetadataReady(event.role, event.token, event.metadata);
-        break;
-    case ViewportProviderEvent::Kind::ImageFrameReady:
-        handleProviderFrameReady(event.role, event.token, event.imageFrame);
-        break;
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
-        handleProviderFrameReadyWithMetadata(
-            event.role, event.token, event.imageFrame, event.frameMetadata);
-        break;
-    case ViewportProviderEvent::Kind::FrameHandleReady:
-        handleProviderFrameReady(event.role, event.token, event.frameHandle);
-        break;
-    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
-        handleProviderFrameReadyWithMetadata(
-            event.role, event.token, event.frameHandle, event.frameMetadata);
-        break;
-    case ViewportProviderEvent::Kind::Waiting:
-        handleProviderWaiting(event.role, event.token);
-        break;
-    case ViewportProviderEvent::Kind::Progress:
-        handleProviderProgress(event.role, event.token, event.progress);
-        break;
-    case ViewportProviderEvent::Kind::EndOfSequence:
-        handleProviderEndOfSequence(event.role, event.token);
-        break;
-    case ViewportProviderEvent::Kind::Failure:
-        handleProviderFailure(event.role, event.token, event.diagnostic);
-        break;
-    case ViewportProviderEvent::Kind::Unsupported:
-        handleProviderUnsupported(event.role, event.token, event.unsupportedCause,
-            event.unsupportedCauseExplicit, event.diagnostic);
-        break;
-    case ViewportProviderEvent::Kind::Cancellation:
-        handleProviderCancellation(event.role, event.token, event.diagnostic);
-        break;
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
+        syncPlaybackTimer();
+    }
+    if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
+        applyProviderFrameTransportEffect(result.providerFrameTransport, event.role);
     }
 }
 
@@ -314,145 +271,6 @@ bool ImageViewportPrivate::startProviderFrameRequest(
     effect.command = result.command;
     applyProviderFrameTransportEffect(effect);
     return result.accepted;
-}
-
-void ImageViewportPrivate::handleProviderMetadataReady(
-    PageRole role, ImageSequenceProviderRequestToken token,
-    const ImageSequenceProviderMetadata& metadata)
-{
-    const ViewportProviderMetadataReadyResult result
-        = controller.handleProviderMetadataReadyEvent(role, { token, metadata });
-    applyProviderFrameTransportEffect(result.providerFrameTransport, role);
-    applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        syncPlaybackTimer();
-    }
-}
-
-void ImageViewportPrivate::handleProviderFrameReady(
-    PageRole role, ImageSequenceProviderRequestToken token, ImageFrame* frame)
-{
-    handleProviderFrameReadyWithMetadata(
-        role, token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
-}
-
-void ImageViewportPrivate::handleProviderFrameReady(
-    PageRole role, ImageSequenceProviderRequestToken token,
-    ImageSequenceProviderFrameHandle* frame)
-{
-    handleProviderFrameReadyWithMetadata(
-        role, token, frame, ImageSequenceProviderFrameMetadata::stillFrame());
-}
-
-void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
-    PageRole role, ImageSequenceProviderRequestToken token,
-    ImageSequenceProviderFrameHandle* frame, ImageSequenceProviderFrameMetadata metadata)
-{
-    std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(frame);
-    handleProviderFrameReadyWithMetadata(
-        role, token, ownedFrame ? ownedFrame->frame() : nullptr, metadata);
-}
-
-void ImageViewportPrivate::handleProviderFrameReadyWithMetadata(
-    PageRole role, ImageSequenceProviderRequestToken token, ImageFrame* frame,
-    ImageSequenceProviderFrameMetadata metadata)
-{
-    const auto changes = controller.handleProviderFrameEvent(role, { token }, frame, metadata);
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        syncPlaybackTimer();
-    }
-}
-
-void ImageViewportPrivate::handleProviderWaiting(ImageSequenceProviderRequestToken token)
-{
-    handleProviderWaiting(PageRole::Primary, token);
-}
-
-void ImageViewportPrivate::handleProviderWaiting(
-    PageRole role, ImageSequenceProviderRequestToken token)
-{
-    applyControllerChanges(controller.handleProviderWaitingEvent(role, { token, false, 0.0 }));
-}
-
-void ImageViewportPrivate::handleProviderProgress(
-    ImageSequenceProviderRequestToken token, double progress)
-{
-    handleProviderProgress(PageRole::Primary, token, progress);
-}
-
-void ImageViewportPrivate::handleProviderProgress(
-    PageRole role, ImageSequenceProviderRequestToken token, double progress)
-{
-    applyControllerChanges(controller.handleProviderWaitingEvent(role, { token, true, progress }));
-}
-
-void ImageViewportPrivate::handleProviderEndOfSequence(ImageSequenceProviderRequestToken token)
-{
-    handleProviderEndOfSequence(PageRole::Primary, token);
-}
-
-void ImageViewportPrivate::handleProviderEndOfSequence(
-    PageRole role, ImageSequenceProviderRequestToken token)
-{
-    const ViewportProviderEndOfSequenceResult result
-        = controller.handleProviderEndOfSequenceEvent(role, { token });
-    if (!result.providerFrameTransport.closeSession) {
-        applyProviderFrameTransportEffect(result.providerFrameTransport, role);
-    }
-    applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        syncPlaybackTimer();
-    }
-    if (result.providerFrameTransport.closeSession) {
-        applyProviderFrameTransportEffect(result.providerFrameTransport, role);
-    }
-}
-
-void ImageViewportPrivate::handleProviderFailure(
-    ImageSequenceProviderRequestToken token, const QString& diagnostic)
-{
-    handleProviderFailure(PageRole::Primary, token, diagnostic);
-}
-
-void ImageViewportPrivate::handleProviderFailure(
-    PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic)
-{
-    applyProviderTerminalEvent(*this, role,
-        { token, ViewportProviderTerminalEvent::Kind::Failure,
-            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic,
-            false });
-}
-
-void ImageViewportPrivate::handleProviderUnsupported(ImageSequenceProviderRequestToken token,
-    ImageSequenceProviderSession::UnsupportedCause cause, bool causeExplicit,
-    const QString& diagnostic)
-{
-    handleProviderUnsupported(PageRole::Primary, token, cause, causeExplicit, diagnostic);
-}
-
-void ImageViewportPrivate::handleProviderUnsupported(PageRole role,
-    ImageSequenceProviderRequestToken token, ImageSequenceProviderSession::UnsupportedCause cause,
-    bool causeExplicit, const QString& diagnostic)
-{
-    applyProviderTerminalEvent(*this, role,
-        { token, ViewportProviderTerminalEvent::Kind::Unsupported, cause, diagnostic,
-            causeExplicit });
-}
-
-void ImageViewportPrivate::handleProviderCancellation(
-    ImageSequenceProviderRequestToken token, const QString& diagnostic)
-{
-    handleProviderCancellation(PageRole::Primary, token, diagnostic);
-}
-
-void ImageViewportPrivate::handleProviderCancellation(
-    PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic)
-{
-    applyProviderTerminalEvent(*this, role,
-        { token, ViewportProviderTerminalEvent::Kind::Cancellation,
-            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection, diagnostic,
-            false });
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory> ImageViewportPrivate::providerSessionFactory(

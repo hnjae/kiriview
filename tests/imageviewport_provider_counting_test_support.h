@@ -270,8 +270,9 @@ private:
 
 void drainQueuedProviderResults()
 {
-    // Allowlist: use only for queued provider callback delivery, Qt-affinity cleanup, or event-loop
-    // handoff cases that the synchronous provider executor must not replace.
+    // Allowlist: prefer useSynchronousProviderEventDeliveryForTest for protocol-only tests.
+    // Use this only for queued callback delivery, Qt-affinity cleanup, or event-loop handoff
+    // cases that the synchronous provider seams must not replace.
     QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
     QCoreApplication::processEvents();
 }

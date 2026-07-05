@@ -52,6 +52,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     QVERIFY(result->sequence());
 
     ImageViewport item;
+    useSynchronousProviderEventDeliveryForTest(item);
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
@@ -60,7 +61,6 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     emit sessionFactory->lastSession()->metadataReady(
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
-    drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -68,7 +68,6 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     ImageFrame frame(image);
     emit sessionFactory->lastSession()->imageFrameReady(
         sessionFactory->lastSession()->lastFrameToken(), &frame);
-    drainQueuedProviderResults();
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
