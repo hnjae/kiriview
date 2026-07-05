@@ -146,6 +146,17 @@ public:
         m_openedCollectionCandidates.setError(archiveRootUrl, std::move(errorString));
     }
 
+    int openedCollectionCandidateLoadCount(const QUrl& archiveRootUrl) const
+    {
+        const auto loadCount
+            = m_openedCollectionCandidateLoadCounts.find(keyForUrl(archiveRootUrl));
+        if (loadCount == m_openedCollectionCandidateLoadCounts.cend()) {
+            return 0;
+        }
+
+        return loadCount->second;
+    }
+
     void setContainerError(const QUrl& directoryUrl, QString errorString)
     {
         m_containerCandidates.setError(directoryUrl, std::move(errorString));
@@ -203,6 +214,7 @@ public:
             },
             [this](QObject*, OpenedCollectionScopeLocation openedCollectionScope,
                 ImageDocumentPageCandidatesCallback callback, ErrorCallback errorCallback) {
+                ++m_openedCollectionCandidateLoadCounts[keyForUrl(openedCollectionScope.rootUrl())];
                 m_openedCollectionCandidates.load(
                     openedCollectionScope.rootUrl(), std::move(callback), std::move(errorCallback));
                 return ImageIoJob();
@@ -250,6 +262,7 @@ private:
     FakeCandidateListing<std::vector<ImageDocumentPageCandidate>> m_directoryImageDocumentPages;
     FakeCandidateListing<std::vector<ImageDocumentPageCandidate>> m_openedCollectionCandidates;
     FakeCandidateListing<std::vector<ContainerNavigationCandidate>> m_containerCandidates;
+    std::map<QString, int> m_openedCollectionCandidateLoadCounts;
     std::vector<std::shared_ptr<FakeCandidateChangeSubscription>>
         m_directoryImageChangeSubscriptions;
 };

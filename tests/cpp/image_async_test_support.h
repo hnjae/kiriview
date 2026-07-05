@@ -15,6 +15,7 @@
 #include <QObject>
 #include <QString>
 #include <QUrl>
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <utility>
@@ -157,6 +158,14 @@ public:
     ManualImageDataLoad& backLoad() { return *m_loads.back(); }
 
     const ManualImageDataLoad& backLoad() const { return *m_loads.back(); }
+
+    bool hasActiveLoadForUrl(const QUrl& url) const
+    {
+        return std::any_of(m_loads.cbegin(), m_loads.cend(),
+            [&url](const std::shared_ptr<ManualImageDataLoad>& load) {
+                return load != nullptr && load->object != nullptr && load->url == url;
+            });
+    }
 
     void finishFrontLoad(QByteArray data) { finishDataLoad(m_loads.front(), std::move(data)); }
 

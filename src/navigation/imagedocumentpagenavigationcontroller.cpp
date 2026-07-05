@@ -39,6 +39,15 @@ namespace {
             }
         });
     }
+
+    bool pageCandidateSourceIsOpenedCollection(const ImageDocumentPageCandidateListSource& source)
+    {
+        return source.visit([](const auto& payload) {
+            using Source = std::decay_t<decltype(payload)>;
+            return std::is_same_v<Source,
+                ImageDocumentPageCandidateListSource::OpenedCollectionScope>;
+        });
+    }
 }
 
 ImageDocumentPageNavigationController::ImageDocumentPageNavigationController(QObject* parent,
@@ -159,6 +168,23 @@ void ImageDocumentPageNavigationController::update(
 
     if (!context.has_value()) {
         clear();
+        return;
+    }
+
+    const std::optional<ImageDocumentPageCandidateSnapshot> snapshot = m_model.candidateSnapshot();
+    if (snapshot.has_value() && pageCandidateSourceIsOpenedCollection(context->source())
+        && imageDocumentPageCandidateSnapshotMatchesSource(*snapshot, context->source())) {
+        const ImageDocumentPageNavigationRefreshPlan refreshPlan = m_model.beginRefresh(*context);
+        if (refreshPlan.changed) {
+            notifyChanged();
+        }
+
+        const ImageDocumentPageNavigationRefreshResult refresh = m_model.completePendingRefresh(
+            snapshot->candidates, refreshPlan.refreshId, context->source());
+        if (refresh.accepted && refresh.changed) {
+            notifyChanged();
+        }
+        watchChanges(*context);
         return;
     }
 
