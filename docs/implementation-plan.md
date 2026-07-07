@@ -81,6 +81,8 @@ Acceptance: The architecture describes how projection, active-navigation thumbna
 
 Verification: Documentation review or narrow docs diff check only.
 
+Status: Completed (2026-07-07). Architecture now defines revisioned immutable candidate snapshots, source identity and candidate-list revision ownership, direct-media scope generation, public projection revision, thumbnail navigation generation, consumer reuse rules, adapter boundaries, and durable performance test seams for later implementation milestones. Verified with `git diff --check` and commit hooks for the architecture commit; full CI was skipped because this milestone was intent-only documentation.
+
 ## Milestone 5: Direct-Media Snapshot For Projection And Predecode
 
 Suggested `/goal`: Move direct-media navigation candidates from repeated projection/predecode value-copy callbacks to a revisioned immutable snapshot.
