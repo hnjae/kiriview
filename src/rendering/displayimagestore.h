@@ -79,6 +79,17 @@ struct DisplayImageStoreEntry
     std::optional<DisplayImageReuseKey> reuseKey;
 };
 
+struct DisplayImageStoreDebugStats
+{
+    qsizetype entryCount = 0;
+    qsizetype idIndexEntryCount = 0;
+    qsizetype reuseIndexEntryCount = 0;
+    qsizetype evictionIndexEntryCount = 0;
+    qsizetype byteCost = 0;
+    qsizetype lastIdLookupEntryScanCount = 0;
+    qsizetype lastReuseLookupEntryScanCount = 0;
+};
+
 class DisplayImageStore final
 {
 public:
@@ -97,6 +108,7 @@ public:
     qsizetype byteBudget() const;
     qsizetype byteCost() const;
     qsizetype size() const;
+    DisplayImageStoreDebugStats debugStats() const;
 
 private:
     class Private;
