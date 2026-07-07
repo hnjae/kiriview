@@ -66,7 +66,6 @@ struct ApplicationFixture
     kiriview::DocumentSessionDirectMediaNavigationRevealAction revealAction
         = kiriview::DocumentSessionDirectMediaNavigationRevealAction::None;
     int clearPredecodeCount = 0;
-    std::vector<kiriview::DirectMediaNavigationCandidate> predecodeCandidates;
     QUrl predecodeTargetUrl;
     QUrl routeTargetUrl;
     kiriview::DocumentSessionDirectMediaNavigationApplicationRuntime runtime {
@@ -85,11 +84,9 @@ struct ApplicationFixture
                 events.push_back(Event::ClearPredecode);
                 ++clearPredecodeCount;
             },
-            [this](const QUrl& targetUrl,
-                const std::vector<kiriview::DirectMediaNavigationCandidate>& candidates) {
+            [this](const QUrl& targetUrl) {
                 events.push_back(Event::Predecode);
                 predecodeTargetUrl = targetUrl;
-                predecodeCandidates = candidates;
             },
             [this](const QUrl& url) {
                 events.push_back(Event::Route);
@@ -151,7 +148,6 @@ void TestDocumentSessionDirectMediaNavigationApplicationRuntime::
     QCOMPARE(fixture.events,
         (std::vector<ApplicationFixture::Event> { ApplicationFixture::Event::SetNavigation,
             ApplicationFixture::Event::Reveal, ApplicationFixture::Event::Publish }));
-    QVERIFY(fixture.predecodeCandidates.empty());
     QVERIFY(fixture.routeTargetUrl.isEmpty());
 }
 
@@ -187,7 +183,6 @@ void TestDocumentSessionDirectMediaNavigationApplicationRuntime::
     QCOMPARE(fixture.navigation.candidates.size(), std::size_t(2));
     QCOMPARE(fixture.revealAction,
         kiriview::DocumentSessionDirectMediaNavigationRevealAction::UsePendingOrProgrammaticSync);
-    QCOMPARE(fixture.predecodeCandidates.size(), std::size_t(2));
     QVERIFY(fixture.predecodeTargetUrl.isEmpty());
     QCOMPARE(fixture.events,
         (std::vector<ApplicationFixture::Event> { ApplicationFixture::Event::SetNavigation,
@@ -229,7 +224,6 @@ void TestDocumentSessionDirectMediaNavigationApplicationRuntime::
     QCOMPARE(fixture.revealAction,
         kiriview::DocumentSessionDirectMediaNavigationRevealAction::
             UsePendingOrProgrammaticSyncAndKeepPending);
-    QCOMPARE(fixture.predecodeCandidates.size(), std::size_t(2));
     QCOMPARE(fixture.predecodeTargetUrl, nextUrl);
     QCOMPARE(fixture.routeTargetUrl, nextUrl);
     QCOMPARE(fixture.events,

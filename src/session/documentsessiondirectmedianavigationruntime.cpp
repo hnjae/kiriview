@@ -41,10 +41,11 @@ void DocumentSessionDirectMediaNavigationRuntime::refresh(QObject* receiver,
                 return;
             }
 
+            const DirectMediaNavigationBoundaryState boundaryState
+                = directMediaNavigationBoundaryState(result.candidates, currentUrl);
             invokeIfSet(callback,
-                DocumentSessionDirectMediaNavigationRefreshResult { result.candidates,
-                    directMediaNavigationBoundaryState(result.candidates, currentUrl), true,
-                    result.errorString });
+                DocumentSessionDirectMediaNavigationRefreshResult {
+                    std::move(result.candidates), boundaryState, true, result.errorString });
         });
 }
 
@@ -62,10 +63,11 @@ void DocumentSessionDirectMediaNavigationRuntime::open(QObject* receiver,
                 return;
             }
 
+            DirectMediaNavigationOpenPlan plan
+                = directMediaNavigationOpenPlan(result.candidates, currentUrl, request);
             invokeIfSet(callback,
-                DocumentSessionDirectMediaNavigationOpenResult { result.candidates,
-                    directMediaNavigationOpenPlan(result.candidates, currentUrl, request), true,
-                    result.errorString });
+                DocumentSessionDirectMediaNavigationOpenResult {
+                    std::move(result.candidates), std::move(plan), true, result.errorString });
         });
 }
 

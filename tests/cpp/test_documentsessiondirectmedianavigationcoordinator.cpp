@@ -134,7 +134,6 @@ struct CoordinatorFixture
     kiriview::DocumentSessionDirectMediaNavigationRevealAction revealAction
         = kiriview::DocumentSessionDirectMediaNavigationRevealAction::None;
     int clearPredecodeCount = 0;
-    std::vector<kiriview::DirectMediaNavigationCandidate> predecodeCandidates;
     QUrl predecodeTargetUrl;
     QUrl routeTargetUrl;
     std::unique_ptr<kiriview::DocumentSessionDirectMediaNavigationCoordinator> coordinator;
@@ -169,13 +168,10 @@ struct CoordinatorFixture
             events.push_back(Event::ClearPredecode);
             ++clearPredecodeCount;
         };
-        ports.schedulePredecode
-            = [this](const QUrl& targetUrl,
-                  const std::vector<kiriview::DirectMediaNavigationCandidate>& candidates) {
-                  events.push_back(Event::Predecode);
-                  predecodeTargetUrl = targetUrl;
-                  predecodeCandidates = candidates;
-              };
+        ports.schedulePredecode = [this](const QUrl& targetUrl) {
+            events.push_back(Event::Predecode);
+            predecodeTargetUrl = targetUrl;
+        };
         ports.openMediaUrl = [this](const QUrl& url) {
             events.push_back(Event::Route);
             routeTargetUrl = url;
@@ -224,7 +220,6 @@ void TestDocumentSessionDirectMediaNavigationCoordinator::
     QVERIFY(fixture.navigation.known);
     QCOMPARE(fixture.navigation.state.currentNumber, 2);
     QCOMPARE(fixture.navigation.state.count, 3);
-    QCOMPARE(fixture.predecodeCandidates.size(), std::size_t(3));
     QVERIFY(fixture.predecodeTargetUrl.isEmpty());
     QCOMPARE(fixture.events,
         (std::vector<CoordinatorFixture::Event> { CoordinatorFixture::Event::SetNavigation,
@@ -243,7 +238,6 @@ void TestDocumentSessionDirectMediaNavigationCoordinator::activeOpenRoutesTarget
         0, { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(nextUrl) });
 
     QCOMPARE(fixture.routeTargetUrl, nextUrl);
-    QCOMPARE(fixture.predecodeCandidates.size(), std::size_t(2));
     QCOMPARE(fixture.predecodeTargetUrl, nextUrl);
     QCOMPARE(fixture.events,
         (std::vector<CoordinatorFixture::Event> { CoordinatorFixture::Event::SetNavigation,

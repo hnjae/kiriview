@@ -19,8 +19,7 @@ struct DocumentSessionDirectMediaNavigationApplicationPorts
     std::function<void(DocumentSessionDirectMediaNavigationRevealAction)> applyRevealAction;
     std::function<void()> publishProjection;
     std::function<void()> clearPredecode;
-    std::function<void(const QUrl&, const std::vector<DirectMediaNavigationCandidate>&)>
-        schedulePredecode;
+    std::function<void(const QUrl&)> schedulePredecode;
     std::function<void(const QUrl&)> routeMediaUrl;
 };
 
