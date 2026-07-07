@@ -20,15 +20,18 @@ private Q_SLOTS:
     void visiblePriorityOutlivesNearbyWhenBudgetIsTight();
     void evictsBackgroundBeforeNearbyBeforeVisible();
     void explicitReleaseRemovesImageAndByteCost();
+    void providerReturnsStoredImageForRequestedSize();
 };
 
 namespace {
-QImage testImage(QColor color)
+QImage testImage(QSize size, QColor color)
 {
-    QImage image(QSize(4, 4), QImage::Format_RGBA8888);
+    QImage image(size, QImage::Format_RGBA8888);
     image.fill(color);
     return image;
 }
+
+QImage testImage(QColor color) { return testImage(QSize(4, 4), color); }
 }
 
 void TestThumbnailImageStore::evictsLeastRecentlyUsedImagesByByteBudget()
@@ -125,6 +128,21 @@ void TestThumbnailImageStore::explicitReleaseRemovesImageAndByteCost()
     QCOMPARE(store.size(), qsizetype(0));
     QCOMPARE(store.byteCost(), qsizetype(0));
     QVERIFY(store.image(id).isNull());
+}
+
+void TestThumbnailImageStore::providerReturnsStoredImageForRequestedSize()
+{
+    auto store = std::make_shared<kiriview::ThumbnailImageStore>(12800);
+    const QString id = store->insert(testImage(QSize(80, 40), Qt::red));
+    QVERIFY(!id.isEmpty());
+
+    kiriview::ThumbnailImageProvider provider(store);
+    QSize reportedSize;
+    const QImage image = provider.requestImage(id, &reportedSize, QSize(20, 20));
+
+    QCOMPARE(reportedSize, QSize(80, 40));
+    QCOMPARE(image.size(), QSize(80, 40));
+    QCOMPARE(image.pixelColor(0, 0), QColor(Qt::red));
 }
 
 QTEST_GUILESS_MAIN(TestThumbnailImageStore)

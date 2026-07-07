@@ -220,15 +220,13 @@ ThumbnailImageProvider::ThumbnailImageProvider(std::shared_ptr<ThumbnailImageSto
 QImage ThumbnailImageProvider::requestImage(
     const QString& id, QSize* size, const QSize& requestedSize)
 {
+    Q_UNUSED(requestedSize)
+
     const QImage image = m_store == nullptr ? QImage() : m_store->image(id);
     if (size != nullptr) {
         *size = image.size();
     }
-    if (image.isNull() || !requestedSize.isValid() || requestedSize.isEmpty()) {
-        return image;
-    }
-
-    return image.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    return image;
 }
 
 std::shared_ptr<ThumbnailImageStore> sharedThumbnailImageStore()

@@ -650,6 +650,12 @@ void TestActiveNavigationThumbnailRuntime::readyLookupPublishesImageProviderSour
     QCOMPARE(imageSize, QSize(2, 1));
     QCOMPARE(image.size(), QSize(2, 1));
     QCOMPARE(image.pixelColor(0, 0), QColor(Qt::green));
+
+    QSize requestedImageSize;
+    const QImage requestedImage = imageProvider.requestImage(id, &requestedImageSize, QSize(1, 1));
+    QCOMPARE(requestedImageSize, QSize(2, 1));
+    QCOMPARE(requestedImage.size(), QSize(2, 1));
+    QCOMPARE(requestedImage.pixelColor(0, 0), QColor(Qt::green));
 }
 
 void TestActiveNavigationThumbnailRuntime::missingLookupStartsGenerationAndPublishesGeneratedImage()
