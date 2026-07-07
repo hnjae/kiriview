@@ -28,6 +28,7 @@ public:
     quint64 navigationGeneration() const;
     ActiveNavigationThumbnailDemandBucket demandBucket(int physicalMaxEdge) const;
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
+    void setCurrentNumber(int currentNumber);
     bool reportDemand(int number, const QUrl& url, int physicalMaxEdge,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
 

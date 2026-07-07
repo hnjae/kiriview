@@ -33,11 +33,17 @@ kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateS
     return snapshot;
 }
 
-kiriview::ImageDocumentPageTarget imageTarget(const QUrl& url,
-    kiriview::ImageDocumentPageKind kind = kiriview::ImageDocumentPageKind::Image,
-    const QString& name = {})
+kiriview::ImageDocumentPageCandidateListSnapshot imageDocumentPageCandidateListSnapshot(
+    std::vector<kiriview::ImageDocumentPageCandidate> candidates)
 {
-    return kiriview::ImageDocumentPageTarget(url, kind, name);
+    kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
+    snapshot.source = kiriview::ImageDocumentPageCandidateListSource::forDirectory(
+        localUrl(QStringLiteral("/archive")));
+    snapshot.revision = 1;
+    snapshot.candidates = std::make_shared<const std::vector<kiriview::ImageDocumentPageCandidate>>(
+        std::move(candidates));
+    snapshot.known = true;
+    return snapshot;
 }
 
 kiriview::ActiveNavigationSnapshot knownNavigation(int currentNumber, int count)
@@ -62,7 +68,7 @@ class TestActiveNavigationThumbnailProjection : public QObject
 
 private Q_SLOTS:
     void directMediaRowsUseConfirmedCandidates();
-    void imageDocumentRowsUsePageSnapshot();
+    void imageDocumentRowsUsePageCandidateListSnapshot();
     void unavailableUnknownAndMismatchedNavigationProjectNoRows();
 };
 
@@ -94,18 +100,23 @@ void TestActiveNavigationThumbnailProjection::directMediaRowsUseConfirmedCandida
     QVERIFY(rows.at(1).current);
 }
 
-void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageSnapshot()
+void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageCandidateListSnapshot()
 {
     const QUrl firstPage = localUrl(QStringLiteral("/archive/01.png"));
     const QUrl secondPage = localUrl(QStringLiteral("/archive/clip.mp4"));
-    kiriview::ImageDocumentPageNavigationSnapshot pageSnapshot;
-    pageSnapshot.state = kiriview::PageNavigationState(
-        {
-            imageTarget(firstPage, kiriview::ImageDocumentPageKind::Image,
-                QStringLiteral("chapter/01.png")),
-            imageTarget(secondPage, kiriview::ImageDocumentPageKind::Video),
-        },
-        0);
+    const kiriview::ImageDocumentPageCandidateListSnapshot pageSnapshot
+        = imageDocumentPageCandidateListSnapshot({
+            kiriview::ImageDocumentPageCandidate {
+                firstPage,
+                QStringLiteral("chapter/01.png"),
+                kiriview::ImageDocumentPageKind::Image,
+            },
+            kiriview::ImageDocumentPageCandidate {
+                secondPage,
+                {},
+                kiriview::ImageDocumentPageKind::Video,
+            },
+        });
 
     const std::vector<kiriview::ActiveNavigationThumbnailRow> rows
         = kiriview::projectActiveNavigationThumbnailRows(

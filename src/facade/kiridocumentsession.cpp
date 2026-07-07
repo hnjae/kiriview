@@ -83,6 +83,7 @@ kiriview::DocumentSessionImageDocumentSnapshot imageDocumentSessionSnapshot(
         document.zoomPercent(),
         document.embeddedMetadata(),
         document.pageNavigationSnapshot(),
+        document.confirmedPageCandidateSnapshot(),
         document.activeNavigationSnapshot(),
         document.primaryDisplayedPredecodeImage(),
         document.firstDisplayDecodeContext(),

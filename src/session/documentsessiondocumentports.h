@@ -7,6 +7,7 @@
 #include "archive/mediaentrysourcebackend.h"
 #include "location/imagelocation.h"
 #include "metadata/embeddedmetadata.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "rendering/staticimage.h"
@@ -57,6 +58,7 @@ struct DocumentSessionImageDocumentSnapshot
     qreal zoomPercent = 0.0;
     EmbeddedMetadata embeddedMetadata;
     ImageDocumentPageNavigationSnapshot pageNavigationSnapshot;
+    ImageDocumentPageCandidateListSnapshot pageCandidateSnapshot;
     ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot;
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage;
     ImageFirstDisplayDecodeContext firstDisplayDecodeContext;

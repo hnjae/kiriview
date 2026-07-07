@@ -521,6 +521,12 @@ ImageDocumentPageNavigationSnapshot ImageDocumentRuntime::pageNavigationSnapshot
     return controllers->navigationController().pageNavigationSnapshot();
 }
 
+const ImageDocumentPageCandidateListSnapshot&
+ImageDocumentRuntime::confirmedPageCandidateSnapshot() const
+{
+    return controllers->navigationController().confirmedPageCandidateSnapshot();
+}
+
 ImageDocumentPageActiveNavigationSnapshot ImageDocumentRuntime::activeNavigationSnapshot() const
 {
     return controllers->spreadController().activeNavigationSnapshot();

@@ -4,12 +4,13 @@
 #ifndef KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILPROJECTION_H
 #define KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILPROJECTION_H
 
-#include "navigation/imagedocumentpagenavigationtypes.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "session/activenavigationprojection.h"
 #include "session/directmedianavigationcandidatesnapshot.h"
 
 #include <QString>
 #include <QUrl>
+#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -44,12 +45,29 @@ struct ActiveNavigationThumbnailRow
     bool current = false;
 };
 
+struct ActiveNavigationThumbnailRowSetIdentity
+{
+    ActiveNavigationSourceKind sourceKind = ActiveNavigationSourceKind::None;
+    DirectMediaScope directMediaSource;
+    std::optional<ImageDocumentPageCandidateListSource> imageDocumentPageSource;
+    quint64 candidateRevision = 0;
+    int count = 0;
+    bool known = false;
+};
+
 QString activeNavigationThumbnailPageKindIdentity(ActiveNavigationThumbnailKind kind);
 QString activeNavigationThumbnailSourceKindIdentity(ActiveNavigationThumbnailSourceKind sourceKind);
+bool sameActiveNavigationThumbnailRowSetIdentity(
+    const ActiveNavigationThumbnailRowSetIdentity& left,
+    const ActiveNavigationThumbnailRowSetIdentity& right);
+std::optional<ActiveNavigationThumbnailRowSetIdentity> activeNavigationThumbnailRowSetIdentity(
+    ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
 std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
     ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
     const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
-    const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationSnapshot);
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
 }
 
 #endif

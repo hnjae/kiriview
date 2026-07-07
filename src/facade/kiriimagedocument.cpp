@@ -432,6 +432,12 @@ kiriview::ImageDocumentPageNavigationSnapshot KiriImageDocument::pageNavigationS
     return m_runtime->pageNavigationSnapshot();
 }
 
+const kiriview::ImageDocumentPageCandidateListSnapshot&
+KiriImageDocument::confirmedPageCandidateSnapshot() const
+{
+    return m_runtime->confirmedPageCandidateSnapshot();
+}
+
 kiriview::ImageDocumentPageActiveNavigationSnapshot
 KiriImageDocument::activeNavigationSnapshot() const
 {

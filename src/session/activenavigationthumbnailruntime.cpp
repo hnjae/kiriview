@@ -179,6 +179,24 @@ void ActiveNavigationThumbnailRuntime::setRows(std::vector<ActiveNavigationThumb
     publishRows();
 }
 
+void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)
+{
+    bool changed = false;
+    for (RowState& state : m_rows) {
+        const bool current = state.row.number == currentNumber;
+        if (state.row.current == current) {
+            continue;
+        }
+
+        state.row.current = current;
+        changed = true;
+    }
+
+    if (changed) {
+        publishRows();
+    }
+}
+
 bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
     ActiveNavigationThumbnailDemandBucket bucket, ActiveNavigationThumbnailDemandPriority priority,
     quint64 navigationGeneration)

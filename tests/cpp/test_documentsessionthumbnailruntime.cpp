@@ -38,10 +38,42 @@ class TestDocumentSessionThumbnailRuntime : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void currentNumberUpdatePreservesGeneration();
     void imageDocumentPageRowsUseOpenedCollectionScopeFromLeafSnapshot();
     void directoryCollectionRowsStayPlaceholderOnly();
     void nonZipArchiveCollectionRowsStayPlaceholderOnly();
 };
+
+void TestDocumentSessionThumbnailRuntime::currentNumberUpdatePreservesGeneration()
+{
+    QObject owner;
+    kiriview::DocumentSessionThumbnailRuntime runtime(&owner, nullptr);
+    const QUrl firstUrl = localUrl(QStringLiteral("/media/01.png"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/media/02.png"));
+    runtime.setRows({
+        kiriview::ActiveNavigationThumbnailRow {
+            1,
+            firstUrl,
+            QStringLiteral("01.png"),
+            kiriview::ActiveNavigationThumbnailKind::Image,
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage,
+            true,
+        },
+        kiriview::ActiveNavigationThumbnailRow {
+            2,
+            secondUrl,
+            QStringLiteral("02.png"),
+            kiriview::ActiveNavigationThumbnailKind::Image,
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage,
+            false,
+        },
+    });
+
+    const quint64 generation = runtime.navigationGeneration();
+    runtime.setCurrentNumber(2);
+
+    QCOMPARE(runtime.navigationGeneration(), generation);
+}
 
 void TestDocumentSessionThumbnailRuntime::
     imageDocumentPageRowsUseOpenedCollectionScopeFromLeafSnapshot()

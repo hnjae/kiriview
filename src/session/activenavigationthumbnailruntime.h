@@ -118,6 +118,7 @@ public:
     quint64 navigationGeneration() const;
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
+    void setCurrentNumber(int currentNumber);
     bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
     bool applyCompletion(const ActiveNavigationThumbnailCompletion& completion);

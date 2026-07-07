@@ -5,6 +5,7 @@
 #define KIRIVIEW_IMAGEDOCUMENTNAVIGATIONCONTROLLER_H
 
 #include "imagedocumentruntimeplan.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 
 #include <functional>
@@ -29,6 +30,7 @@ public:
     int currentPageNumber() const;
     int pageCount() const;
     ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    const ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
 
     void openAdjacentPage(NavigationDirection direction);
     void openAdjacentContainer(NavigationDirection direction);

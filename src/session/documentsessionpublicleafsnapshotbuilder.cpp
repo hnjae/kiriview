@@ -17,6 +17,7 @@ DocumentSessionPublicImageLeafSnapshot buildDocumentSessionPublicImageLeafSnapsh
         = !sourceUrl.isEmpty() && !isSupportedDirectImageUrl(sourceUrl);
     snapshot.pageNavigation = leafSnapshot.activeNavigationSnapshot;
     snapshot.pageNavigationRows = leafSnapshot.pageNavigationSnapshot;
+    snapshot.pageCandidateSnapshot = leafSnapshot.pageCandidateSnapshot;
     snapshot.displayedUrl = leafSnapshot.displayedUrl;
     snapshot.displayedOpenedCollectionScope = leafSnapshot.displayedOpenedCollectionScope;
     snapshot.windowTitleFileName = leafSnapshot.windowTitleFileName;

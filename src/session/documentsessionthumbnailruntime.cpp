@@ -87,6 +87,11 @@ void DocumentSessionThumbnailRuntime::setRows(std::vector<ActiveNavigationThumbn
     m_runtime.setRows(std::move(rows));
 }
 
+void DocumentSessionThumbnailRuntime::setCurrentNumber(int currentNumber)
+{
+    m_runtime.setCurrentNumber(currentNumber);
+}
+
 bool DocumentSessionThumbnailRuntime::reportDemand(int number, const QUrl& url, int physicalMaxEdge,
     ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration)
 {

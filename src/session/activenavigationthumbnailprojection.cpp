@@ -6,6 +6,7 @@
 #include "navigation/mediaformatregistry.h"
 
 #include <cstddef>
+#include <optional>
 
 namespace {
 kiriview::ActiveNavigationThumbnailKind thumbnailKindForDirectMediaNavigationCandidate(
@@ -17,10 +18,10 @@ kiriview::ActiveNavigationThumbnailKind thumbnailKindForDirectMediaNavigationCan
         : kiriview::ActiveNavigationThumbnailKind::Image;
 }
 
-kiriview::ActiveNavigationThumbnailKind thumbnailKindForImageDocumentPageTarget(
-    const kiriview::ImageDocumentPageTarget& target)
+kiriview::ActiveNavigationThumbnailKind thumbnailKindForImageDocumentPageCandidate(
+    const kiriview::ImageDocumentPageCandidate& candidate)
 {
-    return target.kind == kiriview::ImageDocumentPageKind::Video
+    return candidate.kind == kiriview::ImageDocumentPageKind::Video
         ? kiriview::ActiveNavigationThumbnailKind::Video
         : kiriview::ActiveNavigationThumbnailKind::Image;
 }
@@ -57,20 +58,22 @@ std::vector<kiriview::ActiveNavigationThumbnailRow> thumbnailRowsForDirectMediaN
 }
 
 std::vector<kiriview::ActiveNavigationThumbnailRow>
-thumbnailRowsForImageDocumentPageNavigationSnapshot(
-    const kiriview::ImageDocumentPageNavigationSnapshot& snapshot, int currentNumber)
+thumbnailRowsForImageDocumentPageCandidateListSnapshot(
+    const kiriview::ImageDocumentPageCandidateListSnapshot& snapshot, int currentNumber)
 {
+    const kiriview::ImageDocumentPageCandidateRows& candidates
+        = kiriview::imageDocumentPageCandidateRows(snapshot);
     std::vector<kiriview::ActiveNavigationThumbnailRow> rows;
-    rows.reserve(snapshot.state.targets.size());
+    rows.reserve(candidates.size());
 
     int number = 1;
-    for (const kiriview::ImageDocumentPageTarget& target : snapshot.state.targets) {
+    for (const kiriview::ImageDocumentPageCandidate& candidate : candidates) {
         const kiriview::ActiveNavigationThumbnailKind kind
-            = thumbnailKindForImageDocumentPageTarget(target);
+            = thumbnailKindForImageDocumentPageCandidate(candidate);
         rows.push_back(kiriview::ActiveNavigationThumbnailRow {
             number,
-            target.url,
-            thumbnailLabel(target.name, target.url),
+            candidate.url,
+            thumbnailLabel(candidate.name, candidate.url),
             kind,
             kind == kiriview::ActiveNavigationThumbnailKind::Video
                 ? kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageVideo
@@ -81,6 +84,11 @@ thumbnailRowsForImageDocumentPageNavigationSnapshot(
     }
 
     return rows;
+}
+
+bool activeNavigationThumbnailNavigationAvailable(kiriview::ActiveNavigationSnapshot navigation)
+{
+    return navigation.available && navigation.known && navigation.count > 0;
 }
 }
 
@@ -113,12 +121,93 @@ QString activeNavigationThumbnailSourceKindIdentity(ActiveNavigationThumbnailSou
     return QStringLiteral("direct-image");
 }
 
+bool sameActiveNavigationThumbnailRowSetIdentity(
+    const ActiveNavigationThumbnailRowSetIdentity& left,
+    const ActiveNavigationThumbnailRowSetIdentity& right)
+{
+    if (left.known != right.known || left.sourceKind != right.sourceKind
+        || left.candidateRevision != right.candidateRevision || left.count != right.count) {
+        return false;
+    }
+
+    if (!left.known) {
+        return true;
+    }
+
+    switch (left.sourceKind) {
+    case ActiveNavigationSourceKind::OrdinaryDirectMedia:
+        return left.directMediaSource == right.directMediaSource;
+    case ActiveNavigationSourceKind::ImageDocumentPages:
+        return left.imageDocumentPageSource.has_value() && right.imageDocumentPageSource.has_value()
+            && sameImageDocumentPageCandidateListSource(
+                *left.imageDocumentPageSource, *right.imageDocumentPageSource);
+    case ActiveNavigationSourceKind::None:
+        return true;
+    }
+
+    return false;
+}
+
+std::optional<ActiveNavigationThumbnailRowSetIdentity> activeNavigationThumbnailRowSetIdentity(
+    ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
+{
+    if (!activeNavigationThumbnailNavigationAvailable(navigation)) {
+        return std::nullopt;
+    }
+
+    switch (sourceKind) {
+    case ActiveNavigationSourceKind::OrdinaryDirectMedia: {
+        const DirectMediaNavigationCandidateRows& rows
+            = directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot);
+        if (!directMediaNavigationCandidateSnapshot.known
+            || static_cast<int>(rows.size()) != navigation.count) {
+            return std::nullopt;
+        }
+
+        return ActiveNavigationThumbnailRowSetIdentity {
+            sourceKind,
+            directMediaNavigationCandidateSnapshot.source,
+            std::nullopt,
+            directMediaNavigationCandidateSnapshot.revision,
+            navigation.count,
+            true,
+        };
+    }
+    case ActiveNavigationSourceKind::ImageDocumentPages: {
+        const ImageDocumentPageCandidateRows& rows
+            = imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot);
+        if (!imageDocumentPageCandidateSnapshot.known
+            || !imageDocumentPageCandidateSnapshot.source.has_value()
+            || static_cast<int>(rows.size()) != navigation.count) {
+            return std::nullopt;
+        }
+
+        return ActiveNavigationThumbnailRowSetIdentity {
+            sourceKind,
+            {},
+            imageDocumentPageCandidateSnapshot.source,
+            imageDocumentPageCandidateSnapshot.revision,
+            navigation.count,
+            true,
+        };
+    }
+    case ActiveNavigationSourceKind::None:
+        return std::nullopt;
+    }
+
+    return std::nullopt;
+}
+
 std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
     ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
     const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
-    const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationSnapshot)
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
-    if (!navigation.available || !navigation.known || navigation.count < 1) {
+    if (!activeNavigationThumbnailRowSetIdentity(sourceKind, navigation,
+            directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot)
+            .has_value()) {
         return {};
     }
 
@@ -130,8 +219,8 @@ std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
             navigation.currentNumber);
         break;
     case ActiveNavigationSourceKind::ImageDocumentPages:
-        rows = thumbnailRowsForImageDocumentPageNavigationSnapshot(
-            imageDocumentPageNavigationSnapshot, navigation.currentNumber);
+        rows = thumbnailRowsForImageDocumentPageCandidateListSnapshot(
+            imageDocumentPageCandidateSnapshot, navigation.currentNumber);
         break;
     case ActiveNavigationSourceKind::None:
         break;

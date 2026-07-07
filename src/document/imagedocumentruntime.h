@@ -8,6 +8,7 @@
 #include "imagedocumentruntimedependencies.h"
 #include "imagedocumentstate.h"
 #include "imagedocumenttypes.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "presentation/imagedisplaysourceprojection.h"
@@ -118,6 +119,7 @@ public:
     int currentLastPageNumber() const;
     int pageCount() const;
     ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    const ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
     ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
     bool containerNavigationAvailable() const;
     bool ordinaryDirectMediaScopeActive() const;

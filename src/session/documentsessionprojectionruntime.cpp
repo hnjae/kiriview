@@ -21,29 +21,29 @@ DocumentSessionProjectionRuntime::DocumentSessionProjectionRuntime(
 }
 
 void DocumentSessionProjectionRuntime::publish(const DocumentSessionPublicSnapshotInput& input,
-    const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows)
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
     if (m_ports.updatePublicSnapshot) {
         m_ports.updatePublicSnapshot(input);
     }
-    syncActiveNavigationThumbnailRows(imageDocumentPageNavigationRows);
+    syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
     clearActiveNavigationRevealContextIfUnavailable();
 }
 
 void DocumentSessionProjectionRuntime::publishForSourceKind(
     const DocumentSessionPublicSnapshotInput& input, ActiveNavigationSourceKind sourceKind,
-    const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows)
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
     const bool updated = m_ports.updatePublicSnapshotForSourceKind
         && m_ports.updatePublicSnapshotForSourceKind(input, sourceKind);
     if (updated) {
-        syncActiveNavigationThumbnailRows(imageDocumentPageNavigationRows);
+        syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
     }
     clearActiveNavigationRevealContextIfUnavailable();
 }
 
 void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
-    const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows)
+    const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
     const ActiveNavigationSourceKind sourceKind = m_ports.activeNavigationSourceKind
         ? m_ports.activeNavigationSourceKind()
@@ -55,9 +55,29 @@ void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
         = m_ports.directMediaNavigationCandidateSnapshot
         ? m_ports.directMediaNavigationCandidateSnapshot()
         : emptyDirectMediaNavigationCandidateSnapshot();
+    const std::optional<ActiveNavigationThumbnailRowSetIdentity> rowSetIdentity
+        = activeNavigationThumbnailRowSetIdentity(sourceKind, navigation,
+            directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
+    if (!rowSetIdentity.has_value()) {
+        m_activeNavigationThumbnailIdentity.reset();
+        if (m_ports.setActiveNavigationThumbnailRows) {
+            m_ports.setActiveNavigationThumbnailRows({});
+        }
+        return;
+    }
+
+    if (m_activeNavigationThumbnailIdentity.has_value()
+        && sameActiveNavigationThumbnailRowSetIdentity(
+            *m_activeNavigationThumbnailIdentity, *rowSetIdentity)
+        && m_ports.setActiveNavigationThumbnailCurrentNumber) {
+        m_ports.setActiveNavigationThumbnailCurrentNumber(navigation.currentNumber);
+        return;
+    }
+
     std::vector<ActiveNavigationThumbnailRow> rows
         = projectActiveNavigationThumbnailRows(sourceKind, navigation,
-            directMediaNavigationCandidateSnapshot, imageDocumentPageNavigationRows);
+            directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
+    m_activeNavigationThumbnailIdentity = rowSetIdentity;
     if (m_ports.setActiveNavigationThumbnailRows) {
         m_ports.setActiveNavigationThumbnailRows(std::move(rows));
     }

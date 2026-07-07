@@ -9,6 +9,7 @@
 #include "session/documentsessionpublicprojection.h"
 
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -22,6 +23,7 @@ struct DocumentSessionProjectionRuntimePorts
     std::function<const DirectMediaNavigationCandidateSnapshot&()>
         directMediaNavigationCandidateSnapshot;
     std::function<void(std::vector<ActiveNavigationThumbnailRow>)> setActiveNavigationThumbnailRows;
+    std::function<void(int)> setActiveNavigationThumbnailCurrentNumber;
     std::function<void()> clearActiveNavigationRevealContextIfUnavailable;
 };
 
@@ -31,17 +33,18 @@ public:
     explicit DocumentSessionProjectionRuntime(DocumentSessionProjectionRuntimePorts ports = {});
 
     void publish(const DocumentSessionPublicSnapshotInput& input,
-        const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows);
+        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
     void publishForSourceKind(const DocumentSessionPublicSnapshotInput& input,
         ActiveNavigationSourceKind sourceKind,
-        const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows);
+        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
 
 private:
     void syncActiveNavigationThumbnailRows(
-        const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationRows);
+        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
     void clearActiveNavigationRevealContextIfUnavailable();
 
     DocumentSessionProjectionRuntimePorts m_ports;
+    std::optional<ActiveNavigationThumbnailRowSetIdentity> m_activeNavigationThumbnailIdentity;
 };
 }
 

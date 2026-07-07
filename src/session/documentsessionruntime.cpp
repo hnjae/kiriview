@@ -127,6 +127,9 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
           [this](std::vector<ActiveNavigationThumbnailRow> rows) {
               m_activeNavigationThumbnailRuntime.setRows(std::move(rows));
           },
+          [this](int currentNumber) {
+              m_activeNavigationThumbnailRuntime.setCurrentNumber(currentNumber);
+          },
           [this]() { clearActiveNavigationRevealContextIfUnavailable(); },
       })
     , m_routeRuntime(DocumentSessionRouteRuntimePorts {
@@ -844,13 +847,14 @@ void DocumentSessionRuntime::publishActiveNavigationForImagePages()
     setActiveNavigationRevealContext(
         takePendingActiveNavigationRevealContext(ActiveNavigationRevealIntent::ProgrammaticSync));
     m_projectionRuntime.publishForSourceKind(m_publicSnapshotInputPort.nextInput(),
-        ActiveNavigationSourceKind::ImageDocumentPages, m_imagePublicSnapshot.pageNavigationRows);
+        ActiveNavigationSourceKind::ImageDocumentPages,
+        m_imagePublicSnapshot.pageCandidateSnapshot);
 }
 
 void DocumentSessionRuntime::recomputePublicProjection()
 {
     m_projectionRuntime.publish(
-        m_publicSnapshotInputPort.nextInput(), m_imagePublicSnapshot.pageNavigationRows);
+        m_publicSnapshotInputPort.nextInput(), m_imagePublicSnapshot.pageCandidateSnapshot);
 }
 
 void DocumentSessionRuntime::routeSourceUrl(const QUrl& sourceUrl)

@@ -78,6 +78,12 @@ ImageDocumentNavigationController::pageNavigationSnapshot() const
     return m_navigationService.pageNavigationSnapshot();
 }
 
+const ImageDocumentPageCandidateListSnapshot&
+ImageDocumentNavigationController::confirmedPageCandidateSnapshot() const
+{
+    return m_navigationService.confirmedPageCandidateSnapshot();
+}
+
 void ImageDocumentNavigationController::openAdjacentPage(NavigationDirection direction)
 {
     const std::optional<ImageDocumentPageCandidateListContext> context

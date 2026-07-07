@@ -9,6 +9,7 @@
 #include "document/imagedocumenttypes.h"
 #include "facade/kiriimagedisplaysource.h"
 #include "metadata/embeddedmetadata.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "predecode/predecodedimage.h"
 #include "presentation/imagepresentationstate.h"
@@ -225,6 +226,7 @@ public:
     int currentLastPageNumber() const;
     int pageCount() const;
     kiriview::ImageDocumentPageNavigationSnapshot pageNavigationSnapshot() const;
+    const kiriview::ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
     kiriview::ImageDocumentPageActiveNavigationSnapshot activeNavigationSnapshot() const;
     bool containerNavigationAvailable() const;
     bool ordinaryDirectMediaScopeActive() const;

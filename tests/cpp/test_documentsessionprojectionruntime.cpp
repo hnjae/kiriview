@@ -38,6 +38,17 @@ kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateS
     return snapshot;
 }
 
+kiriview::ActiveNavigationSnapshot activeNavigationSnapshot(int currentNumber, int count)
+{
+    kiriview::ActiveNavigationSnapshot snapshot;
+    snapshot.available = true;
+    snapshot.known = true;
+    snapshot.editable = true;
+    snapshot.currentNumber = currentNumber;
+    snapshot.count = count;
+    return snapshot;
+}
+
 static_assert(std::is_same_v<decltype(kiriview::DocumentSessionProjectionRuntimePorts::
                                      directMediaNavigationCandidateSnapshot),
     std::function<const kiriview::DirectMediaNavigationCandidateSnapshot&()>>);
@@ -49,6 +60,7 @@ class TestDocumentSessionProjectionRuntime : public QObject
 
 private Q_SLOTS:
     void publishCommitsSnapshotBeforeThumbnailRowsAndRevealCleanup();
+    void sameDirectMediaCandidateRevisionUpdatesCurrentWithoutRows();
     void sourceKindPublishSkipsThumbnailRowsWhenRejected();
 };
 
@@ -68,10 +80,7 @@ void TestDocumentSessionProjectionRuntime::
               const kiriview::DocumentSessionPublicSnapshotInput& input) {
               events.push_back(QStringLiteral("commit:%1").arg(input.inputRevision));
               committedSourceKind = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
-              committedNavigation.available = true;
-              committedNavigation.known = true;
-              committedNavigation.currentNumber = 2;
-              committedNavigation.count = 2;
+              committedNavigation = activeNavigationSnapshot(2, 2);
               committedCandidateSnapshot = directMediaNavigationCandidateSnapshot(
                   {
                       directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))),
@@ -110,6 +119,51 @@ void TestDocumentSessionProjectionRuntime::
     QCOMPARE(
         publishedRows.at(1).sourceKind, kiriview::ActiveNavigationThumbnailSourceKind::DirectVideo);
     QVERIFY(publishedRows.at(1).current);
+}
+
+void TestDocumentSessionProjectionRuntime::
+    sameDirectMediaCandidateRevisionUpdatesCurrentWithoutRows()
+{
+    std::vector<QString> events;
+    kiriview::ActiveNavigationSourceKind sourceKind
+        = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
+    kiriview::ActiveNavigationSnapshot navigation = activeNavigationSnapshot(1, 2);
+    const kiriview::DirectMediaNavigationCandidateSnapshot candidateSnapshot
+        = directMediaNavigationCandidateSnapshot({
+            directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))),
+            directMediaNavigationCandidate(localUrl(QStringLiteral("/media/02.png"))),
+        });
+
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&events](const kiriview::DocumentSessionPublicSnapshotInput&) {
+        events.push_back(QStringLiteral("commit"));
+        return true;
+    };
+    ports.activeNavigationSourceKind = [&sourceKind]() { return sourceKind; };
+    ports.activeNavigationSnapshot = [&navigation]() { return navigation; };
+    ports.directMediaNavigationCandidateSnapshot
+        = [&candidateSnapshot]() -> const auto& { return candidateSnapshot; };
+    ports.setActiveNavigationThumbnailRows
+        = [&events](std::vector<kiriview::ActiveNavigationThumbnailRow> rows) {
+              events.push_back(QStringLiteral("rows:%1").arg(rows.size()));
+          };
+    ports.setActiveNavigationThumbnailCurrentNumber = [&events](int currentNumber) {
+        events.push_back(QStringLiteral("current:%1").arg(currentNumber));
+    };
+
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+
+    runtime.publish({}, {});
+    navigation = activeNavigationSnapshot(2, 2);
+    runtime.publish({}, {});
+
+    const std::vector<QString> expected {
+        QStringLiteral("commit"),
+        QStringLiteral("rows:2"),
+        QStringLiteral("commit"),
+        QStringLiteral("current:2"),
+    };
+    QCOMPARE(events, expected);
 }
 
 void TestDocumentSessionProjectionRuntime::sourceKindPublishSkipsThumbnailRowsWhenRejected()

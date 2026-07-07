@@ -5,6 +5,7 @@
 #define KIRIVIEW_DOCUMENTSESSIONPUBLICPROJECTION_H
 
 #include "metadata/embeddedmetadata.h"
+#include "navigation/imagedocumentpagecandidatelistsource.h"
 #include "predecode/predecodedimage.h"
 #include "session/activenavigationprojection.h"
 #include "session/documentsessiontypes.h"
@@ -56,6 +57,7 @@ struct DocumentSessionPublicImageLeafSnapshot
     bool sourceMayRepresentDocument = false;
     ImageDocumentPageActiveNavigationSnapshot pageNavigation;
     ImageDocumentPageNavigationSnapshot pageNavigationRows;
+    ImageDocumentPageCandidateListSnapshot pageCandidateSnapshot;
     QUrl displayedUrl;
     OpenedCollectionScopeLocation displayedOpenedCollectionScope;
     QString windowTitleFileName;

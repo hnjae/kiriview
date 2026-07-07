@@ -276,6 +276,7 @@ class TestActiveNavigationThumbnailRuntime : public QObject
 
 private Q_SLOTS:
     void buildsSourceKeysAndBumpsGenerationOnlyForScopeChanges();
+    void currentNumberUpdatePreservesGenerationAndPublishesCurrentRole();
     void sameRowDemandCoalescesButBucketAndPriorityChangesAreAccepted();
     void repeatedDemandAfterOtherRowDoesNotPlanAgain();
     void multipleRowsKeepIndependentDemandState();
@@ -356,6 +357,32 @@ void TestActiveNavigationThumbnailRuntime::buildsSourceKeysAndBumpsGenerationOnl
     QCOMPARE(runtime.navigationGeneration(), quint64(2));
     QCOMPARE(runtime.sourceKeyAt(0).label, QStringLiteral("renamed.png"));
     QCOMPARE(runtime.sourceKeyAt(0).navigationGeneration, quint64(2));
+}
+
+void TestActiveNavigationThumbnailRuntime::
+    currentNumberUpdatePreservesGenerationAndPublishesCurrentRole()
+{
+    QObject owner;
+    kiriview::ActiveNavigationThumbnailRuntime runtime(
+        &owner, kiriview::ActiveNavigationThumbnailRuntimeDependencies {});
+    const QUrl firstUrl = localUrl(QStringLiteral("/media/01.png"));
+    const QUrl secondUrl = localUrl(QStringLiteral("/media/02.png"));
+
+    runtime.setRows({
+        thumbnailRow(1, firstUrl, QStringLiteral("01.png"),
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage, true),
+        thumbnailRow(2, secondUrl, QStringLiteral("02.png"),
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+    });
+    QAbstractItemModel* model = runtime.model();
+    const quint64 generation = runtime.navigationGeneration();
+
+    runtime.setCurrentNumber(2);
+
+    QCOMPARE(runtime.navigationGeneration(), generation);
+    QCOMPARE(runtime.sourceKeyAt(0).navigationGeneration, generation);
+    QCOMPARE(modelData(*model, 0, QByteArrayLiteral("current")).toBool(), false);
+    QCOMPARE(modelData(*model, 1, QByteArrayLiteral("current")).toBool(), true);
 }
 
 void TestActiveNavigationThumbnailRuntime::
