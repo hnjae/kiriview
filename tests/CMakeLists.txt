@@ -115,3 +115,10 @@ add_test(
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
         ${CMAKE_CURRENT_SOURCE_DIR}/provider_event_admission_boundary.cmake)
+
+add_test(
+    NAME structural::refactorBaselineInventory
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -DIMAGEVIEWPORT_BUILD_DIR=${CMAKE_BINARY_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/refactor_baseline_inventory.cmake)

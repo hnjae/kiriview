@@ -115,6 +115,8 @@ No temporary design review finding was overridden by the authoritative docs. The
 
 ### Milestone 1: Baseline Verification And Refactor Characterization
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Establish a clean executable baseline and add behavior-preserving characterization coverage needed before structural refactors. Do not add unresolved failing tests in this milestone.
@@ -149,15 +151,24 @@ Finding 4, Finding 6, Finding 7, Finding 9.
 
 #### Tasks
 
-- [ ] Confirm the local build command; start with `cmake -S . -B build -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF`.
-- [ ] Confirm the local full test command; start with `cmake --build build` and `ctest --test-dir build --output-on-failure`.
-- [ ] Audit existing command diagnostic tests for invalid, unsupported, ignored, accepted, accepted no-op, and diagnostic-preserving exceptions.
-- [ ] Add passing characterization tests for command diagnostic ordering and `setSpreadDirection(...)` / `setPageGap(...)` diagnostic-preserving exceptions if gaps exist.
-- [ ] Audit primary/secondary provider request tests and add passing shared or paired cases for current role-symmetric behavior where coverage is missing.
-- [ ] Audit render commit tests and add passing coverage for current role/payload identity handling where coverage is missing.
-- [ ] Audit playback tests and add passing coverage for active-driver selection, stop restoration, and secondary-role playback behavior where coverage is missing.
-- [ ] Inventory current role-specific fields, helper methods, and branches for later role-parametric milestones; do not fail the build on this inventory yet.
-- [ ] Inventory current command diagnostic mutation sites for later structural enforcement; do not fail the build on this inventory yet.
+- [x] Confirm the local build command; start with `cmake -S . -B build -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF`.
+- [x] Confirm the local full test command; start with `cmake --build build` and `ctest --test-dir build --output-on-failure`.
+- [x] Audit existing command diagnostic tests for invalid, unsupported, ignored, accepted, accepted no-op, and diagnostic-preserving exceptions.
+- [x] Add passing characterization tests for command diagnostic ordering and `setSpreadDirection(...)` / `setPageGap(...)` diagnostic-preserving exceptions if gaps exist.
+- [x] Audit primary/secondary provider request tests and add passing shared or paired cases for current role-symmetric behavior where coverage is missing.
+- [x] Audit render commit tests and add passing coverage for current role/payload identity handling where coverage is missing.
+- [x] Audit playback tests and add passing coverage for active-driver selection, stop restoration, and secondary-role playback behavior where coverage is missing.
+- [x] Inventory current role-specific fields, helper methods, and branches for later role-parametric milestones; do not fail the build on this inventory yet.
+- [x] Inventory current command diagnostic mutation sites for later structural enforcement; do not fail the build on this inventory yet.
+
+#### Completion evidence
+
+- Build and full test commands confirmed: `cmake -S . -B build -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=OFF`, `cmake --build build`, and `ctest --test-dir build --output-on-failure`.
+- Command diagnostics audit: public command tests already cover invalid, unsupported, ignored, accepted, accepted no-op, and item-level diagnostic-preserving behavior; Milestone 1 added `viewportcontroller_presentation/spreadDirectionAndPageGapPreserveCommandDiagnosticsForInvalidAndNoop` to characterize the controller-level preservation path for standalone spread direction and page gap.
+- Provider request role-symmetry audit: existing primary/secondary coverage in `imageviewport_provider_requests`, `imageviewport_provider_lifecycle`, and `viewportcontroller_provider` covers role-scoped metadata, frame, queueing, seek, stale-result, and secondary spread behavior, so no additional provider characterization was needed in this baseline milestone.
+- Render identity audit: existing `imageviewport_render_commit` coverage includes primary and secondary payload identity matching, stale render commit/failure handling, and secondary-role render failure behavior, so no additional render characterization was needed in this baseline milestone.
+- Playback audit: existing `viewportcontroller_playback`, `imageviewport_provider_playback`, `imageviewport_timed`, and `imageviewport_render_commit` coverage includes active-driver selection, stop restoration, waiting/resume behavior, and secondary-role playback command admission, so no additional playback characterization was needed in this baseline milestone.
+- Structural inventory added as non-failing test `structural::refactorBaselineInventory`; it writes `build/tests/refactor-role-inventory.txt` and `build/tests/refactor-command-diagnostic-inventory.txt`. The baseline run produced 2,995 role-specific inventory entries and 344 command-diagnostic inventory entries for later allowlist conversion.
 
 #### Acceptance criteria
 

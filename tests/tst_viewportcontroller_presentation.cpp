@@ -3,6 +3,7 @@
 
 #include <QtTest/QTest>
 
+#include <limits>
 #include <memory>
 
 namespace {
@@ -121,6 +122,7 @@ private slots:
     void presentationCommandsReportGeometryChangesWhenDisplayIsReady();
     void assignmentAppliesPresentationTransitionInControllerTransaction();
     void assignmentDerivesDisplayTransitionFromPolicy();
+    void spreadDirectionAndPageGapPreserveCommandDiagnosticsForInvalidAndNoop();
     void pageSetTransitionScanStartUsesReplacementSpreadGeometry();
     void pageSetTransitionScanEndUsesReplacementSpreadGeometry();
     void pageSetTransitionClampUsesReplacementBounds();
@@ -255,6 +257,60 @@ void ViewportControllerPresentationTest::assignmentDerivesDisplayTransitionFromP
     QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Empty);
     QCOMPARE(controller.displayState().displayedImageSize, QSizeF());
     QCOMPARE(result.changes.displayRevision, true);
+}
+
+void ViewportControllerPresentationTest::
+    spreadDirectionAndPageGapPreserveCommandDiagnosticsForInvalidAndNoop()
+{
+    PresentationControllerContext context;
+    ViewportController controller(context);
+
+    const ViewportCommandResult invalidZoom = controller.setZoomPercent(
+        std::numeric_limits<double>::infinity(), QPointF());
+    QCOMPARE(invalidZoom.outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(controller.requestState().commandReason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(invalidZoom.changes.commandRevision, true);
+    const uint unchangedRevision = controller.requestState().commandRevision;
+
+    const ViewportCommandResult invalidDirection = controller.setSpreadDirection(
+        static_cast<ImageViewport::SpreadDirection>(-1));
+    QCOMPARE(invalidDirection.outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(controller.requestState().commandReason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
+    QCOMPARE(invalidDirection.changes.commandRevision, false);
+
+    const ViewportCommandResult sameDirection = controller.setSpreadDirection(
+        controller.presentationState().spreadDirection);
+    QCOMPARE(sameDirection.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.requestState().commandReason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
+    QCOMPARE(sameDirection.changes.commandRevision, false);
+
+    const ViewportCommandResult invalidGap = controller.setPageGap(
+        std::numeric_limits<double>::infinity());
+    QCOMPARE(invalidGap.outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(controller.requestState().commandReason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
+    QCOMPARE(invalidGap.changes.commandRevision, false);
+
+    const ViewportCommandResult sameGap = controller.setPageGap(
+        controller.presentationState().pageGap);
+    QCOMPARE(sameGap.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.requestState().commandReason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
+    QCOMPARE(sameGap.changes.commandRevision, false);
+
+    const ViewportCommandResult changedDirection = controller.setSpreadDirection(
+        ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(changedDirection.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.requestState().commandReason, ImageViewport::CommandReason::NoCommand);
+    QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
+    QCOMPARE(changedDirection.changes.commandRevision, true);
 }
 
 void ViewportControllerPresentationTest::
