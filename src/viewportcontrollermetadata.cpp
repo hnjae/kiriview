@@ -1,4 +1,4 @@
-#include "viewportcontrollerhelpers_p.h"
+#include "viewportcontrollercorehelpers_p.h"
 
 ViewportMetadataProjection ViewportController::metadataProjection(
     ImageViewport::PageRole role) const

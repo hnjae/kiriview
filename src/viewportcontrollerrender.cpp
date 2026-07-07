@@ -1,4 +1,4 @@
-#include "viewportcontrollerhelpers_p.h"
+#include "viewportcontrollerrenderhelpers_p.h"
 
 namespace {
 QRectF renderTargetRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)

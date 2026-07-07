@@ -141,6 +141,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/playback_role_state_boundary.cmake)
 
 add_test(
+    NAME structural::controllerHelperOwnershipBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller_helper_ownership_boundary.cmake)
+
+add_test(
     NAME structural::refactorBaselineInventory
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}

@@ -641,6 +641,8 @@ Finding 4.
 
 ### Milestone 8: Narrow Controller Ports And Helper Ownership
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Replace broad mutable controller helper access with subsystem-specific internal facades or explicit state slices.
@@ -673,12 +675,20 @@ Finding 6.
 
 #### Tasks
 
-- [ ] Define the provider facade and migrate provider controller code to it.
-- [ ] Define the presentation/geometry facade and migrate presentation controller code to it.
-- [ ] Define the render/display facade and migrate render controller code to it.
-- [ ] Define the playback facade if playback still depends on broad mutable access.
-- [ ] Split or shrink `viewportcontrollerhelpers_p.h` to domain-specific helpers or domain-neutral value helpers.
-- [ ] Add structural tests or grep-based CMake checks for disallowed cross-domain helper access.
+- [x] Define the provider facade and migrate provider controller code to it.
+- [x] Define the presentation/geometry facade and migrate presentation controller code to it.
+- [x] Define the render/display facade and migrate render controller code to it.
+- [x] Define the playback facade if playback still depends on broad mutable access.
+- [x] Split or shrink `viewportcontrollerhelpers_p.h` to domain-specific helpers or domain-neutral value helpers.
+- [x] Add structural tests or grep-based CMake checks for disallowed cross-domain helper access.
+
+#### Completion evidence
+
+- Durable architecture intent for controller helper ownership was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::controllerHelperOwnershipBoundary`, which fails when controller implementation units include `viewportcontrollerhelpers_p.h` directly.
+- Split the previous all-access helper header into `viewportcontrollercorehelpers_p.h`, `viewportcontrollergeometryhelpers_p.h`, `viewportcontrollerplaybackhelpers_p.h`, `viewportcontrollerproviderhelpers_p.h`, and `viewportcontrollerrenderhelpers_p.h`; the old header now shrinks to a compatibility include for the domain-neutral core helpers.
+- Migrated controller implementation units to owner-specific helper headers: geometry/presentation use geometry helpers, playback uses playback helpers, provider uses provider helpers, render uses render helpers, metadata uses core helpers, and the main controller uses geometry/core helpers through the geometry facade.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'structural::' --output-on-failure`, `ctest --test-dir build -R 'viewportcontroller_provider|viewportcontroller_presentation|viewportcontroller_playback|imageviewport_render_commit|imageviewport_render_scenegraph|structural::controllerHelperOwnershipBoundary|structural::ownerSpecificHelperHeadersOnly|structural::providerEventAdmissionBoundary|structural::builtInPayloadBoundary' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 
