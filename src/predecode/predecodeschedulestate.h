@@ -34,7 +34,7 @@ struct PredecodeScheduleContext
     int pageIndex = -1;
     std::shared_ptr<const PredecodeSchedulePayload> payload;
     bool immediate = false;
-    std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot;
+    ImageDocumentPageCandidateListSnapshot candidateSnapshot;
 };
 
 struct PredecodePendingSchedule

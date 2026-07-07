@@ -92,15 +92,14 @@ void ImagePredecodeCoordinator::scheduleAdjacentImagePredecode(
         return;
     }
 
-    if (schedule.context.candidateSnapshot.has_value()
-        && imageDocumentPageCandidateSnapshotMatchesSource(
-            *schedule.context.candidateSnapshot, plan.candidateList->context.source())) {
-        qCDebug(kiriviewPredecodeLog) << "image predecode candidates reused"
-                                      << "generation" << schedule.generation << "count"
-                                      << schedule.context.candidateSnapshot->candidates.size();
-        startPredecodeImageLoads(
-            predecodeWindowPlanForCandidates(plan, schedule.context.candidateSnapshot->candidates),
-            schedule);
+    if (imageDocumentPageCandidateListSnapshotMatchesSource(
+            schedule.context.candidateSnapshot, plan.candidateList->context.source())) {
+        const ImageDocumentPageCandidateRows& candidates
+            = imageDocumentPageCandidateRows(schedule.context.candidateSnapshot);
+        qCDebug(kiriviewPredecodeLog)
+            << "image predecode candidates reused"
+            << "generation" << schedule.generation << "count" << candidates.size();
+        startPredecodeImageLoads(predecodeWindowPlanForCandidates(plan, candidates), schedule);
         return;
     }
 

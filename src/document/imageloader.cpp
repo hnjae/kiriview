@@ -111,7 +111,7 @@ void ImageLoader::finishThumbnailPreview(
 
 void ImageLoader::start(ImageLoadRequest request,
     ImageFirstDisplayDecodeContext firstDisplayContext,
-    std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot)
+    ImageDocumentPageCandidateListSnapshot candidateSnapshot)
 {
     cancel();
 
@@ -121,7 +121,7 @@ void ImageLoader::start(ImageLoadRequest request,
     case ImageLoadStartEffect::DecodeImage:
         break;
     case ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates:
-        startOpenedCollectionLoad(session, std::move(candidateSnapshot));
+        startOpenedCollectionLoad(session, candidateSnapshot);
         return;
     }
 
@@ -146,27 +146,28 @@ void ImageLoader::startImageLoad(ImageLoadSession session)
 }
 
 void ImageLoader::startOpenedCollectionLoad(
-    ImageLoadSession session, std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot)
+    ImageLoadSession session, const ImageDocumentPageCandidateListSnapshot& candidateSnapshot)
 {
     const ImageDocumentPageCandidateListSource candidateSource
         = ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
             session.openedCollectionScope());
-    if (candidateSnapshot.has_value()
-        && imageDocumentPageCandidateSnapshotMatchesSource(*candidateSnapshot, candidateSource)) {
+    if (imageDocumentPageCandidateListSnapshotMatchesSource(candidateSnapshot, candidateSource)) {
+        const ImageDocumentPageCandidateRows& candidates
+            = imageDocumentPageCandidateRows(candidateSnapshot);
         qCDebug(kiriviewPredecodeLog)
             << "opened collection candidate snapshot reused for foreground load"
             << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
             << "openedCollectionRoot" << session.openedCollectionScope().rootUrl()
-            << "candidateCount" << static_cast<qsizetype>(candidateSnapshot->candidates.size());
-        finishOpenedCollectionCandidates(session, candidateSnapshot->candidates);
+            << "candidateCount" << static_cast<qsizetype>(candidates.size());
+        finishOpenedCollectionCandidates(session, candidates);
         return;
     }
 
     qCDebug(kiriviewPredecodeLog) << "opened collection candidates listed for foreground load"
                                   << "sessionId" << session.id() << "imageUrl" << session.imageUrl()
                                   << "openedCollectionRoot"
-                                  << session.openedCollectionScope().rootUrl()
-                                  << "snapshotAvailable" << candidateSnapshot.has_value();
+                                  << session.openedCollectionScope().rootUrl() << "snapshotKnown"
+                                  << candidateSnapshot.known;
     m_openedCollectionCandidateLoadJob = m_candidateRepository.loadImages(
         this, candidateSource,
         [this, session](std::vector<ImageDocumentPageCandidate> candidates) mutable {

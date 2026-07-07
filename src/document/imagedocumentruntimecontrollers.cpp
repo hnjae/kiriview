@@ -99,7 +99,7 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
         runtimeDependencies.candidateProvider, runtimeDependencies.imageDecode,
         runtimeDependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
-        [this]() { return m_pageCandidateSnapshotPort->snapshot(); },
+        [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
         std::move(runtimeDependencies.powerSaver),
         runtimeDependencies.ordinaryDirectMediaPredecodeEnabled,
         std::move(runtimeDependencies.predecodeTimerScheduler),
@@ -141,7 +141,7 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
                 m_primaryPageSlotPort->commit(location);
             },
             [this]() { m_primaryPageSlotPort->clear(); },
-            [this]() { return m_pageCandidateSnapshotPort->snapshot(); },
+            [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
         },
         runtimeDependencies.candidateProvider, runtimeDependencies.imageDecode);
     m_animationLoadErrorPort->setOpenController(m_openController.get());

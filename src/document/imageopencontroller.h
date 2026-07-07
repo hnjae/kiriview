@@ -38,8 +38,7 @@ public:
         = std::function<bool(const OpenedCollectionScopeLocation&, const QUrl&)>;
     using CommitPrimaryPageSlotCallback = std::function<void(const DisplayedImageLocation&)>;
     using ClearPrimaryPageSlotCallback = std::function<void()>;
-    using PageCandidateSnapshotCallback
-        = std::function<std::optional<ImageDocumentPageCandidateSnapshot>()>;
+    using PageCandidateSnapshotCallback = std::function<ImageDocumentPageCandidateListSnapshot()>;
 
     struct Callbacks
     {

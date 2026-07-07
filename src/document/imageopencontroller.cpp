@@ -129,7 +129,8 @@ void ImageOpenController::open()
         m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl());
     beginSourceLoad();
     m_imageLoader->start(request, m_presentationRuntime.firstDisplayDecodeContext(),
-        m_callbacks.pageCandidateSnapshot ? m_callbacks.pageCandidateSnapshot() : std::nullopt);
+        m_callbacks.pageCandidateSnapshot ? m_callbacks.pageCandidateSnapshot()
+                                          : ImageDocumentPageCandidateListSnapshot {});
 }
 
 void ImageOpenController::cancel() { m_imageLoader->cancel(); }

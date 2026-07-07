@@ -57,7 +57,7 @@ public:
         ImageDecodeDependencies decodeDependencies, Callbacks callbacks);
 
     void start(ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {},
-        std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot = std::nullopt);
+        ImageDocumentPageCandidateListSnapshot candidateSnapshot = {});
     void cancel();
 
 private:
@@ -66,8 +66,8 @@ private:
         const ImageDecodeRequest& request, StaticDisplayImagePayload preview);
     void finishImageLoadError(const ImageDecodeRequest& request, const QString& errorString);
     void startImageLoad(ImageLoadSession session);
-    void startOpenedCollectionLoad(ImageLoadSession session,
-        std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot);
+    void startOpenedCollectionLoad(
+        ImageLoadSession session, const ImageDocumentPageCandidateListSnapshot& candidateSnapshot);
     void finishOpenedCollectionCandidates(
         const ImageLoadSession& session, const std::vector<ImageDocumentPageCandidate>& candidates);
     bool tryReportUnsupportedOpenedCollectionVideo(ImageLoadSession session);

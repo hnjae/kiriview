@@ -36,7 +36,7 @@ MediaPredecodeSchedulePlan mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequ
             : -1,
         std::move(payload),
         request.immediate,
-        std::nullopt,
+        ImageDocumentPageCandidateListSnapshot {},
     };
     return MediaPredecodeSchedulePlan { std::move(context) };
 }

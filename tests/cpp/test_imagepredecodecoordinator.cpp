@@ -104,6 +104,19 @@ std::vector<kiriview::ImageDocumentPageCandidate> imageDocumentPageCandidates(in
     return candidates;
 }
 
+kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
+    kiriview::ImageDocumentPageCandidateListSource source,
+    kiriview::ImageDocumentPageCandidateRows candidates, bool known = true)
+{
+    kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
+    snapshot.source = std::move(source);
+    snapshot.revision = 1;
+    snapshot.candidates
+        = std::make_shared<const kiriview::ImageDocumentPageCandidateRows>(std::move(candidates));
+    snapshot.known = known;
+    return snapshot;
+}
+
 kiriview::StaticDisplayImagePayload displayTestImagePayload(
     const QImage& image, qreal firstDisplayPixelsPerSourcePixel = 0.0)
 {
@@ -161,6 +174,7 @@ private Q_SLOTS:
     void regularPredecodeWindowKeepsTwoPreviousAndTwoNextPages();
     void directoryCollectionStartsTwoBackgroundDecodes();
     void openedCollectionSnapshotPlansWindowWithoutListing();
+    void staleOpenedCollectionSnapshotFallsBackToListing();
     void candidateListingFailureStartsEmptyFallbackWindow();
     void archiveThreadCountProviderControlsParallelLoadLimit();
     void animatedBackgroundDecodeIsNotCachedAsStaticPredecodedImage_data();
@@ -391,14 +405,55 @@ void TestImagePredecodeCoordinator::openedCollectionSnapshotPlansWindowWithoutLi
             false,
             displayTestImagePayload(testImage()),
         });
-    context.candidateSnapshot = kiriview::ImageDocumentPageCandidateSnapshot {
+    context.candidateSnapshot = pageCandidateListSnapshot(
         kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
             directoryCollection),
-        imageDocumentPageCandidates(15),
-    };
+        imageDocumentPageCandidates(15));
 
     coordinator.schedule(std::move(context));
 
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(dataLoader.frontLoad().url, indexedImageUrl(6));
+    QCOMPARE(dataLoader.backLoad().url, indexedImageUrl(4));
+}
+
+void TestImagePredecodeCoordinator::staleOpenedCollectionSnapshotFallsBackToListing()
+{
+    FakeCandidateProvider candidateProvider;
+    ManualImageDataLoader dataLoader;
+    kiriview::ImagePredecodeCoordinator coordinator
+        = createCoordinator(this, candidateProvider, dataLoader);
+
+    const kiriview::OpenedCollectionScopeLocation directoryCollection
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(imagesDirectoryUrl(),
+            imagesDirectoryUrl(), kiriview::OpenedCollectionScopeKind::Directory);
+    const QUrl staleDirectoryUrl = localUrl(QStringLiteral("/images/stale"));
+    const kiriview::OpenedCollectionScopeLocation staleDirectoryCollection
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(
+            staleDirectoryUrl, staleDirectoryUrl, kiriview::OpenedCollectionScopeKind::Directory);
+    const QUrl displayedUrl = indexedImageUrl(5);
+    candidateProvider.setOpenedCollectionCandidates(
+        directoryCollection.rootUrl(), imageDocumentPageCandidates(15));
+
+    kiriview::ImagePredecodeCoordinator::Context context
+        = predecodeContext(kiriview::DisplayedPredecodeImage {
+            kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+                displayedUrl, directoryCollection),
+            false,
+            displayTestImagePayload(testImage()),
+        });
+    context.candidateSnapshot = pageCandidateListSnapshot(
+        kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+            staleDirectoryCollection),
+        imageDocumentPageCandidates(15));
+
+    coordinator.schedule(std::move(context));
+
+    QTRY_COMPARE(
+        candidateProvider.openedCollectionCandidateLoadCount(directoryCollection.rootUrl()), 1);
+    QCOMPARE(
+        candidateProvider.openedCollectionCandidateLoadCount(staleDirectoryCollection.rootUrl()),
+        0);
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
     QCOMPARE(dataLoader.frontLoad().url, indexedImageUrl(6));
     QCOMPARE(dataLoader.backLoad().url, indexedImageUrl(4));

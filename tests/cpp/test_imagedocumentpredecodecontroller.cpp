@@ -78,6 +78,19 @@ kiriview::StaticDisplayImagePayload displayTestImagePayload(
         : kiriview::DisplayImageQuality::Exact;
     return staticDisplayTestImagePayload(image, image, firstDisplayPixelsPerSourcePixel, quality);
 }
+
+kiriview::ImageDocumentPageCandidateListSnapshot pageCandidateListSnapshot(
+    kiriview::ImageDocumentPageCandidateListSource source,
+    kiriview::ImageDocumentPageCandidateRows candidates)
+{
+    kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
+    snapshot.source = std::move(source);
+    snapshot.revision = 1;
+    snapshot.candidates
+        = std::make_shared<const kiriview::ImageDocumentPageCandidateRows>(std::move(candidates));
+    snapshot.known = true;
+    return snapshot;
+}
 }
 
 class TestImageDocumentPredecodeController : public QObject
@@ -151,15 +164,13 @@ void TestImageDocumentPredecodeController::
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget,
         []() { return 2; },
         [directoryCollection, previousUrl, displayedUrl, nextUrl]() {
-            return std::optional<kiriview::ImageDocumentPageCandidateSnapshot>(
-                kiriview::ImageDocumentPageCandidateSnapshot {
-                    kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
-                        directoryCollection),
-                    {
-                        imageDocumentPageCandidate(previousUrl),
-                        imageDocumentPageCandidate(displayedUrl),
-                        imageDocumentPageCandidate(nextUrl),
-                    },
+            return pageCandidateListSnapshot(
+                kiriview::ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
+                    directoryCollection),
+                kiriview::ImageDocumentPageCandidateRows {
+                    imageDocumentPageCandidate(previousUrl),
+                    imageDocumentPageCandidate(displayedUrl),
+                    imageDocumentPageCandidate(nextUrl),
                 });
         });
 

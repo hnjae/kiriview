@@ -31,8 +31,7 @@ class ImageDocumentPredecodeController final
 {
 public:
     using CurrentPageNumberCallback = std::function<int()>;
-    using PageCandidateSnapshotCallback
-        = std::function<std::optional<ImageDocumentPageCandidateSnapshot>()>;
+    using PageCandidateSnapshotCallback = std::function<ImageDocumentPageCandidateListSnapshot()>;
 
     ImageDocumentPredecodeController(QObject* parent, ImageDocumentState& state,
         ImagePageSurfaceController& pageSurfaceController,

@@ -113,7 +113,7 @@ void ImageDocumentPredecodeController::scheduleAdjacentImagePredecode(
         m_currentPageNumber ? m_currentPageNumber() - 1 : -1,
         {},
         false,
-        std::nullopt,
+        ImageDocumentPageCandidateListSnapshot {},
     };
     if (m_pageCandidateSnapshot) {
         context.candidateSnapshot = m_pageCandidateSnapshot();
@@ -149,7 +149,7 @@ void ImageDocumentPredecodeController::scheduleImageNavigationTargetPredecode(
         targetPageIndex,
         {},
         true,
-        std::nullopt,
+        ImageDocumentPageCandidateListSnapshot {},
     };
     if (m_pageCandidateSnapshot) {
         context.candidateSnapshot = m_pageCandidateSnapshot();
