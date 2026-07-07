@@ -9,14 +9,15 @@
 #include "session/thumbnaillogging.h"
 
 #include <QDebug>
+#include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QString>
-#include <algorithm>
-#include <limits>
+#include <iterator>
+#include <list>
 #include <memory>
+#include <set>
 #include <utility>
-#include <vector>
 
 namespace kiriview {
 namespace {
@@ -49,46 +50,94 @@ public:
         ThumbnailImageRetentionPriority priority = ThumbnailImageRetentionPriority::Nearby;
     };
 
+    struct EvictionRecord
+    {
+        int priority = 0;
+        quint64 lastUse = 0;
+        QString id;
+    };
+
+    struct EvictionRecordLess
+    {
+        bool operator()(const EvictionRecord& left, const EvictionRecord& right) const
+        {
+            if (left.priority != right.priority) {
+                return left.priority < right.priority;
+            }
+            if (left.lastUse != right.lastUse) {
+                return left.lastUse < right.lastUse;
+            }
+            return left.id < right.id;
+        }
+    };
+
+    using EntryList = std::list<Entry>;
+    using EntryIterator = EntryList::iterator;
+
     mutable QMutex mutex;
-    std::vector<Entry> images;
+    EntryList images;
+    QHash<QString, EntryIterator> entriesById;
+    std::set<EvictionRecord, EvictionRecordLess> evictionOrder;
     qsizetype byteBudget = 0;
     qsizetype byteCost = 0;
     mutable quint64 useClock = 0;
     quint64 nextId = 1;
 
-    std::vector<Entry>::iterator findEntry(const QString& id)
+    EvictionRecord evictionRecord(const Entry& entry) const
     {
-        return std::find_if(
-            images.begin(), images.end(), [&id](const Entry& entry) { return entry.id == id; });
+        return EvictionRecord {
+            priorityRank(entry.priority),
+            entry.lastUse,
+            entry.id,
+        };
     }
 
-    std::vector<Entry>::const_iterator findEntry(const QString& id) const
+    EntryIterator findEntry(const QString& id)
     {
-        return std::find_if(
-            images.cbegin(), images.cend(), [&id](const Entry& entry) { return entry.id == id; });
+        auto indexed = entriesById.constFind(id);
+        return indexed == entriesById.cend() ? images.end() : indexed.value();
+    }
+
+    void insertIndexes(EntryIterator entry)
+    {
+        entriesById.insert(entry->id, entry);
+        evictionOrder.insert(evictionRecord(*entry));
+    }
+
+    void eraseEntry(EntryIterator entry)
+    {
+        evictionOrder.erase(evictionRecord(*entry));
+        entriesById.remove(entry->id);
+        byteCost -= entry->byteCost;
+        images.erase(entry);
+    }
+
+    void refreshEntry(EntryIterator entry, ThumbnailImageRetentionPriority priority)
+    {
+        evictionOrder.erase(evictionRecord(*entry));
+        entry->priority = priority;
+        entry->lastUse = ++useClock;
+        evictionOrder.insert(evictionRecord(*entry));
     }
 
     void trimToBudget()
     {
         while (byteCost > byteBudget && !images.empty()) {
-            auto removable = std::min_element(
-                images.begin(), images.end(), [](const Entry& left, const Entry& right) {
-                    const int leftPriority = priorityRank(left.priority);
-                    const int rightPriority = priorityRank(right.priority);
-                    if (leftPriority != rightPriority) {
-                        return leftPriority < rightPriority;
-                    }
-                    return left.lastUse < right.lastUse;
-                });
-            if (removable == images.end()) {
+            if (evictionOrder.empty()) {
                 return;
+            }
+
+            const QString removableId = evictionOrder.cbegin()->id;
+            EntryIterator removable = findEntry(removableId);
+            if (removable == images.end()) {
+                evictionOrder.erase(evictionOrder.cbegin());
+                continue;
             }
 
             qCDebug(kiriviewThumbnailLog)
                 << "Evicting thumbnail image from store" << removable->id << "priority"
                 << priorityRank(removable->priority) << "bytes" << removable->byteCost;
-            byteCost -= removable->byteCost;
-            images.erase(removable);
+            eraseEntry(removable);
         }
     }
 };
@@ -119,7 +168,7 @@ QString ThumbnailImageStore::insert(QImage image, ThumbnailImageRetentionPriorit
         if (d->nextId == 0) {
             ++d->nextId;
         }
-    } while (d->findEntry(id) != d->images.end());
+    } while (d->entriesById.contains(id));
 
     d->images.push_back(Private::Entry {
         id,
@@ -128,9 +177,10 @@ QString ThumbnailImageStore::insert(QImage image, ThumbnailImageRetentionPriorit
         ++d->useClock,
         priority,
     });
+    d->insertIndexes(std::prev(d->images.end()));
     d->byteCost = saturatedQtByteSum(d->byteCost, byteCost);
     d->trimToBudget();
-    return d->findEntry(id) == d->images.end() ? QString() : id;
+    return d->entriesById.contains(id) ? id : QString();
 }
 
 void ThumbnailImageStore::updatePriority(
@@ -141,13 +191,12 @@ void ThumbnailImageStore::updatePriority(
     }
 
     QMutexLocker locker(&d->mutex);
-    auto entry = d->findEntry(id);
+    Private::EntryIterator entry = d->findEntry(id);
     if (entry == d->images.end()) {
         return;
     }
 
-    entry->priority = priority;
-    entry->lastUse = ++d->useClock;
+    d->refreshEntry(entry, priority);
     d->trimToBudget();
 }
 
@@ -158,19 +207,20 @@ void ThumbnailImageStore::release(const QString& id)
     }
 
     QMutexLocker locker(&d->mutex);
-    auto entry = d->findEntry(id);
+    Private::EntryIterator entry = d->findEntry(id);
     if (entry == d->images.end()) {
         return;
     }
 
-    d->byteCost -= entry->byteCost;
-    d->images.erase(entry);
+    d->eraseEntry(entry);
 }
 
 void ThumbnailImageStore::clear()
 {
     QMutexLocker locker(&d->mutex);
     d->images.clear();
+    d->entriesById.clear();
+    d->evictionOrder.clear();
     d->byteCost = 0;
 }
 
@@ -184,12 +234,12 @@ void ThumbnailImageStore::setByteBudget(qsizetype byteBudget)
 QImage ThumbnailImageStore::image(const QString& id) const
 {
     QMutexLocker locker(&d->mutex);
-    auto entry = d->findEntry(id);
+    Private::EntryIterator entry = d->findEntry(id);
     if (entry == d->images.end()) {
         return {};
     }
 
-    entry->lastUse = ++d->useClock;
+    d->refreshEntry(entry, entry->priority);
     return entry->image;
 }
 

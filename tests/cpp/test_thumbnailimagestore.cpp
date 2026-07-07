@@ -20,6 +20,11 @@ private Q_SLOTS:
     void visiblePriorityOutlivesNearbyWhenBudgetIsTight();
     void evictsBackgroundBeforeNearbyBeforeVisible();
     void explicitReleaseRemovesImageAndByteCost();
+    void priorityUpdateRefreshesLruOrder();
+    void budgetTrimPreservesSurvivingLookupsAndAccounting();
+    void idsAreStableAndNotReusedAfterEviction();
+    void newlyInsertedEntryCanBeImmediatelyEvictedByPriority();
+    void clearRemovesAllLookupsAndAccounting();
     void providerReturnsStoredImageForRequestedSize();
 };
 
@@ -128,6 +133,97 @@ void TestThumbnailImageStore::explicitReleaseRemovesImageAndByteCost()
     QCOMPARE(store.size(), qsizetype(0));
     QCOMPARE(store.byteCost(), qsizetype(0));
     QVERIFY(store.image(id).isNull());
+}
+
+void TestThumbnailImageStore::priorityUpdateRefreshesLruOrder()
+{
+    kiriview::ThumbnailImageStore store(128);
+
+    const QString first = store.insert(testImage(Qt::red));
+    const QString second = store.insert(testImage(Qt::green));
+    store.updatePriority(first, kiriview::ThumbnailImageRetentionPriority::Nearby);
+    const QString third = store.insert(testImage(Qt::blue));
+
+    QCOMPARE(store.size(), qsizetype(2));
+    QVERIFY(!store.image(first).isNull());
+    QVERIFY(store.image(second).isNull());
+    QVERIFY(!store.image(third).isNull());
+}
+
+void TestThumbnailImageStore::budgetTrimPreservesSurvivingLookupsAndAccounting()
+{
+    kiriview::ThumbnailImageStore store(192);
+
+    const QString first = store.insert(testImage(Qt::red));
+    const QString second = store.insert(testImage(Qt::green));
+    const QString third = store.insert(testImage(Qt::blue));
+    store.setByteBudget(128);
+
+    QCOMPARE(store.byteBudget(), qsizetype(128));
+    QCOMPARE(store.byteCost(), qsizetype(128));
+    QCOMPARE(store.size(), qsizetype(2));
+    QVERIFY(store.image(first).isNull());
+    QVERIFY(!store.image(second).isNull());
+    QVERIFY(!store.image(third).isNull());
+
+    store.release(second);
+    QCOMPARE(store.byteCost(), qsizetype(64));
+    QVERIFY(store.image(second).isNull());
+    QVERIFY(!store.image(third).isNull());
+}
+
+void TestThumbnailImageStore::idsAreStableAndNotReusedAfterEviction()
+{
+    kiriview::ThumbnailImageStore store(128);
+
+    const QString first = store.insert(testImage(Qt::red));
+    const QString second = store.insert(testImage(Qt::green));
+    const QString third = store.insert(testImage(Qt::blue));
+    const QString fourth = store.insert(testImage(Qt::cyan));
+
+    QVERIFY(first != second);
+    QVERIFY(first != third);
+    QVERIFY(first != fourth);
+    QVERIFY(second != third);
+    QVERIFY(second != fourth);
+    QVERIFY(third != fourth);
+    QVERIFY(store.image(first).isNull());
+    QVERIFY(store.image(second).isNull());
+    QVERIFY(!store.image(third).isNull());
+    QVERIFY(!store.image(fourth).isNull());
+}
+
+void TestThumbnailImageStore::newlyInsertedEntryCanBeImmediatelyEvictedByPriority()
+{
+    kiriview::ThumbnailImageStore store(128);
+
+    const QString visible
+        = store.insert(testImage(Qt::red), kiriview::ThumbnailImageRetentionPriority::Visible);
+    const QString nearby
+        = store.insert(testImage(Qt::green), kiriview::ThumbnailImageRetentionPriority::Nearby);
+    const QString background
+        = store.insert(testImage(Qt::blue), kiriview::ThumbnailImageRetentionPriority::Background);
+
+    QVERIFY(background.isEmpty());
+    QCOMPARE(store.size(), qsizetype(2));
+    QCOMPARE(store.byteCost(), qsizetype(128));
+    QVERIFY(!store.image(visible).isNull());
+    QVERIFY(!store.image(nearby).isNull());
+    QVERIFY(store.image(background).isNull());
+}
+
+void TestThumbnailImageStore::clearRemovesAllLookupsAndAccounting()
+{
+    kiriview::ThumbnailImageStore store(128);
+
+    const QString first = store.insert(testImage(Qt::red));
+    const QString second = store.insert(testImage(Qt::green));
+    store.clear();
+
+    QCOMPARE(store.size(), qsizetype(0));
+    QCOMPARE(store.byteCost(), qsizetype(0));
+    QVERIFY(store.image(first).isNull());
+    QVERIFY(store.image(second).isNull());
 }
 
 void TestThumbnailImageStore::providerReturnsStoredImageForRequestedSize()
