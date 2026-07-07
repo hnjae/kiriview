@@ -1,6 +1,6 @@
 # Thumbnail Source Adapters
 
-Active navigation thumbnails use source adapters to keep thumbnail scheduling and result projection independent from the kind of navigation row being displayed. The C++ document-session thumbnail runtime owns demand, async job lifetime, stale-completion rejection, foreground and background priority, and the image-provider store; adapters answer whether a row can produce a thumbnail and which cache or generation contract applies.
+Active navigation thumbnails use source adapters to keep thumbnail scheduling and result projection independent from the kind of navigation row being displayed. The C++ document-session thumbnail runtime owns demand, async job lifetime, stale-completion rejection, foreground and background priority, accepted demand bucket, and the image-provider store; adapters answer whether a row can produce a thumbnail and which cache or generation contract applies.
 
 The document session composes the active-navigation thumbnail strip through one strip dependency port. The strip's lookup provider, generation provider, source adapter, image store, and worker scheduler must cross the session boundary as one active-navigation thumbnail dependency value rather than as unrelated raw providers.
 
@@ -9,6 +9,12 @@ Adapters consume the active thumbnail source key and demand bucket described by 
 Thumbnail cache lookup, generation requests, cache original identity, source-kind classification, and bucket sizing are neutral thumbnail infrastructure, not session-owned active-navigation state. The active-navigation strip and main-image preview may both consume these contracts, so decoding code must import thumbnail cache contracts from the thumbnail boundary rather than from `session/`, and active-navigation row kinds must be mapped into thumbnail source kinds before crossing the generation provider boundary.
 
 The thumbnail generation core resolves source bytes or video frame extraction, bucket scaling, image decode/render, opened-collection cache identity, and cache lookup/install through injectable thumbnail dependencies before it publishes a generated thumbnail. Production dependencies may use local files, media-entry source metadata, media-entry source bytes, KiriView image decoding, Qt Multimedia video frame extraction, rendering refinement sources, and the XDG thumbnail cache, but tests and independent callers must be able to replace source loading, scaling policy, decoding, frame extraction, and cache repository behavior without constructing session runtimes, mutating global opened-collection state, borrowing playback state, or writing to the user's thumbnail cache.
+
+## Image Provider Boundary
+
+The active-navigation thumbnail image provider is an ordinary cache-only provider. It may look up a runtime-published image-store entry by id and report that entry's stored size, but it must return the stored raster as published and must not use provider request size to smooth-resample, regenerate, decode, perform XDG cache lookup, install cache entries, schedule thumbnail work, decide freshness, or mutate active-navigation state.
+
+Thumbnail bucket ownership ends before image-provider publication. QML reports visible demand and renders the projected provider result in item geometry, but accepted demand bucket selection, cache lookup, generated-image scaling, stale-completion rejection, and image-store insertion are owned by the thumbnail runtime and generation boundary before a provider id is exposed. Every ready thumbnail entry is therefore already compatible with the accepted demand bucket that caused publication; later Qt Quick request size is not a freshness or scaling contract.
 
 ## Original Identity
 

@@ -6,7 +6,11 @@ Specifications describe external behavior only. Keep implementation ownership, b
 
 - [Scope](scope.md): product boundaries, supported top-level content types, localization baseline, and not-provided areas.
 - [File Access](file-access.md): supported sources, Flatpak access, deletion behavior, current media targets, Open With behavior, information-panel file actions, and live directory updates.
-- [Main Window](main-window.md): toolbar, menus, startup, window state, fullscreen, shortcut help, video controls, and quit behavior.
+- [Main Window Shell](main-window.md): startup input, window size and title, fullscreen chrome, and video playback panel placement.
+- [Toolbar](toolbar.md): toolbar layout, collection controls, and page navigation controls.
+- [Menus](menus.md): application menu, menubar, viewer context menu, and menu presentation.
+- [Actions and Shortcuts](actions-and-shortcuts.md): shared action availability, shortcut scopes, shortcut help, Escape and Quit behavior, and shortcut configuration.
+- [Panels](panels.md): Info Panel and Thumbnail Panel content, layout, resizing, shortcuts, and state.
 - [Image Display](image-display.md): loading and replacement, rendering, fit and zoom state, rotation, zoom controls, and animation.
 - [Navigation](navigation.md): page controls, adjacent media, sorting, boundary feedback, panning, scan shortcuts, and background loading.
 - [Comic Archives](comic-archives.md): two-page spread, reading direction, archive page navigation, and archive ordering behavior.

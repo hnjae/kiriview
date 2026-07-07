@@ -16,11 +16,11 @@ Capabilities are descriptive. They can say whether bytes can be read, thumbnails
 
 ### Direct Media Keys
 
-Ordinary file keys use the top-level source-key contract: normalized path segments, local path cleanup, absolute local identity for relative local paths, fully encoded identity strings, preserved query and fragment, case-sensitive comparison, and no symlink, alias, shortcut, or platform filesystem equivalence resolution.
+Ordinary direct-media keys use the top-level source-key contract defined in [Source Key Contract](state-ownership/source-keys.md). Extension boundaries must consume the typed direct-media key produced by that owner instead of restating URL normalization, platform restoration, or freshness rules.
 
 Direct video keys use the same ordinary direct-media identity rules as direct images. Playback source preparation belongs to the video document runtime; source keys identify routing, navigation, thumbnails, predecode eligibility, and stale completion checks only.
 
-Direct-media scope identity is `{ current key, parent key, generation }`. The current and parent keys first use navigation-source handling, including document-portal host paths and platform archive-entry restoration facts, then apply source-key normalization. The generation changes when the effective current key or parent key changes. Pending direct-image confirmation to an equivalent displayed URL is a phase change within the same generation.
+Direct-media scope identity and freshness are owned by the source-key contract. Adapter and cache contracts may carry that identity for stale-completion checks, but they must not derive competing direct-media generations.
 
 ### Collection And Entry Keys
 
@@ -58,6 +58,8 @@ Media entry source adapters list and read opened-collection entries. They return
 
 Thumbnail source adapters consume thumbnail source keys and demand buckets, then return unsupported fallback, cacheable local-file generation, cacheable opened-collection entry generation, or in-memory-only generation. The document-session thumbnail runtime owns scheduling, lookup, generation jobs, cache installation, image-store retention, result projection, cancellation, and stale-completion rejection.
 
+Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source key, navigation generation, and demand bucket. The active-navigation thumbnail provider is cache-only: it returns the stored image entry exactly as published and reports that entry's size, without using provider request size to resample, regenerate, perform cache lookup, schedule work, or decide freshness.
+
 ### Predecode Planners
 
 Predecode planners consume session or image-document snapshots and produce still-image decode windows. The predecode runtime owns debounce, power-saver suppression, active load admission, decode jobs, cache lifetime, and generation acceptance. The provider-rendering architecture stores provider-ready display `QImage` payloads that can be promoted into the display image store without constructing tile surfaces.
@@ -68,12 +70,10 @@ Decoder contracts are route based. Rust-owned image format policy owns advertise
 
 ### Display Provider Contracts
 
-Display provider contracts publish immutable display entries from owner-accepted `QImage` payloads. The ordinary provider request path is cache-only and reentrant: it may look up an existing entry, report original size, and perform bounded downscale-only requested-size handling, but it must not decode, rasterize SVG, perform file I/O, schedule refinement, decide stale acceptance, mutate public state, or depend on QML engine caching for freshness.
+Display provider contracts publish immutable display entries from owner-accepted `QImage` payloads. The ordinary provider request path is cache-only and reentrant: it may look up an existing entry and report original size, but it must return owner-published bytes rather than using request size to resample, mutate, or replace the entry. Provider requests must not decode, rasterize SVG, perform file I/O, schedule refinement, decide stale acceptance, mutate public state, or depend on QML engine caching for freshness.
+
+All ordinary cache-only image providers, including active-navigation thumbnail providers, follow the same request boundary: QML request size may be an attachment hint from Qt Quick, but accepted bucket selection, visual scaling policy, and freshness remain with the owning runtime before publication.
 
 ### Excluded Extension Paths
 
 Custom image render-source contracts are not production extension points in the provider-backed presenter architecture. Image display extensions must publish provider-ready display entries or return whole-image refinement results to their owner; they must not introduce visual tile scheduling, custom Qt Quick rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, direct low-level rendering resources, or custom shaders.
-
-## Contract Tests
-
-Contract tests must cover unsupported media, stale source keys or generations, cache identity, opened-collection entry freshness, video-versus-image eligibility, provider request boundaries, display-entry lifetime, forbidden low-level rendering or tile fallback dependencies, and display-source stale-completion rejection after window, DPR, or texture-capability changes. Prefer focused C++ tests where the contract depends on Qt URL, image, object-lifetime, or display data, and Rust tests where the logic is plain value policy.

@@ -60,7 +60,7 @@ In Flatpak, adjacent direct media navigation can list neighboring files under `h
 
 In Flatpak, KiriView grants only the specific sandbox access needed for selected direct-video playback and does not expose the entire user runtime filesystem for playback.
 
-In Flatpak, KiriView shares generated XDG thumbnails with the host thumbnail cache when the sandbox exposes `xdg-cache/thumbnails`.
+In Flatpak, KiriView shares generated XDG thumbnails with the host thumbnail cache when host thumbnail-cache sharing is available.
 
 Files outside those paths remain available only when explicitly provided by the XDG portal.
 
@@ -116,22 +116,24 @@ For media items displayed inside a directly opened local directory collection, t
 
 For media items displayed inside a directly opened local CBZ, CBT, CB7, ZIP, TAR, or 7Z archive collection, including playable collection videos and unsupported-video placeholders, the current media target is the currently displayed internal media URL when that URL uses a KDE-supported archive scheme such as `zip://`, `tar://`, or `sevenz://`.
 
-For media items displayed inside a directly opened local CBR or RAR archive collection, the current media target is unavailable for Open With, Copy File Path, and Open Containing Folder because the displayed entry has no KDE/KIO-openable media URL.
+For media items displayed inside a directly opened local CBR or RAR archive collection, the current media target is unavailable for Open With, Copy File Path, and Open Containing Folder because the displayed entry has no desktop-openable media URL.
+
+An opened-collection unsupported-video placeholder counts as an available current media item for Open With and Info Panel file actions when its current media target is available. It does not count as a playable video.
 
 ## Open With
 
-The Open With action opens the current media target with another application and delegates application selection and launching to KDE/KIO open-with handling.
+The Open With action opens the current media target with another application and delegates application selection and launching to the desktop open-with flow.
 
-Open With is disabled when no media item is ready, when the current document is empty, loading, or failed, or when KiriView cannot derive a KDE/KIO-openable current media URL. Canceling the KDE/KIO open-with flow leaves KiriView unchanged and does not show an in-app notification.
+Open With is disabled when no media item is ready, when the current document is empty, loading, or failed, or when KiriView cannot derive a desktop-openable current media URL. Canceling the desktop open-with flow leaves KiriView unchanged and does not show an in-app notification.
 
 ## Information Panel File Actions
 
 The Info Panel's Copy File Path action copies the current media target's display path to the clipboard. Display paths decode percent-encoded URL path text for user readability.
 
-For local file URLs, Copy File Path copies the local file path. For non-local KDE/KIO URLs, it copies the readable URL path for the current media target.
+For local file URLs, Copy File Path copies the local file path. For non-local KDE-supported URLs, it copies the readable URL path for the current media target.
 
 Copy File Path is disabled when the current media target is unavailable.
 
 The Info Panel's Open Containing Folder action opens the current media target's parent location in the file manager and selects or highlights the target when the desktop environment supports it.
 
-Open Containing Folder is available for local file targets and KDE/KIO URLs with a parent location. It is disabled when no media target is available or when KiriView cannot derive a containing location.
+Open Containing Folder is available for local file targets and KDE-supported URLs with a parent location. It is disabled when no media target is available or when KiriView cannot derive a containing location.

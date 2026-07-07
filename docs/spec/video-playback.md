@@ -48,6 +48,18 @@ Video mode does not create a separate video-only navigation scope. Supported ima
 
 Adjacent Previous and Next use direct media navigation in ordinary direct media video mode and in image mode only when the active image belongs to an ordinary direct media URL scope. Archive collection and directly opened directory collection scopes keep opened-collection navigation active instead.
 
+## Video Navigation And Seeking
+
+Alt+Left and Alt+Right are fixed viewer-local video seek shortcuts.
+
+They are active only while viewer-local shortcuts are active, the accepted media item is a ready video, and the video is seekable.
+
+Alt+Left seeks backward within the current video, and Alt+Right seeks forward within the current video. Seeking clamps to the start or end of the video and never changes the active navigation item.
+
+When the current video is not ready, not seekable, or does not have an active video track, the seek shortcuts do not change playback state and do not fall back to adjacent-media navigation.
+
+The fixed seek interval is a stable application behavior and is applied consistently to direct videos and playable opened-collection videos.
+
 ## Playback
 
 Opening a video starts playback automatically.
