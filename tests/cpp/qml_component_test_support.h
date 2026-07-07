@@ -4,17 +4,25 @@
 #pragma once
 
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QQmlComponent>
-#include <QTest>
+
+inline void drainQmlPostedEvents()
+{
+    QCoreApplication::sendPostedEvents();
+    QCoreApplication::processEvents(QEventLoop::AllEvents);
+    QCoreApplication::sendPostedEvents();
+    QCoreApplication::processEvents(QEventLoop::AllEvents);
+}
 
 inline bool waitForQmlComponentReady(QQmlComponent& component, int timeoutMs = 10000)
 {
-    const int intervalMs = 10;
-    const int attempts = timeoutMs / intervalMs;
+    QElapsedTimer timer;
+    timer.start();
 
-    for (int attempt = 0; component.isLoading() && attempt < attempts; ++attempt) {
-        QCoreApplication::processEvents();
-        QTest::qWait(intervalMs);
+    while (component.isLoading() && timer.elapsed() < timeoutMs) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     }
 
     return !component.isLoading();

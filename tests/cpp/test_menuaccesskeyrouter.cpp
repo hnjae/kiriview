@@ -553,7 +553,7 @@ void TestMenuAccessKeyRouter::altMnemonicTriggersEnabledItem()
     keyClick(fixture.view.get(), Qt::Key_O, Qt::AltModifier);
 
     QTRY_COMPARE(fixture.root->property("triggerCount").toInt(), 1);
-    QTest::qWait(50);
+    drainQmlPostedEvents();
     QCOMPARE(fixture.root->property("triggerCount").toInt(), 1);
 }
 

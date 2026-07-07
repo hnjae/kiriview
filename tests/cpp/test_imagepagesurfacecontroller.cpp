@@ -787,7 +787,9 @@ void TestImagePageSurfaceController::qtRasterInFlightRefinementRevisitDoesNotSch
 void TestImagePageSurfaceController::refinementPolicyUsesResolvedCacheBudgetWhenStoreBudgetDiffers()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(1), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(1), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
@@ -797,7 +799,7 @@ void TestImagePageSurfaceController::refinementPolicyUsesResolvedCacheBudgetWhen
     QCOMPARE(first.rasterSize, QSize(4, 3));
 
     controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
-    QTest::qWait(100);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, first.providerUrl);
@@ -808,12 +810,15 @@ void TestImagePageSurfaceController::refinementPolicyUsesResolvedCacheBudgetWhen
 void TestImagePageSurfaceController::qtRasterRefinementCompletionIsRejectedAfterSourceReplacement()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("source-a")), false,
         renderContext());
     controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
@@ -821,7 +826,8 @@ void TestImagePageSurfaceController::qtRasterRefinementCompletionIsRejectedAfter
         false, renderContext());
     const kiriview::ImageDisplaySourceSlot replacement = controller.snapshot().displaySource();
 
-    QTest::qWait(100);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, replacement.providerUrl);
@@ -833,7 +839,9 @@ void TestImagePageSurfaceController::qtRasterRefinementCompletionIsRejectedAfter
 void TestImagePageSurfaceController::exactQtRasterCurrentImageDoesNotRequestRefinement()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(8, 6), QSize(8, 6), QStringLiteral("source-exact"),
@@ -842,7 +850,7 @@ void TestImagePageSurfaceController::exactQtRasterCurrentImageDoesNotRequestRefi
     const kiriview::ImageDisplaySourceSlot exact = controller.snapshot().displaySource();
 
     controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
-    QTest::qWait(100);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, exact.providerUrl);
@@ -878,13 +886,16 @@ void TestImagePageSurfaceController::heifFirstDisplayRefinesToProviderBucket()
 void TestImagePageSurfaceController::heifRefinementCompletionIsRejectedAfterSourceReplacement()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     std::optional<kiriview::StaticDisplayImagePayload> payload
         = heifPayload(QSize(16, 12), QSize(4, 3), QStringLiteral("heif-source-a"));
     QVERIFY2(payload.has_value(), "HEIF still fixture could not be created");
     controller.setStaticDisplayImage(std::move(*payload), false, renderContext());
     controller.updateDisplayProjection(visibleProjection(QSizeF(8.0, 6.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
@@ -892,7 +903,8 @@ void TestImagePageSurfaceController::heifRefinementCompletionIsRejectedAfterSour
         false, renderContext());
     const kiriview::ImageDisplaySourceSlot replacement = controller.snapshot().displaySource();
 
-    QTest::qWait(100);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, replacement.providerUrl);
@@ -929,13 +941,16 @@ void TestImagePageSurfaceController::rawFirstDisplayRefinesToProviderBucket()
 void TestImagePageSurfaceController::rawRefinementCompletionIsRejectedAfterSourceReplacement()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     std::optional<kiriview::StaticDisplayImagePayload> payload
         = rawPayload(QSize(8, 8), QStringLiteral("raw-source-a"));
     QVERIFY2(payload.has_value(), "RAW still fixture could not be decoded");
     controller.setStaticDisplayImage(std::move(*payload), false, renderContext());
     controller.updateDisplayProjection(visibleProjection(QSizeF(16.0, 16.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
@@ -943,7 +958,8 @@ void TestImagePageSurfaceController::rawRefinementCompletionIsRejectedAfterSourc
         false, renderContext());
     const kiriview::ImageDisplaySourceSlot replacement = controller.snapshot().displaySource();
 
-    QTest::qWait(100);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, replacement.providerUrl);
@@ -955,7 +971,9 @@ void TestImagePageSurfaceController::rawRefinementCompletionIsRejectedAfterSourc
 void TestImagePageSurfaceController::svgFirstDisplayRefinesToCoarseProviderBucket()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     controller.setStaticDisplayImage(
         svgPayload(QSize(80, 40), QSize(80, 40), QStringLiteral("svg-source-a")), false,
@@ -966,7 +984,10 @@ void TestImagePageSurfaceController::svgFirstDisplayRefinesToCoarseProviderBucke
 
     controller.updateDisplayProjection(visibleProjection(QSizeF(100.0, 50.0)));
 
-    QTRY_VERIFY(controller.snapshot().displaySource().providerUrl != first.providerUrl);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QVERIFY(controller.snapshot().displaySource().providerUrl != first.providerUrl);
     const kiriview::ImageDisplaySourceSlot refined = controller.snapshot().displaySource();
     QCOMPARE(refined.sourceIdentity, QStringLiteral("svg-source-a"));
     QCOMPARE(refined.rasterSize, QSize(120, 60));
@@ -976,11 +997,14 @@ void TestImagePageSurfaceController::svgFirstDisplayRefinesToCoarseProviderBucke
     QVERIFY(store->entry(entryId(refined)).has_value());
 
     controller.updateDisplayProjection(visibleProjection(QSizeF(110.0, 55.0)));
-    QTest::qWait(100);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     QCOMPARE(controller.snapshot().displaySource().providerUrl, refined.providerUrl);
 
     controller.updateDisplayProjection(visibleProjection(QSizeF(150.0, 75.0)));
-    QTRY_VERIFY(controller.snapshot().displaySource().providerUrl != refined.providerUrl);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QVERIFY(controller.snapshot().displaySource().providerUrl != refined.providerUrl);
     const kiriview::ImageDisplaySourceSlot sharper = controller.snapshot().displaySource();
     QCOMPARE(sharper.rasterSize, QSize(180, 90));
     QCOMPARE(sharper.revision, refined.revision + 1);
@@ -989,12 +1013,15 @@ void TestImagePageSurfaceController::svgFirstDisplayRefinesToCoarseProviderBucke
 void TestImagePageSurfaceController::svgRefinementCompletionIsRejectedAfterSourceReplacement()
 {
     auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
-    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
 
     controller.setStaticDisplayImage(
         svgPayload(QSize(80, 40), QSize(80, 40), QStringLiteral("svg-source-a")), false,
         renderContext());
     controller.updateDisplayProjection(visibleProjection(QSizeF(100.0, 50.0)));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
 
     controller.setStaticDisplayImage(
         qtRasterPayload(QSize(10, 10), QSize(10, 10), QStringLiteral("source-b"),
@@ -1002,7 +1029,8 @@ void TestImagePageSurfaceController::svgRefinementCompletionIsRejectedAfterSourc
         false, renderContext());
     const kiriview::ImageDisplaySourceSlot replacement = controller.snapshot().displaySource();
 
-    QTest::qWait(100);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
 
     const kiriview::ImageDisplaySourceSlot current = controller.snapshot().displaySource();
     QCOMPARE(current.providerUrl, replacement.providerUrl);

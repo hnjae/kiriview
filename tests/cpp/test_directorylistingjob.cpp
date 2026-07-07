@@ -43,7 +43,7 @@ private Q_SLOTS:
     void injectedProviderCompletesWithoutFilesystem();
     void injectedProviderCancellationSuppressesCompletion();
     void localDirectoryReturnsItemSnapshot();
-    void cancelSuppressesCompletion();
+    void cancelDeactivatesDefaultProviderJob();
     void openUrlFailureLeavesDiagnosticWarning();
     void backendErrorLeavesDiagnosticWarning();
 };
@@ -126,7 +126,7 @@ void TestDirectoryListingJob::localDirectoryReturnsItemSnapshot()
         QStringList({ QStringLiteral("01.png"), QStringLiteral("clip.mp4") }));
 }
 
-void TestDirectoryListingJob::cancelSuppressesCompletion()
+void TestDirectoryListingJob::cancelDeactivatesDefaultProviderJob()
 {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
@@ -142,7 +142,6 @@ void TestDirectoryListingJob::cancelSuppressesCompletion()
     job.cancel();
     QVERIFY(!job.isActive());
 
-    QTest::qWait(100);
     QVERIFY(!listed);
     QVERIFY(errorString.isEmpty());
 }

@@ -2743,6 +2743,10 @@ void TestKiriDocumentSession::directImagePredecodeDoesNotUseImageDocumentPageCan
     FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
     kiriview::TestSupport::FakeImageDocumentPageCandidateProvider imageDocumentPageCandidates;
     kiriview::TestSupport::ManualImageDataLoader imageDataLoader;
+    kiriview::TestSupport::ManualImageDataLoader directMediaPredecodeDataLoader;
+    kiriview::TestSupport::ManualImageWorkerScheduler directMediaPredecodeWorkerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler directMediaPredecodeTimerScheduler;
+    kiriview::TestSupport::ManualTimerScheduler imageDocumentPredecodeTimerScheduler;
     const QUrl currentImage = localUrl(QStringLiteral("/media/current.png"));
     const QUrl directMediaNextImage = localUrl(QStringLiteral("/media/next.png"));
     const QUrl imageDocumentOnlyImage = localUrl(QStringLiteral("/media/page-only.png"));
@@ -2752,25 +2756,47 @@ void TestKiriDocumentSession::directImagePredecodeDoesNotUseImageDocumentPageCan
     imageDocumentPageCandidates.setDirectoryImages(localUrl(QStringLiteral("/media/")),
         { kiriview::TestSupport::imageDocumentPageCandidate(currentImage),
             kiriview::TestSupport::imageDocumentPageCandidate(imageDocumentOnlyImage) });
+    kiriview::KiriDocumentSessionDependencies dependencies;
+    dependencies.sessionRuntime.directMediaNavigationCandidateProvider
+        = directMediaNavigationProvider.provider();
+    dependencies.imageDocument.candidateProvider = imageDocumentPageCandidates.provider();
+    dependencies.imageDocument.imageDecode = kiriview::TestSupport::imageDecodeDependenciesFor(
+        imageDataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.imageDocument.predecodeTimerScheduler
+        = imageDocumentPredecodeTimerScheduler.scheduler();
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode
+        = kiriview::TestSupport::imageDecodeDependenciesFor(
+            directMediaPredecodeDataLoader, kiriview::TestSupport::staticImageDataDecoder());
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.imageDecode.workerScheduler
+        = directMediaPredecodeWorkerScheduler.scheduler();
+    dependencies.sessionRuntime.directMediaPredecodeDependencies.timerScheduler
+        = directMediaPredecodeTimerScheduler.scheduler();
     std::unique_ptr<KiriDocumentSession> session
-        = createSessionWithProvider(directMediaNavigationProvider.provider(), nullptr,
-            &imageDataLoader, imageDocumentPageCandidates.provider());
+        = std::make_unique<KiriDocumentSession>(std::move(dependencies));
 
     session->setSourceUrl(currentImage);
 
     QCOMPARE(imageDataLoader.loadCount(), std::size_t(1));
     QCOMPARE(imageDataLoader.frontLoad().url, currentImage);
-    QTRY_COMPARE(imageDataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(imageDataLoader.backLoad().url, directMediaNextImage);
-    QVERIFY(imageDataLoader.finishOldestActiveLoadForUrl(
-        directMediaNextImage, QByteArrayLiteral("direct-next")));
+    QTRY_VERIFY(directMediaPredecodeTimerScheduler.timerCount() >= 2);
+    QVERIFY(directMediaPredecodeTimerScheduler.timerAt(0).active());
+    directMediaPredecodeTimerScheduler.timerAt(0).fire();
+    QTRY_COMPARE(directMediaPredecodeDataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(directMediaPredecodeDataLoader.frontLoad().url, directMediaNextImage);
+    directMediaPredecodeDataLoader.finishFrontLoad(QByteArrayLiteral("direct-next"));
+    QCOMPARE(directMediaPredecodeWorkerScheduler.scheduleCount(), std::size_t(1));
+    directMediaPredecodeWorkerScheduler.runWork(0);
+    directMediaPredecodeWorkerScheduler.finish(0);
     QVERIFY(
         imageDataLoader.finishOldestActiveLoadForUrl(currentImage, QByteArrayLiteral("current")));
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
 
-    QTest::qWait(250);
-
-    QCOMPARE(imageDataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(imageDataLoader.loadCount(), std::size_t(1));
+    QCOMPARE(directMediaPredecodeDataLoader.loadCount(), std::size_t(1));
+    for (std::size_t index = 0; index < imageDocumentPredecodeTimerScheduler.timerCount();
+        ++index) {
+        QVERIFY(!imageDocumentPredecodeTimerScheduler.timerAt(index).active());
+    }
 }
 
 void TestKiriDocumentSession::

@@ -8,8 +8,10 @@
 
 #include <KLocalizedQmlContext>
 #include <QAbstractItemModel>
+#include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QImage>
 #include <QObject>
 #include <QQmlComponent>
@@ -278,8 +280,7 @@ bool waitForActiveNavigation(const KiriDocumentSession& documentSession, int cur
             && documentSession.activeNavigationCount() == count) {
             return true;
         }
-        QCoreApplication::processEvents();
-        QTest::qWait(10);
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     }
 
     return false;
@@ -293,11 +294,30 @@ bool waitForContentX(const QQuickItem& thumbnailStrip, double expected)
         if (nearlyEqual(contentX(thumbnailStrip), expected)) {
             return true;
         }
-        QCoreApplication::processEvents();
-        QTest::qWait(10);
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
     }
 
     return false;
+}
+
+bool waitForThumbnailStripIdle(const QQuickItem& thumbnailStrip)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < 1000) {
+        if (!thumbnailStrip.property("automaticScrollAnimationEnabled").toBool()
+            && !thumbnailStrip.property("automaticScrollAnimationRunning").toBool()) {
+            return true;
+        }
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    }
+
+    return false;
+}
+
+void resetRapidCurrentIndexTracking(QQuickItem& thumbnailStrip)
+{
+    thumbnailStrip.setProperty("lastCurrentIndexChangeTimestamp", 0);
 }
 
 void setContentX(QQuickItem& thumbnailStrip, double value)
@@ -418,7 +438,8 @@ void TestThumbnailPanel::visibleMainNavigationKeepsScrollPosition()
     fixture.documentSession->openActiveNavigationAtNumber(7);
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 7, testImageCount),
         "main-view navigation did not select the requested item");
-    QTest::qWait(180);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), visibleScrollPosition),
@@ -441,7 +462,8 @@ void TestThumbnailPanel::offscreenMainNavigationRevealsSelectedThumbnail()
     fixture.documentSession->openNextActiveNavigation();
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 2, testImageCount),
         "main-view navigation did not select the adjacent item");
-    QTest::qWait(180);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), 0.0),
@@ -492,7 +514,8 @@ void TestThumbnailPanel::adjacentMainNavigationInsideSafeZoneKeepsScrollPosition
     fixture.documentSession->openNextActiveNavigation();
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 5, testImageCount),
         "adjacent navigation did not select the next item");
-    QTest::qWait(180);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), stablePosition),
@@ -707,7 +730,7 @@ void TestThumbnailPanel::rapidAdjacentNavigationUsesLatestRevealTarget()
     QVERIFY2(waitForContentX(*fixture.thumbnailStrip, setupPosition),
         "thumbnail strip did not accept the setup scroll position");
 
-    QTest::qWait(220);
+    resetRapidCurrentIndexTracking(*fixture.thumbnailStrip);
     fixture.documentSession->openNextActiveNavigation();
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 6, testImageCount),
         "first adjacent navigation did not select the next item");
@@ -749,7 +772,8 @@ void TestThumbnailPanel::userThumbnailBrowsingSuppressesAdjacentPreferredZoneFol
     fixture.documentSession->openNextActiveNavigation();
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, 6, testImageCount),
         "adjacent navigation did not select the next item");
-    QTest::qWait(220);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), userBrowsePosition),
@@ -828,7 +852,8 @@ void TestThumbnailPanel::visibleThumbnailClickDispatchesWithoutScrollMovement()
 
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, clickedNumber, testImageCount),
         "thumbnail click did not dispatch selection");
-    QTest::qWait(180);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), visibleScrollPosition),
@@ -859,7 +884,8 @@ void TestThumbnailPanel::scrolledThumbnailClickDispatchesWithoutScrollMovement()
 
     QVERIFY2(waitForActiveNavigation(*fixture.documentSession, clickedNumber, testImageCount),
         "thumbnail click did not dispatch selection");
-    QTest::qWait(180);
+    QVERIFY2(waitForThumbnailStripIdle(*fixture.thumbnailStrip),
+        "thumbnail strip animation did not become idle");
 
     QVERIFY(currentThumbnailFullyVisible(*fixture.thumbnailStrip));
     QVERIFY2(nearlyEqual(contentX(*fixture.thumbnailStrip), scrolledPosition),

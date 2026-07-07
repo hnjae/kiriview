@@ -1140,7 +1140,7 @@ void TestToolBarApplicationMenu::buttonClickTogglesMenu()
 
     clickAt(fixture.view.get(), buttonPoint);
     QTRY_VERIFY(!applicationMenuOpen(fixture.root));
-    QTest::qWait(50);
+    drainQmlPostedEvents();
     QVERIFY(!applicationMenuOpen(fixture.root));
 }
 
@@ -1169,7 +1169,7 @@ void TestToolBarApplicationMenu::openApplicationMenuOnlyOpens()
 
     QVERIFY(invokeBool(fixture.root, "openApplicationMenu", &invoked));
     QVERIFY(invoked);
-    QTest::qWait(50);
+    drainQmlPostedEvents();
     QVERIFY(applicationMenuOpen(fixture.root));
 }
 

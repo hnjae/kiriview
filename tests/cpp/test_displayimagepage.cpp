@@ -211,7 +211,7 @@ void TestDisplayImagePage::skipsAcknowledgmentWhenProjectionDoesNotRequireIt()
     QSignalSpy spy(page, SIGNAL(loadOutcomeAcknowledged(QUrl, QString, QString, int)));
     QVERIFY(spy.isValid());
 
-    QTest::qWait(100);
+    drainQmlPostedEvents();
     QCOMPARE(spy.count(), 0);
 }
 

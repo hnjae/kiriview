@@ -10,12 +10,14 @@
 #include <QUrl>
 #include <cstddef>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace {
 using kiriview::TestSupport::imageDecodeDependenciesFor;
 using kiriview::TestSupport::indexedImageUrl;
 using kiriview::TestSupport::ManualImageDataLoader;
+using kiriview::TestSupport::ManualImageWorkerScheduler;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
 using kiriview::TestSupport::staticImageDataDecoder;
 using kiriview::TestSupport::testImage;
@@ -116,8 +118,12 @@ void TestPredecodeLoadController::parallelLimitStartsMultipleWindowLoads()
 void TestPredecodeLoadController::startWindowLoadsReplacesActiveGeneration()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::PredecodeLoadController controller(this,
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies decodeDependencies
+        = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
+    decodeDependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::PredecodeLoadController controller(
+        this, std::move(decodeDependencies), testCacheByteBudget);
     const QUrl staleDisplayedUrl = indexedImageUrl(1);
     const QUrl staleNextUrl = indexedImageUrl(2);
     const QUrl displayedUrl = indexedImageUrl(3);
@@ -134,18 +140,25 @@ void TestPredecodeLoadController::startWindowLoadsReplacesActiveGeneration()
     QCOMPARE(dataLoader.backLoad().url, nextUrl);
 
     dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
-    QTest::qWait(50);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
     QVERIFY(!controller.findPredecodedImage(staleNextUrl).has_value());
 
     dataLoader.finishBackLoad(QByteArrayLiteral("next"));
-    QTRY_VERIFY(controller.findPredecodedImage(nextUrl).has_value());
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QVERIFY(controller.findPredecodedImage(nextUrl).has_value());
 }
 
 void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()
 {
     ManualImageDataLoader dataLoader;
-    kiriview::PredecodeLoadController controller(this,
-        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImageDecodeDependencies decodeDependencies
+        = imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder());
+    decodeDependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::PredecodeLoadController controller(
+        this, std::move(decodeDependencies), testCacheByteBudget);
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
 
@@ -156,7 +169,7 @@ void TestPredecodeLoadController::cancelBackgroundWorkSuppressesStaleDecode()
     QVERIFY(dataLoader.frontLoad().canceled);
 
     dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
-    QTest::qWait(50);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
     QVERIFY(!controller.findPredecodedImage(nextUrl).has_value());
     QVERIFY(controller.findPredecodedImage(displayedUrl).has_value());
 }

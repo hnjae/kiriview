@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "async/imageioworkerjob.h"
+#include "image_async_test_support.h"
 
-#include <QSemaphore>
 #include <QTest>
-#include <atomic>
 
 class TestImageIoWorkerJob : public QObject
 {
@@ -57,26 +56,21 @@ void TestImageIoWorkerJob::canceledWorkerCompletionIsIgnored()
 {
     QObject context;
     QObject receiver;
-    QSemaphore releaseWorker;
-    std::atomic_bool workFinished = false;
+    kiriview::TestSupport::ManualImageWorkerScheduler workerScheduler;
     int finishCount = 0;
 
     kiriview::ImageIoJob job = kiriview::startImageIoWorkerJob(
-        &context, &receiver,
-        [&releaseWorker, &workFinished]() {
-            releaseWorker.acquire();
-            workFinished = true;
-            return 13;
-        },
+        &context, &receiver, workerScheduler.scheduler(), []() { return 13; },
         [&finishCount](int) { ++finishCount; });
 
     QVERIFY(job.isActive());
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+
     job.cancel();
     QVERIFY(!job.isActive());
 
-    releaseWorker.release();
-    QTRY_VERIFY(workFinished.load());
-    QTest::qWait(50);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
     QCOMPARE(finishCount, 0);
 }
 

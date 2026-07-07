@@ -330,7 +330,6 @@ void TestImageDecodeJob::cancelSuppressesPendingLoad()
     QVERIFY(dataLoader.frontLoad().canceled);
     dataLoader.finishFrontLoad(QByteArrayLiteral("ok"));
 
-    QTest::qWait(50);
     QCOMPARE(decodedCount, 0);
 }
 
@@ -381,7 +380,6 @@ void TestImageDecodeJob::restartedSameRequestIgnoresStaleLoadResult()
     QVERIFY(dataLoader.frontLoad().canceled);
 
     dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("old"));
-    QTest::qWait(50);
     QCOMPARE(decodedCount, 0);
 
     dataLoader.finishBackLoad(QByteArrayLiteral("new"));
@@ -574,7 +572,6 @@ void TestImageDecodeJob::staleXdgThumbnailPreviewIsIgnored()
     decodeJob.start(kiriview::ImageDecodeRequest::fromUrl(10, indexedImageUrl(10)));
     thumbnailLookup.finish(0, readyThumbnailLookup());
 
-    QTest::qWait(50);
     QCOMPARE(previewCount, 0);
     decoderMayFinish.release(2);
     QVERIFY(QThreadPool::globalInstance()->waitForDone(5000));
@@ -609,7 +606,6 @@ void TestImageDecodeJob::nonRawXdgMissDoesNotRunRawEmbeddedPreview()
     QTRY_COMPARE(thumbnailLookup.requests.size(), std::size_t(1));
     thumbnailLookup.finish(0, missingThumbnailLookup());
 
-    QTest::qWait(50);
     QCOMPARE(rawExtractor.callCount(), 0);
     QCOMPARE(decodedCount, 0);
 
@@ -678,7 +674,6 @@ void TestImageDecodeJob::rawEmbeddedPreviewIsDeliveredAfterXdgMiss()
 
 void TestImageDecodeJob::rawEmbeddedPreviewMissDoesNotPublish()
 {
-    MinimumThreadPoolConcurrency threadPoolConcurrency(2);
     const QByteArray data = rawFixtureData();
     QVERIFY(!data.isEmpty());
 
@@ -687,19 +682,19 @@ void TestImageDecodeJob::rawEmbeddedPreviewMissDoesNotPublish()
     ManualRawEmbeddedThumbnailPreviewExtractor rawExtractor;
     rawExtractor.result.status = kiriview::RawEmbeddedThumbnailPreviewStatus::Missing;
     rawExtractor.result.image = {};
-    QSemaphore decoderMayFinish;
+    ManualImageWorkerScheduler workerScheduler;
     int previewCount = 0;
     int decodedCount = 0;
-    kiriview::ImageDecodeJob decodeJob(this,
-        imageDecodeDependenciesForThumbnailPreview(
-            dataLoader,
-            [&decoderMayFinish](const QByteArray&, const kiriview::ImageDecodeRequest&) {
-                decoderMayFinish.acquire();
-                return kiriview::successfulDecodedImageResult(
-                    kiriview::TestSupport::staticDecodedTestImage(
-                        kiriview::TestSupport::testImage(32, 32)));
-            },
-            thumbnailLookup, &rawExtractor),
+    kiriview::ImageDecodeDependencies dependencies = imageDecodeDependenciesForThumbnailPreview(
+        dataLoader,
+        [](const QByteArray&, const kiriview::ImageDecodeRequest&) {
+            return kiriview::successfulDecodedImageResult(
+                kiriview::TestSupport::staticDecodedTestImage(
+                    kiriview::TestSupport::testImage(32, 32)));
+        },
+        thumbnailLookup, &rawExtractor);
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::ImageDecodeJob decodeJob(this, std::move(dependencies),
         decodeJobCallbacks([&decodedCount](kiriview::ImageDecodeRequest,
                                kiriview::DecodedImageResult) { ++decodedCount; },
             {},
@@ -711,40 +706,42 @@ void TestImageDecodeJob::rawEmbeddedPreviewMissDoesNotPublish()
     dataLoader.finishFrontLoad(data);
 
     QTRY_COMPARE(thumbnailLookup.requests.size(), std::size_t(1));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     thumbnailLookup.finish(0, missingThumbnailLookup());
 
-    QTRY_COMPARE(rawExtractor.callCount(), 1);
-    QTest::qWait(50);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QCOMPARE(rawExtractor.callCount(), 1);
     QCOMPARE(previewCount, 0);
     QCOMPARE(decodedCount, 0);
 
-    decoderMayFinish.release();
-    QTRY_COMPARE(decodedCount, 1);
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QCOMPARE(decodedCount, 1);
 }
 
 void TestImageDecodeJob::lateRawEmbeddedPreviewAfterDecodeIsIgnored()
 {
-    MinimumThreadPoolConcurrency threadPoolConcurrency(2);
     const QByteArray data = rawFixtureData();
     QVERIFY(!data.isEmpty());
 
     ManualImageDataLoader dataLoader;
     ManualThumbnailLookupProvider thumbnailLookup;
     ManualRawEmbeddedThumbnailPreviewExtractor rawExtractor;
-    QSemaphore rawExtractorMayReturn;
-    SemaphoreReleaseOnExit releaseRawExtractorOnExit(rawExtractorMayReturn);
-    rawExtractor.mayReturn = &rawExtractorMayReturn;
+    ManualImageWorkerScheduler workerScheduler;
     int previewCount = 0;
     int decodedCount = 0;
-    kiriview::ImageDecodeJob decodeJob(this,
-        imageDecodeDependenciesForThumbnailPreview(
-            dataLoader,
-            [](const QByteArray&, const kiriview::ImageDecodeRequest&) {
-                return kiriview::successfulDecodedImageResult(
-                    kiriview::TestSupport::staticDecodedTestImage(
-                        kiriview::TestSupport::testImage(32, 32)));
-            },
-            thumbnailLookup, &rawExtractor),
+    kiriview::ImageDecodeDependencies dependencies = imageDecodeDependenciesForThumbnailPreview(
+        dataLoader,
+        [](const QByteArray&, const kiriview::ImageDecodeRequest&) {
+            return kiriview::successfulDecodedImageResult(
+                kiriview::TestSupport::staticDecodedTestImage(
+                    kiriview::TestSupport::testImage(32, 32)));
+        },
+        thumbnailLookup, &rawExtractor);
+    dependencies.workerScheduler = workerScheduler.scheduler();
+    kiriview::ImageDecodeJob decodeJob(this, std::move(dependencies),
         decodeJobCallbacks([&decodedCount](kiriview::ImageDecodeRequest,
                                kiriview::DecodedImageResult) { ++decodedCount; },
             {},
@@ -756,15 +753,18 @@ void TestImageDecodeJob::lateRawEmbeddedPreviewAfterDecodeIsIgnored()
     dataLoader.finishFrontLoad(data);
 
     QTRY_COMPARE(thumbnailLookup.requests.size(), std::size_t(1));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     thumbnailLookup.finish(0, missingThumbnailLookup());
-    QTRY_COMPARE(decodedCount, 1);
 
-    rawExtractorMayReturn.release();
-    releaseRawExtractorOnExit.dismiss();
-    QTRY_COMPARE(rawExtractor.callCount(), 1);
-    QTest::qWait(50);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QCOMPARE(decodedCount, 1);
+
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
+    QCOMPARE(rawExtractor.callCount(), 1);
     QCOMPARE(previewCount, 0);
-    QVERIFY(QThreadPool::globalInstance()->waitForDone(5000));
 }
 
 void TestImageDecodeJob::readyXdgThumbnailPreviewSuppressesRawEmbeddedPreview()

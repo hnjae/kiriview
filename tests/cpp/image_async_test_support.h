@@ -5,6 +5,7 @@
 #define KIRIVIEW_TESTS_IMAGE_ASYNC_TEST_SUPPORT_H
 
 #include "async/imageiojob.h"
+#include "async/imageworkerscheduler.h"
 #include "async/timerscheduler.h"
 #include "decoding/imagedecodedependencies.h"
 #include "system/filedeletion.h"
@@ -115,6 +116,44 @@ public:
 private:
     qint64 m_currentMsec = 0;
     std::vector<ManualRuntimeTimer*> m_timers;
+};
+
+struct ManualImageWorkerSchedule
+{
+    ImageWorkerOperation work;
+    ImageWorkerCompletion completion;
+};
+
+class ManualImageWorkerScheduler
+{
+public:
+    ImageWorkerScheduler scheduler()
+    {
+        return ImageWorkerScheduler(
+            [this](QObject*, ImageWorkerOperation work, ImageWorkerCompletion completion) {
+                m_schedules.push_back(
+                    ManualImageWorkerSchedule { std::move(work), std::move(completion) });
+            });
+    }
+
+    std::size_t scheduleCount() const { return m_schedules.size(); }
+
+    void runWork(std::size_t index)
+    {
+        if (m_schedules.at(index).work) {
+            m_schedules.at(index).work();
+        }
+    }
+
+    void finish(std::size_t index)
+    {
+        if (m_schedules.at(index).completion) {
+            m_schedules.at(index).completion();
+        }
+    }
+
+private:
+    std::vector<ManualImageWorkerSchedule> m_schedules;
 };
 
 struct ManualImageDataLoad
