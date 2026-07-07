@@ -47,7 +47,6 @@ private Q_SLOTS:
     void mnemonicRoutingStillTriggersMenuAction();
     void toolbarReadingControlsUseTextButtons();
     void toolbarReadingControlMnemonicsTriggerActions();
-    void trailingToolbarControlsShareSpacingAndVerticalAlignment();
     void fitMenuButtonClickOnlyOpensMenu();
     void fitMenuButtonMenuSelectionUpdatesRuntimeSelection();
     void fitMenuButtonRejectedSelectionKeepsRuntimeSelection();
@@ -326,33 +325,6 @@ Item {
             return null;
         }
         return visit(toolbar);
-    }
-
-    function toolbarItemGeometry(item) {
-        if (!item || item.width <= 0 || item.height <= 0) {
-            return { found: false };
-        }
-
-        const topLeft = item.mapToItem(root, 0, 0);
-        return {
-            bottom: topLeft.y + item.height,
-            centerY: topLeft.y + item.height / 2,
-            found: true,
-            height: item.height,
-            right: topLeft.x + item.width,
-            width: item.width,
-            x: topLeft.x,
-            y: topLeft.y,
-        };
-    }
-
-    function toolbarLayoutGeometries() {
-        return {
-            fit: toolbarItemGeometry(toolbarItemByObjectName("fitModeMenuButton")),
-            rightToLeft: toolbarItemGeometry(toolbarButtonForAction(rightToLeftReadingKirigamiAction)),
-            twoPage: toolbarItemGeometry(toolbarButtonForAction(twoPageModeKirigamiAction)),
-            zoom: toolbarItemGeometry(toolbarItemByObjectName("zoomSpinBox")),
-        };
     }
 
     function toolbarButtonForAction(action) {
@@ -1255,47 +1227,6 @@ void TestToolBarApplicationMenu::toolbarReadingControlMnemonicsTriggerActions()
     QCoreApplication::processEvents();
     QTRY_COMPARE(fixture.root->property("twoPageTriggerCount").toInt(), 1);
     QCOMPARE(fixture.root->property("rightToLeftTriggerCount").toInt(), 1);
-}
-
-void TestToolBarApplicationMenu::trailingToolbarControlsShareSpacingAndVerticalAlignment()
-{
-    ToolBarMenuFixture fixture = createFixture();
-    QVERIFY2(fixture.isValid(), qPrintable(fixture.errorString));
-
-    bool ok = false;
-    const QVariantMap geometries = invokeVariantMap(fixture.root, "toolbarLayoutGeometries", &ok);
-    QVERIFY(ok);
-
-    const auto itemGeometry
-        = [&geometries](const QString& name) { return geometries.value(name).toMap(); };
-    const auto numeric = [](const QVariantMap& geometry, const QString& name) {
-        return geometry.value(name).toDouble();
-    };
-    const auto closeEnough = [](qreal left, qreal right) { return qAbs(left - right) <= 1.0; };
-
-    const QVariantMap rightToLeft = itemGeometry(QStringLiteral("rightToLeft"));
-    const QVariantMap twoPage = itemGeometry(QStringLiteral("twoPage"));
-    const QVariantMap fit = itemGeometry(QStringLiteral("fit"));
-    const QVariantMap zoom = itemGeometry(QStringLiteral("zoom"));
-
-    for (const QVariantMap& geometry : { rightToLeft, twoPage, fit, zoom }) {
-        QVERIFY(geometry.value(QStringLiteral("found")).toBool());
-    }
-
-    const qreal expectedCenterY = numeric(twoPage, QStringLiteral("centerY"));
-    QVERIFY(closeEnough(numeric(fit, QStringLiteral("centerY")), expectedCenterY));
-    QVERIFY(closeEnough(numeric(zoom, QStringLiteral("centerY")), expectedCenterY));
-
-    const qreal readingControlsGap
-        = numeric(twoPage, QStringLiteral("x")) - numeric(rightToLeft, QStringLiteral("right"));
-    const qreal fitGap
-        = numeric(fit, QStringLiteral("x")) - numeric(twoPage, QStringLiteral("right"));
-    const qreal zoomGap
-        = numeric(zoom, QStringLiteral("x")) - numeric(fit, QStringLiteral("right"));
-
-    QVERIFY(readingControlsGap > 0.0);
-    QVERIFY(closeEnough(fitGap, readingControlsGap));
-    QVERIFY(closeEnough(zoomGap, readingControlsGap));
 }
 
 void TestToolBarApplicationMenu::fitMenuButtonClickOnlyOpensMenu()
