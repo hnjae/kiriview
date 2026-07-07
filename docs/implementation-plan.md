@@ -165,6 +165,8 @@ Acceptance: Foreground visible demand remains prioritized and stale jobs remain 
 
 Verification: Run focused active-navigation thumbnail runtime tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused demand-window coverage for epoch expiry, stale generation rejection, visible/nearby priority, demanded-row-only background fill, stale canceled background completions, and ready-thumbnail retention under background results. Replaced active-navigation thumbnail demand, row-identity, and source-key hot-path scans with hash indexes; added explicit runtime demand-window begin/finish APIs through the session facade; and changed `ThumbnailPanel.qml` to coalesce delegate demand into one visible-window report. Background fill now iterates current demand-window rows, yields to foreground work, and treats larger accepted foreground buckets as satisfying smaller background buckets. Verified the intended red focused build failure on the missing demand-window API, then verified with focused `test_activenavigationthumbnailruntime`, `test_activenavigationthumbnaildemand`, `test_thumbnailpanel`, `devenv tasks run --mode single ci:lint:qml`, `devenv tasks run --mode single ci:test:cpp`, `devenv tasks run --mode single ci:lint:cpp`, and a post-lint focused `test_activenavigationthumbnaildemand`.
+
 ## Milestone 12: Display Location Identity Intent
 
 Suggested `/goal`: Tighten architecture intent for display reuse and refinement cache keys so both include real displayed-location or opened-collection scope identity.
