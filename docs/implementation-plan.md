@@ -93,6 +93,8 @@ Acceptance: Public readout, previous/next/open-at-number behavior, and media pre
 
 Verification: Run focused session projection, direct-media navigation, and media predecode tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused coverage for the new direct-media candidate snapshot boundary, including state row-storage reuse when only current facts change, projection port type coverage that rejects by-value candidate-vector fetches, predecode schedule payload snapshot identity, and runtime/coordinator behavior through the snapshot API. Introduced a session-owned `DirectMediaNavigationCandidateSnapshot` carrying direct-media source identity, candidate-list revision, immutable shared row storage, boundary facts, and known state; projection and media predecode now consume the snapshot instead of copying candidate vectors. Direct-media refresh/open result transport and deletion fallback vector cleanup remain outside this milestone as planned. Verified the intended red test failure before implementation with focused projection-runtime build failure, then verified the implementation with focused CTest targets for session state, projection, thumbnail projection, media predecode schedule/coordinator/runtime, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 6: Direct-Media Residual Candidate Boundary Cleanup
 
 Suggested `/goal`: Audit and, where still useful, migrate remaining direct-media candidate vector boundaries after projection and predecode no longer copy full lists.
