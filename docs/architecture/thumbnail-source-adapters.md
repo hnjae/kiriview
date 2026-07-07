@@ -16,6 +16,16 @@ The active-navigation thumbnail image provider is an ordinary cache-only provide
 
 Thumbnail bucket ownership ends before image-provider publication. QML reports visible demand and renders the projected provider result in item geometry, but accepted demand bucket selection, cache lookup, generated-image scaling, stale-completion rejection, and image-store insertion are owned by the thumbnail runtime and generation boundary before a provider id is exposed. Every ready thumbnail entry is therefore already compatible with the accepted demand bucket that caused publication; later Qt Quick request size is not a freshness or scaling contract.
 
+## Demand Window And Scheduling
+
+The thumbnail runtime consumes QML demand reports as inputs to one runtime-owned demand window for the current thumbnail row set. A report may mark a row as visible when its preview intersects the strip viewport, or nearby when it is instantiated near the viewport or reveal target but not currently visible. The runtime also treats the selected active-navigation row as current user-selected demand. These labels choose scheduling and retention priority only; they do not change thumbnail eligibility, source identity, row ordering, activation behavior, or the image-provider request boundary.
+
+The runtime must schedule visible and current-row work before nearby work, and nearby work before optional background fill. A higher-priority demand for the same source key and bucket may promote retention or active scheduling without changing the row's thumbnail navigation generation. A lower-priority or expired demand must not demote an already visible/current demand until a newer demand-window epoch says that row is no longer visible/current.
+
+Demand expiry is explicit runtime policy. Visible and nearby demand belongs to the latest accepted demand-window epoch for the active thumbnail navigation generation and expires when the row is absent from a newer epoch, when the row's source key changes, when the demand bucket is superseded by a newer bucket for that row, or when the row set resets. Source adapters receive only the runtime-selected source key, demand bucket, and priority for the row being scheduled; they must not inspect viewport geometry, retain demand epochs, or decide whether stale demand remains active.
+
+Background fill may run only when no visible, current-row, or nearby work is pending or active. It may use a bounded cursor over eligible placeholder rows and bucket levels so idle filling can continue over time, but it must yield immediately to newer foreground demand and must not synchronously traverse the full active-navigation row list after each demand report, completion, or current-row update. Completing every eligible offscreen thumbnail is allowed when idle capacity exists, but it is not a correctness requirement.
+
 ## Original Identity
 
 Thumbnail cache identity is expressed separately from row source identity. Local files use Freedesktop file-original identity derived from the local path. Cacheable non-file originals use an explicit virtual original identity with URI, mtime, byte size, and optional MIME type supplied by the owning adapter or generation path.

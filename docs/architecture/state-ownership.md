@@ -30,6 +30,16 @@ Candidate-list source identity, candidate-list revision, direct-media scope gene
 
 Rust may compute navigation, thumbnail, predecode, or deletion policy from candidate snapshot metadata and row views, but C++ remains the owner of the accepted snapshot, Qt row values, async listing lifecycle, and publication ordering.
 
+## Thumbnail Demand Window Boundary
+
+The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail runtime. QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation, but QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
+
+Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows are foreground demand and have the strongest scheduling and image-retention priority. The current selected row is also foreground demand even when it is temporarily outside the visible viewport. Nearby rows are prefetch demand around the viewport or reveal target and must yield to visible or current-row work. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
+
+Demand facts are scoped to the active thumbnail row identity, thumbnail navigation generation, source key, demand bucket, and runtime demand epoch. A visible or nearby demand expires when a newer runtime demand-window epoch no longer contains that row at that priority, when the row source key or thumbnail navigation generation changes, when the requested bucket is superseded, or when the thumbnail row set is reset. Completion acceptance still uses the source key, navigation generation, bucket, and active job identity; expired demand must not keep stale work fresh.
+
+Background thumbnail fill is optional idle work owned by the runtime after visible, current-row, and nearby foreground demand is no longer pending or active. It may progressively fill additional eligible placeholders as a performance optimization, but it is not a full-list product guarantee and must not require scanning the complete thumbnail row list on every foreground demand, completion, or model update. Any background fill cursor, inspection budget, or retained ready image remains subordinate to the latest demand window and to stale-completion rejection.
+
 ## Owner Groups
 
 - [Application Shell and Session](state-ownership/shell-session.md): startup routing, document-session projections, title, media information, and toasts.
