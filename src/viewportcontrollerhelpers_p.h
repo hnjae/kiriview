@@ -33,6 +33,22 @@ struct ConstViewportProviderRoleState
     const ImageViewportInternal::DisplayRequest& latestNonPlaybackRequest;
 };
 
+struct ViewportDisplayRoleState
+{
+    ImageViewportInternal::DisplayRequestSnapshot& displayedRequest;
+    QSizeF& displayedImageSize;
+    QImage& displayedImage;
+    ImageViewportInternal::PreparedPayload& pendingPayload;
+};
+
+struct ConstViewportDisplayRoleState
+{
+    const ImageViewportInternal::DisplayRequestSnapshot& displayedRequest;
+    const QSizeF& displayedImageSize;
+    const QImage& displayedImage;
+    const ImageViewportInternal::PreparedPayload& pendingPayload;
+};
+
 ImageViewportInternal::DisplayState& viewportDisplayState(ViewportControllerPort viewport)
 {
     return viewport.displayState();
@@ -115,6 +131,28 @@ ConstViewportProviderRoleState providerRoleStateFor(
 {
     return { providerGenerationStateForRole(state, role),
         activeRequestForRole(state.request, role), latestNonPlaybackRequestForRole(state.request, role) };
+}
+
+ViewportDisplayRoleState displayRoleStateFor(
+    ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary
+        ? ViewportDisplayRoleState { display.secondaryDisplayedRequest,
+              display.secondaryDisplayedImageSize, display.secondaryDisplayedImage,
+              display.secondaryPendingRenderPayload }
+        : ViewportDisplayRoleState { display.displayedRequest, display.displayedImageSize,
+              display.displayedImage, display.pendingRenderPayload };
+}
+
+ConstViewportDisplayRoleState displayRoleStateFor(
+    const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary
+        ? ConstViewportDisplayRoleState { display.secondaryDisplayedRequest,
+              display.secondaryDisplayedImageSize, display.secondaryDisplayedImage,
+              display.secondaryPendingRenderPayload }
+        : ConstViewportDisplayRoleState { display.displayedRequest, display.displayedImageSize,
+              display.displayedImage, display.pendingRenderPayload };
 }
 
 ImageViewportInternal::PreparedPayload& pendingPayloadForRole(

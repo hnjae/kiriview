@@ -502,6 +502,8 @@ Finding 4.
 
 ### Milestone 6: Render Role-Parametric Payloads And Acknowledgements
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Migrate render pending-payload and acknowledgement handling to role-parametric access while preserving complete-spread commit and stale-failure rules.
@@ -535,11 +537,21 @@ Finding 4.
 
 #### Tasks
 
-- [ ] Convert render/display direct secondary-field access into a structural allowlist.
-- [ ] Add display role-state view helpers for displayed request, displayed size, pending payload, and prepared payload identity.
-- [ ] Migrate render pending payload selection to role-parametric helpers.
-- [ ] Migrate render acknowledgement matching to role-parametric helpers.
-- [ ] Add or update shared primary/secondary render commit tests.
+- [x] Convert render/display direct secondary-field access into a structural allowlist.
+- [x] Add display role-state view helpers for displayed request, displayed size, pending payload, and prepared payload identity.
+- [x] Migrate render pending payload selection to role-parametric helpers.
+- [x] Migrate render acknowledgement matching to role-parametric helpers.
+- [x] Preserve aggregate spread commit and terminal projection.
+- [x] Run render commit, render scene graph, structural, and full-suite verification.
+
+#### Completion evidence
+
+- Durable architecture intent for render/display role-state views was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::renderRoleStateBoundary`, which fails on direct secondary render/display state access in `viewportcontrollerrender.cpp`.
+- Added display role-state view helpers over existing displayed request, displayed image size, displayed image, and pending render payload storage.
+- Migrated render pending payload selection, secondary prepared-image fallback, and render acknowledgement identity matching to display role-state views.
+- Preserved aggregate target-spread commit and terminal projection behavior in controller-level render synchronization.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_render_commit|imageviewport_render_scenegraph|structural::renderRoleStateBoundary' --output-on-failure`, `ctest --test-dir build -R 'structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 
