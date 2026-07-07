@@ -8,6 +8,7 @@
 #include <QTest>
 #include <QUrl>
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -51,6 +52,7 @@ private Q_SLOTS:
     void activeZoomReadoutPublishesThroughSnapshotCommit();
     void fileDeletionProgressPublishesThroughSnapshotCommit();
     void directMediaNavigationSnapshotOwnsBoundaryAndCandidates();
+    void directMediaCandidateSnapshotReusesRowsWhenOnlyCurrentFactsChange();
     void publicSnapshotCommitsProjectionValuesBeforePublishing();
     void publicSnapshotOnlyNotifiesChangedProjectionOutputs();
     void publicSnapshotCommitsOneRevisionedBatch();
@@ -204,6 +206,66 @@ void TestDocumentSessionState::directMediaNavigationSnapshotOwnsBoundaryAndCandi
     QVERIFY(!state.directMediaNavigationKnown());
     QCOMPARE(state.directMediaNavigationState().currentNumber, 0);
     QVERIFY(state.directMediaNavigationCandidates().empty());
+}
+
+void TestDocumentSessionState::directMediaCandidateSnapshotReusesRowsWhenOnlyCurrentFactsChange()
+{
+    kiriview::DocumentSessionState state;
+
+    const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
+    const QUrl secondUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.mp4"));
+    QVERIFY(state.setDirectVideoCursor(firstUrl));
+
+    kiriview::DirectMediaNavigationBoundaryState boundary {
+        false,
+        true,
+        true,
+        false,
+        1,
+        2,
+    };
+    state.setDirectMediaNavigation(boundary, true,
+        {
+            directMediaNavigationCandidate(firstUrl),
+            directMediaNavigationCandidate(secondUrl),
+        });
+
+    const kiriview::DirectMediaNavigationCandidateSnapshot firstSnapshot
+        = state.directMediaNavigationCandidateSnapshot();
+    QVERIFY(firstSnapshot.source == state.directMediaScope());
+    QVERIFY(firstSnapshot.candidates != nullptr);
+    QCOMPARE(firstSnapshot.revision, quint64(1));
+    QCOMPARE(firstSnapshot.boundaryState.currentNumber, 1);
+    QCOMPARE(firstSnapshot.boundaryState.count, 2);
+    QVERIFY(firstSnapshot.known);
+
+    boundary.canOpenPrevious = true;
+    boundary.canOpenNext = false;
+    boundary.currentNumber = 2;
+    state.setDirectMediaNavigation(boundary, true,
+        {
+            directMediaNavigationCandidate(firstUrl),
+            directMediaNavigationCandidate(secondUrl),
+        });
+
+    const kiriview::DirectMediaNavigationCandidateSnapshot currentFactsSnapshot
+        = state.directMediaNavigationCandidateSnapshot();
+    QCOMPARE(currentFactsSnapshot.revision, firstSnapshot.revision);
+    QVERIFY(currentFactsSnapshot.candidates == firstSnapshot.candidates);
+    QCOMPARE(currentFactsSnapshot.boundaryState.currentNumber, 2);
+
+    const QUrl thirdUrl = QUrl::fromLocalFile(QStringLiteral("/media/03.png"));
+    state.setDirectMediaNavigation(boundary, true,
+        {
+            directMediaNavigationCandidate(firstUrl),
+            directMediaNavigationCandidate(thirdUrl),
+        });
+
+    const kiriview::DirectMediaNavigationCandidateSnapshot changedRowsSnapshot
+        = state.directMediaNavigationCandidateSnapshot();
+    QCOMPARE(changedRowsSnapshot.revision, firstSnapshot.revision + 1);
+    QVERIFY(changedRowsSnapshot.candidates != firstSnapshot.candidates);
+    QCOMPARE(changedRowsSnapshot.candidates->at(1).url, thirdUrl);
 }
 
 void TestDocumentSessionState::publicSnapshotCommitsProjectionValuesBeforePublishing()

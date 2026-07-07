@@ -6,6 +6,7 @@
 #include <QtGlobal>
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <utility>
 
 namespace {
@@ -161,7 +162,13 @@ bool DocumentSessionState::directMediaNavigationKnown() const
 const std::vector<DirectMediaNavigationCandidate>&
 DocumentSessionState::directMediaNavigationCandidates() const
 {
-    return m_directMediaNavigationCandidates;
+    return directMediaNavigationCandidateRows(m_directMediaNavigationCandidateSnapshot);
+}
+
+const DirectMediaNavigationCandidateSnapshot&
+DocumentSessionState::directMediaNavigationCandidateSnapshot() const
+{
+    return m_directMediaNavigationCandidateSnapshot;
 }
 
 const ActiveNavigationSnapshot& DocumentSessionState::activeNavigationSnapshot() const
@@ -279,15 +286,26 @@ void DocumentSessionState::setActiveNavigationRevealDirection(
 void DocumentSessionState::setDirectMediaNavigation(DirectMediaNavigationBoundaryState state,
     bool known, std::vector<DirectMediaNavigationCandidate> candidates)
 {
+    const DirectMediaScope source = directMediaScope();
+    const bool sameSource = m_directMediaNavigationCandidateSnapshot.source == source;
+    const bool sameCandidates = sameDirectMediaNavigationCandidates(
+        directMediaNavigationCandidateRows(m_directMediaNavigationCandidateSnapshot), candidates);
     if (m_directMediaNavigationKnown == known
-        && sameDirectMediaNavigationState(m_directMediaNavigationState, state)
-        && sameDirectMediaNavigationCandidates(m_directMediaNavigationCandidates, candidates)) {
+        && sameDirectMediaNavigationState(m_directMediaNavigationState, state) && sameSource
+        && sameCandidates) {
         return;
     }
 
     m_directMediaNavigationKnown = known;
     m_directMediaNavigationState = state;
-    m_directMediaNavigationCandidates = std::move(candidates);
+    m_directMediaNavigationCandidateSnapshot.source = source;
+    m_directMediaNavigationCandidateSnapshot.boundaryState = state;
+    m_directMediaNavigationCandidateSnapshot.known = known;
+    if (!sameSource || !sameCandidates) {
+        ++m_directMediaNavigationCandidateSnapshot.revision;
+        m_directMediaNavigationCandidateSnapshot.candidates
+            = std::make_shared<const DirectMediaNavigationCandidateRows>(std::move(candidates));
+    }
 }
 
 bool DocumentSessionState::updatePublicSnapshot(const DocumentSessionPublicSnapshotInput& input)

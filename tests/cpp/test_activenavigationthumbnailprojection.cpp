@@ -7,6 +7,7 @@
 #include <QTest>
 #include <QUrl>
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -16,6 +17,20 @@ kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(
     const QUrl& url, const QString& name = {})
 {
     return kiriview::DirectMediaNavigationCandidate { url, name };
+}
+
+kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+{
+    kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
+    snapshot.revision = 1;
+    snapshot.candidates
+        = std::make_shared<const std::vector<kiriview::DirectMediaNavigationCandidate>>(
+            std::move(candidates));
+    snapshot.boundaryState.currentNumber = 1;
+    snapshot.boundaryState.count = static_cast<int>(snapshot.candidates->size());
+    snapshot.known = true;
+    return snapshot;
 }
 
 kiriview::ImageDocumentPageTarget imageTarget(const QUrl& url,
@@ -59,10 +74,10 @@ void TestActiveNavigationThumbnailProjection::directMediaRowsUseConfirmedCandida
     const std::vector<kiriview::ActiveNavigationThumbnailRow> rows
         = kiriview::projectActiveNavigationThumbnailRows(
             kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia, knownNavigation(2, 2),
-            {
+            directMediaNavigationCandidateSnapshot({
                 directMediaNavigationCandidate(imageUrl),
                 directMediaNavigationCandidate(videoUrl, QStringLiteral("Clip")),
-            },
+            }),
             {});
 
     QCOMPARE(rows.size(), std::size_t(2));
@@ -94,8 +109,8 @@ void TestActiveNavigationThumbnailProjection::imageDocumentRowsUsePageSnapshot()
 
     const std::vector<kiriview::ActiveNavigationThumbnailRow> rows
         = kiriview::projectActiveNavigationThumbnailRows(
-            kiriview::ActiveNavigationSourceKind::ImageDocumentPages, knownNavigation(1, 2), {},
-            pageSnapshot);
+            kiriview::ActiveNavigationSourceKind::ImageDocumentPages, knownNavigation(1, 2),
+            directMediaNavigationCandidateSnapshot({}), pageSnapshot);
 
     QCOMPARE(rows.size(), std::size_t(2));
     QCOMPARE(rows.at(0).number, 1);
@@ -115,9 +130,8 @@ void TestActiveNavigationThumbnailProjection::
     unavailableUnknownAndMismatchedNavigationProjectNoRows()
 {
     const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
-    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates {
-        directMediaNavigationCandidate(imageUrl)
-    };
+    const kiriview::DirectMediaNavigationCandidateSnapshot candidates
+        = directMediaNavigationCandidateSnapshot({ directMediaNavigationCandidate(imageUrl) });
 
     QVERIFY(kiriview::projectActiveNavigationThumbnailRows(
         kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia, {}, candidates, {})

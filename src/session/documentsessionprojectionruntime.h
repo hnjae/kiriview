@@ -4,7 +4,6 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONPROJECTIONRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONPROJECTIONRUNTIME_H
 
-#include "navigation/directmedianavigationmodel.h"
 #include "session/activenavigationprojection.h"
 #include "session/activenavigationthumbnailprojection.h"
 #include "session/documentsessionpublicprojection.h"
@@ -20,7 +19,8 @@ struct DocumentSessionProjectionRuntimePorts
         updatePublicSnapshotForSourceKind;
     std::function<ActiveNavigationSourceKind()> activeNavigationSourceKind;
     std::function<ActiveNavigationSnapshot()> activeNavigationSnapshot;
-    std::function<std::vector<DirectMediaNavigationCandidate>()> directMediaNavigationCandidates;
+    std::function<const DirectMediaNavigationCandidateSnapshot&()>
+        directMediaNavigationCandidateSnapshot;
     std::function<void(std::vector<ActiveNavigationThumbnailRow>)> setActiveNavigationThumbnailRows;
     std::function<void()> clearActiveNavigationRevealContextIfUnavailable;
 };

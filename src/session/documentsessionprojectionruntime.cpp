@@ -6,6 +6,14 @@
 #include <utility>
 
 namespace kiriview {
+namespace {
+    const DirectMediaNavigationCandidateSnapshot& emptyDirectMediaNavigationCandidateSnapshot()
+    {
+        static const DirectMediaNavigationCandidateSnapshot snapshot;
+        return snapshot;
+    }
+}
+
 DocumentSessionProjectionRuntime::DocumentSessionProjectionRuntime(
     DocumentSessionProjectionRuntimePorts ports)
     : m_ports(std::move(ports))
@@ -43,11 +51,13 @@ void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
     const ActiveNavigationSnapshot navigation = m_ports.activeNavigationSnapshot
         ? m_ports.activeNavigationSnapshot()
         : ActiveNavigationSnapshot {};
-    const std::vector<DirectMediaNavigationCandidate> directMediaNavigationCandidates
-        = m_ports.directMediaNavigationCandidates ? m_ports.directMediaNavigationCandidates()
-                                                  : std::vector<DirectMediaNavigationCandidate> {};
-    std::vector<ActiveNavigationThumbnailRow> rows = projectActiveNavigationThumbnailRows(
-        sourceKind, navigation, directMediaNavigationCandidates, imageDocumentPageNavigationRows);
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot
+        = m_ports.directMediaNavigationCandidateSnapshot
+        ? m_ports.directMediaNavigationCandidateSnapshot()
+        : emptyDirectMediaNavigationCandidateSnapshot();
+    std::vector<ActiveNavigationThumbnailRow> rows
+        = projectActiveNavigationThumbnailRows(sourceKind, navigation,
+            directMediaNavigationCandidateSnapshot, imageDocumentPageNavigationRows);
     if (m_ports.setActiveNavigationThumbnailRows) {
         m_ports.setActiveNavigationThumbnailRows(std::move(rows));
     }

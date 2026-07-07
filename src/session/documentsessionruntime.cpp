@@ -121,7 +121,9 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
           },
           [this]() { return m_state.activeNavigationSourceKind(); },
           [this]() { return m_state.activeNavigationSnapshot(); },
-          [this]() { return m_state.directMediaNavigationCandidates(); },
+          [this]() -> const DirectMediaNavigationCandidateSnapshot& {
+              return m_state.directMediaNavigationCandidateSnapshot();
+          },
           [this](std::vector<ActiveNavigationThumbnailRow> rows) {
               m_activeNavigationThumbnailRuntime.setRows(std::move(rows));
           },
@@ -243,10 +245,9 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
               },
               [this]() { recomputePublicProjection(); },
               [this]() { m_mediaPredecodeRuntime.clear(); },
-              [this](const QUrl& targetUrl,
-                  const std::vector<DirectMediaNavigationCandidate>& candidates) {
-                  m_mediaPredecodeRuntime.schedule(
-                      m_mediaPredecodeInputPort.currentInput(), targetUrl, candidates);
+              [this](const QUrl& targetUrl, const std::vector<DirectMediaNavigationCandidate>&) {
+                  m_mediaPredecodeRuntime.schedule(m_mediaPredecodeInputPort.currentInput(),
+                      targetUrl, m_state.directMediaNavigationCandidateSnapshot());
               },
               [this](const QUrl& url) { openMediaUrl(url); },
           })

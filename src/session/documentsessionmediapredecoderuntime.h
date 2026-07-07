@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONMEDIAPREDECODERUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONMEDIAPREDECODERUNTIME_H
 
-#include "navigation/directmedianavigationmodel.h"
 #include "predecode/mediapredecodedependencies.h"
 #include "predecode/predecodedimage.h"
+#include "session/directmedianavigationcandidatesnapshot.h"
 #include "session/documentsessiontypes.h"
 
 #include <QUrl>
@@ -38,9 +38,9 @@ public:
     ~DocumentSessionMediaPredecodeRuntime();
 
     void schedule(const DocumentSessionMediaPredecodeInput& input,
-        std::vector<DirectMediaNavigationCandidate> candidates);
+        DirectMediaNavigationCandidateSnapshot candidateSnapshot);
     void schedule(const DocumentSessionMediaPredecodeInput& input, const QUrl& selectedTargetUrl,
-        std::vector<DirectMediaNavigationCandidate> candidates);
+        DirectMediaNavigationCandidateSnapshot candidateSnapshot);
     void cacheDisplayedImages(const DocumentSessionMediaPredecodeInput& input);
     void cancel();
     void clear();

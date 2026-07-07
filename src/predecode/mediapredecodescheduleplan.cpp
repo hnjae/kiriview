@@ -22,10 +22,10 @@ MediaPredecodeSchedulePlan mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequ
         return {};
     }
 
-    MediaPredecodeEligibilitySnapshot eligibility
-        = mediaPredecodeEligibilitySnapshot(request.candidates, *cursorUrl);
+    MediaPredecodeEligibilitySnapshot eligibility = mediaPredecodeEligibilitySnapshot(
+        directMediaNavigationCandidateRows(request.candidateSnapshot), *cursorUrl);
     auto payload = std::make_shared<MediaPredecodeSchedulePayload>();
-    payload->directMediaNavigationCandidates = std::move(request.candidates);
+    payload->directMediaNavigationCandidateSnapshot = std::move(request.candidateSnapshot);
     payload->eligibleImages = std::move(eligibility);
     PredecodeScheduleContext context {
         DisplayedImageLocation::fromUrl(*cursorUrl),
@@ -41,11 +41,11 @@ MediaPredecodeSchedulePlan mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequ
     return MediaPredecodeSchedulePlan { std::move(context) };
 }
 
-const std::vector<DirectMediaNavigationCandidate>* mediaPredecodeScheduleCandidates(
+const DirectMediaNavigationCandidateSnapshot* mediaPredecodeScheduleCandidateSnapshot(
     const PredecodePendingSchedule& schedule)
 {
     const auto* payload = predecodeSchedulePayload<MediaPredecodeSchedulePayload>(schedule);
-    return payload != nullptr ? &payload->directMediaNavigationCandidates : nullptr;
+    return payload != nullptr ? &payload->directMediaNavigationCandidateSnapshot : nullptr;
 }
 
 const MediaPredecodeEligibilitySnapshot* mediaPredecodeScheduleEligibility(

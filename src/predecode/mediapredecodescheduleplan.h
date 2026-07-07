@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_MEDIAPREDECODESCHEDULEPLAN_H
 #define KIRIVIEW_MEDIAPREDECODESCHEDULEPLAN_H
 
-#include "navigation/directmedianavigationmodel.h"
 #include "predecode/mediapredecodeeligibility.h"
 #include "predecodeschedulestate.h"
+#include "session/directmedianavigationcandidatesnapshot.h"
 
 #include <QUrl>
 #include <QtGlobal>
@@ -17,7 +17,7 @@ struct MediaPredecodeSchedulePayload final : PredecodeSchedulePayload
 {
 public:
     MediaPredecodeSchedulePayload() = default;
-    std::vector<DirectMediaNavigationCandidate> directMediaNavigationCandidates;
+    DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot;
     MediaPredecodeEligibilitySnapshot eligibleImages;
     Q_DISABLE_COPY(MediaPredecodeSchedulePayload)
 };
@@ -25,7 +25,7 @@ public:
 struct MediaPredecodeScheduleRequest
 {
     QUrl currentUrl;
-    std::vector<DirectMediaNavigationCandidate> candidates;
+    DirectMediaNavigationCandidateSnapshot candidateSnapshot;
     std::vector<DisplayedPredecodeImage> displayedImages;
     ImageFirstDisplayDecodeContext firstDisplayContext;
     bool immediate = false;
@@ -39,7 +39,7 @@ struct MediaPredecodeSchedulePlan
 };
 
 MediaPredecodeSchedulePlan mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequest request);
-const std::vector<DirectMediaNavigationCandidate>* mediaPredecodeScheduleCandidates(
+const DirectMediaNavigationCandidateSnapshot* mediaPredecodeScheduleCandidateSnapshot(
     const PredecodePendingSchedule& schedule);
 const MediaPredecodeEligibilitySnapshot* mediaPredecodeScheduleEligibility(
     const PredecodePendingSchedule& schedule);

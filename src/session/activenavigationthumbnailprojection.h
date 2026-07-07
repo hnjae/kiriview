@@ -4,9 +4,9 @@
 #ifndef KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILPROJECTION_H
 #define KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILPROJECTION_H
 
-#include "navigation/directmedianavigationmodel.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 #include "session/activenavigationprojection.h"
+#include "session/directmedianavigationcandidatesnapshot.h"
 
 #include <QString>
 #include <QUrl>
@@ -48,7 +48,7 @@ QString activeNavigationThumbnailPageKindIdentity(ActiveNavigationThumbnailKind 
 QString activeNavigationThumbnailSourceKindIdentity(ActiveNavigationThumbnailSourceKind sourceKind);
 std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
     ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
-    const std::vector<DirectMediaNavigationCandidate>& directMediaNavigationCandidates,
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
     const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationSnapshot);
 }
 

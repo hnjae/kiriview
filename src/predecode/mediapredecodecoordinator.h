@@ -5,10 +5,10 @@
 #define KIRIVIEW_MEDIAPREDECODECOORDINATOR_H
 
 #include "mediapredecodedependencies.h"
-#include "navigation/directmedianavigationmodel.h"
 #include "predecodedimage.h"
 #include "predecodeloadcontroller.h"
 #include "predecodescheduleruntime.h"
+#include "session/directmedianavigationcandidatesnapshot.h"
 
 #include <QObject>
 #include <QUrl>
@@ -25,7 +25,7 @@ public:
     struct Context
     {
         QUrl currentUrl;
-        std::vector<DirectMediaNavigationCandidate> candidates;
+        DirectMediaNavigationCandidateSnapshot candidateSnapshot;
         std::vector<DisplayedPredecodeImage> displayedImages;
         ImageFirstDisplayDecodeContext firstDisplayContext;
         bool immediate = false;

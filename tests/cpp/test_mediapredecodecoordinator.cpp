@@ -41,6 +41,23 @@ std::vector<kiriview::DirectMediaNavigationCandidate> mixedDirectMediaNavigation
     };
 }
 
+kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+{
+    kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
+    snapshot.source.currentUrl = candidates.empty() ? QUrl() : candidates.front().url;
+    snapshot.source.parentUrl = localUrl(QStringLiteral("/media"));
+    snapshot.source.generation = 4;
+    snapshot.revision = 1;
+    snapshot.candidates
+        = std::make_shared<const std::vector<kiriview::DirectMediaNavigationCandidate>>(
+            std::move(candidates));
+    snapshot.boundaryState.currentNumber = 1;
+    snapshot.boundaryState.count = static_cast<int>(snapshot.candidates->size());
+    snapshot.known = true;
+    return snapshot;
+}
+
 kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url)
 {
     return kiriview::DisplayedPredecodeImage {
@@ -99,8 +116,8 @@ void TestMediaPredecodeCoordinator::videoCursorKeepsImageCacheAndLoadsAdjacentIm
     const QUrl videoUrl = localUrl(QStringLiteral("/media/01.mp4"));
     const QUrl nextUrl = localUrl(QStringLiteral("/media/02.png"));
     const QUrl laterUrl = localUrl(QStringLiteral("/media/03.png"));
-    const std::vector<kiriview::DirectMediaNavigationCandidate> candidates
-        = mixedDirectMediaNavigationCandidates();
+    const kiriview::DirectMediaNavigationCandidateSnapshot candidates
+        = directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates());
 
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
         displayedUrl,
@@ -141,7 +158,7 @@ void TestMediaPredecodeCoordinator::powerSaverSuppressesLoadsButRetainsDisplayed
     timerScheduler.advanceTo(1000);
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
         displayedUrl,
-        mixedDirectMediaNavigationCandidates(),
+        directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
         { displayedImage(displayedUrl) },
     });
 
@@ -173,7 +190,7 @@ void TestMediaPredecodeCoordinator::powerSaverReschedulesVideoCursorWithoutDispl
     timerScheduler.advanceTo(1000);
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
         videoUrl,
-        mixedDirectMediaNavigationCandidates(),
+        directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
         {},
     });
 
@@ -201,7 +218,7 @@ void TestMediaPredecodeCoordinator::invalidScheduleClearsSuppressedDirectMediaNa
     timerScheduler.advanceTo(1000);
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {
         localUrl(QStringLiteral("/media/01.mp4")),
-        mixedDirectMediaNavigationCandidates(),
+        directMediaNavigationCandidateSnapshot(mixedDirectMediaNavigationCandidates()),
         {},
     });
     coordinator.schedule(kiriview::MediaPredecodeCoordinator::Context {});

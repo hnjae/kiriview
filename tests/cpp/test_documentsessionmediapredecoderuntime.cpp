@@ -9,6 +9,7 @@
 #include <QTest>
 #include <QUrl>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -36,6 +37,23 @@ QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
 {
     return kiriview::DirectMediaNavigationCandidate { url, url.fileName(QUrl::PrettyDecoded) };
+}
+
+kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateSnapshot(
+    std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
+{
+    kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
+    snapshot.source.currentUrl = candidates.empty() ? QUrl() : candidates.front().url;
+    snapshot.source.parentUrl = localUrl(QStringLiteral("/media"));
+    snapshot.source.generation = 3;
+    snapshot.revision = 1;
+    snapshot.candidates
+        = std::make_shared<const std::vector<kiriview::DirectMediaNavigationCandidate>>(
+            std::move(candidates));
+    snapshot.boundaryState.currentNumber = 1;
+    snapshot.boundaryState.count = static_cast<int>(snapshot.candidates->size());
+    snapshot.known = true;
+    return snapshot;
 }
 
 kiriview::DisplayedPredecodeImage displayedImage(const QUrl& url)
@@ -85,7 +103,8 @@ void TestDocumentSessionMediaPredecodeRuntime::
     const QUrl nextUrl = localUrl(QStringLiteral("/media/next.png"));
 
     runtime.schedule(activeImageInput(currentUrl),
-        { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(nextUrl) });
+        directMediaNavigationCandidateSnapshot({ directMediaNavigationCandidate(currentUrl),
+            directMediaNavigationCandidate(nextUrl) }));
 
     QVERIFY(runtime.findPredecodedImage(currentUrl).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
@@ -103,12 +122,12 @@ void TestDocumentSessionMediaPredecodeRuntime::
     const QUrl nextTargetUrl = localUrl(QStringLiteral("/media/03.png"));
 
     runtime.schedule(activeImageInput(displayedUrl), targetUrl,
-        {
+        directMediaNavigationCandidateSnapshot({
             directMediaNavigationCandidate(displayedUrl),
             directMediaNavigationCandidate(oldNextUrl),
             directMediaNavigationCandidate(targetUrl),
             directMediaNavigationCandidate(nextTargetUrl),
-        });
+        }));
 
     QVERIFY(runtime.findPredecodedImage(displayedUrl).has_value());
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
@@ -128,10 +147,10 @@ void TestDocumentSessionMediaPredecodeRuntime::
     input.primaryDisplayedPredecodeImage.reset();
 
     runtime.schedule(input, targetUrl,
-        {
+        directMediaNavigationCandidateSnapshot({
             directMediaNavigationCandidate(videoCursorUrl),
             directMediaNavigationCandidate(targetUrl),
-        });
+        }));
 
     QTRY_COMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, targetUrl);
@@ -145,7 +164,8 @@ void TestDocumentSessionMediaPredecodeRuntime::inactiveScheduleDoesNotStartPrede
     const QUrl nextUrl = localUrl(QStringLiteral("/media/next.png"));
 
     runtime.schedule(inactiveImageInput(currentUrl),
-        { directMediaNavigationCandidate(currentUrl), directMediaNavigationCandidate(nextUrl) });
+        directMediaNavigationCandidateSnapshot({ directMediaNavigationCandidate(currentUrl),
+            directMediaNavigationCandidate(nextUrl) }));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(0));
     QVERIFY(!runtime.findPredecodedImage(currentUrl).has_value());

@@ -42,13 +42,14 @@ MediaPredecodeCoordinator::MediaPredecodeCoordinator(
 
 void MediaPredecodeCoordinator::schedule(Context context)
 {
-    qCDebug(kiriviewPredecodeLog) << "media predecode schedule"
-                                  << "url" << context.currentUrl << "candidates"
-                                  << context.candidates.size() << "displayedImages"
-                                  << context.displayedImages.size();
+    qCDebug(kiriviewPredecodeLog)
+        << "media predecode schedule"
+        << "url" << context.currentUrl << "candidates"
+        << directMediaNavigationCandidateRows(context.candidateSnapshot).size() << "displayedImages"
+        << context.displayedImages.size();
     MediaPredecodeSchedulePlan plan = mediaPredecodeSchedulePlan(MediaPredecodeScheduleRequest {
         context.currentUrl,
-        std::move(context.candidates),
+        std::move(context.candidateSnapshot),
         std::move(context.displayedImages),
         context.firstDisplayContext,
         context.immediate,
@@ -87,11 +88,11 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
         return;
     }
 
-    const std::vector<DirectMediaNavigationCandidate>* candidates
-        = mediaPredecodeScheduleCandidates(schedule);
+    const DirectMediaNavigationCandidateSnapshot* candidateSnapshot
+        = mediaPredecodeScheduleCandidateSnapshot(schedule);
     const MediaPredecodeEligibilitySnapshot* eligibility
         = mediaPredecodeScheduleEligibility(schedule);
-    if (candidates == nullptr || eligibility == nullptr) {
+    if (candidateSnapshot == nullptr || eligibility == nullptr) {
         qCDebug(kiriviewPredecodeLog) << "media predecode window ignored"
                                       << "reason"
                                       << "missing-payload"
@@ -103,8 +104,9 @@ void MediaPredecodeCoordinator::startPredecodeWindow(const PredecodePendingSched
     qCDebug(kiriviewPredecodeLog) << "media predecode window start"
                                   << "generation" << schedule.generation << "primaryUrl"
                                   << schedule.context.currentLocation.imageUrl() << "candidates"
-                                  << candidates->size() << "stillUrls" << plan.urls.size()
-                                  << "parallelLimit" << plan.parallelLimit;
+                                  << directMediaNavigationCandidateRows(*candidateSnapshot).size()
+                                  << "stillUrls" << plan.urls.size() << "parallelLimit"
+                                  << plan.parallelLimit;
     m_loadController.startWindowLoads(PredecodeLoadWindow {
         primaryDisplayedUrlForWindow(schedule),
         plan.openedCollectionScope,

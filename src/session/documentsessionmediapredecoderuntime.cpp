@@ -19,13 +19,13 @@ DocumentSessionMediaPredecodeRuntime::DocumentSessionMediaPredecodeRuntime(
 DocumentSessionMediaPredecodeRuntime::~DocumentSessionMediaPredecodeRuntime() = default;
 
 void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPredecodeInput& input,
-    std::vector<DirectMediaNavigationCandidate> candidates)
+    DirectMediaNavigationCandidateSnapshot candidateSnapshot)
 {
-    schedule(input, QUrl(), std::move(candidates));
+    schedule(input, QUrl(), std::move(candidateSnapshot));
 }
 
 void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPredecodeInput& input,
-    const QUrl& selectedTargetUrl, std::vector<DirectMediaNavigationCandidate> candidates)
+    const QUrl& selectedTargetUrl, DirectMediaNavigationCandidateSnapshot candidateSnapshot)
 {
     if (!input.directMediaNavigationActive || input.currentUrl.isEmpty()) {
         return;
@@ -34,7 +34,7 @@ void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPr
     const bool immediate = !selectedTargetUrl.isEmpty();
     m_coordinator->schedule(MediaPredecodeCoordinator::Context {
         immediate ? selectedTargetUrl : input.currentUrl,
-        std::move(candidates),
+        std::move(candidateSnapshot),
         displayedImages(input),
         input.firstDisplayDecodeContext,
         immediate,

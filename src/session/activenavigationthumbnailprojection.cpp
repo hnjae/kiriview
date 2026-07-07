@@ -115,7 +115,7 @@ QString activeNavigationThumbnailSourceKindIdentity(ActiveNavigationThumbnailSou
 
 std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
     ActiveNavigationSourceKind sourceKind, ActiveNavigationSnapshot navigation,
-    const std::vector<DirectMediaNavigationCandidate>& directMediaNavigationCandidates,
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
     const ImageDocumentPageNavigationSnapshot& imageDocumentPageNavigationSnapshot)
 {
     if (!navigation.available || !navigation.known || navigation.count < 1) {
@@ -126,7 +126,8 @@ std::vector<ActiveNavigationThumbnailRow> projectActiveNavigationThumbnailRows(
     switch (sourceKind) {
     case ActiveNavigationSourceKind::OrdinaryDirectMedia:
         rows = thumbnailRowsForDirectMediaNavigationCandidates(
-            directMediaNavigationCandidates, navigation.currentNumber);
+            directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot),
+            navigation.currentNumber);
         break;
     case ActiveNavigationSourceKind::ImageDocumentPages:
         rows = thumbnailRowsForImageDocumentPageNavigationSnapshot(

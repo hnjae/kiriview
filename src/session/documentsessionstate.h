@@ -4,11 +4,9 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONSTATE_H
 #define KIRIVIEW_DOCUMENTSESSIONSTATE_H
 
-#include "session/directmediacursor.h"
+#include "session/directmedianavigationcandidatesnapshot.h"
 #include "session/documentsessionpublicprojection.h"
 #include "session/documentsessiontypes.h"
-
-#include "navigation/directmedianavigationmodel.h"
 
 #include <QUrl>
 #include <functional>
@@ -34,6 +32,7 @@ public:
     const DirectMediaNavigationBoundaryState& directMediaNavigationState() const;
     bool directMediaNavigationKnown() const;
     const std::vector<DirectMediaNavigationCandidate>& directMediaNavigationCandidates() const;
+    const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot() const;
     const ActiveNavigationSnapshot& activeNavigationSnapshot() const;
     ActiveNavigationRevealIntent activeNavigationRevealIntent() const;
     ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
@@ -80,7 +79,7 @@ private:
     DocumentSessionKind m_documentKind = DocumentSessionKind::Empty;
     DirectMediaCursor m_directMediaCursor;
     DirectMediaNavigationBoundaryState m_directMediaNavigationState;
-    std::vector<DirectMediaNavigationCandidate> m_directMediaNavigationCandidates;
+    DirectMediaNavigationCandidateSnapshot m_directMediaNavigationCandidateSnapshot;
     DocumentSessionPublicSnapshot m_publicSnapshot;
     ActiveZoomSnapshot m_activeZoomSnapshot;
     ActiveNavigationRevealIntent m_activeNavigationRevealIntent
