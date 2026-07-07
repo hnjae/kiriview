@@ -33,6 +33,8 @@ The item owns the public value-type projection. Range, rectangle, size, point, c
 
 Controller transitions report observable changes and external lifecycle or command intents as typed outputs. The item applies those outputs by advancing revision tokens, emitting QML notifications, scheduling render updates, synchronizing playback scheduling, and delivering provider commands, cancellation, or session close intents through the provider transport boundary; the controller does not emit QML signals, call scene graph update entry points, or invoke provider transport helpers directly.
 
+Item-side provider transport is owned by a narrow provider host. The host owns provider bridge client behavior, role-specific bridge instances, provider session callbacks, command delivery, cancellation, session close delivery, and deferred provider-controller event scheduling. It may read accepted sequence construction facts needed to open sessions and may call controller provider inputs with normalized typed events and dispatch failures, but it must not own request identity, token matching policy, public notification emission, playback scheduling, render updates, or scene graph state. `ImageViewportPrivate` owns the provider host and applies the controller change sets, diagnostics, render updates, playback synchronization, and public notifications produced after provider-host calls.
+
 ## Sequence Boundary
 
 `ImageSequence` is the immutable or provider-backed content handle accepted by a viewport page role. It carries enough construction-time data to open independent display generations without tying correctness to QObject parent ownership.
