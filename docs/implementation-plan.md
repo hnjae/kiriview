@@ -129,6 +129,8 @@ Acceptance: Opened-collection foreground loading and image-document predecode co
 
 Verification: Run focused opened-collection foreground-load and image-document predecode tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused coverage for opened-collection foreground load reuse and fallback, image-document predecode snapshot reuse, stale-source rejection, and unconfirmed snapshot fallback; refined the stale predecode fallback test to wait for asynchronous candidate listing. Migrated foreground loading and image-document predecode scheduling to `ImageDocumentPageCandidateListSnapshot` while preserving the older value snapshot projection/thumbnail APIs outside this milestone, and wired runtime controllers to pass the page navigation port's confirmed snapshot into open and predecode controllers. Verified the intended red focused build failure before implementation against the old optional value-snapshot `ImageLoader::start` signature, then verified the implementation with focused CTest targets for image loading and image-document predecode, focused CTest after warning cleanup for `test_imageloader`, `test_imagepredecodecoordinator`, `test_imagedocumentpredecodecontroller`, and `test_mediapredecodescheduleplan`, `git diff --check`, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 9: Active-Navigation Thumbnail Projection Reuse
 
 Suggested `/goal`: Make active-navigation thumbnail row projection reuse candidate snapshot revisions and avoid full row projection when only the active number changes.
