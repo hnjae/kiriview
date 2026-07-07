@@ -69,6 +69,8 @@ Acceptance: Store operations no longer require vector scans for ordinary id look
 
 Verification: Run focused thumbnail image store tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused store tests for priority refresh, LRU eviction ordering, byte-budget trimming, stable non-reused ids, immediate eviction, release, clear, and accounting; these guard existing behavior and stayed green before the indexing refactor. Replaced vector-only store bookkeeping with id-indexed entries plus explicit eviction metadata while preserving public API, retention priority, LRU refresh, byte-budget, release, clear, and shared-store behavior. Verified with focused `test_thumbnailimagestore`, `devenv tasks run --mode single ci:lint:cpp`, and `devenv tasks run --mode single ci:test:cpp`.
+
 ## Milestone 4: Candidate Snapshot Architecture Intent
 
 Suggested `/goal`: Define a revisioned immutable candidate-list snapshot boundary for direct media, image-document page navigation, opened collections, thumbnails, and predecode consumers.
