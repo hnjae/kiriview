@@ -3,8 +3,7 @@
 ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
     , controller(*this)
-    , providerBridge(*this)
-    , secondaryProviderBridge(*this, PageRole::Secondary)
+    , providerHost(*this)
 {
     playbackClockTimebase.start();
     playbackTimer.setSingleShot(true);
@@ -14,9 +13,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
 ImageViewportPrivate::~ImageViewportPrivate()
 {
     stopPlaybackTimer();
-    applyProviderFrameTransportEffect(controller.closeProviderSession());
-    applyProviderFrameTransportEffect(
-        controller.closeProviderSession(PageRole::Secondary), PageRole::Secondary);
+    providerHost.closeActiveSessions();
 }
 
 double ImageViewportPrivate::width() const { return q->width(); }

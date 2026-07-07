@@ -709,6 +709,8 @@ Finding 6.
 
 ### Milestone 9: Provider Host Extraction
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Extract provider transport client behavior from `ImageViewportPrivate` into a narrow item-side provider host.
@@ -743,11 +745,19 @@ Finding 7.
 
 #### Tasks
 
-- [ ] Define the provider host ownership boundary and constructor dependencies.
-- [ ] Move `ViewportProviderBridgeClient` implementation from `ImageViewportPrivate` to the provider host.
-- [ ] Move provider bridge storage or access behind the provider host.
-- [ ] Keep `ImageViewportPrivate` responsible for applying public notifications and owning the host.
-- [ ] Add structural verification that `ImageViewportPrivate` no longer implements `ViewportProviderBridgeClient` directly.
+- [x] Define the provider host ownership boundary and constructor dependencies.
+- [x] Move `ViewportProviderBridgeClient` implementation from `ImageViewportPrivate` to the provider host.
+- [x] Move provider bridge storage or access behind the provider host.
+- [x] Keep `ImageViewportPrivate` responsible for applying public notifications and owning the host.
+- [x] Add structural verification that `ImageViewportPrivate` no longer implements `ViewportProviderBridgeClient` directly.
+
+#### Completion evidence
+
+- Durable architecture intent for the item-side provider host was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::providerHostBoundary`, which fails if `ImageViewportPrivate` implements `ViewportProviderBridgeClient` directly or stores provider bridge instances directly.
+- Introduced `ImageViewportProviderHost` as the private owner of provider bridge client behavior, role-specific bridge instances, provider callbacks, command delivery, cancellation, session close delivery, and deferred provider-controller event scheduling.
+- `ImageViewportPrivate` now owns the provider host and remains responsible for applying controller change sets, diagnostics, playback synchronization, render update scheduling, and public notifications.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_provider|structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

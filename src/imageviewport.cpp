@@ -193,9 +193,9 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     assignment.source = std::move(source);
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     applyControllerChanges(result.changes);
-    applyProviderFrameTransportEffect(result.providerFrameTransport);
-    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
-    if (result.openProviderSession && !openProviderSession()) {
+    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
+    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
     }
@@ -585,15 +585,15 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         return result.outcome;
     }
     applyControllerChanges(result.changes);
-    applyProviderFrameTransportEffect(result.providerFrameTransport);
-    applyProviderFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
-    if (result.openProviderSession && !openProviderSession()) {
+    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
+    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
         syncPlaybackTimer();
         return result.outcome;
     }
-    if (result.openSecondaryProviderSession && !openProviderSession(PageRole::Secondary)) {
+    if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(PageRole::Secondary,
             QStringLiteral("provider session creation failed")));
     }

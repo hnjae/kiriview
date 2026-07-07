@@ -2,17 +2,17 @@
 
 #include "imageviewport.h"
 #include "imageviewportdiagnostics_p.h"
+#include "imageviewportproviderhost_p.h"
 #include "imageviewportstate_p.h"
 #include "playbackclock_p.h"
 #include "renderadapter_p.h"
 #include "viewportcontroller_p.h"
-#include "viewportproviderbridge_p.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
 #include <QtQuick/QSGNode>
 
-class ImageViewportPrivate : public ViewportProviderBridgeClient, public ViewportControllerContext
+class ImageViewportPrivate : public ViewportControllerContext
 {
 public:
     using BackgroundMode = ImageViewport::BackgroundMode;
@@ -222,12 +222,6 @@ public:
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
-    bool openProviderSession(PageRole role = PageRole::Primary);
-    QObject* providerCallbackTarget() const override;
-    quint64 installProviderSession(PageRole role, ImageSequenceProviderSession* session) override;
-    ImageSequenceProviderSession* takeProviderSession(PageRole role) override;
-    ImageSequenceProviderSession* currentProviderSession(PageRole role) const override;
-    quint64 currentProviderGeneration(PageRole role) const override;
     bool providerHasCompleteKnownMetadata() const override;
     ImageSequenceProviderKnownFacts providerKnownFacts() const override;
     QSizeF providerKnownLogicalSize() const override;
@@ -235,28 +229,10 @@ public:
     ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const override;
     ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const override;
-    void startProviderMetadataRequest();
-    void applyProviderMetadataTransportEffect(
-        const ViewportProviderMetadataTransportEffect& effect, PageRole role = PageRole::Primary);
-    void applyProviderFrameTransportEffect(
-        const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
-    void recordProviderTransportResult(const ViewportProviderTransportResult& result);
-    bool scheduleProviderDeferredControllerEvent(
-        ViewportProviderDeferredControllerEvent event, PageRole role);
-    void handleProviderQueueFlushSchedulingFailure(PageRole role);
-    void handleProviderDispatchFailure(
-        PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
-    void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
-    void flushQueuedProviderFrameRequest(PageRole role = PageRole::Primary);
-    bool startProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
-    void handleProviderEvent(const ViewportProviderEvent& event) override;
-    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
-        PageRole role) const override;
     int providerFrameStartPosition(int frame) const override;
     int providerFrameIndexForPosition(int position) const override;
     ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const override;
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
-    ImageSequenceProviderThreadingContract providerThreadingContract(PageRole role) const override;
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void syncPlaybackTimer();
@@ -299,16 +275,10 @@ public:
 
     ImageViewport* q = nullptr;
     ViewportController controller;
-    ViewportProviderBridge providerBridge;
-    ViewportProviderBridge secondaryProviderBridge;
+    ImageViewportProviderHost providerHost;
     ImageViewportInternal::InternalDiagnostics internalDiagnostics;
     RenderAdapter renderAdapter;
     QTimer playbackTimer;
     QElapsedTimer playbackClockTimebase;
     ImageViewportInternal::PlaybackClock playbackClock;
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    bool synchronousProviderQueueFlushScheduler = false;
-    bool failNextPrimaryProviderQueueFlushScheduling = false;
-    bool failNextSecondaryProviderQueueFlushScheduling = false;
-#endif
 };

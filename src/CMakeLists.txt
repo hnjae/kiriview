@@ -26,6 +26,8 @@ qt_add_qml_module(
     imageviewportfacade.cpp
     imageviewportpresentation.cpp
     imageviewportprovider.cpp
+    imageviewportproviderhost.cpp
+    imageviewportproviderhost_p.h
     imageviewportrender.cpp
     imageviewport.cpp
     imageviewport.h
