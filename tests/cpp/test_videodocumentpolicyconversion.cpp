@@ -14,7 +14,8 @@ class TestVideoDocumentPolicyConversion : public QObject
 
 private Q_SLOTS:
     void statusSnapshotAndPlanRoundTripThroughRustPolicy();
-    void playbackPlanConversionPreservesOrderedBackendEffects();
+    void playbackSnapshotMapsPlainFields();
+    void playbackPlanConversionMapsPlainFieldsAndBackendVariants();
 };
 
 namespace {
@@ -44,7 +45,7 @@ void TestVideoDocumentPolicyConversion::statusSnapshotAndPlanRoundTripThroughRus
     QVERIFY(plan.clearPlaying);
 }
 
-void TestVideoDocumentPolicyConversion::playbackPlanConversionPreservesOrderedBackendEffects()
+void TestVideoDocumentPolicyConversion::playbackSnapshotMapsPlainFields()
 {
     const kiriview::RustVideoPlaybackControlSnapshot snapshot
         = kiriview::Bridge::rustVideoPlaybackControlSnapshot(
@@ -58,20 +59,62 @@ void TestVideoDocumentPolicyConversion::playbackPlanConversionPreservesOrderedBa
                 10000,
             });
 
-    const kiriview::VideoPlaybackControlPlan plan
-        = kiriview::Bridge::videoPlaybackControlPlanFromRust(
-            kiriview::rustVideoPlaybackPlayPlan(snapshot));
+    QVERIFY(!snapshot.source_url_empty);
+    QVERIFY(snapshot.media_backend_available);
+    QVERIFY(!snapshot.playing);
+    QVERIFY(snapshot.media_ended);
+    QVERIFY(snapshot.seekable);
+    QCOMPARE(snapshot.position, qint64(10000));
+    QCOMPARE(snapshot.duration, qint64(10000));
+}
 
-    QCOMPARE(plan.backendOperations.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::EnsureVideoPlaybackBackendOperation>(plan, 0) != nullptr);
-    const auto* setPosition = operationAt<kiriview::SetVideoPlaybackPositionOperation>(plan, 1);
-    QVERIFY(setPosition != nullptr);
-    QCOMPARE(setPosition->position, 0);
-    QVERIFY(operationAt<kiriview::PlayVideoPlaybackOperation>(plan, 2) != nullptr);
+void TestVideoDocumentPolicyConversion::playbackPlanConversionMapsPlainFieldsAndBackendVariants()
+{
+    kiriview::RustVideoPlaybackControlPlan rustPlan {};
+    rustPlan.state_delta.media_ended_changed = true;
+    rustPlan.state_delta.media_ended = false;
+    rustPlan.state_delta.playing_changed = true;
+    rustPlan.state_delta.playing = true;
+    rustPlan.state_delta.position_changed = true;
+    rustPlan.state_delta.position = 1234;
+    rustPlan.backend_operations.push_back(kiriview::RustVideoPlaybackBackendOperation {
+        kiriview::RustVideoPlaybackBackendOperationKind::EnsureBackend,
+        0,
+    });
+    rustPlan.backend_operations.push_back(kiriview::RustVideoPlaybackBackendOperation {
+        kiriview::RustVideoPlaybackBackendOperationKind::Play,
+        0,
+    });
+    rustPlan.backend_operations.push_back(kiriview::RustVideoPlaybackBackendOperation {
+        kiriview::RustVideoPlaybackBackendOperationKind::Pause,
+        0,
+    });
+    rustPlan.backend_operations.push_back(kiriview::RustVideoPlaybackBackendOperation {
+        kiriview::RustVideoPlaybackBackendOperationKind::Stop,
+        0,
+    });
+    rustPlan.backend_operations.push_back(kiriview::RustVideoPlaybackBackendOperation {
+        kiriview::RustVideoPlaybackBackendOperationKind::SetPosition,
+        1234,
+    });
+
+    const kiriview::VideoPlaybackControlPlan plan
+        = kiriview::Bridge::videoPlaybackControlPlanFromRust(rustPlan);
+
     QVERIFY(plan.stateDelta.mediaEnded.has_value());
     QCOMPARE(plan.stateDelta.mediaEnded.value(), false);
+    QVERIFY(plan.stateDelta.playing.has_value());
+    QCOMPARE(plan.stateDelta.playing.value(), true);
     QVERIFY(plan.stateDelta.position.has_value());
-    QCOMPARE(plan.stateDelta.position.value(), 0);
+    QCOMPARE(plan.stateDelta.position.value(), qint64(1234));
+    QCOMPARE(plan.backendOperations.size(), std::size_t(5));
+    QVERIFY(operationAt<kiriview::EnsureVideoPlaybackBackendOperation>(plan, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::PlayVideoPlaybackOperation>(plan, 1) != nullptr);
+    QVERIFY(operationAt<kiriview::PauseVideoPlaybackOperation>(plan, 2) != nullptr);
+    QVERIFY(operationAt<kiriview::StopVideoPlaybackOperation>(plan, 3) != nullptr);
+    const auto* setPosition = operationAt<kiriview::SetVideoPlaybackPositionOperation>(plan, 4);
+    QVERIFY(setPosition != nullptr);
+    QCOMPARE(setPosition->position, qint64(1234));
 }
 
 QTEST_GUILESS_MAIN(TestVideoDocumentPolicyConversion)

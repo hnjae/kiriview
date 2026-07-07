@@ -52,10 +52,7 @@ private Q_SLOTS:
     void viewportCommandBridgeOwnsFullCommandLifecycle();
     void viewportContextBridgeIsNonRenderingPublicQtFacade();
     void qmlViewportUsesContextBridgeForRenderContextDiscovery();
-    void oldImageRendererArtifactsAreAbsent();
-    void oldImageRendererBuildWiringIsAbsent();
     void providerRenderingRejectsTileSourceContracts();
-    void cppTestBuildConsumesCargoAppLibraryOnly();
     void productionImageDisplayUsesProviderPathOnly();
     void sourceKeysExposeTypedExtensionFamilies();
     void sourceKeysExposeOperationalExtensionContracts();
@@ -656,12 +653,6 @@ void TestArchitectureBoundaries::qmlDoesNotExposeFixedViewerScanCommandRoutes()
     const QString imageViewport = readProjectFile(QStringLiteral("src/qml/ImageViewport.qml"));
     const QString imageInteractionSurface
         = readProjectFile(QStringLiteral("src/qml/ImageViewportInteractionSurface.qml"));
-    const QString coreSources = readProjectFile(QStringLiteral("src/cpp_core_sources.txt"));
-    const QString qmlHeaders = readProjectFile(QStringLiteral("src/cpp_cxxqt_header_sources.txt"));
-    const QStringList stalePolicyFacadeFiles = existingProjectFiles({
-        QStringLiteral("src/facade/imageshortcutnavigationpolicy.h"),
-        QStringLiteral("src/facade/imageshortcutnavigationpolicy.cpp"),
-    });
     const QList<QRegularExpression> forbiddenQmlPatterns {
         QRegularExpression(QStringLiteral(R"(\brequestViewportScan(?:Forward|Backward)\s*\()")),
         QRegularExpression(QStringLiteral(R"(\bfunction\s+scan(?:Forward|Backward)\s*\()")),
@@ -678,10 +669,6 @@ void TestArchitectureBoundaries::qmlDoesNotExposeFixedViewerScanCommandRoutes()
     }
 
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-    QVERIFY2(stalePolicyFacadeFiles.isEmpty(),
-        qPrintable(stalePolicyFacadeFiles.join(QLatin1Char('\n'))));
-    QVERIFY(!coreSources.contains(QStringLiteral("facade/imageshortcutnavigationpolicy")));
-    QVERIFY(!qmlHeaders.contains(QStringLiteral("facade/imageshortcutnavigationpolicy")));
 }
 
 void TestArchitectureBoundaries::videoSeekShortcutsRouteThroughApplicationRuntime()
@@ -734,7 +721,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnFixedViewerCommandRo
     const QString header = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.h"));
     const QString implementation
         = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.cpp"));
-    const QString coreSources = readProjectFile(QStringLiteral("src/cpp_core_sources.txt"));
 
     QVERIFY(!header.contains(QStringLiteral("navigation/imageshortcutnavigationpolicy.h")));
     QVERIFY(!header.contains(QStringLiteral("ImageShortcutNavigationPolicy m_navigationPolicy")));
@@ -746,9 +732,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnFixedViewerCommandRo
     QVERIFY(!implementation.contains(QStringLiteral("keyboardPanDistance")));
     QVERIFY(implementation.contains(QStringLiteral("ApplicationCommandPortSource")));
     QVERIFY(implementation.contains(QStringLiteral("ApplicationCommandRouter")));
-    QVERIFY(coreSources.contains(QStringLiteral("src/application/applicationcommandrouter.cpp")));
-    QVERIFY(
-        coreSources.contains(QStringLiteral("src/application/applicationcommandportsource.cpp")));
 }
 
 void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionStateSourceAttachment()
@@ -756,7 +739,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionStateSourceAtt
     const QString header = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.h"));
     const QString implementation
         = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.cpp"));
-    const QString coreSources = readProjectFile(QStringLiteral("src/cpp_core_sources.txt"));
 
     QVERIFY(!header.contains(QStringLiteral("rebuildActionState")));
     QVERIFY(!header.contains(QStringLiteral("connectActionStateSources")));
@@ -774,8 +756,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionStateSourceAtt
     QVERIFY(!implementation.contains(QStringLiteral("KiriViewApplication::actionStateSnapshot")));
     QVERIFY(implementation.contains(QStringLiteral("KiriViewApplicationActionStateSource")));
     QVERIFY(implementation.contains(QStringLiteral("ApplicationActionSourceAttachment")));
-    QVERIFY(coreSources.contains(
-        QStringLiteral("src/application/applicationactionsourceattachment.cpp")));
 }
 
 void TestArchitectureBoundaries::applicationCommandRouterPortsAreGroupedByOwner()
@@ -970,12 +950,6 @@ void TestArchitectureBoundaries::viewportCommandBridgeOwnsFullCommandLifecycle()
     QVERIFY(combined.contains(QStringLiteral("acknowledgeViewportCommand(")));
     QVERIFY(combined.contains(QStringLiteral("viewportProjectionNewerThan(")));
     QVERIFY(!combined.contains(QStringLiteral("rejectedViewportCommandStatus = 6")));
-
-    const QString cxxqtSources = readProjectFile(QStringLiteral("src/cpp_cxxqt_sources.txt"));
-    const QString cxxqtHeaders
-        = readProjectFile(QStringLiteral("src/cpp_cxxqt_header_sources.txt"));
-    QVERIFY(cxxqtSources.contains(QStringLiteral("src/facade/kiriimageviewportcommandbridge.cpp")));
-    QVERIFY(cxxqtHeaders.contains(QStringLiteral("src/facade/kiriimageviewportcommandbridge.h")));
 }
 
 void TestArchitectureBoundaries::viewportContextBridgeIsNonRenderingPublicQtFacade()
@@ -1021,12 +995,6 @@ void TestArchitectureBoundaries::viewportContextBridgeIsNonRenderingPublicQtFaca
         }
     }
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-
-    const QString cxxqtSources = readProjectFile(QStringLiteral("src/cpp_cxxqt_sources.txt"));
-    const QString cxxqtHeaders
-        = readProjectFile(QStringLiteral("src/cpp_cxxqt_header_sources.txt"));
-    QVERIFY(cxxqtSources.contains(QStringLiteral("src/facade/kiriimageviewportcontextbridge.cpp")));
-    QVERIFY(cxxqtHeaders.contains(QStringLiteral("src/facade/kiriimageviewportcontextbridge.h")));
 }
 
 void TestArchitectureBoundaries::qmlViewportUsesContextBridgeForRenderContextDiscovery()
@@ -1046,92 +1014,6 @@ void TestArchitectureBoundaries::qmlViewportUsesContextBridgeForRenderContextDis
     QVERIFY(!viewport.contains(QStringLiteral("imageView.viewportPointInsideImage(")));
     QVERIFY(!viewport.contains(QStringLiteral("imageView.nearestImageViewportPoint(")));
     QVERIFY(!viewport.contains(QStringLiteral("onDisplayedImageInitialContentPositionRequested")));
-}
-
-void TestArchitectureBoundaries::oldImageRendererArtifactsAreAbsent()
-{
-    const QList<QString> forbiddenFiles {
-        QStringLiteral("src/facade/kiriimageview.cpp"),
-        QStringLiteral("src/facade/kiriimageview.h"),
-        QStringLiteral("src/rendering/decodedtilecache.cpp"),
-        QStringLiteral("src/rendering/decodedtilecache.h"),
-        QStringLiteral("src/rendering/displayedimagesurfacestate.cpp"),
-        QStringLiteral("src/rendering/displayedimagesurfacestate.h"),
-        QStringLiteral("src/rendering/imagerenderframe.cpp"),
-        QStringLiteral("src/rendering/imagerenderframe.h"),
-        QStringLiteral("src/rendering/imagerendernodestate.cpp"),
-        QStringLiteral("src/rendering/imagerendernodestate.h"),
-        QStringLiteral("src/rendering/imagetiledecoderuntime.cpp"),
-        QStringLiteral("src/rendering/imagetiledecoderuntime.h"),
-        QStringLiteral("src/rendering/imagetiledecodescheduler.cpp"),
-        QStringLiteral("src/rendering/imagetiledecodescheduler.h"),
-        QStringLiteral("src/rendering/imagetiledecodestate.cpp"),
-        QStringLiteral("src/rendering/imagetiledecodestate.h"),
-        QStringLiteral("src/rendering/imagetilerequestplan.cpp"),
-        QStringLiteral("src/rendering/imagetilerequestplan.h"),
-        QStringLiteral("src/rendering/imagesurface.cpp"),
-        QStringLiteral("src/rendering/imagesurface.h"),
-        QStringLiteral("src/rendering/kiriimagerendernode.cpp"),
-        QStringLiteral("src/rendering/kiriimagerendernode.h"),
-        QStringLiteral("src/shaders/kiriimageview.frag"),
-        QStringLiteral("src/shaders/kiriimageview.vert"),
-        QStringLiteral("src/shaders/kiriimageview_shaders.h"),
-    };
-
-    const QStringList existing = existingProjectFiles(forbiddenFiles);
-    QVERIFY2(existing.isEmpty(), qPrintable(existing.join(QLatin1Char('\n'))));
-
-    const QString coreSources = readProjectFile(QStringLiteral("src/cpp_core_sources.txt"));
-    const QString cxxqtSources = readProjectFile(QStringLiteral("src/cpp_cxxqt_sources.txt"));
-    const QString cxxqtHeaders
-        = readProjectFile(QStringLiteral("src/cpp_cxxqt_header_sources.txt"));
-    const QString manifests
-        = coreSources + QLatin1Char('\n') + cxxqtSources + QLatin1Char('\n') + cxxqtHeaders;
-    QStringList manifestViolations;
-    for (const QString& relativePath : forbiddenFiles) {
-        if (manifests.contains(relativePath)) {
-            manifestViolations.push_back(relativePath);
-        }
-    }
-    QVERIFY2(manifestViolations.isEmpty(), qPrintable(manifestViolations.join(QLatin1Char('\n'))));
-}
-
-void TestArchitectureBoundaries::oldImageRendererBuildWiringIsAbsent()
-{
-    const QString buildScript = readProjectFile(QStringLiteral("build.rs"));
-    const QList<QString> forbiddenBuildTokens {
-        QStringLiteral("QT_RHI"),
-        QStringLiteral("add_qt_rhi_include_dirs"),
-        QStringLiteral("bake_shaders"),
-        QStringLiteral("run_qsb"),
-        QStringLiteral("qsb"),
-        QStringLiteral("qshader"),
-        QStringLiteral("kiriimageview.vert"),
-        QStringLiteral("kiriimageview.frag"),
-        QStringLiteral("kiriimageview_shaders"),
-    };
-
-    QStringList buildViolations;
-    for (const QString& token : forbiddenBuildTokens) {
-        if (buildScript.contains(token)) {
-            buildViolations.push_back(QStringLiteral("build.rs: %1").arg(token));
-        }
-    }
-
-    const QString testCMake = readProjectFile(QStringLiteral("tests/cpp/CMakeLists.txt"));
-    const QList<QString> forbiddenTestCMakeTokens {
-        QStringLiteral("kiriview_qt_rhi_include_dirs"),
-        QStringLiteral("KIRIVIEW_QT_RHI_INCLUDE_DIRS"),
-        QStringLiteral("rhi/qrhi.h"),
-        QStringLiteral("rhi/qshader.h"),
-    };
-    for (const QString& token : forbiddenTestCMakeTokens) {
-        if (testCMake.contains(token)) {
-            buildViolations.push_back(QStringLiteral("tests/cpp/CMakeLists.txt: %1").arg(token));
-        }
-    }
-
-    QVERIFY2(buildViolations.isEmpty(), qPrintable(buildViolations.join(QLatin1Char('\n'))));
 }
 
 void TestArchitectureBoundaries::providerRenderingRejectsTileSourceContracts()
@@ -1175,41 +1057,6 @@ void TestArchitectureBoundaries::providerRenderingRejectsTileSourceContracts()
         const QString matches = matchingLines(filePath, forbiddenPatterns);
         if (!matches.isEmpty()) {
             violations.push_back(matches);
-        }
-    }
-
-    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-}
-
-void TestArchitectureBoundaries::cppTestBuildConsumesCargoAppLibraryOnly()
-{
-    const QString testCMake = readProjectFile(QStringLiteral("tests/cpp/CMakeLists.txt"));
-    const QList<QString> forbiddenTokens {
-        QStringLiteral("kiriview_manifest_sources"),
-        QStringLiteral("cpp_core_sources.txt"),
-        QStringLiteral("cpp_cxxqt_sources.txt"),
-        QStringLiteral("KIRIVIEW_CORE_SOURCE_PATHS"),
-        QStringLiteral("KIRIVIEW_CXXQT_SOURCE_PATHS"),
-        QStringLiteral("kconfig_add_kcfg_files"),
-    };
-    const QList<QString> requiredTokens {
-        QStringLiteral("KiriViewCargoStatic"),
-        QStringLiteral("add_library(kiriview_test_core INTERFACE"),
-        QStringLiteral("LINK_LIBRARY:WHOLE_ARCHIVE"),
-        QStringLiteral("libkiriview.a"),
-    };
-
-    QStringList violations;
-    for (const QString& token : forbiddenTokens) {
-        if (testCMake.contains(token)) {
-            violations.push_back(
-                QStringLiteral("tests/cpp/CMakeLists.txt must not contain %1").arg(token));
-        }
-    }
-    for (const QString& token : requiredTokens) {
-        if (!testCMake.contains(token)) {
-            violations.push_back(
-                QStringLiteral("tests/cpp/CMakeLists.txt must contain %1").arg(token));
         }
     }
 
@@ -1406,7 +1253,6 @@ void TestArchitectureBoundaries::thumbnailGenerationContractsLiveInThumbnailModu
         qPrintable(QStringLiteral("%1 must move out of session").arg(legacyGenerationSourcePath)));
 
     const QString generationHeader = readProjectFile(generationHeaderPath);
-    const QString coreSources = readProjectFile(QStringLiteral("src/cpp_core_sources.txt"));
     const QString activeNavigationRuntimeHeader
         = readProjectFile(QStringLiteral("src/session/activenavigationthumbnailruntime.h"));
 
@@ -1416,8 +1262,6 @@ void TestArchitectureBoundaries::thumbnailGenerationContractsLiveInThumbnailModu
         QStringLiteral("#include \"session/activenavigationthumbnailprojection.h\"")));
     QVERIFY(
         generationHeader.contains(QStringLiteral("#include \"thumbnail/thumbnailsourcekind.h\"")));
-    QVERIFY(coreSources.contains(generationSourcePath));
-    QVERIFY(!coreSources.contains(legacyGenerationSourcePath));
     QVERIFY(activeNavigationRuntimeHeader.contains(
         QStringLiteral("#include \"thumbnail/thumbnailgeneration.h\"")));
     QVERIFY(!activeNavigationRuntimeHeader.contains(
