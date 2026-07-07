@@ -326,6 +326,9 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
     QCOMPARE(requestStateSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
+    const RenderFailureDiagnosticForTest diagnostic
+        = lastAcceptedRenderFailureDiagnosticForTest(item);
+    QVERIFY(!diagnostic.valid);
     QVERIFY(hasPendingRenderCommitForTest(item));
 }
 

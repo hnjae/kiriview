@@ -13,6 +13,16 @@
 
 namespace ImageViewportInternal {
 
+struct RenderFailureDiagnostic
+{
+    bool valid = false;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    quint64 generation = 0;
+    quint64 requestId = 0;
+    quint64 preparedPayloadId = 0;
+    RenderFailureCause cause = RenderFailureCause::None;
+};
+
 struct ViewportChangeSet
 {
     bool requestState = false;
@@ -27,16 +37,7 @@ struct ViewportChangeSet
     bool requestRevision = false;
     bool commandRevision = false;
     bool scheduleUpdate = false;
-};
-
-struct RenderFailureDiagnostic
-{
-    bool valid = false;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-    quint64 generation = 0;
-    quint64 requestId = 0;
-    quint64 preparedPayloadId = 0;
-    RenderFailureCause cause = RenderFailureCause::None;
+    RenderFailureDiagnostic renderFailureDiagnostic;
 };
 
 enum class ProviderTransportOperation {

@@ -419,6 +419,9 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;
     target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
+    if (source.renderFailureDiagnostic.valid) {
+        target.renderFailureDiagnostic = source.renderFailureDiagnostic;
+    }
 }
 
 bool activeProviderFrameTokenMatchesActiveRequest(const ViewportControllerState& state,

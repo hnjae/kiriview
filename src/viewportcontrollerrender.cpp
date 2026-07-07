@@ -361,7 +361,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
 
     const ImageViewportInternal::PreparedPayloadIdentity failedPayload
         = acknowledgementPayloadForRole(acknowledgement, acknowledgement.failedRole);
-    viewportRequestState(viewport).lastAcceptedRenderFailure = {
+    const ImageViewportInternal::RenderFailureDiagnostic renderFailureDiagnostic {
         true,
         acknowledgement.failedRole,
         failedPayload.generation,
@@ -369,6 +369,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
         failedPayload.payloadId,
         acknowledgement.failureCause,
     };
+    viewportRequestState(viewport).lastAcceptedRenderFailure = renderFailureDiagnostic;
+    changes.renderFailureDiagnostic = renderFailureDiagnostic;
 
     viewportDisplayState(viewport).clearPendingRenderPayload();
     if (viewportDisplayState(viewport).renderFailureRetainedDisplayValid) {

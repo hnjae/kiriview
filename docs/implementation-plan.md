@@ -910,6 +910,8 @@ Finding 7.
 
 ### Milestone 12: Render Failure Production Diagnostics
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Add production-capable attribution for accepted render failures while keeping public request projection stable and coarse.
@@ -943,11 +945,19 @@ Finding 12.
 
 #### Tasks
 
-- [ ] Add focused failing tests for accepted render failure attribution through the production-compiled internal diagnostic sink.
-- [ ] Emit diagnostics only after the controller accepts a render failure as matching the active request/payload identity.
-- [ ] Include failed role, generation, request id, prepared payload id, and `RenderFailureCause`.
-- [ ] Keep stale render failures ignored and verify they do not emit misleading diagnostics.
-- [ ] Preserve the public `Error / RenderFailure` projection and generic `errorString`.
+- [x] Add focused failing tests for accepted render failure attribution through the production-compiled internal diagnostic sink.
+- [x] Emit diagnostics only after the controller accepts a render failure as matching the active request/payload identity.
+- [x] Include failed role, generation, request id, prepared payload id, and `RenderFailureCause`.
+- [x] Keep stale render failures ignored and verify they do not emit misleading diagnostics.
+- [x] Preserve the public `Error / RenderFailure` projection and generic `errorString`.
+
+#### Completion evidence
+
+- Private render-failure diagnostics tests now observe the production-compiled `InternalDiagnostics` sink instead of controller-only test state.
+- `ViewportChangeSet` carries accepted render-failure attribution from the controller to the item, and `ImageViewportPrivate::applyControllerChanges(...)` records valid diagnostics through `InternalDiagnostics::recordRenderFailure(...)`.
+- Stale render failures return no diagnostic change set and do not overwrite or create accepted-failure attribution.
+- Existing public projection remains `Error / RenderFailure` with the generic bounded render failure message.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_render_commit|imageviewport_render_scenegraph' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

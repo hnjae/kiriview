@@ -135,6 +135,8 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
 
 void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes)
 {
+    internalDiagnostics.recordRenderFailure(changes.renderFailureDiagnostic);
+
     if (changes.displayRevision) {
         incrementDisplayRevision();
     }
@@ -410,7 +412,7 @@ quint64 ImageViewportPrivate::secondaryPendingRenderPayloadIdForTest() const
 ImageViewportInternal::RenderFailureDiagnostic
 ImageViewportPrivate::lastAcceptedRenderFailureDiagnosticForTest() const
 {
-    return controller.lastAcceptedRenderFailureDiagnosticForTest();
+    return internalDiagnostics.lastRenderFailure();
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic
