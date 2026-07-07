@@ -34,6 +34,7 @@ public:
     int pageCount() const;
     ImageDocumentPageNavigationSnapshot snapshot() const;
     std::optional<ImageDocumentPageCandidateSnapshot> candidateSnapshot() const;
+    const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
     bool hasKnownSelection() const;
     std::optional<QUrl> urlAtPage(int pageNumber) const;
     std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
@@ -65,12 +66,13 @@ private:
         ImageDocumentPageCandidateListContext context);
     void finishRefresh(const std::vector<ImageDocumentPageCandidate>& candidates,
         ImageDocumentPageCandidateListContext context);
+    void invalidateCandidateSnapshot(bool keepRows);
     bool replaceState(PageNavigationState state, bool forceChanged = false);
 
     PageNavigationState m_state;
     std::optional<ImageDocumentPageCandidateListContext> m_knownRefreshContext;
     std::optional<ImageDocumentPageCandidateListContext> m_pendingRefreshContext;
-    std::optional<ImageDocumentPageCandidateSnapshot> m_candidateSnapshot;
+    ImageDocumentPageCandidateListSnapshot m_candidateSnapshot;
     ImageAsyncOperationState m_pendingRefresh;
 };
 }

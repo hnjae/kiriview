@@ -5,6 +5,14 @@
 
 #include "navigation/imagedocumentpagenavigationservice.h"
 
+namespace {
+const kiriview::ImageDocumentPageCandidateListSnapshot& emptyCandidateSnapshot()
+{
+    static const kiriview::ImageDocumentPageCandidateListSnapshot snapshot;
+    return snapshot;
+}
+}
+
 namespace kiriview {
 ImageDocumentPageCandidateSnapshotPort::ImageDocumentPageCandidateSnapshotPort(
     const ImageDocumentPageNavigationService* navigationService)
@@ -19,5 +27,14 @@ ImageDocumentPageCandidateSnapshotPort::snapshot() const
         return std::nullopt;
     }
     return m_navigationService->pageCandidateSnapshot();
+}
+
+const ImageDocumentPageCandidateListSnapshot&
+ImageDocumentPageCandidateSnapshotPort::confirmedSnapshot() const
+{
+    if (m_navigationService == nullptr) {
+        return emptyCandidateSnapshot();
+    }
+    return m_navigationService->confirmedPageCandidateSnapshot();
 }
 }

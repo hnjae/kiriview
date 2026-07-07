@@ -6,6 +6,7 @@
 #include "location/imagedocumentlocation.h"
 #include "location/imageurl.h"
 
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -128,6 +129,34 @@ bool imageDocumentPageCandidateSnapshotMatchesSource(
     const ImageDocumentPageCandidateListSource& source)
 {
     return sameImageDocumentPageCandidateListSource(snapshot.source, source);
+}
+
+bool imageDocumentPageCandidateListSnapshotMatchesSource(
+    const ImageDocumentPageCandidateListSnapshot& snapshot,
+    const ImageDocumentPageCandidateListSource& source)
+{
+    return snapshot.known && snapshot.source.has_value()
+        && sameImageDocumentPageCandidateListSource(*snapshot.source, source);
+}
+
+const ImageDocumentPageCandidateRows& imageDocumentPageCandidateRows(
+    const ImageDocumentPageCandidateListSnapshot& snapshot)
+{
+    static const ImageDocumentPageCandidateRows emptyRows;
+    return snapshot.candidates != nullptr ? *snapshot.candidates : emptyRows;
+}
+
+std::optional<ImageDocumentPageCandidateSnapshot> imageDocumentPageCandidateValueSnapshot(
+    const ImageDocumentPageCandidateListSnapshot& snapshot)
+{
+    if (!snapshot.known || !snapshot.source.has_value()) {
+        return std::nullopt;
+    }
+
+    return ImageDocumentPageCandidateSnapshot {
+        *snapshot.source,
+        imageDocumentPageCandidateRows(snapshot),
+    };
 }
 
 std::optional<ImageDocumentPageCandidateListContext>

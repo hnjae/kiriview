@@ -8,6 +8,8 @@
 #include "location/imagelocation.h"
 
 #include <QUrl>
+#include <QtGlobal>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -88,9 +90,27 @@ struct ImageDocumentPageCandidateSnapshot
     std::vector<ImageDocumentPageCandidate> candidates;
 };
 
+using ImageDocumentPageCandidateRows = std::vector<ImageDocumentPageCandidate>;
+
+struct ImageDocumentPageCandidateListSnapshot
+{
+    std::optional<ImageDocumentPageCandidateListSource> source;
+    quint64 revision = 0;
+    std::shared_ptr<const ImageDocumentPageCandidateRows> candidates
+        = std::make_shared<const ImageDocumentPageCandidateRows>();
+    bool known = false;
+};
+
 bool imageDocumentPageCandidateSnapshotMatchesSource(
     const ImageDocumentPageCandidateSnapshot& snapshot,
     const ImageDocumentPageCandidateListSource& source);
+bool imageDocumentPageCandidateListSnapshotMatchesSource(
+    const ImageDocumentPageCandidateListSnapshot& snapshot,
+    const ImageDocumentPageCandidateListSource& source);
+const ImageDocumentPageCandidateRows& imageDocumentPageCandidateRows(
+    const ImageDocumentPageCandidateListSnapshot& snapshot);
+std::optional<ImageDocumentPageCandidateSnapshot> imageDocumentPageCandidateValueSnapshot(
+    const ImageDocumentPageCandidateListSnapshot& snapshot);
 
 std::optional<ImageDocumentPageCandidateListContext>
 imageDocumentPageCandidateListContextForDisplayedImage(const DisplayedImageLocation& location);

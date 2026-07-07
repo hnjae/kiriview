@@ -18,6 +18,7 @@ public:
         const ImageDocumentPageNavigationService* navigationService = nullptr);
 
     std::optional<ImageDocumentPageCandidateSnapshot> snapshot() const;
+    const ImageDocumentPageCandidateListSnapshot& confirmedSnapshot() const;
 
 private:
     const ImageDocumentPageNavigationService* m_navigationService = nullptr;

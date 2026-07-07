@@ -42,6 +42,8 @@ private Q_SLOTS:
     void clearDropsRefreshContexts();
     void snapshotIsStableProjection();
     void candidateSnapshotTracksConfirmedFreshCandidates();
+    void confirmedCandidateSnapshotPreservesSharedRowsAcrossSelectionAndSameRowsRefresh();
+    void confirmedCandidateSnapshotRejectsStaleRefreshAndTracksSource();
 };
 
 void TestImageDocumentPageNavigationModel::refreshCompletionPublishesCanonicalPageState()
@@ -352,6 +354,126 @@ void TestImageDocumentPageNavigationModel::candidateSnapshotTracksConfirmedFresh
 
     model.clear();
     QVERIFY(!model.candidateSnapshot().has_value());
+}
+
+void TestImageDocumentPageNavigationModel::
+    confirmedCandidateSnapshotPreservesSharedRowsAcrossSelectionAndSameRowsRefresh()
+{
+    ImageDocumentPageNavigationModel model;
+    const QUrl directory = localUrl(QStringLiteral("/images/"));
+    const QUrl first = indexedImageUrl(0);
+    const QUrl second = indexedImageUrl(1);
+    const QUrl third = indexedImageUrl(2);
+    const ImageDocumentPageCandidateListSource source
+        = ImageDocumentPageCandidateListSource::forDirectory(directory);
+
+    QVERIFY(model.completeRefresh(
+        { imageDocumentPageCandidate(first), imageDocumentPageCandidate(second) }, second, source));
+
+    const auto& firstSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(firstSnapshot.known);
+    QVERIFY(kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(firstSnapshot, source));
+    QCOMPARE(firstSnapshot.revision, quint64(1));
+    const auto* firstRows = firstSnapshot.candidates.get();
+    QVERIFY(firstRows != nullptr);
+    QCOMPARE(kiriview::imageDocumentPageCandidateRows(firstSnapshot).size(), std::size_t(2));
+
+    QVERIFY(model.selectPage(1).has_value());
+    const auto& selectionSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(selectionSnapshot.known);
+    QCOMPARE(selectionSnapshot.revision, quint64(1));
+    QVERIFY(selectionSnapshot.candidates.get() == firstRows);
+
+    const ImageDocumentPageCandidateListContext sameSourceRefresh
+        = ImageDocumentPageCandidateListContext::forDirectory(first, directory);
+    const kiriview::ImageDocumentPageNavigationRefreshPlan sameRefresh
+        = model.beginRefresh(sameSourceRefresh);
+    QVERIFY(sameRefresh.changed);
+    QVERIFY(!model.candidateSnapshot().has_value());
+    const auto& pendingSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(!pendingSnapshot.known);
+    QCOMPARE(pendingSnapshot.revision, quint64(1));
+    QVERIFY(pendingSnapshot.candidates.get() == firstRows);
+
+    const kiriview::ImageDocumentPageNavigationRefreshResult sameResult
+        = model.completePendingRefresh(
+            { imageDocumentPageCandidate(first), imageDocumentPageCandidate(second) },
+            sameRefresh.refreshId, source);
+    QVERIFY(sameResult.accepted);
+    const auto& sameSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(sameSnapshot.known);
+    QCOMPARE(sameSnapshot.revision, quint64(1));
+    QVERIFY(sameSnapshot.candidates.get() == firstRows);
+
+    const kiriview::ImageDocumentPageNavigationRefreshPlan changedRefresh
+        = model.beginRefresh(sameSourceRefresh);
+    const kiriview::ImageDocumentPageNavigationRefreshResult changedResult
+        = model.completePendingRefresh(
+            { imageDocumentPageCandidate(first), imageDocumentPageCandidate(third) },
+            changedRefresh.refreshId, source);
+    QVERIFY(changedResult.accepted);
+    const auto& changedSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(changedSnapshot.known);
+    QCOMPARE(changedSnapshot.revision, quint64(2));
+    QVERIFY(changedSnapshot.candidates.get() != firstRows);
+    QCOMPARE(kiriview::imageDocumentPageCandidateRows(changedSnapshot).at(1).url, third);
+}
+
+void TestImageDocumentPageNavigationModel::
+    confirmedCandidateSnapshotRejectsStaleRefreshAndTracksSource()
+{
+    ImageDocumentPageNavigationModel model;
+    const QUrl firstDirectory = localUrl(QStringLiteral("/images/"));
+    const QUrl secondDirectory = localUrl(QStringLiteral("/other/"));
+    const QUrl first = localUrl(QStringLiteral("/images/01.png"));
+    const QUrl second = localUrl(QStringLiteral("/other/02.png"));
+    const ImageDocumentPageCandidateListSource firstSource
+        = ImageDocumentPageCandidateListSource::forDirectory(firstDirectory);
+    const ImageDocumentPageCandidateListSource secondSource
+        = ImageDocumentPageCandidateListSource::forDirectory(secondDirectory);
+
+    QVERIFY(model.completeRefresh({ imageDocumentPageCandidate(first) }, first, firstSource));
+    const auto& firstSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(firstSnapshot.known);
+    QVERIFY(
+        kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(firstSnapshot, firstSource));
+    QVERIFY(!kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        firstSnapshot, secondSource));
+    const quint64 firstRevision = firstSnapshot.revision;
+
+    const ImageDocumentPageCandidateListContext firstContext
+        = ImageDocumentPageCandidateListContext::forDirectory(first, firstDirectory);
+    const ImageDocumentPageCandidateListContext secondContext
+        = ImageDocumentPageCandidateListContext::forDirectory(second, secondDirectory);
+    const kiriview::ImageDocumentPageNavigationRefreshPlan staleRefresh
+        = model.beginRefresh(firstContext);
+    const kiriview::ImageDocumentPageNavigationRefreshPlan currentRefresh
+        = model.beginRefresh(secondContext);
+
+    const kiriview::ImageDocumentPageNavigationRefreshResult staleResult
+        = model.completePendingRefresh(
+            { imageDocumentPageCandidate(first) }, staleRefresh.refreshId, firstSource);
+    QVERIFY(!staleResult.accepted);
+    const auto& pendingSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(!pendingSnapshot.known);
+    QVERIFY(!kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        pendingSnapshot, firstSource));
+    QVERIFY(!kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        pendingSnapshot, secondSource));
+    QCOMPARE(pendingSnapshot.revision, firstRevision);
+
+    const kiriview::ImageDocumentPageNavigationRefreshResult currentResult
+        = model.completePendingRefresh(
+            { imageDocumentPageCandidate(second) }, currentRefresh.refreshId, secondSource);
+    QVERIFY(currentResult.accepted);
+    const auto& currentSnapshot = model.confirmedCandidateSnapshot();
+    QVERIFY(currentSnapshot.known);
+    QVERIFY(!kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        currentSnapshot, firstSource));
+    QVERIFY(kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        currentSnapshot, secondSource));
+    QCOMPARE(currentSnapshot.revision, firstRevision + 1);
+    QCOMPARE(kiriview::imageDocumentPageCandidateRows(currentSnapshot).at(0).url, second);
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPageNavigationModel)

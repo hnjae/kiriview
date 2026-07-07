@@ -6,7 +6,27 @@
 #include "imagedocumentpagenavigationpolicy.h"
 
 #include <cstddef>
+#include <memory>
 #include <utility>
+
+namespace {
+bool sameImageDocumentPageCandidates(const kiriview::ImageDocumentPageCandidateRows& left,
+    const std::vector<kiriview::ImageDocumentPageCandidate>& right)
+{
+    if (left.size() != right.size()) {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < left.size(); ++index) {
+        if (left.at(index).url != right.at(index).url || left.at(index).name != right.at(index).name
+            || left.at(index).kind != right.at(index).kind) {
+            return false;
+        }
+    }
+
+    return true;
+}
+}
 
 namespace kiriview {
 int ImageDocumentPageNavigationModel::currentPageNumber() const
@@ -23,6 +43,12 @@ ImageDocumentPageNavigationSnapshot ImageDocumentPageNavigationModel::snapshot()
 
 std::optional<ImageDocumentPageCandidateSnapshot>
 ImageDocumentPageNavigationModel::candidateSnapshot() const
+{
+    return imageDocumentPageCandidateValueSnapshot(m_candidateSnapshot);
+}
+
+const ImageDocumentPageCandidateListSnapshot&
+ImageDocumentPageNavigationModel::confirmedCandidateSnapshot() const
 {
     return m_candidateSnapshot;
 }
@@ -91,7 +117,7 @@ ImageDocumentPageNavigationRefreshPlan ImageDocumentPageNavigationModel::beginRe
     if (!keepKnownUrls) {
         m_knownRefreshContext = std::nullopt;
     }
-    m_candidateSnapshot = std::nullopt;
+    invalidateCandidateSnapshot(keepKnownUrls);
 
     m_pendingRefreshContext = context;
 
@@ -191,10 +217,18 @@ void ImageDocumentPageNavigationModel::finishRefresh(
     const std::vector<ImageDocumentPageCandidate>& candidates,
     ImageDocumentPageCandidateListContext context)
 {
-    m_candidateSnapshot = ImageDocumentPageCandidateSnapshot {
-        context.source(),
-        candidates,
-    };
+    const ImageDocumentPageCandidateListSource source = context.source();
+    const bool sameSource = m_candidateSnapshot.source.has_value()
+        && sameImageDocumentPageCandidateListSource(*m_candidateSnapshot.source, source);
+    const bool sameCandidates = sameImageDocumentPageCandidates(
+        imageDocumentPageCandidateRows(m_candidateSnapshot), candidates);
+    if (!sameSource || !sameCandidates) {
+        ++m_candidateSnapshot.revision;
+        m_candidateSnapshot.source = source;
+        m_candidateSnapshot.candidates
+            = std::make_shared<const ImageDocumentPageCandidateRows>(candidates);
+    }
+    m_candidateSnapshot.known = true;
     m_knownRefreshContext = std::move(context);
 }
 
@@ -203,8 +237,20 @@ bool ImageDocumentPageNavigationModel::clear()
     m_pendingRefresh.cancel();
     m_knownRefreshContext = std::nullopt;
     m_pendingRefreshContext = std::nullopt;
-    m_candidateSnapshot = std::nullopt;
+    m_candidateSnapshot = ImageDocumentPageCandidateListSnapshot {};
     return replaceState(PageNavigationState {});
+}
+
+void ImageDocumentPageNavigationModel::invalidateCandidateSnapshot(bool keepRows)
+{
+    const quint64 revision = m_candidateSnapshot.revision;
+    if (keepRows) {
+        m_candidateSnapshot.known = false;
+        return;
+    }
+
+    m_candidateSnapshot = ImageDocumentPageCandidateListSnapshot {};
+    m_candidateSnapshot.revision = revision;
 }
 
 bool ImageDocumentPageNavigationModel::replaceState(PageNavigationState state, bool forceChanged)

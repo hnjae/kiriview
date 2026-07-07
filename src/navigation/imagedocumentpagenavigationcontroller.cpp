@@ -76,6 +76,12 @@ ImageDocumentPageNavigationController::candidateSnapshot() const
     return m_model.candidateSnapshot();
 }
 
+const ImageDocumentPageCandidateListSnapshot&
+ImageDocumentPageNavigationController::confirmedCandidateSnapshot() const
+{
+    return m_model.confirmedCandidateSnapshot();
+}
+
 std::optional<QUrl> ImageDocumentPageNavigationController::urlAtPage(int pageNumber) const
 {
     return m_model.urlAtPage(pageNumber);
