@@ -432,6 +432,8 @@ Finding 9.
 
 ### Milestone 5: Role-State Views And Provider Role-Parametric Dispatch
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Introduce role-state views and migrate provider dispatch, token ownership, queueing, and terminal handling to role-parametric paths.
@@ -466,12 +468,20 @@ Finding 4.
 
 #### Tasks
 
-- [ ] Convert the Milestone 1 role-specific inventory into a structural allowlist for provider/request direct secondary-field access.
-- [ ] Add role-state view helpers that return explicit provider and request slices while still using existing fields.
-- [ ] Migrate provider queue and token ownership to role-parametric helpers.
-- [ ] Migrate provider stale-result checks and terminal handling to role-parametric helpers.
-- [ ] Replace touched direct secondary provider/request field access with role-state views.
-- [ ] Add or update shared primary/secondary provider request tests.
+- [x] Convert the Milestone 1 role-specific inventory into a structural allowlist for provider/request direct secondary-field access.
+- [x] Add role-state view helpers that return explicit provider and request slices while still using existing fields.
+- [x] Migrate provider queue and token ownership to role-parametric helpers.
+- [x] Migrate provider stale-result checks and terminal handling to role-parametric helpers.
+- [x] Replace touched direct secondary provider/request field access with role-state views.
+- [x] Add or update shared primary/secondary provider request tests.
+
+#### Completion evidence
+
+- Durable architecture intent for role-indexed private views was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::providerRoleStateBoundary`, which fails on direct secondary provider/request state access in `viewportcontrollerprovider.cpp`.
+- Added provider role-state view helpers over existing request/provider storage, including active request and latest non-playback request slices.
+- Removed the remaining direct secondary provider/session and secondary active-request access from provider controller code; existing provider queue, token, stale-result, and terminal paths already used role-parametric helpers and remain under provider-focused coverage.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'viewportcontroller_provider|imageviewport_provider_requests|imageviewport_provider_lifecycle|structural::providerRoleStateBoundary' --output-on-failure`, `ctest --test-dir build -R 'structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

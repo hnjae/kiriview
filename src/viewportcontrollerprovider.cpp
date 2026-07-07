@@ -359,23 +359,14 @@ quint64 ViewportController::installProviderSession(ImageSequenceProviderSession*
 quint64 ViewportController::installProviderSession(
     ImageViewport::PageRole role, ImageSequenceProviderSession* session)
 {
-    if (role == ImageViewport::PageRole::Secondary) {
-        state.secondaryProvider.session = session;
-        if (!state.secondaryProvider.session) {
-            return 0;
-        }
-
-        ++state.secondaryProvider.sessionSerial;
-        return state.secondaryProvider.sessionSerial;
-    }
-
-    viewportProviderState(viewport).session = session;
-    if (!viewportProviderState(viewport).session) {
+    ViewportProviderRoleState roleState = providerRoleStateFor(state, role);
+    roleState.provider.session = session;
+    if (!roleState.provider.session) {
         return 0;
     }
 
-    ++viewportProviderState(viewport).sessionSerial;
-    return viewportProviderState(viewport).sessionSerial;
+    ++roleState.provider.sessionSerial;
+    return roleState.provider.sessionSerial;
 }
 
 ImageSequenceProviderSession* ViewportController::takeProviderSession()
@@ -385,14 +376,9 @@ ImageSequenceProviderSession* ViewportController::takeProviderSession()
 
 ImageSequenceProviderSession* ViewportController::takeProviderSession(ImageViewport::PageRole role)
 {
-    if (role == ImageViewport::PageRole::Secondary) {
-        ImageSequenceProviderSession* session = state.secondaryProvider.session;
-        state.secondaryProvider.session.clear();
-        return session;
-    }
-
-    ImageSequenceProviderSession* session = viewportProviderState(viewport).session;
-    viewportProviderState(viewport).session.clear();
+    ViewportProviderRoleState roleState = providerRoleStateFor(state, role);
+    ImageSequenceProviderSession* session = roleState.provider.session;
+    roleState.provider.session.clear();
     return session;
 }
 
@@ -404,11 +390,8 @@ ImageSequenceProviderSession* ViewportController::currentProviderSession() const
 ImageSequenceProviderSession* ViewportController::currentProviderSession(
     ImageViewport::PageRole role) const
 {
-    if (role == ImageViewport::PageRole::Secondary) {
-        return state.secondaryProvider.session;
-    }
-
-    return viewportProviderState(viewport).session;
+    const ConstViewportProviderRoleState roleState = providerRoleStateFor(state, role);
+    return roleState.provider.session;
 }
 
 quint64 ViewportController::currentProviderGeneration() const
@@ -429,13 +412,8 @@ bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) con
 bool ViewportController::acceptsProviderSessionResult(
     ImageViewport::PageRole role, quint64 sessionSerial) const
 {
-    if (role == ImageViewport::PageRole::Secondary) {
-        return state.secondaryProvider.session
-            && state.secondaryProvider.sessionSerial == sessionSerial;
-    }
-
-    return viewportProviderState(viewport).session
-        && viewportProviderState(viewport).sessionSerial == sessionSerial;
+    const ConstViewportProviderRoleState roleState = providerRoleStateFor(state, role);
+    return roleState.provider.session && roleState.provider.sessionSerial == sessionSerial;
 }
 
 bool ViewportController::acceptsProviderSessionResult(
@@ -1061,11 +1039,14 @@ ViewportController::handleProviderMetadataTargetSelection(
     ViewportProviderMetadataTargetSelection selection)
 {
     ViewportProviderMetadataTargetPolicyResult result;
+    const ImageViewportInternal::DisplayRequest& primaryActiveRequest
+        = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary);
+    const ImageViewportInternal::DisplayRequest& secondaryActiveRequest
+        = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Secondary);
     const bool carrySecondaryInitialRequest = hasSecondaryProviderSequence(viewport)
-        && viewportRequestState(viewport).secondaryActiveRequest.identity.id
-            == viewportRequestState(viewport).activeRequest.identity.id
-        && isUnknownMetadataInitialRequest(viewportRequestState(viewport).activeRequest)
-        && isUnknownMetadataInitialRequest(viewportRequestState(viewport).secondaryActiveRequest);
+        && secondaryActiveRequest.identity.id == primaryActiveRequest.identity.id
+        && isUnknownMetadataInitialRequest(primaryActiveRequest)
+        && isUnknownMetadataInitialRequest(secondaryActiveRequest);
     const bool rememberAsLatestNonPlayback
         = selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback;
     const int selectedPosition = selection.selectedFromPosition
@@ -1080,10 +1061,12 @@ ViewportController::handleProviderMetadataTargetSelection(
         { selection.selectedFrame, selectedPosition, selection.targetKind }, resolvedFrame,
         rememberAsLatestNonPlayback);
     if (carrySecondaryInitialRequest) {
-        viewportRequestState(viewport).secondaryActiveRequest.identity
-            = viewportRequestState(viewport).activeRequest.identity;
-        viewportRequestState(viewport).secondaryActiveRequest.preparedPayloadId
-            = viewportRequestState(viewport).activeRequest.preparedPayloadId;
+        ImageViewportInternal::DisplayRequest& carriedSecondaryRequest
+            = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Secondary);
+        const ImageViewportInternal::DisplayRequest& activePrimaryRequest
+            = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary);
+        carriedSecondaryRequest.identity = activePrimaryRequest.identity;
+        carriedSecondaryRequest.preparedPayloadId = activePrimaryRequest.preparedPayloadId;
     }
     viewportRequestState(viewport).playbackPosition
         = viewportRequestState(viewport).activeRequest.target.position;

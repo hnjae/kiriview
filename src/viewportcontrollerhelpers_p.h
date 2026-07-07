@@ -19,6 +19,20 @@ using ImageViewportInternal::DisplayRequestTarget;
 using ImageViewportInternal::PlaybackAdvanceTarget;
 using ImageViewportInternal::playbackAdvanceTarget;
 
+struct ViewportProviderRoleState
+{
+    ImageViewportInternal::ProviderGenerationState& provider;
+    ImageViewportInternal::DisplayRequest& activeRequest;
+    ImageViewportInternal::DisplayRequest& latestNonPlaybackRequest;
+};
+
+struct ConstViewportProviderRoleState
+{
+    const ImageViewportInternal::ProviderGenerationState& provider;
+    const ImageViewportInternal::DisplayRequest& activeRequest;
+    const ImageViewportInternal::DisplayRequest& latestNonPlaybackRequest;
+};
+
 ImageViewportInternal::DisplayState& viewportDisplayState(ViewportControllerPort viewport)
 {
     return viewport.displayState();
@@ -73,6 +87,34 @@ const ImageViewportInternal::DisplayRequest& activeRequestForRole(
 {
     return role == ImageViewport::PageRole::Secondary ? request.secondaryActiveRequest
                                                       : request.activeRequest;
+}
+
+ImageViewportInternal::DisplayRequest& latestNonPlaybackRequestForRole(
+    ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondaryLatestNonPlaybackRequest
+                                                      : request.latestNonPlaybackRequest;
+}
+
+const ImageViewportInternal::DisplayRequest& latestNonPlaybackRequestForRole(
+    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondaryLatestNonPlaybackRequest
+                                                      : request.latestNonPlaybackRequest;
+}
+
+ViewportProviderRoleState providerRoleStateFor(
+    ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    return { providerGenerationStateForRole(state, role),
+        activeRequestForRole(state.request, role), latestNonPlaybackRequestForRole(state.request, role) };
+}
+
+ConstViewportProviderRoleState providerRoleStateFor(
+    const ViewportControllerState& state, ImageViewport::PageRole role)
+{
+    return { providerGenerationStateForRole(state, role),
+        activeRequestForRole(state.request, role), latestNonPlaybackRequestForRole(state.request, role) };
 }
 
 ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
