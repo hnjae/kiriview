@@ -189,6 +189,8 @@ Acceptance: Reuse can still hit for the same immutable display bytes in the same
 
 Verification: Run focused display reuse, page-surface, refinement cache, predecode-promotion, and secondary-page tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused coverage for display-scope reuse keys, opened-collection identity, predecoded payload identity, decoded foreground load identity, and raster refinement cache isolation; the intended red build failure covered the missing display-scope payload field, location-aware decoded presentation overload, and display-scope identity helper. Threaded displayed-location or opened-collection scope identity through static decode, thumbnail preview decode, predecode promotion, decoded foreground presentation, static display reuse keys, and raster refinement cache keys while preserving same-scope reuse behavior. Verified with focused `test_imagepresentationload`, `test_imagepagesurfacecontroller`, `test_predecodecache`, and `test_predecodeloadstate`, `git diff --check`, `devenv tasks run --mode single ci:lint:cpp`, and final `devenv tasks run --mode single ci:test:cpp`.
+
 ## Milestone 14: Prepared-Display Cache Decision Point
 
 Suggested `/goal`: Decide, with explicit measurement, whether cross-owner prepared-display reuse is needed beyond page-local refinement caches and display-store reusable handles.
@@ -198,6 +200,8 @@ Scope: Add low-risk counters or logs around refinement cache hits/misses, in-fli
 Acceptance: The repository records a concrete decision with measured scenarios, counters, and conclusion. If measurements do not justify a shared cache, stop after the planning artifact. If they do justify it, the artifact lists the minimal follow-up milestones to pursue.
 
 Verification: Run only checks touched by instrumentation or docs. If code instrumentation is committed, run the narrow affected C++ tests and lint.
+
+Status: Completed (2026-07-07). Recorded the measured decision in `docs/planning/prepared-display-cache-decision.md`: the current page-local refinement cache, in-flight coalescing, display-store reusable handles, and predecode cache cover the measured duplicate-work paths, so no shared prepared-display cache will be built now. Verified with the focused measurement command over `test_imagepagesurfacecontroller`, `test_displayimagestore`, `test_imageloader`, `test_predecodecache`, and `test_imagedocumentruntime`; no production instrumentation was committed.
 
 ## Milestone 15: Shared Prepared-Display Cache Architecture Intent
 
@@ -209,6 +213,8 @@ Acceptance: Architecture docs define one owner, allowed consumers, forbidden own
 
 Verification: Documentation review or narrow docs diff check only.
 
+Status: Skipped (2026-07-07). Milestone 14 rejected a shared prepared-display cache for the current plan, so no end-state architecture is added for this cache owner.
+
 ## Milestone 16: Shared Prepared-Display Cache Primitive
 
 Suggested `/goal`: Implement the shared prepared-display cache primitive and tests without integrating it into page-surface or predecode promotion yet.
@@ -218,6 +224,8 @@ Scope: Add tests for cache key identity, byte budget eviction, owner leases, pri
 Acceptance: The cache primitive can store, find, lease, and evict immutable prepared display payloads under the architecture-defined keys without publishing provider entries or mutating public state.
 
 Verification: Run focused prepared-display cache tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
+
+Status: Skipped (2026-07-07). Milestone 14 rejected a shared prepared-display cache for the current plan, so no cache primitive is implemented.
 
 ## Milestone 17: Shared Prepared-Display Page-Surface Integration
 
@@ -229,6 +237,8 @@ Acceptance: Repeated compatible page-surface refinement requests can reuse one i
 
 Verification: Run focused page-surface/refinement/display-source tests, then `devenv tasks run --mode single ci:test:cpp`, `devenv tasks run --mode single ci:lint:cpp`, and `devenv tasks run --mode single ci:test` before finishing because this touches shared display ownership.
 
+Status: Skipped (2026-07-07). Milestone 14 rejected a shared prepared-display cache for the current plan, so no page-surface integration is pursued.
+
 ## Milestone 18: Shared Prepared-Display Predecode Integration
 
 Suggested `/goal`: Integrate the shared prepared-display cache with predecode promotion only after page-surface integration is correct.
@@ -238,6 +248,8 @@ Scope: Add tests for predecode cache interaction, predecode promotion, byte-budg
 Acceptance: Predecode and page-surface consumers can reuse compatible prepared display payloads without duplicating ownership, bypassing predecode lifecycle, or changing public session state. Existing predecode cancellation, power-saver, and schedule generation behavior remain unchanged.
 
 Verification: Run focused predecode/page-surface/cache tests, then `devenv tasks run --mode single ci:test:cpp`, `devenv tasks run --mode single ci:lint:cpp`, and `devenv tasks run --mode single ci:test`.
+
+Status: Skipped (2026-07-07). Milestone 14 rejected a shared prepared-display cache for the current plan, so no predecode integration is pursued.
 
 ## Milestone 19: Indexed Main Display Store
 
