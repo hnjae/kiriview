@@ -590,6 +590,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     if (result.openProviderSession && !openProviderSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
+        syncPlaybackTimer();
+        return result.outcome;
     }
     if (result.openSecondaryProviderSession && !openProviderSession(PageRole::Secondary)) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(PageRole::Secondary,

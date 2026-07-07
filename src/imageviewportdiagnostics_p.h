@@ -1,5 +1,7 @@
 #pragma once
 
+#include "imageviewportstate_p.h"
+
 #include <QtCore/QRegularExpression>
 #include <QtCore/QString>
 
@@ -46,4 +48,21 @@ inline QString plainTextDiagnostic(QString diagnostic)
     return plain.trimmed();
 }
 
-}
+class InternalDiagnostics
+{
+public:
+    void recordProviderCleanupFailure(const ProviderTransportDiagnostic& diagnostic);
+    void recordProviderSchedulerFailure(const ProviderSchedulerDiagnostic& diagnostic);
+    void recordRenderFailure(const RenderFailureDiagnostic& diagnostic);
+
+    ProviderTransportDiagnostic lastProviderCleanupFailure() const;
+    ProviderSchedulerDiagnostic lastProviderSchedulerFailure() const;
+    RenderFailureDiagnostic lastRenderFailure() const;
+
+private:
+    ProviderTransportDiagnostic m_lastProviderCleanupFailure;
+    ProviderSchedulerDiagnostic m_lastProviderSchedulerFailure;
+    RenderFailureDiagnostic m_lastRenderFailure;
+};
+
+} // namespace ImageViewportInternal

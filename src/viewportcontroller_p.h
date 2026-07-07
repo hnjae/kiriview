@@ -319,6 +319,12 @@ struct ViewportProviderFrameQueueFlushResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
+struct ViewportProviderSchedulerFailureResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ImageViewportInternal::ProviderSchedulerDiagnostic diagnostic;
+};
+
 struct ViewportProviderSessionOpenResult
 {
     ViewportProviderMetadataTransportEffect providerMetadataTransport;
@@ -728,6 +734,8 @@ public:
         ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
     ViewportProviderTerminalEventResult handleProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
+    ViewportProviderSchedulerFailureResult handleProviderQueueFlushSchedulingFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(

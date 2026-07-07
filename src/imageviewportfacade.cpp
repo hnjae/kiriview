@@ -308,6 +308,12 @@ void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::
     ImageViewportPrivate::get(item)->failNextProviderCommandDeliveryForTest(role);
 }
 
+void failNextProviderQueueFlushSchedulingForTest(
+    ImageViewport& item, ImageViewport::PageRole role)
+{
+    ImageViewportPrivate::get(item)->failNextProviderQueueFlushSchedulingForTest(role);
+}
+
 void useSynchronousProviderExecutorForTest(ImageViewport& item)
 {
     ImageViewportPrivate::get(item)->useSynchronousProviderExecutorForTest();
@@ -398,6 +404,12 @@ ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
     const ImageViewport& item)
 {
     return ImageViewportPrivate::get(item)->lastProviderTransportDiagnosticForTest();
+}
+
+ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(
+    const ImageViewport& item)
+{
+    return ImageViewportPrivate::get(item)->lastProviderSchedulerDiagnosticForTest();
 }
 
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(

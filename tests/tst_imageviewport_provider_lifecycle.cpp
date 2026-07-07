@@ -23,6 +23,7 @@ private slots:
     void providerMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
     void providerFrameDispatchFailureClosesSessionAndReportsProviderFailure();
     void secondaryProviderMetadataDispatchFailureClosesSessionAndReportsProviderFailure();
+    void primarySessionOpenFailureStopsSecondarySessionCreationForSpread();
     void secondarySessionOpenFailureIsGenerationTerminalForSpread();
     void providerSessionClosesWhenViewportIsDestroyed();
     void providerDestructionCancelsActiveFrameRequestBeforeClose();
@@ -557,6 +558,53 @@ void ImageViewportProviderLifecycleTest::
 
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(secondarySessionFactory->lastSession(), nullptr);
+}
+
+void ImageViewportProviderLifecycleTest::
+    primarySessionOpenFailureStopsSecondarySessionCreationForSpread()
+{
+    ImageSequenceFactory factory;
+
+    const auto primarySessionCount = std::make_shared<int>(0);
+    auto primarySessionFactory = std::make_shared<FailingProviderSessionFactory>(
+        primarySessionCount);
+    CountingProviderAdapter primaryAdapter(primarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(
+        factory.fromProvider(&primaryAdapter));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QCOMPARE(*primarySessionCount, 1);
+    QCOMPARE(*secondarySessionCount, 0);
+    QCOMPARE(*secondaryMetadataRequestCount, 0);
+    QCOMPARE(*secondaryFrameRequestCount, 0);
+    QCOMPARE(*secondaryCloseCount, 0);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QVERIFY(item.property("errorString")
+            .toString()
+            .contains(QStringLiteral("provider session creation failed")));
 }
 
 void ImageViewportProviderLifecycleTest::secondarySessionOpenFailureIsGenerationTerminalForSpread()
@@ -1150,6 +1198,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(failed.diagnostic.frameTokenValid);
     QCOMPARE(failed.diagnostic.frameTokenValue, failed.cancelTokenValue);
     QVERIFY(!failed.diagnostic.queued);
+    QVERIFY(!failed.diagnostic.pendingCleanup);
 }
 
 void ImageViewportProviderLifecycleTest::
@@ -1255,6 +1304,7 @@ void ImageViewportProviderLifecycleTest::
     QVERIFY(!failed.diagnostic.frameTokenValid);
     QCOMPARE(failed.diagnostic.frameTokenValue, 0U);
     QVERIFY(!failed.diagnostic.queued);
+    QVERIFY(failed.diagnostic.pendingCleanup);
 }
 
 void ImageViewportProviderLifecycleTest::
@@ -1299,6 +1349,7 @@ void ImageViewportProviderLifecycleTest::
         QCOMPARE(item.property("requestReason").toInt(),
             enumValue(metaObject, "RequestReason", "NoRequest"));
         QVERIFY(lastProviderTransportDiagnosticForTest(item).valid);
+        QVERIFY(lastProviderTransportDiagnosticForTest(item).pendingCleanup);
 
         emit session->providerWaiting(metadataToken);
         emit session->metadataReady(

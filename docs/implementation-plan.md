@@ -274,6 +274,8 @@ Finding 1, Finding 2, Finding 3, Finding 5.
 
 ### Milestone 3: Provider Lifecycle, Scheduler Failure, And Internal Diagnostics
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Make provider lifecycle and scheduler effects deterministic and controller-authorized, and establish the production-capable internal diagnostic artifact used for provider cleanup, scheduler, and later render attribution.
@@ -314,19 +316,28 @@ Finding 8, Finding 10, Finding 11.
 
 #### Tasks
 
-- [ ] Define a private internal diagnostics contract in `ImageViewportInternal`, with typed event structs for provider cleanup failure, provider scheduler failure, and render failure attribution.
-- [ ] Include required provider cleanup fields: role, operation, metadata token validity/id, frame token validity/id, queued/delivered state, and pending-cleanup state.
-- [ ] Include required scheduler fields: role, active generation, active request id, queued request id, target kind, and failure operation.
-- [ ] Include required render fields for later use: failed role, generation, request id, prepared payload id, and `RenderFailureCause`.
-- [ ] Provide a production-compiled non-public observer or sink that tests can observe without relying solely on `IMAGEVIEWPORT_PRIVATE_TEST_PROBES`; do not expose it through installed public API.
-- [ ] Add a provider lifecycle test where primary provider session creation fails in a two-provider spread and secondary creation would otherwise succeed.
-- [ ] Add primary and secondary provider request tests that force deferred queue flush scheduling failure.
-- [ ] Add provider cleanup failure observability tests, including final item destruction or final close failure, through the production-compiled diagnostic sink.
-- [ ] Gate secondary session opening on post-primary controller state, or move multi-role open sequencing into a controller result that stops after terminal sealing.
-- [ ] Ensure any accidentally opened post-terminal session is immediately closed through the normal controller close effect.
-- [ ] Wrap deferred provider event scheduling in a helper that returns success/failure.
-- [ ] On scheduler failure, clear queued provider state, stop active playback if the failed request was playback-owned, publish `Error / ProviderFailure` with a bounded generic provider dispatch diagnostic, advance request revision for the public state change, and emit scheduler attribution.
-- [ ] Keep public `requestStatus`, `requestReason`, `errorString`, and `warningString` unchanged for cleanup-only failures.
+- [x] Define a private internal diagnostics contract in `ImageViewportInternal`, with typed event structs for provider cleanup failure, provider scheduler failure, and render failure attribution.
+- [x] Include required provider cleanup fields: role, operation, metadata token validity/id, frame token validity/id, queued/delivered state, and pending-cleanup state.
+- [x] Include required scheduler fields: role, active generation, active request id, queued request id, target kind, and failure operation.
+- [x] Include required render fields for later use: failed role, generation, request id, prepared payload id, and `RenderFailureCause`.
+- [x] Provide a production-compiled non-public observer or sink that tests can observe without relying solely on `IMAGEVIEWPORT_PRIVATE_TEST_PROBES`; do not expose it through installed public API.
+- [x] Add a provider lifecycle test where primary provider session creation fails in a two-provider spread and secondary creation would otherwise succeed.
+- [x] Add primary and secondary provider request tests that force deferred queue flush scheduling failure.
+- [x] Add provider cleanup failure observability tests, including final item destruction or final close failure, through the production-compiled diagnostic sink.
+- [x] Gate secondary session opening on post-primary controller state, or move multi-role open sequencing into a controller result that stops after terminal sealing.
+- [x] Ensure any accidentally opened post-terminal session is immediately closed through the normal controller close effect.
+- [x] Wrap deferred provider event scheduling in a helper that returns success/failure.
+- [x] On scheduler failure, clear queued provider state, stop active playback if the failed request was playback-owned, publish `Error / ProviderFailure` with a bounded generic provider dispatch diagnostic, advance request revision for the public state change, and emit scheduler attribution.
+- [x] Keep public `requestStatus`, `requestReason`, `errorString`, and `warningString` unchanged for cleanup-only failures.
+
+#### Completion evidence
+
+- Docs-first intent was committed for public deferred provider dispatch failure projection and the private production diagnostics contract.
+- `InternalDiagnostics` now records provider cleanup, provider scheduler, and render-failure attribution through a production-compiled private sink; tests observe it only through private support.
+- Primary provider session-open failure now stops two-provider spread opening before the secondary session factory is called.
+- Deferred queue-flush scheduling now reports success/failure; primary and secondary scheduler failures clear queued state, publish `Error / ProviderFailure`, advance request revision, and record scheduler attribution.
+- Provider cleanup delivery failure diagnostics now include pending-cleanup state while preserving public cleanup-only request, display, diagnostic, and warning observations.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_provider_lifecycle|imageviewport_provider_requests|viewportcontroller_provider|structural::providerEventAdmissionBoundary' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

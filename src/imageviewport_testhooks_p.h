@@ -10,6 +10,8 @@ namespace ImageViewportTestHooks {
 using RenderFailureDiagnosticForTest = ImageViewportInternal::RenderFailureDiagnostic;
 using ProviderTransportOperationForTest = ImageViewportInternal::ProviderTransportOperation;
 using ProviderTransportDiagnosticForTest = ImageViewportInternal::ProviderTransportDiagnostic;
+using ProviderSchedulerOperationForTest = ImageViewportInternal::ProviderSchedulerOperation;
+using ProviderSchedulerDiagnosticForTest = ImageViewportInternal::ProviderSchedulerDiagnostic;
 
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
@@ -17,6 +19,8 @@ void setNextProviderRequestTokenForTest(
     ImageViewport& item, ImageViewport::PageRole role, quint64 token);
 void setNextRevisionTokenForTest(ImageViewport& item, quint64 token);
 void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role);
+void failNextProviderQueueFlushSchedulingForTest(
+    ImageViewport& item, ImageViewport::PageRole role);
 void useSynchronousProviderExecutorForTest(ImageViewport& item);
 void useSynchronousProviderEventDeliveryForTest(ImageViewport& item);
 void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item);
@@ -39,6 +43,8 @@ void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRol
 RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(
     const ImageViewport& item);
 ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
+    const ImageViewport& item);
+ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(
     const ImageViewport& item);
 
 std::unique_ptr<ImageFrame> makeImageFrameWithPayloadByteSizeForTest(

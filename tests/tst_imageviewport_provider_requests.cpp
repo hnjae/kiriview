@@ -29,6 +29,8 @@ private slots:
     void providerFrameSeekQueuesBehindActiveFrameRequest();
     void waitProjectionRevisionChangesOnlyWhenPublicReasonChanges();
     void providerTimedSameFrameSeekSupersedesActiveRequest();
+    void providerQueuedFrameRequestSchedulerFailureReportsProviderFailure();
+    void secondaryProviderQueuedFrameRequestSchedulerFailureReportsProviderFailure();
     void providerTimedFrameSeekRequestsSelectedFrame();
     void providerTimedFrameSeekWithoutDiagnosticsDoesNotNotify();
     void providerTimedFrameCommitWithUnchangedGeometryDoesNotNotifyGeometryState();
@@ -1056,6 +1058,146 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedPosition").toInt(), 0);
     QCOMPARE(item.property("errorString").toString(), QString());
+}
+
+void ImageViewportProviderRequestsTest::
+    providerQueuedFrameRequestSchedulerFailureReportsProviderFailure()
+{
+    ImageSequenceFactory factory;
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    const auto cancelRequestCount = std::make_shared<int>(0);
+    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
+        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
+        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount,
+        lastCancelledTokenId);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(sessionFactory->lastSession());
+    emit sessionFactory->lastSession()->metadataReady(
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    CountingProviderSession* session = sessionFactory->lastSession();
+    const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
+    QVERIFY(initialFrameToken.isValid());
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(*lastRequestedFrame, 0);
+
+    const RevisionToken providerWaitingRevision = revisionTokenProperty(item, "requestRevision");
+    failNextProviderQueueFlushSchedulingForTest(item, ImageViewport::PageRole::Primary);
+
+    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*cancelRequestCount, 1);
+    QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*frameRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider")));
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("failed")));
+    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
+
+    const ProviderSchedulerDiagnosticForTest diagnostic
+        = lastProviderSchedulerDiagnosticForTest(item);
+    QVERIFY(diagnostic.valid);
+    QCOMPARE(diagnostic.role, ImageViewport::PageRole::Primary);
+    QCOMPARE(diagnostic.activeRequestId, activeRequestIdForTest(item));
+    QCOMPARE(diagnostic.queuedRequestId, activeRequestIdForTest(item));
+    QCOMPARE(diagnostic.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Frame);
+    QCOMPARE(diagnostic.operation,
+        ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
+}
+
+void ImageViewportProviderRequestsTest::
+    secondaryProviderQueuedFrameRequestSchedulerFailureReportsProviderFailure()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    const auto secondarySessionCount = std::make_shared<int>(0);
+    const auto secondaryMetadataRequestCount = std::make_shared<int>(0);
+    const auto secondaryFrameRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
+    const auto secondaryCloseCount = std::make_shared<int>(0);
+    const auto secondaryCancelRequestCount = std::make_shared<int>(0);
+    const auto secondaryLastCancelledTokenId = std::make_shared<quint64>(0);
+    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
+        secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
+        std::shared_ptr<int>(), std::shared_ptr<int>(), secondaryCancelRequestCount,
+        secondaryLastCancelledTokenId);
+    CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
+        factory.fromProvider(&secondaryAdapter));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.setPageSet(primaryResult->sequence(), secondaryResult->sequence()),
+        ImageViewport::CommandOutcome::Accepted);
+    const QMetaObject* metaObject = item.metaObject();
+
+    QVERIFY(secondarySessionFactory->lastSession());
+    emit secondarySessionFactory->lastSession()->metadataReady(
+        secondarySessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(8.0, 16.0), { 100, 250 }));
+    drainQueuedProviderResults();
+
+    CountingProviderSession* session = secondarySessionFactory->lastSession();
+    const ImageSequenceProviderRequestToken initialFrameToken = session->lastFrameToken();
+    QVERIFY(initialFrameToken.isValid());
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(*secondaryLastRequestedFrame, 0);
+
+    const RevisionToken providerWaitingRevision = revisionTokenProperty(item, "requestRevision");
+    failNextProviderQueueFlushSchedulingForTest(item, ImageViewport::PageRole::Secondary);
+
+    QCOMPARE(
+        item.seek(ImageViewport::PageRole::Secondary, 0), ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(*secondaryCancelRequestCount, 1);
+    QCOMPARE(*secondaryLastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*secondaryFrameRequestCount, 1);
+    QCOMPARE(
+        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(item.property("requestReason").toInt(),
+        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), 0);
+    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), 0);
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider")));
+    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("failed")));
+    verifyRevisionChanged(item, "requestRevision", providerWaitingRevision);
+
+    const ProviderSchedulerDiagnosticForTest diagnostic
+        = lastProviderSchedulerDiagnosticForTest(item);
+    QVERIFY(diagnostic.valid);
+    QCOMPARE(diagnostic.role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(diagnostic.activeRequestId, activeRequestIdForTest(item));
+    QCOMPARE(diagnostic.queuedRequestId, activeRequestIdForTest(item));
+    QCOMPARE(diagnostic.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Frame);
+    QCOMPARE(diagnostic.operation,
+        ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
 }
 
 void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFrame()

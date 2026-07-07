@@ -19,6 +19,8 @@ qt_add_qml_module(
     imagesequenceprovider.cpp
     framepreparation.cpp
     framepreparation_p.h
+    imageviewportdiagnostics.cpp
+    imageviewportdiagnostics_p.h
     imageviewport_p.cpp
     imageviewportcontroller.cpp
     imageviewportfacade.cpp

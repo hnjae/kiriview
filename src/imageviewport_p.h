@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportdiagnostics_p.h"
 #include "imageviewportstate_p.h"
 #include "playbackclock_p.h"
 #include "renderadapter_p.h"
@@ -137,6 +138,7 @@ public:
     void setNextProviderRequestTokenForTest(PageRole role, quint64 token);
     void setNextRevisionTokenForTest(quint64 token);
     void failNextProviderCommandDeliveryForTest(PageRole role);
+    void failNextProviderQueueFlushSchedulingForTest(PageRole role);
     void useSynchronousProviderExecutorForTest();
     void useSynchronousProviderEventDeliveryForTest();
     void useSynchronousProviderQueueFlushSchedulerForTest();
@@ -149,6 +151,8 @@ public:
     ImageViewportInternal::RenderFailureDiagnostic lastAcceptedRenderFailureDiagnosticForTest()
         const;
     ImageViewportInternal::ProviderTransportDiagnostic lastProviderTransportDiagnosticForTest()
+        const;
+    ImageViewportInternal::ProviderSchedulerDiagnostic lastProviderSchedulerDiagnosticForTest()
         const;
     void acknowledgeRenderCommitForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
@@ -237,8 +241,9 @@ public:
     void applyProviderFrameTransportEffect(
         const ViewportProviderFrameTransportEffect& effect, PageRole role = PageRole::Primary);
     void recordProviderTransportResult(const ViewportProviderTransportResult& result);
-    void scheduleProviderDeferredControllerEvent(
+    bool scheduleProviderDeferredControllerEvent(
         ViewportProviderDeferredControllerEvent event, PageRole role);
+    void handleProviderQueueFlushSchedulingFailure(PageRole role);
     void handleProviderDispatchFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void queueProviderFrameRequest(int frame, ProviderRequestTargetKind targetKind);
@@ -296,12 +301,14 @@ public:
     ViewportController controller;
     ViewportProviderBridge providerBridge;
     ViewportProviderBridge secondaryProviderBridge;
+    ImageViewportInternal::InternalDiagnostics internalDiagnostics;
     RenderAdapter renderAdapter;
     QTimer playbackTimer;
     QElapsedTimer playbackClockTimebase;
     ImageViewportInternal::PlaybackClock playbackClock;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     bool synchronousProviderQueueFlushScheduler = false;
-    ImageViewportInternal::ProviderTransportDiagnostic lastProviderTransportDiagnostic;
+    bool failNextPrimaryProviderQueueFlushScheduling = false;
+    bool failNextSecondaryProviderQueueFlushScheduling = false;
 #endif
 };

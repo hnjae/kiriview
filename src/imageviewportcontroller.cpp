@@ -401,6 +401,15 @@ void ImageViewportPrivate::failNextProviderCommandDeliveryForTest(PageRole role)
     providerBridge.failNextCommandDeliveryForTest();
 }
 
+void ImageViewportPrivate::failNextProviderQueueFlushSchedulingForTest(PageRole role)
+{
+    if (role == PageRole::Secondary) {
+        failNextSecondaryProviderQueueFlushScheduling = true;
+        return;
+    }
+    failNextPrimaryProviderQueueFlushScheduling = true;
+}
+
 void ImageViewportPrivate::useSynchronousProviderExecutorForTest()
 {
     ViewportProviderExecutor& executor = synchronousViewportProviderExecutorForTest();
@@ -458,7 +467,13 @@ ImageViewportPrivate::lastAcceptedRenderFailureDiagnosticForTest() const
 ImageViewportInternal::ProviderTransportDiagnostic
 ImageViewportPrivate::lastProviderTransportDiagnosticForTest() const
 {
-    return lastProviderTransportDiagnostic;
+    return internalDiagnostics.lastProviderCleanupFailure();
+}
+
+ImageViewportInternal::ProviderSchedulerDiagnostic
+ImageViewportPrivate::lastProviderSchedulerDiagnosticForTest() const
+{
+    return internalDiagnostics.lastProviderSchedulerFailure();
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(

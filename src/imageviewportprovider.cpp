@@ -167,7 +167,9 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
         recordProviderTransportResult(bridge.cancelRequest(effect.cancelToken));
     }
     if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
-        scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent, role);
+        if (!scheduleProviderDeferredControllerEvent(effect.deferredControllerEvent, role)) {
+            return;
+        }
     }
     if (effect.closeSession) {
         recordProviderTransportResult(
@@ -195,13 +197,7 @@ void ImageViewportPrivate::applyProviderFrameTransportEffect(
 void ImageViewportPrivate::recordProviderTransportResult(
     const ViewportProviderTransportResult& result)
 {
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-    if (result.diagnostic.valid) {
-        lastProviderTransportDiagnostic = result.diagnostic;
-    }
-#else
-    Q_UNUSED(result);
-#endif
+    internalDiagnostics.recordProviderCleanupFailure(result.diagnostic);
 }
 
 void ImageViewportPrivate::handleProviderDispatchFailure(
@@ -227,22 +223,47 @@ void ImageViewportPrivate::queueProviderFrameRequest(
     applyProviderFrameTransportEffect(effect);
 }
 
-void ImageViewportPrivate::scheduleProviderDeferredControllerEvent(
+bool ImageViewportPrivate::scheduleProviderDeferredControllerEvent(
     ViewportProviderDeferredControllerEvent event, PageRole role)
 {
     switch (event) {
     case ViewportProviderDeferredControllerEvent::None:
-        return;
+        return true;
     case ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+        bool& failNextScheduling = role == PageRole::Secondary
+            ? failNextSecondaryProviderQueueFlushScheduling
+            : failNextPrimaryProviderQueueFlushScheduling;
+        if (failNextScheduling) {
+            failNextScheduling = false;
+            handleProviderQueueFlushSchedulingFailure(role);
+            return false;
+        }
         if (synchronousProviderQueueFlushScheduler) {
             flushQueuedProviderFrameRequest(role);
-            return;
+            return true;
         }
 #endif
-        QMetaObject::invokeMethod(
-            q, [this, role]() { flushQueuedProviderFrameRequest(role); }, Qt::QueuedConnection);
-        return;
+        if (!QMetaObject::invokeMethod(q,
+                [this, role]() { flushQueuedProviderFrameRequest(role); },
+                Qt::QueuedConnection)) {
+            handleProviderQueueFlushSchedulingFailure(role);
+            return false;
+        }
+        return true;
+    }
+    return true;
+}
+
+void ImageViewportPrivate::handleProviderQueueFlushSchedulingFailure(PageRole role)
+{
+    const ViewportProviderSchedulerFailureResult result
+        = controller.handleProviderQueueFlushSchedulingFailure(
+            role, QStringLiteral("provider queued request scheduling failed"));
+    internalDiagnostics.recordProviderSchedulerFailure(result.diagnostic);
+    applyControllerChanges(result.changes);
+    if (result.changes.playbackPhase) {
+        syncPlaybackTimer();
     }
 }
 

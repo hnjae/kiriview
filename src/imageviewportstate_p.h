@@ -55,6 +55,7 @@ struct ProviderTransportDiagnostic
     bool frameTokenValid = false;
     quint64 frameTokenValue = 0;
     bool queued = false;
+    bool pendingCleanup = false;
 };
 
 enum class ProviderRequestTargetKind {
@@ -62,6 +63,22 @@ enum class ProviderRequestTargetKind {
     Frame,
     Position,
     Playback,
+};
+
+enum class ProviderSchedulerOperation {
+    None,
+    FlushQueuedFrameRequest,
+};
+
+struct ProviderSchedulerDiagnostic
+{
+    bool valid = false;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    quint64 generation = 0;
+    quint64 activeRequestId = 0;
+    quint64 queuedRequestId = 0;
+    ProviderRequestTargetKind targetKind = ProviderRequestTargetKind::Unknown;
+    ProviderSchedulerOperation operation = ProviderSchedulerOperation::None;
 };
 
 enum class DisplayRequestOrigin {

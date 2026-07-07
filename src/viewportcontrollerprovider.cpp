@@ -768,6 +768,44 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFa
         closeProviderSession(role) };
 }
 
+ViewportProviderSchedulerFailureResult
+ViewportController::handleProviderQueueFlushSchedulingFailure(
+    ImageViewport::PageRole role, const QString& diagnostic)
+{
+    ViewportProviderSchedulerFailureResult result;
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    const ImageViewportInternal::DisplayRequest& activeRequest
+        = activeRequestForRole(viewportRequestState(viewport), role);
+    const bool hadQueuedRequest = provider.queuedFrameRequest;
+    result.diagnostic = {
+        hadQueuedRequest,
+        role,
+        provider.queuedFrameGeneration,
+        activeRequest.identity.id,
+        provider.queuedFrameRequestId,
+        provider.queuedFrameTargetKind,
+        ImageViewportInternal::ProviderSchedulerOperation::FlushQueuedFrameRequest,
+    };
+    if (!hadQueuedRequest || !hasProviderSequenceForRole(viewport, role)) {
+        clearQueuedProviderFrameRequest(provider);
+        return result;
+    }
+
+    const bool playbackOwned = provider.queuedFrameFromPlayback;
+    clearQueuedProviderFrameRequest(provider);
+    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
+        ImageViewport::RequestReason::ProviderFailure,
+        ImageViewportInternal::FailureScope::DisplayRequest,
+        FramePreparation::boundedDiagnostic(
+            diagnostic, QStringLiteral("provider command delivery failed")),
+        result.changes);
+    if (playbackOwned) {
+        setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Stopped);
+    }
+    return result;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(
     ImageViewport::PageRole role, const ViewportProviderFrameTerminalResult& result)
 {
