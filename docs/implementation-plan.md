@@ -117,6 +117,8 @@ Acceptance: Page navigation owns one confirmed candidate snapshot for its active
 
 Verification: Run focused image-document page navigation tests, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused page-navigation snapshot tests covering shared row-storage reuse, source matching, stale refresh rejection, and revision stability across selection and same-row refreshes, then replaced the model's value-owned candidate snapshot with a confirmed revisioned immutable row store exposed through controller, service, and snapshot port boundaries while preserving the existing value-copy projection API. Verified the intended red test failure before implementation with the focused image-document navigation model build, then verified the implementation with focused image-document navigation model/controller CTest targets, `git diff --check`, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 8: Image-Document Snapshot Consumers
 
 Suggested `/goal`: Move opened-collection foreground loading and image-document predecode planning to consume confirmed page candidate snapshots when source identity matches.
