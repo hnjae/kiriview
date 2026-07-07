@@ -56,7 +56,7 @@ For SVG files, 100% uses the SVG's intrinsic size. SVGs remain sharp instead of 
 
 Static SVG rendering applies ordinary static SVG features such as clip paths. KiriView does not execute SVG scripts, play SVG animation, or load external network or file resources referenced from SVG content.
 
-SVG preview images are placeholders. KiriView may pre-render an SVG preview capped to the current physical viewport size so adjacent SVG images can appear immediately from the still-image cache. That preview may be visible while current-detail rendering is missing, but stale low-resolution SVG output does not substitute for the current-detail image after zoom, viewport, rotation, pan position, or device-pixel-ratio changes.
+SVG preview images are placeholders. KiriView may prepare an SVG preview capped to the current physical viewport size so adjacent SVG images can appear immediately. That preview may be visible while current-detail rendering is missing, but stale low-resolution SVG output does not substitute for the current-detail image after zoom, viewport, rotation, pan position, or device-pixel-ratio changes.
 
 After zooming far out and then back in, SVG display eventually returns to current-detail rendering. Stale lower-detail SVG output does not remain visible once KiriView can provide the current-detail image.
 
@@ -128,7 +128,7 @@ Rotation is unavailable while Two-Page Spread is enabled. Enabling Two-Page Spre
 
 The toolbar provides a fixed-width zoom percentage input with a separate percent suffix. It shows values below 10,000% as a rounded integer percentage without digit grouping, capped at `9999 %`. It shows values from 10,000% through 999,999% in thousands using `k`, adds `+` when the actual value is above the displayed thousand bucket, and shows values at or above 1,000,000% as `999k+ %`. The editable value text is right-aligned, uses a fixed-width font, and excludes `%`; the adjacent percent suffix provides `%` after a one-space visual gap and keeps toolbar spacing before the stepper buttons.
 
-When no image or direct video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and non-image document states must not expose image render-context fallback zoom values through the toolbar.
+When no image or direct video has an active zoom readout, the toolbar zoom control displays `- %`. An image zoom readout exists only while a ready image with a displayed image size is active. Empty, loading, error, and non-image document states must not expose fallback image-geometry zoom values through the toolbar.
 
 When a direct video is displayed, the toolbar zoom control remains in the same position as image mode and becomes read-only. It displays the fitted video zoom percentage when KiriView can determine the intrinsic video frame size and current displayed content size, and `? %` when the percentage is unavailable.
 

@@ -1,24 +1,34 @@
 # Extension Contracts
 
-KiriView extension points are adapter contracts, not state backdoors. A media source, thumbnail source, predecode planner, decoder, or render source returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning runtime. It must not mutate QML state, physical item state, public session state, platform action state, cache state, or render-node policy directly.
+KiriView extension points are adapter contracts, not state backdoors.
 
-## Shared Contract Shape
+## Contract
 
-Durable identity is the stable key for the thing being addressed. Freshness generation is the owner's proof that a result still belongs to the currently accepted scope. Equality compares durable identity within one key family only; generation is used to accept or reject work for a current lifecycle. Boundary APIs must encode key families as distinct value types or explicit tagged structs so code cannot accidentally compare ordinary files, opened-collection entries, thumbnails, predecode candidates, and render surfaces through one generic URL identity.
+A media source, thumbnail source, predecode planner, decoder, display provider, or render source returns typed keys, capabilities, plans, demands, payloads, or completion results to its owning runtime. It must not mutate QML state, physical item state, public session state, platform action state, cache state, or render policy directly.
 
-Candidate snapshots are owner publications, not adapter-owned state. A boundary that consumes active-navigation, thumbnail, deletion, opened-collection foreground-load, or predecode rows must receive a typed candidate snapshot or a row/key derived from one, including the source identity and candidate-list revision needed for reuse decisions. Adapter contracts may carry owner-supplied scope generations or thumbnail navigation generations for stale rejection, but they must not invent candidate-list revisions or public projection revisions.
+Adapters are synchronous policy providers or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or display-source revision needed for stale-completion rejection.
+
+Adapter APIs must not accept QML objects, facade objects, mutable public projection objects, or platform action objects. If a capability needs Qt runtime data, the owner captures that data into a plain demand before calling the adapter.
+
+Capabilities are descriptive. They may say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, a provider-ready display image can be produced, or a whole-image refinement source is available. Capabilities must not imply ownership of public state or platform side effects.
+
+## Identity
+
+Durable identity is the stable key for the thing being addressed. Freshness generation is the owner's proof that a result still belongs to the accepted lifecycle. Equality compares durable identity within one key family only; generation is used to accept or reject work for that lifecycle.
+
+Boundary APIs must encode key families as distinct value types or explicit tagged structs so code cannot accidentally compare ordinary files, opened-collection entries, thumbnails, predecode candidates, and render surfaces through one generic URL identity.
+
+Candidate snapshots are owner publications defined by [State Ownership](state-ownership.md#candidate-snapshot-boundary). A boundary that consumes active-navigation, thumbnail, deletion, opened-collection foreground-load, or predecode rows receives a typed candidate snapshot or a row/key derived from one, including the source identity and candidate-list revision needed for reuse decisions. Adapter contracts may carry owner-supplied scope generations or thumbnail navigation generations for stale rejection, but they must not invent candidate-list revisions or public projection revisions.
 
 A demand describes requested work from an owner snapshot: key, generation, size bucket, priority, render context, visible area, decode window, or similar inputs. A result reports ready, pending, unsupported, failed, canceled, or stale without changing ownership. Unsupported means the adapter cannot provide the capability for that key; failed means the adapter accepted the demand and could not complete it.
 
-Adapters are synchronous policy or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or display-source revision needed for stale-completion rejection. Adapter APIs must not accept QML objects, facade objects, mutable public projection objects, or platform action objects; if a capability needs Qt runtime data, the owner captures that data into a plain demand before calling the adapter.
-
-Capabilities are descriptive. They can say whether bytes can be read, thumbnails can be generated or cached, a still image can be predecoded, a collection video source device can be opened, a decode route is supported, a provider-ready display image can be produced, or a whole-image refinement source is available. Capabilities must not imply ownership of public state or platform side effects.
+Key-family types are operational contracts, not marker structs. Each family that crosses an adapter, cache, predecode, thumbnail, or render boundary provides construction from its owning snapshot, durable equality, hashing where used in sets or caches, freshness generation access, and explicit result or capability status. The generic top-level `SourceKey` may appear inside family factories as an implementation detail, but boundary APIs accept and return the family type.
 
 ## Source Key Families
 
 ### Direct Media Keys
 
-Ordinary direct-media keys use the top-level source-key contract defined in [Source Key Contract](state-ownership/source-keys.md). Extension boundaries must consume the typed direct-media key produced by that owner instead of restating URL normalization, platform restoration, or freshness rules.
+Ordinary direct-media keys use the top-level source-key contract defined in [Source Key Contract](state-ownership/source-keys.md). Extension boundaries consume the typed direct-media key produced by that owner instead of restating URL normalization, platform restoration, or freshness rules.
 
 Direct video keys use the same ordinary direct-media identity rules as direct images. Playback source preparation belongs to the video document runtime; source keys identify routing, navigation, thumbnails, predecode eligibility, and stale completion checks only.
 
@@ -36,50 +46,60 @@ Directory collection keys identify the directory scope root and selected entry. 
 
 ### Thumbnail And Predecode Keys
 
-Thumbnail source keys identify the projected active-navigation row, its source kind, row number, URL, label, page kind, and navigation generation. Thumbnail cache original identity is separate from row source identity. Local files use Freedesktop file-original identity. Cacheable opened-collection entries use the virtual original defined by the thumbnail source adapter contract. In-memory-only sources skip XDG lookup and cache installation. The row key is a public navigation identity; cache original identity is a cache-family identity and must not be used as a row identity.
+Thumbnail source keys identify the projected active-navigation row, its source kind, row number, URL, label, page kind, and navigation generation. Thumbnail cache original identity is separate from row source identity and is defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md#original-identity). The row key is a public navigation identity; cache original identity is a cache-family identity and must not be used as a row identity.
 
 Predecode candidate keys identify still-image payloads eligible for adjacent decode. Direct media predecode is still-image-only; videos may be cursor positions for window planning, but they do not produce cached video frame payloads. Opened-collection predecode candidates carry the opened collection scope so byte access stays behind the media entry source owner.
 
 ### Display Source Keys
 
-Display source keys identify the target provider-rendered page or animation role, source identity, selected-source scope, source generation, display-source owner, display revision, render-context or texture-capability generation, allocation cap generation or resolved cap, and bucket or frame demand needed to reject stale completions. Window changes, scene-graph invalidation, DPR changes, and texture-capability changes advance display-source or render-context freshness so stale decode and refinement completions are rejected instead of replacing the accepted provider entry.
+Display source keys identify the target provider-rendered page or animation role, source identity, selected-source scope, source generation, display-source owner, display revision, render-context or texture-capability generation, allocation cap generation or resolved cap, and bucket or frame demand needed to reject stale completions.
+
+Window changes, scene-graph invalidation, DPR changes, and texture-capability changes advance display-source or render-context freshness so stale decode and refinement completions are rejected instead of replacing the accepted provider entry. The display-source lifecycle is defined by [Provider Rendering Architecture](provider-rendering.md#display-source-lifecycle).
 
 Provider-rendering work must carry a display-source demand key and publish only complete display entries, not visual page tiles. Source-internal tiling is allowed only inside a decoder or refinement job that assembles one accepted display `QImage` before returning to the owner.
-
-### Key Family Requirements
-
-Key-family types must be operational contracts, not marker structs. Each family that crosses an adapter, cache, predecode, thumbnail, or render boundary must provide construction from its owning snapshot, durable equality, hashing where used in sets or caches, freshness generation access, and explicit result or capability status. The generic top-level `SourceKey` may appear inside family factories as an implementation detail, but boundary APIs must accept and return the family type so unrelated identities cannot be compared accidentally.
 
 ## Adapter Contracts
 
 ### Media Entry Source Adapters
 
-Media entry source adapters list and read opened-collection entries. They return candidates, image bytes, optional thumbnail metadata, typed failure payloads, and eligible video playback source devices through the media entry source owner. Video playback source devices may be exposed only for collection entries whose storage backend can provide the final product's playable collection-video contract; unsupported video entries remain navigation candidates without playback devices. A returned video playback source device keeps any backing archive, entry, and device lifetime behind the media entry source contract until the video source owner clears or supersedes it. Failure payloads must preserve backend, operation, collection URL, optional entry path, user-facing text, and diagnostic detail before any document, video, or thumbnail owner projects them into broader UI messages. They do not update document source state, page navigation, deletion state, thumbnails, playback state, or QML models directly.
+Media entry source adapters list and read opened-collection entries. They return candidates, image bytes, optional thumbnail metadata, typed failure payloads, and eligible video playback source devices through the media entry source owner.
+
+Video playback source devices may be exposed only for collection entries whose storage backend can provide the final product's playable collection-video contract. Unsupported video entries remain navigation candidates without playback devices. A returned video playback source device keeps backing archive, entry, and device lifetime behind the media entry source contract until the video source owner clears or supersedes it.
+
+Failure payloads preserve backend, operation, collection URL, optional entry path, user-facing text, and diagnostic detail before any document, video, or thumbnail owner projects them into broader UI messages. They do not update document source state, page navigation, deletion state, thumbnails, playback state, or QML models directly.
 
 ### Thumbnail Source Adapters
 
 Thumbnail source adapters consume thumbnail source keys and demand buckets, then return unsupported fallback, cacheable local-file generation, cacheable opened-collection entry generation, or in-memory-only generation. The document-session thumbnail runtime owns scheduling, lookup, generation jobs, cache installation, image-store retention, result projection, cancellation, and stale-completion rejection.
 
-Thumbnail source keys are derived from a confirmed candidate snapshot row plus the current thumbnail navigation generation. The thumbnail adapter may classify the row and choose cache or generation capability, but it does not own the candidate-list source, candidate-list revision, active row selection, or public active-navigation projection.
+Thumbnail source keys are derived from a confirmed candidate snapshot row plus the current thumbnail navigation generation. The thumbnail adapter may classify the row and choose cache or generation capability, but it does not own candidate-list source, candidate-list revision, active row selection, demand-window state, or public active-navigation projection.
 
-Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source key, navigation generation, and demand bucket. The active-navigation thumbnail provider is cache-only: it returns the stored image entry exactly as published and reports that entry's size, without using provider request size to resample, regenerate, perform cache lookup, schedule work, or decide freshness.
+Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source key, navigation generation, and demand bucket.
 
 ### Predecode Planners
 
-Predecode planners consume session or image-document snapshots and produce still-image decode windows. The predecode runtime owns debounce, power-saver suppression, active load admission, decode jobs, cache lifetime, and generation acceptance. The provider-rendering architecture stores provider-ready display `QImage` payloads that can be promoted into the display image store without constructing tile surfaces.
+Predecode planners consume session or image-document snapshots and produce still-image decode windows. The predecode runtime owns debounce, power-saver suppression, active load admission, decode jobs, cache lifetime, and generation acceptance.
 
 Predecode planners consume candidate snapshots as immutable row inputs. Direct-media predecode uses the document-session direct-media candidate snapshot for window planning and still-image eligibility, while image-document predecode uses the page-navigation candidate snapshot when the snapshot source matches the requested page source. A planner may return candidate keys and decode windows, but it must not retain a mutable row list, advance candidate-list revision, or publish active-navigation state.
 
 ### Decoder Contracts
 
-Decoder contracts are route based. Rust-owned image format policy owns advertised extension/MIME metadata, decoder-family capability, and byte/file-name classification inputs that select one decode route from plain bytes and file-name context. C++ executes the selected decoder route and treats selected-decoder failure as final for that request. A decoder returns decoded static image, animation reader payload, metadata, unsupported, or failure; it must not route to another decoder or mutate document state. Failure payloads preserve the selected route, decoder operation, user-facing text, diagnostic detail, severity, and retryability before the image document maps them into its load-failure projection. Source-neutral display diagnostics expose typed operation outcomes for first-display, blocking-preview, and raster-refinement paths; string error outputs are derived views over those diagnostics. Concrete decoder helpers may expose source-specific aliases or richer diagnostics, but they must not be the only typed path available to production owners.
+Decoder contracts are route based. Rust-owned image format policy owns advertised extension/MIME metadata, decoder-family capability, and byte/file-name classification inputs that select one decode route from plain bytes and file-name context. C++ executes the selected decoder route and treats selected-decoder failure as final for that request.
+
+A decoder returns decoded static image, animation reader payload, metadata, unsupported, or failure; it must not route to another decoder or mutate document state. Failure payloads preserve selected route, decoder operation, user-facing text, diagnostic detail, severity, and retryability before the image document maps them into its load-failure projection.
+
+Source-neutral display diagnostics expose typed operation outcomes for first-display, blocking-preview, and raster-refinement paths. String error outputs are derived views over those diagnostics. Concrete decoder helpers may expose source-specific aliases or richer diagnostics, but they must not be the only typed path available to production owners.
 
 ### Display Provider Contracts
 
-Display provider contracts publish immutable display entries from owner-accepted `QImage` payloads. The ordinary provider request path is cache-only and reentrant: it may look up an existing entry and report original size, but it must return owner-published bytes rather than using request size to resample, mutate, or replace the entry. Provider requests must not decode, rasterize SVG, perform file I/O, schedule refinement, decide stale acceptance, mutate public state, or depend on QML engine caching for freshness.
+Display provider contracts publish immutable display entries from owner-accepted `QImage` payloads.
 
-All ordinary cache-only image providers, including active-navigation thumbnail providers, follow the same request boundary: QML request size may be an attachment hint from Qt Quick, but accepted bucket selection, visual scaling policy, and freshness remain with the owning runtime before publication.
+Ordinary provider requests are cache-only, cheap, and reentrant. A request may look up an existing owner-published entry and report the stored or original size owned by that entry, but it must return the stored raster exactly as published. Request size is an attachment hint from Qt Quick, not a bucket-selection, resampling, generation, cache lookup, scheduling, stale-acceptance, or freshness mechanism.
+
+Provider requests must not decode, rasterize SVG, perform file I/O, install cache entries, schedule thumbnail or refinement work, decide stale acceptance, mutate public state, or depend on QML engine caching for freshness.
+
+All ordinary cache-only image providers, including active-navigation thumbnail providers and main-display providers, follow this request boundary. Slow miss handling requires an explicit async image-provider contract with provider-owned cancellation rather than ordinary provider side effects.
 
 ### Excluded Extension Paths
 
-Custom image render-source contracts are not production extension points in the provider-backed presenter architecture. Image display extensions must publish provider-ready display entries or return whole-image refinement results to their owner; they must not introduce visual tile scheduling, custom Qt Quick rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, direct low-level rendering resources, or custom shaders.
+Custom image render-source contracts are not production extension points in the provider-backed presenter architecture. Image display extensions publish provider-ready display entries or return whole-image refinement results to their owner; they must not introduce visual tile scheduling, custom Qt Quick rendering items, scene graph nodes, texture providers, framebuffer paths, direct texture ownership, direct low-level rendering resources, or custom shaders.

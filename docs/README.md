@@ -4,7 +4,6 @@ This directory contains KiriView's project documentation. Keep user-visible beha
 
 - [Product Specifications](spec/README.md): canonical user-visible behavior, including visible unsupported states. Update the relevant subject files before implementing product behavior changes.
 - [Architecture](architecture/README.md): long-term ownership, language-boundary, FFI, workflow, testing ownership, and evolution guidance.
-- [Planning](planning/README.md): milestone scope, deferred work, non-goals, and acceptance criteria.
 - [Architecture Decision Records](adr/): accepted design decisions that need historical context or tradeoff records.
 - [Research](research/): dated upstream and technical investigation notes that inform later design or implementation work.
 - [Flatpak](flatpak.md): Flatpak build, packaging, and runtime notes.

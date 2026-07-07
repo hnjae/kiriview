@@ -72,7 +72,7 @@ The panel toggle shortcuts are user-configurable application action shortcuts, n
 
 The panel toggle actions are available from the application menu, menubar, Keyboard Shortcuts configuration, and Keyboard Shortcuts help.
 
-The panels are closed by default. Panel open state and splitter sizes are runtime-only and are not remembered across launches.
+The panels are closed by default. Panel open state and splitter sizes are not remembered across launches.
 
 The panels remain available in fullscreen.
 

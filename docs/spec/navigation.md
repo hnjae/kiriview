@@ -140,7 +140,7 @@ KiriView derives scrollbar visibility, drag-panning availability, scan availabil
 
 While the page number or zoom input is not focused, the plain arrow keys are fixed viewer-only shortcuts for keyboard panning and physical adjacent navigation. They are not user-configurable actions and are not listed in Keyboard Shortcuts configuration, shortcut help, or menus.
 
-Fixed viewer-only shortcuts use the same runtime UI gates as configurable application actions. They are inactive while text editing, modal help, or another runtime-suppressed UI state is active.
+Fixed viewer-only shortcuts use the same active UI availability rules as configurable application actions. They are inactive while text editing, modal help, or another UI state suppresses viewer shortcuts.
 
 When UI focus, modal state, active viewport, or transient tool focus changes rapidly, fixed viewer-only shortcuts and configurable shortcuts use the newest observed gate state. Older focus or modal observations must not re-enable or disable a shortcut after a newer observation has already taken effect.
 

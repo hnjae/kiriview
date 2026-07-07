@@ -1,44 +1,50 @@
 # State Ownership
 
-This document defines shared ownership rules for durable runtime state and indexes the owner-group contracts that hold the detailed boundaries.
+This document is the canonical contract for durable runtime state ownership. Owner-group files under `state-ownership/` hold the detailed local boundaries.
 
-## Core Ownership Rules
+## Contract
 
-For QObject-facing workflows, C++ owns the authoritative runtime state. This includes QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
+Every workflow value has one canonical owner. If another layer needs the value, it receives a derived snapshot, projection, delta, command, or completion event rather than storing a second mutable copy.
 
-Rust reducers operate on value snapshots and plain events. They return explicit state deltas, transition plans, and effect descriptions. Those results describe what C++ applies; they are not an independent authoritative copy of the same workflow state.
+C++ owns QObject-facing runtime state unless this document or an ADR explicitly names another owner. This includes QML-facing properties, Qt notification ordering, `QUrl`, `QImage`, `QString`, async job lifetime, presentation objects, and rendering objects.
 
-Rust-owned state is reserved for self-contained Qt-independent domains where the state can be represented as plain values and does not mirror authoritative C++ state. Examples include format parsing state and geometry or zoom algorithms. Navigation indices, cache policy state, or other workflow state may move to Rust only when that ownership is documented in this file or an ADR and exposed through value-based FFI.
+Rust reducers operate on value snapshots and plain events. They return explicit state deltas, transition plans, and effect descriptions for C++ owners to apply; those results are not an independent authoritative copy of the same workflow state.
 
-Avoid split-brain state. A workflow value must have one canonical owner. If both languages need to observe it, one side owns the value and the other side receives a derived snapshot, projection, delta, or completion event.
+Rust-owned state is limited to self-contained Qt-independent domains where the state is plain data and does not mirror authoritative C++ state. Format parsing, geometry, and zoom algorithms may live there; navigation indices, cache policy state, or other workflow state may move to Rust only when this document or an ADR names the new owner and exposes it through value-based FFI.
 
-These ownership rules apply unless this document or an ADR explicitly changes the owner. Moving policy into Rust does not move the authoritative runtime state unless the same decision also names the new state owner.
+Moving policy into Rust does not move authoritative runtime state. The ownership decision must name both the policy boundary and the state owner.
 
-QML-facing values may be derived from multiple C++ runtime states. For example, a public loading or status property may combine document state with an active presentation transition. The derived value must not become a second mutable source of truth. Keep the canonical owners explicit, and make notification dependencies follow the derived value.
+QML and facade objects may observe owner projections, emit UI facts through owner APIs, and render accepted state. They must not store durable mirrors, mutate public workflow state, apply command acknowledgment state, choose cache or render policy, or bypass an owner to update another owner's state.
 
-When a public value has mode-specific ownership, only the active mode owns that value. Inactive mode state is a cache, projection, or restoration point, not a competing owner. Transition code must synchronize the next active owner before exposing the mode change. For example, different presentation modes may use different internal state owners, but the public value must have exactly one active owner at a time.
+Derived public values may combine multiple C++ runtime states, such as document state and active presentation transition state. The derived value must not become a second mutable source of truth, and notification dependencies must follow the canonical owners that feed it.
+
+When a public value has mode-specific ownership, only the active mode owns that value. Inactive mode state is a cache, projection, or restoration point. Transition code must synchronize the next active owner before exposing the mode change.
 
 ## Candidate Snapshot Boundary
 
-A candidate snapshot is the immutable row-list value for one active navigation source. It carries typed source identity, a candidate-list revision, shared immutable row storage, current index facts, and count facts. Consumers may derive projections, thumbnail rows, predecode windows, deletion fallbacks, and foreground opened-collection loads from that snapshot, but they must not keep a mutable copy as independent navigation state.
+A candidate snapshot is the immutable row-list value for one active navigation source. It carries typed source identity, a candidate-list revision, shared immutable row storage, current index facts, and count facts.
 
-The document session owns ordinary direct-media candidate snapshots for the active direct-media scope. Direct-media scope generation remains the stale-completion token for sibling discovery and is distinct from candidate-list revision; the candidate-list revision advances only when the accepted row storage for the same scope changes. Current-row facts may change because the selected target changes inside the same row storage, and those changes must not be modeled as a new candidate-list revision.
+The snapshot owner installs one immutable row storage value for an accepted source and assigns the candidate-list revision for that storage. Consumers may derive projections, thumbnail rows, predecode windows, deletion fallbacks, and foreground opened-collection loads from the snapshot, but they must not keep a mutable row list as independent navigation state.
 
-Image-document page navigation owns confirmed image-document page candidate snapshots for directory and opened-collection page sources. The snapshot source identity is the candidate-list source, the candidate-list revision identifies the accepted immutable rows for that source, and the image-document owner remains authoritative for pending same-scope page selection and current page facts. Opened-collection foreground loading and image-document predecode may reuse the snapshot only while the source identity still matches.
+The document session owns ordinary direct-media candidate snapshots for the active direct-media scope. Direct-media scope generation remains the stale-completion token for sibling discovery and is distinct from candidate-list revision; current-row changes inside unchanged row storage do not create a new candidate-list revision.
 
-Candidate-list source identity, candidate-list revision, direct-media scope generation, public projection revision, and thumbnail navigation generation are separate tokens. Source identity answers which list the rows belong to. Candidate-list revision answers whether row storage can be reused. Direct-media scope generation rejects stale direct-media discovery completions. Public projection revision orders QML-facing session publication. Thumbnail navigation generation rejects stale thumbnail work derived from a projected row set. Collapsing these tokens into one generation creates false stale rejection or false reuse and is not allowed.
+Image-document page navigation owns confirmed page candidate snapshots for directory and opened-collection page sources. The snapshot source identity is the candidate-list source, the candidate-list revision identifies accepted immutable rows for that source, and the image-document owner remains authoritative for pending same-scope page selection and current page facts.
 
-Rust may compute navigation, thumbnail, predecode, or deletion policy from candidate snapshot metadata and row views, but C++ remains the owner of the accepted snapshot, Qt row values, async listing lifecycle, and publication ordering.
+Candidate-list source identity, candidate-list revision, direct-media scope generation, public projection revision, and thumbnail navigation generation are separate tokens. Source identity answers which list the rows belong to, candidate-list revision answers whether row storage can be reused, direct-media scope generation rejects stale direct-media discovery completions, public projection revision orders QML-facing session publication, and thumbnail navigation generation rejects stale thumbnail work derived from a projected row set. Collapsing these tokens creates false stale rejection or false reuse and is not allowed.
+
+Rust may compute navigation, thumbnail, predecode, or deletion policy from candidate snapshot metadata and row views. C++ remains the owner of the accepted snapshot, Qt row values, async listing lifecycle, and publication ordering.
 
 ## Thumbnail Demand Window Boundary
 
-The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail runtime. QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation, but QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
+The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail runtime.
 
-Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows are foreground demand and have the strongest scheduling and image-retention priority. The current selected row is also foreground demand even when it is temporarily outside the visible viewport. Nearby rows are prefetch demand around the viewport or reveal target and must yield to visible or current-row work. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
+QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation. QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
 
-Demand facts are scoped to the active thumbnail row identity, thumbnail navigation generation, source key, demand bucket, and runtime demand epoch. A visible or nearby demand expires when a newer runtime demand-window epoch no longer contains that row at that priority, when the row source key or thumbnail navigation generation changes, when the requested bucket is superseded, or when the thumbnail row set is reset. Completion acceptance still uses the source key, navigation generation, bucket, and active job identity; expired demand must not keep stale work fresh.
+Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows and the current selected row are foreground demand. Nearby rows are prefetch demand around the viewport or reveal target and yield to foreground work. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
 
-Background thumbnail fill is optional idle work owned by the runtime after visible, current-row, and nearby foreground demand is no longer pending or active. It may progressively fill additional eligible placeholders as a performance optimization, but it is not a full-list product guarantee and must not require scanning the complete thumbnail row list on every foreground demand, completion, or model update. Any background fill cursor, inspection budget, or retained ready image remains subordinate to the latest demand window and to stale-completion rejection.
+Demand facts are scoped to active thumbnail row identity, thumbnail navigation generation, source key, demand bucket, and runtime demand epoch. A visible or nearby demand expires when a newer demand-window epoch no longer contains that row at that priority, when the row source key or thumbnail navigation generation changes, when the requested bucket is superseded, or when the thumbnail row set resets. Completion acceptance still uses the source key, navigation generation, bucket, and active job identity.
+
+Background thumbnail fill is optional idle work owned by the runtime after foreground demand is no longer pending or active. It may progressively fill additional eligible placeholders, but it is not a full-list product guarantee and must not require scanning the complete thumbnail row list on every foreground demand, completion, or model update.
 
 ## Owner Groups
 

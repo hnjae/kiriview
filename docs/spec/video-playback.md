@@ -22,7 +22,7 @@ The public source URL for direct image and direct video URLs in direct media sco
 
 Assigning a direct media source starts an open request for that URL. Successful direct image and direct video opens expose the requested direct media URL as the public source. Direct image replacement failures keep the failed target as the public source and error context. Direct video load or playback-preparation failures keep the original direct media URL as the public source and error context.
 
-When playback preparation fails, the user-facing error text is a stable KiriView message that the selected video could not be opened. Platform and playback diagnostic messages are internal diagnostics and are not displayed as the primary error text.
+When playback preparation fails, the user-facing error text is a stable KiriView message that the selected video could not be opened. Platform and playback diagnostic messages are not displayed as the primary error text.
 
 Playback preparation details are never exposed as the public source URL. For direct videos, window title, adjacent direct media navigation, deletion target, error context, and direct-media routing decisions remain based on that public source URL.
 

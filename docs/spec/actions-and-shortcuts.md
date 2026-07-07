@@ -22,7 +22,7 @@ Viewer-local shortcuts are inactive while text input, input-method-sensitive UI,
 
 Unmodified ASCII printable key sequences are allowed for viewer-local configurable shortcuts but disallowed for program-wide configurable shortcuts.
 
-Viewer commands use viewer-local shortcuts by default unless the action explicitly declares a program-wide shortcut slot. KiriView does not derive runtime-only viewer aliases by dropping Ctrl from program-wide shortcuts and does not keep program-wide Ctrl fallbacks for viewer-local commands.
+Viewer commands use viewer-local shortcuts by default unless the action explicitly declares a program-wide shortcut slot. KiriView does not derive hidden viewer aliases by dropping Ctrl from program-wide shortcuts and does not keep program-wide Ctrl fallbacks for viewer-local commands.
 
 Toolbar controls, menus, context menus, shortcut help, and shortcut handling use the same current action availability decision. During media replacement, mode switches, deletion, modal dialogs, or focus changes, KiriView must not display or trigger action state from an older media item, older viewport, or older interaction context after a newer state is active.
 

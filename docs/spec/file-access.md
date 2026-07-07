@@ -60,7 +60,7 @@ In Flatpak, adjacent direct media navigation can list neighboring files under `h
 
 In Flatpak, KiriView grants only the specific sandbox access needed for selected direct-video playback and does not expose the entire user runtime filesystem for playback.
 
-In Flatpak, KiriView shares generated XDG thumbnails with the host thumbnail cache when host thumbnail-cache sharing is available.
+In Flatpak, KiriView shares generated thumbnails with the desktop thumbnail store when that sharing is available.
 
 Files outside those paths remain available only when explicitly provided by the XDG portal.
 

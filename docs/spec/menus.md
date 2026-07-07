@@ -56,7 +56,7 @@ Right-clicking the toolbar, menubar, Info Panel, or Thumbnail Panel does not ope
 
 The viewer context menu contains a concise set of viewer actions: Open, Open With, active navigation, image-only view actions such as zoom, fit, and rotation, panel toggles, and Fullscreen.
 
-The viewer context menu uses the same internal application actions as the toolbar application menu and menubar. Action identity, text, shortcut display, enabled state, and checked state remain consistent across all menus.
+The viewer context menu uses the same application actions as the toolbar application menu and menubar. Action identity, text, shortcut display, enabled state, and checked state remain consistent across all menus.
 
 Image-only actions remain visible but disabled when their normal availability rules disable them, including video mode and empty state.
 

@@ -1,28 +1,27 @@
 # Testing Strategy
 
-Test Rust policy in Rust unit tests when the logic is independent of Qt. These tests must cover state transitions, edge cases, and policy tables.
+This document owns boundary-test placement for architecture contracts. It does not replace focused behavior tests in the implementation layer that owns a feature.
 
-Test C++ runtime code with Qt tests when behavior depends on:
+## Policy And Runtime Tests
 
-- Qt object lifetime or signals.
-- `QImage`, `QUrl`, display-source data, or render-context capability data.
-- KIO or file-operation adapters.
-- Controller integration across async boundaries.
+Test Rust policy in Rust unit tests when the logic is independent of Qt. These tests cover state transitions, edge cases, and policy tables.
 
-Do not duplicate every Rust policy test in C++. C++ tests must verify that the runtime layer applies plans correctly and preserves integration behavior.
+Test C++ runtime code with Qt tests when behavior depends on Qt object lifetime or signals, `QImage`, `QUrl`, display-source data, render-context capability data, KIO or file-operation adapters, or controller integration across async boundaries.
+
+C++ tests do not duplicate every Rust policy test. They verify that the runtime layer applies plans correctly and preserves integration behavior at the Qt boundary.
 
 ## Boundary Enforcement Tests
 
-Architecture boundary tests must fail when code reintroduces a second owner for durable public state. Prefer simple source-pattern checks for QML and facade API boundaries, and focused Qt tests for runtime behavior that depends on signal ordering, object lifetime, or physical Qt Quick item adaptation.
+Boundary tests must fail when production code reintroduces a second owner for durable public state or bypasses the owner named by architecture.
 
-Boundary tests must cover these forbidden directions: QML writing shared `QAction` state, QML action proxies overriding runtime-owned enabled or checked state, QML recomputing shared active media readiness or action availability from raw document properties, QML storing viewport revisions in numeric properties, QML owning viewport command projection application or acknowledgement state, QML creating duplicate shortcut handlers for runtime-owned commands, production QML or C++ setting leaf route state directly, production C++ calling public image-document mutators that bypass presentation owners, page presentation controllers retaining mutable active zoom or rotation owners, action runtime accepting stale UI gate revisions, custom image render nodes or visual tile fallbacks reading document or presentation policy state, generic source keys crossing adapter or display-source boundaries, provider requests mutating document state, and projection owners querying arbitrary leaf facades while applying a named projection snapshot.
+The QML and facade boundary tests cover shared action state, action proxy state, active media readiness, viewport command acknowledgment, shortcut routing, route-state mutation, display-load acknowledgment, provider ids, and cache or render policy ownership. QML may report UI facts and render projections, but it must not own these values.
 
-Runtime tests must cover the accepted replacement paths for those boundaries: revisioned UI gate snapshots, typed presentation and viewport commands, document-session route commands, session projection snapshot replacement, fixed shortcut routes through the action runtime gate, provider request boundaries, candidate snapshot reuse by source identity and candidate-list revision, display-source stale-completion rejection, and render-context freshness after window, DPR, scene-graph, or texture-capability changes.
+Runtime owner-bypass tests cover direct leaf-route state mutation, public image-document mutators that bypass presentation owners, page presentation controllers retaining mutable active zoom or rotation owners, action runtime accepting stale UI gate revisions, projection owners querying arbitrary leaf facades while applying named projection snapshots, and callbacks that capture sibling controllers instead of crossing named ports.
 
-Candidate snapshot performance tests should use focused counters or fake ports at projection, thumbnail, predecode, and completion boundaries to prove that unchanged candidate-list revisions can reuse row storage, current-row-only updates do not force full row projection, stale scope generations reject async completions, and consumers do not regain by-value candidate-list fetch APIs on hot paths.
+Provider and render boundary tests cover cache-only provider requests, immutable display-entry lifetime, display-source stale-completion rejection, typed key families across adapter/display boundaries, render-context freshness after window, DPR, scene-graph, or texture-capability changes, and absence of custom image render nodes, visual tile fallbacks, low-level rendering resource paths, and generic source-key APIs at production extension boundaries.
 
-## Extension Contract Tests
+Candidate snapshot tests cover reuse by source identity and candidate-list revision, current-row-only updates that do not force full row projection, stale scope generations that reject async completions, and preservation of narrow candidate-snapshot APIs on hot paths.
 
-Contract tests must cover unsupported media, stale source keys or generations, cache identity, opened-collection entry freshness, video-versus-image eligibility, provider request boundaries, display-entry lifetime, forbidden low-level rendering or tile fallback dependencies, and display-source stale-completion rejection after window, DPR, or texture-capability changes.
+Extension contract tests cover unsupported media, stale source keys or generations, cache identity, opened-collection entry freshness, video-versus-image eligibility, provider request boundaries, display-entry lifetime, and display-source stale-completion rejection.
 
 Prefer focused C++ tests where the contract depends on Qt URL, image, object-lifetime, or display data, and Rust tests where the logic is plain value policy.
