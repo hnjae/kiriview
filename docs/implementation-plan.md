@@ -177,6 +177,8 @@ Acceptance: Architecture docs cover display-store reuse keys, refinement cache k
 
 Verification: Documentation review or narrow docs diff check only.
 
+Status: Completed (2026-07-07). Tightened `docs/architecture/provider-rendering.md` so static display publication preserves displayed-location or opened-collection scope identity from decoded foreground load, predecode promotion, and secondary-page load through page-surface publication before display reuse or refinement cache keys are constructed. Verified with `git diff --check` and commit hooks for the architecture commit; full CI was skipped because this milestone was intent-only documentation.
+
 ## Milestone 13: Display Location Identity Implementation
 
 Suggested `/goal`: Thread displayed-location or opened-collection scope identity through static display publication and use it in display reuse and refinement cache keys.
