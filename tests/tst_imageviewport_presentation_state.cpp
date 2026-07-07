@@ -584,7 +584,7 @@ void ImageViewportPresentationStateTest::
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("secondaryDisplayedFrame").toInt(), -1);
     QCOMPARE(item.property("secondaryDisplayedPosition").toInt(), -1);
-    QCOMPARE(item.property("secondaryDisplayedImageSize").toSizeF(), QSizeF());
+    QCOMPARE(item.property("secondaryDisplayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF());
 }
 
@@ -745,7 +745,9 @@ void ImageViewportPresentationStateTest::directZoomPropertyAssignmentUsesItemCen
     QCOMPARE(
         item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(50.0, 50.0));
-    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setZoomPercent(
+                 std::numeric_limits<double>::infinity(), QPointF(0.0, 0.0)),
+        ImageViewport::CommandOutcome::Invalid);
     const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
     QVERIFY(item.setProperty("zoomPercent", 300.0));
@@ -777,7 +779,9 @@ void ImageViewportPresentationStateTest::revisionTokensUseSharedNonWrappingAlloc
     QVERIFY(displayAfterGeometry.isValid());
     QCOMPARE(static_cast<quint64>(displayAfterGeometry.value()), firstLargeToken);
 
-    QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.setZoomPercent(
+                 std::numeric_limits<double>::infinity(), QPointF(0.0, 0.0)),
+        ImageViewport::CommandOutcome::Invalid);
     const RevisionToken commandAfterInvalid = item.commandRevision();
     QVERIFY(commandAfterInvalid.isValid());
     QVERIFY(commandAfterInvalid != displayAfterGeometry);
@@ -789,7 +793,7 @@ void ImageViewportPresentationStateTest::revisionTokensUseSharedNonWrappingAlloc
     QVERIFY(requestAfterAssignment != displayAfterGeometry);
     QVERIFY(requestAfterAssignment != commandAfterInvalid);
     QVERIFY(item.displayRevision() != requestAfterAssignment);
-    QCOMPARE(static_cast<quint64>(requestAfterAssignment.value()), firstLargeToken + 3);
+    QCOMPARE(static_cast<quint64>(requestAfterAssignment.value()), firstLargeToken + 2);
 }
 
 void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateAndRevisions()

@@ -606,17 +606,17 @@ class RevisionToken
     Q_GADGET
     QML_VALUE_TYPE(revisionToken)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
-    Q_PROPERTY(uint value READ value CONSTANT)
+    Q_PROPERTY(quint64 value READ value CONSTANT)
 
 public:
     RevisionToken() = default;
-    explicit RevisionToken(uint value)
+    explicit RevisionToken(quint64 value)
         : m_value(value)
     {
     }
 
     bool isValid() const { return m_value != 0; }
-    uint value() const { return m_value; }
+    quint64 value() const { return m_value; }
 
     friend bool operator==(RevisionToken lhs, RevisionToken rhs)
     {
@@ -625,7 +625,7 @@ public:
     friend bool operator!=(RevisionToken lhs, RevisionToken rhs) { return !(lhs == rhs); }
 
 private:
-    uint m_value = 0;
+    quint64 m_value = 0;
 };
 
 class ImageViewport : public QQuickItem

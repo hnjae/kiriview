@@ -335,6 +335,16 @@ QSizeF imageLogicalSize(const QImage& image)
     return image.isNull() ? QSizeF() : image.deviceIndependentSize();
 }
 
+QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
+{
+    const QSizeF spreadSize = PresentationGeometry::spreadSize(state);
+    const int rotation = ((state.rotationDegrees % 360) + 360) % 360;
+    if (rotation == 90 || rotation == 270) {
+        return QSizeF(spreadSize.height(), spreadSize.width());
+    }
+    return spreadSize;
+}
+
 enum class GeometryProjectionTarget {
     CurrentDisplay,
     PendingRender,
@@ -491,6 +501,17 @@ QPointF controllerMaximumContentPosition(
 {
     return PresentationGeometry::maximumContentPosition(
         controllerGeometryState(viewport, presentation));
+}
+
+double effectiveZoomPercent(const PresentationGeometry::State& state)
+{
+    const QSizeF spreadSize = orientedSpreadSize(state);
+    const QRectF content = PresentationGeometry::contentRect(state);
+    if (content.isEmpty() || !isPositiveGeometrySize(spreadSize)) {
+        return state.manualZoom * 100.0;
+    }
+
+    return content.width() / spreadSize.width() * state.devicePixelRatio * 100.0;
 }
 
 void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,

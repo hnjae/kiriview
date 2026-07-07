@@ -430,6 +430,7 @@ struct ViewportControllerState
     ImageViewportInternal::ProviderGenerationState provider;
     ImageViewportInternal::ProviderGenerationState secondaryProvider;
     ViewportSequenceRoleSource secondarySource;
+    quint64 nextRevisionToken = 0;
 };
 
 class ViewportControllerContext
@@ -796,8 +797,10 @@ public:
 #endif
 
 private:
+    quint64 allocateRevisionToken();
     ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
-        const ControllerTransitionPolicy& policy, QPointF previousContentPosition);
+        const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
+        double previousZoomPercent);
     bool targetSpreadTerminalSealedForActiveRequest();
     bool hasGenerationTerminalProviderFailure();
     void recordTargetSpreadTerminal(ImageViewport::PageRole role,

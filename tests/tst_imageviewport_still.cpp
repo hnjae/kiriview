@@ -794,20 +794,20 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     QCOMPARE(item.panBy(QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
 
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
-    QCOMPARE(item.containsVisibleImagePoint(7.999, 4.0), false);
-    QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), true);
-    QCOMPARE(item.containsVisibleImagePoint(15.999, 4.0), true);
+    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
+    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
+    QCOMPARE(item.containsVisibleImagePoint(7.999, 4.0), true);
+    QCOMPARE(item.containsVisibleImagePoint(8.0, 4.0), false);
+    QCOMPARE(item.containsVisibleImagePoint(15.999, 4.0), false);
 
     const CoordinateResult leftItem = item.itemToImage(0.001, 50.0);
     QCOMPARE(leftItem.isValid(), true);
-    QCOMPARE(leftItem.x(), 15.99992);
+    QCOMPARE(leftItem.x(), 7.99992);
 
-    const CoordinateResult rightHalfImage = item.imageToItem(12.0, 4.0);
-    QCOMPARE(rightHalfImage.isValid(), true);
-    QCOMPARE(rightHalfImage.x(), 50.0);
-    verifyInvalidCoordinateResult(item.imageToItem(4.0, 4.0));
+    const CoordinateResult leftHalfImage = item.imageToItem(4.0, 4.0);
+    QCOMPARE(leftHalfImage.isValid(), true);
+    QCOMPARE(leftHalfImage.x(), 50.0);
+    verifyInvalidCoordinateResult(item.imageToItem(12.0, 4.0));
 }
 
 void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()

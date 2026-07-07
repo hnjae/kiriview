@@ -330,7 +330,7 @@ struct DisplayState
     bool renderFailureRetainedDisplayValid = false;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;
-    uint revision = 0;
+    quint64 revision = 0;
 };
 
 struct RequestState
@@ -439,8 +439,8 @@ struct RequestState
     quint64 nextRequestId = 0;
     TargetSpreadTerminalState targetSpreadTerminal;
     RenderFailureDiagnostic lastAcceptedRenderFailure;
-    uint requestRevision = 0;
-    uint commandRevision = 0;
+    quint64 requestRevision = 0;
+    quint64 commandRevision = 0;
     QString errorString;
     QString warningString;
 };

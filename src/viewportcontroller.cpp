@@ -1055,11 +1055,28 @@ ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool loo
     return changes;
 }
 
-void ViewportController::incrementDisplayRevision() { ++state.display.revision; }
+quint64 ViewportController::allocateRevisionToken()
+{
+    if (state.nextRevisionToken == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport revision token allocator exhausted");
+    }
+    return ++state.nextRevisionToken;
+}
 
-void ViewportController::incrementRequestRevision() { ++state.request.requestRevision; }
+void ViewportController::incrementDisplayRevision()
+{
+    state.display.revision = allocateRevisionToken();
+}
 
-void ViewportController::incrementCommandRevision() { ++state.request.commandRevision; }
+void ViewportController::incrementRequestRevision()
+{
+    state.request.requestRevision = allocateRevisionToken();
+}
+
+void ViewportController::incrementCommandRevision()
+{
+    state.request.commandRevision = allocateRevisionToken();
+}
 
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
@@ -1116,6 +1133,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     const QPointF previousContentPosition = controllerContentPosition(viewport, state.presentation);
+    const double previousZoomPercent
+        = effectiveZoomPercent(controllerGeometryState(viewport, state.presentation));
     ImageViewportInternal::ViewportChangeSet transitionChanges;
 
     const ViewportSequenceRoleSource secondarySource
@@ -1255,7 +1274,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         result.openSecondaryProviderSession = true;
     }
 
-    transitionChanges = applyPresentationTransition(*transitionPolicy, previousContentPosition);
+    transitionChanges
+        = applyPresentationTransition(*transitionPolicy, previousContentPosition, previousZoomPercent);
 
     armAuthoredAutoplayIfEligible();
 
@@ -1408,10 +1428,10 @@ void ViewportController::setNextProviderRequestTokenForTest(
 
 void ViewportController::setNextRevisionTokenForTest(quint64 token)
 {
-    const uint previousToken = token == 0 ? 0 : static_cast<uint>(token - 1);
-    state.display.revision = previousToken;
-    state.request.requestRevision = previousToken;
-    state.request.commandRevision = previousToken;
+    state.nextRevisionToken = token == 0 ? 0 : token - 1;
+    state.display.revision = 0;
+    state.request.requestRevision = 0;
+    state.request.commandRevision = 0;
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const

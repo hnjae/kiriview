@@ -31,6 +31,11 @@ PresentationGeometry::State geometryStateForItemBounds(
         bounds, effectiveDevicePixelRatio(viewport));
 }
 
+QPointF itemCenter(const ImageViewportPrivate& viewport)
+{
+    return QPointF(viewport.width() / 2.0, viewport.height() / 2.0);
+}
+
 QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
 {
     const QSizeF spreadSize = PresentationGeometry::spreadSize(state);
@@ -150,7 +155,10 @@ ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
     return controller.presentationState().fitMode;
 }
 
-void ImageViewportPrivate::setFitModeProperty(FitMode mode) { setFitMode(mode, {}); }
+void ImageViewportPrivate::setFitModeProperty(FitMode mode)
+{
+    setFitMode(mode, itemCenter(*this));
+}
 
 double ImageViewportPrivate::zoomPercent() const
 {
@@ -164,7 +172,10 @@ double ImageViewportPrivate::zoomPercent() const
     return content.width() / spreadSize.width() * effectiveDevicePixelRatio(*this) * 100.0;
 }
 
-void ImageViewportPrivate::setZoomPercentProperty(double percent) { setZoomPercent(percent, {}); }
+void ImageViewportPrivate::setZoomPercentProperty(double percent)
+{
+    setZoomPercent(percent, itemCenter(*this));
+}
 
 int ImageViewportPrivate::rotationDegrees() const
 {
@@ -192,7 +203,7 @@ bool ImageViewportPrivate::mirrorHorizontally() const
 
 void ImageViewportPrivate::setMirrorHorizontally(bool mirror)
 {
-    applyControllerChanges(controller.setMirrorHorizontally(mirror));
+    setMirrorHorizontally(mirror, itemCenter(*this));
 }
 
 bool ImageViewportPrivate::mirrorVertically() const
@@ -202,7 +213,7 @@ bool ImageViewportPrivate::mirrorVertically() const
 
 void ImageViewportPrivate::setMirrorVertically(bool mirror)
 {
-    applyControllerChanges(controller.setMirrorVertically(mirror));
+    setMirrorVertically(mirror, itemCenter(*this));
 }
 
 ImageViewportPrivate::BackgroundMode ImageViewportPrivate::backgroundMode() const

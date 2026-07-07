@@ -8,6 +8,16 @@
 
 using namespace ImageViewportInternal;
 
+namespace {
+
+bool hasDisplayedSecondaryRole(const ImageViewportInternal::DisplayState& display)
+{
+    const QSizeF size = display.secondaryDisplayedImageSize;
+    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+}
+
+} // namespace
+
 bool PageSetTransitionPolicy::isValid() const
 {
     auto displayTransitionValid = [](DisplayTransition transition) {
@@ -262,7 +272,7 @@ int ImageViewportPrivate::primaryRequestedFrame() const { return requestedFrame(
 
 int ImageViewportPrivate::secondaryDisplayedFrame() const
 {
-    if (hasReadyDisplay() && secondarySequence()) {
+    if (hasReadyDisplay() && hasDisplayedSecondaryRole(controller.displayState())) {
         return controller.displayState().secondaryDisplayedRequest.request.target.frame;
     }
 
@@ -307,7 +317,7 @@ int ImageViewportPrivate::primaryRequestedPosition() const { return requestedPos
 
 int ImageViewportPrivate::secondaryDisplayedPosition() const
 {
-    if (hasReadyDisplay() && secondarySequence()) {
+    if (hasReadyDisplay() && hasDisplayedSecondaryRole(controller.displayState())) {
         return controller.displayState().secondaryDisplayedRequest.request.target.position;
     }
 

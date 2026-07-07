@@ -137,7 +137,8 @@ ViewportCommandResult preservedPresentationCommand(ImageViewport::CommandOutcome
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTransition(
-    const ControllerTransitionPolicy& policy, QPointF previousContentPosition)
+    const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
+    double previousZoomPercent)
 {
     auto& presentation = state.presentation;
     ImageViewportInternal::ViewportChangeSet changes;
@@ -154,6 +155,15 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
     if (policy.explicitFitMode && presentation.fitMode != *policy.explicitFitMode) {
         presentation.fitMode = *policy.explicitFitMode;
         markChanged();
+    }
+    if (policy.magnificationPolicy == PageSetTransitionPolicy::ZoomTransition::Preserve
+        && presentation.fitMode == ImageViewport::FitMode::Manual
+        && ImageViewportInternal::isFinitePositive(previousZoomPercent)) {
+        const double previousManualZoom = previousZoomPercent / 100.0;
+        if (presentation.manualZoom != previousManualZoom) {
+            presentation.manualZoom = previousManualZoom;
+            markChanged();
+        }
     }
     if (policy.rotationTransition == PageSetTransitionPolicy::RotationTransition::Reset
         && presentation.rotationDegrees != 0) {

@@ -191,6 +191,8 @@ Finding 4, Finding 6, Finding 7, Finding 9.
 
 ### Milestone 2: Public Behavior Conformance Fixes
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Fix user-visible conformance issues already specified by the durable docs: retained secondary displayed observations, `PreserveManualPercent`, direct property assignment semantics, and revision-token lifetime guarantees.
@@ -230,17 +232,26 @@ Finding 1, Finding 2, Finding 3, Finding 5.
 
 #### Tasks
 
-- [ ] Add a retained spread-to-primary-only replacement test proving retained secondary displayed frame, position, size, and geometry remain observable while accepted secondary request observations are unavailable.
-- [ ] Add `PreserveManualPercent` transition tests that distinguish it from `Preserve` when a transition results in `Manual` fit mode.
-- [ ] Add direct property assignment tests for anchor-preserving writable presentation properties, using the current viewport item center as the expected implicit anchor.
-- [ ] Add revision-token near-overflow tests using private hooks if available, or add a narrowly scoped private test hook as part of this milestone if no safe hook exists.
-- [ ] Make secondary displayed frame and position derive from committed display role presence, not accepted `secondarySequence()` presence.
-- [ ] Preserve clear-before-load behavior so secondary displayed observations become unavailable when retained display is cleared.
-- [ ] Implement `PreserveManualPercent` so it preserves canonical manual zoom percent when the resulting fit mode is `Manual`.
-- [ ] Ensure `ResetToContain` validation and non-manual fit-derived zoom behavior remain unchanged.
-- [ ] Route direct assignment through the same accepted-command diagnostic and revision path as equivalent command-style setters.
-- [ ] Prefer preserving the public `RevisionToken` value-type shape. If satisfying the token contract requires changing public field width or QML type shape, stop and update the durable API spec before implementing that API change.
-- [ ] Introduce a controller-owned revision-token allocator or equivalent shared allocation semantics for display, request, and command revisions.
+- [x] Add a retained spread-to-primary-only replacement test proving retained secondary displayed frame, position, size, and geometry remain observable while accepted secondary request observations are unavailable.
+- [x] Add `PreserveManualPercent` transition tests that distinguish it from `Preserve` when a transition results in `Manual` fit mode.
+- [x] Add direct property assignment tests for anchor-preserving writable presentation properties, using the current viewport item center as the expected implicit anchor.
+- [x] Add revision-token near-overflow tests using private hooks if available, or add a narrowly scoped private test hook as part of this milestone if no safe hook exists.
+- [x] Make secondary displayed frame and position derive from committed display role presence, not accepted `secondarySequence()` presence.
+- [x] Preserve clear-before-load behavior so secondary displayed observations become unavailable when retained display is cleared.
+- [x] Implement `PreserveManualPercent` so it preserves canonical manual zoom percent when the resulting fit mode is `Manual`.
+- [x] Ensure `ResetToContain` validation and non-manual fit-derived zoom behavior remain unchanged.
+- [x] Route direct assignment through the same accepted-command diagnostic and revision path as equivalent command-style setters.
+- [x] Prefer preserving the public `RevisionToken` value-type shape. If satisfying the token contract requires changing public field width or QML type shape, stop and update the durable API spec before implementing that API change.
+- [x] Introduce a controller-owned revision-token allocator or equivalent shared allocation semantics for display, request, and command revisions.
+
+#### Completion evidence
+
+- Durable API and architecture intent for revision tokens was clarified before implementation in `docs/spec/image-viewport-api.md` and `docs/architecture/subsystem-boundaries.md`.
+- Focused conformance tests were added for retained secondary display observations, `PreserveManualPercent` versus `Preserve`, center-anchored property assignment, and shared non-wrapping revision-token allocation.
+- Secondary displayed frame and position now use committed display role presence; retained clear-before-load behavior remains covered by the retained-display test.
+- Direct `fitMode`, `zoomPercent`, `mirrorHorizontally`, and `mirrorVertically` assignments use the current viewport item center and enter the command-equivalent controller path.
+- Revision tokens now use one controller-owned non-zero `quint64` allocator shared by display, request, and command revisions, with an explicit exhaustion guard.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_presentation_state|imageviewport_public_api_commands|viewportcontroller_presentation|imageviewport_public_api' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 
