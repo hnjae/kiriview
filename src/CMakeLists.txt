@@ -44,6 +44,8 @@ qt_add_qml_module(
     viewportcontroller.cpp
     viewportcontrollergeometry.cpp
     viewportcontrollerhelpers_p.h
+    viewportcommandoutcome.cpp
+    viewportcommandoutcome_p.h
     viewportcontrollermetadata.cpp
     viewportcontrollerplayback.cpp
     viewportcontrollerpresentation.cpp

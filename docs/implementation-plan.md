@@ -362,6 +362,8 @@ Finding 8, Finding 10, Finding 11.
 
 ### Milestone 4: Command Outcome Foundation
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Centralize command diagnostic publication and revision effects before broader controller refactors.
@@ -396,12 +398,19 @@ Finding 9.
 
 #### Tasks
 
-- [ ] Add or update a structural test with an allowlist for command diagnostic and command revision mutation sites.
-- [ ] Add a single private helper/API that owns command diagnostic mutation and command revision effects.
-- [ ] Migrate base controller command rejection helpers to the shared command outcome helper.
-- [ ] Migrate presentation command paths, preserving documented `setSpreadDirection(...)` and `setPageGap(...)` diagnostic-preserving exceptions.
-- [ ] Migrate playback command paths in small batches, running focused tests after each batch.
-- [ ] Remove duplicated file-local command diagnostic helpers after migration.
+- [x] Add or update a structural test with an allowlist for command diagnostic and command revision mutation sites.
+- [x] Add a single private helper/API that owns command diagnostic mutation and command revision effects.
+- [x] Migrate base controller command rejection helpers to the shared command outcome helper.
+- [x] Migrate presentation command paths, preserving documented `setSpreadDirection(...)` and `setPageGap(...)` diagnostic-preserving exceptions.
+- [x] Migrate playback command paths in small batches, running focused tests after each batch.
+- [x] Remove duplicated file-local command diagnostic helpers after migration.
+
+#### Completion evidence
+
+- Added structural guard `structural::commandOutcomeBoundary`, which allowlists only `RequestState` primitives and the private command outcome helper for command diagnostic and command-revision mutation.
+- Added private `viewportcommandoutcome` helper API for accepted command clearing, rejected command diagnostics, and common invalid/unsupported/ignored/accepted result construction.
+- Migrated base controller rejection helpers, presentation commands, and playback command paths to the shared helper while leaving `setSpreadDirection(...)` and `setPageGap(...)` as explicit diagnostic-preserving presentation exceptions.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_public_api_commands|viewportcontroller_presentation|viewportcontroller_playback|structural::commandOutcomeBoundary' --output-on-failure`, `ctest --test-dir build -R 'structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

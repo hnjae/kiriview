@@ -1,5 +1,6 @@
 #include "viewportcontroller_p.h"
 
+#include "viewportcommandoutcome_p.h"
 #include "viewportcontrollerhelpers_p.h"
 
 #include "imageviewportproviderfacts_p.h"
@@ -194,20 +195,6 @@ void stageControllerBuiltInPrimarySpreadPayload(ViewportControllerPort& viewport
     stageControllerBuiltInSecondaryPayload(viewport);
 }
 
-void setCommandDiagnostic(ViewportControllerPort& viewport, ViewportCommandResult& result,
-    ImageViewport::CommandReason reason)
-{
-    viewportRequestState(viewport).setCommandDiagnostic(reason);
-    result.changes.commandRevision = true;
-}
-
-void clearCommandDiagnosticForAcceptedCommand(
-    ViewportControllerPort& viewport, ViewportCommandResult& result)
-{
-    result.changes.commandRevision
-        = viewportRequestState(viewport).clearCommandDiagnosticForAcceptedCommand()
-        || result.changes.commandRevision;
-}
 }
 
 QRectF ViewportControllerContext::contentRect() const { return {}; }
@@ -1102,9 +1089,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const std::optional<ControllerTransitionPolicy> transitionPolicy
         = normalizeControllerTransitionPolicy(assignment.transitionPolicy);
     if (!transitionPolicy) {
-        ViewportCommandResult commandResult;
-        commandResult.outcome = ImageViewport::CommandOutcome::Invalid;
-        setCommandDiagnostic(viewport, commandResult, ImageViewport::CommandReason::InvalidRequest);
+        const ViewportCommandResult commandResult
+            = ImageViewportInternal::CommandOutcome::invalid(viewport);
         result.outcome = commandResult.outcome;
         result.changes = commandResult.changes;
         return result;
@@ -1300,29 +1286,17 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
 
 ViewportCommandResult ViewportController::rejectInvalidCommand()
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Invalid;
-    state.request.setCommandDiagnostic(ImageViewport::CommandReason::InvalidRequest);
-    result.changes.commandRevision = true;
-    return result;
+    return ImageViewportInternal::CommandOutcome::invalid(viewport);
 }
 
 ViewportCommandResult ViewportController::rejectUnsupportedCommand()
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    state.request.setCommandDiagnostic(ImageViewport::CommandReason::UnsupportedRequest);
-    result.changes.commandRevision = true;
-    return result;
+    return ImageViewportInternal::CommandOutcome::unsupported(viewport);
 }
 
 ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-    state.request.setCommandDiagnostic(ImageViewport::CommandReason::IgnoredNoRequest);
-    result.changes.commandRevision = true;
-    return result;
+    return ImageViewportInternal::CommandOutcome::ignoredNoRequest(viewport);
 }
 
 ViewportCommandResult ViewportController::clear()
@@ -1385,7 +1359,7 @@ ViewportCommandResult ViewportController::clear()
     state.secondaryProvider.activeFrameToken = {};
     viewportRequestState(viewport).errorString.clear();
     viewportRequestState(viewport).warningString.clear();
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     result.changes.requestRevision = requestChanged;
     result.changes.displayRevision = displayChanged;
     result.changes.sequence = sequenceValueChanged;
@@ -1403,10 +1377,7 @@ ViewportCommandResult ViewportController::clear()
 
 ViewportCommandResult ViewportController::acceptNoopCommand()
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    return result;
+    return ImageViewportInternal::CommandOutcome::accepted(viewport);
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

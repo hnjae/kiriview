@@ -1,24 +1,10 @@
 #include "viewportcontrollerhelpers_p.h"
+#include "viewportcommandoutcome_p.h"
 
 #include <algorithm>
 #include <cmath>
 
 namespace {
-void setCommandDiagnostic(ViewportControllerPort& viewport, ViewportCommandResult& result,
-    ImageViewport::CommandReason reason)
-{
-    viewportRequestState(viewport).setCommandDiagnostic(reason);
-    result.changes.commandRevision = true;
-}
-
-void clearCommandDiagnosticForAcceptedCommand(
-    ViewportControllerPort& viewport, ViewportCommandResult& result)
-{
-    result.changes.commandRevision
-        = viewportRequestState(viewport).clearCommandDiagnosticForAcceptedCommand()
-        || result.changes.commandRevision;
-}
-
 QPointF clampedPoint(QPointF point, QPointF minimum, QPointF maximum)
 {
     return QPointF(std::clamp(point.x(), minimum.x(), maximum.x()),
@@ -113,19 +99,12 @@ ImageViewportInternal::ViewportChangeSet presentationChanges(
 ViewportCommandResult acceptedPresentationCommand(
     ViewportControllerPort& viewport, ImageViewportInternal::ViewportChangeSet changes = {})
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Accepted;
-    result.changes = changes;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
-    return result;
+    return ImageViewportInternal::CommandOutcome::accepted(viewport, changes);
 }
 
 ViewportCommandResult invalidPresentationCommand(ViewportControllerPort& viewport)
 {
-    ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Invalid;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
-    return result;
+    return ImageViewportInternal::CommandOutcome::invalid(viewport);
 }
 
 ViewportCommandResult preservedPresentationCommand(ImageViewport::CommandOutcome outcome)

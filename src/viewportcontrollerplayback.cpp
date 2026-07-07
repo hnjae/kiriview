@@ -1,21 +1,7 @@
 #include "viewportcontrollerhelpers_p.h"
+#include "viewportcommandoutcome_p.h"
 
 namespace {
-void setCommandDiagnostic(ViewportControllerPort& viewport, ViewportCommandResult& result,
-    ImageViewport::CommandReason reason)
-{
-    viewportRequestState(viewport).setCommandDiagnostic(reason);
-    result.changes.commandRevision = true;
-}
-
-void clearCommandDiagnosticForAcceptedCommand(
-    ViewportControllerPort& viewport, ViewportCommandResult& result)
-{
-    result.changes.commandRevision
-        = viewportRequestState(viewport).clearCommandDiagnosticForAcceptedCommand()
-        || result.changes.commandRevision;
-}
-
 void clearQueuedProviderFrameRequest(ViewportControllerPort& viewport)
 {
     ImageViewportInternal::ProviderGenerationState& provider = viewportProviderState(viewport);
@@ -305,7 +291,7 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
 {
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     controller.beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
         target, resolvedFrame, true);
     viewportRequestState(viewport).providerPlaybackStartPending = false;
@@ -530,13 +516,15 @@ ViewportCommandResult ViewportController::play()
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -555,7 +543,7 @@ ViewportCommandResult ViewportController::play()
         if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Unsupported
             || viewportRequestState(viewport).status == ImageViewport::RequestStatus::Error) {
             const DisplayRequestTarget target = providerPlaybackStartTarget(viewport);
-            clearCommandDiagnosticForAcceptedCommand(viewport, result);
+            ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
             const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
             applyProviderPlaybackStartTarget(viewport, target);
             viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
@@ -576,7 +564,7 @@ ViewportCommandResult ViewportController::play()
             return result;
         }
 
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         if (!preservePlaybackPosition) {
             seedPlaybackPosition(
                 viewport, [this](int frame) { return viewport.providerFrameStartPosition(frame); });
@@ -591,14 +579,14 @@ ViewportCommandResult ViewportController::play()
         if (viewport.providerTimedPlaybackCapabilityKnownFalse()) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
 
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Primary;
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
@@ -617,7 +605,7 @@ ViewportCommandResult ViewportController::play()
                   viewportRequestState(viewport).stopPlaybackWhenRequestReady)
             && viewportRequestState(viewport).playbackRole == ImageViewport::PageRole::Primary
             && viewportRequestState(viewport).playbackPosition >= 0;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Primary;
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Unsupported
@@ -658,7 +646,8 @@ ViewportCommandResult ViewportController::play()
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    ImageViewportInternal::CommandOutcome::markRejected(
+        viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
     return result;
 }
 
@@ -688,19 +677,21 @@ ViewportCommandResult ViewportController::playSecondaryBuiltIn()
         || viewportRequestState(viewport).secondaryActiveRequest.target.frame < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Secondary;
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
@@ -721,13 +712,15 @@ ViewportCommandResult ViewportController::playSecondaryProvider()
     if (!viewport.hasActiveRequest() || !currentIdentity) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -736,14 +729,14 @@ ViewportCommandResult ViewportController::playSecondaryProvider()
                 viewport.secondaryProviderTimedPlaybackCapability())) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
 
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Secondary;
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
         viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
@@ -757,20 +750,22 @@ ViewportCommandResult ViewportController::playSecondaryProvider()
     if (request.target.frame < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
 
     if (!state.secondaryProvider.timedMetadata || !state.secondaryProvider.timedPlaybackSupport) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     viewportRequestState(viewport).playbackRole = ImageViewport::PageRole::Secondary;
     viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
@@ -793,7 +788,8 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (role == ImageViewport::PageRole::Secondary && !hasSecondaryRole(viewport)) {
@@ -802,7 +798,7 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Stopped
         && viewportRequestState(viewport).playbackRole != role) {
         return result;
@@ -825,7 +821,8 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (role == ImageViewport::PageRole::Secondary && !hasSecondaryRole(viewport)) {
@@ -834,7 +831,7 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
-    clearCommandDiagnosticForAcceptedCommand(viewport, result);
+    ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Stopped
         && viewportRequestState(viewport).playbackRole != role) {
         return result;
@@ -905,19 +902,22 @@ ViewportCommandResult ViewportController::seek(int frame)
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (frame < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Invalid;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::InvalidRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -926,7 +926,7 @@ ViewportCommandResult ViewportController::seek(int frame)
             if (!viewportProviderState(viewport).frameSeekSupport) {
                 ViewportCommandResult result;
                 result.outcome = ImageViewport::CommandOutcome::Unsupported;
-                setCommandDiagnostic(
+                ImageViewportInternal::CommandOutcome::markRejected(
                     viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
                 return result;
             }
@@ -936,7 +936,7 @@ ViewportCommandResult ViewportController::seek(int frame)
             if (frame > maximumFrame) {
                 ViewportCommandResult result;
                 result.outcome = ImageViewport::CommandOutcome::Invalid;
-                setCommandDiagnostic(
+                ImageViewportInternal::CommandOutcome::markRejected(
                     viewport, result, ImageViewport::CommandReason::InvalidRequest);
                 return result;
             }
@@ -952,7 +952,7 @@ ViewportCommandResult ViewportController::seek(int frame)
             if (viewport.providerFrameSeekCapabilityKnownFalse()) {
                 ViewportCommandResult result;
                 result.outcome = ImageViewport::CommandOutcome::Unsupported;
-                setCommandDiagnostic(
+                ImageViewportInternal::CommandOutcome::markRejected(
                     viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
                 return result;
             }
@@ -962,7 +962,7 @@ ViewportCommandResult ViewportController::seek(int frame)
                 if (frame > maximumFrame) {
                     ViewportCommandResult result;
                     result.outcome = ImageViewport::CommandOutcome::Invalid;
-                    setCommandDiagnostic(
+                    ImageViewportInternal::CommandOutcome::markRejected(
                         viewport, result, ImageViewport::CommandReason::InvalidRequest);
                     return result;
                 }
@@ -977,7 +977,8 @@ ViewportCommandResult ViewportController::seek(int frame)
         if (frame >= viewport.sequenceFrameCount()) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
 
@@ -989,7 +990,8 @@ ViewportCommandResult ViewportController::seek(int frame)
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    ImageViewportInternal::CommandOutcome::markRejected(
+        viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
     return result;
 }
 
@@ -1029,7 +1031,8 @@ ViewportCommandResult ViewportController::seekSecondaryBuiltIn(
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
 
@@ -1070,19 +1073,22 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
     if (!viewport.hasActiveRequest() || !hasSecondaryProviderSequence(viewport)) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (frame < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Invalid;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::InvalidRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -1091,7 +1097,7 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
                                   bool dispatchNow) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
         const ImageViewportInternal::DisplayRequest primaryRequest
             = viewportRequestState(viewport).activeRequest;
@@ -1123,7 +1129,7 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
         if (!state.secondaryProvider.frameSeekSupport) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1133,7 +1139,8 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
         if (frame > maximumFrame) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
 
@@ -1151,7 +1158,7 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
         if (ImageViewportInternal::providerCapabilityKnownFalse(frameSeekCapability)) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1160,7 +1167,8 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
             && knownFacts.frameCount() >= 0 && frame >= knownFacts.frameCount()) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
 
@@ -1170,7 +1178,8 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    ImageViewportInternal::CommandOutcome::markRejected(
+        viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
     return result;
 }
 
@@ -1179,20 +1188,23 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
 
     if (milliseconds < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Invalid;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::InvalidRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -1201,7 +1213,7 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
         if (viewport.providerPositionSeekCapabilityKnownFalse()) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1217,7 +1229,7 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
         if (!viewportProviderState(viewport).positionSeekSupport) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1225,7 +1237,8 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
         if (frame < 0) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
 
@@ -1241,7 +1254,8 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
         if (frame < 0) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
 
@@ -1252,7 +1266,8 @@ ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    ImageViewportInternal::CommandOutcome::markRejected(
+        viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
     return result;
 }
 
@@ -1293,19 +1308,22 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
     if (!viewport.hasActiveRequest() || !hasSecondaryProviderSequence(viewport)) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::IgnoredNoRequest);
         return result;
     }
     if (milliseconds < 0) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Invalid;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::InvalidRequest);
         return result;
     }
     if (hasGenerationTerminalProviderFailure()) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Unsupported;
-        setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+        ImageViewportInternal::CommandOutcome::markRejected(
+            viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
         return result;
     }
 
@@ -1314,7 +1332,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
                                   bool dispatchNow) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Accepted;
-        clearCommandDiagnosticForAcceptedCommand(viewport, result);
+        ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
         const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
         const ImageViewportInternal::DisplayRequest primaryRequest
             = viewportRequestState(viewport).activeRequest;
@@ -1349,7 +1367,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
         if (ImageViewportInternal::providerCapabilityKnownFalse(positionSeekCapability)) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1358,7 +1376,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
             if (knownFacts.isStill()) {
                 ViewportCommandResult result;
                 result.outcome = ImageViewport::CommandOutcome::Unsupported;
-                setCommandDiagnostic(
+                ImageViewportInternal::CommandOutcome::markRejected(
                     viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
                 return result;
             }
@@ -1368,7 +1386,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
                     < 0) {
                 ViewportCommandResult result;
                 result.outcome = ImageViewport::CommandOutcome::Invalid;
-                setCommandDiagnostic(
+                ImageViewportInternal::CommandOutcome::markRejected(
                     viewport, result, ImageViewport::CommandReason::InvalidRequest);
                 return result;
             }
@@ -1383,7 +1401,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
         if (!state.secondaryProvider.positionSeekSupport) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Unsupported;
-            setCommandDiagnostic(
+            ImageViewportInternal::CommandOutcome::markRejected(
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
@@ -1392,7 +1410,8 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
         if (frame < 0) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
-            setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::InvalidRequest);
+            ImageViewportInternal::CommandOutcome::markRejected(
+                viewport, result, ImageViewport::CommandReason::InvalidRequest);
             return result;
         }
         const int frameStart = state.secondaryProvider.timingIntervals.frameStartPosition(frame);
@@ -1403,7 +1422,8 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
 
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Unsupported;
-    setCommandDiagnostic(viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
+    ImageViewportInternal::CommandOutcome::markRejected(
+        viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
     return result;
 }
 
