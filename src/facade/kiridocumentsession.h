@@ -226,6 +226,8 @@ public:
     Q_INVOKABLE QString requestNextActiveNavigationBoundaryText();
     Q_INVOKABLE KiriDocumentSession::ThumbnailDemandBucket activeNavigationThumbnailDemandBucket(
         int physicalMaxEdge) const;
+    Q_INVOKABLE bool beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
+    Q_INVOKABLE void finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
     Q_INVOKABLE bool reportActiveNavigationThumbnailDemand(int number, QUrl url,
         int physicalMaxEdge, KiriDocumentSession::ThumbnailDemandPriority priority,
         quint64 navigationGeneration);

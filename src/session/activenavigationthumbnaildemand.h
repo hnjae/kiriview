@@ -6,9 +6,9 @@
 
 #include "thumbnail/thumbnailbucket.h"
 
+#include <QHash>
 #include <QUrl>
 #include <QtGlobal>
-#include <vector>
 
 namespace kiriview {
 enum class ActiveNavigationThumbnailDemandPriority {
@@ -36,7 +36,7 @@ public:
     void reset();
 
 private:
-    std::vector<ActiveNavigationThumbnailDemand> m_acceptedDemands;
+    QHash<QString, ActiveNavigationThumbnailDemand> m_acceptedDemandsByIdentity;
 };
 }
 

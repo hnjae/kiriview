@@ -166,6 +166,14 @@ void ActiveNavigationThumbnailRuntime::setRows(std::vector<ActiveNavigationThumb
     ++m_navigationGeneration;
     m_demandTracker.reset();
     m_backgroundArmed = false;
+    m_demandWindowOpen = false;
+    m_demandWindowGeneration = 0;
+    m_demandWindowEpoch = 0;
+    m_demandWindowRows.clear();
+    m_previousDemandWindowRows.clear();
+    m_activeBackgroundRowIndex.reset();
+    m_rowIndexByDemandIdentity.clear();
+    m_rowIndexBySourceKey.clear();
     qCDebug(kiriviewThumbnailLog) << "Reset active navigation thumbnail rows generation"
                                   << m_navigationGeneration << "rowCount" << rows.size();
     m_rows.clear();
@@ -176,6 +184,7 @@ void ActiveNavigationThumbnailRuntime::setRows(std::vector<ActiveNavigationThumb
         state.sourceKey = sourceKeyForRow(state.row, m_navigationGeneration);
         m_rows.push_back(std::move(state));
     }
+    rebuildRowIndexes();
     publishRows();
 }
 
@@ -195,6 +204,34 @@ void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)
     if (changed) {
         publishRows();
     }
+}
+
+bool ActiveNavigationThumbnailRuntime::beginDemandWindow(quint64 navigationGeneration)
+{
+    if (navigationGeneration == 0 || navigationGeneration != m_navigationGeneration) {
+        return false;
+    }
+
+    m_demandWindowOpen = true;
+    m_demandWindowGeneration = navigationGeneration;
+    ++m_demandWindowEpoch;
+    m_previousDemandWindowRows = std::move(m_demandWindowRows);
+    m_demandWindowRows.clear();
+    m_demandTracker.reset();
+    cancelActiveBackgroundJob();
+    return true;
+}
+
+void ActiveNavigationThumbnailRuntime::finishDemandWindow(quint64 navigationGeneration)
+{
+    if (!m_demandWindowOpen || navigationGeneration != m_demandWindowGeneration) {
+        return;
+    }
+
+    expireDemandOutsideCurrentWindow();
+    m_demandWindowOpen = false;
+    m_demandWindowGeneration = 0;
+    maybeScheduleBackgroundWork();
 }
 
 bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
@@ -232,6 +269,7 @@ bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
     }
 
     RowState& state = m_rows.at(*rowIndex);
+    markDemandWindowRow(state);
     const ThumbnailSourceAdapterPlan sourcePlan
         = sourcePlanForDemand(state.sourceKey, bucket, priority);
     const AcceptedDemand demand {
@@ -259,7 +297,9 @@ bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
         if (state.activeJob.has_value()) {
             state.activeJob->demand = demand;
         }
-        maybeScheduleBackgroundWork();
+        if (!m_demandWindowOpen) {
+            maybeScheduleBackgroundWork();
+        }
         return true;
     }
 
@@ -290,7 +330,9 @@ bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
         qCDebug(kiriviewThumbnailLog) << "Thumbnail demand unsupported" << number << url;
     }
     publishResultAt(*rowIndex);
-    maybeScheduleBackgroundWork();
+    if (!m_demandWindowOpen) {
+        maybeScheduleBackgroundWork();
+    }
     return true;
 }
 
@@ -309,6 +351,9 @@ bool ActiveNavigationThumbnailRuntime::applyCompletion(
         return false;
     }
 
+    if (state.activeJob.has_value() && state.activeJob->kind == ThumbnailWorkKind::Background) {
+        m_activeBackgroundRowIndex.reset();
+    }
     state.activeJob.reset();
     if (completion.result.status != ActiveNavigationThumbnailResultStatus::Ready
         && hasUsableReadyImage(state)) {
@@ -437,30 +482,122 @@ ThumbnailImageRetentionPriority ActiveNavigationThumbnailRuntime::imageRetention
     return imageRetentionPriority(priority);
 }
 
+QString ActiveNavigationThumbnailRuntime::rowDemandIndexKey(
+    int number, const QUrl& url, quint64 navigationGeneration)
+{
+    const SourceKey sourceKey = sourceKeyForUrl(url);
+    if (number <= 0 || !sourceKey.valid || navigationGeneration == 0) {
+        return {};
+    }
+
+    return QStringLiteral("%1\x1f%2\x1f%3")
+        .arg(number)
+        .arg(sourceKey.identity)
+        .arg(navigationGeneration);
+}
+
+QString ActiveNavigationThumbnailRuntime::sourceKeyIndexKey(const ThumbnailSourceKey& sourceKey)
+{
+    if (sourceKey.rowIdentity.isEmpty() || sourceKey.navigationGeneration == 0) {
+        return {};
+    }
+
+    return QStringLiteral("%1\x1f%2")
+        .arg(sourceKey.rowIdentity)
+        .arg(sourceKey.navigationGeneration);
+}
+
 std::optional<std::size_t> ActiveNavigationThumbnailRuntime::rowIndexForIdentity(
     int number, const QUrl& url, quint64 navigationGeneration) const
 {
-    for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        const ThumbnailSourceKey& sourceKey = m_rows.at(row).sourceKey;
-        if (sourceKey.rowNumber == number && sourceKey.url == url
-            && sourceKey.navigationGeneration == navigationGeneration) {
-            return row;
-        }
+    const QString identity = rowDemandIndexKey(number, url, navigationGeneration);
+    if (identity.isEmpty()) {
+        return {};
     }
 
-    return {};
+    const auto row = m_rowIndexByDemandIdentity.constFind(identity);
+    if (row == m_rowIndexByDemandIdentity.cend()) {
+        return {};
+    }
+
+    return *row;
 }
 
 std::optional<std::size_t> ActiveNavigationThumbnailRuntime::rowIndexForSourceKey(
     const ThumbnailSourceKey& sourceKey) const
 {
+    const QString identity = sourceKeyIndexKey(sourceKey);
+    if (identity.isEmpty()) {
+        return {};
+    }
+
+    const auto row = m_rowIndexBySourceKey.constFind(identity);
+    if (row == m_rowIndexBySourceKey.cend()) {
+        return {};
+    }
+
+    return *row;
+}
+
+void ActiveNavigationThumbnailRuntime::rebuildRowIndexes()
+{
+    m_rowIndexByDemandIdentity.clear();
+    m_rowIndexBySourceKey.clear();
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        if (sameFreshThumbnailSourceKey(m_rows.at(row).sourceKey, sourceKey)) {
-            return row;
+        const RowState& state = m_rows.at(row);
+        const QString rowIdentity
+            = rowDemandIndexKey(state.row.number, state.row.url, m_navigationGeneration);
+        if (!rowIdentity.isEmpty()) {
+            m_rowIndexByDemandIdentity.insert(rowIdentity, row);
+        }
+
+        const QString sourceIdentity = sourceKeyIndexKey(state.sourceKey);
+        if (!sourceIdentity.isEmpty()) {
+            m_rowIndexBySourceKey.insert(sourceIdentity, row);
+        }
+    }
+}
+
+void ActiveNavigationThumbnailRuntime::markDemandWindowRow(RowState& state)
+{
+    if (m_demandWindowEpoch == 0) {
+        ++m_demandWindowEpoch;
+    }
+
+    if (state.demandWindowEpoch == m_demandWindowEpoch) {
+        return;
+    }
+
+    state.demandWindowEpoch = m_demandWindowEpoch;
+    const std::optional<std::size_t> rowIndex = rowIndexForSourceKey(state.sourceKey);
+    if (rowIndex.has_value()) {
+        m_demandWindowRows.push_back(*rowIndex);
+    }
+}
+
+void ActiveNavigationThumbnailRuntime::expireDemandOutsideCurrentWindow()
+{
+    for (std::size_t rowIndex : m_previousDemandWindowRows) {
+        if (rowIndex >= m_rows.size()) {
+            continue;
+        }
+
+        RowState& state = m_rows.at(rowIndex);
+        if (state.demandWindowEpoch == m_demandWindowEpoch) {
+            continue;
+        }
+
+        if (state.activeJob.has_value()) {
+            cancelActiveJob(state);
+        }
+        state.acceptedDemand.reset();
+        if (m_imageStore != nullptr && !state.imageStoreId.isEmpty()) {
+            m_imageStore->updatePriority(
+                state.imageStoreId, ThumbnailImageRetentionPriority::Background);
         }
     }
 
-    return {};
+    m_previousDemandWindowRows.clear();
 }
 
 void ActiveNavigationThumbnailRuntime::cancelActiveJob(RowState& state)
@@ -474,18 +611,27 @@ void ActiveNavigationThumbnailRuntime::cancelActiveJob(RowState& state)
                                   << state.sourceKey.rowNumber << "bucket"
                                   << static_cast<int>(state.activeJob->demand.bucket);
     m_canceledJobIds.push_back(state.activeJob->id);
+    if (state.activeJob->kind == ThumbnailWorkKind::Background) {
+        m_activeBackgroundRowIndex.reset();
+    }
     state.activeJob->job.cancel();
     state.activeJob.reset();
 }
 
 void ActiveNavigationThumbnailRuntime::cancelActiveBackgroundJob()
 {
-    for (RowState& state : m_rows) {
-        if (state.activeJob.has_value() && state.activeJob->kind == ThumbnailWorkKind::Background) {
-            cancelActiveJob(state);
-            return;
-        }
+    if (!m_activeBackgroundRowIndex.has_value() || *m_activeBackgroundRowIndex >= m_rows.size()) {
+        m_activeBackgroundRowIndex.reset();
+        return;
     }
+
+    RowState& state = m_rows.at(*m_activeBackgroundRowIndex);
+    if (state.activeJob.has_value() && state.activeJob->kind == ThumbnailWorkKind::Background) {
+        cancelActiveJob(state);
+        return;
+    }
+
+    m_activeBackgroundRowIndex.reset();
 }
 
 void ActiveNavigationThumbnailRuntime::cancelAllActiveJobs()
@@ -564,6 +710,7 @@ void ActiveNavigationThumbnailRuntime::startGenerationJob(
             ActiveNavigationThumbnailFailureKind::GenerationProviderUnavailable, {});
         state.activeJob.reset();
         if (kind == ThumbnailWorkKind::Background) {
+            m_activeBackgroundRowIndex.reset();
             markBackgroundBucketCompleted(state, demand.bucket);
             maybeScheduleBackgroundWork();
         } else if (hasUsableReadyImage(state)) {
@@ -638,7 +785,8 @@ bool ActiveNavigationThumbnailRuntime::activeJobMatches(const RowState& state, q
 bool ActiveNavigationThumbnailRuntime::backgroundBucketCompleted(
     const RowState& state, ActiveNavigationThumbnailDemandBucket bucket) const
 {
-    if (state.acceptedDemand.has_value() && state.acceptedDemand->bucket == bucket) {
+    if (state.acceptedDemand.has_value()
+        && static_cast<int>(state.acceptedDemand->bucket) >= static_cast<int>(bucket)) {
         return true;
     }
 
@@ -663,14 +811,21 @@ void ActiveNavigationThumbnailRuntime::maybeScheduleBackgroundWork()
         return;
     }
 
-    for (const RowState& state : m_rows) {
-        if (state.activeJob.has_value()) {
-            return;
-        }
+    if (m_activeBackgroundRowIndex.has_value()) {
+        return;
     }
 
     for (ActiveNavigationThumbnailDemandBucket bucket : backgroundFillBuckets()) {
-        for (RowState& state : m_rows) {
+        for (std::size_t rowIndex : m_demandWindowRows) {
+            if (rowIndex >= m_rows.size()) {
+                continue;
+            }
+
+            RowState& state = m_rows.at(rowIndex);
+            if (state.demandWindowEpoch != m_demandWindowEpoch || state.activeJob.has_value()) {
+                continue;
+            }
+
             if (backgroundBucketCompleted(state, bucket)
                 || (state.acceptedDemand.has_value()
                     && !supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan))) {
@@ -723,6 +878,7 @@ void ActiveNavigationThumbnailRuntime::startBackgroundWork(RowState& state,
         demand,
         {},
     };
+    m_activeBackgroundRowIndex = rowIndexForSourceKey(state.sourceKey);
     if (usesCacheLookup(demand.sourcePlan)) {
         startLookupJob(state, demand, ThumbnailWorkKind::Background);
     } else {
@@ -761,6 +917,9 @@ void ActiveNavigationThumbnailRuntime::finishLookup(quint64 jobId,
     switch (lookupResult.status) {
     case ThumbnailCacheLookupStatus::Ready: {
         state.activeJob.reset();
+        if (kind == ThumbnailWorkKind::Background) {
+            m_activeBackgroundRowIndex.reset();
+        }
         if (kind == ThumbnailWorkKind::Background && hasUsableReadyImage(state)) {
             markBackgroundBucketCompleted(state, bucket);
             maybeScheduleBackgroundWork();
@@ -821,6 +980,9 @@ void ActiveNavigationThumbnailRuntime::finishLookup(quint64 jobId,
             lookupResult.errorString);
         state.activeJob.reset();
         if (kind == ThumbnailWorkKind::Background) {
+            m_activeBackgroundRowIndex.reset();
+        }
+        if (kind == ThumbnailWorkKind::Background) {
             markBackgroundBucketCompleted(state, bucket);
             maybeScheduleBackgroundWork();
         } else if (hasUsableReadyImage(state)) {
@@ -863,6 +1025,9 @@ void ActiveNavigationThumbnailRuntime::finishGeneration(quint64 jobId,
     const ThumbnailWorkKind kind = state.activeJob->kind;
     const AcceptedDemand demand = state.activeJob->demand;
     state.activeJob.reset();
+    if (kind == ThumbnailWorkKind::Background) {
+        m_activeBackgroundRowIndex.reset();
+    }
     qCDebug(kiriviewThumbnailLog) << "Thumbnail generation finished" << jobId << "kind"
                                   << static_cast<int>(kind) << "number" << sourceKey.rowNumber
                                   << "bucket" << static_cast<int>(bucket) << "status"

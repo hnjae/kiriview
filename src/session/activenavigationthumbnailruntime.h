@@ -15,6 +15,7 @@
 
 #include <QAbstractListModel>
 #include <QByteArray>
+#include <QHash>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
@@ -119,6 +120,8 @@ public:
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
+    bool beginDemandWindow(quint64 navigationGeneration);
+    void finishDemandWindow(quint64 navigationGeneration);
     bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
     bool applyCompletion(const ActiveNavigationThumbnailCompletion& completion);
@@ -161,6 +164,7 @@ private:
         std::optional<AcceptedDemand> acceptedDemand;
         std::optional<ActiveJobSlot> activeJob;
         std::vector<ActiveNavigationThumbnailDemandBucket> completedBackgroundBuckets;
+        quint64 demandWindowEpoch = 0;
     };
 
     static bool sameRowIdentity(
@@ -178,9 +182,14 @@ private:
     static ThumbnailImageRetentionPriority imageRetentionPriority(
         ThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority);
 
+    static QString rowDemandIndexKey(int number, const QUrl& url, quint64 navigationGeneration);
+    static QString sourceKeyIndexKey(const ThumbnailSourceKey& sourceKey);
     std::optional<std::size_t> rowIndexForIdentity(
         int number, const QUrl& url, quint64 navigationGeneration) const;
     std::optional<std::size_t> rowIndexForSourceKey(const ThumbnailSourceKey& sourceKey) const;
+    void rebuildRowIndexes();
+    void markDemandWindowRow(RowState& state);
+    void expireDemandOutsideCurrentWindow();
     void cancelActiveJob(RowState& state);
     void cancelActiveBackgroundJob();
     void cancelAllActiveJobs();
@@ -225,6 +234,14 @@ private:
     std::vector<quint64> m_canceledJobIds;
     std::vector<ActiveNavigationThumbnailFailureDiagnostic> m_failureDiagnostics;
     bool m_backgroundArmed = false;
+    bool m_demandWindowOpen = false;
+    quint64 m_demandWindowGeneration = 0;
+    quint64 m_demandWindowEpoch = 0;
+    std::vector<std::size_t> m_demandWindowRows;
+    std::vector<std::size_t> m_previousDemandWindowRows;
+    std::optional<std::size_t> m_activeBackgroundRowIndex;
+    QHash<QString, std::size_t> m_rowIndexByDemandIdentity;
+    QHash<QString, std::size_t> m_rowIndexBySourceKey;
 };
 }
 

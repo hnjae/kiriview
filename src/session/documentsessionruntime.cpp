@@ -466,6 +466,18 @@ ActiveNavigationThumbnailDemandBucket DocumentSessionRuntime::activeNavigationTh
     return m_activeNavigationThumbnailRuntime.demandBucket(physicalMaxEdge);
 }
 
+bool DocumentSessionRuntime::beginActiveNavigationThumbnailDemandWindow(
+    quint64 navigationGeneration)
+{
+    return m_activeNavigationThumbnailRuntime.beginDemandWindow(navigationGeneration);
+}
+
+void DocumentSessionRuntime::finishActiveNavigationThumbnailDemandWindow(
+    quint64 navigationGeneration)
+{
+    m_activeNavigationThumbnailRuntime.finishDemandWindow(navigationGeneration);
+}
+
 bool DocumentSessionRuntime::reportActiveNavigationThumbnailDemand(int number, const QUrl& url,
     int physicalMaxEdge, ActiveNavigationThumbnailDemandPriority priority,
     quint64 navigationGeneration)

@@ -25,6 +25,7 @@ Controls.Pane {
     onVisibleChanged: {
         if (visible) {
             thumbnailStrip.containCurrentItem(true);
+            thumbnailStrip.scheduleThumbnailDemandWindow();
         } else {
             thumbnailStrip.automaticScrollAnimationEnabled = false;
         }
@@ -69,6 +70,7 @@ Controls.Pane {
             readonly property int userScrollSuppressionIntervalMs: 700
             property bool automaticScrollAnimationEnabled: false
             property bool automaticScrollAnimationRunning: false
+            property bool demandWindowReportPending: false
             property double lastCurrentIndexChangeTimestamp: 0
             property real preferredZoneSnapPosition: 0
             property double userScrollSuppressionUntilTimestamp: 0
@@ -229,14 +231,68 @@ Controls.Pane {
                 return Date.now() < userScrollSuppressionUntilTimestamp;
             }
 
-            onCountChanged: containCurrentItem(true)
-            onCurrentIndexChanged: containCurrentItemForNavigationIntent(currentIndexChangedRapidly())
+            function thumbnailDelegates() {
+                const delegates = [];
+                for (let index = 0; index < contentItem.children.length; ++index) {
+                    const child = contentItem.children[index];
+                    if (child.objectName === "thumbnailStripItem") {
+                        delegates.push(child);
+                    }
+                }
+                return delegates;
+            }
+
+            function reportThumbnailDemandWindow() {
+                demandWindowReportPending = false;
+                if (!root.visible || count <= 0) {
+                    return;
+                }
+
+                const delegates = thumbnailDelegates();
+                let navigationGeneration = 0;
+                for (let index = 0; index < delegates.length; ++index) {
+                    if (delegates[index].navigationGeneration > 0) {
+                        navigationGeneration = delegates[index].navigationGeneration;
+                        break;
+                    }
+                }
+                if (navigationGeneration <= 0 || !root.documentSession.beginActiveNavigationThumbnailDemandWindow(navigationGeneration)) {
+                    return;
+                }
+
+                for (let index = 0; index < delegates.length; ++index) {
+                    delegates[index].reportThumbnailDemand();
+                }
+                root.documentSession.finishActiveNavigationThumbnailDemandWindow(navigationGeneration);
+            }
+
+            function scheduleThumbnailDemandWindow() {
+                if (demandWindowReportPending) {
+                    return;
+                }
+
+                demandWindowReportPending = true;
+                Qt.callLater(reportThumbnailDemandWindow);
+            }
+
+            onCountChanged: {
+                containCurrentItem(true);
+                scheduleThumbnailDemandWindow();
+            }
+            onCurrentIndexChanged: {
+                containCurrentItemForNavigationIntent(currentIndexChangedRapidly());
+                scheduleThumbnailDemandWindow();
+            }
             onDraggingChanged: {
                 if (dragging) {
                     noteUserThumbnailScroll();
                 }
             }
-            onWidthChanged: containCurrentItem(true)
+            onMovementEnded: scheduleThumbnailDemandWindow()
+            onWidthChanged: {
+                containCurrentItem(true);
+                scheduleThumbnailDemandWindow();
+            }
 
             Behavior on contentX {
                 enabled: thumbnailStrip.automaticScrollAnimationEnabled
@@ -329,10 +385,10 @@ Controls.Pane {
                     root.documentSession.reportActiveNavigationThumbnailDemand(number, url, physicalMaxEdge, priority, navigationGeneration);
                 }
 
-                Component.onCompleted: reportThumbnailDemand()
-                onNavigationGenerationChanged: reportThumbnailDemand()
-                onThumbnailDevicePixelRatioChanged: reportThumbnailDemand()
-                onXChanged: reportThumbnailDemand()
+                Component.onCompleted: thumbnailStrip.scheduleThumbnailDemandWindow()
+                onNavigationGenerationChanged: thumbnailStrip.scheduleThumbnailDemandWindow()
+                onThumbnailDevicePixelRatioChanged: thumbnailStrip.scheduleThumbnailDemandWindow()
+                onXChanged: thumbnailStrip.scheduleThumbnailDemandWindow()
 
                 background: Item {
                     Rectangle {
@@ -363,8 +419,8 @@ Controls.Pane {
                         Layout.fillWidth: true
                         Layout.minimumHeight: Kirigami.Units.iconSizes.large
 
-                        onHeightChanged: thumbnailDelegate.reportThumbnailDemand()
-                        onWidthChanged: thumbnailDelegate.reportThumbnailDemand()
+                        onHeightChanged: thumbnailStrip.scheduleThumbnailDemandWindow()
+                        onWidthChanged: thumbnailStrip.scheduleThumbnailDemandWindow()
 
                         Image {
                             anchors.fill: parent

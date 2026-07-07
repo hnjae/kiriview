@@ -92,6 +92,16 @@ void DocumentSessionThumbnailRuntime::setCurrentNumber(int currentNumber)
     m_runtime.setCurrentNumber(currentNumber);
 }
 
+bool DocumentSessionThumbnailRuntime::beginDemandWindow(quint64 navigationGeneration)
+{
+    return m_runtime.beginDemandWindow(navigationGeneration);
+}
+
+void DocumentSessionThumbnailRuntime::finishDemandWindow(quint64 navigationGeneration)
+{
+    m_runtime.finishDemandWindow(navigationGeneration);
+}
+
 bool DocumentSessionThumbnailRuntime::reportDemand(int number, const QUrl& url, int physicalMaxEdge,
     ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration)
 {

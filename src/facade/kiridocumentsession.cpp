@@ -669,6 +669,16 @@ KiriDocumentSession::activeNavigationThumbnailDemandBucket(int physicalMaxEdge) 
         m_runtime->activeNavigationThumbnailDemandBucket(physicalMaxEdge));
 }
 
+bool KiriDocumentSession::beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration)
+{
+    return m_runtime->beginActiveNavigationThumbnailDemandWindow(navigationGeneration);
+}
+
+void KiriDocumentSession::finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration)
+{
+    m_runtime->finishActiveNavigationThumbnailDemandWindow(navigationGeneration);
+}
+
 bool KiriDocumentSession::reportActiveNavigationThumbnailDemand(int number, QUrl url,
     int physicalMaxEdge, ThumbnailDemandPriority priority, quint64 navigationGeneration)
 {

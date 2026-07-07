@@ -110,6 +110,8 @@ public:
     QAbstractListModel* activeNavigationThumbnailModel() const;
     ActiveNavigationThumbnailDemandBucket activeNavigationThumbnailDemandBucket(
         int physicalMaxEdge) const;
+    bool beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
+    void finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
     bool reportActiveNavigationThumbnailDemand(int number, const QUrl& url, int physicalMaxEdge,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
     QString nextVideoOutputSurfaceClaimToken();

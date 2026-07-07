@@ -3,6 +3,8 @@
 
 #include "activenavigationthumbnaildemand.h"
 
+#include <QString>
+
 namespace {
 bool sameDemandState(const kiriview::ActiveNavigationThumbnailDemand& left,
     const kiriview::ActiveNavigationThumbnailDemand& right)
@@ -12,11 +14,12 @@ bool sameDemandState(const kiriview::ActiveNavigationThumbnailDemand& left,
         && left.navigationGeneration == right.navigationGeneration;
 }
 
-bool sameDemandIdentity(const kiriview::ActiveNavigationThumbnailDemand& left,
-    const kiriview::ActiveNavigationThumbnailDemand& right)
+QString demandIdentity(const kiriview::ActiveNavigationThumbnailDemand& demand)
 {
-    return left.number == right.number && left.url == right.url
-        && left.navigationGeneration == right.navigationGeneration;
+    return QStringLiteral("%1\x1f%2\x1f%3")
+        .arg(demand.number)
+        .arg(demand.url.toString(QUrl::FullyEncoded))
+        .arg(demand.navigationGeneration);
 }
 }
 
@@ -48,22 +51,20 @@ bool ActiveNavigationThumbnailDemandTracker::record(const ActiveNavigationThumbn
         return false;
     }
 
-    for (ActiveNavigationThumbnailDemand& acceptedDemand : m_acceptedDemands) {
-        if (!sameDemandIdentity(acceptedDemand, demand)) {
-            continue;
-        }
-
-        if (sameDemandState(acceptedDemand, demand)) {
+    const QString identity = demandIdentity(demand);
+    auto acceptedDemand = m_acceptedDemandsByIdentity.constFind(identity);
+    if (acceptedDemand != m_acceptedDemandsByIdentity.cend()) {
+        if (sameDemandState(acceptedDemand.value(), demand)) {
             return false;
         }
 
-        acceptedDemand = demand;
+        m_acceptedDemandsByIdentity.insert(identity, demand);
         return true;
     }
 
-    m_acceptedDemands.push_back(demand);
+    m_acceptedDemandsByIdentity.insert(identity, demand);
     return true;
 }
 
-void ActiveNavigationThumbnailDemandTracker::reset() { m_acceptedDemands.clear(); }
+void ActiveNavigationThumbnailDemandTracker::reset() { m_acceptedDemandsByIdentity.clear(); }
 }
