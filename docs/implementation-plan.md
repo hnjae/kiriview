@@ -572,6 +572,8 @@ Finding 4.
 
 ### Milestone 7: Playback Role-Parametric Timing And Advancement
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Migrate playback timer interval, advancement, and stop restoration away from duplicated primary/secondary built-in/provider branches.
@@ -604,12 +606,21 @@ Finding 4.
 
 #### Tasks
 
-- [ ] Convert playback direct secondary-field and provider/built-in branch inventory into a structural allowlist.
-- [ ] Migrate playback timer interval logic to role-parametric timing access.
-- [ ] Migrate playback advancement paths to role-parametric request and timing helpers.
-- [ ] Migrate stop restoration paths while preserving explicit seek and latest non-playback behavior.
-- [ ] Remove secondary-specific private playback controller methods after their call sites use role-parametric replacements.
-- [ ] Add or update shared primary/secondary playback tests.
+- [x] Convert playback direct secondary-field and provider/built-in branch inventory into a structural allowlist.
+- [x] Migrate playback timer interval logic to role-parametric timing access.
+- [x] Migrate playback advancement paths to role-parametric request and timing helpers.
+- [x] Migrate stop restoration paths while preserving explicit seek and latest non-playback behavior.
+- [x] Remove secondary-specific private playback controller methods after their call sites use role-parametric replacements.
+- [x] Run shared primary/secondary playback, provider playback, lifecycle, structural, and full-suite verification.
+
+#### Completion evidence
+
+- Durable architecture intent for playback timing, advancement, and stop restoration role-state access was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::playbackRoleStateBoundary`, which fails on secondary-specific playback play helpers and direct secondary timing/request/provider access in guarded playback sections.
+- Added role-parametric timing access over provider runtime metadata and built-in sequence-source timing facts, then migrated playback timer interval and advancement to consume those timing slices by `PageRole`.
+- Migrated secondary stop restoration to use role-state request/provider access while preserving latest non-playback restoration and spread readiness checks.
+- Removed the private `playSecondaryBuiltIn` and `playSecondaryProvider` controller methods; secondary play now routes through role-parametric local helpers and role transport routing.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_provider_lifecycle' --output-on-failure`, `ctest --test-dir build -R 'viewportcontroller_playback|imageviewport_provider_playback|imageviewport_timed|structural::playbackRoleStateBoundary|structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

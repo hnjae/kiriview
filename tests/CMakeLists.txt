@@ -135,6 +135,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/render_role_state_boundary.cmake)
 
 add_test(
+    NAME structural::playbackRoleStateBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/playback_role_state_boundary.cmake)
+
+add_test(
     NAME structural::refactorBaselineInventory
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}

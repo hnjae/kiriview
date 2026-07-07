@@ -658,8 +658,6 @@ public:
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult play(ImageViewport::PageRole role);
-    ViewportCommandResult playSecondaryBuiltIn();
-    ViewportCommandResult playSecondaryProvider();
     ViewportCommandResult pause();
     ViewportCommandResult pause(ImageViewport::PageRole role);
     ViewportCommandResult stop();

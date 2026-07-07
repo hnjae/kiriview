@@ -49,6 +49,26 @@ struct ConstViewportDisplayRoleState
     const ImageViewportInternal::PreparedPayload& pendingPayload;
 };
 
+struct ViewportPlaybackRoleTiming
+{
+    bool valid = false;
+    bool provider = false;
+    int frameCount = -1;
+    int totalDuration = -1;
+    TimingIntervals timingIntervals;
+    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
+
+    int frameStartPosition(int frame) const
+    {
+        return valid ? timingIntervals.frameStartPosition(frame) : -1;
+    }
+
+    int frameIndexForPosition(int position) const
+    {
+        return valid ? timingIntervals.frameIndexForPosition(position) : -1;
+    }
+};
+
 ImageViewportInternal::DisplayState& viewportDisplayState(ViewportControllerPort viewport)
 {
     return viewport.displayState();
@@ -89,6 +109,20 @@ const QPointer<ImageSequence>& sequenceForRole(
 {
     return role == ImageViewport::PageRole::Secondary ? request.secondarySequence
                                                       : request.sequence;
+}
+
+ImageViewportInternal::ImageSequenceSource& sequenceSourceForRole(
+    ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondarySequenceSource
+                                                      : request.sequenceSource;
+}
+
+const ImageViewportInternal::ImageSequenceSource& sequenceSourceForRole(
+    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondarySequenceSource
+                                                      : request.sequenceSource;
 }
 
 ImageViewportInternal::DisplayRequest& activeRequestForRole(
@@ -360,6 +394,21 @@ ViewportCommandResult commandResultWithSecondaryTransport(ViewportCommandResult 
     result.secondaryProviderFrameTransport = result.providerFrameTransport;
     result.providerFrameTransport = {};
     return result;
+}
+
+ViewportCommandResult commandResultWithRoleTransport(
+    ImageViewport::PageRole role, ViewportCommandResult result)
+{
+    return role == ImageViewport::PageRole::Secondary ? commandResultWithSecondaryTransport(result)
+                                                      : result;
+}
+
+ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapabilityForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary
+        ? viewport.secondaryProviderTimedPlaybackCapability()
+        : viewport.providerTimedPlaybackCapability();
 }
 
 struct RequestStatusSnapshot
@@ -680,12 +729,47 @@ bool hasSecondaryProviderSequence(ViewportControllerPort& viewport)
         && viewportRequestState(viewport).secondarySequenceIsProvider;
 }
 
-bool hasProviderSequenceForRole(ViewportControllerPort& viewport, ImageViewport::PageRole role)
+bool hasProviderSequenceForRole(ViewportControllerPort viewport, ImageViewport::PageRole role)
 {
     return role == ImageViewport::PageRole::Primary
         ? viewport.hasProviderSequence()
         : (sequenceForRole(viewportRequestState(viewport), role)
               && viewportRequestState(viewport).secondarySequenceIsProvider);
+}
+
+bool hasTimedBuiltInSequenceForRole(ViewportControllerPort viewport, ImageViewport::PageRole role)
+{
+    if (hasProviderSequenceForRole(viewport, role)) {
+        return false;
+    }
+    const ImageViewportInternal::ImageSequenceSource& source
+        = sequenceSourceForRole(viewportRequestState(viewport), role);
+    return source.sequence && source.facts.timed && source.facts.timingIntervals.isValid();
+}
+
+ViewportPlaybackRoleTiming playbackTimingForRole(
+    ViewportControllerPort viewport, const ViewportControllerState& state,
+    ImageViewport::PageRole role)
+{
+    if (hasProviderSequenceForRole(viewport, role)) {
+        const ImageViewportInternal::ProviderGenerationState& provider
+            = providerRoleStateFor(state, role).provider;
+        if (!provider.metadataReady || !provider.timedMetadata) {
+            return {};
+        }
+        return { true, true, provider.timingIntervals.frameCount(),
+            provider.timingIntervals.totalDuration(), provider.timingIntervals,
+            provider.authoredAnimationFacts };
+    }
+
+    if (!hasTimedBuiltInSequenceForRole(viewport, role)) {
+        return {};
+    }
+    const ImageViewportInternal::ImageSequenceSource& source
+        = sequenceSourceForRole(viewportRequestState(viewport), role);
+    return { true, false, source.facts.timingIntervals.frameCount(),
+        source.facts.timingIntervals.totalDuration(), source.facts.timingIntervals,
+        source.facts.authoredAnimationFacts };
 }
 
 bool hasSecondarySequence(ViewportControllerPort& viewport)
@@ -759,6 +843,37 @@ DisplayRequestTarget pendingProviderPlaybackTarget()
 {
     return DisplayRequestTarget { -1, -1,
         ImageViewportInternal::ProviderRequestTargetKind::Playback };
+}
+
+void applyPendingProviderPlaybackTargetForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role, DisplayRequestTarget target)
+{
+    ImageViewportInternal::RequestState& request = viewportRequestState(viewport);
+    ImageViewportInternal::DisplayRequest& activeRequest = activeRequestForRole(request, role);
+    if (role == ImageViewport::PageRole::Primary) {
+        request.providerPlaybackStartPending = true;
+        activeRequest.target.frame = target.frame;
+        activeRequest.target.position = target.position;
+        activeRequest.resolvedFrame = { -1, -1 };
+        request.playbackPosition = target.position;
+        activeRequest.target.providerTargetKind = target.providerTargetKind;
+        return;
+    }
+
+    activeRequest.target = target;
+    activeRequest.resolvedFrame = { -1, -1 };
+    activeRequest.providerFrameToken = {};
+    request.playbackPosition = target.position;
+}
+
+void setPlaybackProviderFrameTransportForRole(ViewportPlaybackAdvanceResult& result,
+    ImageViewport::PageRole role, ViewportProviderFrameTransportEffect transport)
+{
+    if (role == ImageViewport::PageRole::Secondary) {
+        result.secondaryProviderFrameTransport = transport;
+        return;
+    }
+    result.providerFrameTransport = transport;
 }
 
 ImageViewport::PlaybackPhase playbackPhaseForCurrentRequest(ViewportControllerPort& viewport)
