@@ -2,14 +2,11 @@
 
 #include "imageviewport.h"
 #include "imageviewportdiagnostics_p.h"
+#include "imageviewportplaybackscheduler_p.h"
 #include "imageviewportproviderhost_p.h"
 #include "imageviewportrenderhost_p.h"
 #include "imageviewportstate_p.h"
-#include "playbackclock_p.h"
 #include "viewportcontroller_p.h"
-
-#include <QtCore/QElapsedTimer>
-#include <QtCore/QTimer>
 
 class ImageViewportPrivate : public ViewportControllerContext
 {
@@ -230,11 +227,6 @@ public:
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
     void incrementDisplayRevision();
     void incrementRequestRevision();
-    void syncPlaybackTimer();
-    void stopPlaybackTimer();
-    void handlePlaybackTimer();
-    int takePlaybackTimerElapsed();
-    void flushPlaybackTimerElapsed();
     void advancePlayback(int elapsedMilliseconds);
     bool hasActiveRequest() const override;
     bool hasReadyDisplay() const override;
@@ -270,10 +262,8 @@ public:
 
     ImageViewport* q = nullptr;
     ViewportController controller;
+    ImageViewportPlaybackScheduler playbackScheduler;
     ImageViewportProviderHost providerHost;
     ImageViewportRenderHost renderHost;
     ImageViewportInternal::InternalDiagnostics internalDiagnostics;
-    QTimer playbackTimer;
-    QElapsedTimer playbackClockTimebase;
-    ImageViewportInternal::PlaybackClock playbackClock;
 };

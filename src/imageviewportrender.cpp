@@ -60,7 +60,7 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
             { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause });
         viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
-            viewport.syncPlaybackTimer();
+            viewport.playbackScheduler.sync();
         }
         if (fallbackNode && viewport.displayStatus() != ImageViewport::DisplayStatus::Empty) {
             return fallbackNode;
@@ -79,7 +79,7 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
             { render.preparedPayload, rolePayloads }, imagePresent, synchronization);
         viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
-            viewport.syncPlaybackTimer();
+            viewport.playbackScheduler.sync();
         }
     }
     return render.node;
@@ -97,6 +97,6 @@ void ImageViewportRenderHost::geometryChanged(const QRectF& newGeometry, const Q
         = viewport.controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
     viewport.applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+        viewport.playbackScheduler.sync();
     }
 }

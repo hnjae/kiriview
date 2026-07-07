@@ -3,17 +3,15 @@
 ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
     , controller(*this)
+    , playbackScheduler(*this)
     , providerHost(*this)
     , renderHost(*this)
 {
-    playbackClockTimebase.start();
-    playbackTimer.setSingleShot(true);
-    QObject::connect(&playbackTimer, &QTimer::timeout, q, [this]() { handlePlaybackTimer(); });
 }
 
 ImageViewportPrivate::~ImageViewportPrivate()
 {
-    stopPlaybackTimer();
+    playbackScheduler.stop();
     providerHost.closeActiveSessions();
 }
 

@@ -159,6 +159,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/render_host_boundary.cmake)
 
 add_test(
+    NAME structural::playbackSchedulerBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/playback_scheduler_boundary.cmake)
+
+add_test(
     NAME structural::refactorBaselineInventory
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}

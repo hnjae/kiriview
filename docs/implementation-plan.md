@@ -844,6 +844,8 @@ Finding 7.
 
 ### Milestone 11: Playback Scheduler Extraction
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Extract playback timer wiring from `ImageViewportPrivate` into a narrow scheduler object.
@@ -877,10 +879,18 @@ Finding 7.
 
 #### Tasks
 
-- [ ] Define the playback scheduler ownership boundary and constructor dependencies.
-- [ ] Move `QTimer`, elapsed timebase, and playback timer callbacks out of `ImageViewportPrivate`.
-- [ ] Keep the scheduler as an external-effect adapter; it must not own playback phase, request identity, or target selection.
-- [ ] Add structural verification that playback timer state is not stored alongside provider bridge state in `ImageViewportPrivate`.
+- [x] Define the playback scheduler ownership boundary and constructor dependencies.
+- [x] Move `QTimer`, elapsed timebase, and playback timer callbacks out of `ImageViewportPrivate`.
+- [x] Keep the scheduler as an external-effect adapter; it must not own playback phase, request identity, or target selection.
+- [x] Add structural verification that playback timer state is not stored alongside provider bridge state in `ImageViewportPrivate`.
+
+#### Completion evidence
+
+- Durable architecture intent for the item-side playback scheduler was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::playbackSchedulerBoundary`, which fails if `ImageViewportPrivate` stores playback timer, elapsed timebase, or playback clock state directly, or if direct playback timer entry points remain on the private item.
+- Introduced `ImageViewportPlaybackScheduler` as the private owner of `QTimer`, elapsed timebase, `PlaybackClock`, timeout callbacks, elapsed-time flush, and timer synchronization.
+- Playback decisions remain controller-owned: the scheduler asks the controller for the next timer interval and calls the item boundary to advance playback with elapsed milliseconds.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'playback_clock|viewportcontroller_playback|imageviewport_provider_playback|structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

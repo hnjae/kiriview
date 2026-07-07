@@ -25,46 +25,6 @@ void ImageViewportPrivate::incrementRequestRevision()
     emit q->requestRevisionChanged();
 }
 
-void ImageViewportPrivate::syncPlaybackTimer()
-{
-    const int interval = controller.playbackTimerInterval();
-    if (interval <= 0) {
-        stopPlaybackTimer();
-        return;
-    }
-
-    playbackClock.restart(playbackClockTimebase.elapsed());
-    playbackTimer.start(interval);
-}
-
-void ImageViewportPrivate::stopPlaybackTimer()
-{
-    playbackTimer.stop();
-    playbackClock.invalidate();
-}
-
-void ImageViewportPrivate::handlePlaybackTimer()
-{
-    advancePlayback(takePlaybackTimerElapsed());
-    syncPlaybackTimer();
-}
-
-int ImageViewportPrivate::takePlaybackTimerElapsed()
-{
-    const int elapsedMilliseconds = playbackClock.takeElapsed(playbackClockTimebase.elapsed());
-    playbackTimer.stop();
-    return elapsedMilliseconds;
-}
-
-void ImageViewportPrivate::flushPlaybackTimerElapsed()
-{
-    if (!playbackClock.isValid()) {
-        return;
-    }
-
-    advancePlayback(takePlaybackTimerElapsed());
-}
-
 bool ImageViewportPrivate::hasActiveRequest() const
 {
     return controller.requestState().status != RequestStatus::NoRequest;
@@ -218,22 +178,22 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.clear();
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::play()
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.play();
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -245,22 +205,22 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
         return result.outcome;
     }
 
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.play(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::pause()
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.pause();
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -272,22 +232,22 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
         return result.outcome;
     }
 
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.pause(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop()
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.stop();
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -299,22 +259,22 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
         return result.outcome;
     }
 
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.stop(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seek(frame);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -326,22 +286,22 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
         return result.outcome;
     }
 
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seek(role, frame);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
 {
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seekToPosition(milliseconds);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -353,12 +313,12 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
         return result.outcome;
     }
 
-    flushPlaybackTimerElapsed();
+    playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
 
@@ -374,7 +334,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 {
     advancePlayback(elapsedMilliseconds);
-    syncPlaybackTimer();
+    playbackScheduler.sync();
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
@@ -473,7 +433,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
         { { generation, requestId, preparedPayloadId } }, true, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        syncPlaybackTimer();
+        playbackScheduler.sync();
     }
 }
 
@@ -502,7 +462,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         true, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        syncPlaybackTimer();
+        playbackScheduler.sync();
     }
 }
 
@@ -532,7 +492,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
         { failedPayload, { { failedRole, failedPayload } }, failedRole, cause });
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        syncPlaybackTimer();
+        playbackScheduler.sync();
     }
 }
 #endif

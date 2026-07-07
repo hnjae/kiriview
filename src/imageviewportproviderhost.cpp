@@ -133,7 +133,7 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
     }
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+        viewport.playbackScheduler.sync();
     }
     if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
         applyFrameTransportEffect(result.providerFrameTransport, event.role);
@@ -191,7 +191,7 @@ void ImageViewportProviderHost::handleQueueFlushSchedulingFailure(PageRole role)
     viewport.internalDiagnostics.recordProviderSchedulerFailure(result.diagnostic);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+        viewport.playbackScheduler.sync();
     }
 }
 
@@ -202,7 +202,7 @@ void ImageViewportProviderHost::handleDispatchFailure(
         = viewport.controller.handleProviderDispatchFailure(role, { token, diagnostic });
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+        viewport.playbackScheduler.sync();
     }
     applyFrameTransportEffect(result.providerFrameTransport, role);
 }
@@ -214,7 +214,7 @@ void ImageViewportProviderHost::flushQueuedFrameRequest(PageRole role)
     applyFrameTransportEffect(result.providerFrameTransport, role);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.syncPlaybackTimer();
+        viewport.playbackScheduler.sync();
     }
 }
 

@@ -199,7 +199,7 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
     }
-    syncPlaybackTimer();
+    playbackScheduler.sync();
 }
 
 ImageSequence* ImageViewportPrivate::primarySequence() const { return sequence(); }
@@ -590,13 +590,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
-        syncPlaybackTimer();
+        playbackScheduler.sync();
         return result.outcome;
     }
     if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(PageRole::Secondary,
             QStringLiteral("provider session creation failed")));
     }
-    syncPlaybackTimer();
+    playbackScheduler.sync();
     return result.outcome;
 }
