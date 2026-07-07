@@ -105,6 +105,8 @@ Acceptance: Any remaining direct-media vector copies are either removed or docum
 
 Verification: Run focused direct-media navigation and deletion fallback tests touched by the change, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Removed the remaining steady-state direct-media predecode scheduling candidate-vector boundary by making the application runtime and coordinator schedule only the target URL while the composition root reads the session-owned candidate snapshot. Left direct-media refresh/open result transport as cold-path vector transport, but avoided extra copies by moving the fetched result rows after computing boundary/open-plan state. Verified the intended red test failure before implementation with the focused application-runtime build, then verified the implementation with focused direct-media application-runtime, coordinator, and runtime CTest targets, `git diff --check`, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 7: Image-Document Candidate Snapshot Storage
 
 Suggested `/goal`: Introduce shared immutable page candidate snapshot storage inside image-document page navigation without migrating every downstream consumer yet.
