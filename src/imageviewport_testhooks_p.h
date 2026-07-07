@@ -15,6 +15,7 @@ void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
 void setNextProviderRequestTokenForTest(
     ImageViewport& item, ImageViewport::PageRole role, quint64 token);
+void setNextRevisionTokenForTest(ImageViewport& item, quint64 token);
 void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role);
 void useSynchronousProviderExecutorForTest(ImageViewport& item);
 void useSynchronousProviderEventDeliveryForTest(ImageViewport& item);

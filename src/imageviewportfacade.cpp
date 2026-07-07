@@ -298,6 +298,11 @@ void setNextProviderRequestTokenForTest(
     ImageViewportPrivate::get(item)->setNextProviderRequestTokenForTest(role, token);
 }
 
+void setNextRevisionTokenForTest(ImageViewport& item, quint64 token)
+{
+    ImageViewportPrivate::get(item)->setNextRevisionTokenForTest(token);
+}
+
 void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role)
 {
     ImageViewportPrivate::get(item)->failNextProviderCommandDeliveryForTest(role);

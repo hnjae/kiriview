@@ -1406,6 +1406,14 @@ void ViewportController::setNextProviderRequestTokenForTest(
     setNextProviderRequestTokenForTest(token);
 }
 
+void ViewportController::setNextRevisionTokenForTest(quint64 token)
+{
+    const uint previousToken = token == 0 ? 0 : static_cast<uint>(token - 1);
+    state.display.revision = previousToken;
+    state.request.requestRevision = previousToken;
+    state.request.commandRevision = previousToken;
+}
+
 bool ViewportController::hasPendingRenderCommitForTest() const
 {
     return state.display.pendingRenderPayload.commitPending;

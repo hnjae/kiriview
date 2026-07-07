@@ -784,6 +784,7 @@ public:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
     void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
+    void setNextRevisionTokenForTest(quint64 token);
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;
     quint64 displayedRequestIdForTest() const;

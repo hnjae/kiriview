@@ -387,6 +387,11 @@ void ImageViewportPrivate::setNextProviderRequestTokenForTest(PageRole role, qui
     controller.setNextProviderRequestTokenForTest(role, token);
 }
 
+void ImageViewportPrivate::setNextRevisionTokenForTest(quint64 token)
+{
+    controller.setNextRevisionTokenForTest(token);
+}
+
 void ImageViewportPrivate::failNextProviderCommandDeliveryForTest(PageRole role)
 {
     if (role == PageRole::Secondary) {
