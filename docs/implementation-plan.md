@@ -57,6 +57,8 @@ Acceptance: Provider requests for existing thumbnail ids return the stored image
 
 Verification: Run focused thumbnail provider/store/runtime tests while iterating, then `devenv tasks run --mode single ci:test:cpp` if C++ thumbnail runtime/provider tests are touched. Run `devenv tasks run --mode single ci:lint:cpp` for touched C++.
 
+Status: Completed (2026-07-07). Added provider and active-navigation runtime tests proving a valid smaller Qt requested size still returns the stored thumbnail image dimensions, then changed `ThumbnailImageProvider::requestImage` to return the stored raster without request-time smooth scaling. Assumption: thumbnail lookup and generation providers remain the trusted accepted-bucket producers; the runtime image store and image provider do not resize or validate bucket dimensions after publication. Verified with focused `ctest` for `test_thumbnailimagestore` and `test_activenavigationthumbnailruntime`, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 3: Indexed Thumbnail Image Store
 
 Suggested `/goal`: Replace linear thumbnail image store lookup and eviction bookkeeping with indexed store primitives while preserving retention priority and byte-budget behavior.
