@@ -141,6 +141,8 @@ Acceptance: Current-row changes emit narrow model updates and do not invoke the 
 
 Verification: Run focused active-navigation thumbnail projection/model tests with counters or fake projectors, then `devenv tasks run --mode single ci:test:cpp` and `devenv tasks run --mode single ci:lint:cpp`.
 
+Status: Completed (2026-07-07). Added focused coverage for current-only thumbnail runtime updates, document thumbnail wrapper current updates, image-document thumbnail projection from confirmed page candidate snapshots, and document-session projection reuse that publishes the current number without resetting rows when candidate identity is unchanged. Added row-set identity over active source kind, candidate-list source identity, candidate-list revision, and row count so `DocumentSessionProjectionRuntime` can skip full row projection for unchanged snapshots while still resetting rows for source or identity changes. Threaded confirmed image-document page candidate snapshots through the session's internal image leaf snapshot without changing QML roles or activation commands. Verified the intended red focused build failure on missing `ActiveNavigationThumbnailRuntime::setCurrentNumber(int)`, then verified the implementation with focused active-navigation thumbnail runtime/projection and document-session projection/thumbnail CTest targets, `git diff --check`, `devenv tasks run --mode single ci:test:cpp`, and `devenv tasks run --mode single ci:lint:cpp`.
+
 ## Milestone 10: Thumbnail Demand Windowing Intent
 
 Suggested `/goal`: Define the active-navigation thumbnail runtime's visible/nearby demand window policy before changing background fill behavior.
