@@ -43,7 +43,13 @@ Image-document source-load effects resolve the requested source URL, displayed o
 
 ## Candidate Snapshot Ownership
 
-Page navigation owns confirmed candidate snapshots for its active candidate-list source. Opened collection foreground loading and image predecode planning may reuse such a snapshot only when its source matches the requested collection scope; pending refreshes, deletion fallback that changes the retained list, and sibling archive navigation that changes scope must invalidate or replace the reusable snapshot before downstream consumers can rely on it. When no fresh confirmed snapshot is available, consumers must fall back to the candidate provider instead of keeping independent candidate-list state.
+Candidate-list workflows publish confirmed snapshots before dependent workflows derive public active navigation, thumbnail rows, predecode windows, deletion fallback targets, or opened-collection foreground loads. The snapshot owner applies stale-completion checks, installs one immutable row storage value for the accepted source, assigns the candidate-list revision for that storage, and publishes current index facts separately from row-storage identity.
+
+Direct-media sibling discovery accepts a candidate snapshot only when the current direct-media scope still matches the discovery request. Image-document page candidate refresh accepts a snapshot only when its candidate-list source still matches the page navigation owner. A pending refresh may keep previous public navigation visible while work is in flight, but consumers that require confirmed row storage must use the last matching confirmed snapshot or fall back to the candidate provider; they must not synthesize a partial or stale list.
+
+Projection and thumbnail workflows consume candidate snapshots by source identity plus candidate-list revision. If row storage is unchanged, projection may update current-row state without rebuilding every row, and thumbnail runtimes may preserve row-derived work whose thumbnail navigation generation still matches. If row identity, source identity, or row order changes, the owner publishes a new candidate-list revision and downstream thumbnail navigation generation must change so stale thumbnail results are rejected.
+
+Opened collection foreground loading and image-document predecode planning may reuse a confirmed page candidate snapshot only when the snapshot source matches the requested opened-collection or directory source. Pending refreshes, deletion fallback that changes the retained list, sibling archive navigation that changes scope, and direct-media source replacement invalidate or replace the reusable snapshot before downstream consumers can rely on it.
 
 ## Direct Media Routing
 

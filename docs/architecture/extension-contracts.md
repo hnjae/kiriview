@@ -6,6 +6,8 @@ KiriView extension points are adapter contracts, not state backdoors. A media so
 
 Durable identity is the stable key for the thing being addressed. Freshness generation is the owner's proof that a result still belongs to the currently accepted scope. Equality compares durable identity within one key family only; generation is used to accept or reject work for a current lifecycle. Boundary APIs must encode key families as distinct value types or explicit tagged structs so code cannot accidentally compare ordinary files, opened-collection entries, thumbnails, predecode candidates, and render surfaces through one generic URL identity.
 
+Candidate snapshots are owner publications, not adapter-owned state. A boundary that consumes active-navigation, thumbnail, deletion, opened-collection foreground-load, or predecode rows must receive a typed candidate snapshot or a row/key derived from one, including the source identity and candidate-list revision needed for reuse decisions. Adapter contracts may carry owner-supplied scope generations or thumbnail navigation generations for stale rejection, but they must not invent candidate-list revisions or public projection revisions.
+
 A demand describes requested work from an owner snapshot: key, generation, size bucket, priority, render context, visible area, decode window, or similar inputs. A result reports ready, pending, unsupported, failed, canceled, or stale without changing ownership. Unsupported means the adapter cannot provide the capability for that key; failed means the adapter accepted the demand and could not complete it.
 
 Adapters are synchronous policy or asynchronous payload providers behind an owner. Synchronous adapters return plans and capability facts. Asynchronous adapters return payloads through the owner's lifecycle contract, carrying the owner-held operation id, source key plus generation, demand key, or display-source revision needed for stale-completion rejection. Adapter APIs must not accept QML objects, facade objects, mutable public projection objects, or platform action objects; if a capability needs Qt runtime data, the owner captures that data into a plain demand before calling the adapter.
@@ -58,11 +60,15 @@ Media entry source adapters list and read opened-collection entries. They return
 
 Thumbnail source adapters consume thumbnail source keys and demand buckets, then return unsupported fallback, cacheable local-file generation, cacheable opened-collection entry generation, or in-memory-only generation. The document-session thumbnail runtime owns scheduling, lookup, generation jobs, cache installation, image-store retention, result projection, cancellation, and stale-completion rejection.
 
+Thumbnail source keys are derived from a confirmed candidate snapshot row plus the current thumbnail navigation generation. The thumbnail adapter may classify the row and choose cache or generation capability, but it does not own the candidate-list source, candidate-list revision, active row selection, or public active-navigation projection.
+
 Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source key, navigation generation, and demand bucket. The active-navigation thumbnail provider is cache-only: it returns the stored image entry exactly as published and reports that entry's size, without using provider request size to resample, regenerate, perform cache lookup, schedule work, or decide freshness.
 
 ### Predecode Planners
 
 Predecode planners consume session or image-document snapshots and produce still-image decode windows. The predecode runtime owns debounce, power-saver suppression, active load admission, decode jobs, cache lifetime, and generation acceptance. The provider-rendering architecture stores provider-ready display `QImage` payloads that can be promoted into the display image store without constructing tile surfaces.
+
+Predecode planners consume candidate snapshots as immutable row inputs. Direct-media predecode uses the document-session direct-media candidate snapshot for window planning and still-image eligibility, while image-document predecode uses the page-navigation candidate snapshot when the snapshot source matches the requested page source. A planner may return candidate keys and decode windows, but it must not retain a mutable row list, advance candidate-list revision, or publish active-navigation state.
 
 ### Decoder Contracts
 
