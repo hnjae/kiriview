@@ -153,6 +153,8 @@ Acceptance: The policy gives implementation tests a clear success condition for 
 
 Verification: Documentation review or narrow docs diff check only.
 
+Status: Completed (2026-07-07). Added architecture intent for the active-navigation thumbnail demand window: C++ owns visible, nearby, selected-row, expiry, foreground priority, retention priority, and optional background-fill scheduling, while QML reports viewport-derived demand and adapters receive only runtime-selected source keys, buckets, and priority. Defined demand expiry by row identity, thumbnail navigation generation, source key, bucket, and runtime demand epoch, and made full-list background fill optional idle work rather than a correctness or product guarantee. No `docs/spec/` update was needed because the existing navigation spec already describes offscreen thumbnail filling as best-effort after visible, nearby, and user-selected items. Verified with `git diff --check` and commit hooks for the architecture commit; full CI was skipped because this milestone was intent-only documentation.
+
 ## Milestone 11: Active-Navigation Thumbnail Demand Indexing
 
 Suggested `/goal`: Make thumbnail demand lookup, completion lookup, and background fill use indexed row state and the documented visible/nearby demand window.
