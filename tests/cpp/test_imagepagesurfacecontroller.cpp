@@ -36,6 +36,8 @@ class TestImagePageSurfaceController : public QObject
 private Q_SLOTS:
     void providerEntriesAreReleasedOnSupersessionAndClear();
     void staticDisplayReusesBufferedProviderEntryForSamePayload();
+    void staticDisplayReuseKeyIncludesDisplayScopeAndPageRole();
+    void staticDisplayDoesNotReuseProviderEntryAcrossDisplayScopes();
     void staticDisplayBufferKeepsOnlyCurrentAndPreviousPages();
     void setImageWithoutProviderPublishesDisplayErrorSnapshot();
     void visibleProjectionPinsAndPrioritizesProviderEntry();
@@ -43,6 +45,7 @@ private Q_SLOTS:
     void rawShadowThumbnailPreviewEntryIsReleasedOnDecodedReplacement();
     void qtRasterFirstDisplayRefinesToProviderBucket();
     void qtRasterRefinementCacheHitAvoidsWorkerReschedule();
+    void qtRasterRefinementCacheSeparatesDisplayScopes();
     void qtRasterInFlightRefinementRevisitDoesNotScheduleDuplicate();
     void refinementPolicyUsesResolvedCacheBudgetWhenStoreBudgetDiffers();
     void qtRasterRefinementCompletionIsRejectedAfterSourceReplacement();
@@ -144,6 +147,14 @@ kiriview::StaticDisplayImagePayload displayPayload(const QSize& size, const QStr
 {
     kiriview::StaticDisplayImagePayload payload = displayPayload(size);
     payload.sourceIdentity = sourceIdentity;
+    return payload;
+}
+
+kiriview::StaticDisplayImagePayload scopedDisplayPayload(const QSize& size,
+    const QString& sourceIdentity, const kiriview::DisplayedImageLocation& location)
+{
+    kiriview::StaticDisplayImagePayload payload = displayPayload(size, sourceIdentity);
+    payload.displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
     return payload;
 }
 
@@ -276,6 +287,17 @@ kiriview::StaticDisplayImagePayload qtRasterPayload(const QSize& originalSize,
         {},
         std::move(source),
     };
+}
+
+kiriview::StaticDisplayImagePayload scopedQtRasterPayload(const QSize& originalSize,
+    const QSize& rasterSize, const QString& sourceIdentity,
+    const kiriview::DisplayedImageLocation& location,
+    kiriview::DisplayImageQuality quality = kiriview::DisplayImageQuality::FirstDisplay)
+{
+    kiriview::StaticDisplayImagePayload payload
+        = qtRasterPayload(originalSize, rasterSize, sourceIdentity, quality);
+    payload.displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+    return payload;
 }
 
 kiriview::StaticDisplayImagePayload svgPayload(const QSize& originalSize, const QSize& rasterSize,
@@ -412,6 +434,57 @@ void TestImagePageSurfaceController::staticDisplayReusesBufferedProviderEntryFor
     QCOMPARE(third.revision, quint64(3));
     QCOMPARE(third.sourceIdentity, QStringLiteral("page-a"));
     QVERIFY(third.loadAcknowledgmentRequired);
+    QCOMPARE(store->size(), qsizetype(2));
+}
+
+void TestImagePageSurfaceController::staticDisplayReuseKeyIncludesDisplayScopeAndPageRole()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    kiriview::ImagePageSurfaceController controller(
+        this, {}, cacheBudgets(), store, kiriview::DisplayedPageRole::Secondary);
+    const kiriview::DisplayedImageLocation location = kiriview::DisplayedImageLocation::fromUrl(
+        QUrl(QStringLiteral("file:///scope-a/page.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+
+    controller.setStaticDisplayImage(
+        scopedDisplayPayload(QSize(8, 4), QStringLiteral("same-source"), location), false,
+        renderContext());
+
+    const kiriview::ImageDisplaySourceSlot slot = controller.snapshot().displaySource();
+    const std::optional<kiriview::DisplayImageStoreEntry> stored = store->entry(entryId(slot));
+    QVERIFY(stored.has_value());
+    QVERIFY(stored->reuseKey.has_value());
+    QCOMPARE(stored->reuseKey->locationIdentity, displayScopeIdentity);
+    QCOMPARE(stored->reuseKey->sourceIdentity, QStringLiteral("same-source"));
+    QCOMPARE(stored->reuseKey->pageRole, kiriview::DisplayedPageRole::Secondary);
+}
+
+void TestImagePageSurfaceController::staticDisplayDoesNotReuseProviderEntryAcrossDisplayScopes()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store);
+    const kiriview::DisplayedImageLocation firstLocation
+        = kiriview::DisplayedImageLocation::fromUrl(
+            QUrl(QStringLiteral("file:///scope-a/page.png")));
+    const kiriview::DisplayedImageLocation secondLocation
+        = kiriview::DisplayedImageLocation::fromUrl(
+            QUrl(QStringLiteral("file:///scope-b/page.png")));
+
+    controller.setStaticDisplayImage(
+        scopedDisplayPayload(QSize(8, 4), QStringLiteral("same-source"), firstLocation), false,
+        renderContext());
+    const kiriview::ImageDisplaySourceSlot first = controller.snapshot().displaySource();
+
+    controller.setStaticDisplayImage(
+        scopedDisplayPayload(QSize(8, 4), QStringLiteral("same-source"), secondLocation), false,
+        renderContext());
+    const kiriview::ImageDisplaySourceSlot second = controller.snapshot().displaySource();
+
+    QVERIFY(!first.providerUrl.isEmpty());
+    QVERIFY(!second.providerUrl.isEmpty());
+    QVERIFY(first.providerUrl != second.providerUrl);
+    QVERIFY(store->entry(entryId(first)).has_value());
+    QVERIFY(store->entry(entryId(second)).has_value());
     QCOMPARE(store->size(), qsizetype(2));
 }
 
@@ -635,6 +708,42 @@ void TestImagePageSurfaceController::qtRasterRefinementCacheHitAvoidsWorkerResch
     QCOMPARE(cached.quality, kiriview::DisplayImageQuality::Exact);
     QCOMPARE(cached.revision, revisitedFirstDisplay.revision + 1);
     QVERIFY(cached.providerUrl != revisitedFirstDisplay.providerUrl);
+}
+
+void TestImagePageSurfaceController::qtRasterRefinementCacheSeparatesDisplayScopes()
+{
+    auto store = std::make_shared<kiriview::DisplayImageStore>(testByteBudget);
+    ManualImageWorkerScheduler workerScheduler;
+    kiriview::ImagePageSurfaceController controller(this, {}, cacheBudgets(), store,
+        kiriview::DisplayedPageRole::Primary, workerScheduler.scheduler());
+    const kiriview::ImagePresentationRenderProjection projection
+        = visibleProjection(QSizeF(8.0, 6.0));
+    const kiriview::DisplayedImageLocation firstLocation
+        = kiriview::DisplayedImageLocation::fromUrl(
+            QUrl(QStringLiteral("file:///scope-a/page.png")));
+    const kiriview::DisplayedImageLocation secondLocation
+        = kiriview::DisplayedImageLocation::fromUrl(
+            QUrl(QStringLiteral("file:///scope-b/page.png")));
+
+    controller.setStaticDisplayImage(scopedQtRasterPayload(QSize(16, 12), QSize(4, 3),
+                                         QStringLiteral("same-source"), firstLocation),
+        false, renderContext());
+    controller.updateDisplayProjection(projection);
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
+    workerScheduler.runWork(0);
+    workerScheduler.finish(0);
+    QCOMPARE(controller.snapshot().displaySource().rasterSize, QSize(8, 6));
+
+    controller.setStaticDisplayImage(scopedQtRasterPayload(QSize(16, 12), QSize(4, 3),
+                                         QStringLiteral("same-source"), secondLocation),
+        false, renderContext());
+    const kiriview::ImageDisplaySourceSlot secondFirstDisplay
+        = controller.snapshot().displaySource();
+    controller.updateDisplayProjection(projection);
+
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    QCOMPARE(controller.snapshot().displaySource().providerUrl, secondFirstDisplay.providerUrl);
+    QCOMPARE(controller.snapshot().displaySource().rasterSize, QSize(4, 3));
 }
 
 void TestImagePageSurfaceController::qtRasterInFlightRefinementRevisitDoesNotScheduleDuplicate()

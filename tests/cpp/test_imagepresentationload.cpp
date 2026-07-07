@@ -17,6 +17,7 @@
 #include <QSizeF>
 #include <QString>
 #include <QTest>
+#include <QUrl>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -277,8 +278,10 @@ class TestImagePresentationLoad : public QObject
 
 private Q_SLOTS:
     void predecodedImagesPlanStaticCacheablePresentation();
+    void predecodedOpenedCollectionEntriesPlanScopeIdentity();
     void predecodedImagesPublishProviderSource();
     void decodedImagesPlanPresentationActions();
+    void staticDecodedImagesPlanDisplayScopeIdentityFromLocation();
     void staticDecodedPredecodeCacheabilityUsesInjectedBudget();
     void animationHandlingControlsPlannedEffects();
     void staticDecodedImagesAreAppliedToPresentation();
@@ -292,10 +295,13 @@ private Q_SLOTS:
 
 void TestImagePresentationLoad::predecodedImagesPlanStaticCacheablePresentation()
 {
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
     kiriview::PredecodedImage image {
         staticDisplayTestImagePayload(testImage(QSize(9, 5)), testImage(QSize(3, 2)), 0.5,
             kiriview::DisplayImageQuality::FirstDisplay),
-        kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png"))),
+        location,
     };
 
     const kiriview::ImagePresentationLoadPlan plan
@@ -309,9 +315,39 @@ void TestImagePresentationLoad::predecodedImagesPlanStaticCacheablePresentation(
     QCOMPARE(load->displayImage.originalSize, QSize(9, 5));
     QCOMPARE(load->displayImage.image.size(), QSize(3, 2));
     QCOMPARE(load->displayImage.quality, kiriview::DisplayImageQuality::FirstDisplay);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
     QCOMPARE(load->displayImage.displayPixelsPerSourcePixel, 0.5);
     QVERIFY(load->displayImage.refinementSource != nullptr);
     QCOMPARE(load->displayImage.refinementSource->imageSize(), QSize(9, 5));
+}
+
+void TestImagePresentationLoad::predecodedOpenedCollectionEntriesPlanScopeIdentity()
+{
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = kiriview::OpenedCollectionScopeLocation::fromUrls(
+            localUrl(QStringLiteral("/books/book.cbz")),
+            QUrl(QStringLiteral("zip:///books/book.cbz/")),
+            kiriview::OpenedCollectionScopeKind::ComicBookArchive);
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(
+            QUrl(QStringLiteral("zip:///books/book.cbz/page001.png")), openedCollectionScope);
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+    QVERIFY(!displayScopeIdentity.isEmpty());
+    QVERIFY(displayScopeIdentity
+        != kiriview::displayScopeIdentityForLocation(
+            kiriview::DisplayedImageLocation::fromUrl(location.imageUrl())));
+    kiriview::PredecodedImage image {
+        staticDisplayTestImagePayload(testImage(QSize(9, 5)), testImage(QSize(3, 2)), 0.5,
+            kiriview::DisplayImageQuality::FirstDisplay),
+        location,
+    };
+
+    const kiriview::ImagePresentationLoadPlan plan
+        = kiriview::planPredecodedImagePresentationLoad(std::move(image));
+
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
 }
 
 void TestImagePresentationLoad::predecodedImagesPublishProviderSource()
@@ -319,10 +355,13 @@ void TestImagePresentationLoad::predecodedImagesPublishProviderSource()
     auto displayImageStore = std::make_shared<kiriview::DisplayImageStore>(1024 * 1024);
     kiriview::ImagePageSurfaceController controller
         = pageSurfaceController(this, displayImageStore);
+    const kiriview::DisplayedImageLocation location
+        = kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
     kiriview::PredecodedImage image {
         staticDisplayTestImagePayload(testImage(QSize(12, 8)), testImage(QSize(6, 4)), 0.5,
             kiriview::DisplayImageQuality::FirstDisplay),
-        kiriview::DisplayedImageLocation::fromUrl(localUrl(QStringLiteral("/images/page.png"))),
+        location,
     };
 
     const kiriview::ImagePresentationLoadResult result
@@ -349,6 +388,8 @@ void TestImagePresentationLoad::predecodedImagesPublishProviderSource()
     QCOMPARE(stored->rasterSize, QSize(6, 4));
     QCOMPARE(stored->quality, kiriview::DisplayImageQuality::FirstDisplay);
     QCOMPARE(stored->sourceIdentity, QStringLiteral("test-image"));
+    QVERIFY(stored->reuseKey.has_value());
+    QCOMPARE(stored->reuseKey->locationIdentity, displayScopeIdentity);
 }
 
 void TestImagePresentationLoad::decodedImagesPlanPresentationActions()
@@ -376,6 +417,22 @@ void TestImagePresentationLoad::decodedImagesPlanPresentationActions()
         QVERIFY(!plan.hasPresentation());
         QVERIFY(std::holds_alternative<std::monostate>(plan.payload));
     }
+}
+
+void TestImagePresentationLoad::staticDecodedImagesPlanDisplayScopeIdentityFromLocation()
+{
+    kiriview::DecodedImage decoded = staticDecodedTestImage(testImage(QSize(12, 8)));
+    const kiriview::DisplayedImageLocation location = kiriview::DisplayedImageLocation::fromUrl(
+        localUrl(QStringLiteral("/images/foreground.png")));
+    const QString displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
+
+    const kiriview::ImagePresentationLoadPlan plan = kiriview::planDecodedImagePresentationLoad(
+        std::move(decoded), location, kiriview::ImagePresentationAnimationHandling::StartAnimation,
+        testPredecodeCacheByteBudget);
+
+    const auto* load = planPayload<kiriview::ImagePresentationStaticImageLoad>(plan);
+    QVERIFY(load != nullptr);
+    QCOMPARE(load->displayImage.displayScopeIdentity, displayScopeIdentity);
 }
 
 void TestImagePresentationLoad::staticDecodedPredecodeCacheabilityUsesInjectedBudget()

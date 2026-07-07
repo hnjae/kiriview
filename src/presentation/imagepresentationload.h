@@ -61,12 +61,19 @@ struct ImagePresentationLoadPlan
 
 ImagePresentationLoadPlan planPredecodedImagePresentationLoad(PredecodedImage image);
 ImagePresentationLoadPlan planDecodedImagePresentationLoad(DecodedImage image,
+    const DisplayedImageLocation& location, ImagePresentationAnimationHandling animationHandling,
+    qsizetype predecodeCacheByteBudget);
+ImagePresentationLoadPlan planDecodedImagePresentationLoad(DecodedImage image,
     ImagePresentationAnimationHandling animationHandling, qsizetype predecodeCacheByteBudget);
 ImagePresentationLoadResult executeImagePresentationLoadPlan(
     ImagePageSurfaceController& pageSurface, ImagePresentationLoadPlan plan,
     const ImageDocumentRenderContext& renderContext);
 ImagePresentationLoadResult presentPredecodedImageLoad(ImagePageSurfaceController& pageSurface,
     PredecodedImage image, const ImageDocumentRenderContext& renderContext);
+ImagePresentationLoadResult presentDecodedImageLoad(ImagePageSurfaceController& pageSurface,
+    DecodedImage image, const DisplayedImageLocation& location,
+    ImagePresentationAnimationHandling animationHandling,
+    const ImageDocumentRenderContext& renderContext);
 ImagePresentationLoadResult presentDecodedImageLoad(ImagePageSurfaceController& pageSurface,
     DecodedImage image, ImagePresentationAnimationHandling animationHandling,
     const ImageDocumentRenderContext& renderContext);

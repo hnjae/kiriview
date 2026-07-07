@@ -6,6 +6,7 @@
 
 #include "location/imageurl.h"
 
+#include <QString>
 #include <QUrl>
 #include <utility>
 
@@ -184,6 +185,8 @@ private:
     ImageLocation m_image;
     OpenedCollectionScopeLocation m_openedCollectionScope;
 };
+
+QString displayScopeIdentityForLocation(const DisplayedImageLocation& location);
 
 }
 

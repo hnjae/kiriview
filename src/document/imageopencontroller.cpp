@@ -225,7 +225,7 @@ void ImageOpenController::finishDecodedImageLoad(ImageLoadSession session, Decod
 {
     EmbeddedMetadata metadata = decodedImageEmbeddedMetadata(image);
     finishPresentedImageLoad(session,
-        presentDecodedImageLoad(m_pageSurfaceController, std::move(image),
+        presentDecodedImageLoad(m_pageSurfaceController, std::move(image), session.location(),
             ImagePresentationAnimationHandling::StartAnimation,
             m_presentationRuntime.renderContext()),
         std::move(metadata));

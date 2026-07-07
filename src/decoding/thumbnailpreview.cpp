@@ -258,6 +258,7 @@ std::optional<StaticDisplayImagePayload> xdgThumbnailPreviewDisplayPayload(
         {},
         nullptr,
         DisplayImagePreviewOrigin::XdgThumbnail,
+        displayScopeIdentityForLocation(request.location()),
     };
 }
 }

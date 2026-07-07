@@ -39,8 +39,10 @@ kiriview::ImagePresentationLoadResult presentImageFrame(
 }
 
 kiriview::ImagePresentationLoadPlan staticDisplayImagePlan(
-    kiriview::StaticDisplayImagePayload displayImage, bool predecodeCacheable)
+    kiriview::StaticDisplayImagePayload displayImage,
+    const kiriview::DisplayedImageLocation& location, bool predecodeCacheable)
 {
+    displayImage.displayScopeIdentity = kiriview::displayScopeIdentityForLocation(location);
     return kiriview::ImagePresentationLoadPlan { kiriview::ImagePresentationStaticImageLoad {
         std::move(displayImage),
         predecodeCacheable,
@@ -66,15 +68,17 @@ kiriview::ImagePresentationLoadPlan animationPlan(
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::StaticDecodedImage& decoded,
-    kiriview::ImagePresentationAnimationHandling, qsizetype predecodeCacheByteBudget)
+    const kiriview::DisplayedImageLocation& location, kiriview::ImagePresentationAnimationHandling,
+    qsizetype predecodeCacheByteBudget)
 {
     kiriview::StaticDisplayImagePayload displayImage = std::move(decoded.displayImage);
     const bool predecodeCacheable
         = kiriview::PredecodeCache::canCacheImage(displayImage, predecodeCacheByteBudget);
-    return staticDisplayImagePlan(std::move(displayImage), predecodeCacheable);
+    return staticDisplayImagePlan(std::move(displayImage), location, predecodeCacheable);
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::ApngAnimationImage& decoded,
+    const kiriview::DisplayedImageLocation&,
     kiriview::ImagePresentationAnimationHandling animationHandling, qsizetype)
 {
     if (decoded.firstFrame.isNull()) {
@@ -91,6 +95,7 @@ kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::ApngAnimationImag
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::ReaderAnimationImage& decoded,
+    const kiriview::DisplayedImageLocation&,
     kiriview::ImagePresentationAnimationHandling animationHandling, qsizetype)
 {
     if (animationHandling == kiriview::ImagePresentationAnimationHandling::FirstFrameOnly) {
@@ -104,6 +109,7 @@ kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::ReaderAnimationIm
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::WebPAnimationImage& decoded,
+    const kiriview::DisplayedImageLocation&,
     kiriview::ImagePresentationAnimationHandling animationHandling, qsizetype)
 {
     if (animationHandling == kiriview::ImagePresentationAnimationHandling::FirstFrameOnly) {
@@ -116,6 +122,7 @@ kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::WebPAnimationImag
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::JxlAnimationImage& decoded,
+    const kiriview::DisplayedImageLocation&,
     kiriview::ImagePresentationAnimationHandling animationHandling, qsizetype)
 {
     if (animationHandling == kiriview::ImagePresentationAnimationHandling::FirstFrameOnly) {
@@ -128,6 +135,7 @@ kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::JxlAnimationImage
 }
 
 kiriview::ImagePresentationLoadPlan planDecodedImage(kiriview::HeifSequenceAnimationImage& decoded,
+    const kiriview::DisplayedImageLocation&,
     kiriview::ImagePresentationAnimationHandling animationHandling, qsizetype)
 {
     if (animationHandling == kiriview::ImagePresentationAnimationHandling::FirstFrameOnly) {
@@ -148,17 +156,25 @@ bool ImagePresentationLoadPlan::hasPresentation() const
 
 ImagePresentationLoadPlan planPredecodedImagePresentationLoad(PredecodedImage image)
 {
-    return staticDisplayImagePlan(std::move(image.displayImage), true);
+    return staticDisplayImagePlan(std::move(image.displayImage), image.location, true);
+}
+
+ImagePresentationLoadPlan planDecodedImagePresentationLoad(DecodedImage image,
+    const DisplayedImageLocation& location, ImagePresentationAnimationHandling animationHandling,
+    qsizetype predecodeCacheByteBudget)
+{
+    return std::visit(
+        [&location, animationHandling, predecodeCacheByteBudget](auto& decoded) {
+            return planDecodedImage(decoded, location, animationHandling, predecodeCacheByteBudget);
+        },
+        image);
 }
 
 ImagePresentationLoadPlan planDecodedImagePresentationLoad(DecodedImage image,
     ImagePresentationAnimationHandling animationHandling, qsizetype predecodeCacheByteBudget)
 {
-    return std::visit(
-        [animationHandling, predecodeCacheByteBudget](auto& decoded) {
-            return planDecodedImage(decoded, animationHandling, predecodeCacheByteBudget);
-        },
-        image);
+    return planDecodedImagePresentationLoad(
+        std::move(image), {}, animationHandling, predecodeCacheByteBudget);
 }
 
 ImagePresentationLoadResult executeImagePresentationLoadPlan(
@@ -193,12 +209,21 @@ ImagePresentationLoadResult presentPredecodedImageLoad(ImagePageSurfaceControlle
 }
 
 ImagePresentationLoadResult presentDecodedImageLoad(ImagePageSurfaceController& pageSurface,
-    DecodedImage image, ImagePresentationAnimationHandling animationHandling,
+    DecodedImage image, const DisplayedImageLocation& location,
+    ImagePresentationAnimationHandling animationHandling,
     const ImageDocumentRenderContext& renderContext)
 {
     return executeImagePresentationLoadPlan(pageSurface,
         planDecodedImagePresentationLoad(
-            std::move(image), animationHandling, pageSurface.predecodeCacheByteBudget()),
+            std::move(image), location, animationHandling, pageSurface.predecodeCacheByteBudget()),
         renderContext);
+}
+
+ImagePresentationLoadResult presentDecodedImageLoad(ImagePageSurfaceController& pageSurface,
+    DecodedImage image, ImagePresentationAnimationHandling animationHandling,
+    const ImageDocumentRenderContext& renderContext)
+{
+    return presentDecodedImageLoad(
+        pageSurface, std::move(image), {}, animationHandling, renderContext);
 }
 }

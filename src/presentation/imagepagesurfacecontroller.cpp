@@ -308,7 +308,7 @@ DisplayImageReuseKey ImagePageSurfaceController::staticDisplayReuseKey(
 {
     const QSize rasterSize = displayImage.image.size();
     return DisplayImageReuseKey {
-        displayImage.sourceIdentity,
+        displayImage.displayScopeIdentity,
         displayImage.sourceIdentity,
         displayImage.imageReaderTransform.transformations,
         displayImage.originalSize,
@@ -625,6 +625,7 @@ RasterDisplayRefinementCacheKey ImagePageSurfaceController::rasterDisplayRefinem
     const RasterDisplayBucketDecision& decision) const
 {
     return RasterDisplayRefinementCacheKey {
+        displayImage.displayScopeIdentity,
         displayImage.sourceIdentity,
         displayImage.imageReaderTransform.transformations,
         displayImage.originalSize,

@@ -125,6 +125,7 @@ struct StaticDisplayImagePayload
     EmbeddedMetadata embeddedMetadata;
     std::shared_ptr<StaticImageDisplaySource> refinementSource;
     DisplayImagePreviewOrigin previewOrigin = DisplayImagePreviewOrigin::None;
+    QString displayScopeIdentity;
 
     bool isValid() const;
     qsizetype byteCost() const;

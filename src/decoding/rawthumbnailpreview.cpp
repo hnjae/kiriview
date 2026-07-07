@@ -393,6 +393,7 @@ std::optional<StaticDisplayImagePayload> rawEmbeddedThumbnailPreviewDisplayPaylo
         {},
         nullptr,
         DisplayImagePreviewOrigin::RawEmbeddedThumbnail,
+        displayScopeIdentityForLocation(request.location()),
     };
 }
 }

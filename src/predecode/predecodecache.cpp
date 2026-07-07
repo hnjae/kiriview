@@ -209,6 +209,8 @@ void PredecodeCache::cacheImage(const QUrl& url,
     const OpenedCollectionScopeLocation& openedCollectionScope,
     StaticDisplayImagePayload displayImage, EmbeddedMetadata metadata)
 {
+    displayImage.displayScopeIdentity = displayScopeIdentityForLocation(
+        DisplayedImageLocation::fromUrl(url, openedCollectionScope));
     if (!metadata.isEmpty()) {
         displayImage.embeddedMetadata = std::move(metadata);
     }

@@ -33,6 +33,7 @@ class ImageAnimationPlayer;
 
 struct RasterDisplayRefinementCacheKey
 {
+    QString displayScopeIdentity;
     QString sourceIdentity;
     QImageIOHandler::Transformations imageReaderTransformations
         = QImageIOHandler::TransformationNone;
@@ -45,7 +46,8 @@ struct RasterDisplayRefinementCacheKey
     friend bool operator==(
         const RasterDisplayRefinementCacheKey& left, const RasterDisplayRefinementCacheKey& right)
     {
-        return left.sourceIdentity == right.sourceIdentity
+        return left.displayScopeIdentity == right.displayScopeIdentity
+            && left.sourceIdentity == right.sourceIdentity
             && left.imageReaderTransformations == right.imageReaderTransformations
             && left.originalSize == right.originalSize && left.pageRole == right.pageRole
             && left.resolutionIndependent == right.resolutionIndependent

@@ -84,6 +84,8 @@ kiriview::StaticDisplayImagePayload staticDisplayPayload(
         pixelsPerSourcePixel,
         {},
         std::move(source),
+        kiriview::DisplayImagePreviewOrigin::None,
+        kiriview::displayScopeIdentityForLocation(request.location()),
     };
     return payload;
 }
