@@ -45,6 +45,8 @@ Acceptance: Architecture docs name the thumbnail provider boundary, bucket owner
 
 Verification: Review rendered Markdown or run a narrow docs diff check. Full CI is not required for intent-only documentation.
 
+Status: Completed (2026-07-07). Architecture now names the active-navigation thumbnail image-provider boundary, bucket ownership before publication, cache-only freshness expectations, and the relation to the main display provider. Verified with `git diff --check` and commit hooks for the architecture commit; full CI was skipped because this milestone was intent-only documentation.
+
 ## Milestone 2: Thumbnail Provider Stored-Bucket Implementation
 
 Suggested `/goal`: Make active-navigation thumbnails publish bucket-sized images and make `ThumbnailImageProvider::requestImage` return stored images without requested-size smooth scaling.
