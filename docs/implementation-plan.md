@@ -777,6 +777,8 @@ Finding 7.
 
 ### Milestone 10: Render Host Extraction
 
+Status: Completed 2026-07-07.
+
 #### Objective
 
 Extract render synchronization from `ImageViewportPrivate` into a narrow item-side render host.
@@ -811,10 +813,18 @@ Finding 7.
 
 #### Tasks
 
-- [ ] Define the render host ownership boundary and constructor dependencies.
-- [ ] Move render synchronization entry points from `ImageViewportPrivate` to the render host.
-- [ ] Keep scene graph and render adapter resources encapsulated behind the render host.
-- [ ] Add structural verification that render synchronization code is isolated from provider transport methods.
+- [x] Define the render host ownership boundary and constructor dependencies.
+- [x] Move render synchronization entry points from `ImageViewportPrivate` to the render host.
+- [x] Keep scene graph and render adapter resources encapsulated behind the render host.
+- [x] Add structural verification that render synchronization code is isolated from provider transport methods.
+
+#### Completion evidence
+
+- Durable architecture intent for the item-side render host was added to `docs/architecture/subsystem-boundaries.md` before implementation.
+- Added structural guard `structural::renderHostBoundary`, which fails if `ImageViewportPrivate` owns render adapter storage or implements render synchronization methods directly, and also guards render synchronization against provider transport access.
+- Introduced `ImageViewportRenderHost` as the private owner of render adapter storage, `updatePaintNode(...)` synchronization, scene graph resource handoff, and geometry synchronization.
+- `ImageViewportPrivate` now owns the render host and remains responsible for applying controller change sets, playback synchronization, render update scheduling, and public notifications after render-host calls.
+- Verification passed: `cmake --build build`, `ctest --test-dir build -R 'imageviewport_render_commit|imageviewport_render_scenegraph|structural::' --output-on-failure`, and `ctest --test-dir build --output-on-failure`.
 
 #### Acceptance criteria
 

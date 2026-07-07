@@ -4,6 +4,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
     , controller(*this)
     , providerHost(*this)
+    , renderHost(*this)
 {
     playbackClockTimebase.start();
     playbackTimer.setSingleShot(true);

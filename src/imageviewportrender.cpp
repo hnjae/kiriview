@@ -1,3 +1,5 @@
+#include "imageviewportrenderhost_p.h"
+
 #include "imageviewport_p.h"
 #include "renderadapter_scenegraph_p.h"
 
@@ -14,10 +16,15 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
 
 }
 
-QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
+ImageViewportRenderHost::ImageViewportRenderHost(ImageViewportPrivate& viewport)
+    : viewport(viewport)
+{
+}
+
+QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
 {
     const ViewportRenderSynchronization synchronization
-        = controller.beginRenderSynchronization(effectiveDevicePixelRatio(*this));
+        = viewport.controller.beginRenderSynchronization(effectiveDevicePixelRatio(viewport));
     QVector<RenderAdapter::Input::ImageLayer> imageLayers;
     imageLayers.reserve(synchronization.renderSnapshot.imageLayers.size());
     for (const ViewportRenderLayer& layer : synchronization.renderSnapshot.imageLayers) {
@@ -41,7 +48,7 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         imageLayers,
     };
     const RenderAdapterSceneGraph::Output render = RenderAdapterSceneGraph::createNode(
-        renderAdapter, oldNode, { planInput, window() });
+        renderAdapter, oldNode, { planInput, viewport.window() });
     if (render.result == RenderAdapter::CommitResult::Failed) {
         QSGNode* fallbackNode = render.node;
         QVector<ViewportRenderRolePayload> rolePayloads;
@@ -49,13 +56,13 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
-        const auto changes = controller.acknowledgeRenderFailure(
+        const auto changes = viewport.controller.acknowledgeRenderFailure(
             { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause });
-        applyControllerChanges(changes);
+        viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
-            syncPlaybackTimer();
+            viewport.syncPlaybackTimer();
         }
-        if (fallbackNode && displayStatus() != DisplayStatus::Empty) {
+        if (fallbackNode && viewport.displayStatus() != ImageViewport::DisplayStatus::Empty) {
             return fallbackNode;
         }
         delete fallbackNode;
@@ -68,17 +75,17 @@ QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
         for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
-        const auto changes = controller.acknowledgeRenderCommit(
+        const auto changes = viewport.controller.acknowledgeRenderCommit(
             { render.preparedPayload, rolePayloads }, imagePresent, synchronization);
-        applyControllerChanges(changes);
+        viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
-            syncPlaybackTimer();
+            viewport.syncPlaybackTimer();
         }
     }
     return render.node;
 }
 
-void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
+void ImageViewportRenderHost::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
     if (newGeometry.width() == oldGeometry.width()
@@ -86,9 +93,10 @@ void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRec
         return;
     }
 
-    const auto changes = controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
-    applyControllerChanges(changes);
+    const auto changes
+        = viewport.controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
+    viewport.applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        syncPlaybackTimer();
+        viewport.syncPlaybackTimer();
     }
 }

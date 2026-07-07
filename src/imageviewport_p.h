@@ -3,14 +3,13 @@
 #include "imageviewport.h"
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportproviderhost_p.h"
+#include "imageviewportrenderhost_p.h"
 #include "imageviewportstate_p.h"
 #include "playbackclock_p.h"
-#include "renderadapter_p.h"
 #include "viewportcontroller_p.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
-#include <QtQuick/QSGNode>
 
 class ImageViewportPrivate : public ViewportControllerContext
 {
@@ -218,10 +217,6 @@ public:
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
 
-    QSGNode* updatePaintNode(QSGNode* oldNode);
-    void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
-        const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
-
     bool providerHasCompleteKnownMetadata() const override;
     ImageSequenceProviderKnownFacts providerKnownFacts() const override;
     QSizeF providerKnownLogicalSize() const override;
@@ -276,8 +271,8 @@ public:
     ImageViewport* q = nullptr;
     ViewportController controller;
     ImageViewportProviderHost providerHost;
+    ImageViewportRenderHost renderHost;
     ImageViewportInternal::InternalDiagnostics internalDiagnostics;
-    RenderAdapter renderAdapter;
     QTimer playbackTimer;
     QElapsedTimer playbackClockTimebase;
     ImageViewportInternal::PlaybackClock playbackClock;

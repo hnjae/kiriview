@@ -266,7 +266,7 @@ bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
-    return d->updatePaintNode(oldNode);
+    return d->renderHost.updatePaintNode(oldNode);
 }
 
 void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
@@ -277,7 +277,7 @@ void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldG
     const QRectF oldContentRect = d->contentRectForItemBounds(oldItemBounds);
     const QRectF oldVisibleImageRect = d->visibleImageRectForItemBounds(oldItemBounds);
     QQuickItem::geometryChange(newGeometry, oldGeometry);
-    d->geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
+    d->renderHost.geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
 }
 
 namespace ImageViewportTestHooks {

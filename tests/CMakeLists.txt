@@ -153,6 +153,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/provider_host_boundary.cmake)
 
 add_test(
+    NAME structural::renderHostBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/render_host_boundary.cmake)
+
+add_test(
     NAME structural::refactorBaselineInventory
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
