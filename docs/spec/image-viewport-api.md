@@ -99,7 +99,7 @@ Public rectangle values expose real-valued `x`, `y`, `width`, and `height` field
 
 Public size values expose real-valued `width` and `height` fields. Public point values expose real-valued `x` and `y` fields. Public coordinate-result values expose `valid`, `x`, and `y` fields plus the coordinate space implied by the method that produced them; invalid coordinate results use `valid: false`, `x: 0`, and `y: 0`. Public page-geometry values expose the page role, page rectangle in spread coordinates, item rectangle, visible page rectangle, and availability state for that role.
 
-Public revision-token values expose equality and invalid-token testing. If a build also exposes a numeric projection for diagnostics, it is advisory; stale-sensitive command acceptance and late-result rejection remain viewport-owned and are reported through command outcomes, request state, and typed token matching rather than QML numeric comparisons.
+Public revision-token values expose equality and invalid-token testing. The `value` field is an unsigned 64-bit numeric projection where `0` is the invalid token; callers may log it or compare it for equality, but they must not rely on arithmetic ordering. Stale-sensitive command acceptance and late-result rejection remain viewport-owned and are reported through command outcomes, request state, and typed token matching rather than QML numeric comparisons.
 
 QML notifications are emitted when any field of a public value changes according to exact numeric equality for integer fields and exact equality of the normalized public value for real fields. C++ callers observe the same field names and units through the equivalent value types.
 
