@@ -83,8 +83,20 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
     , m_imageDocument(std::move(imageDocument))
     , m_imageDocumentCommandRuntime(std::move(imageCommands))
     , m_imageDocumentSyncRuntime(DocumentSessionImageDocumentSyncRuntimePorts {
-          [this](const QUrl& url) { return m_state.confirmDirectImageCursor(url); },
-          [this]() { return m_state.restoreDirectImageCursorAfterFailure(); },
+          [this](const QUrl& url) {
+              const bool changed = m_state.confirmDirectImageCursor(url);
+              if (changed) {
+                  syncMediaPredecodeScope();
+              }
+              return changed;
+          },
+          [this]() {
+              const bool changed = m_state.restoreDirectImageCursorAfterFailure();
+              if (changed) {
+                  syncMediaPredecodeScope();
+              }
+              return changed;
+          },
           [this](const QUrl& url) { m_state.setSourceIdentity(url); },
           [this](bool inProgress) { m_state.setFileDeletionInProgress(inProgress); },
           [this]() { m_directMediaNavigationCoordinator.refresh(m_owner); },
@@ -99,11 +111,22 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
           })
     , m_state(std::move(changeCallback))
     , m_videoDocumentSyncRuntime(DocumentSessionVideoDocumentSyncRuntimePorts {
-          [this]() { m_state.clearDirectMediaCursor(); },
+          [this]() {
+              const bool changed = m_state.clearDirectMediaCursor();
+              if (changed) {
+                  syncMediaPredecodeScope();
+              }
+          },
           [this](const QUrl& url) { m_state.setSourceIdentity(url); },
           [this](DocumentSessionKind kind) { setDocumentKind(kind); },
           [this]() { m_state.setDirectMediaNavigation({}, false, {}); },
-          [this](const QUrl& url) { return m_state.setDirectVideoCursor(url); },
+          [this](const QUrl& url) {
+              const bool changed = m_state.setDirectVideoCursor(url);
+              if (changed) {
+                  syncMediaPredecodeScope();
+              }
+              return changed;
+          },
           [this]() { m_directMediaNavigationCoordinator.refresh(m_owner); },
           [this]() { recomputePublicProjection(); },
           [this]() { recomputeActiveZoomReadout(); },
@@ -211,7 +234,7 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
           },
           DocumentSessionRouteFollowUpPorts {
               [this]() { recomputePublicProjection(); },
-              [this]() { m_mediaPredecodeRuntime.clear(); },
+              [this]() { syncMediaPredecodeScope(); },
           },
       })
     , m_activeNavigationRuntime(DocumentSessionActiveNavigationRuntimePorts {
@@ -247,7 +270,6 @@ DocumentSessionRuntime::DocumentSessionRuntime(QObject* owner,
                   applyDirectMediaNavigationRevealAction(action);
               },
               [this]() { recomputePublicProjection(); },
-              [this]() { m_mediaPredecodeRuntime.clear(); },
               [this](const QUrl& targetUrl) {
                   m_mediaPredecodeRuntime.schedule(m_mediaPredecodeInputPort.currentInput(),
                       targetUrl, m_state.directMediaNavigationCandidateSnapshot());
@@ -792,7 +814,10 @@ void DocumentSessionRuntime::enterOpenedCollectionVideoDocument(
     cancelMediaOpenWith();
     cancelMediaDeletion();
     m_state.setDirectMediaNavigation({}, false, {});
-    m_state.clearDirectMediaCursor();
+    const bool directMediaScopeChanged = m_state.clearDirectMediaCursor();
+    if (directMediaScopeChanged) {
+        syncMediaPredecodeScope();
+    }
     leaveVideoMode();
     refreshVideoPublicSnapshot();
 
@@ -901,6 +926,11 @@ void DocumentSessionRuntime::executeRoutePlan(const DocumentSessionRoutePlan& pl
 void DocumentSessionRuntime::leaveVideoMode()
 {
     m_videoDocumentCommandRuntime.leaveMode(m_videoPublicSnapshot.sourceUrl);
+}
+
+void DocumentSessionRuntime::syncMediaPredecodeScope()
+{
+    m_mediaPredecodeRuntime.syncScope(m_mediaPredecodeInputPort.currentInput());
 }
 
 void DocumentSessionRuntime::cacheDisplayedMediaPredecodeImages()

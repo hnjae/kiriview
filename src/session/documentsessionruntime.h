@@ -163,6 +163,7 @@ private:
     void openMediaUrl(const QUrl& url);
     void executeRoutePlan(const DocumentSessionRoutePlan& plan);
     void leaveVideoMode();
+    void syncMediaPredecodeScope();
     void cacheDisplayedMediaPredecodeImages();
     void cancelMediaDeletion();
     void cancelMediaOpenWith();

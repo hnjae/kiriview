@@ -115,7 +115,6 @@ struct CoordinatorFixture
         SetNavigation,
         Reveal,
         Publish,
-        ClearPredecode,
         Predecode,
         Route,
     };
@@ -133,7 +132,6 @@ struct CoordinatorFixture
     AppliedNavigation navigation;
     kiriview::DocumentSessionDirectMediaNavigationRevealAction revealAction
         = kiriview::DocumentSessionDirectMediaNavigationRevealAction::None;
-    int clearPredecodeCount = 0;
     QUrl predecodeTargetUrl;
     QUrl routeTargetUrl;
     std::unique_ptr<kiriview::DocumentSessionDirectMediaNavigationCoordinator> coordinator;
@@ -164,10 +162,6 @@ struct CoordinatorFixture
                   revealAction = action;
               };
         ports.recomputePublicProjection = [this]() { events.push_back(Event::Publish); };
-        ports.clearPredecode = [this]() {
-            events.push_back(Event::ClearPredecode);
-            ++clearPredecodeCount;
-        };
         ports.schedulePredecode = [this](const QUrl& targetUrl) {
             events.push_back(Event::Predecode);
             predecodeTargetUrl = targetUrl;
@@ -196,11 +190,9 @@ void TestDocumentSessionDirectMediaNavigationCoordinator::
     QVERIFY(fixture.navigation.candidates.empty());
     QCOMPARE(fixture.revealAction,
         kiriview::DocumentSessionDirectMediaNavigationRevealAction::ProgrammaticSync);
-    QCOMPARE(fixture.clearPredecodeCount, 1);
     QCOMPARE(fixture.events,
         (std::vector<CoordinatorFixture::Event> { CoordinatorFixture::Event::SetNavigation,
-            CoordinatorFixture::Event::Reveal, CoordinatorFixture::Event::Publish,
-            CoordinatorFixture::Event::ClearPredecode }));
+            CoordinatorFixture::Event::Reveal, CoordinatorFixture::Event::Publish }));
 }
 
 void TestDocumentSessionDirectMediaNavigationCoordinator::

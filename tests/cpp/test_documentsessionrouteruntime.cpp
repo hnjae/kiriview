@@ -19,7 +19,8 @@ private Q_SLOTS:
     void directImageMediaRouteExecutesSameScopeImageNavigationEntry();
     void executionRunsMutationPublicationFollowUpAndCompletionInOrder();
     void executionPublishesBeforeTypedFollowUps();
-    void clearedNavigationRepublishesBeforePredecodeClear();
+    void clearedNavigationRepublishesBeforePredecodeScopeSync();
+    void directMediaScopeChangeSyncsPredecodeScopeAfterFinalCursorMutation();
     void activeNavigationRefreshesWithoutScopeChange();
 };
 
@@ -55,8 +56,8 @@ void TestDocumentSessionRouteRuntime::executionRunsMutationPublicationFollowUpAn
     ports.directMedia.directMediaNavigationActive = []() { return false; };
     ports.directMedia.refreshDirectMediaNavigation
         = [&events]() { events.push_back(QStringLiteral("refresh-navigation")); };
-    ports.followUp.clearMediaPredecode
-        = [&events]() { events.push_back(QStringLiteral("clear-predecode")); };
+    ports.followUp.syncMediaPredecodeScope
+        = [&events]() { events.push_back(QStringLiteral("sync-predecode-scope")); };
     ports.session.routeCompleted = [&events]() { events.push_back(QStringLiteral("complete")); };
 
     kiriview::DocumentSessionRouteRuntime runtime(std::move(ports));
@@ -93,8 +94,8 @@ void TestDocumentSessionRouteRuntime::executionRunsMutationPublicationFollowUpAn
         QStringLiteral("suppress-end"),
         QStringLiteral("identity:%1").arg(imageUrl.toString()),
         QStringLiteral("publish"),
+        QStringLiteral("sync-predecode-scope"),
         QStringLiteral("refresh-navigation"),
-        QStringLiteral("clear-predecode"),
         QStringLiteral("complete"),
     };
     QCOMPARE(events, expected);
@@ -309,8 +310,8 @@ void TestDocumentSessionRouteRuntime::executionPublishesBeforeTypedFollowUps()
     ports.directMedia.directMediaNavigationActive = []() { return false; };
     ports.directMedia.refreshDirectMediaNavigation
         = [&events]() { events.push_back(QStringLiteral("refresh-navigation")); };
-    ports.followUp.clearMediaPredecode
-        = [&events]() { events.push_back(QStringLiteral("clear-predecode")); };
+    ports.followUp.syncMediaPredecodeScope
+        = [&events]() { events.push_back(QStringLiteral("sync-predecode-scope")); };
     ports.session.routeCompleted = [&events]() { events.push_back(QStringLiteral("complete")); };
 
     kiriview::DocumentSessionRouteRuntime runtime(std::move(ports));
@@ -347,14 +348,14 @@ void TestDocumentSessionRouteRuntime::executionPublishesBeforeTypedFollowUps()
         QStringLiteral("suppress-end"),
         QStringLiteral("identity:%1").arg(imageUrl.toString()),
         QStringLiteral("publish"),
+        QStringLiteral("sync-predecode-scope"),
         QStringLiteral("refresh-navigation"),
-        QStringLiteral("clear-predecode"),
         QStringLiteral("complete"),
     };
     QCOMPARE(events, expected);
 }
 
-void TestDocumentSessionRouteRuntime::clearedNavigationRepublishesBeforePredecodeClear()
+void TestDocumentSessionRouteRuntime::clearedNavigationRepublishesBeforePredecodeScopeSync()
 {
     std::vector<QString> events;
     kiriview::DocumentSessionRouteRuntimePorts ports;
@@ -363,8 +364,8 @@ void TestDocumentSessionRouteRuntime::clearedNavigationRepublishesBeforePredecod
         = [&events]() { events.push_back(QStringLiteral("clear-navigation")); };
     ports.followUp.recomputePublicProjection
         = [&events]() { events.push_back(QStringLiteral("publish")); };
-    ports.followUp.clearMediaPredecode
-        = [&events]() { events.push_back(QStringLiteral("clear-predecode")); };
+    ports.followUp.syncMediaPredecodeScope
+        = [&events]() { events.push_back(QStringLiteral("sync-predecode-scope")); };
     ports.session.routeCompleted = []() { };
 
     kiriview::DocumentSessionRouteRuntime runtime(std::move(ports));
@@ -384,7 +385,53 @@ void TestDocumentSessionRouteRuntime::clearedNavigationRepublishesBeforePredecod
         QStringLiteral("clear-navigation"),
         QStringLiteral("clear-navigation"),
         QStringLiteral("publish"),
-        QStringLiteral("clear-predecode"),
+        QStringLiteral("sync-predecode-scope"),
+    };
+    QCOMPARE(events, expected);
+}
+
+void TestDocumentSessionRouteRuntime::
+    directMediaScopeChangeSyncsPredecodeScopeAfterFinalCursorMutation()
+{
+    std::vector<QString> events;
+    kiriview::DocumentSessionRouteRuntimePorts ports;
+    ports.session.cancelMediaOpenWith
+        = [&events]() { events.push_back(QStringLiteral("cancel-open-with")); };
+    ports.directMedia.clearDirectMediaCursor = [&events]() {
+        events.push_back(QStringLiteral("clear-cursor"));
+        return true;
+    };
+    ports.directMedia.requestDirectImageCursor = [&events](const QUrl& url) {
+        events.push_back(QStringLiteral("request-image-cursor:%1").arg(url.toString()));
+        return true;
+    };
+    ports.followUp.syncMediaPredecodeScope
+        = [&events]() { events.push_back(QStringLiteral("sync-predecode-scope")); };
+    ports.directMedia.refreshDirectMediaNavigation
+        = [&events]() { events.push_back(QStringLiteral("refresh-navigation")); };
+    ports.session.routeCompleted = [&events]() { events.push_back(QStringLiteral("complete")); };
+
+    kiriview::DocumentSessionRouteRuntime runtime(std::move(ports));
+    const QUrl imageUrl = localUrl(QStringLiteral("/tmp/page.png"));
+    kiriview::DocumentSessionRoutePlan plan;
+    plan.mutations = {
+        kiriview::DocumentSessionRouteMutation {
+            kiriview::ClearThenRequestDirectImageCursorRouteOperation { imageUrl } },
+    };
+    plan.followUpEffects = {
+        kiriview::DocumentSessionRouteFollowUpEffect {
+            kiriview::RefreshDirectMediaNavigationAfterRoutingRouteEffect {} },
+    };
+
+    runtime.execute(plan);
+
+    const std::vector<QString> expected {
+        QStringLiteral("cancel-open-with"),
+        QStringLiteral("clear-cursor"),
+        QStringLiteral("request-image-cursor:%1").arg(imageUrl.toString()),
+        QStringLiteral("sync-predecode-scope"),
+        QStringLiteral("refresh-navigation"),
+        QStringLiteral("complete"),
     };
     QCOMPARE(events, expected);
 }

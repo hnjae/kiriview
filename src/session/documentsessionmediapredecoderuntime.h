@@ -9,6 +9,7 @@
 #include "session/directmedianavigationcandidatesnapshot.h"
 #include "session/documentsessiontypes.h"
 
+#include <QString>
 #include <QUrl>
 #include <memory>
 #include <optional>
@@ -41,6 +42,7 @@ public:
         DirectMediaNavigationCandidateSnapshot candidateSnapshot);
     void schedule(const DocumentSessionMediaPredecodeInput& input, const QUrl& selectedTargetUrl,
         DirectMediaNavigationCandidateSnapshot candidateSnapshot);
+    void syncScope(const DocumentSessionMediaPredecodeInput& input);
     void cacheDisplayedImages(const DocumentSessionMediaPredecodeInput& input);
     void cancel();
     void clear();
@@ -51,6 +53,9 @@ private:
         const DocumentSessionMediaPredecodeInput& input);
 
     std::unique_ptr<MediaPredecodeCoordinator> m_coordinator;
+    bool m_scopeIdentityKnown = false;
+    bool m_scopeActive = false;
+    QString m_scopeParentIdentity;
 };
 }
 

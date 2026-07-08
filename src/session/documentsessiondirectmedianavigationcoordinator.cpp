@@ -39,11 +39,6 @@ DocumentSessionDirectMediaNavigationCoordinator::DocumentSessionDirectMediaNavig
                   m_ports.recomputePublicProjection();
               }
           },
-          [this]() {
-              if (m_ports.clearPredecode) {
-                  m_ports.clearPredecode();
-              }
-          },
           [this](const QUrl& targetUrl) {
               if (m_ports.schedulePredecode) {
                   m_ports.schedulePredecode(targetUrl);
@@ -72,7 +67,7 @@ void DocumentSessionDirectMediaNavigationCoordinator::refresh(QObject* receiver)
                                        << "reason"
                                        << "inactive"
                                        << "cursorUrl" << activeCursorUrl();
-        m_applicationRuntime.applyInactiveRefresh(!directImageSourceScopeEligible());
+        m_applicationRuntime.applyInactiveRefresh();
         return;
     }
 

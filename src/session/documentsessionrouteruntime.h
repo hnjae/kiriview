@@ -50,7 +50,7 @@ struct DocumentSessionRouteSourceIdentityPorts
 struct DocumentSessionRouteFollowUpPorts
 {
     std::function<void()> recomputePublicProjection;
-    std::function<void()> clearMediaPredecode;
+    std::function<void()> syncMediaPredecodeScope;
 };
 
 struct DocumentSessionRouteRuntimePorts

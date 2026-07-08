@@ -3,12 +3,41 @@
 
 #include "documentsessionmediapredecoderuntime.h"
 
+#include "location/sourcekey.h"
+#include "navigation/directmedianavigationmodel.h"
 #include "predecode/mediapredecodecoordinator.h"
 
 #include <QObject>
 #include <utility>
 
 namespace kiriview {
+namespace {
+    struct MediaPredecodeScopeIdentity
+    {
+        bool active = false;
+        QString parentIdentity;
+    };
+
+    MediaPredecodeScopeIdentity mediaPredecodeScopeIdentity(
+        const DocumentSessionMediaPredecodeInput& input)
+    {
+        if (!input.directMediaNavigationActive || input.currentUrl.isEmpty()) {
+            return {};
+        }
+
+        const SourceKey parentKey
+            = sourceKeyForDirectMediaParentUrl(directMediaNavigationParentUrl(input.currentUrl));
+        if (!parentKey.valid) {
+            return {};
+        }
+
+        return MediaPredecodeScopeIdentity {
+            true,
+            parentKey.identity,
+        };
+    }
+}
+
 DocumentSessionMediaPredecodeRuntime::DocumentSessionMediaPredecodeRuntime(
     QObject* owner, MediaPredecodeDependencyOverrides dependencies)
     : m_coordinator(std::make_unique<MediaPredecodeCoordinator>(
@@ -27,6 +56,7 @@ void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPr
 void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPredecodeInput& input,
     const QUrl& selectedTargetUrl, DirectMediaNavigationCandidateSnapshot candidateSnapshot)
 {
+    syncScope(input);
     if (!input.directMediaNavigationActive || input.currentUrl.isEmpty()) {
         return;
     }
@@ -41,9 +71,28 @@ void DocumentSessionMediaPredecodeRuntime::schedule(const DocumentSessionMediaPr
     });
 }
 
+void DocumentSessionMediaPredecodeRuntime::syncScope(
+    const DocumentSessionMediaPredecodeInput& input)
+{
+    const MediaPredecodeScopeIdentity next = mediaPredecodeScopeIdentity(input);
+    if (m_scopeIdentityKnown && m_scopeActive == next.active
+        && m_scopeParentIdentity == next.parentIdentity) {
+        return;
+    }
+
+    const bool clearPreviousScope = m_scopeIdentityKnown;
+    m_scopeIdentityKnown = true;
+    m_scopeActive = next.active;
+    m_scopeParentIdentity = next.parentIdentity;
+    if (clearPreviousScope) {
+        m_coordinator->clear();
+    }
+}
+
 void DocumentSessionMediaPredecodeRuntime::cacheDisplayedImages(
     const DocumentSessionMediaPredecodeInput& input)
 {
+    syncScope(input);
     if (!input.directMediaNavigationActive) {
         return;
     }
@@ -58,7 +107,13 @@ void DocumentSessionMediaPredecodeRuntime::cacheDisplayedImages(
 
 void DocumentSessionMediaPredecodeRuntime::cancel() { m_coordinator->cancel(); }
 
-void DocumentSessionMediaPredecodeRuntime::clear() { m_coordinator->clear(); }
+void DocumentSessionMediaPredecodeRuntime::clear()
+{
+    m_scopeIdentityKnown = false;
+    m_scopeActive = false;
+    m_scopeParentIdentity.clear();
+    m_coordinator->clear();
+}
 
 std::optional<PredecodedImage> DocumentSessionMediaPredecodeRuntime::findPredecodedImage(
     const QUrl& url) const

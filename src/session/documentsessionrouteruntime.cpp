@@ -81,7 +81,7 @@ void DocumentSessionRouteRuntime::execute(const DocumentSessionRoutePlan& plan)
         bool publishPublicProjection = false;
         bool refreshDirectMediaNavigation = false;
         bool clearDirectMediaNavigationBeforePredecode = false;
-        bool clearMediaPredecode = false;
+        bool syncMediaPredecodeScope = false;
     };
 
     RouteExecutionResult result;
@@ -224,12 +224,14 @@ void DocumentSessionRouteRuntime::execute(const DocumentSessionRoutePlan& plan)
                         result.clearDirectMediaNavigationBeforePredecode = true;
                         result.publishPublicProjection = true;
                     }
-                    result.clearMediaPredecode = true;
+                    result.syncMediaPredecodeScope = true;
                 }
             },
             effect);
     }
 
+    result.syncMediaPredecodeScope
+        = result.syncMediaPredecodeScope || result.directMediaScopeChanged;
     if (result.clearDirectMediaNavigationBeforePredecode
         && m_ports.directMedia.clearDirectMediaNavigation) {
         m_ports.directMedia.clearDirectMediaNavigation();
@@ -237,11 +239,11 @@ void DocumentSessionRouteRuntime::execute(const DocumentSessionRoutePlan& plan)
     if (result.publishPublicProjection && m_ports.followUp.recomputePublicProjection) {
         m_ports.followUp.recomputePublicProjection();
     }
+    if (result.syncMediaPredecodeScope && m_ports.followUp.syncMediaPredecodeScope) {
+        m_ports.followUp.syncMediaPredecodeScope();
+    }
     if (result.refreshDirectMediaNavigation && m_ports.directMedia.refreshDirectMediaNavigation) {
         m_ports.directMedia.refreshDirectMediaNavigation();
-    }
-    if (result.clearMediaPredecode && m_ports.followUp.clearMediaPredecode) {
-        m_ports.followUp.clearMediaPredecode();
     }
 
     if (m_ports.session.routeCompleted) {
