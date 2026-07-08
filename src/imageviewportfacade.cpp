@@ -242,6 +242,10 @@ CoordinateResult ImageViewport::spreadToItem(double x, double y) const
 {
     return d->spreadToItem(x, y);
 }
+CoordinateResult ImageViewport::nearestVisibleSpreadPoint(double x, double y) const
+{
+    return d->nearestVisibleSpreadPoint(x, y);
+}
 CoordinateResult ImageViewport::itemToPage(PageRole role, double x, double y) const
 {
     return d->itemToPage(role, x, y);
@@ -249,6 +253,10 @@ CoordinateResult ImageViewport::itemToPage(PageRole role, double x, double y) co
 CoordinateResult ImageViewport::pageToItem(PageRole role, double x, double y) const
 {
     return d->pageToItem(role, x, y);
+}
+CoordinateResult ImageViewport::nearestVisiblePagePoint(PageRole role, double x, double y) const
+{
+    return d->nearestVisiblePagePoint(role, x, y);
 }
 PageGeometry ImageViewport::pageGeometry(PageRole role) const
 {
@@ -269,6 +277,10 @@ CoordinateResult ImageViewport::itemToImage(double x, double y) const
 CoordinateResult ImageViewport::imageToItem(double x, double y) const
 {
     return d->imageToItem(x, y);
+}
+CoordinateResult ImageViewport::nearestVisibleImagePoint(double x, double y) const
+{
+    return d->nearestVisibleImagePoint(x, y);
 }
 bool ImageViewport::containsVisibleImagePoint(double x, double y) const
 {

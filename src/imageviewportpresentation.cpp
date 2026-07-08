@@ -378,6 +378,11 @@ CoordinateResult ImageViewportPrivate::spreadToItem(double x, double y) const
     return PresentationGeometry::spreadToItem(geometryState(*this), x, y);
 }
 
+CoordinateResult ImageViewportPrivate::nearestVisibleSpreadPoint(double x, double y) const
+{
+    return PresentationGeometry::nearestVisibleSpreadPoint(geometryState(*this), x, y);
+}
+
 CoordinateResult ImageViewportPrivate::itemToPage(PageRole role, double x, double y) const
 {
     if (!isValidPageRole(role)) {
@@ -394,6 +399,16 @@ CoordinateResult ImageViewportPrivate::pageToItem(PageRole role, double x, doubl
     }
 
     return PresentationGeometry::pageToItem(geometryState(*this), role, x, y);
+}
+
+CoordinateResult ImageViewportPrivate::nearestVisiblePagePoint(
+    PageRole role, double x, double y) const
+{
+    if (!isValidPageRole(role)) {
+        return invalidCoordinateResult();
+    }
+
+    return PresentationGeometry::nearestVisiblePagePoint(geometryState(*this), role, x, y);
 }
 
 bool ImageViewportPrivate::containsVisibleSpreadPoint(double x, double y) const
@@ -418,6 +433,11 @@ CoordinateResult ImageViewportPrivate::itemToImage(double x, double y) const
 CoordinateResult ImageViewportPrivate::imageToItem(double x, double y) const
 {
     return PresentationGeometry::imageToItem(geometryState(*this), x, y);
+}
+
+CoordinateResult ImageViewportPrivate::nearestVisibleImagePoint(double x, double y) const
+{
+    return PresentationGeometry::nearestVisibleImagePoint(geometryState(*this), x, y);
 }
 
 bool ImageViewportPrivate::containsVisibleImagePoint(double x, double y) const

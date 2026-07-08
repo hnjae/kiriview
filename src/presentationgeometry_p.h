@@ -42,13 +42,17 @@ public:
     static CoordinateResult imageToItem(const State& state, double x, double y);
     static CoordinateResult itemToSpread(const State& state, double x, double y);
     static CoordinateResult spreadToItem(const State& state, double x, double y);
+    static CoordinateResult nearestVisibleSpreadPoint(const State& state, double x, double y);
     static CoordinateResult itemToPage(
         const State& state, ImageViewport::PageRole role, double x, double y);
     static CoordinateResult pageToItem(
+        const State& state, ImageViewport::PageRole role, double x, double y);
+    static CoordinateResult nearestVisiblePagePoint(
         const State& state, ImageViewport::PageRole role, double x, double y);
     static bool containsVisibleImagePoint(const State& state, double x, double y);
     static bool containsVisibleSpreadPoint(const State& state, double x, double y);
     static bool containsVisiblePagePoint(
         const State& state, ImageViewport::PageRole role, double x, double y);
+    static CoordinateResult nearestVisibleImagePoint(const State& state, double x, double y);
     static CoordinateResult invalidCoordinateResult();
 };

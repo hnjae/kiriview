@@ -27,6 +27,24 @@ CoordinateResult coordinateResult(QPointF point)
     return CoordinateResult(true, point.x(), point.y());
 }
 
+bool isFiniteRect(const QRectF& rect)
+{
+    return std::isfinite(rect.left()) && std::isfinite(rect.top()) && std::isfinite(rect.right())
+        && std::isfinite(rect.bottom());
+}
+
+CoordinateResult nearestCoordinateInHalfOpenRect(const QRectF& rect, double x, double y)
+{
+    if (rect.isEmpty() || !isFiniteRect(rect) || !std::isfinite(x) || !std::isfinite(y)) {
+        return {};
+    }
+
+    const double rightEdgeInside = std::nextafter(rect.right(), rect.left());
+    const double bottomEdgeInside = std::nextafter(rect.bottom(), rect.top());
+    return coordinateResult(QPointF(
+        std::clamp(x, rect.left(), rightEdgeInside), std::clamp(y, rect.top(), bottomEdgeInside)));
+}
+
 int normalizedRotation(int degrees)
 {
     int normalized = degrees % 360;
@@ -460,6 +478,12 @@ CoordinateResult PresentationGeometry::imageToItem(const State& state, double x,
     return pageToItem(state, ImageViewport::PageRole::Primary, x, y);
 }
 
+CoordinateResult PresentationGeometry::nearestVisibleImagePoint(
+    const State& state, double x, double y)
+{
+    return nearestVisiblePagePoint(state, ImageViewport::PageRole::Primary, x, y);
+}
+
 CoordinateResult PresentationGeometry::itemToSpread(const State& state, double x, double y)
 {
     if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
@@ -496,6 +520,16 @@ CoordinateResult PresentationGeometry::spreadToItem(const State& state, double x
     return coordinateResult(itemPoint);
 }
 
+CoordinateResult PresentationGeometry::nearestVisibleSpreadPoint(
+    const State& state, double x, double y)
+{
+    if (!hasPresentableGeometry(state)) {
+        return invalidCoordinateResult();
+    }
+
+    return nearestCoordinateInHalfOpenRect(visibleSpreadRectForState(state), x, y);
+}
+
 CoordinateResult PresentationGeometry::itemToPage(
     const State& state, ImageViewport::PageRole role, double x, double y)
 {
@@ -527,6 +561,12 @@ CoordinateResult PresentationGeometry::pageToItem(
     }
 
     return spreadToItem(state, pageRect.x() + x, pageRect.y() + y);
+}
+
+CoordinateResult PresentationGeometry::nearestVisiblePagePoint(
+    const State& state, ImageViewport::PageRole role, double x, double y)
+{
+    return nearestCoordinateInHalfOpenRect(visiblePageRectForState(state, role), x, y);
 }
 
 bool PresentationGeometry::containsVisibleImagePoint(const State& state, double x, double y)

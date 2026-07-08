@@ -2,6 +2,7 @@
 #include "imageviewport_qml_test_support.h"
 
 #include <cmath>
+#include <limits>
 
 class ImageViewportPublicApiTest : public QObject
 {
@@ -21,6 +22,7 @@ private slots:
     void exposesTypedPublicValueSurfaces();
     void hasDocumentedDefaultState();
     void manualZoomHelpersExposeDefaultsAndDoNotAdvanceRevisions();
+    void nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions();
     void typedPublicValueDefaultsExposeDocumentedFields();
     void pageGeometryValueTypeFields();
     void revisionTokensExposeValidityAndEquality();
@@ -279,6 +281,9 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
         "containsVisibleSpreadPoint(double,double)",
+        "nearestVisibleSpreadPoint(double,double)",
+        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
+        "nearestVisibleImagePoint(double,double)",
         "clampedManualZoomPercent(double)",
         "steppedManualZoomPercent(int)",
     };
@@ -326,8 +331,11 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         "spreadToItem(double,double)",
         "itemToPage(ImageViewport::PageRole,double,double)",
         "pageToItem(ImageViewport::PageRole,double,double)",
+        "nearestVisibleSpreadPoint(double,double)",
+        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
         "itemToImage(double,double)",
         "imageToItem(double,double)",
+        "nearestVisibleImagePoint(double,double)",
     };
     for (const QByteArray& methodName : coordinateMethods) {
         const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
@@ -424,6 +432,10 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
     verifyInvalidCoordinateResult(item.itemToImage(1.0, 1.0));
     verifyInvalidCoordinateResult(item.imageToItem(1.0, 1.0));
+    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(1.0, 1.0));
+    verifyInvalidCoordinateResult(
+        item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
+    verifyInvalidCoordinateResult(item.nearestVisibleImagePoint(1.0, 1.0));
     QCOMPARE(item.containsVisibleImagePoint(1.0, 1.0), false);
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
@@ -475,6 +487,33 @@ void ImageViewportPublicApiTest::manualZoomHelpersExposeDefaultsAndDoNotAdvanceR
     verifyClose(item.steppedManualZoomPercent(-1), 80.0);
     QCOMPARE(item.steppedManualZoomPercent(std::numeric_limits<int>::max()), maximum);
     QCOMPARE(item.steppedManualZoomPercent(std::numeric_limits<int>::min()), minimum);
+
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.commandRevision(), commandRevision);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 0);
+}
+
+void ImageViewportPublicApiTest::nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions()
+{
+    ImageViewport item;
+    const RevisionToken displayRevision = item.displayRevision();
+    const RevisionToken requestRevision = item.requestRevision();
+    const RevisionToken commandRevision = item.commandRevision();
+    QSignalSpy displaySpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestRevisionChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandRevisionChanged);
+
+    const double infinity = std::numeric_limits<double>::infinity();
+    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(1.0, 1.0));
+    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(infinity, 1.0));
+    verifyInvalidCoordinateResult(
+        item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
+    verifyInvalidCoordinateResult(item.nearestVisiblePagePoint(
+        static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
+    verifyInvalidCoordinateResult(item.nearestVisibleImagePoint(1.0, 1.0));
 
     QCOMPARE(item.displayRevision(), displayRevision);
     QCOMPARE(item.requestRevision(), requestRevision);

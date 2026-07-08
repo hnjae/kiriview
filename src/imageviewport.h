@@ -971,14 +971,18 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE CoordinateResult itemToSpread(double x, double y) const;
     Q_INVOKABLE CoordinateResult spreadToItem(double x, double y) const;
+    Q_INVOKABLE CoordinateResult nearestVisibleSpreadPoint(double x, double y) const;
     Q_INVOKABLE CoordinateResult itemToPage(ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE CoordinateResult pageToItem(ImageViewport::PageRole role, double x, double y) const;
+    Q_INVOKABLE CoordinateResult nearestVisiblePagePoint(
+        ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE PageGeometry pageGeometry(ImageViewport::PageRole role) const;
     Q_INVOKABLE bool containsVisibleSpreadPoint(double x, double y) const;
     Q_INVOKABLE bool containsVisiblePagePoint(
         ImageViewport::PageRole role, double x, double y) const;
     Q_INVOKABLE CoordinateResult itemToImage(double x, double y) const;
     Q_INVOKABLE CoordinateResult imageToItem(double x, double y) const;
+    Q_INVOKABLE CoordinateResult nearestVisibleImagePoint(double x, double y) const;
     Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
 
 signals:

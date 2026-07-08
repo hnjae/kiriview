@@ -204,12 +204,15 @@ public:
     void setLooping(bool looping);
     CoordinateResult itemToSpread(double x, double y) const;
     CoordinateResult spreadToItem(double x, double y) const;
+    CoordinateResult nearestVisibleSpreadPoint(double x, double y) const;
     CoordinateResult itemToPage(PageRole role, double x, double y) const;
     CoordinateResult pageToItem(PageRole role, double x, double y) const;
+    CoordinateResult nearestVisiblePagePoint(PageRole role, double x, double y) const;
     bool containsVisibleSpreadPoint(double x, double y) const;
     bool containsVisiblePagePoint(PageRole role, double x, double y) const;
     CoordinateResult itemToImage(double x, double y) const;
     CoordinateResult imageToItem(double x, double y) const;
+    CoordinateResult nearestVisibleImagePoint(double x, double y) const;
     bool containsVisibleImagePoint(double x, double y) const;
     static ImageViewportRange invalidRange();
     static CoordinateResult invalidCoordinateResult();
