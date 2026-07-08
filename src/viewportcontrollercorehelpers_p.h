@@ -3,12 +3,10 @@
 #include "viewportcontroller_p.h"
 
 #include "imageviewportproviderfacts_p.h"
-#include "imageviewportvalidation_p.h"
 #include "viewportcontrollermetadatacontract_p.h"
 #include "viewportgeometryhelpers_p.h"
 
 #include <optional>
-#include <utility>
 
 namespace {
 using ImageViewportInternal::DisplayRequestTarget;

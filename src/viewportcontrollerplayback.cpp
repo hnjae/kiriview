@@ -1,4 +1,5 @@
 #include "viewportcontrollerplaybackhelpers_p.h"
+#include "imageviewportvalidation_p.h"
 #include "viewportcommandoutcome_p.h"
 
 namespace {

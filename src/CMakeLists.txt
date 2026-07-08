@@ -64,7 +64,6 @@ qt_add_qml_module(
     viewportcontrollerplayback.cpp
     viewportcontrollerpresentation.cpp
     viewportcontrollerprovider.cpp
-    viewportcontrollerproviderhelpers_p.h
     viewportcontrollerrender.cpp
     viewportcontrollerrenderhelpers_p.h
     viewportcontroller_p.h

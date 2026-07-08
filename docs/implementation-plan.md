@@ -191,6 +191,8 @@ Work: Prefer forward declarations where the owner boundary allows them.
 
 Work: Keep test-only probes behind `IMAGEVIEWPORT_PRIVATE_TEST_PROBES` and prevent production code from depending on probe-only types.
 
+Assumption: empty umbrella helper headers that only re-export another owner helper are dependency leaks rather than durable owner boundaries, so header cleanup may remove them and include the real owner header directly.
+
 Acceptance: Build and tests pass from a clean configure.
 
 Acceptance: Installed public-header tests still pass and no private implementation type leaks into installed headers.

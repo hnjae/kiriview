@@ -9,7 +9,6 @@
 #include <QtCore/QSizeF>
 #include <QtCore/QVector>
 #include <QtGui/QColor>
-#include <QtGui/QImage>
 
 struct ViewportRenderRolePayload
 {

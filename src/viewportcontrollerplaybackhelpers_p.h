@@ -5,7 +5,6 @@
 #include "playbacktimeline_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerplaybackcontract_p.h"
-#include "viewportgeometryhelpers_p.h"
 
 namespace {
 using ImageViewportInternal::PlaybackAdvanceTarget;

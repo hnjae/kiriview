@@ -1,4 +1,5 @@
 #include "viewportcontrollergeometryhelpers_p.h"
+#include "imageviewportvalidation_p.h"
 #include "viewportcommandoutcome_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 
