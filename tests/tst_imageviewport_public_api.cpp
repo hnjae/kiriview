@@ -1,6 +1,8 @@
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 
+#include <cmath>
+
 class ImageViewportPublicApiTest : public QObject
 {
     Q_OBJECT
@@ -18,6 +20,7 @@ private slots:
     void exposesFinalApiScaffold();
     void exposesTypedPublicValueSurfaces();
     void hasDocumentedDefaultState();
+    void manualZoomHelpersExposeDefaultsAndDoNotAdvanceRevisions();
     void typedPublicValueDefaultsExposeDocumentedFields();
     void pageGeometryValueTypeFields();
     void revisionTokensExposeValidityAndEquality();
@@ -238,6 +241,9 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "verticalPannable",
         "fitMode",
         "zoomPercent",
+        "minimumManualZoomPercent",
+        "maximumManualZoomPercent",
+        "manualZoomStepFactor",
         "rotationDegrees",
     };
 
@@ -273,6 +279,8 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
         "containsVisibleSpreadPoint(double,double)",
+        "clampedManualZoomPercent(double)",
+        "steppedManualZoomPercent(int)",
     };
 
     for (const QByteArray& method : methods) {
@@ -342,6 +350,16 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     QVERIFY(pageGeometryMethodIndex >= 0);
     QCOMPARE(QByteArray(metaObject->method(pageGeometryMethodIndex).typeName()),
         QByteArray("PageGeometry"));
+
+    const QList<QByteArray> realHelperMethods = {
+        "clampedManualZoomPercent(double)",
+        "steppedManualZoomPercent(int)",
+    };
+    for (const QByteArray& methodName : realHelperMethods) {
+        const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
+        QVERIFY2(index >= 0, methodName.constData());
+        QCOMPARE(QByteArray(metaObject->method(index).typeName()), QByteArray("double"));
+    }
 
     const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {
@@ -420,6 +438,50 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
         enumValue(metaObject, "BackgroundMode", "Transparent"));
     QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
     QCOMPARE(item.property("looping").toBool(), false);
+    QVERIFY(item.property("minimumManualZoomPercent").toDouble() > 0.0);
+    QCOMPARE(item.property("maximumManualZoomPercent").toDouble(),
+        ImageViewportDisplayLimits::maximumManualZoomPercent());
+    QCOMPARE(item.property("manualZoomStepFactor").toDouble(), 1.25);
+}
+
+void ImageViewportPublicApiTest::manualZoomHelpersExposeDefaultsAndDoNotAdvanceRevisions()
+{
+    ImageViewport item;
+    const auto verifyClose = [](double actual, double expected) {
+        QVERIFY2(qAbs(actual - expected) < 0.000001,
+            qPrintable(QStringLiteral("actual %1 expected %2").arg(actual).arg(expected)));
+    };
+    const RevisionToken displayRevision = item.displayRevision();
+    const RevisionToken requestRevision = item.requestRevision();
+    const RevisionToken commandRevision = item.commandRevision();
+    QSignalSpy displaySpy(&item, &ImageViewport::displayRevisionChanged);
+    QSignalSpy requestSpy(&item, &ImageViewport::requestRevisionChanged);
+    QSignalSpy commandSpy(&item, &ImageViewport::commandRevisionChanged);
+
+    const double minimum = item.minimumManualZoomPercent();
+    const double maximum = item.maximumManualZoomPercent();
+    const double stepFactor = item.manualZoomStepFactor();
+
+    QVERIFY(std::isfinite(minimum));
+    QVERIFY(minimum > 0.0);
+    QCOMPARE(maximum, ImageViewportDisplayLimits::maximumManualZoomPercent());
+    QCOMPARE(stepFactor, 1.25);
+    QCOMPARE(item.clampedManualZoomPercent(-1.0), minimum);
+    QCOMPARE(item.clampedManualZoomPercent(std::numeric_limits<double>::infinity()), minimum);
+    QCOMPARE(item.clampedManualZoomPercent(maximum + 1.0), maximum);
+    QCOMPARE(item.clampedManualZoomPercent(125.0), 125.0);
+    verifyClose(item.steppedManualZoomPercent(0), 100.0);
+    verifyClose(item.steppedManualZoomPercent(1), 125.0);
+    verifyClose(item.steppedManualZoomPercent(-1), 80.0);
+    QCOMPARE(item.steppedManualZoomPercent(std::numeric_limits<int>::max()), maximum);
+    QCOMPARE(item.steppedManualZoomPercent(std::numeric_limits<int>::min()), minimum);
+
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.commandRevision(), commandRevision);
+    QCOMPARE(displaySpy.count(), 0);
+    QCOMPARE(requestSpy.count(), 0);
+    QCOMPARE(commandSpy.count(), 0);
 }
 
 void ImageViewportPublicApiTest::typedPublicValueDefaultsExposeDocumentedFields()

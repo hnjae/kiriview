@@ -5,7 +5,9 @@
 #include "presentationgeometry_p.h"
 #include "viewportgeometryhelpers_p.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <optional>
 
 namespace {
@@ -197,6 +199,46 @@ double effectiveZoomPercent(const PresentationGeometry::State& state)
     }
 
     return content.width() / spreadSize.width() * state.devicePixelRatio * 100.0;
+}
+
+double manualZoomMinimumPercentValue()
+{
+    const double denormalMinimum = std::numeric_limits<double>::denorm_min();
+    return denormalMinimum > 0.0 ? denormalMinimum : std::numeric_limits<double>::min();
+}
+
+double manualZoomStepFactorValue() { return 1.25; }
+
+double manualZoomMaximumPercentValue(const PresentationGeometry::State& state)
+{
+    (void)state;
+    return ImageViewportDisplayLimits::maximumManualZoomPercent();
+}
+
+double clampedManualZoomPercentValue(double percent, const PresentationGeometry::State& state)
+{
+    const double minimum = manualZoomMinimumPercentValue();
+    const double maximum = manualZoomMaximumPercentValue(state);
+    if (!std::isfinite(percent) || percent <= 0.0) {
+        return minimum;
+    }
+    return std::clamp(percent, minimum, maximum);
+}
+
+double steppedManualZoomPercentValue(int stepCount, const PresentationGeometry::State& state)
+{
+    const double minimum = manualZoomMinimumPercentValue();
+    const double maximum = manualZoomMaximumPercentValue(state);
+    const double base = clampedManualZoomPercentValue(effectiveZoomPercent(state), state);
+    const double targetLog
+        = std::log(base) + static_cast<double>(stepCount) * std::log(manualZoomStepFactorValue());
+    if (!std::isfinite(targetLog) || targetLog >= std::log(maximum)) {
+        return maximum;
+    }
+    if (targetLog <= std::log(minimum)) {
+        return minimum;
+    }
+    return clampedManualZoomPercentValue(std::exp(targetLog), state);
 }
 
 }

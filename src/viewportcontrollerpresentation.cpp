@@ -1,7 +1,7 @@
-#include "viewportcontrollergeometryhelpers_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportcommandoutcome_p.h"
 #include "viewportcontrollercommandcontract_p.h"
+#include "viewportcontrollergeometryhelpers_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -299,10 +299,11 @@ ViewportCommandResult ViewportController::setFitMode(ImageViewport::FitMode mode
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
-ViewportCommandResult ViewportController::setZoomPercent(double percent, QPointF anchor)
+ViewportCommandResult ViewportController::setZoomPercent(
+    double percent, QPointF anchor, double devicePixelRatio)
 {
     if (!ImageViewportInternal::isFinitePositive(percent)
-        || percent > ImageViewportDisplayLimits::maximumManualZoomPercent()
+        || percent > maximumManualZoomPercent(devicePixelRatio)
         || !ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }

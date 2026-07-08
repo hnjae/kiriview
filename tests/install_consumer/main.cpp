@@ -10,6 +10,7 @@
 #include <QVariant>
 #include <QtPlugin>
 
+#include <cmath>
 #include <memory>
 
 Q_IMPORT_PLUGIN(ImageViewportPlugin)
@@ -380,6 +381,10 @@ ImageViewport {
 
     property bool commandSurfaceAvailable: false
 
+    function nearlyEqual(left, right) {
+        return Math.abs(left - right) < 0.000001
+    }
+
     Component.onCompleted: {
         const playOutcome = play()
         const pauseOutcome = pause()
@@ -388,6 +393,8 @@ ImageViewport {
         const positionSeekOutcome = seekToPosition(0)
         const zoomOutcome = setZoomPercent(200, Qt.point(5, 5))
         const resetViewOutcome = resetView()
+        const minimum = minimumManualZoomPercent
+        const maximum = maximumManualZoomPercent
         commandSurfaceAvailable = requestStatus === ImageViewport.RequestStatus.NoRequest
             && requestReason === ImageViewport.RequestReason.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
@@ -403,6 +410,12 @@ ImageViewport {
             && commandRevision.valid
             && fitMode === ImageViewport.FitMode.Contain
             && zoomPercent === 100
+            && minimum > 0
+            && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
+            && manualZoomStepFactor === 1.25
+            && clampedManualZoomPercent(-1) === minimum
+            && clampedManualZoomPercent(maximum + 1) === maximum
+            && nearlyEqual(steppedManualZoomPercent(1), 125)
             && contentPosition.x === 0
             && contentPosition.y === 0
             && frameSeekBounds.minimum === -1
@@ -650,6 +663,20 @@ int main(int argc, char** argv)
     if (typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()
         || typedPageSetViewport.secondarySequence() != nullptr
         || typedPageSetViewport.pageGap() != 2.0) {
+        return 1;
+    }
+
+    ImageViewport helperViewport;
+    const auto nearlyEqual
+        = [](double left, double right) { return std::abs(left - right) < 0.000001; };
+    const double minimumManualZoom = helperViewport.minimumManualZoomPercent();
+    const double maximumManualZoom = helperViewport.maximumManualZoomPercent();
+    if (minimumManualZoom <= 0.0
+        || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
+        || helperViewport.manualZoomStepFactor() != 1.25
+        || helperViewport.clampedManualZoomPercent(-1.0) != minimumManualZoom
+        || helperViewport.clampedManualZoomPercent(maximumManualZoom + 1.0) != maximumManualZoom
+        || !nearlyEqual(helperViewport.steppedManualZoomPercent(1), 125.0)) {
         return 1;
     }
 

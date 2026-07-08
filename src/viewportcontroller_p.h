@@ -244,6 +244,11 @@ public:
     PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;
     PresentationGeometry::State geometryStateForItemBounds(
         const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
+    double minimumManualZoomPercent() const;
+    double maximumManualZoomPercent(double devicePixelRatio = 1.0) const;
+    double manualZoomStepFactor() const;
+    double clampedManualZoomPercent(double percent, double devicePixelRatio = 1.0) const;
+    double steppedManualZoomPercent(int stepCount, double devicePixelRatio = 1.0) const;
     ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
     void incrementDisplayRevision();
     void incrementRequestRevision();
@@ -291,7 +296,8 @@ public:
     ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
     ViewportCommandResult setPageGap(double gap);
     ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);
-    ViewportCommandResult setZoomPercent(double percent, QPointF anchor);
+    ViewportCommandResult setZoomPercent(
+        double percent, QPointF anchor, double devicePixelRatio = 1.0);
     ViewportCommandResult panBy(QPointF delta);
     ViewportCommandResult panToStart();
     ViewportCommandResult panToEnd();

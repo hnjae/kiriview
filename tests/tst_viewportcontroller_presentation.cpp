@@ -129,6 +129,7 @@ private slots:
     void pageSetTransitionScanEndUsesReplacementSpreadGeometry();
     void pageSetTransitionClampUsesReplacementBounds();
     void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
+    void manualZoomHelpersUseControllerPresentationGeometry();
 };
 
 void ViewportControllerPresentationTest::standalonePresentationCommandsMutateControllerState()
@@ -479,6 +480,42 @@ void ViewportControllerPresentationTest::
     QCOMPARE(synchronization.renderSnapshot.imageLayers.size(), 2);
     QCOMPARE(synchronization.renderSnapshot.imageLayers.at(0).targetRect.size(), QSizeF(8.0, 4.0));
     QCOMPARE(synchronization.renderSnapshot.imageLayers.at(1).targetRect.size(), QSizeF(4.0, 4.0));
+}
+
+void ViewportControllerPresentationTest::manualZoomHelpersUseControllerPresentationGeometry()
+{
+    const double displayDemandCeiling = ImageViewportDisplayLimits::maximumManualZoomPercent();
+    const auto verifyClose = [](double actual, double expected) {
+        QVERIFY2(qAbs(actual - expected) < 0.000001,
+            qPrintable(QStringLiteral("actual %1 expected %2").arg(actual).arg(expected)));
+    };
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
+    QVERIFY(sequence);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+
+    QCOMPARE(controller.maximumManualZoomPercent(2.0), displayDemandCeiling);
+    QVERIFY(controller.minimumManualZoomPercent() > 0.0);
+    QCOMPARE(controller.manualZoomStepFactor(), 1.25);
+    QCOMPARE(controller.clampedManualZoomPercent(-1.0, 2.0),
+        controller.minimumManualZoomPercent());
+
+    QCOMPARE(controller.assignSequence({ sequence->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
+    QCOMPARE(controller.setFitMode(ImageViewport::FitMode::FitHeight, QPointF()).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(controller.maximumManualZoomPercent(2.0), displayDemandCeiling);
+    verifyClose(controller.steppedManualZoomPercent(0, 2.0), 2500.0);
+    verifyClose(controller.steppedManualZoomPercent(1, 2.0), 3125.0);
+    QCOMPARE(controller.steppedManualZoomPercent(std::numeric_limits<int>::max(), 2.0),
+        displayDemandCeiling);
+
+    context.itemSize = QSizeF(0.0, 100.0);
+    QCOMPARE(controller.maximumManualZoomPercent(2.0), displayDemandCeiling);
 }
 
 QTEST_MAIN(ViewportControllerPresentationTest)

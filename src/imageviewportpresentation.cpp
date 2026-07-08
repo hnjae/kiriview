@@ -178,6 +178,31 @@ void ImageViewportPrivate::setZoomPercentProperty(double percent)
     setZoomPercent(percent, itemCenter(*this));
 }
 
+double ImageViewportPrivate::minimumManualZoomPercent() const
+{
+    return controller.minimumManualZoomPercent();
+}
+
+double ImageViewportPrivate::maximumManualZoomPercent() const
+{
+    return controller.maximumManualZoomPercent(effectiveDevicePixelRatio(*this));
+}
+
+double ImageViewportPrivate::manualZoomStepFactor() const
+{
+    return controller.manualZoomStepFactor();
+}
+
+double ImageViewportPrivate::clampedManualZoomPercent(double percent) const
+{
+    return controller.clampedManualZoomPercent(percent, effectiveDevicePixelRatio(*this));
+}
+
+double ImageViewportPrivate::steppedManualZoomPercent(int stepCount) const
+{
+    return controller.steppedManualZoomPercent(stepCount, effectiveDevicePixelRatio(*this));
+}
+
 int ImageViewportPrivate::rotationDegrees() const
 {
     return controller.presentationState().rotationDegrees;
@@ -269,7 +294,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setFitMode(FitMode mo
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
     double percent, QPointF anchor)
 {
-    const ViewportCommandResult result = controller.setZoomPercent(percent, anchor);
+    const ViewportCommandResult result
+        = controller.setZoomPercent(percent, anchor, effectiveDevicePixelRatio(*this));
     applyControllerChanges(result.changes);
     return result.outcome;
 }

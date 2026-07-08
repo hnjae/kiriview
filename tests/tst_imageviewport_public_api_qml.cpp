@@ -1,6 +1,30 @@
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
 
+#include <QtCore/QCoreApplication>
+
+class BindingRefreshRecorder : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit BindingRefreshRecorder(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
+    Q_INVOKABLE double rememberMaximum(double value)
+    {
+        ++m_count;
+        return value;
+    }
+
+    int count() const { return m_count; }
+
+private:
+    int m_count = 0;
+};
+
 class ImageViewportPublicApiQmlTest : public QObject
 {
     Q_OBJECT
@@ -15,6 +39,7 @@ private slots:
     void qmlUnsupportedSequenceAssignmentsPreserveState();
     void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void qmlFinalApiScaffoldDefaultsAndCommands();
+    void manualZoomHelperQmlBindingRefreshesWithGeometryState();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
     void pageGeometryQmlValueType();
@@ -267,7 +292,12 @@ ImageViewport {
     property bool roleCommandsReachViewport: false
     property bool pageSetValidationPreservedState: false
     property bool presentationCommandsReachViewport: false
+    property bool manualZoomHelpersAvailable: false
     property bool coordinateAliasesAvailable: false
+
+    function nearlyEqual(left, right) {
+        return Math.abs(left - right) < 0.000001
+    }
 
     Component.onCompleted: {
         defaultsValid = sequence === null
@@ -299,10 +329,27 @@ ImageViewport {
             && verticalPannable === false
             && fitMode === ImageViewport.FitMode.Contain
             && zoomPercent === 100
+            && minimumManualZoomPercent > 0
+            && maximumManualZoomPercent === ImageViewportDisplayLimits.maximumManualZoomPercent
+            && manualZoomStepFactor === 1.25
             && rotationDegrees === 0
 
         const requestRevisionBefore = requestRevision
         const displayRevisionBefore = displayRevision
+        const commandRevisionBefore = commandRevision
+        const minimum = minimumManualZoomPercent
+        const maximum = maximumManualZoomPercent
+        manualZoomHelpersAvailable = clampedManualZoomPercent(-1) === minimum
+            && clampedManualZoomPercent(Number.POSITIVE_INFINITY) === minimum
+            && clampedManualZoomPercent(maximum + 1) === maximum
+            && nearlyEqual(clampedManualZoomPercent(125), 125)
+            && nearlyEqual(steppedManualZoomPercent(0), 100)
+            && nearlyEqual(steppedManualZoomPercent(1), 125)
+            && nearlyEqual(steppedManualZoomPercent(-1), 80)
+            && requestRevision === requestRevisionBefore
+            && displayRevision === displayRevisionBefore
+            && commandRevision === commandRevisionBefore
+
         const invalidPageSetOutcome = setPageSet("image.png", null)
         pageSetValidationPreservedState = invalidPageSetOutcome === ImageViewport.CommandOutcome.Invalid
             && sequence === null
@@ -353,7 +400,63 @@ ImageViewport {
     QCOMPARE(object->property("pageSetValidationPreservedState").toBool(), true);
     QCOMPARE(object->property("roleCommandsReachViewport").toBool(), true);
     QCOMPARE(object->property("presentationCommandsReachViewport").toBool(), true);
+    QCOMPARE(object->property("manualZoomHelpersAvailable").toBool(), true);
     QCOMPARE(object->property("coordinateAliasesAvailable").toBool(), true);
+}
+
+void ImageViewportPublicApiQmlTest::manualZoomHelperQmlBindingRefreshesWithGeometryState()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result);
+    QVERIFY(result->sequence());
+
+    QQmlEngine engine;
+    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
+    BindingRefreshRecorder recorder;
+    engine.rootContext()->setContextProperty(QStringLiteral("recorder"), &recorder);
+
+    QQmlComponent component(&engine);
+    component.setData(R"(
+import QtQuick
+import ImageViewport 1.0
+
+ImageViewport {
+    id: viewport
+    width: 100
+    height: 100
+
+    property ImageSequence suppliedSequence
+    property real observedMaximum: recorder.rememberMaximum(maximumManualZoomPercent)
+
+    Component.onCompleted: {
+        sequence = suppliedSequence
+    }
+}
+)",
+        QUrl());
+
+    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
+    QVariantMap initialProperties;
+    initialProperties.insert(
+        QStringLiteral("suppliedSequence"), QVariant::fromValue<QObject*>(result->sequence()));
+    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
+    QVERIFY2(object, qPrintable(componentErrors(component)));
+    auto* viewport = qobject_cast<ImageViewport*>(object.data());
+    QVERIFY(viewport);
+    acknowledgePendingRenderCommitForTest(*viewport);
+    QCoreApplication::processEvents();
+    const int refreshCountBefore = recorder.count();
+
+    QCOMPARE(viewport->setZoomPercent(200.0, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCoreApplication::processEvents();
+
+    QVERIFY(recorder.count() > refreshCountBefore);
+    QCOMPARE(object->property("observedMaximum").toDouble(), viewport->maximumManualZoomPercent());
 }
 
 void ImageViewportPublicApiQmlTest::qmlImportsDocumentedSurface()

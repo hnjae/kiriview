@@ -10,3 +10,28 @@ PresentationGeometry::State ViewportController::geometryStateForItemBounds(
 {
     return controllerGeometryState(viewport, state.presentation, devicePixelRatio, itemBounds);
 }
+
+double ViewportController::minimumManualZoomPercent() const
+{
+    return manualZoomMinimumPercentValue();
+}
+
+double ViewportController::maximumManualZoomPercent(double devicePixelRatio) const
+{
+    return manualZoomMaximumPercentValue(
+        controllerGeometryState(viewport, state.presentation, devicePixelRatio));
+}
+
+double ViewportController::manualZoomStepFactor() const { return manualZoomStepFactorValue(); }
+
+double ViewportController::clampedManualZoomPercent(double percent, double devicePixelRatio) const
+{
+    return clampedManualZoomPercentValue(
+        percent, controllerGeometryState(viewport, state.presentation, devicePixelRatio));
+}
+
+double ViewportController::steppedManualZoomPercent(int stepCount, double devicePixelRatio) const
+{
+    return steppedManualZoomPercentValue(
+        stepCount, controllerGeometryState(viewport, state.presentation, devicePixelRatio));
+}

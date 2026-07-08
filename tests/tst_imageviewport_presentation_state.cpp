@@ -32,6 +32,7 @@ private slots:
     void revisionTokensUseSharedNonWrappingAllocator();
     void invalidPageSetTransitionPreservesStateAndRevisions();
     void presentationCommandsUpdateCommandDiagnostics();
+    void manualZoomMaximumFallsBackAcrossDisplayStates();
     void manualZoomAbovePublishedLimitIsInvalid();
     void mirrorCommandsPreserveAnchor();
     void rotationAffectsSpreadMapping();
@@ -915,6 +916,59 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
     QCOMPARE(commandSpy.count(), 2);
 }
 
+void ImageViewportPresentationStateTest::manualZoomMaximumFallsBackAcrossDisplayStates()
+{
+    const double displayDemandCeiling = ImageViewportDisplayLimits::maximumManualZoomPercent();
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> stillResult(factory.fromFrame(&frame));
+    QVERIFY(stillResult->sequence());
+
+    ImageViewport emptyItem;
+    QCOMPARE(emptyItem.maximumManualZoomPercent(), displayDemandCeiling);
+    emptyItem.setSize(QSizeF(80.0, 100.0));
+    QCOMPARE(emptyItem.maximumManualZoomPercent(), displayDemandCeiling);
+
+    const auto sessionCount = std::make_shared<int>(0);
+    const auto metadataRequestCount = std::make_shared<int>(0);
+    const auto frameRequestCount = std::make_shared<int>(0);
+    const auto lastRequestedFrame = std::make_shared<int>(-1);
+    const auto closeCount = std::make_shared<int>(0);
+    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
+        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
+    CountingProviderAdapter adapter(sessionFactory);
+    QScopedPointer<ImageSequenceFactoryResult> loadingResult(factory.fromProvider(&adapter));
+    QVERIFY(loadingResult->sequence());
+
+    ImageViewport loadingItem;
+    loadingItem.setSize(QSizeF(80.0, 100.0));
+    loadingItem.setSequence(loadingResult->sequence());
+    QCOMPARE(loadingItem.maximumManualZoomPercent(), displayDemandCeiling);
+
+    ImageViewport readyItem;
+    readyItem.setSize(QSizeF(80.0, 100.0));
+    readyItem.setSequence(stillResult->sequence());
+    acknowledgePendingRenderCommitForTest(readyItem);
+    QCOMPARE(readyItem.maximumManualZoomPercent(), displayDemandCeiling);
+    QCOMPARE(readyItem.setZoomPercent(200.0, QPointF(40.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(readyItem.maximumManualZoomPercent(), displayDemandCeiling);
+
+    readyItem.setSize(QSizeF(0.0, 100.0));
+    QCOMPARE(readyItem.maximumManualZoomPercent(), displayDemandCeiling);
+
+    ImageViewport retainedItem;
+    retainedItem.setSize(QSizeF(80.0, 100.0));
+    retainedItem.setSequence(stillResult->sequence());
+    acknowledgePendingRenderCommitForTest(retainedItem);
+    retainedItem.setSequence(loadingResult->sequence());
+    QCOMPARE(retainedItem.property("displayStatus").toInt(),
+        enumValue(retainedItem.metaObject(), "DisplayStatus", "Retained"));
+    QCOMPARE(retainedItem.maximumManualZoomPercent(), displayDemandCeiling);
+}
+
 void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid()
 {
     ImageSequenceFactory factory;
@@ -943,7 +997,7 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
 
     QCOMPARE(item.setZoomPercent(
-                 ImageViewportDisplayLimits::maximumManualZoomPercent() + 1.0, QPointF(40.0, 50.0)),
+                 item.maximumManualZoomPercent() + 1.0, QPointF(40.0, 50.0)),
         ImageViewport::CommandOutcome::Invalid);
 
     QCOMPARE(item.property("fitMode").toInt(), fitMode);

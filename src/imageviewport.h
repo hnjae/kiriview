@@ -726,6 +726,10 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(FitMode fitMode READ fitMode WRITE setFitModeProperty NOTIFY presentationChanged)
     Q_PROPERTY(
         double zoomPercent READ zoomPercent WRITE setZoomPercentProperty NOTIFY presentationChanged)
+    Q_PROPERTY(double minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
+    Q_PROPERTY(
+        double maximumManualZoomPercent READ maximumManualZoomPercent NOTIFY geometryStateChanged)
+    Q_PROPERTY(double manualZoomStepFactor READ manualZoomStepFactor CONSTANT)
     Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY presentationChanged)
     Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing NOTIFY presentationChanged)
     Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap NOTIFY presentationChanged)
@@ -909,6 +913,9 @@ public:
     void setFitModeProperty(FitMode mode);
     double zoomPercent() const;
     void setZoomPercentProperty(double percent);
+    double minimumManualZoomPercent() const;
+    double maximumManualZoomPercent() const;
+    double manualZoomStepFactor() const;
     int rotationDegrees() const;
     bool smoothing() const;
     void setSmoothing(bool smoothing);
@@ -950,6 +957,8 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome setFitMode(
         ImageViewport::FitMode mode, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
+    Q_INVOKABLE double clampedManualZoomPercent(double percent) const;
+    Q_INVOKABLE double steppedManualZoomPercent(int stepCount) const;
     Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
     Q_INVOKABLE ImageViewport::CommandOutcome panToStart();
     Q_INVOKABLE ImageViewport::CommandOutcome panToEnd();

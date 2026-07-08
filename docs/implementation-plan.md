@@ -11,6 +11,10 @@ This plan splits the application-facing viewport policy API work into Codex-size
 - Keep application as the owner of source selection, navigation scope, page pairing and fallback, decoding, cache, predecode, refinement policy, same-source transition intent, and gesture interpretation before it becomes a viewport command.
 - Do not add URL or file loading, cache ownership, native texture injection, tile rendering, source identity inference, application navigation concepts, or application route semantics to image-viewport.
 
+## Execution Assumptions Recorded
+
+- Milestone 1 uses the existing public display-demand ceiling as the current item-level `maximumManualZoomPercent` because the current build has no separate render-demand ceiling to query. QML bindings use `geometryStateChanged` as the dynamic notify path while `minimumManualZoomPercent` and `manualZoomStepFactor` remain constant; if a future render-demand source makes the range vary without geometry-state emission, the notify strategy must be narrowed or extended before implementation.
+
 ## Milestone 0: Contract And Boundary Intent
 
 Goal for one Codex session: update and commit the intended public API and durable ownership boundary before any implementation.

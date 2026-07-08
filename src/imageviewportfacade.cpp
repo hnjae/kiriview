@@ -133,6 +133,9 @@ ImageViewport::FitMode ImageViewport::fitMode() const { return d->fitMode(); }
 void ImageViewport::setFitModeProperty(FitMode mode) { d->setFitModeProperty(mode); }
 double ImageViewport::zoomPercent() const { return d->zoomPercent(); }
 void ImageViewport::setZoomPercentProperty(double percent) { d->setZoomPercentProperty(percent); }
+double ImageViewport::minimumManualZoomPercent() const { return d->minimumManualZoomPercent(); }
+double ImageViewport::maximumManualZoomPercent() const { return d->maximumManualZoomPercent(); }
+double ImageViewport::manualZoomStepFactor() const { return d->manualZoomStepFactor(); }
 int ImageViewport::rotationDegrees() const { return d->rotationDegrees(); }
 bool ImageViewport::smoothing() const { return d->smoothing(); }
 void ImageViewport::setSmoothing(bool smoothing) { d->setSmoothing(smoothing); }
@@ -200,6 +203,14 @@ ImageViewport::CommandOutcome ImageViewport::setFitMode(FitMode mode, QPointF an
 ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPointF anchor)
 {
     return d->setZoomPercent(percent, anchor);
+}
+double ImageViewport::clampedManualZoomPercent(double percent) const
+{
+    return d->clampedManualZoomPercent(percent);
+}
+double ImageViewport::steppedManualZoomPercent(int stepCount) const
+{
+    return d->steppedManualZoomPercent(stepCount);
 }
 ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::panToStart() { return d->panToStart(); }
