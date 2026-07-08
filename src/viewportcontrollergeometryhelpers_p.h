@@ -135,21 +135,15 @@ PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewp
         secondarySize = pendingSecondaryGeometrySize(viewport);
     }
 
-    return {
-        isPositiveGeometrySize(primarySize),
-        bounds,
-        primarySize,
-        secondarySize,
-        presentation.pageGap,
-        presentation.spreadDirection,
-        presentation.fitMode,
-        presentation.rotationDegrees,
-        presentation.mirrorHorizontally,
-        presentation.mirrorVertically,
-        presentation.manualZoom,
-        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        presentation.contentPosition,
-    };
+    return viewport.engine().geometryState(
+        {
+            isPositiveGeometrySize(primarySize),
+            bounds,
+            primarySize,
+            secondarySize,
+            devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
+        },
+        presentation);
 }
 
 PresentationGeometry::State acceptedGeometryState(ViewportControllerPort viewport,
@@ -160,21 +154,15 @@ PresentationGeometry::State acceptedGeometryState(ViewportControllerPort viewpor
     const QSizeF primarySize = acceptedPrimaryGeometrySize(viewport);
     const QSizeF secondarySize = acceptedSecondaryGeometrySize(viewport);
 
-    return {
-        isPositiveGeometrySize(primarySize),
-        bounds,
-        primarySize,
-        secondarySize,
-        presentation.pageGap,
-        presentation.spreadDirection,
-        presentation.fitMode,
-        presentation.rotationDegrees,
-        presentation.mirrorHorizontally,
-        presentation.mirrorVertically,
-        presentation.manualZoom,
-        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        presentation.contentPosition,
-    };
+    return viewport.engine().geometryState(
+        {
+            isPositiveGeometrySize(primarySize),
+            bounds,
+            primarySize,
+            secondarySize,
+            devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
+        },
+        presentation);
 }
 
 QPointF controllerContentPosition(

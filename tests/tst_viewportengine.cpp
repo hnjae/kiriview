@@ -14,6 +14,8 @@ private slots:
     void malformedEnumRejectionMatchesInvalidCommand();
     void clearFromEmptyIsAcceptedNoop();
     void presentationNoopValidatesEnumShape();
+    void defaultPresentationStateMatchesPublicDefaults();
+    void geometryProjectionUsesEnginePresentationState();
     void validPageSetAssignmentAllocatesGenerationAndRoleSet();
     void twoRoleAssignmentIsAcceptedAtomically();
     void invalidPageSetAssignmentMutatesOnlyCommandDiagnostics();
@@ -109,6 +111,55 @@ void ViewportEngineTest::presentationNoopValidatesEnumShape()
     QCOMPARE(rejected.reason, ImageViewport::CommandReason::InvalidRequest);
     QCOMPARE(rejected.commandRevisionChanged, true);
     QVERIFY(rejected.commandRevision.isValid());
+}
+
+void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
+{
+    ViewportEngine engine;
+    ImageViewport item;
+
+    QCOMPARE(engine.presentationState().fitMode, item.fitMode());
+    QCOMPARE(engine.presentationState().manualZoom * 100.0, item.zoomPercent());
+    QCOMPARE(engine.presentationState().rotationDegrees, item.rotationDegrees());
+    QCOMPARE(engine.presentationState().mirrorHorizontally, item.mirrorHorizontally());
+    QCOMPARE(engine.presentationState().mirrorVertically, item.mirrorVertically());
+    QCOMPARE(engine.presentationState().spreadDirection, item.spreadDirection());
+    QCOMPARE(engine.presentationState().pageGap, item.pageGap());
+    QCOMPARE(engine.presentationState().backgroundMode, item.backgroundMode());
+    QCOMPARE(engine.presentationState().backgroundColor, item.backgroundColor());
+    QCOMPARE(engine.presentationState().smoothing, item.smoothing());
+    QCOMPARE(engine.presentationState().mipmap, item.mipmap());
+}
+
+void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
+{
+    ViewportEngine engine;
+    auto& presentation = engine.presentationState();
+    presentation.pageGap = 4.0;
+    presentation.spreadDirection = ImageViewport::SpreadDirection::RightToLeft;
+    presentation.fitMode = ImageViewport::FitMode::Manual;
+    presentation.rotationDegrees = 90;
+    presentation.mirrorHorizontally = true;
+    presentation.manualZoom = 2.0;
+    presentation.contentPosition = QPointF(3.0, 5.0);
+
+    const PresentationGeometry::State geometry = engine.geometryState(
+        { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
+
+    QCOMPARE(geometry.hasReadyDisplay, true);
+    QCOMPARE(geometry.itemBounds, QRectF(0.0, 0.0, 100.0, 80.0));
+    QCOMPARE(geometry.primaryImageSize, QSizeF(20.0, 10.0));
+    QCOMPARE(geometry.secondaryImageSize, QSizeF(8.0, 10.0));
+    QCOMPARE(geometry.pageGap, 4.0);
+    QCOMPARE(geometry.spreadDirection, ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(geometry.fitMode, ImageViewport::FitMode::Manual);
+    QCOMPARE(geometry.rotationDegrees, 90);
+    QCOMPARE(geometry.mirrorHorizontally, true);
+    QCOMPARE(geometry.mirrorVertically, false);
+    QCOMPARE(geometry.manualZoom, 2.0);
+    QCOMPARE(geometry.devicePixelRatio, 2.0);
+    QCOMPARE(geometry.contentPosition, QPointF(3.0, 5.0));
+    QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));
 }
 
 void ViewportEngineTest::validPageSetAssignmentAllocatesGenerationAndRoleSet()

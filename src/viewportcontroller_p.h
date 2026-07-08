@@ -59,7 +59,6 @@ struct ViewportSequenceAssignmentResult;
 
 struct ViewportControllerState
 {
-    ImageViewportInternal::PresentationState presentation;
     ImageViewportInternal::DisplayState display;
     ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
@@ -154,6 +153,8 @@ public:
     const ImageViewportInternal::ProviderGenerationState& providerState() const;
     ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
     const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
+    ViewportEngine& engine();
+    const ViewportEngine& engine() const;
 
     QRectF contentRect() const;
     QRectF visibleImageRect() const;

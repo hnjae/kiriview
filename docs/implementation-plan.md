@@ -445,6 +445,20 @@ Move zoom, fit, pan, rotation, mirroring, spread geometry, page gap, coordinate 
 - Existing flat presentation, coordinate, render mapping, and provider demand tests pass.
 - Non-positive geometry and retained-display geometry remain unchanged.
 
+### Status
+
+Complete as of 2026-07-08. `ViewportEngine` now owns the canonical presentation state and exposes the geometry projection entry point used by controller geometry helpers, snapshot projection, provider/display-demand adapters, and render snapshot preparation. The controller still performs compatibility side effects and signal emission, but presentation and geometry reads now flow through engine-owned presentation state instead of controller-local state.
+
+Added the additive public `ImageViewportPresentationCommand` value and `ImageViewport::setPresentation(command)` adapter. Existing presentation setters and invokables remain available; the new command validates the whole optional-field transaction before applying accepted changes through the compatibility command path.
+
+Added v2 coordinate helper adapters `mapPoint`, `containsPoint`, and `nearestVisiblePoint` over the engine geometry projection while preserving the legacy coordinate helpers. The installed public header and install-consumer coverage now include the presentation command and v2 coordinate helper methods.
+
+Focused coverage is in `viewportengine` for default presentation state and geometry projection from engine-owned presentation, `imageviewport_public_api_commands` for presentation-command acceptance/rejection and v2 coordinate helper adapters, `imageviewport_state_snapshot` for snapshot geometry updates through the presentation command, and `imageviewport_install_consumer` for installed-header use of the additive API.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after formatting and installed-header regeneration.
+
+Adapter assumptions recorded for later milestones: `setPresentation(command)` still returns the legacy `CommandOutcome` until command-result migration; accepted multi-field presentation commands apply through existing legacy operations after whole-command validation, so compatibility signals may still emit per underlying operation; demand geometry fields that were invalid sentinels before this milestone remain invalid until provider-demand migration; retained `displayedPresentationRevision` is still projected from the display revision until render/presentation revision ownership is fully migrated.
+
 ### Risks And Rollback Criteria
 
 - Risk: coordinate helpers silently clamp invalid gap or edge points. Roll back if page/spread invalid-domain tests fail.

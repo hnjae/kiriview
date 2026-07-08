@@ -5,6 +5,9 @@
 
 #include <QtQuick/QQuickWindow>
 
+#include <cmath>
+#include <optional>
+
 using namespace ImageViewportInternal;
 
 namespace {
@@ -156,10 +159,7 @@ ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
     return controller.presentationState().fitMode;
 }
 
-void ImageViewportPrivate::setFitModeProperty(FitMode mode)
-{
-    setFitMode(mode, itemCenter(*this));
-}
+void ImageViewportPrivate::setFitModeProperty(FitMode mode) { setFitMode(mode, itemCenter(*this)); }
 
 double ImageViewportPrivate::zoomPercent() const
 {
@@ -374,6 +374,258 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorVertically(
     const ViewportCommandResult result = controller.setMirrorVertically(enabled, anchor);
     applyControllerChanges(result.changes);
     return result.outcome;
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
+    ImageViewportPresentationCommand command)
+{
+    const bool resetConflicts = command.resetView()
+        && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
+            || command.hasContentPosition() || command.hasPanDelta() || command.hasRotationDegrees()
+            || command.hasMirrorHorizontally() || command.hasMirrorVertically());
+    const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
+        + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
+        + (command.hasPanDelta() ? 1 : 0);
+    const auto validRotation = [](int degrees) {
+        return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
+    };
+    const bool invalid = resetConflicts || geometryPositioningOperations > 1
+        || (command.hasFitMode() && !ImageViewportInternal::isValidFitMode(command.fitMode()))
+        || (command.hasManualZoomPercent()
+            && (!ImageViewportInternal::isFinitePositive(command.manualZoomPercent())
+                || command.manualZoomPercent()
+                    > controller.maximumManualZoomPercent(effectiveDevicePixelRatio(*this))))
+        || (command.hasContentPosition()
+            && !ImageViewportInternal::isFinitePoint(command.contentPosition()))
+        || (command.hasPanDelta() && !ImageViewportInternal::isFinitePoint(command.panDelta()))
+        || (command.hasRotationDegrees() && !validRotation(command.rotationDegrees()))
+        || (command.hasSpreadDirection()
+            && !ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
+        || (command.hasPageGap() && (!std::isfinite(command.pageGap()) || command.pageGap() < 0.0))
+        || (command.hasBackgroundMode()
+            && !ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()));
+
+    if (invalid) {
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+
+    const QPointF anchor = itemCenter(*this);
+    auto accepted = [](CommandOutcome outcome) { return outcome == CommandOutcome::Accepted; };
+
+    if (command.resetView() && !accepted(resetView())) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasFitMode() && !accepted(setFitMode(command.fitMode(), anchor))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasManualZoomPercent()
+        && !accepted(setZoomPercent(command.manualZoomPercent(), anchor))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasZoomStepDelta() && !accepted(zoomByStep(command.zoomStepDelta(), anchor))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasContentPosition()
+        && !accepted(panBy(command.contentPosition() - contentPosition()))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasPanDelta() && !accepted(panBy(command.panDelta()))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasRotationDegrees()) {
+        const auto normalize = [](int degrees) { return ((degrees % 360) + 360) % 360; };
+        while (normalize(rotationDegrees()) != command.rotationDegrees()) {
+            if (!accepted(rotateClockwise(anchor))) {
+                return CommandOutcome::Invalid;
+            }
+        }
+    }
+    if (command.hasMirrorHorizontally()
+        && !accepted(setMirrorHorizontally(command.mirrorHorizontally(), anchor))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasMirrorVertically()
+        && !accepted(setMirrorVertically(command.mirrorVertically(), anchor))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasSpreadDirection() && !accepted(setSpreadDirection(command.spreadDirection()))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasPageGap() && !accepted(setPageGap(command.pageGap()))) {
+        return CommandOutcome::Invalid;
+    }
+    if (command.hasBackgroundMode()) {
+        setBackgroundMode(command.backgroundMode());
+    }
+    if (command.hasBackgroundColor()) {
+        setBackgroundColor(command.backgroundColor());
+    }
+    if (command.hasSmoothing()) {
+        setSmoothing(command.smoothing());
+    }
+    if (command.hasMipmap()) {
+        setMipmap(command.mipmap());
+    }
+    if (command.hasLooping()) {
+        setLooping(command.looping());
+    }
+    return CommandOutcome::Accepted;
+}
+
+namespace {
+
+bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
+{
+    switch (space) {
+    case ImageViewport::CoordinateSpace::Item:
+    case ImageViewport::CoordinateSpace::Spread:
+    case ImageViewport::CoordinateSpace::Page:
+        return true;
+    }
+    return false;
+}
+
+bool coordinateUsesPage(ImageViewportCoordinateInput input)
+{
+    return input.sourceSpace() == ImageViewport::CoordinateSpace::Page
+        || input.targetSpace() == ImageViewport::CoordinateSpace::Page;
+}
+
+std::optional<ImageViewport::PageRole> coordinatePageRole(ImageViewportCoordinateInput input)
+{
+    if (!coordinateUsesPage(input)) {
+        return ImageViewport::PageRole::Primary;
+    }
+    if (!input.pageRole().canConvert<ImageViewport::PageRole>()) {
+        return std::nullopt;
+    }
+    const ImageViewport::PageRole role = input.pageRole().value<ImageViewport::PageRole>();
+    return ImageViewportInternal::isValidPageRole(role) ? std::optional(role) : std::nullopt;
+}
+
+ImageViewportCoordinateResult coordinateResultFor(
+    ImageViewportCoordinateInput input, CoordinateResult result)
+{
+    return ImageViewportCoordinateResult(result.isValid(), QPointF(result.x(), result.y()),
+        input.sourceSpace(), input.targetSpace(), input.pageRole());
+}
+
+ImageViewportCoordinateResult invalidCoordinateResultFor(ImageViewportCoordinateInput input)
+{
+    return ImageViewportCoordinateResult(
+        false, QPointF(), input.sourceSpace(), input.targetSpace(), input.pageRole());
+}
+
+} // namespace
+
+ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
+    ImageViewportCoordinateInput input) const
+{
+    if (!coordinateSpaceValid(input.sourceSpace()) || !coordinateSpaceValid(input.targetSpace())
+        || !ImageViewportInternal::isFinitePoint(input.point())) {
+        return invalidCoordinateResultFor(input);
+    }
+    const std::optional<PageRole> role = coordinatePageRole(input);
+    if (!role) {
+        return invalidCoordinateResultFor(input);
+    }
+    if (input.sourceSpace() == input.targetSpace()) {
+        return ImageViewportCoordinateResult(
+            true, input.point(), input.sourceSpace(), input.targetSpace(), input.pageRole());
+    }
+
+    const QPointF point = input.point();
+    CoordinateResult result;
+    if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Spread) {
+        result = itemToSpread(point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
+        result = spreadToItem(point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Page) {
+        result = itemToPage(*role, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
+        result = pageToItem(*role, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Page) {
+        const CoordinateResult itemPoint = spreadToItem(point.x(), point.y());
+        result = itemPoint.isValid() ? itemToPage(*role, itemPoint.x(), itemPoint.y())
+                                     : CoordinateResult {};
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Spread) {
+        const CoordinateResult itemPoint = pageToItem(*role, point.x(), point.y());
+        result = itemPoint.isValid() ? itemToSpread(itemPoint.x(), itemPoint.y())
+                                     : CoordinateResult {};
+    }
+
+    return coordinateResultFor(input, result);
+}
+
+bool ImageViewportPrivate::containsPoint(ImageViewportCoordinateInput input) const
+{
+    if (!coordinateSpaceValid(input.sourceSpace())
+        || !ImageViewportInternal::isFinitePoint(input.point())) {
+        return false;
+    }
+    const std::optional<PageRole> role = coordinatePageRole(input);
+    if (!role) {
+        return false;
+    }
+    const QPointF point = input.point();
+    switch (input.sourceSpace()) {
+    case ImageViewport::CoordinateSpace::Item:
+        return itemToSpread(point.x(), point.y()).isValid();
+    case ImageViewport::CoordinateSpace::Spread:
+        return containsVisibleSpreadPoint(point.x(), point.y());
+    case ImageViewport::CoordinateSpace::Page:
+        return containsVisiblePagePoint(*role, point.x(), point.y());
+    }
+    return false;
+}
+
+ImageViewportCoordinateResult ImageViewportPrivate::nearestVisiblePoint(
+    ImageViewportCoordinateInput input) const
+{
+    if (!coordinateSpaceValid(input.sourceSpace()) || !coordinateSpaceValid(input.targetSpace())
+        || !ImageViewportInternal::isFinitePoint(input.point())) {
+        return invalidCoordinateResultFor(input);
+    }
+    const std::optional<PageRole> role = coordinatePageRole(input);
+    if (!role) {
+        return invalidCoordinateResultFor(input);
+    }
+
+    const QPointF point = input.point();
+    CoordinateResult nearest;
+    if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread) {
+        nearest = nearestVisibleSpreadPoint(point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page) {
+        nearest = nearestVisiblePagePoint(*role, point.x(), point.y());
+    } else {
+        const CoordinateResult spreadPoint = itemToSpread(point.x(), point.y());
+        nearest = spreadPoint.isValid()
+            ? nearestVisibleSpreadPoint(spreadPoint.x(), spreadPoint.y())
+            : CoordinateResult {};
+    }
+    if (!nearest.isValid()) {
+        return invalidCoordinateResultFor(input);
+    }
+    ImageViewportCoordinateInput mappedInput = input;
+    mappedInput.setSourceSpace(input.sourceSpace() == ImageViewport::CoordinateSpace::Item
+            ? ImageViewport::CoordinateSpace::Spread
+            : input.sourceSpace());
+    mappedInput.setTargetSpace(input.targetSpace());
+    mappedInput.setPoint(QPointF(nearest.x(), nearest.y()));
+    if (mappedInput.sourceSpace() == input.targetSpace()) {
+        return coordinateResultFor(input, nearest);
+    }
+    const ImageViewportCoordinateResult mapped = mapPoint(mappedInput);
+    return ImageViewportCoordinateResult(mapped.isValid(), mapped.point(), input.sourceSpace(),
+        input.targetSpace(), input.pageRole());
 }
 
 CoordinateResult ImageViewportPrivate::itemToSpread(double x, double y) const

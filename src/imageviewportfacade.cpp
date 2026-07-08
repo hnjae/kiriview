@@ -252,6 +252,29 @@ ImageViewport::CommandOutcome ImageViewport::setMirrorVertically(bool enabled, Q
     return d->setMirrorVertically(enabled, anchor);
 }
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
+
+ImageViewport::CommandOutcome ImageViewport::setPresentation(
+    ImageViewportPresentationCommand command)
+{
+    return d->setPresentation(command);
+}
+
+ImageViewportCoordinateResult ImageViewport::mapPoint(ImageViewportCoordinateInput input) const
+{
+    return d->mapPoint(std::move(input));
+}
+
+bool ImageViewport::containsPoint(ImageViewportCoordinateInput input) const
+{
+    return d->containsPoint(std::move(input));
+}
+
+ImageViewportCoordinateResult ImageViewport::nearestVisiblePoint(
+    ImageViewportCoordinateInput input) const
+{
+    return d->nearestVisiblePoint(std::move(input));
+}
+
 CoordinateResult ImageViewport::itemToSpread(double x, double y) const
 {
     return d->itemToSpread(x, y);

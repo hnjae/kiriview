@@ -25,6 +25,41 @@ ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 
 ViewportEngine::PageSetState ViewportEngine::pageSetState() const { return m_pageSetState; }
 
+const ImageViewportInternal::PresentationState& ViewportEngine::presentationState() const
+{
+    return m_presentationState;
+}
+
+ImageViewportInternal::PresentationState& ViewportEngine::presentationState()
+{
+    return m_presentationState;
+}
+
+PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const
+{
+    return geometryState(input, m_presentationState);
+}
+
+PresentationGeometry::State ViewportEngine::geometryState(
+    const GeometryInput& input, const ImageViewportInternal::PresentationState& presentation) const
+{
+    return {
+        input.primaryPresent,
+        input.itemBounds,
+        input.primarySize,
+        input.secondarySize,
+        presentation.pageGap,
+        presentation.spreadDirection,
+        presentation.fitMode,
+        presentation.rotationDegrees,
+        presentation.mirrorHorizontally,
+        presentation.mirrorVertically,
+        presentation.manualZoom,
+        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0,
+        presentation.contentPosition,
+    };
+}
+
 ViewportEngine::PageSetAssignmentResult ViewportEngine::assignPageSet(PageSetAssignmentInput input)
 {
     if (!input.pageSet.isValid() || !input.transitionPolicy.isValid()) {

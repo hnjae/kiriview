@@ -803,6 +803,17 @@ int main(int argc, char** argv)
         || installedCommandResult.snapshotRevision().isValid()) {
         return 1;
     }
+    ImageViewportPresentationCommand installedPresentationCommand;
+    installedPresentationCommand.setManualZoomPercent(125.0);
+    installedPresentationCommand.setPageGap(3.0);
+    if (!installedPresentationCommand.hasManualZoomPercent()
+        || !installedPresentationCommand.hasPageGap()
+        || helperViewport.setPresentation(installedPresentationCommand)
+            != ImageViewport::CommandOutcome::Accepted
+        || helperViewport.fitMode() != ImageViewport::FitMode::Manual
+        || !nearlyEqual(helperViewport.zoomPercent(), 125.0) || helperViewport.pageGap() != 3.0) {
+        return 1;
+    }
     ImageViewportCoordinateInput installedCoordinateInput;
     installedCoordinateInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
     installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::Page);
@@ -814,7 +825,10 @@ int main(int argc, char** argv)
     if (installedCoordinateInput.pageRole().value<ImageViewport::PageRole>()
             != ImageViewport::PageRole::Primary
         || installedCoordinateResult.isValid()
-        || installedCoordinateResult.targetSpace() != ImageViewport::CoordinateSpace::Page) {
+        || installedCoordinateResult.targetSpace() != ImageViewport::CoordinateSpace::Page
+        || helperViewport.mapPoint(installedCoordinateInput).isValid()
+        || helperViewport.containsPoint(installedCoordinateInput)
+        || helperViewport.nearestVisiblePoint(installedCoordinateInput).isValid()) {
         return 1;
     }
 

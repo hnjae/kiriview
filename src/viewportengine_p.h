@@ -1,10 +1,21 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportstate_p.h"
+#include "presentationgeometry_p.h"
 
 class ViewportEngine
 {
 public:
+    struct GeometryInput
+    {
+        bool primaryPresent = false;
+        QRectF itemBounds;
+        QSizeF primarySize;
+        QSizeF secondarySize;
+        double devicePixelRatio = 1.0;
+    };
+
     struct PageSetState
     {
         ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
@@ -53,6 +64,11 @@ public:
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
     PageSetState pageSetState() const;
+    const ImageViewportInternal::PresentationState& presentationState() const;
+    ImageViewportInternal::PresentationState& presentationState();
+    PresentationGeometry::State geometryState(const GeometryInput& input) const;
+    PresentationGeometry::State geometryState(const GeometryInput& input,
+        const ImageViewportInternal::PresentationState& presentation) const;
 
     PageSetAssignmentResult assignPageSet(PageSetAssignmentInput input);
     CommandResult rejectInvalidCommand();
@@ -76,4 +92,5 @@ private:
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
     PageSetState m_pageSetState;
+    ImageViewportInternal::PresentationState m_presentationState;
 };

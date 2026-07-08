@@ -92,8 +92,8 @@ bool secondaryPayloadReadyForPendingTarget(ViewportControllerPort& viewport)
         return true;
     }
     if (hasSecondarySequence(viewport)) {
-        const auto secondaryDisplay
-            = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
+        const auto secondaryDisplay = displayRoleStateFor(
+            viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
         return !secondaryDisplay.pendingPayload.image.isNull();
     }
     return false;
@@ -234,7 +234,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
         && viewportRequestState(viewport).reason == ImageViewport::RequestReason::UploadPending
         && viewport.itemBounds().isEmpty()
         && !displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary)
-                .pendingPayload.image.isNull()) {
+            .pendingPayload.image.isNull()) {
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::RenderWaiting;
         markRequestMutation(changes);
         changes.displayRevision = true;
@@ -242,8 +242,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
         changes.displayRevision = true;
     }
 
-    changes.geometryState
-        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    changes.geometryState = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     markScheduleUpdate(changes);
     return changes;
 }
@@ -256,10 +255,11 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
         synchronization.oldContentRect = viewport.contentRect();
         synchronization.oldVisibleImageRect = viewport.visibleImageRect();
         synchronization.oldDisplayStatus = viewportDisplayState(viewport).status;
-        synchronization.geometryState = controllerGeometryState(viewport, state.presentation,
-            devicePixelRatio, std::nullopt, GeometryProjectionTarget::CurrentDisplay);
-        synchronization.renderSnapshot
-            = renderSnapshotForSynchronization(viewport, synchronization, state.presentation);
+        synchronization.geometryState
+            = controllerGeometryState(viewport, state.engine.presentationState(), devicePixelRatio,
+                std::nullopt, GeometryProjectionTarget::CurrentDisplay);
+        synchronization.renderSnapshot = renderSnapshotForSynchronization(
+            viewport, synchronization, state.engine.presentationState());
         return synchronization;
     }
     synchronization.pendingTargetCommit = requestIsWaitingForRenderCommit(viewport)
@@ -276,17 +276,16 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
     synchronization.oldDisplayStatus = viewportDisplayState(viewport).status;
     if (synchronization.pendingTargetCommit) {
         synchronization.preparedPayload = primaryDisplay.pendingPayload;
-    } else if (primaryDisplay.pendingPayload.commitPending
-        && viewport.hasReadyDisplay()) {
+    } else if (primaryDisplay.pendingPayload.commitPending && viewport.hasReadyDisplay()) {
         synchronization.preparedPayload = primaryDisplay.pendingPayload;
         synchronization.preparedPayload.image = primaryDisplay.displayedImage;
     }
-    synchronization.geometryState
-        = controllerGeometryState(viewport, state.presentation, devicePixelRatio, std::nullopt,
-            synchronization.pendingTargetCommit ? GeometryProjectionTarget::PendingRender
-                                                : GeometryProjectionTarget::CurrentDisplay);
-    synchronization.renderSnapshot
-        = renderSnapshotForSynchronization(viewport, synchronization, state.presentation);
+    synchronization.geometryState = controllerGeometryState(viewport,
+        state.engine.presentationState(), devicePixelRatio, std::nullopt,
+        synchronization.pendingTargetCommit ? GeometryProjectionTarget::PendingRender
+                                            : GeometryProjectionTarget::CurrentDisplay);
+    synchronization.renderSnapshot = renderSnapshotForSynchronization(
+        viewport, synchronization, state.engine.presentationState());
     return synchronization;
 }
 
@@ -314,8 +313,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
         publishStagedBuiltInPrimarySpreadReadyState();
     }
     if (synchronization.pendingSecondaryProviderCommit) {
-        ViewportDisplayRoleState secondaryDisplay
-            = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
+        ViewportDisplayRoleState secondaryDisplay = displayRoleStateFor(
+            viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
         const auto secondaryProvider
             = providerRoleStateFor(state, ImageViewport::PageRole::Secondary);
         secondaryDisplay.displayedImage = secondaryDisplay.pendingPayload.image;
@@ -333,7 +332,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
     viewportDisplayState(viewport).clearPendingRenderPayload();
     viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
     if (resumePlaybackAfterCommit) {
-        setPlaybackPhase(changes, viewportRequestState(viewport).stopPlaybackWhenRequestReady
+        setPlaybackPhase(changes,
+            viewportRequestState(viewport).stopPlaybackWhenRequestReady
                 ? ImageViewport::PlaybackPhase::Stopped
                 : ImageViewport::PlaybackPhase::Playing);
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
@@ -380,23 +380,24 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
         ViewportDisplayRoleState primaryDisplay
             = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
         viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Retained;
-        primaryDisplay.displayedRequest = viewportDisplayState(viewport).renderFailureRetainedRequest;
-        primaryDisplay.displayedImageSize = viewportDisplayState(viewport).renderFailureRetainedImageSize;
+        primaryDisplay.displayedRequest
+            = viewportDisplayState(viewport).renderFailureRetainedRequest;
+        primaryDisplay.displayedImageSize
+            = viewportDisplayState(viewport).renderFailureRetainedImageSize;
         primaryDisplay.displayedImage = viewportDisplayState(viewport).renderFailureRetainedImage;
     } else {
         viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Empty;
         viewportDisplayState(viewport).clearDisplayedDisplay();
     }
     viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
-    recordTargetSpreadTerminal(acknowledgement.failedRole,
-        ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::RenderFailure,
+    recordTargetSpreadTerminal(acknowledgement.failedRole, ImageViewport::RequestStatus::Error,
+        ImageViewport::RequestReason::RenderFailure,
         ImageViewportInternal::FailureScope::DisplayRequest, QStringLiteral("render commit failed"),
         changes);
     setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
 
     changes.displayRevision = true;
     changes.displayState = viewportDisplayState(viewport).status != oldDisplayStatus;
-    changes.geometryState
-        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    changes.geometryState = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     return changes;
 }

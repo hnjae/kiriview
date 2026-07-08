@@ -30,6 +30,7 @@ private slots:
     void roleCommandsWithInvalidRolePublishCommandDiagnostics();
     void secondaryRoleCommandsWithoutSecondaryPublishNoRequestDiagnostics();
     void pageSetTransitionClearBeforeLoadClearsRetainedDisplay();
+    void presentationCommandAppliesAndRejectsTransactionally();
     void invalidPageSetTransitionPolicyPreservesState();
     void invalidClearStyleTransitionPolicyPreservesState();
     void invalidPresentationCommandsPreserveDiagnostics();
@@ -910,6 +911,104 @@ void ImageViewportPublicApiCommandsTest::pageSetTransitionClearBeforeLoadClearsR
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+}
+
+void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTransactionally()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
+
+    ImageViewportPresentationCommand command;
+    command.setManualZoomPercent(150.0);
+    command.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
+    command.setPageGap(5.0);
+    command.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    command.setBackgroundColor(QColor(10, 20, 30, 255));
+    command.setSmoothing(false);
+    command.setMipmap(true);
+    command.setLooping(true);
+
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(item.zoomPercent(), 150.0);
+    QCOMPARE(item.spreadDirection(), ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(item.pageGap(), 5.0);
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.backgroundColor(), QColor(10, 20, 30, 255));
+    QCOMPARE(item.smoothing(), false);
+    QCOMPARE(item.mipmap(), true);
+    QCOMPARE(item.looping(), true);
+
+    const RevisionToken requestRevision = item.requestRevision();
+    const RevisionToken displayRevision = item.displayRevision();
+    const RevisionToken commandRevision = item.commandRevision();
+    const double zoomPercent = item.zoomPercent();
+    const double pageGap = item.pageGap();
+    const auto spreadDirection = item.spreadDirection();
+
+    ImageViewportPresentationCommand invalidCommand;
+    invalidCommand.setManualZoomPercent(125.0);
+    invalidCommand.setPanDelta(QPointF(1.0, 0.0));
+    invalidCommand.setPageGap(12.0);
+
+    QCOMPARE(item.setPresentation(invalidCommand), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.zoomPercent(), zoomPercent);
+    QCOMPARE(item.pageGap(), pageGap);
+    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QVERIFY(item.commandRevision() != commandRevision);
+    QCOMPARE(item.commandReason(), ImageViewport::CommandReason::InvalidRequest);
+
+    ImageViewportPresentationCommand resetCommand
+        = ImageViewportPresentationCommand::resetViewCommand();
+    resetCommand.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
+
+    QCOMPARE(item.setPresentation(resetCommand), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
+
+    ImageViewportCoordinateInput mapInput;
+    mapInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
+    mapInput.setTargetSpace(ImageViewport::CoordinateSpace::Spread);
+    mapInput.setPoint(QPointF(50.0, 50.0));
+    const ImageViewportCoordinateResult mapped = item.mapPoint(mapInput);
+    QVERIFY(mapped.isValid());
+    QCOMPARE(mapped.sourceSpace(), ImageViewport::CoordinateSpace::Item);
+    QCOMPARE(mapped.targetSpace(), ImageViewport::CoordinateSpace::Spread);
+    QCOMPARE(item.containsPoint(mapInput), true);
+
+    ImageViewportCoordinateInput pageInput = mapInput;
+    pageInput.setTargetSpace(ImageViewport::CoordinateSpace::Page);
+    pageInput.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    QVERIFY(item.mapPoint(pageInput).isValid());
+
+    ImageViewportCoordinateInput nearestInput;
+    nearestInput.setSourceSpace(ImageViewport::CoordinateSpace::Spread);
+    nearestInput.setTargetSpace(ImageViewport::CoordinateSpace::Item);
+    nearestInput.setPoint(QPointF(-10.0, -10.0));
+    QVERIFY(item.nearestVisiblePoint(nearestInput).isValid());
+
+    ImageViewportCoordinateInput itemNearestInput;
+    itemNearestInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
+    itemNearestInput.setTargetSpace(ImageViewport::CoordinateSpace::Item);
+    itemNearestInput.setPoint(QPointF(50.0, 50.0));
+    const ImageViewportCoordinateResult itemNearest = item.nearestVisiblePoint(itemNearestInput);
+    QVERIFY(itemNearest.isValid());
+    QCOMPARE(itemNearest.sourceSpace(), ImageViewport::CoordinateSpace::Item);
+    QCOMPARE(itemNearest.targetSpace(), ImageViewport::CoordinateSpace::Item);
+    QVERIFY(item.contentRect().contains(itemNearest.point()));
+    QVERIFY(qAbs(itemNearest.point().x() - 50.0) < 0.001);
+    QVERIFY(qAbs(itemNearest.point().y() - 50.0) < 0.001);
 }
 
 void ImageViewportPublicApiCommandsTest::invalidPageSetTransitionPolicyPreservesState()

@@ -377,6 +377,10 @@ ViewportControllerPort::secondaryProviderState() const
     return state.secondaryProvider;
 }
 
+ViewportEngine& ViewportControllerPort::engine() { return state.engine; }
+
+const ViewportEngine& ViewportControllerPort::engine() const { return state.engine; }
+
 QRectF ViewportControllerPort::contentRect() const { return context.contentRect(); }
 
 QRectF ViewportControllerPort::visibleImageRect() const { return context.visibleImageRect(); }
@@ -890,7 +894,7 @@ void ViewportController::publishProviderFrameLoadingState(ImageViewport::PageRol
 
 const ImageViewportInternal::PresentationState& ViewportController::presentationState() const
 {
-    return state.presentation;
+    return state.engine.presentationState();
 }
 
 const ImageViewportInternal::DisplayState& ViewportController::displayState() const
@@ -1119,9 +1123,10 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const QString oldWarningString = viewportRequestState(viewport).warningString;
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    const QPointF previousContentPosition = controllerContentPosition(viewport, state.presentation);
+    const QPointF previousContentPosition
+        = controllerContentPosition(viewport, state.engine.presentationState());
     const double previousZoomPercent
-        = effectiveZoomPercent(controllerGeometryState(viewport, state.presentation));
+        = effectiveZoomPercent(controllerGeometryState(viewport, state.engine.presentationState()));
     ImageViewportInternal::ViewportChangeSet transitionChanges;
 
     const ViewportSequenceRoleSource secondarySource

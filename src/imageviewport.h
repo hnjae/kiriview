@@ -32,6 +32,7 @@ class ImageViewportCoordinateResult;
 class ImageViewportDiagnosticsSnapshot;
 class ImageViewportDisplaySnapshot;
 class ImageViewportPageSet;
+class ImageViewportPresentationCommand;
 class ImageViewportPresentationSnapshot;
 class ImageViewportRequestSnapshot;
 class ImageViewportRevisionsSnapshot;
@@ -1246,6 +1247,12 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome setMirrorHorizontally(bool enabled, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setMirrorVertically(bool enabled, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
+    Q_INVOKABLE ImageViewport::CommandOutcome setPresentation(
+        ImageViewportPresentationCommand command);
+    Q_INVOKABLE ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
+    Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;
+    Q_INVOKABLE ImageViewportCoordinateResult nearestVisiblePoint(
+        ImageViewportCoordinateInput input) const;
     Q_INVOKABLE CoordinateResult itemToSpread(double x, double y) const;
     Q_INVOKABLE CoordinateResult spreadToItem(double x, double y) const;
     Q_INVOKABLE CoordinateResult nearestVisibleSpreadPoint(double x, double y) const;
@@ -1285,6 +1292,196 @@ private:
     friend ImageViewportPrivate;
 
     std::unique_ptr<ImageViewportPrivate> d;
+};
+
+class ImageViewportPresentationCommand
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageViewportPresentationCommand)
+    Q_PROPERTY(bool resetView READ resetView WRITE setResetView)
+    Q_PROPERTY(bool fitModeSet READ hasFitMode CONSTANT)
+    Q_PROPERTY(ImageViewport::FitMode fitMode READ fitMode WRITE setFitMode)
+    Q_PROPERTY(bool manualZoomPercentSet READ hasManualZoomPercent CONSTANT)
+    Q_PROPERTY(double manualZoomPercent READ manualZoomPercent WRITE setManualZoomPercent)
+    Q_PROPERTY(bool zoomStepDeltaSet READ hasZoomStepDelta CONSTANT)
+    Q_PROPERTY(int zoomStepDelta READ zoomStepDelta WRITE setZoomStepDelta)
+    Q_PROPERTY(bool contentPositionSet READ hasContentPosition CONSTANT)
+    Q_PROPERTY(QPointF contentPosition READ contentPosition WRITE setContentPosition)
+    Q_PROPERTY(bool panDeltaSet READ hasPanDelta CONSTANT)
+    Q_PROPERTY(QPointF panDelta READ panDelta WRITE setPanDelta)
+    Q_PROPERTY(bool rotationDegreesSet READ hasRotationDegrees CONSTANT)
+    Q_PROPERTY(int rotationDegrees READ rotationDegrees WRITE setRotationDegrees)
+    Q_PROPERTY(bool mirrorHorizontallySet READ hasMirrorHorizontally CONSTANT)
+    Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally)
+    Q_PROPERTY(bool mirrorVerticallySet READ hasMirrorVertically CONSTANT)
+    Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically)
+    Q_PROPERTY(bool spreadDirectionSet READ hasSpreadDirection CONSTANT)
+    Q_PROPERTY(ImageViewport::SpreadDirection spreadDirection READ spreadDirection WRITE
+            setSpreadDirection)
+    Q_PROPERTY(bool pageGapSet READ hasPageGap CONSTANT)
+    Q_PROPERTY(double pageGap READ pageGap WRITE setPageGap)
+    Q_PROPERTY(bool backgroundModeSet READ hasBackgroundMode CONSTANT)
+    Q_PROPERTY(
+        ImageViewport::BackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode)
+    Q_PROPERTY(bool backgroundColorSet READ hasBackgroundColor CONSTANT)
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor)
+    Q_PROPERTY(bool smoothingSet READ hasSmoothing CONSTANT)
+    Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing)
+    Q_PROPERTY(bool mipmapSet READ hasMipmap CONSTANT)
+    Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap)
+    Q_PROPERTY(bool loopingSet READ hasLooping CONSTANT)
+    Q_PROPERTY(bool looping READ looping WRITE setLooping)
+
+public:
+    ImageViewportPresentationCommand() = default;
+
+    static ImageViewportPresentationCommand resetViewCommand()
+    {
+        ImageViewportPresentationCommand command;
+        command.setResetView(true);
+        return command;
+    }
+
+    bool resetView() const { return m_resetView; }
+    void setResetView(bool reset) { m_resetView = reset; }
+    bool hasFitMode() const { return m_hasFitMode; }
+    ImageViewport::FitMode fitMode() const { return m_fitMode; }
+    void setFitMode(ImageViewport::FitMode mode)
+    {
+        m_fitMode = mode;
+        m_hasFitMode = true;
+    }
+    bool hasManualZoomPercent() const { return m_hasManualZoomPercent; }
+    double manualZoomPercent() const { return m_manualZoomPercent; }
+    void setManualZoomPercent(double percent)
+    {
+        m_manualZoomPercent = percent;
+        m_hasManualZoomPercent = true;
+    }
+    bool hasZoomStepDelta() const { return m_hasZoomStepDelta; }
+    int zoomStepDelta() const { return m_zoomStepDelta; }
+    void setZoomStepDelta(int delta)
+    {
+        m_zoomStepDelta = delta;
+        m_hasZoomStepDelta = true;
+    }
+    bool hasContentPosition() const { return m_hasContentPosition; }
+    QPointF contentPosition() const { return m_contentPosition; }
+    void setContentPosition(QPointF position)
+    {
+        m_contentPosition = position;
+        m_hasContentPosition = true;
+    }
+    bool hasPanDelta() const { return m_hasPanDelta; }
+    QPointF panDelta() const { return m_panDelta; }
+    void setPanDelta(QPointF delta)
+    {
+        m_panDelta = delta;
+        m_hasPanDelta = true;
+    }
+    bool hasRotationDegrees() const { return m_hasRotationDegrees; }
+    int rotationDegrees() const { return m_rotationDegrees; }
+    void setRotationDegrees(int degrees)
+    {
+        m_rotationDegrees = degrees;
+        m_hasRotationDegrees = true;
+    }
+    bool hasMirrorHorizontally() const { return m_hasMirrorHorizontally; }
+    bool mirrorHorizontally() const { return m_mirrorHorizontally; }
+    void setMirrorHorizontally(bool mirror)
+    {
+        m_mirrorHorizontally = mirror;
+        m_hasMirrorHorizontally = true;
+    }
+    bool hasMirrorVertically() const { return m_hasMirrorVertically; }
+    bool mirrorVertically() const { return m_mirrorVertically; }
+    void setMirrorVertically(bool mirror)
+    {
+        m_mirrorVertically = mirror;
+        m_hasMirrorVertically = true;
+    }
+    bool hasSpreadDirection() const { return m_hasSpreadDirection; }
+    ImageViewport::SpreadDirection spreadDirection() const { return m_spreadDirection; }
+    void setSpreadDirection(ImageViewport::SpreadDirection direction)
+    {
+        m_spreadDirection = direction;
+        m_hasSpreadDirection = true;
+    }
+    bool hasPageGap() const { return m_hasPageGap; }
+    double pageGap() const { return m_pageGap; }
+    void setPageGap(double gap)
+    {
+        m_pageGap = gap;
+        m_hasPageGap = true;
+    }
+    bool hasBackgroundMode() const { return m_hasBackgroundMode; }
+    ImageViewport::BackgroundMode backgroundMode() const { return m_backgroundMode; }
+    void setBackgroundMode(ImageViewport::BackgroundMode mode)
+    {
+        m_backgroundMode = mode;
+        m_hasBackgroundMode = true;
+    }
+    bool hasBackgroundColor() const { return m_hasBackgroundColor; }
+    QColor backgroundColor() const { return m_backgroundColor; }
+    void setBackgroundColor(const QColor& color)
+    {
+        m_backgroundColor = color;
+        m_hasBackgroundColor = true;
+    }
+    bool hasSmoothing() const { return m_hasSmoothing; }
+    bool smoothing() const { return m_smoothing; }
+    void setSmoothing(bool smoothing)
+    {
+        m_smoothing = smoothing;
+        m_hasSmoothing = true;
+    }
+    bool hasMipmap() const { return m_hasMipmap; }
+    bool mipmap() const { return m_mipmap; }
+    void setMipmap(bool mipmap)
+    {
+        m_mipmap = mipmap;
+        m_hasMipmap = true;
+    }
+    bool hasLooping() const { return m_hasLooping; }
+    bool looping() const { return m_looping; }
+    void setLooping(bool looping)
+    {
+        m_looping = looping;
+        m_hasLooping = true;
+    }
+
+private:
+    bool m_resetView = false;
+    bool m_hasFitMode = false;
+    ImageViewport::FitMode m_fitMode = ImageViewport::FitMode::Contain;
+    bool m_hasManualZoomPercent = false;
+    double m_manualZoomPercent = 100.0;
+    bool m_hasZoomStepDelta = false;
+    int m_zoomStepDelta = 0;
+    bool m_hasContentPosition = false;
+    QPointF m_contentPosition;
+    bool m_hasPanDelta = false;
+    QPointF m_panDelta;
+    bool m_hasRotationDegrees = false;
+    int m_rotationDegrees = 0;
+    bool m_hasMirrorHorizontally = false;
+    bool m_mirrorHorizontally = false;
+    bool m_hasMirrorVertically = false;
+    bool m_mirrorVertically = false;
+    bool m_hasSpreadDirection = false;
+    ImageViewport::SpreadDirection m_spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
+    bool m_hasPageGap = false;
+    double m_pageGap = 0.0;
+    bool m_hasBackgroundMode = false;
+    ImageViewport::BackgroundMode m_backgroundMode = ImageViewport::BackgroundMode::Transparent;
+    bool m_hasBackgroundColor = false;
+    QColor m_backgroundColor = Qt::transparent;
+    bool m_hasSmoothing = false;
+    bool m_smoothing = true;
+    bool m_hasMipmap = false;
+    bool m_mipmap = false;
+    bool m_hasLooping = false;
+    bool m_looping = false;
 };
 
 class PageGeometry
@@ -2966,6 +3163,7 @@ Q_DECLARE_METATYPE(ImageViewportPageSetGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)
 Q_DECLARE_METATYPE(ImageViewportPageSet)
+Q_DECLARE_METATYPE(ImageViewportPresentationCommand)
 Q_DECLARE_METATYPE(ImageViewportRequestSnapshot)
 Q_DECLARE_METATYPE(ImageViewportDisplaySnapshot)
 Q_DECLARE_METATYPE(ImageViewportPresentationSnapshot)

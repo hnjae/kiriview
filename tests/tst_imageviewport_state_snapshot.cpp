@@ -11,6 +11,7 @@ private slots:
     void loadingReplacementRetainsPreviousDisplaySeparately();
     void terminalProviderFailureProjectsDiagnostics();
     void presentationOnlyChangesUpdateSnapshot();
+    void presentationCommandUpdatesSnapshotGeometry();
     void qmlReadsNestedSnapshotFields();
 };
 
@@ -256,6 +257,40 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
 
     item.setSmoothing(item.smoothing());
     QCOMPARE(stateSpy.count(), 1);
+}
+
+void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(item);
+
+    ImageViewportPresentationCommand command;
+    command.setManualZoomPercent(200.0);
+    command.setPanDelta(QPointF(4.0, 2.0));
+
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Invalid);
+
+    command = {};
+    command.setManualZoomPercent(200.0);
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
+
+    const ImageViewportStateSnapshot snapshot = item.state();
+    QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(snapshot.presentation().zoomPercent(), item.zoomPercent());
+    QCOMPARE(snapshot.display().contentRect(), item.contentRect());
+    QCOMPARE(snapshot.display().visibleSpreadRect(), item.visibleSpreadRect());
+    QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), item.primaryItemRect());
+    QCOMPARE(snapshot.primary().geometry().displayedItemRect(), item.primaryItemRect());
+    QVERIFY(snapshot.revisions().presentation().isValid());
 }
 
 void ImageViewportStateSnapshotTest::qmlReadsNestedSnapshotFields()

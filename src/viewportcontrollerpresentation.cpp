@@ -121,7 +121,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
     const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
     double previousZoomPercent)
 {
-    auto& presentation = state.presentation;
+    auto& presentation = state.engine.presentationState();
     ImageViewportInternal::ViewportChangeSet changes;
     auto markChanged = [&]() { mergeChanges(changes, presentationChanges(viewport, true)); };
 
@@ -193,41 +193,41 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setSmoothing(bool smoothing)
 {
-    if (state.presentation.smoothing == smoothing) {
+    if (state.engine.presentationState().smoothing == smoothing) {
         return {};
     }
 
-    state.presentation.smoothing = smoothing;
+    state.engine.presentationState().smoothing = smoothing;
     return presentationChanges(viewport, false);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setMipmap(bool mipmap)
 {
-    if (state.presentation.mipmap == mipmap) {
+    if (state.engine.presentationState().mipmap == mipmap) {
         return {};
     }
 
-    state.presentation.mipmap = mipmap;
+    state.engine.presentationState().mipmap = mipmap;
     return presentationChanges(viewport, false);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setMirrorHorizontally(bool enabled)
 {
-    if (state.presentation.mirrorHorizontally == enabled) {
+    if (state.engine.presentationState().mirrorHorizontally == enabled) {
         return {};
     }
 
-    state.presentation.mirrorHorizontally = enabled;
+    state.engine.presentationState().mirrorHorizontally = enabled;
     return presentationChanges(viewport, true);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setMirrorVertically(bool enabled)
 {
-    if (state.presentation.mirrorVertically == enabled) {
+    if (state.engine.presentationState().mirrorVertically == enabled) {
         return {};
     }
 
-    state.presentation.mirrorVertically = enabled;
+    state.engine.presentationState().mirrorVertically = enabled;
     return presentationChanges(viewport, true);
 }
 
@@ -235,21 +235,21 @@ ImageViewportInternal::ViewportChangeSet ViewportController::setBackgroundMode(
     ImageViewport::BackgroundMode mode)
 {
     if (!ImageViewportInternal::isValidBackgroundMode(mode)
-        || state.presentation.backgroundMode == mode) {
+        || state.engine.presentationState().backgroundMode == mode) {
         return {};
     }
 
-    state.presentation.backgroundMode = mode;
+    state.engine.presentationState().backgroundMode = mode;
     return presentationChanges(viewport, false);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setBackgroundColor(const QColor& color)
 {
-    if (state.presentation.backgroundColor == color) {
+    if (state.engine.presentationState().backgroundColor == color) {
         return {};
     }
 
-    state.presentation.backgroundColor = color;
+    state.engine.presentationState().backgroundColor = color;
     return presentationChanges(viewport, false);
 }
 
@@ -259,12 +259,12 @@ ViewportCommandResult ViewportController::setSpreadDirection(
     if (!ImageViewportInternal::isValidSpreadDirection(direction)) {
         return preservedPresentationCommand(ImageViewport::CommandOutcome::Invalid);
     }
-    if (state.presentation.spreadDirection == direction) {
+    if (state.engine.presentationState().spreadDirection == direction) {
         return preservedPresentationCommand(ImageViewport::CommandOutcome::Accepted);
     }
 
-    state.presentation.spreadDirection = direction;
-    clampPresentationContentPositionToBounds(viewport, state.presentation);
+    state.engine.presentationState().spreadDirection = direction;
+    clampPresentationContentPositionToBounds(viewport, state.engine.presentationState());
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -273,12 +273,12 @@ ViewportCommandResult ViewportController::setPageGap(double gap)
     if (!std::isfinite(gap) || gap < 0.0) {
         return preservedPresentationCommand(ImageViewport::CommandOutcome::Invalid);
     }
-    if (state.presentation.pageGap == gap) {
+    if (state.engine.presentationState().pageGap == gap) {
         return preservedPresentationCommand(ImageViewport::CommandOutcome::Accepted);
     }
 
-    state.presentation.pageGap = gap;
-    clampPresentationContentPositionToBounds(viewport, state.presentation);
+    state.engine.presentationState().pageGap = gap;
+    clampPresentationContentPositionToBounds(viewport, state.engine.presentationState());
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -288,14 +288,15 @@ ViewportCommandResult ViewportController::setFitMode(ImageViewport::FitMode mode
         || !ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }
-    if (state.presentation.fitMode == mode) {
+    if (state.engine.presentationState().fitMode == mode) {
         return acceptedPresentationCommand(viewport);
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.fitMode = mode;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().fitMode = mode;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -309,16 +310,17 @@ ViewportCommandResult ViewportController::setZoomPercent(
     }
 
     const double manualZoom = percent / 100.0;
-    if (state.presentation.fitMode == ImageViewport::FitMode::Manual
-        && state.presentation.manualZoom == manualZoom) {
+    if (state.engine.presentationState().fitMode == ImageViewport::FitMode::Manual
+        && state.engine.presentationState().manualZoom == manualZoom) {
         return acceptedPresentationCommand(viewport);
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.fitMode = ImageViewport::FitMode::Manual;
-    state.presentation.manualZoom = manualZoom;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().fitMode = ImageViewport::FitMode::Manual;
+    state.engine.presentationState().manualZoom = manualZoom;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -338,8 +340,8 @@ ViewportCommandResult ViewportController::panBy(QPointF delta)
         return acceptedPresentationCommand(viewport);
     }
 
-    if (!applyContentPosition(viewport, state.presentation,
-            controllerContentPosition(viewport, state.presentation) + delta)) {
+    if (!applyContentPosition(viewport, state.engine.presentationState(),
+            controllerContentPosition(viewport, state.engine.presentationState()) + delta)) {
         return acceptedPresentationCommand(viewport);
     }
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
@@ -347,7 +349,7 @@ ViewportCommandResult ViewportController::panBy(QPointF delta)
 
 ViewportCommandResult ViewportController::panToStart()
 {
-    if (!applyContentPosition(viewport, state.presentation, {})) {
+    if (!applyContentPosition(viewport, state.engine.presentationState(), {})) {
         return acceptedPresentationCommand(viewport);
     }
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
@@ -355,8 +357,8 @@ ViewportCommandResult ViewportController::panToStart()
 
 ViewportCommandResult ViewportController::panToEnd()
 {
-    if (!applyContentPosition(viewport, state.presentation,
-            controllerMaximumContentPosition(viewport, state.presentation))) {
+    if (!applyContentPosition(viewport, state.engine.presentationState(),
+            controllerMaximumContentPosition(viewport, state.engine.presentationState()))) {
         return acceptedPresentationCommand(viewport);
     }
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
@@ -364,7 +366,8 @@ ViewportCommandResult ViewportController::panToEnd()
 
 ViewportCommandResult ViewportController::scanNext()
 {
-    const QPointF maximum = controllerMaximumContentPosition(viewport, state.presentation);
+    const QPointF maximum
+        = controllerMaximumContentPosition(viewport, state.engine.presentationState());
     if (maximum.y() > 0.0) {
         return panBy(QPointF(0.0, std::max(1.0, viewport.itemBounds().height() * 0.9)));
     }
@@ -376,7 +379,8 @@ ViewportCommandResult ViewportController::scanNext()
 
 ViewportCommandResult ViewportController::scanPrevious()
 {
-    const QPointF maximum = controllerMaximumContentPosition(viewport, state.presentation);
+    const QPointF maximum
+        = controllerMaximumContentPosition(viewport, state.engine.presentationState());
     if (maximum.y() > 0.0) {
         return panBy(QPointF(0.0, -std::max(1.0, viewport.itemBounds().height() * 0.9)));
     }
@@ -393,9 +397,11 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.rotationDegrees = (state.presentation.rotationDegrees + 90) % 360;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().rotationDegrees
+        = (state.engine.presentationState().rotationDegrees + 90) % 360;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -406,9 +412,11 @@ ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.rotationDegrees = (state.presentation.rotationDegrees + 270) % 360;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().rotationDegrees
+        = (state.engine.presentationState().rotationDegrees + 270) % 360;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -417,14 +425,15 @@ ViewportCommandResult ViewportController::setMirrorHorizontally(bool enabled, QP
     if (!ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }
-    if (state.presentation.mirrorHorizontally == enabled) {
+    if (state.engine.presentationState().mirrorHorizontally == enabled) {
         return acceptedPresentationCommand(viewport);
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.mirrorHorizontally = enabled;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().mirrorHorizontally = enabled;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
@@ -433,25 +442,27 @@ ViewportCommandResult ViewportController::setMirrorVertically(bool enabled, QPoi
     if (!ImageViewportInternal::isFinitePoint(anchor)) {
         return invalidPresentationCommand(viewport);
     }
-    if (state.presentation.mirrorVertically == enabled) {
+    if (state.engine.presentationState().mirrorVertically == enabled) {
         return acceptedPresentationCommand(viewport);
     }
 
     const PresentationGeometry::State previousGeometry
-        = controllerGeometryState(viewport, state.presentation);
-    state.presentation.mirrorVertically = enabled;
-    preserveAnchoredContentPosition(viewport, state.presentation, previousGeometry, anchor);
+        = controllerGeometryState(viewport, state.engine.presentationState());
+    state.engine.presentationState().mirrorVertically = enabled;
+    preserveAnchoredContentPosition(
+        viewport, state.engine.presentationState(), previousGeometry, anchor);
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
 ViewportCommandResult ViewportController::resetView()
 {
-    const bool changed = state.presentation.fitMode != ImageViewport::FitMode::Contain
-        || state.presentation.manualZoom != 1.0 || state.presentation.contentPosition.x() != 0.0
-        || state.presentation.contentPosition.y() != 0.0;
-    state.presentation.fitMode = ImageViewport::FitMode::Contain;
-    state.presentation.manualZoom = 1.0;
-    state.presentation.contentPosition = {};
+    const bool changed = state.engine.presentationState().fitMode != ImageViewport::FitMode::Contain
+        || state.engine.presentationState().manualZoom != 1.0
+        || state.engine.presentationState().contentPosition.x() != 0.0
+        || state.engine.presentationState().contentPosition.y() != 0.0;
+    state.engine.presentationState().fitMode = ImageViewport::FitMode::Contain;
+    state.engine.presentationState().manualZoom = 1.0;
+    state.engine.presentationState().contentPosition = {};
 
     return acceptedPresentationCommand(viewport,
         changed ? presentationChanges(viewport, true)
