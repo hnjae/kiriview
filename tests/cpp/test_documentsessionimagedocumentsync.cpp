@@ -14,6 +14,7 @@ class TestDocumentSessionImageDocumentSync : public QObject
 private Q_SLOTS:
     void ignoresRoutingAndInactiveDocumentKind();
     void mirrorsDocumentSourceAndDeletionProgress();
+    void skipsInactiveDirectMediaRefreshForCollectionScope();
     void refreshesDirectMediaNavigationWhenCursorChanges();
     void cachesDisplayedPredecodeWhenNavigationIsKnown();
     void publishesImagePagesWhenPageNavigationChanges();
@@ -69,6 +70,25 @@ void TestDocumentSessionImageDocumentSync::mirrorsDocumentSourceAndDeletionProgr
     QCOMPARE(plan.directMediaOperation,
         kiriview::DocumentSessionImageDocumentSyncDirectMediaOperation::
             RefreshDirectMediaNavigation);
+    QCOMPARE(plan.projectionOperation,
+        kiriview::DocumentSessionImageDocumentSyncProjectionOperation::RecomputePublicProjection);
+}
+
+void TestDocumentSessionImageDocumentSync::skipsInactiveDirectMediaRefreshForCollectionScope()
+{
+    kiriview::DocumentSessionImageDocumentSyncInput input = activeInput();
+    input.directImageLoadMayUseImageDocumentSourceScope = false;
+    input.directMediaNavigationActive = false;
+    input.image.openedCollectionScopeActive = true;
+
+    const kiriview::DocumentSessionImageDocumentSyncPlan plan
+        = kiriview::documentSessionImageDocumentSyncPlan(input);
+
+    QVERIFY(plan.active);
+    QVERIFY(plan.setSourceIdentity);
+    QCOMPARE(plan.sourceIdentityUrl, input.image.sourceUrl);
+    QCOMPARE(plan.directMediaOperation,
+        kiriview::DocumentSessionImageDocumentSyncDirectMediaOperation::None);
     QCOMPARE(plan.projectionOperation,
         kiriview::DocumentSessionImageDocumentSyncProjectionOperation::RecomputePublicProjection);
 }

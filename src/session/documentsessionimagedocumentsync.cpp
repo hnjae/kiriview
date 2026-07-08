@@ -29,10 +29,12 @@ DocumentSessionImageDocumentSyncPlan documentSessionImageDocumentSyncPlan(
     plan.syncFileDeletionProgress = !input.directImageLoadMayUseImageDocumentSourceScope;
     plan.fileDeletionInProgress = input.image.fileDeletionInProgress;
 
-    if (input.directMediaScopeChanged || !input.directMediaNavigationActive) {
+    const bool inactiveDirectMediaNeedsRefresh
+        = !input.directMediaNavigationActive && !input.image.openedCollectionScopeActive;
+    if (input.directMediaScopeChanged || inactiveDirectMediaNeedsRefresh) {
         plan.directMediaOperation
             = DocumentSessionImageDocumentSyncDirectMediaOperation::RefreshDirectMediaNavigation;
-    } else if (input.directMediaNavigationKnown) {
+    } else if (input.directMediaNavigationActive && input.directMediaNavigationKnown) {
         plan.directMediaOperation = DocumentSessionImageDocumentSyncDirectMediaOperation::
             CacheDisplayedMediaPredecodeImages;
     }

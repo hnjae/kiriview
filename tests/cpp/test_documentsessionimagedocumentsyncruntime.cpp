@@ -16,6 +16,7 @@ private Q_SLOTS:
     void ignoresRoutingAndInactiveDocumentKind();
     void confirmsDirectImageCursorBeforeRefreshingNavigation();
     void mirrorsDeletionProgressWhenImageDocumentOwnsSourceScope();
+    void syncsCollectionScopeWithoutInactiveDirectMediaRefresh();
     void publishesImagePageNavigationWhenTheLeafNavigationChanges();
 };
 
@@ -141,6 +142,30 @@ void TestDocumentSessionImageDocumentSyncRuntime::
             ImageSyncFixture::Event::SetSourceIdentity,
             ImageSyncFixture::Event::SetFileDeletionInProgress,
             ImageSyncFixture::Event::RefreshNavigation,
+            ImageSyncFixture::Event::Publish,
+        }));
+}
+
+void TestDocumentSessionImageDocumentSyncRuntime::
+    syncsCollectionScopeWithoutInactiveDirectMediaRefresh()
+{
+    ImageSyncFixture fixture;
+    const QUrl imageUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(imageUrl);
+    input.directImageLoadMayUseImageDocumentSourceScope = false;
+    input.directMediaNavigationActive = false;
+    input.directMediaNavigationKnown = false;
+    input.image.ordinaryDirectMediaScopeActive = false;
+    input.image.openedCollectionScopeActive = true;
+    input.image.fileDeletionInProgress = true;
+
+    fixture.runtime.sync(input);
+
+    QVERIFY(fixture.fileDeletionInProgress);
+    QCOMPARE(fixture.events,
+        (std::vector<ImageSyncFixture::Event> {
+            ImageSyncFixture::Event::SetSourceIdentity,
+            ImageSyncFixture::Event::SetFileDeletionInProgress,
             ImageSyncFixture::Event::Publish,
         }));
 }
