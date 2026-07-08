@@ -121,6 +121,8 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
     const QList<QByteArray> readOnlyProperties = {
         "smoothing",
         "mipmap",
+        "mirrorHorizontally",
+        "mirrorVertically",
     };
 
     for (const QByteArray& property : readOnlyProperties) {

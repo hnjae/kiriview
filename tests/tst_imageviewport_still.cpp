@@ -67,6 +67,15 @@ static ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setMirrorCommand(
+    ImageViewport& item, bool mirrorHorizontally, bool mirrorVertically)
+{
+    ImageViewportPresentationCommand command;
+    command.setMirrorHorizontally(mirrorHorizontally);
+    command.setMirrorVertically(mirrorVertically);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
@@ -166,8 +175,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
-    item.setMirrorVertically(true);
+    QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
     QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
@@ -430,8 +438,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
-    item.setMirrorVertically(true);
+    QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
     QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
@@ -573,8 +580,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
-    item.setMirrorVertically(true);
+    QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
     item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
     QCOMPARE(setManualZoomPercentCommand(item, 150.0), ImageViewport::CommandOutcome::Accepted);
@@ -817,7 +823,7 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setPanDelta(item, QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
+    QCOMPARE(setMirrorCommand(item, true, false), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));

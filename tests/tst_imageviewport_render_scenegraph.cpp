@@ -90,6 +90,15 @@ ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command);
 }
 
+ImageViewport::CommandOutcome setMirrorCommand(
+    ImageViewport& item, bool mirrorHorizontally, bool mirrorVertically)
+{
+    ImageViewportPresentationCommand command;
+    command.setMirrorHorizontally(mirrorHorizontally);
+    command.setMirrorVertically(mirrorVertically);
+    return item.setPresentation(command);
+}
+
 class NullTextureSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
 {
 public:
@@ -643,8 +652,7 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(40.0, 20.0));
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
-    item.setMirrorVertically(true);
+    QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
     item.setSequence(result->sequence());
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
@@ -696,8 +704,8 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(100.0, 100.0));
-    item.setMirrorHorizontally(mirrorHorizontally);
-    item.setMirrorVertically(mirrorVertically);
+    QCOMPARE(setMirrorCommand(item, mirrorHorizontally, mirrorVertically),
+        ImageViewport::CommandOutcome::Accepted);
     item.setSequence(result->sequence());
     ImageViewportPresentationCommand rotationCommand;
     rotationCommand.setRotationDegrees(rotationDegrees);

@@ -144,8 +144,8 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotN
     QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setMirrorHorizontally(true);
-    item.setMirrorVertically(true);
+    QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setMirrorVerticallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(Qt::red);
 
@@ -381,7 +381,7 @@ void ImageViewportPresentationStateTest::presentationChangesNotifyGeometryState(
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 3);
 
-    item.setMirrorHorizontally(true);
+    QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 4);
 }
 
@@ -893,7 +893,8 @@ void ImageViewportPresentationStateTest::
 
     QCOMPARE(setScanDirection(mirroredItem, ImageViewport::ScanDirection::Start),
         ImageViewport::CommandOutcome::Accepted);
-    mirroredItem.setMirrorHorizontally(true);
+    QCOMPARE(setMirrorHorizontallyCommand(mirroredItem, true),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(mirroredItem.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
     const CoordinateResult mirroredLeft = mirroredItem.nearestVisibleImagePoint(-1.0, 4.0);
     QCOMPARE(mirroredLeft.isValid(), true);

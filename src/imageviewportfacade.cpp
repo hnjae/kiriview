@@ -142,9 +142,7 @@ int ImageViewport::rotationDegrees() const { return d->rotationDegrees(); }
 bool ImageViewport::smoothing() const { return d->smoothing(); }
 bool ImageViewport::mipmap() const { return d->mipmap(); }
 bool ImageViewport::mirrorHorizontally() const { return d->mirrorHorizontally(); }
-void ImageViewport::setMirrorHorizontally(bool mirror) { d->setMirrorHorizontally(mirror); }
 bool ImageViewport::mirrorVertically() const { return d->mirrorVertically(); }
-void ImageViewport::setMirrorVertically(bool mirror) { d->setMirrorVertically(mirror); }
 ImageViewport::BackgroundMode ImageViewport::backgroundMode() const { return d->backgroundMode(); }
 void ImageViewport::setBackgroundMode(BackgroundMode mode) { d->setBackgroundMode(mode); }
 QColor ImageViewport::backgroundColor() const { return d->backgroundColor(); }
