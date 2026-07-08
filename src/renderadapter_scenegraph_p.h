@@ -38,6 +38,6 @@ struct Output
     RenderFailureCause failureCause = RenderFailureCause::None;
 };
 
-Output createNode(const RenderAdapter& adapter, QSGNode* oldNode, const Input& input);
+Output createNode(RenderAdapter adapter, QSGNode* oldNode, const Input& input);
 
 }

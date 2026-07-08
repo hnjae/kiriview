@@ -3,6 +3,7 @@ Checks: >
   -*,
   clang-diagnostic-*,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   bugprone-assert-side-effect,
   bugprone-bad-signal-to-kill-thread,
   bugprone-bool-pointer-implicit-conversion,

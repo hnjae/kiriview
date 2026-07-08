@@ -148,7 +148,7 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
 }
 
 RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
-    const RenderAdapter& adapter, QSGNode* oldNode, const Input& input)
+    RenderAdapter adapter, QSGNode* oldNode, const Input& input)
 {
     const RenderAdapter::RenderPlan plan = adapter.createPlan(input.planInput);
     if (plan.result == RenderAdapter::CommitResult::Failed) {

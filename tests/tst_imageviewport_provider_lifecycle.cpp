@@ -2,6 +2,8 @@
 
 #include <QtCore/QElapsedTimer>
 
+#include <utility>
+
 class ImageViewportProviderLifecycleTest : public QObject
 {
     Q_OBJECT
@@ -395,7 +397,7 @@ void ImageViewportProviderLifecycleTest::providerAssignmentPublishesBeforeDispat
     };
     QVector<SignalSnapshot> snapshots;
     auto record = [&](QByteArray signal) {
-        snapshots.append({ signal,
+        snapshots.append({ std::move(signal),
             item.property("requestStatus").toInt(),
             item.property("requestReason").toInt(),
             item.sequence() == result->sequence() });

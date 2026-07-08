@@ -14,6 +14,7 @@ endif()
 
 file(MAKE_DIRECTORY "${IMAGEVIEWPORT_BUILD_DIR}/tests")
 
+# Write a git-grep inventory used to compare controller refactor boundaries.
 function(write_inventory inventory_name pattern output_file)
     execute_process(
         COMMAND

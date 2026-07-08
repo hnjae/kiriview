@@ -6,6 +6,7 @@ file(READ "${playback_file}" playback_content)
 file(READ "${playback_helpers}" playback_helpers_content)
 file(READ "${controller_header}" controller_header_content)
 
+# Extract the subsection used as an aggregate-spread exception allowlist.
 function(section_between content start_marker end_marker out_var)
     string(FIND "${content}" "${start_marker}" start_index)
     if(start_index EQUAL -1)
@@ -26,6 +27,7 @@ function(section_between content start_marker end_marker out_var)
     set("${out_var}" "${section_content}" PARENT_SCOPE)
 endfunction()
 
+# Collect forbidden role-state access patterns for one scanned source section.
 function(append_violations scan_name scan_content)
     foreach(forbidden_pattern IN LISTS ARGN)
         if(scan_content MATCHES "${forbidden_pattern}")

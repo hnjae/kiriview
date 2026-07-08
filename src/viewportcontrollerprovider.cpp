@@ -117,9 +117,6 @@ ViewportProviderTerminalEvent terminalEventFor(const ViewportProviderEvent& even
     case ViewportProviderEvent::Kind::Cancellation:
         terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Cancellation;
         break;
-    case ViewportProviderEvent::Kind::Failure:
-        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Failure;
-        break;
     case ViewportProviderEvent::Kind::MetadataReady:
     case ViewportProviderEvent::Kind::ImageFrameReady:
     case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
@@ -128,6 +125,7 @@ ViewportProviderTerminalEvent terminalEventFor(const ViewportProviderEvent& even
     case ViewportProviderEvent::Kind::Waiting:
     case ViewportProviderEvent::Kind::Progress:
     case ViewportProviderEvent::Kind::EndOfSequence:
+    case ViewportProviderEvent::Kind::Failure:
         terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Failure;
         break;
     }
