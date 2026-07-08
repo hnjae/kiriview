@@ -942,7 +942,6 @@ public:
     ~ImageViewport() override;
 
     ImageViewportStateSnapshot state() const;
-    void setSequence(ImageSequence* sequence);
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();
@@ -956,17 +955,8 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
-    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(const QVariant& pageSet);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
-        const QVariant& primary, const QVariant& secondary);
-    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
-        const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
-    ImageViewport::CommandOutcome setPageSet(ImageViewportPageSet pageSet);
-    ImageViewport::CommandOutcome setPageSet(
         ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
-    ImageViewport::CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
-    ImageViewport::CommandOutcome setPageSet(
-        ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE ImageViewport::CommandOutcome setPresentation(
         ImageViewportPresentationCommand command);
@@ -976,18 +966,6 @@ public:
         ImageViewportCoordinateInput input) const;
 
 signals:
-    void sequenceChanged();
-    void requestStateChanged();
-    void commandStateChanged();
-    void displayStateChanged();
-    void playbackPhaseChanged();
-    void displayRevisionChanged();
-    void requestRevisionChanged();
-    void commandRevisionChanged();
-    void diagnosticsChanged();
-    void presentationChanged();
-    void geometryStateChanged();
-    void loopingChanged();
     void stateChanged();
 
 protected:

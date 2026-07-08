@@ -39,8 +39,7 @@ void ImageViewportPublicApiProviderRolesTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    const auto outcome = item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-        QVariant::fromValue<QObject*>(secondaryResult->sequence()));
+    const auto outcome = item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {});
 
     QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
@@ -77,8 +76,7 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     QVERIFY(sessionFactory->lastSession());
 

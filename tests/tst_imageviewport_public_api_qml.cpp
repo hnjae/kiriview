@@ -39,7 +39,7 @@ private slots:
     void qmlRemovedSequencePropertyPreservesDefaultState();
     void qmlRemovedSequencePropertyPreservesReadyState();
     void qmlFinalApiScaffoldDefaultsAndCommands();
-    void manualZoomLimitQmlBindingRefreshesWithGeometryState();
+    void manualZoomLimitQmlBindingRefreshesWithPresentationState();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
     void qmlCommandsReturnDocumentedOutcomes();
@@ -109,6 +109,8 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property bool initialSetAccepted: false
     property bool removedSequencePropertyPreservedReadyState: false
 
@@ -134,7 +136,8 @@ ImageViewport {
     }
 
     Component.onCompleted: {
-        initialSetAccepted = setPageSet(suppliedSequence, null) === ImageViewport.CommandOutcome.Accepted
+        pageSet.primary = suppliedSequence
+        initialSetAccepted = setPageSet(pageSet, policy) === ImageViewport.CommandOutcome.Accepted
     }
 }
 )",
@@ -173,6 +176,8 @@ ImageViewport {
     property bool presentationCommandsReachViewport: false
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property imageViewportPresentationCommand spreadDirectionCommand
     property imageViewportPresentationCommand pageGapCommand
     property imageViewportPresentationCommand fitModeCommand
@@ -262,7 +267,9 @@ ImageViewport {
             && state.revisions.display === displayRevisionBefore
             && state.revisions.command === commandRevisionBefore
 
-        const invalidPageSetOutcome = setPageSet("image.png", null)
+        policy.pageGap = -1
+        policy.pageGapTransition = 1
+        const invalidPageSetOutcome = setPageSet(pageSet, policy)
         pageSetValidationPreservedState = invalidPageSetOutcome === ImageViewport.CommandOutcome.Invalid
             && state.primary.sequence === null
             && state.secondary.sequence === null
@@ -369,7 +376,7 @@ ImageViewport {
     QCOMPARE(object->property("coordinateAliasesAvailable").toBool(), true);
 }
 
-void ImageViewportPublicApiQmlTest::manualZoomLimitQmlBindingRefreshesWithGeometryState()
+void ImageViewportPublicApiQmlTest::manualZoomLimitQmlBindingRefreshesWithPresentationState()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -395,10 +402,13 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property real observedMaximum: recorder.rememberMaximum(state.presentation.maximumManualZoomPercent)
 
     Component.onCompleted: {
-        setPageSet(suppliedSequence, null)
+        pageSet.primary = suppliedSequence
+        setPageSet(pageSet, policy)
     }
 }
 )",
@@ -536,6 +546,8 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property bool readyValuesHaveDocumentedFields: state.primary.display.sourceLogicalSize.width === 16
         && state.primary.display.sourceLogicalSize.height === 8
         && state.display.contentRect.x === 0
@@ -552,7 +564,8 @@ ImageViewport {
         && state.primary.metadata.positionSeekBounds.maximum === -1
 
     Component.onCompleted: {
-        setPageSet(suppliedSequence, null)
+        pageSet.primary = suppliedSequence
+        setPageSet(pageSet, policy)
     }
 }
 )",

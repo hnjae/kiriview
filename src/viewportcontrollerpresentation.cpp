@@ -90,7 +90,6 @@ ImageViewportInternal::ViewportChangeSet presentationChanges(
     ViewportControllerPort& viewport, bool affectsGeometry)
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    changes.presentation = true;
     changes.displayRevision = true;
     changes.geometryState
         = affectsGeometry && viewport.hasReadyDisplay() && !viewport.itemBounds().isEmpty();

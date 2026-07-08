@@ -474,9 +474,6 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.geometryState = target.geometryState || source.geometryState;
     target.playbackPhase = target.playbackPhase || source.playbackPhase;
     target.diagnostics = target.diagnostics || source.diagnostics;
-    target.presentation = target.presentation || source.presentation;
-    target.sequence = target.sequence || source.sequence;
-    target.looping = target.looping || source.looping;
     target.displayRevision = target.displayRevision || source.displayRevision;
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;

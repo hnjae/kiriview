@@ -36,7 +36,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -86,7 +86,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -143,7 +143,7 @@ void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFa
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -184,7 +184,7 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -262,7 +262,7 @@ void ImageViewportProviderTerminalTest::providerMetadataCancellationReportsProvi
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -303,7 +303,7 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -360,7 +360,7 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -425,7 +425,7 @@ void ImageViewportProviderTerminalTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());

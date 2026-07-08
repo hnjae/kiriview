@@ -54,7 +54,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     ImageViewport item;
     useSynchronousProviderEventDeliveryForTest(item);
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -103,7 +103,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(20.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -163,7 +163,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -212,7 +212,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -270,7 +270,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -314,7 +314,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -374,7 +374,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -453,7 +453,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -515,7 +515,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -560,7 +560,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -605,7 +605,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -651,7 +651,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -695,7 +695,7 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -773,7 +773,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -817,7 +817,7 @@ void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadR
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -861,7 +861,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -916,7 +916,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -967,7 +967,7 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1030,8 +1030,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1094,7 +1093,7 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1148,7 +1147,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
 
     ImageViewport item;
     item.setSize(QSizeF(0.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());

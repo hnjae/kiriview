@@ -198,6 +198,8 @@ import ImageViewport 1.0
 
 Item {
     property ImageFrame suppliedFrame
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property bool frameFactoryCreated: false
     property bool timedListAcceptedFrame: false
     property bool timedFactoryCreated: false
@@ -238,7 +240,8 @@ Item {
             && timedResult.errorString === ""
             && timedResult.warningString === ""
 
-        viewport.setPageSet(timedResult.sequence, null)
+        pageSet.primary = timedResult.sequence
+        viewport.setPageSet(pageSet, policy)
     }
 }
 )",
@@ -479,7 +482,7 @@ void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -567,7 +570,7 @@ void ImageSequenceFactoryTest::assignedFactorySequenceSurvivesResultDestruction(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -606,7 +609,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     result.reset();
@@ -671,8 +674,8 @@ void ImageSequenceFactoryTest::sharedFactorySequenceSurvivesFirstViewportDestruc
     {
         ImageViewport first;
         first.setSize(QSizeF(100.0, 50.0));
-        first.setSequence(result->sequence());
-        second.setSequence(result->sequence());
+        first.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+        second.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
         acknowledgePendingPrimaryRenderCommitForTest(first);
         acknowledgePendingPrimaryRenderCommitForTest(second);
 
@@ -710,7 +713,7 @@ void ImageSequenceFactoryTest::clearReleasesAssignedFactorySequenceOwner()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 50.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     result.reset();
 
     QVERIFY(observedSequence);
@@ -919,7 +922,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
 
     ImageViewport item;
     item.setSize(QSizeF(20.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
     QCOMPARE(displayedImageSize(item), QSizeF(2.0, 1.0));
@@ -929,7 +932,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     QVERIFY(nativeFrameResult->sequence());
     ImageViewport nativeFrameItem;
     nativeFrameItem.setSize(QSizeF(20.0, 20.0));
-    nativeFrameItem.setSequence(nativeFrameResult->sequence());
+    nativeFrameItem.setPageSet(ImageViewportPageSet(nativeFrameResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(nativeFrameItem);
     QCOMPARE(displayedImageSize(nativeFrameItem), QSizeF(2.0, 1.0));
     QCOMPARE(contentRect(nativeFrameItem), QRectF(0.0, 5.0, 20.0, 10.0));
@@ -939,7 +942,7 @@ void ImageSequenceFactoryTest::imageFrameUsesDeviceIndependentLogicalSize()
     QVERIFY(nativeTimedResult->sequence());
     ImageViewport nativeTimedItem;
     nativeTimedItem.setSize(QSizeF(20.0, 20.0));
-    nativeTimedItem.setSequence(nativeTimedResult->sequence());
+    nativeTimedItem.setPageSet(ImageViewportPageSet(nativeTimedResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(nativeTimedItem);
     QCOMPARE(displayedImageSize(nativeTimedItem), QSizeF(2.0, 1.0));
     QCOMPARE(primaryFrameCount(nativeTimedItem), 2);
@@ -1067,12 +1070,7 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
-    QSignalSpy sequenceSpy(&item, &ImageViewport::sequenceChanged);
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
-    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
@@ -1083,12 +1081,7 @@ void ImageSequenceFactoryTest::commandsWithoutRequestAreIgnoredDiagnostics()
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(sequenceSpy.count(), 0);
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(displaySpy.count(), 0);
-    QCOMPARE(playbackSpy.count(), 0);
-    QCOMPARE(commandSpy.count(), 1);
-    QCOMPARE(diagnosticsSpy.count(), 0);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 QTEST_MAIN(ImageSequenceFactoryTest)

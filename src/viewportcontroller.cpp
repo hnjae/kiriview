@@ -1050,14 +1050,12 @@ bool ViewportController::looping() const { return state.engine.requestState().lo
 
 ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool looping)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
     if (state.engine.requestState().looping == looping) {
-        return changes;
+        return {};
     }
 
     state.engine.requestState().looping = looping;
-    changes.looping = true;
-    return changes;
+    return {};
 }
 
 quint64 ViewportController::allocateRevisionToken() { return state.engine.allocateRevisionValue(); }
@@ -1298,7 +1296,6 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const bool displayValueChanged = viewportDisplayState(viewport).status != oldDisplayStatus
         || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
     result.changes.displayRevision = displayValueChanged;
-    result.changes.sequence = true;
     result.changes.displayState = displayValueChanged;
     result.changes.geometryState
         = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
@@ -1336,8 +1333,6 @@ ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
 {
     ViewportCommandResult result;
     result.outcome = assignment.command.outcome;
-    const bool sequenceValueChanged = viewportRequestState(viewport).sequence != nullptr
-        || viewportRequestState(viewport).secondarySequence != nullptr;
     const bool requestChanged = viewport.hasActiveRequest()
         || viewportRequestState(viewport).sequence
         || viewportRequestState(viewport).secondarySequence;
@@ -1397,7 +1392,6 @@ ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
     ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
     result.changes.requestRevision = requestChanged;
     result.changes.displayRevision = displayChanged;
-    result.changes.sequence = sequenceValueChanged;
     result.changes.requestState = requestChanged;
     result.changes.displayState = displayChanged;
     result.changes.geometryState

@@ -19,13 +19,11 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 void ImageViewportPrivate::incrementDisplayRevision()
 {
     controller.incrementDisplayRevision();
-    emit q->displayRevisionChanged();
 }
 
 void ImageViewportPrivate::incrementRequestRevision()
 {
     controller.incrementRequestRevision();
-    emit q->requestRevisionChanged();
 }
 
 bool ImageViewportPrivate::hasActiveRequest() const
@@ -152,34 +150,8 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
         } else {
             controller.incrementCommandRevision();
         }
-        emit q->commandRevisionChanged();
-        emit q->commandStateChanged();
     }
 
-    if (changes.sequence) {
-        emit q->sequenceChanged();
-    }
-    if (changes.requestState) {
-        emit q->requestStateChanged();
-    }
-    if (changes.displayState) {
-        emit q->displayStateChanged();
-    }
-    if (changes.geometryState) {
-        emit q->geometryStateChanged();
-    }
-    if (changes.playbackPhase) {
-        emit q->playbackPhaseChanged();
-    }
-    if (changes.diagnostics) {
-        emit q->diagnosticsChanged();
-    }
-    if (changes.presentation) {
-        emit q->presentationChanged();
-    }
-    if (changes.looping) {
-        emit q->loopingChanged();
-    }
     if (changes.scheduleUpdate) {
         update();
     }

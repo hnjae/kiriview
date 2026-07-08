@@ -22,7 +22,7 @@ private slots:
     void timedFrameListSecondarySeekCommandsSelectRoleTargets();
     void timedFrameListSecondaryPlaybackAdvancesRoleTarget();
     void timedFrameListSeekWhilePlayingWaitsForRenderCommit();
-    void timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState();
+    void timedFrameListSeekPreservesGeometryObservations();
     void timedFrameListPlaybackCommandsUpdatePhase();
     void timedFrameListSecondaryPauseStopNoopWhenPrimaryPlaying();
     void timedFrameListSecondaryStopRestoresRoleTarget();
@@ -35,7 +35,7 @@ private slots:
     void timedFrameListBackgroundOnlyChangesPreserveRequestAndPlayback();
     void timedFrameListPlaybackAdvancesDeterministically();
     void timedFrameListPlaybackAdvancesFromRuntimeTimer();
-    void timedFrameListPlaybackWithUnchangedGeometryDoesNotNotifyGeometryState();
+    void timedFrameListPlaybackPreservesGeometryObservations();
     void timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay();
     void timedFrameListPausedRenderWaitingCommitStaysPaused();
     void timedFrameListPlayWhilePausedAndRenderWaitingResumesWaiting();
@@ -210,7 +210,7 @@ void ImageViewportTimedTest::timedFrameListAssignmentPublishesInitialTimedState(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -265,7 +265,7 @@ void ImageViewportTimedTest::timedFrameListSeekCommandsSelectDocumentedTargets()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -336,8 +336,7 @@ void ImageViewportTimedTest::timedFrameListSecondarySeekCommandsSelectRoleTarget
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -406,8 +405,7 @@ void ImageViewportTimedTest::timedFrameListSecondaryPlaybackAdvancesRoleTarget()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -463,7 +461,7 @@ void ImageViewportTimedTest::timedFrameListSeekWhilePlayingWaitsForRenderCommit(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -501,7 +499,7 @@ void ImageViewportTimedTest::timedFrameListSeekWhilePlayingWaitsForRenderCommit(
     QCOMPARE(primaryDisplayedFrame(item), 1);
 }
 
-void ImageViewportTimedTest::timedFrameListSeekWithUnchangedGeometryDoesNotNotifyGeometryState()
+void ImageViewportTimedTest::timedFrameListSeekPreservesGeometryObservations()
 {
     ImageSequenceFactory factory;
     QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -518,23 +516,19 @@ void ImageViewportTimedTest::timedFrameListSeekWithUnchangedGeometryDoesNotNotif
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(geometrySpy.count(), 0);
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(geometrySpy.count(), 0);
     acknowledgePendingRenderCommitForTest(item);
 }
 
@@ -555,7 +549,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackCommandsUpdatePhase()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -609,8 +603,7 @@ void ImageViewportTimedTest::timedFrameListSecondaryPauseStopNoopWhenPrimaryPlay
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -667,8 +660,7 @@ void ImageViewportTimedTest::timedFrameListSecondaryStopRestoresRoleTarget()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -736,8 +728,7 @@ void ImageViewportTimedTest::timedFrameListSecondaryInvalidSeekUsesPresentRolePr
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -793,7 +784,7 @@ void ImageViewportTimedTest::timedFrameListAuthoredAutoplayStartsInitialPlayback
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -827,7 +818,7 @@ void ImageViewportTimedTest::timedFrameListAuthoredInfiniteLoopControlsDefaultPl
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -861,7 +852,7 @@ void ImageViewportTimedTest::timedFrameListAuthoredFiniteLoopStopsAfterFinalIter
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -900,7 +891,7 @@ void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPres
 
     ImageViewport item;
     item.setSize(QSizeF(0.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -915,10 +906,6 @@ void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPres
     QCOMPARE(primaryRequestedPosition(item), 0);
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
-
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(commandReasonValue(item),
@@ -935,9 +922,6 @@ void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPres
     QCOMPARE(primaryRequestedPosition(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(playbackSpy.count(), 0);
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(displaySpy.count(), 0);
 }
 
 void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
@@ -957,7 +941,7 @@ void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
 
     ImageViewport playingItem;
     playingItem.setSize(QSizeF(100.0, 100.0));
-    playingItem.setSequence(result->sequence());
+    playingItem.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(playingItem);
     const QMetaObject* metaObject = playingItem.metaObject();
 
@@ -975,7 +959,7 @@ void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
 
     ImageViewport pausedItem;
     pausedItem.setSize(QSizeF(100.0, 100.0));
-    pausedItem.setSequence(result->sequence());
+    pausedItem.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(pausedItem);
 
     QCOMPARE(pausedItem.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1009,7 +993,7 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1028,10 +1012,6 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
     const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
-    QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-
     QCOMPARE(setBackgroundCommand(
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
@@ -1049,9 +1029,6 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
     QCOMPARE(primaryDisplayedFrame(item), displayedFrame);
     QCOMPARE(primaryRequestedPosition(item), requestedPosition);
     QCOMPARE(primaryDisplayedPosition(item), displayedPosition);
-    QCOMPARE(requestRevisionSpy.count(), 0);
-    QCOMPARE(playbackSpy.count(), 0);
-    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTimedTest::timedFrameListPlaybackAdvancesDeterministically()
@@ -1071,7 +1048,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesDeterministically()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const quint64 initialRequestId = activeRequestIdForTest(item);
@@ -1157,16 +1134,15 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesFromRuntimeTimer()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
 
-    QVERIFY(requestSpy.wait(1000));
+    QTRY_VERIFY(hasPendingRenderCommitForTest(item));
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
@@ -1183,7 +1159,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesFromRuntimeTimer()
     QCOMPARE(primaryDisplayedPosition(item), 20);
 }
 
-void ImageViewportTimedTest::timedFrameListPlaybackWithUnchangedGeometryDoesNotNotifyGeometryState()
+void ImageViewportTimedTest::timedFrameListPlaybackPreservesGeometryObservations()
 {
     ImageSequenceFactory factory;
     QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1200,13 +1176,11 @@ void ImageViewportTimedTest::timedFrameListPlaybackWithUnchangedGeometryDoesNotN
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
-
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
     advancePlaybackForTest(item, 100);
     acknowledgePendingRenderCommitForTest(item);
@@ -1214,7 +1188,6 @@ void ImageViewportTimedTest::timedFrameListPlaybackWithUnchangedGeometryDoesNotN
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportTimedTest::timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay()
@@ -1234,7 +1207,7 @@ void ImageViewportTimedTest::timedFrameListStopWhileRenderWaitingRestoresPreviou
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1294,7 +1267,7 @@ void ImageViewportTimedTest::timedFrameListPausedRenderWaitingCommitStaysPaused(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1359,7 +1332,7 @@ void ImageViewportTimedTest::timedFrameListPlayWhilePausedAndRenderWaitingResume
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1435,7 +1408,7 @@ void ImageViewportTimedTest::timedFrameListStopAfterPauseWhileRenderWaitingResto
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);

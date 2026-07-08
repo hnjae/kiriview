@@ -15,7 +15,6 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
-void ImageViewport::setSequence(ImageSequence* sequence) { d->setSequence(sequence); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }
 ImageViewport::CommandOutcome ImageViewport::play() { return d->play(); }
 ImageViewport::CommandOutcome ImageViewport::play(PageRole role) { return d->play(role); }
@@ -37,37 +36,9 @@ ImageViewport::CommandOutcome ImageViewport::seekToPosition(PageRole role, int m
     return d->seekToPosition(role, milliseconds);
 }
 ImageViewport::CommandOutcome ImageViewport::setPageSet(
-    const QVariant& primary, const QVariant& secondary)
-{
-    return d->setPageSet(primary, secondary);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(
-    const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy)
-{
-    return d->setPageSet(primary, secondary, policy);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(const QVariant& pageSet)
-{
-    return d->setPageSet(pageSet);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(ImageViewportPageSet pageSet)
-{
-    return d->setPageSet(pageSet);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(
     ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
 {
     return d->setPageSet(pageSet, policy);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(
-    ImageSequence* primary, ImageSequence* secondary)
-{
-    return d->setPageSet(primary, secondary);
-}
-ImageViewport::CommandOutcome ImageViewport::setPageSet(
-    ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy)
-{
-    return d->setPageSet(primary, secondary, policy);
 }
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
 

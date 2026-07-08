@@ -30,9 +30,6 @@ struct ViewportChangeSet
     bool geometryState = false;
     bool playbackPhase = false;
     bool diagnostics = false;
-    bool presentation = false;
-    bool sequence = false;
-    bool looping = false;
     bool displayRevision = false;
     bool requestRevision = false;
     bool commandRevision = false;

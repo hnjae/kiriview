@@ -64,7 +64,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackCommandsUpdatePhase
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -118,7 +118,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlayCommandPreservesElapsed
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -171,7 +171,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesDeterminist
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -274,7 +274,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesFromRuntime
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -289,12 +289,11 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancesFromRuntime
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0, 20);
     acknowledgePendingRenderCommitForTest(item);
 
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
 
-    QVERIFY(requestSpy.wait(1000));
+    QTRY_COMPARE(*playbackRequestCount, 1);
 
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*lastPlaybackFrame, 1);
@@ -331,7 +330,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackFrameReadyWaitsForR
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -426,7 +425,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPausedPlaybackFrameCommitSt
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -493,7 +492,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceReques
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -580,7 +579,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(3), ImageViewport::CommandOutcome::Accepted);
@@ -640,7 +639,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seekToPosition(250), ImageViewport::CommandOutcome::Accepted);
@@ -705,7 +704,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -800,7 +799,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(previousResult->sequence());
+    item.setPageSet(ImageViewportPageSet(previousResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
@@ -810,7 +809,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryDisplayedPosition(item), 100);
 
-    item.setSequence(providerResult->sequence());
+    item.setPageSet(ImageViewportPageSet(providerResult->sequence()), PageSetTransitionPolicy {});
     QCOMPARE(
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
@@ -880,7 +879,7 @@ void ImageViewportProviderPlaybackTest::providerTimedStopCancelsPlaybackRequest(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
     QVERIFY(sessionFactory->lastSession());
     emitProviderMetadataReady(sessionFactory->lastSession(),
@@ -921,7 +920,7 @@ void ImageViewportProviderPlaybackTest::providerTimedStopSupersedesPlaybackReque
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1049,7 +1048,7 @@ void ImageViewportProviderPlaybackTest::providerTimedSeekWhilePlayingWaitsForFra
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1124,7 +1123,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(previousResult->sequence());
+    item.setPageSet(ImageViewportPageSet(previousResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
@@ -1133,7 +1132,7 @@ void ImageViewportProviderPlaybackTest::
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 1);
 
-    item.setSequence(providerResult->sequence());
+    item.setPageSet(ImageViewportPageSet(providerResult->sequence()), PageSetTransitionPolicy {});
     QCOMPARE(
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryDisplayedFrame(item), 1);
@@ -1199,7 +1198,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1261,7 +1260,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAu
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1324,7 +1323,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAu
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1386,7 +1385,7 @@ void ImageViewportProviderPlaybackTest::providerTimedLoopingPlaybackWrapsToFirst
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     ImageViewportPresentationCommand loopingCommand;
     loopingCommand.setLooping(true);
     QCOMPARE(item.setPresentation(loopingCommand), ImageViewport::CommandOutcome::Accepted);
@@ -1498,7 +1497,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAdvancementUsesPlay
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
     QVERIFY(sessionFactory->lastSession());
     emitProviderMetadataReady(sessionFactory->lastSession(),
@@ -1539,7 +1538,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackWaitsForMetadata()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1605,7 +1604,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackBeforeMetadataSuper
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Accepted);
@@ -1670,7 +1669,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackAfterMetadataUsesPl
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1713,7 +1712,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -1764,8 +1763,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackWaitsForMe
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1846,8 +1844,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1894,8 +1891,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1953,8 +1949,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -2009,8 +2004,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedPlaybackUsesRoleLo
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -2071,8 +2065,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -2186,8 +2179,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -2257,7 +2249,7 @@ void ImageViewportProviderPlaybackTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -2306,7 +2298,7 @@ void ImageViewportProviderPlaybackTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);

@@ -43,7 +43,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerMetadataFailureStopsPend
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
@@ -84,7 +84,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -173,7 +173,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -240,7 +240,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -269,8 +269,6 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
         viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
 
     const ImageViewportRevisionToken terminalRequestRevision = revisionTokenProperty(item, "requestRevision");
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
     emitProviderProgress(sessionFactory->lastSession(), frameToken, 1.0);
     drainQueuedProviderResults();
@@ -287,8 +285,6 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), terminalRequestRevision);
     QVERIFY(
         viewportErrorString(item).contains(QStringLiteral("frame decode failed")));
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
 
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -304,8 +300,6 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
 
-    diagnosticsSpy.clear();
-
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -314,7 +308,6 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureKeepsGenerat
     QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(viewportErrorString(item), QString());
-    QCOMPARE(diagnosticsSpy.count(), 1);
 }
 
 void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureRetainsDisplayAndClearsOnSeek()
@@ -333,7 +326,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureRetainsDispl
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -435,7 +428,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -507,7 +500,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -593,7 +586,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameFailureAcceptsContr
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -673,7 +666,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -759,7 +752,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(previousResult->sequence());
+    item.setPageSet(ImageViewportPageSet(previousResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -777,7 +770,7 @@ void ImageViewportProviderTerminalRecoveryTest::
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
 
-    item.setSequence(replacementResult->sequence());
+    item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), PageSetTransitionPolicy {});
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
@@ -852,7 +845,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameUnsupportedKeepsGen
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -921,7 +914,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1002,7 +995,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1069,7 +1062,7 @@ void ImageViewportProviderTerminalRecoveryTest::providerFrameCancellationReports
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1128,7 +1121,7 @@ void ImageViewportProviderTerminalRecoveryTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());

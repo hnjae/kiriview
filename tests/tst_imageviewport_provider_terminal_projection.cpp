@@ -69,8 +69,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -154,11 +153,10 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     if (secondaryRole) {
-        QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                     QVariant::fromValue<QObject*>(result->sequence())),
+        QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), result->sequence()), PageSetTransitionPolicy {}),
             ImageViewport::CommandOutcome::Accepted);
     } else {
-        item.setSequence(result->sequence());
+        item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     }
     const QMetaObject* metaObject = item.metaObject();
 
@@ -275,8 +273,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -342,8 +339,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -408,8 +404,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -458,7 +453,7 @@ void ImageViewportProviderTerminalProjectionTest::clearAndReplacementEscapeSeale
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -483,7 +478,7 @@ void ImageViewportProviderTerminalProjectionTest::clearAndReplacementEscapeSeale
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(viewportErrorString(item), QString());
 
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     QCOMPARE(*sessionCount, 2);
     QCOMPARE(*metadataRequestCount, 2);
     QCOMPARE(
@@ -542,8 +537,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -636,8 +630,7 @@ void ImageViewportProviderTerminalProjectionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -735,7 +728,7 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -801,13 +794,11 @@ void ImageViewportProviderTerminalProjectionTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
     emitProviderFailed(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token failure"));
@@ -835,8 +826,6 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(viewportErrorString(item), QString());
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
 void ImageViewportProviderTerminalProjectionTest::
@@ -855,7 +844,7 @@ void ImageViewportProviderTerminalProjectionTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -866,8 +855,6 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(*frameRequestCount, 1);
 
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
     emitProviderFailed(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token failure"));
@@ -893,8 +880,6 @@ void ImageViewportProviderTerminalProjectionTest::
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(viewportErrorString(item), QString());
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 QTEST_MAIN(ImageViewportProviderTerminalProjectionTest)
 

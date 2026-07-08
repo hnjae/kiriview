@@ -47,7 +47,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     diagnostic += QStringLiteral("tail");
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
     QVERIFY(sessionFactory->lastSession());
     emitProviderFailed(
@@ -75,7 +75,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -115,7 +115,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         QVERIFY(result->sequence());
 
         ImageViewport item;
-        item.setSequence(result->sequence());
+        item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
         QVERIFY(sessionFactory->lastSession());
         emitTerminalResult(
@@ -161,7 +161,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     const QString suppliedDiagnostic
@@ -199,7 +199,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());

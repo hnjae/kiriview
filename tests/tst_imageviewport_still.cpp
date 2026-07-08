@@ -19,8 +19,8 @@ private slots:
     void nullSequenceAssignmentClearsCommandDiagnostic();
     void clearActiveRequestClearsCommandDiagnostic();
     void clearPreservesPresentationState();
-    void clearReadyDisplayEmitsGeometryStateChanged();
-    void clearNonPresentableDisplayDoesNotEmitGeometryStateChanged();
+    void clearReadyDisplayClearsGeometryObservations();
+    void clearNonPresentableDisplayKeepsEmptyGeometryObservations();
     void stillImageReadyReplacementIncrementsDisplayRevision();
     void stillImageReplacementPreservesPresentationState();
     void stillImageCommandsPreserveOrReplaceDocumentedState();
@@ -104,12 +104,7 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     const ImageViewportRevisionToken displayRevisionBeforeReset = revisionTokenProperty(item, "displayRevision");
 
-    QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
-    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
@@ -129,12 +124,7 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(
         playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
-    QCOMPARE(requestSpy.count(), 0);
-    QCOMPARE(displayRevisionSpy.count(), 1);
-    QCOMPARE(geometrySpy.count(), 0);
-    QCOMPARE(presentationSpy.count(), 1);
-    QCOMPARE(commandSpy.count(), 1);
-    QCOMPARE(diagnosticsSpy.count(), 0);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic()
@@ -148,11 +138,7 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
 
-    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-    QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
-    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
@@ -168,11 +154,7 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(displayRevisionSpy.count(), 0);
-    QCOMPARE(geometrySpy.count(), 0);
-    QCOMPARE(presentationSpy.count(), 0);
-    QCOMPARE(commandSpy.count(), 1);
-    QCOMPARE(diagnosticsSpy.count(), 0);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
@@ -186,7 +168,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -236,9 +218,7 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -260,8 +240,6 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(
         playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
-    QCOMPARE(playbackSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), -1);
@@ -282,14 +260,12 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
     const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     const double changedWidth = 100.0 + 5.0e-13;
     QVERIFY(changedWidth != 100.0);
     item.setSize(QSizeF(changedWidth, 100.0));
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
-    QCOMPARE(displayRevisionSpy.count(), 1);
-    QCOMPARE(geometrySpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 1);
     item.setSize(QSizeF(100.0, 100.0));
 
     const ImageViewportCoordinateResult centerImage = mapItemToPrimaryPage(item, 50.0, 50.0);
@@ -323,7 +299,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsDisplayObservations()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const ImageViewportRevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
@@ -356,7 +332,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsDisplayObservations()
     QScopedPointer<ImageSequenceFactoryResult> providerResult(factory.fromProvider(&adapter));
     QVERIFY(providerResult->sequence());
 
-    item.setSequence(providerResult->sequence());
+    item.setPageSet(ImageViewportPageSet(providerResult->sequence()), PageSetTransitionPolicy {});
 
     QCOMPARE(
         requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -381,7 +357,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
@@ -389,8 +365,8 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
-    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
-    item.setSequence(nullptr);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
+    item.setPageSet(ImageViewportPageSet::clear(), PageSetTransitionPolicy {});
 
     QCOMPARE(viewportPrimarySequence(item), nullptr);
     QCOMPARE(requestStatusValue(item),
@@ -402,7 +378,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
-    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
@@ -416,7 +392,7 @@ void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
@@ -424,7 +400,7 @@ void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
-    QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(viewportPrimarySequence(item), nullptr);
@@ -437,7 +413,7 @@ void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
-    QCOMPARE(commandSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportStillTest::clearPreservesPresentationState()
@@ -451,7 +427,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
@@ -484,7 +460,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(item.state().presentation().looping(), true);
 }
 
-void ImageViewportStillTest::clearReadyDisplayEmitsGeometryStateChanged()
+void ImageViewportStillTest::clearReadyDisplayClearsGeometryObservations()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -495,22 +471,19 @@ void ImageViewportStillTest::clearReadyDisplayEmitsGeometryStateChanged()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-
-    item.setSequence(nullptr);
+    item.setPageSet(ImageViewportPageSet::clear(), PageSetTransitionPolicy {});
 
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
     QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
-    QCOMPARE(geometrySpy.count(), 1);
 }
 
-void ImageViewportStillTest::clearNonPresentableDisplayDoesNotEmitGeometryStateChanged()
+void ImageViewportStillTest::clearNonPresentableDisplayKeepsEmptyGeometryObservations()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -521,18 +494,15 @@ void ImageViewportStillTest::clearNonPresentableDisplayDoesNotEmitGeometryStateC
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     item.setSize(QSizeF(0.0, 100.0));
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
 
-    QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-
-    item.setSequence(nullptr);
+    item.setPageSet(ImageViewportPageSet::clear(), PageSetTransitionPolicy {});
 
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
-    QCOMPARE(geometrySpy.count(), 0);
 }
 
 void ImageViewportStillTest::stillImageReadyReplacementIncrementsDisplayRevision()
@@ -553,13 +523,13 @@ void ImageViewportStillTest::stillImageReadyReplacementIncrementsDisplayRevision
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(firstResult->sequence());
+    item.setPageSet(ImageViewportPageSet(firstResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
     const ImageViewportRevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
 
-    item.setSequence(replacementResult->sequence());
+    item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), PageSetTransitionPolicy {});
 
     QCOMPARE(
         requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -593,7 +563,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(firstResult->sequence());
+    item.setPageSet(ImageViewportPageSet(firstResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -605,7 +575,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     QCOMPARE(setManualZoomPercentCommand(item, 150.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
-    item.setSequence(replacementResult->sequence());
+    item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), PageSetTransitionPolicy {});
 
     QCOMPARE(
         requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -641,7 +611,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -740,8 +710,7 @@ void ImageViewportStillTest::secondaryStillImagePlayReportsUnsupported()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -779,8 +748,7 @@ void ImageViewportStillTest::secondaryStillImagePositionSeekReportsUnsupported()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
@@ -812,7 +780,7 @@ void ImageViewportStillTest::coordinateHelpersRejectNonFiniteInputs()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
     const double infinity = std::numeric_limits<double>::infinity();
@@ -837,7 +805,7 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
@@ -871,7 +839,7 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitWidth),
         ImageViewport::CommandOutcome::Accepted);
@@ -899,7 +867,7 @@ void ImageViewportStillTest::stillImageAssignmentWaitsForPositiveGeometry()
 
     ImageViewport item;
     item.setSize(QSizeF(0.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -976,7 +944,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
@@ -1028,7 +996,7 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(firstResult->sequence());
+    item.setPageSet(ImageViewportPageSet(firstResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
@@ -1037,8 +1005,8 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
 
     item.setSize(QSizeF(0.0, 100.0));
     const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
-    item.setSequence(replacementResult->sequence());
+    QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
+    item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), PageSetTransitionPolicy {});
     QCOMPARE(
         requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item),
@@ -1051,7 +1019,7 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(mapItemToPrimaryPage(item, 1.0, 1.0).isValid(), false);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
-    QCOMPARE(displayRevisionSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 1);
 
     const ImageViewportRevisionToken retainedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
@@ -1064,7 +1032,6 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     const ImageViewportRevisionToken retainedDisplayRevision = revisionTokenProperty(item, "displayRevision");
-    const int retainedDisplayRevisionSignalCount = displayRevisionSpy.count();
 
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(
@@ -1083,7 +1050,6 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
     QCOMPARE(displayedImageSize(item), QSizeF(8.0, 8.0));
     QCOMPARE(contentRect(item), QRectF(0.0, 0.0, 100.0, 100.0));
     verifyRevisionChanged(item, "displayRevision", retainedDisplayRevision);
-    QCOMPARE(displayRevisionSpy.count(), retainedDisplayRevisionSignalCount + 1);
 }
 
 QTEST_MAIN(ImageViewportStillTest)

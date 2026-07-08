@@ -56,7 +56,7 @@ void ImageViewportRenderCommitTest::stillAssignmentWaitsForRenderCommitWithPosit
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -100,7 +100,7 @@ void ImageViewportRenderCommitTest::timedListAssignmentWaitsForRenderCommitWithP
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -145,7 +145,9 @@ void ImageViewportRenderCommitTest::builtInTwoPageSpreadWaitsForCompleteRenderCo
 
     ImageViewport item;
     item.setSize(QSizeF(120.0, 40.0));
-    QCOMPARE(item.setPageSet(primaryResult->sequence(), secondaryResult->sequence()),
+    QCOMPARE(item.setPageSet(
+                 ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()),
+                 PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -227,8 +229,10 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     ImageViewport item;
     item.setSize(QSizeF(120.0, 40.0));
     QCOMPARE(
-        item.setPageSet(providerIsPrimary ? providerResult->sequence() : builtInResult->sequence(),
+        item.setPageSet(ImageViewportPageSet(
+            providerIsPrimary ? providerResult->sequence() : builtInResult->sequence(),
             providerIsPrimary ? builtInResult->sequence() : providerResult->sequence()),
+            PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -291,7 +295,7 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -307,10 +311,6 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgeRenderCommitForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
@@ -323,9 +323,6 @@ void ImageViewportRenderCommitTest::staleBuiltInRenderAcknowledgementIsIgnored()
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
     const RenderFailureDiagnosticForTest diagnostic
         = lastAcceptedRenderFailureDiagnosticForTest(item);
     QVERIFY(!diagnostic.valid);
@@ -343,7 +340,7 @@ void ImageViewportRenderCommitTest::stillImagePaintFailureReportsRenderFailure()
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
@@ -396,7 +393,7 @@ void ImageViewportRenderCommitTest::timedFrameListPaintFailureRetainsPreviousDis
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
     acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(
@@ -458,7 +455,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlaybackPaintFailureStopsPlayb
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
@@ -524,7 +521,7 @@ void ImageViewportRenderCommitTest::timedFrameListPlayAfterPaintFailureRestartsD
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
@@ -577,7 +574,7 @@ void ImageViewportRenderCommitTest::successfulPaintClearsRenderFailureInterest()
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     const quint64 generation = pendingRenderGenerationForTest(item);
@@ -613,7 +610,7 @@ void ImageViewportRenderCommitTest::builtInSameFrameSeekCreatesFreshRequestIdent
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
     const quint64 initialRequestId = activeRequestIdForTest(item);
     QVERIFY(initialRequestId > 0);
@@ -652,7 +649,7 @@ void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviou
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -729,7 +726,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -819,7 +816,7 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -899,7 +896,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -959,7 +956,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -997,10 +994,6 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
 
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgePendingPrimaryRenderFailureForTest(item);
     QCOMPARE(
         requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1013,9 +1006,6 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
 }
 
 void ImageViewportRenderCommitTest::
@@ -1035,7 +1025,7 @@ void ImageViewportRenderCommitTest::
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1105,7 +1095,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
 
     ImageViewport item;
     item.setSize(QSizeF(88.0, 44.0));
-    item.setSequence(previousResult->sequence());
+    item.setPageSet(ImageViewportPageSet(previousResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingPrimaryRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1115,8 +1105,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(displayedImageSize(item), QSizeF(4.0, 2.0));
 
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*sessionCount, 1);
@@ -1191,8 +1180,7 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
 
     ImageViewport item;
     item.setSize(QSizeF(88.0, 44.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1271,8 +1259,7 @@ void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWith
 
     ImageViewport item;
     item.setSize(QSizeF(88.0, 44.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1335,8 +1322,7 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
 
     ImageViewport item;
     item.setSize(QSizeF(88.0, 44.0));
-    QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
-                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1366,10 +1352,6 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
     const quint64 payloadId = secondaryPendingRenderPayloadIdForTest(item);
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgeRenderFailureForTest(
         item, ImageViewport::PageRole::Secondary, generation, requestId, payloadId + 1);
 
@@ -1382,9 +1364,6 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
@@ -1404,7 +1383,7 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1433,10 +1412,6 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgeRenderCommitForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
@@ -1450,9 +1425,6 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
@@ -1472,7 +1444,7 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1509,10 +1481,6 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgeRenderFailureForTest(item, generation, requestId, payloadId + 1);
 
     QCOMPARE(
@@ -1526,9 +1494,6 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
 }
 
@@ -1549,7 +1514,7 @@ void ImageViewportRenderCommitTest::
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1586,10 +1551,6 @@ void ImageViewportRenderCommitTest::
     const quint64 generation = pendingRenderGenerationForTest(item);
     const quint64 requestId = activeRequestIdForTest(item);
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
-    QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
-
     acknowledgeRenderFailureForTest(item, generation, requestId, payloadId);
 
     QCOMPARE(
@@ -1606,9 +1567,6 @@ void ImageViewportRenderCommitTest::
     QVERIFY(
         viewportErrorString(item).contains(QStringLiteral("render commit failed")));
     QVERIFY(!hasPendingRenderCommitForTest(item));
-    QCOMPARE(requestStateSpy.count(), 1);
-    QCOMPARE(displayStateSpy.count(), 0);
-    QCOMPARE(diagnosticsSpy.count(), 1);
 }
 
 void ImageViewportRenderCommitTest::activeRenderFailureDiagnosticsPreserveCause_data()
@@ -1635,7 +1593,7 @@ void ImageViewportRenderCommitTest::activeRenderFailureDiagnosticsPreserveCause(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     const quint64 generation = pendingRenderGenerationForTest(item);
@@ -1676,7 +1634,7 @@ void ImageViewportRenderCommitTest::staleRenderFailureDoesNotOverwriteActiveDiag
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
 
     const quint64 generation = pendingRenderGenerationForTest(item);
     const quint64 requestId = activeRequestIdForTest(item);
@@ -1723,7 +1681,7 @@ void ImageViewportRenderCommitTest::
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1761,7 +1719,6 @@ void ImageViewportRenderCommitTest::
     const quint64 generation = pendingRenderGenerationForTest(item);
     const quint64 requestId = activeRequestIdForTest(item);
     const quint64 payloadId = pendingRenderPayloadIdForTest(item);
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
 
     acknowledgeRenderCommitForTest(item, generation, requestId, payloadId);
 
@@ -1779,7 +1736,6 @@ void ImageViewportRenderCommitTest::
     QCOMPARE(primaryDisplayedPosition(item), 100);
     QCOMPARE(displayedRequestIdForTest(item), requestId);
     QVERIFY(!hasPendingRenderCommitForTest(item));
-    QCOMPARE(playbackSpy.count(), 1);
 }
 
 void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSceneGraph()
@@ -1799,7 +1755,7 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
 
     ImageViewport item;
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
     acknowledgePendingPrimaryRenderCommitForTest(item);
     const quint64 initialRequestId = activeRequestIdForTest(item);
@@ -1821,9 +1777,6 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
-    QSignalSpy requestStateSpy(&item, &ImageViewport::requestStateChanged);
-    QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
 
     item.setSize(QSizeF(40.0, 20.0));
 
@@ -1843,9 +1796,6 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
     QVERIFY(hasPendingRenderCommitForTest(item));
     QCOMPARE(pendingRenderGenerationForTest(item), 1U);
     QVERIFY(pendingRenderPayloadIdForTest(item) > 0);
-    QCOMPARE(playbackSpy.count(), 0);
-    QCOMPARE(requestStateSpy.count(), 0);
-    QCOMPARE(displayStateSpy.count(), 0);
 
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
@@ -1859,9 +1809,6 @@ void ImageViewportRenderCommitTest::geometryChangeRecoversRenderWaitingWithoutSc
         displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryDisplayedPosition(item), 100);
-    QCOMPARE(playbackSpy.count(), 1);
-    QCOMPARE(requestStateSpy.count(), 1);
-    QCOMPARE(displayStateSpy.count(), 1);
 }
 
 QTEST_MAIN(ImageViewportRenderCommitTest)

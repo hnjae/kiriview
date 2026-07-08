@@ -203,7 +203,7 @@ ImageSequenceProviderRequestToken makeInstalledProviderRequestToken()
         return {};
     }
     ImageViewport viewport;
-    viewport.setSequence(result->sequence());
+    viewport.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     return *capturedToken;
 }
 
@@ -354,6 +354,8 @@ import ImageViewport 1.0
 
 Item {
     property ImageFrame suppliedFrame
+    property imageViewportPageSet pageSet
+    property pageSetTransitionPolicy policy
     property bool typedFactorySurfaceAvailable: false
 
     ImageViewport {
@@ -370,7 +372,8 @@ Item {
         const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
         const appendAccepted = list.appendFrame(suppliedFrame, 100)
         const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
-        viewport.setPageSet(timedResult.sequence, null)
+        pageSet.primary = timedResult.sequence
+        viewport.setPageSet(pageSet, policy)
         typedFactorySurfaceAvailable = frameResult.sequence !== null
             && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
             && appendAccepted === true
@@ -830,7 +833,7 @@ int main(int argc, char** argv)
         || installedSpread.secondary() != timedResult->sequence()) {
         return 1;
     }
-    if (typedPageSetViewport.setPageSet(installedSpread)
+    if (typedPageSetViewport.setPageSet(installedSpread, PageSetTransitionPolicy {})
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
@@ -856,7 +859,7 @@ int main(int argc, char** argv)
     ImageViewportPageSet installedSecondaryOnly;
     installedSecondaryOnly.setSecondary(timedResult->sequence());
     if (installedSecondaryOnly.isValid()
-        || typedPageSetViewport.setPageSet(installedSecondaryOnly)
+        || typedPageSetViewport.setPageSet(installedSecondaryOnly, PageSetTransitionPolicy {})
             != ImageViewport::CommandOutcome::Invalid
         || typedPageSetViewport.state().primary().sequence()
             != deviceIndependentStillResult->sequence()) {
@@ -1025,7 +1028,7 @@ int main(int argc, char** argv)
     }
 
     ImageViewport providerViewport;
-    providerViewport.setSequence(result->sequence());
+    providerViewport.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
         || providerViewport.state().request().reason() != ImageViewport::RequestReason::ProviderWaiting
         || providerViewport.state().primary().request().frame() != 0

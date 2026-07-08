@@ -91,7 +91,8 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     item.setSize(QSizeF(100.0, 100.0));
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
-    QCOMPARE(item.setPageSet(result->sequence(), nullptr), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {}),
+        ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QVERIFY(stateSpy.count() >= 1);
 
@@ -176,12 +177,12 @@ void ImageViewportStateSnapshotTest::loadingReplacementRetainsPreviousDisplaySep
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(readyResult->sequence());
+    item.setPageSet(ImageViewportPageSet(readyResult->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const ImageViewportStateSnapshot readySnapshot = item.state();
     QCOMPARE(readySnapshot.display().status(), ImageViewport::DisplayStatus::Ready);
 
-    QCOMPARE(item.setPageSet(loadingResult->sequence(), nullptr),
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(loadingResult->sequence()), PageSetTransitionPolicy {}),
         ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportStateSnapshot snapshot = item.state();
@@ -227,7 +228,7 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
 
     ImageViewport item;
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     QVERIFY(sessionFactory->lastSession());
     emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), QStringLiteral("metadata unavailable"));
@@ -263,7 +264,7 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
     ImageViewportStateSnapshot snapshot = item.state();
@@ -328,7 +329,7 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setSequence(result->sequence());
+    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
     ImageViewportPresentationCommand command;
@@ -416,7 +417,7 @@ ImageViewport {
     auto* viewport = qobject_cast<ImageViewport*>(object.data());
     QVERIFY(viewport);
 
-    viewport->setSequence(result->sequence());
+    viewport->setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(*viewport);
 
     QCOMPARE(object->property("readyOk").toBool(), true);

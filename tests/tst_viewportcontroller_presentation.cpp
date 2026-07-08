@@ -144,19 +144,21 @@ void ViewportControllerPresentationTest::standalonePresentationCommandsMutateCon
     QCOMPARE(zoom.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Manual);
     QCOMPARE(controller.presentationState().manualZoom, 2.5);
-    QCOMPARE(zoom.changes.presentation, true);
     QCOMPARE(zoom.changes.displayRevision, true);
     QCOMPARE(zoom.changes.geometryState, false);
+    QCOMPARE(zoom.changes.scheduleUpdate, true);
 
     const ViewportCommandResult rotation = controller.rotateClockwise(QPointF());
     QCOMPARE(rotation.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().rotationDegrees, 90);
-    QCOMPARE(rotation.changes.presentation, true);
+    QCOMPARE(rotation.changes.displayRevision, true);
+    QCOMPARE(rotation.changes.scheduleUpdate, true);
 
     const ViewportCommandResult mirror = controller.setMirrorHorizontally(true, QPointF());
     QCOMPARE(mirror.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().mirrorHorizontally, true);
-    QCOMPARE(mirror.changes.presentation, true);
+    QCOMPARE(mirror.changes.displayRevision, true);
+    QCOMPARE(mirror.changes.scheduleUpdate, true);
 }
 
 void ViewportControllerPresentationTest::
@@ -223,7 +225,8 @@ void ViewportControllerPresentationTest::
     const ViewportSequenceAssignmentResult result = controller.assignSequence(assignment);
 
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(result.changes.presentation, true);
+    QCOMPARE(result.changes.displayRevision, true);
+    QCOMPARE(result.changes.scheduleUpdate, true);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::FitHeight);
     QCOMPARE(controller.presentationState().manualZoom, 3.0);
     QCOMPARE(controller.presentationState().rotationDegrees, 0);

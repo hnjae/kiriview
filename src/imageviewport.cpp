@@ -150,85 +150,6 @@ bool isPositiveSize(QSizeF size)
     return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
 }
 
-ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
-{
-    if (!value.isValid() || value.isNull()) {
-        ok = true;
-        return nullptr;
-    }
-
-    if (value.canConvert<ImageSequence*>()) {
-        if (ImageSequence* sequence = value.value<ImageSequence*>()) {
-            ok = true;
-            return sequence;
-        }
-    }
-
-    if (value.canConvert<QObject*>()) {
-        QObject* object = value.value<QObject*>();
-        if (!object && value.isNull()) {
-            ok = true;
-            return nullptr;
-        }
-        if (ImageSequence* sequence = qobject_cast<ImageSequence*>(object)) {
-            ok = true;
-            return sequence;
-        }
-    }
-
-    ok = false;
-    return nullptr;
-}
-
-bool pageSetFromValue(const QVariant& value, ImageViewportPageSet& pageSet)
-{
-    if (!value.isValid() || value.isNull()) {
-        return false;
-    }
-    if (!value.canConvert<ImageViewportPageSet>()) {
-        return false;
-    }
-
-    pageSet = value.value<ImageViewportPageSet>();
-    return true;
-}
-
-bool pageSetPolicyFromValue(const QVariant& value, PageSetTransitionPolicy& policy)
-{
-    if (!value.isValid() || value.isNull()) {
-        return false;
-    }
-    if (!value.canConvert<PageSetTransitionPolicy>()) {
-        return false;
-    }
-
-    policy = value.value<PageSetTransitionPolicy>();
-    return true;
-}
-
-}
-
-void ImageViewportPrivate::setSequence(ImageSequence* sequence)
-{
-    if (!controller.requestState().sequence && !controller.requestState().secondarySequence
-        && !sequence) {
-        return;
-    }
-
-    ImageSequenceSource source = factorySequenceSource(sequence);
-    ViewportSequenceAssignment assignment;
-    assignment.pageSet = sequence ? ImageViewportPageSet(sequence) : ImageViewportPageSet::clear();
-    assignment.source = std::move(source);
-    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
-    applyControllerChanges(result.changes);
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(
-        result.secondaryProviderFrameTransport, PageRole::Secondary);
-    if (result.openProviderSession && !providerHost.openSession()) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(
-            QStringLiteral("provider session creation failed")));
-    }
-    playbackScheduler.sync();
 }
 
 ImageSequence* ImageViewportPrivate::primarySequence() const
@@ -506,107 +427,12 @@ QString ImageViewportPrivate::warningString() const
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    const QVariant& primary, const QVariant& secondary)
-{
-    ImageViewportPageSet pageSet;
-    PageSetTransitionPolicy policy;
-    if (pageSetFromValue(primary, pageSet)) {
-        if (pageSetPolicyFromValue(secondary, policy)) {
-            return setPageSet(pageSet, policy);
-        }
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    return setPageSet(primary, secondary, PageSetTransitionPolicy {});
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(const QVariant& pageSet)
-{
-    ImageViewportPageSet typedPageSet;
-    if (!pageSetFromValue(pageSet, typedPageSet)) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    return setPageSet(typedPageSet);
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy)
-{
-    bool primaryValid = false;
-    bool secondaryValid = false;
-    ImageSequence* primarySequence = sequenceFromPageSetValue(primary, primaryValid);
-    ImageSequence* secondarySequence = sequenceFromPageSetValue(secondary, secondaryValid);
-
-    if (!primaryValid || !secondaryValid) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    return setPageSet(primarySequence, secondarySequence, policy);
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(ImageViewportPageSet pageSet)
-{
-    return setPageSet(pageSet, PageSetTransitionPolicy {});
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
 {
     ImageSequenceSource primarySource = factorySequenceSource(pageSet.primary());
     ImageSequenceSource secondarySourceHandle = factorySequenceSource(pageSet.secondary());
     ViewportSequenceAssignment assignment;
     assignment.pageSet = pageSet;
-    assignment.source = std::move(primarySource);
-    assignment.secondarySourceHandle = std::move(secondarySourceHandle);
-    assignment.transitionPolicy = policy;
-    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
-    if (result.outcome != CommandOutcome::Accepted) {
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-    applyControllerChanges(result.changes);
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(
-        result.secondaryProviderFrameTransport, PageRole::Secondary);
-    if (result.openProviderSession && !providerHost.openSession()) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(
-            QStringLiteral("provider session creation failed")));
-        playbackScheduler.sync();
-        return result.outcome;
-    }
-    if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(
-            PageRole::Secondary, QStringLiteral("provider session creation failed")));
-    }
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    ImageSequence* primary, ImageSequence* secondary)
-{
-    return setPageSet(primary, secondary, PageSetTransitionPolicy {});
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    ImageSequence* primarySequence, ImageSequence* secondarySequence,
-    PageSetTransitionPolicy policy)
-{
-    ImageSequenceSource primarySource = factorySequenceSource(primarySequence);
-    ImageSequenceSource secondarySourceHandle = factorySequenceSource(secondarySequence);
-    if (!primarySequence) {
-        secondarySourceHandle = {};
-    }
-    ViewportSequenceAssignment assignment;
-    assignment.pageSet = primarySequence ? ImageViewportPageSet(primarySequence, secondarySequence)
-                                         : ImageViewportPageSet::clear();
     assignment.source = std::move(primarySource);
     assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;
