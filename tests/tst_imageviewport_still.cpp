@@ -85,6 +85,13 @@ static ImageViewport::CommandOutcome setBackgroundCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setLoopingCommand(ImageViewport& item, bool looping)
+{
+    ImageViewportPresentationCommand command;
+    command.setLooping(looping);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
@@ -189,7 +196,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
@@ -453,7 +460,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
@@ -596,7 +603,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
                  item, ImageViewport::BackgroundMode::Checkerboard, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setManualZoomPercentCommand(item, 150.0), ImageViewport::CommandOutcome::Accepted);
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
     item.setSequence(replacementResult->sequence());
 
@@ -971,7 +978,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);

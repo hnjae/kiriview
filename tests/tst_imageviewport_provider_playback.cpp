@@ -1386,7 +1386,9 @@ void ImageViewportProviderPlaybackTest::providerTimedLoopingPlaybackWrapsToFirst
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    item.setLooping(true);
+    ImageViewportPresentationCommand loopingCommand;
+    loopingCommand.setLooping(true);
+    QCOMPARE(item.setPresentation(loopingCommand), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());

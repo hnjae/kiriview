@@ -961,7 +961,7 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(bool mirrorVertically READ mirrorVertically NOTIFY presentationChanged)
     Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode NOTIFY presentationChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor NOTIFY presentationChanged)
-    Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
+    Q_PROPERTY(bool looping READ looping NOTIFY loopingChanged)
 
 public:
     enum class PageRole {
@@ -1207,7 +1207,6 @@ public:
     BackgroundMode backgroundMode() const;
     QColor backgroundColor() const;
     bool looping() const;
-    void setLooping(bool looping);
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();

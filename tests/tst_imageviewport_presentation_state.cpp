@@ -130,6 +130,13 @@ static ImageViewport::CommandOutcome setBackgroundCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setLoopingCommand(ImageViewport& item, bool looping)
+{
+    ImageViewportPresentationCommand command;
+    command.setLooping(looping);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumCommandsRejectWithoutDisplayMutation()
 {
     ImageViewport item;
@@ -341,7 +348,7 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
     QSignalSpy loopingSpy(&item, &ImageViewport::loopingChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.looping(), true);
     QCOMPARE(

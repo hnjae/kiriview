@@ -125,6 +125,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "mirrorVertically",
         "backgroundMode",
         "backgroundColor",
+        "looping",
     };
 
     for (const QByteArray& property : readOnlyProperties) {

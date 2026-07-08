@@ -146,7 +146,6 @@ bool ImageViewport::mirrorVertically() const { return d->mirrorVertically(); }
 ImageViewport::BackgroundMode ImageViewport::backgroundMode() const { return d->backgroundMode(); }
 QColor ImageViewport::backgroundColor() const { return d->backgroundColor(); }
 bool ImageViewport::looping() const { return d->looping(); }
-void ImageViewport::setLooping(bool looping) { d->setLooping(looping); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }
 ImageViewport::CommandOutcome ImageViewport::play() { return d->play(); }
 ImageViewport::CommandOutcome ImageViewport::play(PageRole role) { return d->play(role); }

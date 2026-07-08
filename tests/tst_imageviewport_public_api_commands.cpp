@@ -77,6 +77,13 @@ static ImageViewport::CommandOutcome setBackgroundCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setLoopingCommand(ImageViewport& item, bool looping)
+{
+    ImageViewportPresentationCommand command;
+    command.setLooping(looping);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPublicApiCommandsTest::unsupportedSequencePropertyWritesPreserveState()
 {
     ImageSequenceFactory factory;
@@ -673,7 +680,7 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     QCOMPARE(setBackgroundCommand(
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
-    item.setLooping(true);
+    QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
     const auto fitMode = item.fitMode();
     const double zoomPercent = item.zoomPercent();
