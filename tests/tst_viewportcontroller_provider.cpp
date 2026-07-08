@@ -46,15 +46,33 @@ public:
     {
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    ImageSequenceProviderDescriptor descriptor() const override
     {
-        return m_factory;
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(m_factory);
+        descriptor.setKnownMetadata(m_knownMetadata);
+        descriptor.setKnownFacts(m_knownFacts.isSpecified() ? m_knownFacts
+                                                            : knownFactsForMetadata(m_knownMetadata));
+        return descriptor;
     }
 
-    ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
-    ImageSequenceProviderKnownFacts knownFacts() const override { return m_knownFacts; }
-
 private:
+    static ImageSequenceProviderKnownFacts knownFactsForMetadata(
+        const ImageSequenceProviderMetadata& metadata)
+    {
+        if (!metadata.isSpecified()) {
+            return {};
+        }
+        if (metadata.isStill()) {
+            return ImageSequenceProviderKnownFacts::still(metadata.logicalSize());
+        }
+        if (metadata.isTimedFrameList()) {
+            return ImageSequenceProviderKnownFacts::timedFrameList(
+                metadata.logicalSize(), metadata.frameDurations());
+        }
+        return {};
+    }
+
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
     ImageSequenceProviderMetadata m_knownMetadata;
     ImageSequenceProviderKnownFacts m_knownFacts;

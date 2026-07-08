@@ -104,27 +104,21 @@ public:
 class ConsumerAdapter final : public ImageSequenceProviderAdapter
 {
 public:
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    ImageSequenceProviderDescriptor descriptor() const override
     {
-        return std::make_shared<ConsumerSessionFactory>();
+        const ImageSequenceProviderMetadata metadata
+            = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 2, 100);
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(std::make_shared<ConsumerSessionFactory>());
+        descriptor.setKnownMetadata(metadata);
+        descriptor.setKnownFacts(ImageSequenceProviderKnownFacts::timedFrameList(
+            metadata.logicalSize(), metadata.frameDurations()));
+        descriptor.setTimedPlaybackCapability(CapabilitySupport::KnownTrue);
+        descriptor.setFrameSeekCapability(CapabilitySupport::KnownTrue);
+        descriptor.setPositionSeekCapability(CapabilitySupport::KnownTrue);
+        return descriptor;
     }
 
-    ImageSequenceProviderMetadata knownMetadata() const override
-    {
-        return ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 2, 100);
-    }
-
-    CapabilitySupport timedPlaybackCapability() const override
-    {
-        return CapabilitySupport::KnownTrue;
-    }
-
-    CapabilitySupport frameSeekCapability() const override { return CapabilitySupport::KnownTrue; }
-
-    CapabilitySupport positionSeekCapability() const override
-    {
-        return CapabilitySupport::KnownTrue;
-    }
 };
 
 class TokenCaptureSession final : public ImageSequenceProviderSession
@@ -173,9 +167,11 @@ public:
     {
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    ImageSequenceProviderDescriptor descriptor() const override
     {
-        return std::make_shared<TokenCaptureSessionFactory>(m_capturedToken);
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(std::make_shared<TokenCaptureSessionFactory>(m_capturedToken));
+        return descriptor;
     }
 
 private:

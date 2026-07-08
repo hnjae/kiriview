@@ -181,10 +181,8 @@ public:
     {
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
-    {
-        return {};
-    }
+    ImageSequenceProviderDescriptor descriptor() const override { return {}; }
+
 };
 
 }

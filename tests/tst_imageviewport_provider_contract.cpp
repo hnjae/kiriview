@@ -83,11 +83,6 @@ public:
         return descriptor;
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
-    {
-        return {};
-    }
-
 private:
     std::shared_ptr<TypedProviderSessionFactory> m_factory;
 };
@@ -288,8 +283,8 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(session.lastFrame, 8);
 
     NullSessionFactoryProviderAdapter nullAdapter;
-    QCOMPARE(
-        nullAdapter.threadingContract(), ImageSequenceProviderThreadingContract::AffinityBound);
+    QCOMPARE(nullAdapter.descriptor().threadingContract(),
+        ImageSequenceProviderThreadingContract::AffinityBound);
 }
 
 void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape()

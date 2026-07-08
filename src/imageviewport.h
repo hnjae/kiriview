@@ -297,15 +297,7 @@ public:
     using CapabilitySupport = ImageSequenceProviderCapabilitySupport;
 
     explicit ImageSequenceProviderAdapter(QObject* parent = nullptr);
-    virtual ImageSequenceProviderDescriptor descriptor() const;
-    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const = 0;
-    virtual ImageSequenceProviderMetadata knownMetadata() const;
-    virtual ImageSequenceProviderKnownFacts knownFacts() const;
-    virtual CapabilitySupport timedPlaybackCapability() const;
-    virtual CapabilitySupport frameSeekCapability() const;
-    virtual CapabilitySupport positionSeekCapability() const;
-    virtual ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
-    virtual ImageSequenceProviderThreadingContract threadingContract() const;
+    virtual ImageSequenceProviderDescriptor descriptor() const = 0;
 };
 
 class ImageSequenceProviderRequestToken

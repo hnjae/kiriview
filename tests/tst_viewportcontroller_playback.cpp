@@ -40,10 +40,13 @@ public:
     {
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    ImageSequenceProviderDescriptor descriptor() const override
     {
-        return std::make_shared<StubProviderSessionFactory>();
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(std::make_shared<StubProviderSessionFactory>());
+        return descriptor;
     }
+
 };
 
 enum class RoleCommandAdmissionCase {

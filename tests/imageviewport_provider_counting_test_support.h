@@ -230,43 +230,43 @@ public:
     {
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    ImageSequenceProviderDescriptor descriptor() const override
     {
-        return m_factory;
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(m_factory);
+        descriptor.setKnownMetadata(m_knownMetadata);
+        descriptor.setKnownFacts(m_knownFacts.isSpecified() ? m_knownFacts
+                                                            : knownFactsForMetadata(m_knownMetadata));
+        descriptor.setTimedPlaybackCapability(m_timedPlaybackSupport);
+        descriptor.setFrameSeekCapability(m_frameSeekSupport);
+        descriptor.setPositionSeekCapability(m_positionSeekSupport);
+        descriptor.setAuthoredAnimationFacts(m_authoredAnimationFacts);
+        descriptor.setThreadingContract(m_threadingContract);
+        return descriptor;
     }
-
-    ImageSequenceProviderMetadata knownMetadata() const override { return m_knownMetadata; }
 
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
     {
         m_authoredAnimationFacts = authoredAnimationFacts;
     }
 
-    ImageSequenceProviderKnownFacts knownFacts() const override
-    {
-        if (m_knownFacts.isSpecified()) {
-            return m_knownFacts;
-        }
-        return ImageSequenceProviderAdapter::knownFacts();
-    }
-
-    CapabilitySupport timedPlaybackCapability() const override { return m_timedPlaybackSupport; }
-
-    CapabilitySupport frameSeekCapability() const override { return m_frameSeekSupport; }
-
-    CapabilitySupport positionSeekCapability() const override { return m_positionSeekSupport; }
-
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const override
-    {
-        return m_authoredAnimationFacts;
-    }
-
-    ImageSequenceProviderThreadingContract threadingContract() const override
-    {
-        return m_threadingContract;
-    }
-
 private:
+    static ImageSequenceProviderKnownFacts knownFactsForMetadata(
+        const ImageSequenceProviderMetadata& metadata)
+    {
+        if (!metadata.isSpecified()) {
+            return {};
+        }
+        if (metadata.isStill()) {
+            return ImageSequenceProviderKnownFacts::still(metadata.logicalSize());
+        }
+        if (metadata.isTimedFrameList()) {
+            return ImageSequenceProviderKnownFacts::timedFrameList(
+                metadata.logicalSize(), metadata.frameDurations());
+        }
+        return {};
+    }
+
     std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
     ImageSequenceProviderMetadata m_knownMetadata;
     ImageSequenceProviderKnownFacts m_knownFacts;
