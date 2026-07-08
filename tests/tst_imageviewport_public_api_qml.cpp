@@ -295,6 +295,7 @@ ImageViewport {
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
     property imageViewportPresentationCommand zoomStepCommand
+    property imageViewportPresentationCommand scanStartCommand
     property imageViewportPresentationCommand scanNextCommand
     property imageViewportPresentationCommand scanPreviousCommand
     property imageViewportPresentationCommand rotationCommand
@@ -354,6 +355,7 @@ ImageViewport {
             && typeof viewport.rotateCounterClockwise === "undefined"
             && typeof viewport.setMirrorHorizontally === "undefined"
             && typeof viewport.setMirrorVertically === "undefined"
+            && typeof viewport.panToStart === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -377,6 +379,7 @@ ImageViewport {
             && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
 
         zoomStepCommand.zoomStepDelta = 1
+        scanStartCommand.scanDirection = ImageViewport.ScanDirection.Start
         scanNextCommand.scanDirection = ImageViewport.ScanDirection.Next
         scanPreviousCommand.scanDirection = ImageViewport.ScanDirection.Previous
         rotationCommand.rotationDegrees = 0
@@ -388,7 +391,7 @@ ImageViewport {
             && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(zoomStepCommand) === ImageViewport.CommandOutcome.Accepted
             && panBy(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
-            && panToStart() === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanStartCommand) === ImageViewport.CommandOutcome.Accepted
             && panToEnd() === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanNextCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanPreviousCommand) === ImageViewport.CommandOutcome.Accepted

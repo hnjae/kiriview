@@ -66,6 +66,14 @@ static ImageViewport::CommandOutcome setMirrorVerticallyCommand(ImageViewport& i
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setScanDirection(
+    ImageViewport& item, ImageViewport::ScanDirection direction)
+{
+    ImageViewportPresentationCommand command;
+    command.setScanDirection(direction);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -838,7 +846,8 @@ void ImageViewportPresentationStateTest::
     QCOMPARE(pannedRight.x(), std::nextafter(16.0, 8.0));
     QCOMPARE(pannedRight.y(), 4.0);
 
-    QCOMPARE(mirroredItem.panToStart(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(mirroredItem, ImageViewport::ScanDirection::Start),
+        ImageViewport::CommandOutcome::Accepted);
     mirroredItem.setMirrorHorizontally(true);
     QCOMPARE(mirroredItem.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
     const CoordinateResult mirroredLeft = mirroredItem.nearestVisibleImagePoint(-1.0, 4.0);
