@@ -1,6 +1,5 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
-#include "imageviewporttoken_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollermetadatacontract_p.h"
@@ -152,32 +151,12 @@ bool isPositiveSize(QSizeF size)
 
 }
 
-ImageSequence* ImageViewportPrivate::primarySequence() const
-{
-    return controller.requestState().sequence;
-}
-
-ImageSequence* ImageViewportPrivate::secondarySequence() const
-{
-    return controller.requestState().secondarySequence;
-}
-
 ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() const
 {
     return controller.presentationState().spreadDirection;
 }
 
 double ImageViewportPrivate::pageGap() const { return controller.presentationState().pageGap; }
-
-ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const
-{
-    return controller.requestState().status;
-}
-
-ImageViewportPrivate::RequestReason ImageViewportPrivate::requestReason() const
-{
-    return controller.requestState().reason;
-}
 
 ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
 {
@@ -187,11 +166,6 @@ ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
 ImageViewportPrivate::DisplayStatus ImageViewportPrivate::displayStatus() const
 {
     return controller.displayState().status;
-}
-
-ImageViewportPrivate::PlaybackPhase ImageViewportPrivate::playbackPhase() const
-{
-    return controller.requestState().playbackPhase;
 }
 
 int ImageViewportPrivate::displayedFrame() const
@@ -227,7 +201,7 @@ int ImageViewportPrivate::secondaryDisplayedFrame() const
 
 int ImageViewportPrivate::secondaryRequestedFrame() const
 {
-    if (secondarySequence()) {
+    if (controller.requestState().secondarySequence) {
         return controller.requestState().secondaryActiveRequest.target.frame;
     }
 
@@ -272,8 +246,7 @@ int ImageViewportPrivate::secondaryDisplayedPosition() const
 
 int ImageViewportPrivate::secondaryRequestedPosition() const
 {
-    ImageSequence* sequence = secondarySequence();
-    if (!sequence) {
+    if (!controller.requestState().secondarySequence) {
         return -1;
     }
     const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
@@ -287,16 +260,6 @@ int ImageViewportPrivate::secondaryRequestedPosition() const
     }
 
     return -1;
-}
-
-int ImageViewportPrivate::frameCount() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameCount;
-}
-
-int ImageViewportPrivate::totalDuration() const
-{
-    return controller.metadataProjection(PageRole::Primary).totalDuration;
 }
 
 bool ImageViewportPrivate::hasSecondaryTimedSequence() const
@@ -337,86 +300,10 @@ ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
     return controller.requestState().secondarySequenceSource.facts.authoredAnimationFacts;
 }
 
-int ImageViewportPrivate::primaryFrameCount() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameCount;
-}
-
-int ImageViewportPrivate::secondaryFrameCount() const
-{
-    return controller.metadataProjection(PageRole::Secondary).frameCount;
-}
-
-int ImageViewportPrivate::primaryTotalDuration() const
-{
-    return controller.metadataProjection(PageRole::Primary).totalDuration;
-}
-
-int ImageViewportPrivate::secondaryTotalDuration() const
-{
-    return controller.metadataProjection(PageRole::Secondary).totalDuration;
-}
-
-ImageViewportRange ImageViewportPrivate::primaryFrameSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameSeekBounds;
-}
-
-ImageViewportRange ImageViewportPrivate::secondaryFrameSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Secondary).frameSeekBounds;
-}
-
-ImageViewportRange ImageViewportPrivate::primaryPositionSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Primary).positionSeekBounds;
-}
-
-ImageViewportRange ImageViewportPrivate::secondaryPositionSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Secondary).positionSeekBounds;
-}
-
-QSizeF ImageViewportPrivate::displayedImageSize() const
-{
-    if (hasReadyDisplay()) {
-        return controller.displayState().displayedImageSize;
-    }
-
-    return QSizeF(0.0, 0.0);
-}
-
 QSizeF ImageViewportPrivate::displayedSpreadSize() const
 {
     const QSizeF spreadSize = PresentationGeometry::spreadSize(controller.geometryState());
     return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
-}
-
-QSizeF ImageViewportPrivate::primaryDisplayedImageSize() const { return displayedImageSize(); }
-
-QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const
-{
-    if (!hasReadyDisplay()) {
-        return QSizeF(0.0, 0.0);
-    }
-
-    const QSizeF size = controller.displayState().secondaryDisplayedImageSize;
-    return isPositiveSize(size) ? size : QSizeF(0.0, 0.0);
-}
-
-RevisionToken ImageViewportPrivate::displayRevision() const
-{
-    return RevisionTokenPrivateAccess::fromValue(controller.displayState().revision);
-}
-
-RevisionToken ImageViewportPrivate::requestRevision() const
-{
-    return RevisionTokenPrivateAccess::fromValue(controller.requestState().requestRevision);
-}
-
-RevisionToken ImageViewportPrivate::commandRevision() const
-{
-    return RevisionTokenPrivateAccess::fromValue(controller.requestState().commandRevision);
 }
 
 QString ImageViewportPrivate::errorString() const { return controller.requestState().errorString; }

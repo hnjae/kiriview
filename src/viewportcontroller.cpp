@@ -255,10 +255,6 @@ ViewportControllerContext::providerAuthoredAnimationFacts() const
     return {};
 }
 
-int ViewportControllerContext::frameCount() const { return -1; }
-
-int ViewportControllerContext::totalDuration() const { return -1; }
-
 int ViewportControllerContext::sequenceFrameCount() const { return -1; }
 
 int ViewportControllerContext::sequenceTotalDuration() const { return -1; }
@@ -278,8 +274,6 @@ bool ViewportControllerContext::hasSecondaryTimedSequence() const { return false
 int ViewportControllerContext::secondarySequenceFrameCount() const { return -1; }
 
 int ViewportControllerContext::secondarySequenceTotalDuration() const { return -1; }
-
-int ViewportControllerContext::secondaryTotalDuration() const { return -1; }
 
 int ViewportControllerContext::secondarySequenceFrameIndexForPosition(int) const { return -1; }
 
@@ -503,24 +497,6 @@ ImageSequenceAuthoredAnimationFacts ViewportControllerPort::providerAuthoredAnim
     return state.engine.providerState().authoredAnimationFacts;
 }
 
-int ViewportControllerPort::frameCount() const
-{
-    return hasProviderSequence() && state.engine.providerState().metadataReady
-        ? (state.engine.providerState().timedMetadata
-                  ? state.engine.providerState().timingIntervals.frameCount()
-                  : 1)
-        : sequenceFrameCount();
-}
-
-int ViewportControllerPort::totalDuration() const
-{
-    return hasProviderSequence() && state.engine.providerState().metadataReady
-        ? (state.engine.providerState().timedMetadata
-                  ? state.engine.providerState().timingIntervals.totalDuration()
-                  : -1)
-        : sequenceTotalDuration();
-}
-
 int ViewportControllerPort::sequenceFrameCount() const
 {
     return state.engine.requestState().sequenceSource.facts.frameCount;
@@ -559,16 +535,6 @@ int ViewportControllerPort::secondarySequenceFrameCount() const
 int ViewportControllerPort::secondarySequenceTotalDuration() const
 {
     return state.engine.requestState().secondarySequenceSource.facts.totalDuration;
-}
-
-int ViewportControllerPort::secondaryTotalDuration() const
-{
-    return state.engine.requestState().secondarySequenceIsProvider
-            && state.engine.secondaryProviderState().metadataReady
-        ? (state.engine.secondaryProviderState().timedMetadata
-                  ? state.engine.secondaryProviderState().timingIntervals.totalDuration()
-                  : -1)
-        : secondarySequenceTotalDuration();
 }
 
 int ViewportControllerPort::secondarySequenceFrameIndexForPosition(int position) const

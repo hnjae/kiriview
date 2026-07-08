@@ -107,8 +107,6 @@ public:
     virtual ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
 
     // Primary built-in sequence facts and payload data.
-    virtual int frameCount() const;
-    virtual int totalDuration() const;
     virtual int sequenceFrameCount() const;
     virtual int sequenceTotalDuration() const;
     virtual int sequenceFrameIndexForPosition(int position) const;
@@ -120,7 +118,6 @@ public:
     virtual bool hasSecondaryTimedSequence() const;
     virtual int secondarySequenceFrameCount() const;
     virtual int secondarySequenceTotalDuration() const;
-    virtual int secondaryTotalDuration() const;
     virtual int secondarySequenceFrameIndexForPosition(int position) const;
     virtual int secondarySequenceFrameStartPosition(int frame) const;
     virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
@@ -177,8 +174,6 @@ public:
     int providerFrameStartPosition(int frame) const;
     int providerFrameIndexForPosition(int position) const;
     ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
-    int frameCount() const;
-    int totalDuration() const;
     int sequenceFrameCount() const;
     int sequenceTotalDuration() const;
     int sequenceFrameIndexForPosition(int position) const;
@@ -187,7 +182,6 @@ public:
     bool hasSecondaryTimedSequence() const;
     int secondarySequenceFrameCount() const;
     int secondarySequenceTotalDuration() const;
-    int secondaryTotalDuration() const;
     int secondarySequenceFrameIndexForPosition(int position) const;
     int secondarySequenceFrameStartPosition(int frame) const;
     ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;

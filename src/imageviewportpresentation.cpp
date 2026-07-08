@@ -673,8 +673,6 @@ bool ImageViewportPrivate::containsVisiblePagePoint(PageRole role, double x, dou
     return PresentationGeometry::containsVisiblePagePoint(geometryState(*this), role, x, y);
 }
 
-ImageViewportRange ImageViewportPrivate::invalidRange() { return {}; }
-
 CoordinateResult ImageViewportPrivate::invalidCoordinateResult()
 {
     return PresentationGeometry::invalidCoordinateResult();

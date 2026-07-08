@@ -37,16 +37,11 @@ public:
 
     ImageViewportStateSnapshot state() const;
     ImageViewportCommandResult commandResult(CommandOutcome outcome) const;
-    ImageSequence* primarySequence() const;
-    ImageSequence* secondarySequence() const;
     SpreadDirection spreadDirection() const;
     double pageGap() const;
 
-    RequestStatus requestStatus() const;
-    RequestReason requestReason() const;
     CommandReason commandReason() const;
     DisplayStatus displayStatus() const;
-    PlaybackPhase playbackPhase() const;
     int displayedFrame() const;
     int requestedFrame() const;
     int primaryDisplayedFrame() const;
@@ -59,29 +54,13 @@ public:
     int primaryRequestedPosition() const;
     int secondaryDisplayedPosition() const;
     int secondaryRequestedPosition() const;
-    int frameCount() const override;
-    int totalDuration() const override;
     bool hasSecondaryTimedSequence() const override;
     int secondarySequenceFrameCount() const override;
     int sequenceTotalDuration() const override;
     int secondarySequenceTotalDuration() const override;
     int secondarySequenceFrameIndexForPosition(int position) const override;
     int secondarySequenceFrameStartPosition(int frame) const override;
-    int primaryFrameCount() const;
-    int secondaryFrameCount() const;
-    int primaryTotalDuration() const;
-    int secondaryTotalDuration() const override;
-    ImageViewportRange primaryFrameSeekBounds() const;
-    ImageViewportRange secondaryFrameSeekBounds() const;
-    ImageViewportRange primaryPositionSeekBounds() const;
-    ImageViewportRange secondaryPositionSeekBounds() const;
-    QSizeF displayedImageSize() const;
     QSizeF displayedSpreadSize() const;
-    QSizeF primaryDisplayedImageSize() const;
-    QSizeF secondaryDisplayedImageSize() const;
-    RevisionToken displayRevision() const;
-    RevisionToken requestRevision() const;
-    RevisionToken commandRevision() const;
     QString errorString() const;
     QString warningString() const;
 
@@ -191,7 +170,6 @@ public:
     CoordinateResult nearestVisiblePagePoint(PageRole role, double x, double y) const;
     bool containsVisibleSpreadPoint(double x, double y) const;
     bool containsVisiblePagePoint(PageRole role, double x, double y) const;
-    static ImageViewportRange invalidRange();
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
     void refreshStateSnapshot();

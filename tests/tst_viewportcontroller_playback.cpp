@@ -102,8 +102,6 @@ public:
     bool hasDisplayableSequence() const override { return sequence != nullptr; }
     bool hasProviderSequence() const override { return sequence != nullptr && providerSequence; }
     bool hasTimedSequence() const override { return sequence != nullptr && timed; }
-    int frameCount() const override { return durations.size(); }
-    int totalDuration() const override { return sequenceTotalDuration(); }
     int sequenceFrameCount() const override { return durations.size(); }
     QSizeF sequenceLogicalSize() const override { return logicalSize; }
     double width() const override { return size.width(); }
