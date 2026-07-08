@@ -629,6 +629,18 @@ Move render planning and scenegraph commit reporting behind the new engine/rende
 - Render commit and scenegraph suites pass.
 - Snapshot display fields are authoritative for render commit/failure behavior.
 
+### Status
+
+Complete as of 2026-07-08. `ViewportEngine` now owns the display/render state used for display status, displayed primary/secondary request snapshots, displayed logical image sizes and retained images, prepared payload identity allocation, pending primary/secondary render payloads, retained render-failure fallback identity, retained-fallback pixels, and display revision. Controller render, provider, playback, snapshot, and public flat-property adapters access that state through the engine-backed controller port instead of controller-local display fields.
+
+Render commit identity and retained fallback state now live with the engine-owned request, provider, page-set, presentation, and display state. Existing render synchronization and scenegraph materialization still consume adapter-built render snapshots, but those snapshots are sourced from engine-owned display state and engine-owned presentation geometry.
+
+Focused coverage is in `viewportengine` for empty display/render defaults and engine-owned displayed request identity, prepared payload allocation, secondary pending payload identity, retained render-failure fallback capture, pending-payload clearing, and display revision storage. Existing render commit, render scenegraph, provider frame-admission/playback, timed playback, state snapshot, install-consumer, and structural render-host boundary suites remain green.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after the migration and formatting.
+
+Adapter assumptions recorded for later milestones: render snapshot construction, scenegraph materialization, commit/failure acknowledgement handling, retained fallback selection, and render transport effects still execute in controller/render adapters while using engine-owned display state; the render host remains the scenegraph synchronization owner; typed render effects and final adapter cleanup remain pending until compatibility removal.
+
 ### Risks And Rollback Criteria
 
 - Risk: two-page spreads publish partial ready display. Roll back if incomplete single-role commit can set ready display for a two-role target.

@@ -64,6 +64,8 @@ public:
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
     PageSetState pageSetState() const;
+    ImageViewportInternal::DisplayState& displayState();
+    const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
     const ImageViewportInternal::RequestState& requestState() const;
     ImageViewportInternal::ProviderGenerationState& providerState();
@@ -98,6 +100,7 @@ private:
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
     PageSetState m_pageSetState;
+    ImageViewportInternal::DisplayState m_displayState;
     ImageViewportInternal::RequestState m_requestState;
     ImageViewportInternal::ProviderGenerationState m_providerState;
     ImageViewportInternal::ProviderGenerationState m_secondaryProviderState;

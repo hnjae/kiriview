@@ -59,7 +59,6 @@ struct ViewportSequenceAssignmentResult;
 
 struct ViewportControllerState
 {
-    ImageViewportInternal::DisplayState display;
     ViewportSequenceRoleSource secondarySource;
     ViewportEngine engine;
 };

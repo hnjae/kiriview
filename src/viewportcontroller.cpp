@@ -338,12 +338,12 @@ ViewportControllerPort::ViewportControllerPort(
 
 ImageViewportInternal::DisplayState& ViewportControllerPort::displayState()
 {
-    return state.display;
+    return state.engine.displayState();
 }
 
 const ImageViewportInternal::DisplayState& ViewportControllerPort::displayState() const
 {
-    return state.display;
+    return state.engine.displayState();
 }
 
 ImageViewportInternal::RequestState& ViewportControllerPort::requestState()
@@ -394,7 +394,7 @@ bool ViewportControllerPort::hasActiveRequest() const
 
 bool ViewportControllerPort::hasReadyDisplay() const
 {
-    return state.display.hasReadyDisplay(hasDisplayableSequence());
+    return state.engine.displayState().hasReadyDisplay(hasDisplayableSequence());
 }
 
 bool ViewportControllerPort::hasDisplayableSequence() const
@@ -907,7 +907,7 @@ const ImageViewportInternal::PresentationState& ViewportController::presentation
 
 const ImageViewportInternal::DisplayState& ViewportController::displayState() const
 {
-    return state.display;
+    return state.engine.displayState();
 }
 
 const ImageViewportInternal::RequestState& ViewportController::requestState() const
@@ -1064,7 +1064,7 @@ quint64 ViewportController::allocateRevisionToken() { return state.engine.alloca
 
 void ViewportController::incrementDisplayRevision()
 {
-    state.display.revision = allocateRevisionToken();
+    state.engine.displayState().revision = allocateRevisionToken();
 }
 
 void ViewportController::incrementRequestRevision()
@@ -1428,14 +1428,14 @@ void ViewportController::setNextProviderRequestTokenForTest(
 void ViewportController::setNextRevisionTokenForTest(quint64 token)
 {
     state.engine.setNextRevisionValueForTest(token);
-    state.display.revision = 0;
+    state.engine.displayState().revision = 0;
     state.engine.requestState().requestRevision = 0;
     state.engine.requestState().commandRevision = 0;
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const
 {
-    return state.display.pendingRenderPayload.commitPending;
+    return state.engine.displayState().pendingRenderPayload.commitPending;
 }
 
 quint64 ViewportController::activeRequestIdForTest() const
@@ -1445,22 +1445,22 @@ quint64 ViewportController::activeRequestIdForTest() const
 
 quint64 ViewportController::displayedRequestIdForTest() const
 {
-    return state.display.displayedRequest.request.identity.id;
+    return state.engine.displayState().displayedRequest.request.identity.id;
 }
 
 quint64 ViewportController::pendingRenderGenerationForTest() const
 {
-    return state.display.pendingRenderPayload.generation;
+    return state.engine.displayState().pendingRenderPayload.generation;
 }
 
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
-    return state.display.pendingRenderPayload.payloadId;
+    return state.engine.displayState().pendingRenderPayload.payloadId;
 }
 
 quint64 ViewportController::secondaryPendingRenderPayloadIdForTest() const
 {
-    return state.display.secondaryPendingRenderPayload.payloadId;
+    return state.engine.displayState().secondaryPendingRenderPayload.payloadId;
 }
 
 ImageViewportInternal::RenderFailureDiagnostic

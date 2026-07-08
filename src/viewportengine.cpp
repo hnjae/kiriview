@@ -25,6 +25,13 @@ ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 
 ViewportEngine::PageSetState ViewportEngine::pageSetState() const { return m_pageSetState; }
 
+ImageViewportInternal::DisplayState& ViewportEngine::displayState() { return m_displayState; }
+
+const ImageViewportInternal::DisplayState& ViewportEngine::displayState() const
+{
+    return m_displayState;
+}
+
 ImageViewportInternal::RequestState& ViewportEngine::requestState() { return m_requestState; }
 
 const ImageViewportInternal::RequestState& ViewportEngine::requestState() const

@@ -10,6 +10,8 @@ class ViewportEngineTest : public QObject
 
 private slots:
     void defaultSnapshotMatchesPublicDefaultProjection();
+    void defaultDisplayStateMatchesEmptyRenderState();
+    void displayStateOwnsRenderPayloadAndRetainedIdentity();
     void defaultRequestStateMatchesPublicDefaults();
     void requestStateOwnsPlaybackDriverAndRequestIdentity();
     void defaultProviderStateMatchesEmptyGeneration();
@@ -55,6 +57,78 @@ void ViewportEngineTest::defaultSnapshotMatchesPublicDefaultProjection()
     QCOMPARE(engineSnapshot.revisions(), itemSnapshot.revisions());
     QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::NoCommand);
     QCOMPARE(engine.commandDiagnostics().revision.isValid(), false);
+}
+
+void ViewportEngineTest::defaultDisplayStateMatchesEmptyRenderState()
+{
+    ViewportEngine engine;
+    const auto& display = engine.displayState();
+
+    QCOMPARE(display.status, ImageViewport::DisplayStatus::Empty);
+    QCOMPARE(display.displayedRequest.generation, 0);
+    QCOMPARE(display.displayedRequest.request.identity.id, 0);
+    QCOMPARE(display.secondaryDisplayedRequest.generation, 0);
+    QCOMPARE(display.displayedImageSize, QSizeF());
+    QCOMPARE(display.displayedImage.isNull(), true);
+    QCOMPARE(display.secondaryDisplayedImageSize, QSizeF());
+    QCOMPARE(display.secondaryDisplayedImage.isNull(), true);
+    QCOMPARE(display.nextPreparedPayloadId, 0);
+    QCOMPARE(display.pendingRenderPayload.commitPending, false);
+    QCOMPARE(display.pendingRenderPayload.identity().isValid(), false);
+    QCOMPARE(display.secondaryPendingRenderPayload.commitPending, false);
+    QCOMPARE(display.renderFailureRetainedDisplayValid, false);
+    QCOMPARE(display.renderFailureRetainedRequest.generation, 0);
+    QCOMPARE(display.renderFailureRetainedImageSize, QSizeF());
+    QCOMPARE(display.renderFailureRetainedImage.isNull(), true);
+    QCOMPARE(display.revision, 0);
+}
+
+void ViewportEngineTest::displayStateOwnsRenderPayloadAndRetainedIdentity()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    auto& display = engine.displayState();
+
+    request.sequenceGeneration = 12;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        ImageViewportInternal::DisplayRequestTarget {
+            2, 100, ImageViewportInternal::ProviderRequestTargetKind::Frame },
+        ImageViewportInternal::ResolvedFrameIdentity { 2, 100 }, true);
+
+    display.status = ImageViewport::DisplayStatus::Ready;
+    display.displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.activeRequest, request.activeRequest.target.position);
+    display.displayedImageSize = QSizeF(16.0, 8.0);
+    display.displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
+    display.pendingRenderPayload.commitPending = true;
+    display.pendingRenderPayload.image = display.displayedImage;
+    display.secondaryPendingRenderPayload = { true, 12, request.activeRequest.identity.id, 9, {} };
+    display.revision = 42;
+
+    const auto& observed = engine.displayState();
+    QCOMPARE(observed.status, ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(observed.displayedRequest.generation, 12);
+    QCOMPARE(observed.displayedRequest.request.target.frame, 2);
+    QCOMPARE(observed.displayedRequest.request.target.position, 100);
+    QCOMPARE(observed.displayedImageSize, QSizeF(16.0, 8.0));
+    QCOMPARE(observed.pendingRenderPayload.commitPending, true);
+    QCOMPARE(observed.pendingRenderPayload.generation, 12);
+    QCOMPARE(observed.pendingRenderPayload.requestId, request.activeRequest.identity.id);
+    QCOMPARE(observed.pendingRenderPayload.payloadId, 1);
+    QCOMPARE(request.activeRequest.preparedPayloadId, 1);
+    QCOMPARE(observed.secondaryPendingRenderPayload.payloadId, 9);
+    QCOMPARE(observed.revision, 42);
+
+    display.captureRenderFailureRetainedDisplay(true);
+    QCOMPARE(engine.displayState().renderFailureRetainedDisplayValid, true);
+    QCOMPARE(engine.displayState().renderFailureRetainedRequest.generation, 12);
+    QCOMPARE(engine.displayState().renderFailureRetainedImageSize, QSizeF(16.0, 8.0));
+    QCOMPARE(engine.displayState().renderFailureRetainedImage.isNull(), false);
+
+    display.clearPendingRenderPayload();
+    QCOMPARE(engine.displayState().pendingRenderPayload.commitPending, false);
+    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.commitPending, false);
 }
 
 void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
