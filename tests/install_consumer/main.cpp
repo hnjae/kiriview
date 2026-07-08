@@ -451,6 +451,7 @@ ImageViewport {
     property bool commandSurfaceAvailable: false
     property imageViewportPresentationCommand zoomCommand
     property imageViewportPresentationCommand zoomStepCommand
+    property imageViewportCoordinateInput coordinateInput
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -503,12 +504,16 @@ ImageViewport {
             && frameSeekBounds.maximum === -1
             && positionSeekBounds.minimum === -1
             && positionSeekBounds.maximum === -1
-            && itemToImage(1, 1).valid === false
-            && imageToItem(1, 1).x === 0
-            && nearestVisibleImagePoint(1, 1).valid === false
+            && mapPoint(coordinateInput).valid === false
+            && mapPoint(coordinateInput).point.x === 0
+            && nearestVisiblePoint(coordinateInput).valid === false
             && nearestVisibleSpreadPoint(1, 1).valid === false
             && nearestVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1).valid === false
-            && containsVisibleImagePoint(1, 1) === false
+            && containsPoint(coordinateInput) === false
+            && typeof itemToImage === "undefined"
+            && typeof imageToItem === "undefined"
+            && typeof nearestVisibleImagePoint === "undefined"
+            && typeof containsVisibleImagePoint === "undefined"
     }
 }
 )",
@@ -850,13 +855,18 @@ int main(int argc, char** argv)
     const ImageViewportPresentationSnapshot helperPresentation = helperViewport.state().presentation();
     const double minimumManualZoom = helperPresentation.minimumManualZoomPercent();
     const double maximumManualZoom = helperPresentation.maximumManualZoomPercent();
+    ImageViewportCoordinateInput primaryPageCoordinate;
+    primaryPageCoordinate.setSourceSpace(ImageViewport::CoordinateSpace::Page);
+    primaryPageCoordinate.setTargetSpace(ImageViewport::CoordinateSpace::Page);
+    primaryPageCoordinate.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
     if (minimumManualZoom <= 0.0
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
         || helperPresentation.manualZoomStepFactor() != 1.25
         || helperViewport.nearestVisibleSpreadPoint(1.0, 1.0).isValid()
         || helperViewport.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0)
             .isValid()
-        || helperViewport.nearestVisibleImagePoint(1.0, 1.0).isValid()) {
+        || helperViewport.nearestVisiblePoint(primaryPageCoordinate).isValid()) {
         return 1;
     }
 

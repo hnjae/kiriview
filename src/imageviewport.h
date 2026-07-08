@@ -1210,10 +1210,6 @@ public:
     Q_INVOKABLE bool containsVisibleSpreadPoint(double x, double y) const;
     Q_INVOKABLE bool containsVisiblePagePoint(
         ImageViewport::PageRole role, double x, double y) const;
-    Q_INVOKABLE CoordinateResult itemToImage(double x, double y) const;
-    Q_INVOKABLE CoordinateResult imageToItem(double x, double y) const;
-    Q_INVOKABLE CoordinateResult nearestVisibleImagePoint(double x, double y) const;
-    Q_INVOKABLE bool containsVisibleImagePoint(double x, double y) const;
 
 signals:
     void sequenceChanged();

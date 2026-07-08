@@ -213,10 +213,6 @@ public:
     CoordinateResult nearestVisiblePagePoint(PageRole role, double x, double y) const;
     bool containsVisibleSpreadPoint(double x, double y) const;
     bool containsVisiblePagePoint(PageRole role, double x, double y) const;
-    CoordinateResult itemToImage(double x, double y) const;
-    CoordinateResult imageToItem(double x, double y) const;
-    CoordinateResult nearestVisibleImagePoint(double x, double y) const;
-    bool containsVisibleImagePoint(double x, double y) const;
     static ImageViewportRange invalidRange();
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);

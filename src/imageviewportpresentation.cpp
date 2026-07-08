@@ -705,26 +705,6 @@ bool ImageViewportPrivate::containsVisiblePagePoint(PageRole role, double x, dou
     return PresentationGeometry::containsVisiblePagePoint(geometryState(*this), role, x, y);
 }
 
-CoordinateResult ImageViewportPrivate::itemToImage(double x, double y) const
-{
-    return PresentationGeometry::itemToImage(geometryState(*this), x, y);
-}
-
-CoordinateResult ImageViewportPrivate::imageToItem(double x, double y) const
-{
-    return PresentationGeometry::imageToItem(geometryState(*this), x, y);
-}
-
-CoordinateResult ImageViewportPrivate::nearestVisibleImagePoint(double x, double y) const
-{
-    return PresentationGeometry::nearestVisibleImagePoint(geometryState(*this), x, y);
-}
-
-bool ImageViewportPrivate::containsVisibleImagePoint(double x, double y) const
-{
-    return PresentationGeometry::containsVisibleImagePoint(geometryState(*this), x, y);
-}
-
 ImageViewportRange ImageViewportPrivate::invalidRange() { return {}; }
 
 CoordinateResult ImageViewportPrivate::invalidCoordinateResult()

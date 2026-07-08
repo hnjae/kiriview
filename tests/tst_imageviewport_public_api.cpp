@@ -121,6 +121,10 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "panToStart()",
         "panToEnd()",
         "panBy(QPointF)",
+        "itemToImage(double,double)",
+        "imageToItem(double,double)",
+        "nearestVisibleImagePoint(double,double)",
+        "containsVisibleImagePoint(double,double)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "setFitMode(ImageViewport::FitMode,QPointF)",
@@ -212,9 +216,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "seekToPosition(int)",
         "clear()",
         "resetView()",
-        "itemToImage(double,double)",
-        "imageToItem(double,double)",
-        "containsVisibleImagePoint(double,double)",
     };
 
     for (const QByteArray& method : methods) {
@@ -329,7 +330,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "containsVisibleSpreadPoint(double,double)",
         "nearestVisibleSpreadPoint(double,double)",
         "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
-        "nearestVisibleImagePoint(double,double)",
     };
 
     for (const QByteArray& method : methods) {
@@ -377,9 +377,6 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         "pageToItem(ImageViewport::PageRole,double,double)",
         "nearestVisibleSpreadPoint(double,double)",
         "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
-        "itemToImage(double,double)",
-        "imageToItem(double,double)",
-        "nearestVisibleImagePoint(double,double)",
     };
     for (const QByteArray& methodName : coordinateMethods) {
         const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
@@ -479,13 +476,13 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
-    verifyInvalidCoordinateResult(item.itemToImage(1.0, 1.0));
-    verifyInvalidCoordinateResult(item.imageToItem(1.0, 1.0));
+    verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 1.0, 1.0));
+    verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(1.0, 1.0));
     verifyInvalidCoordinateResult(
         item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
-    verifyInvalidCoordinateResult(item.nearestVisibleImagePoint(1.0, 1.0));
-    QCOMPARE(item.containsVisibleImagePoint(1.0, 1.0), false);
+    verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
+    QCOMPARE(containsVisiblePrimaryPagePoint(item, 1.0, 1.0), false);
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
@@ -551,7 +548,7 @@ void ImageViewportPublicApiTest::
         item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
     verifyInvalidCoordinateResult(
         item.nearestVisiblePagePoint(static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
-    verifyInvalidCoordinateResult(item.nearestVisibleImagePoint(1.0, 1.0));
+    verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
 
     QCOMPARE(item.displayRevision(), displayRevision);
     QCOMPARE(item.requestRevision(), requestRevision);
@@ -573,15 +570,13 @@ void ImageViewportPublicApiTest::typedPublicValueDefaultsExposeDocumentedFields(
     QCOMPARE(positionBounds.minimum(), -1);
     QCOMPARE(positionBounds.maximum(), -1);
 
-    const CoordinateResult itemToImage = item.itemToImage(1.0, 1.0);
-    QCOMPARE(itemToImage.isValid(), false);
-    QCOMPARE(itemToImage.x(), 0.0);
-    QCOMPARE(itemToImage.y(), 0.0);
+    const ImageViewportCoordinateResult itemToPrimaryPage = mapItemToPrimaryPage(item, 1.0, 1.0);
+    QCOMPARE(itemToPrimaryPage.isValid(), false);
+    QCOMPARE(itemToPrimaryPage.point(), QPointF());
 
-    const CoordinateResult imageToItem = item.imageToItem(1.0, 1.0);
-    QCOMPARE(imageToItem.isValid(), false);
-    QCOMPARE(imageToItem.x(), 0.0);
-    QCOMPARE(imageToItem.y(), 0.0);
+    const ImageViewportCoordinateResult primaryPageToItem = mapPrimaryPageToItem(item, 1.0, 1.0);
+    QCOMPARE(primaryPageToItem.isValid(), false);
+    QCOMPARE(primaryPageToItem.point(), QPointF());
 
     const PageGeometry primaryGeometry = item.primaryPageGeometry();
     QCOMPARE(primaryGeometry.role(), ImageViewport::PageRole::Primary);

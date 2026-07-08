@@ -468,22 +468,6 @@ QRectF PresentationGeometry::pageItemRect(const State& state, ImageViewport::Pag
     return itemRectForSpreadRect(state, pageRectForRole(state, role));
 }
 
-CoordinateResult PresentationGeometry::itemToImage(const State& state, double x, double y)
-{
-    return itemToPage(state, ImageViewport::PageRole::Primary, x, y);
-}
-
-CoordinateResult PresentationGeometry::imageToItem(const State& state, double x, double y)
-{
-    return pageToItem(state, ImageViewport::PageRole::Primary, x, y);
-}
-
-CoordinateResult PresentationGeometry::nearestVisibleImagePoint(
-    const State& state, double x, double y)
-{
-    return nearestVisiblePagePoint(state, ImageViewport::PageRole::Primary, x, y);
-}
-
 CoordinateResult PresentationGeometry::itemToSpread(const State& state, double x, double y)
 {
     if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
@@ -567,11 +551,6 @@ CoordinateResult PresentationGeometry::nearestVisiblePagePoint(
     const State& state, ImageViewport::PageRole role, double x, double y)
 {
     return nearestCoordinateInHalfOpenRect(visiblePageRectForState(state, role), x, y);
-}
-
-bool PresentationGeometry::containsVisibleImagePoint(const State& state, double x, double y)
-{
-    return containsVisiblePagePoint(state, ImageViewport::PageRole::Primary, x, y);
 }
 
 bool PresentationGeometry::containsVisibleSpreadPoint(const State& state, double x, double y)

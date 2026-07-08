@@ -307,6 +307,7 @@ ImageViewport {
     property imageViewportPresentationCommand rotationCommand
     property imageViewportPresentationCommand horizontalMirrorCommand
     property imageViewportPresentationCommand verticalMirrorCommand
+    property imageViewportCoordinateInput coordinateInput
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -426,6 +427,10 @@ ImageViewport {
             && setPresentation(verticalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
             && resetView() === ImageViewport.CommandOutcome.Accepted
 
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
+        coordinateInput.pageRole = ImageViewport.PageRole.Primary
+        coordinateInput.point = Qt.point(1, 1)
         coordinateAliasesAvailable = itemToSpread(1, 1).valid === false
             && spreadToItem(1, 1).valid === false
             && nearestVisibleSpreadPoint(1, 1).valid === false
@@ -434,7 +439,12 @@ ImageViewport {
             && nearestVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1).valid === false
             && containsVisibleSpreadPoint(1, 1) === false
             && containsVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1) === false
-            && nearestVisibleImagePoint(1, 1).valid === false
+            && nearestVisiblePoint(coordinateInput).valid === false
+            && containsPoint(coordinateInput) === false
+            && typeof viewport.itemToImage === "undefined"
+            && typeof viewport.imageToItem === "undefined"
+            && typeof viewport.nearestVisibleImagePoint === "undefined"
+            && typeof viewport.containsVisibleImagePoint === "undefined"
     }
 }
 )",
@@ -533,8 +543,10 @@ ImageViewport {
     property int factoryUnsupported: ImageSequenceFactoryResult.FactoryOutcome.Unsupported
     property int factoryError: ImageSequenceFactoryResult.FactoryOutcome.Error
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
-    property bool mappingInvalid: itemToImage(1, 1).valid === false
-    property bool mappingHasFlatFields: imageToItem(1, 1).x === 0 && imageToItem(1, 1).y === 0
+    property imageViewportCoordinateInput mappingInput
+    property bool mappingInvalid: mapPoint(mappingInput).valid === false
+    property bool mappingHasPointField: mapPoint(mappingInput).point.x === 0
+        && mapPoint(mappingInput).point.y === 0
     property bool unavailableValuesHaveDocumentedFields: frameSeekBounds.minimum === -1
         && frameSeekBounds.maximum === -1
         && positionSeekBounds.minimum === -1
@@ -587,7 +599,7 @@ ImageViewport {
         enumValue(resultMetaObject, "FactoryOutcome", "Error"));
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
-    QCOMPARE(object->property("mappingHasFlatFields").toBool(), true);
+    QCOMPARE(object->property("mappingHasPointField").toBool(), true);
     QCOMPARE(object->property("unavailableValuesHaveDocumentedFields").toBool(), true);
     QCOMPARE(object->property("limitsAvailable").toBool(), true);
 }

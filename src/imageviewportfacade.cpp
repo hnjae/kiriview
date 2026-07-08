@@ -231,22 +231,6 @@ bool ImageViewport::containsVisiblePagePoint(PageRole role, double x, double y) 
 {
     return d->containsVisiblePagePoint(role, x, y);
 }
-CoordinateResult ImageViewport::itemToImage(double x, double y) const
-{
-    return d->itemToImage(x, y);
-}
-CoordinateResult ImageViewport::imageToItem(double x, double y) const
-{
-    return d->imageToItem(x, y);
-}
-CoordinateResult ImageViewport::nearestVisibleImagePoint(double x, double y) const
-{
-    return d->nearestVisibleImagePoint(x, y);
-}
-bool ImageViewport::containsVisibleImagePoint(double x, double y) const
-{
-    return d->containsVisibleImagePoint(x, y);
-}
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {

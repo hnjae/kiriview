@@ -81,6 +81,54 @@ void verifyInvalidCoordinateResult(CoordinateResult result)
     QCOMPARE(result.y(), 0.0);
 }
 
+void verifyInvalidCoordinateResult(const ImageViewportCoordinateResult& result)
+{
+    QCOMPARE(result.isValid(), false);
+    QCOMPARE(result.point(), QPointF());
+}
+
+ImageViewportCoordinateInput coordinateInput(ImageViewport::CoordinateSpace sourceSpace,
+    ImageViewport::CoordinateSpace targetSpace, QPointF point, QVariant pageRole = {})
+{
+    ImageViewportCoordinateInput input;
+    input.setSourceSpace(sourceSpace);
+    input.setTargetSpace(targetSpace);
+    input.setPoint(point);
+    input.setPageRole(std::move(pageRole));
+    return input;
+}
+
+ImageViewportCoordinateResult mapItemToPrimaryPage(
+    const ImageViewport& item, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
+        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+}
+
+ImageViewportCoordinateResult mapPrimaryPageToItem(
+    const ImageViewport& item, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Item, QPointF(x, y),
+        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+}
+
+ImageViewportCoordinateResult nearestVisiblePrimaryPagePoint(
+    const ImageViewport& item, double x, double y)
+{
+    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
+        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+}
+
+bool containsVisiblePrimaryPagePoint(const ImageViewport& item, double x, double y)
+{
+    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
+        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+}
+
 ImageViewportRange rangeProperty(const QObject& object, const char* propertyName)
 {
     return object.property(propertyName).value<ImageViewportRange>();
