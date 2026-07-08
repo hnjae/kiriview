@@ -7,6 +7,7 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     , providerHost(*this)
     , renderHost(*this)
 {
+    lastStateSnapshot = state();
 }
 
 ImageViewportPrivate::~ImageViewportPrivate()

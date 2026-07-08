@@ -13,6 +13,7 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 
 ImageViewport::~ImageViewport() = default;
 
+ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
 ImageSequence* ImageViewport::sequence() const { return d->sequence(); }
 void ImageViewport::setSequence(ImageSequence* sequence) { d->setSequence(sequence); }
 ImageSequence* ImageViewport::primarySequence() const { return d->primarySequence(); }
@@ -262,10 +263,7 @@ CoordinateResult ImageViewport::nearestVisiblePagePoint(PageRole role, double x,
 {
     return d->nearestVisiblePagePoint(role, x, y);
 }
-PageGeometry ImageViewport::pageGeometry(PageRole role) const
-{
-    return d->pageGeometry(role);
-}
+PageGeometry ImageViewport::pageGeometry(PageRole role) const { return d->pageGeometry(role); }
 bool ImageViewport::containsVisibleSpreadPoint(double x, double y) const
 {
     return d->containsVisibleSpreadPoint(x, y);
@@ -335,8 +333,7 @@ void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::
     ImageViewportPrivate::get(item)->failNextProviderCommandDeliveryForTest(role);
 }
 
-void failNextProviderQueueFlushSchedulingForTest(
-    ImageViewport& item, ImageViewport::PageRole role)
+void failNextProviderQueueFlushSchedulingForTest(ImageViewport& item, ImageViewport::PageRole role)
 {
     ImageViewportPrivate::get(item)->failNextProviderQueueFlushSchedulingForTest(role);
 }
@@ -421,20 +418,17 @@ void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRol
         failedRole, generation, requestId, preparedPayloadId, cause);
 }
 
-RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(
-    const ImageViewport& item)
+RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(const ImageViewport& item)
 {
     return ImageViewportPrivate::get(item)->lastAcceptedRenderFailureDiagnosticForTest();
 }
 
-ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(
-    const ImageViewport& item)
+ProviderTransportDiagnosticForTest lastProviderTransportDiagnosticForTest(const ImageViewport& item)
 {
     return ImageViewportPrivate::get(item)->lastProviderTransportDiagnosticForTest();
 }
 
-ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(
-    const ImageViewport& item)
+ProviderSchedulerDiagnosticForTest lastProviderSchedulerDiagnosticForTest(const ImageViewport& item)
 {
     return ImageViewportPrivate::get(item)->lastProviderSchedulerDiagnosticForTest();
 }

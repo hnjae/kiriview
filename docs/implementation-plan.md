@@ -126,6 +126,16 @@ Add v2 snapshot value types and a read-only `state` projection over the existing
 - No v1 flat property or signal has been removed.
 - Installed consumers can include the new public types without private headers.
 
+### Status
+
+Complete as of 2026-07-08. Added read-only `ImageViewport::state`, public snapshot/token/role-set/command-result/coordinate value scaffolding, QML value-type registration, and `stateChanged` emission from cached snapshot comparison while preserving all v1 flat properties and signals.
+
+Focused coverage is in `imageviewport_state_snapshot`: default snapshot values and copying, ready still parity with flat properties, retained replacement separating accepted and displayed generations, terminal provider diagnostics, presentation-only snapshot changes, and QML nested snapshot reads. `imageviewport_install_consumer` now compiles and uses `ImageViewportStateSnapshot`, v2 revision/generation/demand token defaults, `ImageViewportRoleSet`, `ImageViewportCommandResult`, `ImageViewportCoordinateInput`, and `ImageViewportCoordinateResult` from the installed public header.
+
+Verification: `ctest --test-dir build-ninja --output-on-failure` passed 43/43 after the implementation and install-consumer update.
+
+Adapter assumptions recorded for later milestones: demand revisions remain invalid sentinels until typed provider demand exists; quality and exactness preferences project as `Default` and current accepted built-in/provider payloads project as exact-only compatibility facts until the explicit envelope milestone; the presentation revision is projected from the current display revision until presentation state has an independent engine-owned revision; the snapshot revision is an opaque equality-only mix of current request/display/command revision domains and generation identity until the engine owns canonical snapshot revision allocation.
+
 ### Risks And Rollback Criteria
 
 - Risk: snapshot projection accidentally becomes independent mutable state. Roll back if snapshot fields can diverge from the controller without a controller transition.

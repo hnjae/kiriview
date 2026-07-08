@@ -695,11 +695,52 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    ImageViewport snapshotViewport;
+    const ImageViewportStateSnapshot snapshot = snapshotViewport.state();
+    const ImageViewportStateSnapshot snapshotCopy = snapshot;
+    if (snapshotCopy != snapshot
+        || snapshot.request().status() != ImageViewport::RequestStatus::NoRequest
+        || snapshot.request().reason() != ImageViewport::RequestReason::NoRequest
+        || snapshot.display().status() != ImageViewport::DisplayStatus::Empty
+        || snapshot.display().phase() != ImageViewport::DisplayPhase::NoPresentation
+        || snapshot.primary().present() || snapshot.secondary().present()
+        || snapshot.diagnostics().commandReason() != ImageViewport::CommandReason::NoCommand
+        || snapshot.revisions().request().isValid()
+        || snapshot.revisions().display() != ImageViewportRevisionToken()
+        || ImageViewportPageSetGenerationToken().isValid()
+        || ImageViewportDemandRevisionToken().isValid()) {
+        return 1;
+    }
+    const ImageViewportRoleSet installedRoleSet(true, false);
+    if (!installedRoleSet.primary() || installedRoleSet.secondary()) {
+        return 1;
+    }
+    const ImageViewportCommandResult installedCommandResult;
+    if (installedCommandResult.outcome() != ImageViewport::CommandOutcome::Accepted
+        || installedCommandResult.reason() != ImageViewport::CommandReason::NoCommand
+        || installedCommandResult.commandRevision().isValid()
+        || installedCommandResult.snapshotRevision().isValid()) {
+        return 1;
+    }
+    ImageViewportCoordinateInput installedCoordinateInput;
+    installedCoordinateInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
+    installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::Page);
+    installedCoordinateInput.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    installedCoordinateInput.setPoint(QPointF(1.0, 2.0));
+    const ImageViewportCoordinateResult installedCoordinateResult(false, QPointF(),
+        installedCoordinateInput.sourceSpace(), installedCoordinateInput.targetSpace(),
+        installedCoordinateInput.pageRole());
+    if (installedCoordinateInput.pageRole().value<ImageViewport::PageRole>()
+            != ImageViewport::PageRole::Primary
+        || installedCoordinateResult.isValid()
+        || installedCoordinateResult.targetSpace() != ImageViewport::CoordinateSpace::Page) {
+        return 1;
+    }
+
     const PageGeometry installedPrimaryGeometry = typedPageSetViewport.primaryPageGeometry();
     const PageGeometry installedSecondaryGeometry = typedPageSetViewport.secondaryPageGeometry();
     if (installedPrimaryGeometry.role() != ImageViewport::PageRole::Primary
-        || installedPrimaryGeometry.isAvailable()
-        || installedPrimaryGeometry.pageRect() != QRectF()
+        || installedPrimaryGeometry.isAvailable() || installedPrimaryGeometry.pageRect() != QRectF()
         || installedPrimaryGeometry.itemRect() != QRectF()
         || installedPrimaryGeometry.visiblePageRect() != QRectF()) {
         return 1;

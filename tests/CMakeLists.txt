@@ -57,6 +57,7 @@ add_imageviewport_qt_test(imageviewport_public_api_commands
 add_imageviewport_qt_test(imageviewport_public_api_provider_roles
                           tst_imageviewport_public_api_provider_roles.cpp)
 add_imageviewport_qt_test(imageviewport_public_api_qml tst_imageviewport_public_api_qml.cpp)
+add_imageviewport_qt_test(imageviewport_state_snapshot tst_imageviewport_state_snapshot.cpp)
 add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
 add_imageviewport_core_qt_test(playback_clock tst_playback_clock.cpp)
 add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)

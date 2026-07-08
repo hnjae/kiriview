@@ -34,6 +34,7 @@ public:
         return viewport.d.get();
     }
 
+    ImageViewportStateSnapshot state() const;
     ImageSequence* sequence() const;
     void setSequence(ImageSequence* sequence);
     ImageSequence* primarySequence() const;
@@ -145,12 +146,12 @@ public:
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
     quint64 secondaryPendingRenderPayloadIdForTest() const;
-    ImageViewportInternal::RenderFailureDiagnostic lastAcceptedRenderFailureDiagnosticForTest()
-        const;
-    ImageViewportInternal::ProviderTransportDiagnostic lastProviderTransportDiagnosticForTest()
-        const;
-    ImageViewportInternal::ProviderSchedulerDiagnostic lastProviderSchedulerDiagnosticForTest()
-        const;
+    ImageViewportInternal::RenderFailureDiagnostic
+    lastAcceptedRenderFailureDiagnosticForTest() const;
+    ImageViewportInternal::ProviderTransportDiagnostic
+    lastProviderTransportDiagnosticForTest() const;
+    ImageViewportInternal::ProviderSchedulerDiagnostic
+    lastProviderSchedulerDiagnosticForTest() const;
     void acknowledgeRenderCommitForTest(
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
     void acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
@@ -159,8 +160,8 @@ public:
         quint64 generation, quint64 requestId, quint64 preparedPayloadId);
     void acknowledgeRenderFailureForTest(
         PageRole failedRole, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-    void acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation,
-        quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause);
+    void acknowledgeRenderFailureForTest(PageRole failedRole, quint64 generation, quint64 requestId,
+        quint64 preparedPayloadId, RenderFailureCause cause);
 #endif
     QRectF contentRect() const override;
     QRectF visibleImageRect() const override;
@@ -218,6 +219,7 @@ public:
     static ImageViewportRange invalidRange();
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
+    void refreshStateSnapshot();
     QRectF currentContentRect() const;
     QRectF itemBounds() const override;
     QRectF contentRectForItemBounds(const QRectF& bounds) const;
@@ -258,7 +260,8 @@ public:
     ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const override;
     QSizeF secondaryProviderKnownLogicalSize() const override;
     TimingIntervals secondaryProviderKnownTimingIntervals() const override;
-    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const override;
+    ImageSequenceProviderCapabilitySupport
+    secondaryProviderTimedPlaybackCapability() const override;
     ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const override;
     ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override;
     QSizeF sequenceLogicalSize() const override;
@@ -275,4 +278,5 @@ public:
     ImageViewportProviderHost providerHost;
     ImageViewportRenderHost renderHost;
     ImageViewportInternal::InternalDiagnostics internalDiagnostics;
+    ImageViewportStateSnapshot lastStateSnapshot;
 };

@@ -1,7 +1,7 @@
 #include "framepreparation_p.h"
+#include "imageviewport_p.h"
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
-#include "imageviewport_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerplaybackcontract_p.h"
 
@@ -11,7 +11,8 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
     const ViewportPlaybackAdvanceResult result = controller.advancePlayback(elapsedMilliseconds);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
 }
 
@@ -178,6 +179,7 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
     if (changes.scheduleUpdate) {
         update();
     }
+    refreshStateSnapshot();
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
@@ -185,7 +187,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.clear();
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -212,7 +215,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.play(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -239,7 +243,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.pause(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -266,7 +271,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.stop(role);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -293,7 +299,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seek(role, frame);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -320,7 +327,8 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
