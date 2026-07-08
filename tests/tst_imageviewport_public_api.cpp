@@ -96,6 +96,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "setColorManagementPolicy(QVariant)",
         "clampedManualZoomPercent(double)",
         "steppedManualZoomPercent(int)",
+        "zoomByStep(int,QPointF)",
     };
 
     for (const QByteArray& method : absentMethods) {
@@ -285,7 +286,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "pageGeometry(ImageViewport::PageRole)",
-        "zoomByStep(int,QPointF)",
         "panToStart()",
         "panToEnd()",
         "scanNext()",
@@ -368,12 +368,6 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     QVERIFY(pageGeometryMethodIndex >= 0);
     QCOMPARE(QByteArray(metaObject->method(pageGeometryMethodIndex).typeName()),
         QByteArray("PageGeometry"));
-
-    const int zoomByStepMethodIndex
-        = metaObject->indexOfMethod(QMetaObject::normalizedSignature("zoomByStep(int,QPointF)"));
-    QVERIFY(zoomByStepMethodIndex >= 0);
-    QCOMPARE(QByteArray(metaObject->method(zoomByStepMethodIndex).typeName()),
-        QByteArray("ImageViewport::CommandOutcome"));
 
     const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {

@@ -294,6 +294,7 @@ ImageViewport {
     property bool presentationCommandsReachViewport: false
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
+    property imageViewportPresentationCommand zoomStepCommand
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -341,6 +342,7 @@ ImageViewport {
         const maximum = maximumManualZoomPercent
         manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
             && typeof viewport.steppedManualZoomPercent === "undefined"
+            && typeof viewport.zoomByStep === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -363,11 +365,12 @@ ImageViewport {
             && seek(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
             && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
 
+        zoomStepCommand.zoomStepDelta = 1
         presentationCommandsReachViewport = setSpreadDirection(ImageViewport.SpreadDirection.LeftToRight) === ImageViewport.CommandOutcome.Accepted
             && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
             && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
-            && zoomByStep(1, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(zoomStepCommand) === ImageViewport.CommandOutcome.Accepted
             && panBy(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && panToStart() === ImageViewport.CommandOutcome.Accepted
             && panToEnd() === ImageViewport.CommandOutcome.Accepted

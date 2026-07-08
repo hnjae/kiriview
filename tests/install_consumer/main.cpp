@@ -449,6 +449,7 @@ ImageViewport {
     height: 10
 
     property bool commandSurfaceAvailable: false
+    property imageViewportPresentationCommand zoomStepCommand
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -461,7 +462,8 @@ ImageViewport {
         const seekOutcome = seek(0)
         const positionSeekOutcome = seekToPosition(0)
         const zoomOutcome = setZoomPercent(200, Qt.point(5, 5))
-        const stepOutcome = zoomByStep(1, Qt.point(5, 5))
+        zoomStepCommand.zoomStepDelta = 1
+        const stepOutcome = setPresentation(zoomStepCommand)
         const resetViewOutcome = resetView()
         const minimum = minimumManualZoomPercent
         const maximum = maximumManualZoomPercent
@@ -486,6 +488,7 @@ ImageViewport {
             && manualZoomStepFactor === 1.25
             && typeof clampedManualZoomPercent === "undefined"
             && typeof steppedManualZoomPercent === "undefined"
+            && typeof zoomByStep === "undefined"
             && contentPosition.x === 0
             && contentPosition.y === 0
             && frameSeekBounds.minimum === -1
@@ -849,7 +852,10 @@ int main(int argc, char** argv)
     }
 
     ImageViewport steppedCommandViewport;
-    if (steppedCommandViewport.zoomByStep(1, QPointF()) != ImageViewport::CommandOutcome::Accepted
+    ImageViewportPresentationCommand stepCommand;
+    stepCommand.setZoomStepDelta(1);
+    if (steppedCommandViewport.setPresentation(stepCommand)
+            != ImageViewport::CommandOutcome::Accepted
         || !nearlyEqual(steppedCommandViewport.zoomPercent(), 125.0)) {
         return 1;
     }

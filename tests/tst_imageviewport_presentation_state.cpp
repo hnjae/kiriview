@@ -40,7 +40,7 @@ private slots:
     void presentationCommandsUpdateCommandDiagnostics();
     void manualZoomMaximumFallsBackAcrossDisplayStates();
     void manualZoomAbovePublishedLimitIsInvalid();
-    void zoomByStepUsesSharedSetZoomPath();
+    void presentationCommandZoomStepDeltaUsesSharedSetZoomPath();
     void mirrorCommandsPreserveAnchor();
     void rotationAffectsSpreadMapping();
 };
@@ -1243,7 +1243,7 @@ void ImageViewportPresentationStateTest::manualZoomAbovePublishedLimitIsInvalid(
     QCOMPARE(commandSpy.count(), 1);
 }
 
-void ImageViewportPresentationStateTest::zoomByStepUsesSharedSetZoomPath()
+void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesSharedSetZoomPath()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -1261,41 +1261,30 @@ void ImageViewportPresentationStateTest::zoomByStepUsesSharedSetZoomPath()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.fitMode(), ImageViewport::FitMode::Contain);
     verifyClose(item.zoomPercent(), 625.0);
 
-    QCOMPARE(item.zoomByStep(0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    ImageViewportPresentationCommand command;
+    command.setZoomStepDelta(0);
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
     verifyClose(item.zoomPercent(), 625.0);
 
-    QCOMPARE(item.zoomByStep(1, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    command = {};
+    command.setZoomStepDelta(1);
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
     verifyClose(item.zoomPercent(), 781.25);
 
-    QCOMPARE(item.zoomByStep(-1, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    command = {};
+    command.setZoomStepDelta(-1);
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
     verifyClose(item.zoomPercent(), 625.0);
 
-    const RevisionToken requestRevisionBeforeInvalid = item.requestRevision();
-    const RevisionToken displayRevisionBeforeInvalid = item.displayRevision();
-    const RevisionToken commandRevisionBeforeInvalid = item.commandRevision();
-    const QPointF contentPositionBeforeInvalid = item.property("contentPosition").toPointF();
-    QCOMPARE(item.zoomByStep(1, QPointF(std::numeric_limits<double>::infinity(), 50.0)),
-        ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
-    verifyClose(item.zoomPercent(), 625.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), contentPositionBeforeInvalid);
-    QCOMPARE(item.requestRevision(), requestRevisionBeforeInvalid);
-    QCOMPARE(item.displayRevision(), displayRevisionBeforeInvalid);
-    verifyRevisionChanged(item, "commandRevision", commandRevisionBeforeInvalid);
-    QCOMPARE(item.property("commandReason").toInt(),
-        enumValue(metaObject, "CommandReason", "InvalidRequest"));
-
-    QCOMPARE(item.zoomByStep(std::numeric_limits<int>::max(), QPointF(50.0, 50.0)),
-        ImageViewport::CommandOutcome::Accepted);
+    command = {};
+    command.setZoomStepDelta(std::numeric_limits<int>::max());
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.zoomPercent(), item.maximumManualZoomPercent());
-    QCOMPARE(item.property("commandReason").toInt(),
-        enumValue(metaObject, "CommandReason", "NoCommand"));
 }
 
 void ImageViewportPresentationStateTest::mirrorCommandsPreserveAnchor()

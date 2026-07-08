@@ -219,10 +219,6 @@ ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPoi
 {
     return d->setZoomPercent(percent, anchor);
 }
-ImageViewport::CommandOutcome ImageViewport::zoomByStep(int stepCount, QPointF anchor)
-{
-    return d->zoomByStep(stepCount, anchor);
-}
 ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::panToStart() { return d->panToStart(); }
 ImageViewport::CommandOutcome ImageViewport::panToEnd() { return d->panToEnd(); }
