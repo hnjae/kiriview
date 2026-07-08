@@ -1,6 +1,7 @@
 #include "imageviewport_p.h"
 #include "imageviewportvalidation_p.h"
 #include "presentationgeometry_p.h"
+#include "viewportcontrollercommandcontract_p.h"
 
 #include <QtQuick/QQuickWindow>
 

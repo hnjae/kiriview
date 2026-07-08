@@ -1,7 +1,9 @@
 #include "viewportcontroller_p.h"
 
 #include "viewportcommandoutcome_p.h"
+#include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollergeometryhelpers_p.h"
+#include "viewportcontrollerprovidercontract_p.h"
 
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"

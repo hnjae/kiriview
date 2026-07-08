@@ -1,6 +1,7 @@
 #include "imageviewportplaybackscheduler_p.h"
 
 #include "imageviewport_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 
 #include <QtCore/QObject>
 

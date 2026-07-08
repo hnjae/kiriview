@@ -2,9 +2,9 @@
 
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
+#include "viewportcontrollercommandcontract_p.h"
 
 class ViewportControllerPort;
-struct ViewportCommandResult;
 
 namespace ImageViewportInternal::CommandOutcome {
 

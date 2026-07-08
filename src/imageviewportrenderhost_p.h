@@ -1,6 +1,7 @@
 #pragma once
 
 #include "renderadapter_p.h"
+#include "viewportcontrollerrendercontract_p.h"
 
 #include <QtCore/QRectF>
 

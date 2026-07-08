@@ -2,6 +2,8 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
 #include "imageviewport_p.h"
+#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 
 using namespace ImageViewportInternal;
 

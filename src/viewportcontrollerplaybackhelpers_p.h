@@ -3,6 +3,8 @@
 #include "viewportcontrollercorehelpers_p.h"
 
 #include "playbacktimeline_p.h"
+#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 #include "viewportgeometryhelpers_p.h"
 
 namespace {

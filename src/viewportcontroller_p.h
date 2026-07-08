@@ -4,429 +4,57 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
-#include "renderfailurecause_p.h"
-#include "viewportproviderevent_p.h"
+#include "viewportcontrollerassignmentcontract_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
-#include <QtCore/QVector>
-#include <QtGui/QImage>
 
-#include <memory>
-#include <optional>
-
-struct ViewportRenderRolePayload
-{
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-    ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
-};
-
-struct ViewportRenderAcknowledgement
-{
-    ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
-    QVector<ViewportRenderRolePayload> rolePayloads;
-    ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
-    RenderFailureCause failureCause = RenderFailureCause::None;
-};
-
-struct ViewportRenderLayer
-{
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-    ImageViewportInternal::PreparedPayload preparedPayload;
-    QRectF targetRect;
-    QRectF sourceRect;
-    int rotationDegrees = 0;
-    bool mirrorHorizontally = false;
-    bool mirrorVertically = false;
-};
-
-struct ViewportRenderSnapshot
-{
-    QSizeF itemSize;
-    ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
-    QColor backgroundColor = Qt::transparent;
-    ImageViewportInternal::PreparedPayload preparedPayload;
-    QRectF targetRect;
-    QRectF sourceRect;
-    int rotationDegrees = 0;
-    bool smoothing = true;
-    bool mipmap = false;
-    bool mirrorHorizontally = false;
-    bool mirrorVertically = false;
-    QVector<ViewportRenderLayer> imageLayers;
-};
-
-struct ViewportRenderSynchronization
-{
-    bool pendingTargetCommit = false;
-    bool pendingSecondaryProviderCommit = false;
-    ImageViewportInternal::PreparedPayload preparedPayload;
-    ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
-    QRectF oldContentRect;
-    QRectF oldVisibleImageRect;
-    PresentationGeometry::State geometryState;
-    ViewportRenderSnapshot renderSnapshot;
-};
-
-struct ViewportProviderFrameTerminalResult
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
-    QString diagnostic;
-    QString fallbackDiagnostic;
-};
-
-struct ViewportProviderFrameEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderFrameEventAcceptance
-{
-    bool accepted = false;
-    FramePreparation::ProviderFrameState preparationState;
-};
-
-struct ViewportProviderMetadataEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderMetadataReadyEvent
-{
-    ImageSequenceProviderRequestToken token;
-    ImageSequenceProviderMetadata metadata;
-};
-
-struct ViewportProviderMetadataEventAcceptance
-{
-    bool accepted = false;
-};
-
-struct ViewportProviderMetadataTerminalResult
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
-    QString diagnostic;
-    QString fallbackDiagnostic;
-};
-
-struct ViewportProviderTerminalEvent
-{
-    enum class Kind {
-        Failure,
-        Unsupported,
-        Cancellation,
-    };
-
-    ImageSequenceProviderRequestToken token;
-    Kind kind = Kind::Failure;
-    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
-        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-    QString diagnostic;
-    bool unsupportedCauseExplicit = false;
-};
-
-struct ViewportProviderDispatchFailureEvent
-{
-    ImageSequenceProviderRequestToken token;
-    QString diagnostic;
-};
-
-struct ViewportProviderMetadataContradiction
-{
-    QString diagnostic;
-};
-
-struct ViewportProviderMetadataAdmissionRejection
-{
-    QString diagnostic;
-};
-
-struct ViewportProviderMetadataTargetRejection
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Unsupported;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::UnsupportedRequest;
-    int selectedFrame = -1;
-    bool updateActiveTarget = false;
-    bool selectedFromPosition = false;
-    bool clearPlaybackStartPending = false;
-};
-
-struct ViewportProviderMetadataTargetSelection
-{
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    int selectedFrame = -1;
-    bool selectedFromPosition = false;
-    bool timedMetadata = false;
-};
-
-struct ViewportProviderAcceptedMetadataFacts
-{
-    bool timedMetadata = false;
-    bool timedPlaybackSupport = false;
-    bool frameSeekSupport = false;
-    bool positionSeekSupport = false;
-    QSizeF logicalSize;
-    TimingIntervals timingIntervals;
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
-};
-
-struct ViewportMetadataProjection
-{
-    int frameCount = -1;
-    int totalDuration = -1;
-    ImageViewportRange frameSeekBounds;
-    ImageViewportRange positionSeekBounds;
-    ImageViewport::TriState timedPlaybackSupport = ImageViewport::TriState::Unavailable;
-    ImageViewport::TriState frameSeekSupport = ImageViewport::TriState::Unavailable;
-    ImageViewport::TriState positionSeekSupport = ImageViewport::TriState::Unavailable;
-};
-
-struct ViewportProviderWaitingEvent
-{
-    ImageSequenceProviderRequestToken token;
-    bool progress = false;
-    double progressValue = 0.0;
-};
-
-struct ViewportProviderEndOfSequenceEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderEndOfSequenceProtocolViolation
-{
-    bool activeMetadataToken = false;
-    bool activeFrameToken = false;
-};
-
-struct ViewportProviderSessionClose
-{
-    ImageSequenceProviderRequestToken metadataToken;
-    ImageSequenceProviderRequestToken frameToken;
-};
-
-struct ViewportProviderRequestTokenAllocation
-{
-    ImageSequenceProviderRequestToken token;
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-};
-
-struct ViewportProviderMetadataRequestStartResult
-{
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-    bool sendCommand = false;
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderMetadataTransportEffect
-{
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-    bool sendCommand = false;
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderFrameQueueRequest
-{
-    int frame = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
-enum class ViewportProviderDeferredControllerEvent {
-    None,
-    FlushQueuedFrameRequest,
-};
-
-struct ViewportProviderFrameQueueResult
-{
-    ImageSequenceProviderRequestToken cancelToken;
-    ViewportProviderDeferredControllerEvent deferredControllerEvent
-        = ViewportProviderDeferredControllerEvent::None;
-};
-
-struct ViewportProviderFrameQueueFlush
-{
-    bool startRequest = false;
-    int frame = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
-struct ViewportProviderFrameRequestStart
-{
-    ImageViewportInternal::DisplayRequestTarget target;
-};
-
-struct ViewportProviderFrameCommand
-{
-    ImageSequenceProviderRequestToken token;
-    int frame = -1;
-    int position = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
-struct ViewportProviderFrameRequestStartResult
-{
-    bool accepted = false;
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-    bool sendCommand = false;
-    ViewportProviderFrameCommand command;
-};
-
-struct ViewportProviderFrameTransportEffect
-{
-    ImageSequenceProviderRequestToken cancelToken;
-    ViewportProviderDeferredControllerEvent deferredControllerEvent
-        = ViewportProviderDeferredControllerEvent::None;
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-    bool sendCommand = false;
-    ViewportProviderFrameCommand command;
-};
-
-enum class ViewportProviderEventTransportPhase {
-    None,
-    BeforeChanges,
-    AfterChanges,
-};
-
-struct ViewportProviderEventResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderEventTransportPhase providerFrameTransportPhase
-        = ViewportProviderEventTransportPhase::None;
-};
-
-struct ViewportProviderFrameDispatchResult
-{
-    bool accepted = false;
-    ViewportProviderFrameTransportEffect transport;
-};
-
-struct ViewportProviderFrameQueueFlushResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderSchedulerFailureResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ImageViewportInternal::ProviderSchedulerDiagnostic diagnostic;
-};
-
-struct ViewportProviderSessionOpenResult
-{
-    ViewportProviderMetadataTransportEffect providerMetadataTransport;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderTerminalEventResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderMetadataAdmissionResult
-{
-    bool accepted = false;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderAcceptedMetadataFacts facts;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderEndOfSequenceResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderMetadataTargetPolicyResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderMetadataReadyResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportCommandResult
-{
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
-};
-
-struct ViewportPlaybackAdvanceResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
-};
-
-struct ViewportSequenceRoleSource
-{
-    bool present = false;
-    bool provider = false;
-    bool timed = false;
-    int frameCount = -1;
-    int firstFramePosition = -1;
-    TimingIntervals timingIntervals;
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
-};
-
-struct ControllerTransitionPolicy
-{
-    PageSetTransitionPolicy::DisplayTransition displayTransition
-        = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    PageSetTransitionPolicy::ZoomTransition magnificationPolicy
-        = PageSetTransitionPolicy::ZoomTransition::Preserve;
-    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
-        = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
-    PageSetTransitionPolicy::RotationTransition rotationTransition
-        = PageSetTransitionPolicy::RotationTransition::Preserve;
-    PageSetTransitionPolicy::MirrorTransition mirrorTransition
-        = PageSetTransitionPolicy::MirrorTransition::Preserve;
-    PageSetTransitionPolicy::ReplacementIntent replacementIntent
-        = PageSetTransitionPolicy::ReplacementIntent::NewTarget;
-    std::optional<ImageViewport::FitMode> explicitFitMode;
-    std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
-    std::optional<double> explicitPageGap;
-};
-
-struct ViewportSequenceAssignment
-{
-    ImageViewportInternal::ImageSequenceSource source;
-    ImageViewportInternal::ImageSequenceSource secondarySourceHandle;
-    ImageSequence* sequence = nullptr;
-    ImageSequence* secondarySequence = nullptr;
-    ViewportSequenceRoleSource secondarySource;
-    PageSetTransitionPolicy transitionPolicy;
-};
-
-struct ViewportSequenceAssignmentResult
-{
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
-    bool openProviderSession = false;
-    bool openSecondaryProviderSession = false;
-};
+struct ControllerTransitionPolicy;
+struct ViewportCommandResult;
+struct ViewportMetadataProjection;
+struct ViewportPlaybackAdvanceResult;
+struct ViewportProviderAcceptedMetadataFacts;
+struct ViewportProviderDispatchFailureEvent;
+struct ViewportProviderEndOfSequenceEvent;
+struct ViewportProviderEndOfSequenceProtocolViolation;
+struct ViewportProviderEndOfSequenceResult;
+struct ViewportProviderEvent;
+struct ViewportProviderEventResult;
+struct ViewportProviderFrameDispatchResult;
+struct ViewportProviderFrameEvent;
+struct ViewportProviderFrameEventAcceptance;
+struct ViewportProviderFrameQueueFlush;
+struct ViewportProviderFrameQueueFlushResult;
+struct ViewportProviderFrameQueueRequest;
+struct ViewportProviderFrameQueueResult;
+struct ViewportProviderFrameRequestStart;
+struct ViewportProviderFrameRequestStartResult;
+struct ViewportProviderFrameTerminalResult;
+struct ViewportProviderFrameTransportEffect;
+struct ViewportProviderMetadataAdmissionRejection;
+struct ViewportProviderMetadataAdmissionResult;
+struct ViewportProviderMetadataContradiction;
+struct ViewportProviderMetadataEvent;
+struct ViewportProviderMetadataEventAcceptance;
+struct ViewportProviderMetadataReadyEvent;
+struct ViewportProviderMetadataReadyResult;
+struct ViewportProviderMetadataRequestStartResult;
+struct ViewportProviderMetadataTargetPolicyResult;
+struct ViewportProviderMetadataTargetRejection;
+struct ViewportProviderMetadataTargetSelection;
+struct ViewportProviderMetadataTerminalResult;
+struct ViewportProviderRequestTokenAllocation;
+struct ViewportProviderSchedulerFailureResult;
+struct ViewportProviderSessionClose;
+struct ViewportProviderSessionOpenResult;
+struct ViewportProviderTerminalEvent;
+struct ViewportProviderTerminalEventResult;
+struct ViewportProviderWaitingEvent;
+struct ViewportRenderAcknowledgement;
+struct ViewportRenderSynchronization;
+struct ViewportSequenceAssignment;
+struct ViewportSequenceAssignmentResult;
 
 struct ViewportControllerState
 {

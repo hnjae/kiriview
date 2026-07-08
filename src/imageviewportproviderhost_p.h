@@ -1,7 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
-#include "viewportcontroller_p.h"
+#include "viewportcontrollerprovidercontract_p.h"
 #include "viewportproviderbridge_p.h"
 
 class ImageViewportPrivate;

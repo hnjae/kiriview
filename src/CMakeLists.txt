@@ -47,11 +47,17 @@ qt_add_qml_module(
     timingintervals.cpp
     timingintervals_p.h
     viewportcontroller.cpp
+    viewportcontrollerassignmentcontract_p.h
+    viewportcontrollercommandcontract_p.h
     viewportcontrollercorehelpers_p.h
     viewportcontrollergeometry.cpp
     viewportcontrollergeometryhelpers_p.h
     viewportcontrollerhelpers_p.h
+    viewportcontrollermetadatacontract_p.h
     viewportcontrollerplaybackhelpers_p.h
+    viewportcontrollerplaybackcontract_p.h
+    viewportcontrollerprovidercontract_p.h
+    viewportcontrollerrendercontract_p.h
     viewportcommandoutcome.cpp
     viewportcommandoutcome_p.h
     viewportcontrollermetadata.cpp

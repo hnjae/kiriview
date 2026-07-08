@@ -1,4 +1,6 @@
 #include "imageviewport.h"
+#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcontrollerrendercontract_p.h"
 #include "viewportcontroller_p.h"
 
 #include <QtTest/QTest>

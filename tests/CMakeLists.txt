@@ -147,6 +147,12 @@ add_test(
         ${CMAKE_CURRENT_SOURCE_DIR}/controller_helper_ownership_boundary.cmake)
 
 add_test(
+    NAME structural::controllerContractHeaderBoundary
+    COMMAND
+        ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P
+        ${CMAKE_CURRENT_SOURCE_DIR}/controller_contract_header_boundary.cmake)
+
+add_test(
     NAME structural::providerHostBoundary
     COMMAND
         ${CMAKE_COMMAND} -DIMAGEVIEWPORT_SOURCE_DIR=${CMAKE_SOURCE_DIR} -P

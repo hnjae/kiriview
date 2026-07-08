@@ -1,6 +1,8 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
+#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcontrollermetadatacontract_p.h"
 
 #include <algorithm>
 #include <cmath>
