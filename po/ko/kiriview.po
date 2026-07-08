@@ -944,17 +944,6 @@ msgctxt "@title:menu"
 msgid "&Help"
 msgstr ""
 
-#: src/qml/ApplicationMenuHost.qml src/qml/ImageToolBar.qml
-msgctxt "@action"
-msgid "Application Menu"
-msgstr ""
-
-#: src/qml/ApplicationMenuHost.qml src/qml/ImageToolBar.qml
-#, fuzzy
-msgctxt "@info:tooltip"
-msgid "Open menu"
-msgstr "열기"
-
 #: src/qml/FitModeMenuButton.qml
 msgctxt "@info:tooltip"
 msgid "Choose fit mode"
@@ -1024,6 +1013,17 @@ msgstr ""
 msgctxt "@info:tooltip"
 msgid "Video zoom unavailable"
 msgstr ""
+
+#: src/qml/ImageToolBar.qml
+msgctxt "@action"
+msgid "Application Menu"
+msgstr ""
+
+#: src/qml/ImageToolBar.qml
+#, fuzzy
+msgctxt "@info:tooltip"
+msgid "Open menu"
+msgstr "열기"
 
 #: src/qml/InfoPanel.qml
 msgctxt "@title:window"

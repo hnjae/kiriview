@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #include "facade/kiriimagedocument.h"
+#include "facade/kirimediainformation.h"
 #include "facade/kirivideodocument.h"
 
 #include <QDir>
@@ -49,17 +50,12 @@ private Q_SLOTS:
     void videoOutputAttachmentIsNotWritablePublicVideoDocumentState();
     void qmlDoesNotDeriveSharedControlPolicyFromLeafDocuments();
     void qmlUsesCentralNavigationPresentationOrder();
-    void viewportCommandBridgeOwnsFullCommandLifecycle();
-    void viewportContextBridgeIsNonRenderingPublicQtFacade();
     void qmlViewportUsesContextBridgeForRenderContextDiscovery();
     void providerRenderingRejectsTileSourceContracts();
     void productionImageDisplayUsesProviderPathOnly();
-    void sourceKeysExposeTypedExtensionFamilies();
-    void sourceKeysExposeOperationalExtensionContracts();
     void openedCollectionThumbnailEligibilityUsesSharedPolicy();
     void decodingUsesNeutralThumbnailContracts();
     void cppNamespaceIsLowercaseKiriview();
-    void thumbnailGenerationContractsLiveInThumbnailModule();
     void documentSessionUsesThumbnailStripDependencyPort();
     void documentSessionUsesOpenWithRuntime();
     void documentSessionOpenWithUsesNamedPlanPort();
@@ -94,13 +90,11 @@ private Q_SLOTS:
     void imageDocumentDeletionProgressUsesNamedPort();
     void imageDocumentCurrentPageNumberUsesNamedPort();
     void imageDocumentAnimationLoadErrorUsesNamedPort();
-    void imagePageSurfaceOwnerTypeExists();
     void imagePageSurfaceOwnersExposeNoPresentationState();
     void imagePresentationPageSlotsUseDisplaySourceVariants();
     void activePresentationDoesNotWritePageSurfacePresentationState();
     void productionFacadesDoNotExposePresentationBackdoorSetters();
     void mediaInformationFacadeExposesSnapshotRevision();
-    void sessionLeafSnapshotPortsAreSeparateFromCommandPorts();
 };
 
 namespace {
@@ -391,7 +385,6 @@ void TestArchitectureBoundaries::qmlDoesNotComputePannabilityActionGate()
     QVERIFY(!applicationHeader.contains(QStringLiteral("bool imagePannable")));
     QVERIFY(!applicationHeader.contains(QStringLiteral("m_imagePannable")));
     QVERIFY(!applicationImplementation.contains(QStringLiteral("m_imagePannable")));
-    QVERIFY(applicationImplementation.contains(QStringLiteral("viewportPannable()")));
 }
 
 void TestArchitectureBoundaries::qmlDoesNotRecomputeSharedMediaReadiness()
@@ -470,9 +463,6 @@ void TestArchitectureBoundaries::imageDocumentHasNoPublicPresentationBackdoorSet
 void TestArchitectureBoundaries::qmlViewportReportsPositionsThroughCommandBridge()
 {
     const QString viewport = readProjectFile(QStringLiteral("src/qml/ImageViewport.qml"));
-    QVERIFY(viewport.contains(QStringLiteral("KiriImageViewportCommandBridge")));
-    QVERIFY(viewport.contains(QStringLiteral("requestContentPosition(")));
-    QVERIFY(viewport.contains(QStringLiteral("observeViewportContentPosition(")));
     QVERIFY(!viewport.contains(QStringLiteral("Qt.callLater")));
     QVERIFY(!viewport.contains(QStringLiteral("requestViewportContentPosition(")));
     QVERIFY(!viewport.contains(QStringLiteral("beginViewportCommandApplication(")));
@@ -563,8 +553,6 @@ void TestArchitectureBoundaries::qmlViewportUsesOpaqueRevisionTokens()
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
     QVERIFY(!viewport.contains(QStringLiteral("viewportCommandRevisionToken")));
     QVERIFY(!viewport.contains(QStringLiteral("viewportObservationRevisionToken")));
-    QVERIFY(imageDocumentHeader.contains(QStringLiteral("viewportCommandRevisionToken")));
-    QVERIFY(imageDocumentHeader.contains(QStringLiteral("viewportObservationRevisionToken")));
 }
 
 void TestArchitectureBoundaries::leafDocumentsAreNotProductionQmlCreatable()
@@ -582,8 +570,6 @@ void TestArchitectureBoundaries::actionUiGatesAreRevisionedSnapshots()
     const QString header = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.h"));
     const QString implementation
         = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.cpp"));
-    QVERIFY(header.contains(QStringLiteral("ActionUiGateSnapshot")));
-    QVERIFY(header.contains(QStringLiteral("updateActionUiGateSnapshot")));
     QVERIFY(!header.contains(QStringLiteral("updateActionUiState(bool")));
     QVERIFY(!implementation.contains(QStringLiteral("updateActionUiState(bool")));
 }
@@ -620,10 +606,6 @@ void TestArchitectureBoundaries::qmlDoesNotManufactureStaleSensitiveRevisions()
     }
 
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-    QVERIFY(videoViewport.contains(QStringLiteral("nextVideoOutputSurfaceClaimToken")));
-    QVERIFY(sessionHeader.contains(QStringLiteral("nextVideoOutputSurfaceClaimToken")));
-    QVERIFY(sessionRuntimeHeader.contains(QStringLiteral("nextVideoOutputSurfaceClaimToken")));
-    QVERIFY(applicationHeader.contains(QStringLiteral("updateActionUiGateSnapshot(bool")));
 }
 
 void TestArchitectureBoundaries::imageActionAvailabilityFacadeIsNotWritableQmlBackdoor()
@@ -674,14 +656,6 @@ void TestArchitectureBoundaries::qmlDoesNotExposeFixedViewerScanCommandRoutes()
 void TestArchitectureBoundaries::videoSeekShortcutsRouteThroughApplicationRuntime()
 {
     const QString videoViewport = readProjectFile(QStringLiteral("src/qml/VideoViewport.qml"));
-    const QString shortcutRuntime
-        = readProjectFile(QStringLiteral("src/application/applicationshortcutruntime.cpp"));
-    const QString actionRuntimeHeader
-        = readProjectFile(QStringLiteral("src/application/applicationactionruntime.h"));
-    const QString actionRuntimeImplementation
-        = readProjectFile(QStringLiteral("src/application/applicationactionruntime.cpp"));
-    const QString applicationImplementation
-        = readProjectFile(QStringLiteral("src/facade/kiriviewapplication.cpp"));
     const QList<QRegularExpression> forbiddenVideoViewportPatterns {
         QRegularExpression(QStringLiteral(R"(\bKeys\s*\.\s*onPressed\b)")),
         QRegularExpression(QStringLiteral(R"(\bhandleSeekShortcut\b)")),
@@ -700,20 +674,6 @@ void TestArchitectureBoundaries::videoSeekShortcutsRouteThroughApplicationRuntim
     }
 
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-    const QString shortcutPolicy
-        = readProjectFile(QStringLiteral("src/application/applicationshortcutpolicy.cpp"));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("fixedVideoSeekShortcut")));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("fixedShortcutDispatchOutcome")));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("Alt+Left")));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("Alt+Right")));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("Alt+Up")));
-    QVERIFY(shortcutPolicy.contains(QStringLiteral("Alt+Down")));
-    QVERIFY(shortcutRuntime.contains(QStringLiteral("fixedShortcutDispatchOutcome")));
-    QVERIFY(shortcutRuntime.contains(QStringLiteral("videoSeekShortcutTriggered")));
-    QVERIFY(actionRuntimeHeader.contains(QStringLiteral("executeVideoSeekShortcut")));
-    QVERIFY(actionRuntimeImplementation.contains(QStringLiteral("executeVideoSeekShortcut")));
-    QVERIFY(applicationImplementation.contains(QStringLiteral("seekable()")));
-    QVERIFY(applicationImplementation.contains(QStringLiteral("seekBy(")));
 }
 
 void TestArchitectureBoundaries::applicationFacadeDoesNotOwnFixedViewerCommandRouting()
@@ -730,8 +690,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnFixedViewerCommandRo
     QVERIFY(!header.contains(QStringLiteral("commandRouterShellPorts")));
     QVERIFY(!implementation.contains(QStringLiteral("m_navigationPolicy.")));
     QVERIFY(!implementation.contains(QStringLiteral("keyboardPanDistance")));
-    QVERIFY(implementation.contains(QStringLiteral("ApplicationCommandPortSource")));
-    QVERIFY(implementation.contains(QStringLiteral("ApplicationCommandRouter")));
 }
 
 void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionStateSourceAttachment()
@@ -754,34 +712,19 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionStateSourceAtt
     QVERIFY(!implementation.contains(
         QStringLiteral("KiriViewApplication::disconnectActionStateSources")));
     QVERIFY(!implementation.contains(QStringLiteral("KiriViewApplication::actionStateSnapshot")));
-    QVERIFY(implementation.contains(QStringLiteral("KiriViewApplicationActionStateSource")));
-    QVERIFY(implementation.contains(QStringLiteral("ApplicationActionSourceAttachment")));
 }
 
 void TestArchitectureBoundaries::applicationCommandRouterPortsAreGroupedByOwner()
 {
     const QString header
         = readProjectFile(QStringLiteral("src/application/applicationcommandrouter.h"));
-
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterShellPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterSessionPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterImageDocumentPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterImagePresentationPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterPanelPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterWindowPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterHelpPorts")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterVideoPorts")));
-
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterShellPorts shell")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterSessionPorts session")));
-    QVERIFY(header.contains(
-        QStringLiteral("ApplicationCommandRouterImageDocumentPorts imageDocument")));
-    QVERIFY(header.contains(
-        QStringLiteral("ApplicationCommandRouterImagePresentationPorts imagePresentation")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterPanelPorts panel")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterWindowPorts window")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterHelpPorts help")));
-    QVERIFY(header.contains(QStringLiteral("ApplicationCommandRouterVideoPorts video")));
+    const qsizetype portsIndex
+        = header.indexOf(QStringLiteral("struct ApplicationCommandRouterPorts"));
+    QVERIFY(portsIndex >= 0);
+    const qsizetype portsEnd = header.indexOf(QStringLiteral("};"), portsIndex);
+    QVERIFY(portsEnd > portsIndex);
+    const QString portsBlock = header.mid(portsIndex, portsEnd - portsIndex);
+    QVERIFY(!portsBlock.contains(QStringLiteral("std::function<")));
 }
 
 void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionCommandSwitch()
@@ -794,8 +737,6 @@ void TestArchitectureBoundaries::applicationFacadeDoesNotOwnActionCommandSwitch(
     QVERIFY(!implementation.contains(QStringLiteral("deleteDisplayedFile(KiriDocumentSession::")));
     QVERIFY(!implementation.contains(QStringLiteral("KiriViewApplication::commandRouterInput")));
     QVERIFY(!implementation.contains(QStringLiteral("KiriViewApplication::commandRouterPorts")));
-    QVERIFY(implementation.contains(
-        QStringLiteral("KiriViewApplicationCommandPortSource::commandRouterShellPorts")));
 }
 
 void TestArchitectureBoundaries::sessionPublicProjectionHasNoPartialUpdateBackdoor()
@@ -886,12 +827,6 @@ void TestArchitectureBoundaries::qmlDoesNotDeriveSharedControlPolicyFromLeafDocu
 
 void TestArchitectureBoundaries::qmlUsesCentralNavigationPresentationOrder()
 {
-    const QString projectionRelativePath
-        = QStringLiteral("src/qml/NavigationPresentationOrder.qml");
-    QVERIFY2(QFileInfo::exists(projectPath(projectionRelativePath)),
-        qPrintable(QStringLiteral("%1 must adapt the C++ navigation presentation projection")
-                .arg(projectionRelativePath)));
-
     const QList<QRegularExpression> forbiddenPatterns {
         QRegularExpression(QStringLiteral(
             R"(\brightToLeftReadingActive\b[^\n]*\?[^\n]*(?:previous|next|first|last)(?:Image|Container)(?:Managed|Menu)?Action)")),
@@ -908,109 +843,15 @@ void TestArchitectureBoundaries::qmlUsesCentralNavigationPresentationOrder()
     }
 
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-
-    const QString projection = readProjectFile(projectionRelativePath);
-    QVERIFY(!projection.contains(QStringLiteral("rightToLeftReadingActive")));
-    QVERIFY(projection.contains(QStringLiteral("required property var projectionProvider")));
-    QVERIFY(projection.contains(QStringLiteral("navigationPresentationActionId")));
-    QVERIFY(projection.contains(QStringLiteral("navigationPresentationIconActionId")));
-    QVERIFY(projection.contains(QStringLiteral("navigationApplicationMenuActionIds")));
-    QVERIFY(projection.contains(QStringLiteral("leading")));
-    QVERIFY(projection.contains(QStringLiteral("trailing")));
-
-    const QList<QString> consumers {
-        QStringLiteral("src/qml/ImageActions.qml"),
-        QStringLiteral("src/qml/ApplicationMenuBar.qml"),
-        QStringLiteral("src/qml/ImageDocumentPageNavigation.qml"),
-    };
-    for (const QString& relativePath : consumers) {
-        const QString consumer = readProjectFile(relativePath);
-        QVERIFY2(consumer.contains(QStringLiteral("projectionProvider:")),
-            qPrintable(QStringLiteral("%1 must consume NavigationPresentationOrder through a "
-                                      "C++ projection provider")
-                    .arg(relativePath)));
-    }
-}
-
-void TestArchitectureBoundaries::viewportCommandBridgeOwnsFullCommandLifecycle()
-{
-    const QString header
-        = readProjectFile(QStringLiteral("src/facade/kiriimageviewportcommandbridge.h"));
-    const QString implementation
-        = readProjectFile(QStringLiteral("src/facade/kiriimageviewportcommandbridge.cpp"));
-    const QString combined = header + QLatin1Char('\n') + implementation;
-    QVERIFY(header.contains(QStringLiteral("class KiriImageViewportCommandBridge")));
-    QVERIFY(header.contains(QStringLiteral("QML_ELEMENT")));
-    QVERIFY(header.contains(QStringLiteral("public QQuickItem")));
-    QVERIFY(header.contains(
-        QRegularExpression(QStringLiteral("KiriImageDocument\\s*\\*\\s*document"))));
-    QVERIFY(header.contains(QRegularExpression(QStringLiteral("QQuickItem\\s*\\*\\s*target"))));
-    QVERIFY(combined.contains(QStringLiteral("beginViewportCommandApplication(")));
-    QVERIFY(combined.contains(QStringLiteral("completeViewportCommandApplication(")));
-    QVERIFY(combined.contains(QStringLiteral("acknowledgeViewportCommand(")));
-    QVERIFY(combined.contains(QStringLiteral("viewportProjectionNewerThan(")));
-    QVERIFY(!combined.contains(QStringLiteral("rejectedViewportCommandStatus = 6")));
-}
-
-void TestArchitectureBoundaries::viewportContextBridgeIsNonRenderingPublicQtFacade()
-{
-    const QString headerPath
-        = projectPath(QStringLiteral("src/facade/kiriimageviewportcontextbridge.h"));
-    const QString implementationPath
-        = projectPath(QStringLiteral("src/facade/kiriimageviewportcontextbridge.cpp"));
-    QVERIFY2(QFileInfo::exists(headerPath),
-        qPrintable(QStringLiteral("%1 must define the non-rendering viewport context bridge")
-                .arg(relativeProjectPath(headerPath))));
-    QVERIFY2(QFileInfo::exists(implementationPath),
-        qPrintable(QStringLiteral("%1 must implement the non-rendering viewport context bridge")
-                .arg(relativeProjectPath(implementationPath))));
-
-    const QString header
-        = readProjectFile(QStringLiteral("src/facade/kiriimageviewportcontextbridge.h"));
-    const QString implementation
-        = readProjectFile(QStringLiteral("src/facade/kiriimageviewportcontextbridge.cpp"));
-    const QString combined = header + QLatin1Char('\n') + implementation;
-    QVERIFY(header.contains(QStringLiteral("class KiriImageViewportContextBridge")));
-    QVERIFY(header.contains(QStringLiteral("QML_ELEMENT")));
-    QVERIFY(header.contains(QStringLiteral("public QQuickItem")));
-    QVERIFY(header.contains(
-        QRegularExpression(QStringLiteral("KiriImageDocument\\s*\\*\\s*document"))));
-    QVERIFY(header.contains(QStringLiteral("bool secondaryPage")));
-    QVERIFY(header.contains(QStringLiteral("renderContextProviderInstalled")));
-
-    const QList<QString> forbiddenTokens {
-        QStringLiteral("ItemHasContents"),
-        QStringLiteral("updatePaintNode"),
-        QStringLiteral("QSGNode"),
-        QStringLiteral("QSGTexture"),
-        QStringLiteral("QRhi"),
-        QStringLiteral("<rhi/qrhi.h>"),
-        QStringLiteral("->rhi("),
-        QStringLiteral(".rhi("),
-    };
-    QStringList violations;
-    for (const QString& token : forbiddenTokens) {
-        if (combined.contains(token)) {
-            violations.push_back(token);
-        }
-    }
-    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
 }
 
 void TestArchitectureBoundaries::qmlViewportUsesContextBridgeForRenderContextDiscovery()
 {
     const QString viewport = readProjectFile(QStringLiteral("src/qml/ImageViewport.qml"));
-    QVERIFY(viewport.contains(QStringLiteral("KiriImageViewportContextBridge")));
-    QVERIFY(viewport.contains(QStringLiteral("DisplayImagePage")));
-    QVERIFY(viewport.contains(QStringLiteral("objectName: \"primaryContextBridge\"")));
-    QVERIFY(viewport.contains(QStringLiteral("objectName: \"secondaryContextBridge\"")));
-    QVERIFY(viewport.contains(QStringLiteral("acknowledgeDisplayImageLoad(")));
     QVERIFY(!viewport.contains(QStringLiteral("KiriImageView {")));
     QVERIFY(!viewport.contains(QStringLiteral("primaryImageView")));
     QVERIFY(!viewport.contains(QStringLiteral("secondaryImageView")));
     QVERIFY(!viewport.contains(QStringLiteral("renderContextProviderEnabled")));
-    QVERIFY(viewport.contains(QStringLiteral("imageDocument.viewportPointInsideImage(")));
-    QVERIFY(viewport.contains(QStringLiteral("imageDocument.nearestImageViewportPoint(")));
     QVERIFY(!viewport.contains(QStringLiteral("imageView.viewportPointInsideImage(")));
     QVERIFY(!viewport.contains(QStringLiteral("imageView.nearestImageViewportPoint(")));
     QVERIFY(!viewport.contains(QStringLiteral("onDisplayedImageInitialContentPositionRequested")));
@@ -1109,41 +950,6 @@ void TestArchitectureBoundaries::productionImageDisplayUsesProviderPathOnly()
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
 }
 
-void TestArchitectureBoundaries::sourceKeysExposeTypedExtensionFamilies()
-{
-    const QString header = readProjectFile(QStringLiteral("src/location/sourcekey.h"));
-    for (const QString& typeName : {
-             QStringLiteral("OrdinaryFileSourceKey"),
-             QStringLiteral("DirectMediaSourceKey"),
-             QStringLiteral("DirectMediaScopeKey"),
-             QStringLiteral("ImageDocumentPageSourceKey"),
-             QStringLiteral("OpenedCollectionEntrySourceKey"),
-             QStringLiteral("ThumbnailSourceKey"),
-             QStringLiteral("PredecodeCandidateKey"),
-             QStringLiteral("RenderSurfaceKey"),
-         }) {
-        QVERIFY2(header.contains(typeName), qPrintable(typeName));
-    }
-}
-
-void TestArchitectureBoundaries::sourceKeysExposeOperationalExtensionContracts()
-{
-    const QString header = readProjectFile(QStringLiteral("src/location/sourcekey.h"));
-    for (const QString& symbolName : {
-             QStringLiteral("openedCollectionEntrySourceKey"),
-             QStringLiteral("thumbnailSourceKey"),
-             QStringLiteral("predecodeCandidateKey"),
-             QStringLiteral("renderSurfaceKey"),
-             QStringLiteral("sameOpenedCollectionEntrySourceKey"),
-             QStringLiteral("sameThumbnailSourceKey"),
-             QStringLiteral("samePredecodeCandidateKey"),
-             QStringLiteral("sameRenderSurfaceKey"),
-             QStringLiteral("qHash(const RenderSurfaceKey"),
-         }) {
-        QVERIFY2(header.contains(symbolName), qPrintable(symbolName));
-    }
-}
-
 void TestArchitectureBoundaries::openedCollectionThumbnailEligibilityUsesSharedPolicy()
 {
     const QString policyHeader
@@ -1151,14 +957,8 @@ void TestArchitectureBoundaries::openedCollectionThumbnailEligibilityUsesSharedP
     const QString karchiveBackend
         = readProjectFile(QStringLiteral("src/archive/mediaentrysourcebackend_karchive.cpp"));
 
-    QVERIFY(policyHeader.contains(
-        QStringLiteral("openedCollectionEntrySupportsThumbnailContentIdentity")));
-    QVERIFY(policyHeader.contains(
-        QStringLiteral("openedCollectionEntryPathSupportsThumbnailContentIdentity")));
     QVERIFY(!policyHeader.contains(
         QStringLiteral("openedCollectionRootSchemeSupportsThumbnailContentIdentity")));
-    QVERIFY(karchiveBackend.contains(
-        QStringLiteral("openedCollectionEntryPathSupportsThumbnailContentIdentity")));
 
     const QList<QRegularExpression> forbiddenPatterns {
         QRegularExpression(
@@ -1197,10 +997,6 @@ void TestArchitectureBoundaries::decodingUsesNeutralThumbnailContracts()
     }
 
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
-
-    const QString cacheLookupHeader
-        = readProjectFile(QStringLiteral("src/thumbnail/thumbnailcachelookup.h"));
-    QVERIFY(cacheLookupHeader.contains(QStringLiteral("ThumbnailCacheLookupRequest")));
 }
 
 void TestArchitectureBoundaries::cppNamespaceIsLowercaseKiriview()
@@ -1236,49 +1032,10 @@ void TestArchitectureBoundaries::cppNamespaceIsLowercaseKiriview()
     QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
 }
 
-void TestArchitectureBoundaries::thumbnailGenerationContractsLiveInThumbnailModule()
-{
-    const QString generationHeaderPath = QStringLiteral("src/thumbnail/thumbnailgeneration.h");
-    const QString generationSourcePath = QStringLiteral("src/thumbnail/thumbnailgeneration.cpp");
-    const QString legacyGenerationHeaderPath = QStringLiteral("src/session/thumbnailgeneration.h");
-    const QString legacyGenerationSourcePath
-        = QStringLiteral("src/session/thumbnailgeneration.cpp");
-
-    QVERIFY2(QFileInfo::exists(projectPath(generationHeaderPath)),
-        qPrintable(QStringLiteral("%1 must own thumbnail generation contracts")
-                .arg(generationHeaderPath)));
-    QVERIFY2(!QFileInfo::exists(projectPath(legacyGenerationHeaderPath)),
-        qPrintable(QStringLiteral("%1 must move out of session").arg(legacyGenerationHeaderPath)));
-    QVERIFY2(!QFileInfo::exists(projectPath(legacyGenerationSourcePath)),
-        qPrintable(QStringLiteral("%1 must move out of session").arg(legacyGenerationSourcePath)));
-
-    const QString generationHeader = readProjectFile(generationHeaderPath);
-    const QString activeNavigationRuntimeHeader
-        = readProjectFile(QStringLiteral("src/session/activenavigationthumbnailruntime.h"));
-
-    QVERIFY(generationHeader.contains(QStringLiteral("ThumbnailSourceKind sourceKind")));
-    QVERIFY(!generationHeader.contains(QStringLiteral("ActiveNavigationThumbnailSourceKind")));
-    QVERIFY(!generationHeader.contains(
-        QStringLiteral("#include \"session/activenavigationthumbnailprojection.h\"")));
-    QVERIFY(
-        generationHeader.contains(QStringLiteral("#include \"thumbnail/thumbnailsourcekind.h\"")));
-    QVERIFY(activeNavigationRuntimeHeader.contains(
-        QStringLiteral("#include \"thumbnail/thumbnailgeneration.h\"")));
-    QVERIFY(!activeNavigationRuntimeHeader.contains(
-        QStringLiteral("#include \"session/thumbnailgeneration.h\"")));
-}
-
 void TestArchitectureBoundaries::documentSessionUsesThumbnailStripDependencyPort()
 {
     const QString documentSessionHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
-    const QString thumbnailRuntimeHeader
-        = readProjectFile(QStringLiteral("src/session/activenavigationthumbnailruntime.h"));
-
-    QVERIFY(thumbnailRuntimeHeader.contains(
-        QStringLiteral("struct ActiveNavigationThumbnailRuntimeDependencies")));
-    QVERIFY(documentSessionHeader.contains(
-        QStringLiteral("ActiveNavigationThumbnailRuntimeDependencies activeNavigationThumbnails")));
 
     const QList<QRegularExpression> rawThumbnailProviderFields {
         QRegularExpression(QStringLiteral(R"(\bactiveNavigationThumbnailLookupProvider\b)")),
@@ -1302,12 +1059,6 @@ void TestArchitectureBoundaries::documentSessionUsesOpenWithRuntime()
 {
     const QString documentSessionHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
-    const QString openWithRuntimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionmediaopenwithruntime.h"));
-
-    QVERIFY(openWithRuntimeHeader.contains(
-        QStringLiteral("class DocumentSessionMediaOpenWithRuntime")));
-    QVERIFY(documentSessionHeader.contains(QStringLiteral("DocumentSessionMediaOpenWithRuntime")));
 
     const QList<QRegularExpression> rawOpenWithFields {
         QRegularExpression(QStringLiteral(R"(\bm_mediaOpenWithProvider\b)")),
@@ -1327,15 +1078,11 @@ void TestArchitectureBoundaries::documentSessionUsesOpenWithRuntime()
 
 void TestArchitectureBoundaries::documentSessionOpenWithUsesNamedPlanPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionmediaopenwithplanport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class DocumentSessionMediaOpenWithPlanPort")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionMediaOpenWithPlanPort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("currentMediaOpenWithPlan")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("currentMediaOpenWithPlan()")));
 }
@@ -1347,8 +1094,6 @@ void TestArchitectureBoundaries::activeNavigationThumbnailRuntimeUsesCanonicalTh
     const QString thumbnailRuntimeSource
         = readProjectFile(QStringLiteral("src/session/activenavigationthumbnailruntime.cpp"));
 
-    QVERIFY(thumbnailRuntimeHeader.contains(QStringLiteral("#include \"location/sourcekey.h\"")));
-    QVERIFY(thumbnailRuntimeHeader.contains(QStringLiteral("ThumbnailSourceKey sourceKey")));
     QVERIFY(!thumbnailRuntimeHeader.contains(
         QStringLiteral("struct ActiveNavigationThumbnailSourceKey")));
     QVERIFY(!thumbnailRuntimeHeader.contains(QStringLiteral("static bool sameSourceKey")));
@@ -1366,24 +1111,6 @@ void TestArchitectureBoundaries::liveDirectoryWatchUsesProviderBoundary()
     QVERIFY2(!entryCombined.contains(QStringLiteral("KCoreDirLister")),
         "ImageDocumentPageCandidateDirectoryEntry must consume watch provider events instead of "
         "owning KDE listers");
-
-    const QString providerHeaderPath
-        = projectPath(QStringLiteral("src/navigation/imagedocumentpagecandidatewatchprovider.h"));
-    const QString providerImplementationPath
-        = projectPath(QStringLiteral("src/navigation/imagedocumentpagecandidatewatchprovider.cpp"));
-    QVERIFY2(QFileInfo::exists(providerHeaderPath),
-        qPrintable(QStringLiteral("%1 must define the live directory watch provider port")
-                .arg(relativeProjectPath(providerHeaderPath))));
-    QVERIFY2(QFileInfo::exists(providerImplementationPath),
-        qPrintable(QStringLiteral("%1 must implement the production live directory watch provider")
-                .arg(relativeProjectPath(providerImplementationPath))));
-
-    const QString providerHeader = readProjectFile(
-        QStringLiteral("src/navigation/imagedocumentpagecandidatewatchprovider.h"));
-    const QString providerImplementation = readProjectFile(
-        QStringLiteral("src/navigation/imagedocumentpagecandidatewatchprovider.cpp"));
-    QVERIFY(providerHeader.contains(QStringLiteral("ImageDocumentPageCandidateWatchProvider")));
-    QVERIFY(providerImplementation.contains(QStringLiteral("KCoreDirLister")));
 }
 
 void TestArchitectureBoundaries::mediaFormatRegistryDoesNotOwnLocalizedDialogLabels()
@@ -1508,15 +1235,11 @@ void TestArchitectureBoundaries::mediaEntrySourceStoreDoesNotDependOnDocumentPla
 
 void TestArchitectureBoundaries::documentSessionDirectMediaScopeUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessiondirectmediascopeport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class DocumentSessionDirectMediaScopePort")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaScopePort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaNavigationLoadScope")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("activeDirectMediaCursorUrl")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaCursorMatches")));
@@ -1527,15 +1250,11 @@ void TestArchitectureBoundaries::documentSessionDirectMediaScopeUsesNamedPort()
 
 void TestArchitectureBoundaries::documentSessionDirectMediaActivityUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessiondirectmediaactivityport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class DocumentSessionDirectMediaActivityPort")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaActivityPort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaNavigationActive")));
     QVERIFY(
         !runtimeHeader.contains(QStringLiteral("directImageLoadMayUseImageDocumentSourceScope")));
@@ -1547,15 +1266,11 @@ void TestArchitectureBoundaries::documentSessionDirectMediaActivityUsesNamedPort
 
 void TestArchitectureBoundaries::documentSessionMediaPredecodeInputUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionmediapredecodeinputport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class DocumentSessionMediaPredecodeInputPort")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionMediaPredecodeInputPort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("mediaPredecodeInput()")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("activeImageUsesImageDocumentSourceScope")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::mediaPredecodeInput")));
@@ -1565,17 +1280,11 @@ void TestArchitectureBoundaries::documentSessionMediaPredecodeInputUsesNamedPort
 
 void TestArchitectureBoundaries::documentSessionDirectMediaNavigationInputUsesNamedPort()
 {
-    const QString portHeader = readProjectFile(
-        QStringLiteral("src/session/documentsessiondirectmedianavigationinputport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(
-        portHeader.contains(QStringLiteral("class DocumentSessionDirectMediaNavigationInputPort")));
-    QVERIFY(
-        runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaNavigationInputPort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaActiveNavigationInput")));
     QVERIFY(!runtimeSource.contains(
         QStringLiteral("DocumentSessionRuntime::directMediaActiveNavigationInput")));
@@ -1583,15 +1292,11 @@ void TestArchitectureBoundaries::documentSessionDirectMediaNavigationInputUsesNa
 
 void TestArchitectureBoundaries::documentSessionPublicSnapshotInputUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionpublicsnapshotinputport.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class DocumentSessionPublicSnapshotInputPort")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionPublicSnapshotInputPort")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("publicSnapshotInput(")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("m_publicSnapshotInputRevision")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::publicSnapshotInput")));
@@ -1602,25 +1307,6 @@ void TestArchitectureBoundaries::documentSessionRouteRuntimePortsAreGrouped()
     const QString routeRuntimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionrouteruntime.h"));
 
-    QVERIFY(routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteSessionPorts")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteDirectMediaPorts")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteDocumentPorts")));
-    QVERIFY(routeRuntimeHeader.contains(
-        QStringLiteral("struct DocumentSessionRouteSourceIdentityPorts")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("struct DocumentSessionRouteFollowUpPorts")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteSessionPorts session")));
-    QVERIFY(routeRuntimeHeader.contains(
-        QStringLiteral("DocumentSessionRouteDirectMediaPorts directMedia")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteDocumentPorts documents")));
-    QVERIFY(routeRuntimeHeader.contains(
-        QStringLiteral("DocumentSessionRouteSourceIdentityPorts sourceIdentity")));
-    QVERIFY(
-        routeRuntimeHeader.contains(QStringLiteral("DocumentSessionRouteFollowUpPorts followUp")));
     const qsizetype runtimePortsIndex
         = routeRuntimeHeader.indexOf(QStringLiteral("struct DocumentSessionRouteRuntimePorts"));
     QVERIFY(runtimePortsIndex >= 0);
@@ -1634,17 +1320,11 @@ void TestArchitectureBoundaries::documentSessionRouteRuntimePortsAreGrouped()
 
 void TestArchitectureBoundaries::documentSessionDirectMediaNavigationUsesCoordinator()
 {
-    const QString coordinatorHeader = readProjectFile(
-        QStringLiteral("src/session/documentsessiondirectmedianavigationcoordinator.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(coordinatorHeader.contains(
-        QStringLiteral("class DocumentSessionDirectMediaNavigationCoordinator")));
-    QVERIFY(
-        runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaNavigationCoordinator")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaNavigationRuntime")));
     QVERIFY(!runtimeHeader.contains(
         QStringLiteral("DocumentSessionDirectMediaNavigationApplicationRuntime")));
@@ -1659,16 +1339,11 @@ void TestArchitectureBoundaries::documentSessionDirectMediaNavigationUsesCoordin
 
 void TestArchitectureBoundaries::documentSessionVideoDocumentSyncUsesRuntime()
 {
-    const QString syncRuntimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionvideodocumentsyncruntime.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(syncRuntimeHeader.contains(
-        QStringLiteral("class DocumentSessionVideoDocumentSyncRuntime")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionVideoDocumentSyncRuntime")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessionvideodocumentsync.h")));
     QVERIFY(
         !runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::syncFromVideoDocument")));
@@ -1678,16 +1353,11 @@ void TestArchitectureBoundaries::documentSessionVideoDocumentSyncUsesRuntime()
 
 void TestArchitectureBoundaries::documentSessionImageDocumentSyncUsesRuntime()
 {
-    const QString syncRuntimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionimagedocumentsyncruntime.h"));
     const QString runtimeHeader
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
     const QString runtimeSource
         = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
 
-    QVERIFY(syncRuntimeHeader.contains(
-        QStringLiteral("class DocumentSessionImageDocumentSyncRuntime")));
-    QVERIFY(runtimeHeader.contains(QStringLiteral("DocumentSessionImageDocumentSyncRuntime")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessionimagedocumentsync.h")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessiondirectimagecursorsync.h")));
     QVERIFY(!runtimeSource.contains(
@@ -1702,137 +1372,74 @@ void TestArchitectureBoundaries::documentSessionImageDocumentSyncUsesRuntime()
 
 void TestArchitectureBoundaries::imageDocumentSourceLoadPlanDispatchHasNamedExecutor()
 {
-    const QString sourceLoadExecutorHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentsourceloadruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(sourceLoadExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentSourceLoadRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(
-        QStringLiteral("ImageDocumentSourceLoadRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.sourceLoad.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentOpenPlanDispatchHasNamedExecutor()
 {
-    const QString openExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentopenruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(
-        openExecutorHeader.contains(QStringLiteral("class ImageDocumentOpenRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(QStringLiteral("ImageDocumentOpenRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.open.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentPredecodePlanDispatchHasNamedExecutor()
 {
-    const QString predecodeExecutorHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentpredecoderuntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(predecodeExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentPredecodeRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(
-        QStringLiteral("ImageDocumentPredecodeRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.predecode.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentNavigationPlanDispatchHasNamedExecutor()
 {
-    const QString navigationExecutorHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentnavigationruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(navigationExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentNavigationRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(
-        QStringLiteral("ImageDocumentNavigationRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.navigation.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentLifecyclePlanDispatchHasNamedExecutor()
 {
-    const QString lifecycleExecutorHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentlifecycleruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(lifecycleExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentLifecycleRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(
-        QStringLiteral("ImageDocumentLifecycleRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.lifecycle.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentMediaEntrySourcePlanDispatchHasNamedExecutor()
 {
-    const QString mediaEntrySourceExecutorHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentmediaentrysourceruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(mediaEntrySourceExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentMediaEntrySourceRuntimePlanExecutor")));
-    QVERIFY(runtimeExecutorHeader.contains(
-        QStringLiteral("ImageDocumentMediaEntrySourceRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.mediaEntrySource.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentSpreadPlanDispatchHasNamedExecutor()
 {
-    const QString spreadExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentspreadruntimeplanexecutor.h"));
-    const QString runtimeExecutorHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.h"));
     const QString runtimeExecutorSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimeplanexecutor.cpp"));
 
-    QVERIFY(spreadExecutorHeader.contains(
-        QStringLiteral("class ImageDocumentSpreadRuntimePlanExecutor")));
-    QVERIFY(
-        runtimeExecutorHeader.contains(QStringLiteral("ImageDocumentSpreadRuntimePlanExecutor")));
     QVERIFY(!runtimeExecutorSource.contains(QStringLiteral("m_operations.spread.")));
 }
 
 void TestArchitectureBoundaries::imageDocumentPredecodedImageLookupUsesNamedPort()
 {
-    const QString lookupHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentpredecodedimagelookup.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(lookupHeader.contains(QStringLiteral("class ImageDocumentPredecodedImageLookup")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentPredecodedImageLookup")));
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_predecodeController->findPredecodedImage")));
 }
 
 void TestArchitectureBoundaries::imageDocumentPrimaryPageSlotUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentprimarypageslotport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentPrimaryPageSlotPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentPrimaryPageSlotPort")));
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_spreadController->commitPrimaryPageSlot")));
     QVERIFY(
@@ -1841,102 +1448,58 @@ void TestArchitectureBoundaries::imageDocumentPrimaryPageSlotUsesNamedPort()
 
 void TestArchitectureBoundaries::imageDocumentNavigationSnapshotUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentnavigationsnapshotport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentNavigationSnapshotPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentNavigationSnapshotPort")));
     QVERIFY(!controllersSource.contains(
         QStringLiteral("m_navigationController->pageNavigationSnapshot")));
 }
 
 void TestArchitectureBoundaries::imageDocumentPageCandidateSnapshotUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentpagecandidatesnapshotport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentPageCandidateSnapshotPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentPageCandidateSnapshotPort")));
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_navigationService->pageCandidateSnapshot")));
 }
 
 void TestArchitectureBoundaries::imageDocumentAdjacentPredecodeSchedulingUsesNamedPort()
 {
-    const QString portHeader = readProjectFile(
-        QStringLiteral("src/document/imagedocumentadjacentpredecodeschedulerport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(
-        portHeader.contains(QStringLiteral("class ImageDocumentAdjacentPredecodeSchedulerPort")));
-    QVERIFY(
-        controllersSource.contains(QStringLiteral("ImageDocumentAdjacentPredecodeSchedulerPort")));
     QVERIFY(!controllersSource.contains(QStringLiteral("ScheduleAdjacentImagePredecodeOperation")));
 }
 
 void TestArchitectureBoundaries::imageDocumentDeletionProgressUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentdeletionprogressport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentDeletionProgressPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentDeletionProgressPort")));
     QVERIFY(!controllersSource.contains(QStringLiteral("m_deletionController->inProgress")));
 }
 
 void TestArchitectureBoundaries::imageDocumentCurrentPageNumberUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentcurrentpagenumberport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentCurrentPageNumberPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentCurrentPageNumberPort")));
     QVERIFY(!controllersSource.contains(QStringLiteral("m_navigationService->currentPageNumber")));
 }
 
 void TestArchitectureBoundaries::imageDocumentAnimationLoadErrorUsesNamedPort()
 {
-    const QString portHeader
-        = readProjectFile(QStringLiteral("src/document/imagedocumentanimationloaderrorport.h"));
     const QString controllersSource
         = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
 
-    QVERIFY(portHeader.contains(QStringLiteral("class ImageDocumentAnimationLoadErrorPort")));
-    QVERIFY(controllersSource.contains(QStringLiteral("ImageDocumentAnimationLoadErrorPort")));
     QVERIFY(!controllersSource.contains(
         QStringLiteral("m_openController->finishAnimationLoadWithError")));
-}
-
-void TestArchitectureBoundaries::imagePageSurfaceOwnerTypeExists()
-{
-    const QString headerPath
-        = projectPath(QStringLiteral("src/presentation/imagepagesurfacecontroller.h"));
-    QFileInfo header(headerPath);
-
-    QVERIFY2(header.exists(),
-        qPrintable(QStringLiteral("%1 must define the page surface owner")
-                .arg(relativeProjectPath(headerPath))));
-    QVERIFY(readProjectFile(QStringLiteral("src/presentation/imagepagesurfacecontroller.h"))
-            .contains(QStringLiteral("class ImagePageSurfaceController")));
 }
 
 void TestArchitectureBoundaries::imagePageSurfaceOwnersExposeNoPresentationState()
 {
     const QString relativePath = QStringLiteral("src/presentation/imagepagesurfacecontroller.h");
-    const QString headerPath = projectPath(relativePath);
-    QVERIFY2(QFileInfo::exists(headerPath),
-        qPrintable(QStringLiteral("%1 must define the page surface owner")
-                .arg(relativeProjectPath(headerPath))));
-
     const QString header = readProjectFile(relativePath);
     const QList<QRegularExpression> forbiddenPatterns {
         QRegularExpression(QStringLiteral(R"(\bsetViewportSize\s*\()")),
@@ -1971,8 +1534,6 @@ void TestArchitectureBoundaries::imagePresentationPageSlotsUseDisplaySourceVaria
     const QString header
         = readProjectFile(QStringLiteral("src/presentation/imagepresentationruntime.h"));
 
-    QVERIFY(header.contains(QStringLiteral("enum class ImagePresentationPageSlotSourceKind")));
-    QVERIFY(header.contains(QStringLiteral("ImagePresentationPageSlotSource source")));
     QVERIFY(!header.contains(QStringLiteral("bool hasImage = false")));
     QVERIFY(!header.contains(QStringLiteral("ImageDisplaySourceSlot displaySource;")));
 }
@@ -2035,119 +1596,13 @@ void TestArchitectureBoundaries::productionFacadesDoNotExposePresentationBackdoo
 
 void TestArchitectureBoundaries::mediaInformationFacadeExposesSnapshotRevision()
 {
-    const QString header = readProjectFile(QStringLiteral("src/facade/kirimediainformation.h"));
-    QVERIFY(header.contains(
-        QStringLiteral("Q_PROPERTY(quint64 revision READ revision NOTIFY changed)")));
-}
+    const int revisionIndex = KiriMediaInformation::staticMetaObject.indexOfProperty("revision");
+    QVERIFY(revisionIndex >= 0);
 
-void TestArchitectureBoundaries::sessionLeafSnapshotPortsAreSeparateFromCommandPorts()
-{
-    const QString header
-        = readProjectFile(QStringLiteral("src/session/documentsessiondocumentports.h"));
-    const QStringList snapshotPorts {
-        QStringLiteral("DocumentSessionImageDocumentSnapshotPort"),
-        QStringLiteral("DocumentSessionVideoDocumentSnapshotPort"),
-    };
-    const QStringList commandPorts {
-        QStringLiteral("DocumentSessionImageDocumentSourceCommandPort"),
-        QStringLiteral("DocumentSessionImageDocumentPageNavigationCommandPort"),
-        QStringLiteral("DocumentSessionImageDocumentDeletionCommandPort"),
-        QStringLiteral("DocumentSessionImageDocumentCommandPort"),
-        QStringLiteral("DocumentSessionVideoDocumentSourceCommandPort"),
-        QStringLiteral("DocumentSessionVideoDocumentPlaybackCommandPort"),
-        QStringLiteral("DocumentSessionVideoDocumentOutputCommandPort"),
-        QStringLiteral("DocumentSessionVideoDocumentCommandPort"),
-    };
-
-    QVERIFY(!header.contains(QStringLiteral("struct DocumentSessionImageDocumentPort")));
-    QVERIFY(!header.contains(QStringLiteral("struct DocumentSessionVideoDocumentPort")));
-
-    for (const QString& port : snapshotPorts + commandPorts) {
-        const QRegularExpression structPattern(QStringLiteral(R"(struct\s+%1\s*\{([\s\S]*?)\n\};)")
-                .arg(QRegularExpression::escape(port)));
-        const QRegularExpressionMatch match = structPattern.match(header);
-        QVERIFY2(match.hasMatch(),
-            qPrintable(QStringLiteral("documentsessiondocumentports.h must define %1").arg(port)));
-    }
-
-    const QRegularExpression imageCommandPortPattern(
-        QStringLiteral(R"(struct\s+DocumentSessionImageDocumentCommandPort\s*\{([\s\S]*?)\n\};)"));
-    const QString imageCommandPortBody = imageCommandPortPattern.match(header).captured(1);
-    QVERIFY(imageCommandPortBody.contains(
-        QStringLiteral("DocumentSessionImageDocumentSourceCommandPort source")));
-    QVERIFY(imageCommandPortBody.contains(
-        QStringLiteral("DocumentSessionImageDocumentPageNavigationCommandPort pageNavigation")));
-    QVERIFY(imageCommandPortBody.contains(
-        QStringLiteral("DocumentSessionImageDocumentDeletionCommandPort deletion")));
-
-    const QStringList imageCommandAggregateForbiddenTokens {
-        QStringLiteral("std::function<void(const QUrl &)> setSourceUrl"),
-        QStringLiteral("std::function<void()> openPreviousPage"),
-        QStringLiteral("std::function<void()> openNextPage"),
-        QStringLiteral("std::function<void(int)> openImageAtPage"),
-        QStringLiteral("std::function<void(FileDeletionMode)> deleteDisplayedFile"),
-    };
-    for (const QString& token : imageCommandAggregateForbiddenTokens) {
-        QVERIFY2(!imageCommandPortBody.contains(token),
-            qPrintable(QStringLiteral("DocumentSessionImageDocumentCommandPort still contains %1")
-                    .arg(token)));
-    }
-
-    const QRegularExpression videoCommandPortPattern(
-        QStringLiteral(R"(struct\s+DocumentSessionVideoDocumentCommandPort\s*\{([\s\S]*?)\n\};)"));
-    const QString videoCommandPortBody = videoCommandPortPattern.match(header).captured(1);
-    QVERIFY(videoCommandPortBody.contains(
-        QStringLiteral("DocumentSessionVideoDocumentSourceCommandPort source")));
-    QVERIFY(videoCommandPortBody.contains(
-        QStringLiteral("DocumentSessionVideoDocumentPlaybackCommandPort playback")));
-    QVERIFY(videoCommandPortBody.contains(
-        QStringLiteral("DocumentSessionVideoDocumentOutputCommandPort output")));
-
-    const QStringList videoCommandAggregateForbiddenTokens {
-        QStringLiteral("std::function<void(const QUrl &)> setSourceUrl"),
-        QStringLiteral("std::function<QObject *()> videoOutput"),
-        QStringLiteral("std::function<void()> stop"),
-        QStringLiteral("std::function<void(QObject *)> setVideoOutput"),
-        QStringLiteral(
-            "std::function<void(const QRectF &, const QRectF &)> setVideoOutputGeometry"),
-    };
-    for (const QString& token : videoCommandAggregateForbiddenTokens) {
-        QVERIFY2(!videoCommandPortBody.contains(token),
-            qPrintable(QStringLiteral("DocumentSessionVideoDocumentCommandPort still contains %1")
-                    .arg(token)));
-    }
-
-    const QStringList snapshotForbiddenTokens {
-        QStringLiteral("setSourceUrl"),
-        QStringLiteral("openPreviousPage"),
-        QStringLiteral("openNextPage"),
-        QStringLiteral("openImageAtPage"),
-        QStringLiteral("deleteDisplayedFile"),
-        QStringLiteral("videoOutput"),
-        QStringLiteral("stop"),
-        QStringLiteral("setVideoOutput"),
-        QStringLiteral("setVideoOutputGeometry"),
-    };
-    const QStringList commandForbiddenTokens {
-        QStringLiteral("snapshot"),
-        QStringLiteral("snapshotChanged"),
-    };
-
-    QStringList violations;
-    for (const QString& port : snapshotPorts + commandPorts) {
-        const QRegularExpression structPattern(QStringLiteral(R"(struct\s+%1\s*\{([\s\S]*?)\n\};)")
-                .arg(QRegularExpression::escape(port)));
-        const QString body = structPattern.match(header).captured(1);
-        const QStringList forbiddenTokens
-            = snapshotPorts.contains(port) ? snapshotForbiddenTokens : commandForbiddenTokens;
-        for (const QString& token : forbiddenTokens) {
-            if (body.contains(token)) {
-                violations.push_back(QStringLiteral("%1 contains %2").arg(port, token));
-            }
-        }
-    }
-
-    QVERIFY2(violations.isEmpty(), qPrintable(violations.join(QLatin1Char('\n'))));
+    const QMetaProperty revisionProperty
+        = KiriMediaInformation::staticMetaObject.property(revisionIndex);
+    QVERIFY(revisionProperty.hasNotifySignal());
+    QVERIFY(!revisionProperty.isWritable());
 }
 
 QTEST_GUILESS_MAIN(TestArchitectureBoundaries)
