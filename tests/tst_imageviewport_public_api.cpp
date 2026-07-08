@@ -65,6 +65,21 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "verticalAlignment",
         "zoom",
         "pan",
+        "spreadDirection",
+        "pageGap",
+        "fitMode",
+        "zoomPercent",
+        "minimumManualZoomPercent",
+        "maximumManualZoomPercent",
+        "manualZoomStepFactor",
+        "rotationDegrees",
+        "smoothing",
+        "mipmap",
+        "mirrorHorizontally",
+        "mirrorVertically",
+        "backgroundMode",
+        "backgroundColor",
+        "looping",
     };
 
     for (const QByteArray& property : absentProperties) {
@@ -118,25 +133,6 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
             method.constData());
     }
 
-    const QList<QByteArray> readOnlyProperties = {
-        "spreadDirection",
-        "pageGap",
-        "fitMode",
-        "zoomPercent",
-        "smoothing",
-        "mipmap",
-        "mirrorHorizontally",
-        "mirrorVertically",
-        "backgroundMode",
-        "backgroundColor",
-        "looping",
-    };
-
-    for (const QByteArray& property : readOnlyProperties) {
-        const int propertyIndex = metaObject->indexOfProperty(property.constData());
-        QVERIFY2(propertyIndex >= 0, property.constData());
-        QVERIFY2(!metaObject->property(propertyIndex).isWritable(), property.constData());
-    }
 }
 
 void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
@@ -165,18 +161,12 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "displayedImageSize",
         "contentRect",
         "visibleImageRect",
+        "state",
         "displayRevision",
         "requestRevision",
         "commandRevision",
         "errorString",
         "warningString",
-        "smoothing",
-        "mipmap",
-        "mirrorHorizontally",
-        "mirrorVertically",
-        "backgroundMode",
-        "backgroundColor",
-        "looping",
     };
 
     for (const QByteArray& property : properties) {
@@ -244,8 +234,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "secondarySequence",
         "primaryPageGeometry",
         "secondaryPageGeometry",
-        "spreadDirection",
-        "pageGap",
         "primaryDisplayedFrame",
         "primaryRequestedFrame",
         "secondaryDisplayedFrame",
@@ -283,16 +271,35 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "maximumContentPosition",
         "horizontalPannable",
         "verticalPannable",
+    };
+
+    for (const QByteArray& property : properties) {
+        QVERIFY2(metaObject->indexOfProperty(property.constData()) >= 0, property.constData());
+    }
+
+    const QMetaObject& presentationMetaObject = ImageViewportPresentationSnapshot::staticMetaObject;
+    const QList<QByteArray> presentationProperties = {
         "fitMode",
         "zoomPercent",
         "minimumManualZoomPercent",
         "maximumManualZoomPercent",
         "manualZoomStepFactor",
         "rotationDegrees",
+        "mirrorHorizontally",
+        "mirrorVertically",
+        "spreadDirection",
+        "pageGap",
+        "backgroundMode",
+        "backgroundColor",
+        "smoothing",
+        "mipmap",
+        "looping",
+        "qualityPreference",
+        "exactnessPreference",
     };
-
-    for (const QByteArray& property : properties) {
-        QVERIFY2(metaObject->indexOfProperty(property.constData()) >= 0, property.constData());
+    for (const QByteArray& property : presentationProperties) {
+        QVERIFY2(presentationMetaObject.indexOfProperty(property.constData()) >= 0,
+            property.constData());
     }
 
     const QList<QByteArray> enumerators = {
@@ -484,18 +491,18 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(item.property("errorString").toString(), QString());
     QCOMPARE(item.property("warningString").toString(), QString());
-    QCOMPARE(item.property("smoothing").toBool(), true);
-    QCOMPARE(item.property("mipmap").toBool(), false);
-    QCOMPARE(item.property("mirrorHorizontally").toBool(), false);
-    QCOMPARE(item.property("mirrorVertically").toBool(), false);
-    QCOMPARE(item.property("backgroundMode").toInt(),
-        enumValue(metaObject, "BackgroundMode", "Transparent"));
-    QCOMPARE(item.property("backgroundColor").value<QColor>(), QColor(Qt::transparent));
-    QCOMPARE(item.property("looping").toBool(), false);
-    QVERIFY(item.property("minimumManualZoomPercent").toDouble() > 0.0);
-    QCOMPARE(item.property("maximumManualZoomPercent").toDouble(),
+    const ImageViewportPresentationSnapshot presentation = item.state().presentation();
+    QCOMPARE(presentation.smoothing(), true);
+    QCOMPARE(presentation.mipmap(), false);
+    QCOMPARE(presentation.mirrorHorizontally(), false);
+    QCOMPARE(presentation.mirrorVertically(), false);
+    QCOMPARE(presentation.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
+    QCOMPARE(presentation.backgroundColor(), QColor(Qt::transparent));
+    QCOMPARE(presentation.looping(), false);
+    QVERIFY(presentation.minimumManualZoomPercent() > 0.0);
+    QCOMPARE(presentation.maximumManualZoomPercent(),
         ImageViewportDisplayLimits::maximumManualZoomPercent());
-    QCOMPARE(item.property("manualZoomStepFactor").toDouble(), 1.25);
+    QCOMPARE(presentation.manualZoomStepFactor(), 1.25);
 }
 
 void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNotAdvanceRevisions()

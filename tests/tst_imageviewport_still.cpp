@@ -113,8 +113,8 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 100.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
@@ -156,8 +156,8 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 100.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
@@ -217,8 +217,8 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 625.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
@@ -478,8 +478,8 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Manual"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 250.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(item.state().presentation().zoomPercent(), 250.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
@@ -624,8 +624,8 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     QCOMPARE(item.mirrorVertically(), true);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Manual"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 150.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.looping(), true);
 }
@@ -711,8 +711,8 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
-    QCOMPARE(item.property("zoomPercent").toDouble(), 625.0);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));

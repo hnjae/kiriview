@@ -467,8 +467,8 @@ ImageViewport {
         zoomStepCommand.zoomStepDelta = 1
         const stepOutcome = setPresentation(zoomStepCommand)
         const resetViewOutcome = resetView()
-        const minimum = minimumManualZoomPercent
-        const maximum = maximumManualZoomPercent
+        const minimum = state.presentation.minimumManualZoomPercent
+        const maximum = state.presentation.maximumManualZoomPercent
         commandSurfaceAvailable = requestStatus === ImageViewport.RequestStatus.NoRequest
             && requestReason === ImageViewport.RequestReason.NoRequest
             && displayStatus === ImageViewport.DisplayStatus.Empty
@@ -483,15 +483,20 @@ ImageViewport {
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
             && commandReason === ImageViewport.CommandReason.NoCommand
             && commandRevision.valid
-            && fitMode === ImageViewport.FitMode.Contain
-            && zoomPercent === 100
+            && state.presentation.fitMode === ImageViewport.FitMode.Contain
+            && state.presentation.zoomPercent === 100
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
-            && manualZoomStepFactor === 1.25
+            && state.presentation.manualZoomStepFactor === 1.25
             && typeof clampedManualZoomPercent === "undefined"
             && typeof steppedManualZoomPercent === "undefined"
             && typeof zoomByStep === "undefined"
             && typeof setZoomPercent === "undefined"
+            && typeof fitMode === "undefined"
+            && typeof zoomPercent === "undefined"
+            && typeof minimumManualZoomPercent === "undefined"
+            && typeof maximumManualZoomPercent === "undefined"
+            && typeof manualZoomStepFactor === "undefined"
             && contentPosition.x === 0
             && contentPosition.y === 0
             && frameSeekBounds.minimum === -1

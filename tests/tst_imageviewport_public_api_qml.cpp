@@ -316,8 +316,8 @@ ImageViewport {
         defaultsValid = sequence === null
             && primarySequence === null
             && secondarySequence === null
-            && spreadDirection === ImageViewport.SpreadDirection.LeftToRight
-            && pageGap === 0
+            && state.presentation.spreadDirection === ImageViewport.SpreadDirection.LeftToRight
+            && state.presentation.pageGap === 0
             && primaryDisplayedFrame === -1
             && secondaryDisplayedFrame === -1
             && primaryRequestedPosition === -1
@@ -340,18 +340,18 @@ ImageViewport {
             && maximumContentPosition.y === 0
             && horizontalPannable === false
             && verticalPannable === false
-            && fitMode === ImageViewport.FitMode.Contain
-            && zoomPercent === 100
-            && minimumManualZoomPercent > 0
-            && maximumManualZoomPercent === ImageViewportDisplayLimits.maximumManualZoomPercent
-            && manualZoomStepFactor === 1.25
-            && rotationDegrees === 0
+            && state.presentation.fitMode === ImageViewport.FitMode.Contain
+            && state.presentation.zoomPercent === 100
+            && state.presentation.minimumManualZoomPercent > 0
+            && state.presentation.maximumManualZoomPercent === ImageViewportDisplayLimits.maximumManualZoomPercent
+            && state.presentation.manualZoomStepFactor === 1.25
+            && state.presentation.rotationDegrees === 0
 
         const requestRevisionBefore = requestRevision
         const displayRevisionBefore = displayRevision
         const commandRevisionBefore = commandRevision
-        const minimum = minimumManualZoomPercent
-        const maximum = maximumManualZoomPercent
+        const minimum = state.presentation.minimumManualZoomPercent
+        const maximum = state.presentation.maximumManualZoomPercent
         manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
             && typeof viewport.steppedManualZoomPercent === "undefined"
             && typeof viewport.zoomByStep === "undefined"
@@ -368,6 +368,14 @@ ImageViewport {
             && typeof viewport.setPageGap === "undefined"
             && typeof viewport.setFitMode === "undefined"
             && typeof viewport.setZoomPercent === "undefined"
+            && typeof viewport.spreadDirection === "undefined"
+            && typeof viewport.pageGap === "undefined"
+            && typeof viewport.fitMode === "undefined"
+            && typeof viewport.zoomPercent === "undefined"
+            && typeof viewport.minimumManualZoomPercent === "undefined"
+            && typeof viewport.maximumManualZoomPercent === "undefined"
+            && typeof viewport.manualZoomStepFactor === "undefined"
+            && typeof viewport.rotationDegrees === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -470,7 +478,7 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property real observedMaximum: recorder.rememberMaximum(maximumManualZoomPercent)
+    property real observedMaximum: recorder.rememberMaximum(state.presentation.maximumManualZoomPercent)
 
     Component.onCompleted: {
         sequence = suppliedSequence
@@ -497,7 +505,8 @@ ImageViewport {
     QCoreApplication::processEvents();
 
     QVERIFY(recorder.count() > refreshCountBefore);
-    QCOMPARE(object->property("observedMaximum").toDouble(), viewport->maximumManualZoomPercent());
+    QCOMPARE(object->property("observedMaximum").toDouble(),
+        viewport->state().presentation().maximumManualZoomPercent());
 }
 
 void ImageViewportPublicApiQmlTest::qmlImportsDocumentedSurface()

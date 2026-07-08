@@ -859,8 +859,6 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(ImageSequence* sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
     Q_PROPERTY(ImageSequence* primarySequence READ primarySequence NOTIFY sequenceChanged)
     Q_PROPERTY(ImageSequence* secondarySequence READ secondarySequence NOTIFY sequenceChanged)
-    Q_PROPERTY(SpreadDirection spreadDirection READ spreadDirection NOTIFY presentationChanged)
-    Q_PROPERTY(double pageGap READ pageGap NOTIFY presentationChanged)
     Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
     Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
     Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
@@ -946,20 +944,6 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(RevisionToken commandRevision READ commandRevision NOTIFY commandRevisionChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
-    Q_PROPERTY(FitMode fitMode READ fitMode NOTIFY presentationChanged)
-    Q_PROPERTY(double zoomPercent READ zoomPercent NOTIFY presentationChanged)
-    Q_PROPERTY(double minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
-    Q_PROPERTY(
-        double maximumManualZoomPercent READ maximumManualZoomPercent NOTIFY geometryStateChanged)
-    Q_PROPERTY(double manualZoomStepFactor READ manualZoomStepFactor CONSTANT)
-    Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY presentationChanged)
-    Q_PROPERTY(bool smoothing READ smoothing NOTIFY presentationChanged)
-    Q_PROPERTY(bool mipmap READ mipmap NOTIFY presentationChanged)
-    Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally NOTIFY presentationChanged)
-    Q_PROPERTY(bool mirrorVertically READ mirrorVertically NOTIFY presentationChanged)
-    Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode NOTIFY presentationChanged)
-    Q_PROPERTY(QColor backgroundColor READ backgroundColor NOTIFY presentationChanged)
-    Q_PROPERTY(bool looping READ looping NOTIFY loopingChanged)
 
 public:
     enum class PageRole {
