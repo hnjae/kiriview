@@ -122,11 +122,39 @@ ImageViewportCoordinateResult nearestVisiblePrimaryPagePoint(
         QVariant::fromValue(ImageViewport::PageRole::Primary)));
 }
 
+ImageViewportCoordinateResult nearestVisibleSpreadCoordinate(
+    const ImageViewport& item, double x, double y)
+{
+    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Spread,
+        ImageViewport::CoordinateSpace::Spread, QPointF(x, y)));
+}
+
+ImageViewportCoordinateResult nearestVisiblePageCoordinate(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
+}
+
 bool containsVisiblePrimaryPagePoint(const ImageViewport& item, double x, double y)
 {
     return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
         ImageViewport::CoordinateSpace::Page, QPointF(x, y),
         QVariant::fromValue(ImageViewport::PageRole::Primary)));
+}
+
+bool containsVisibleSpreadCoordinate(const ImageViewport& item, double x, double y)
+{
+    return item.containsPoint(coordinateInput(
+        ImageViewport::CoordinateSpace::Spread, ImageViewport::CoordinateSpace::Spread,
+        QPointF(x, y)));
+}
+
+bool containsVisiblePageCoordinate(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportRange rangeProperty(const QObject& object, const char* propertyName)

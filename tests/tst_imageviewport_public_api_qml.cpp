@@ -427,24 +427,34 @@ ImageViewport {
             && setPresentation(verticalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
             && resetView() === ImageViewport.CommandOutcome.Accepted
 
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.point = Qt.point(1, 1)
+        const spreadNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
+        const spreadContainsInvalid = containsPoint(coordinateInput) === false
         coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
         coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
         coordinateInput.pageRole = ImageViewport.PageRole.Primary
-        coordinateInput.point = Qt.point(1, 1)
+        const pageNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
+        const pageContainsInvalid = containsPoint(coordinateInput) === false
         coordinateAliasesAvailable = itemToSpread(1, 1).valid === false
             && spreadToItem(1, 1).valid === false
-            && nearestVisibleSpreadPoint(1, 1).valid === false
             && itemToPage(ImageViewport.PageRole.Primary, 1, 1).valid === false
             && pageToItem(ImageViewport.PageRole.Primary, 1, 1).valid === false
-            && nearestVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1).valid === false
-            && containsVisibleSpreadPoint(1, 1) === false
-            && containsVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1) === false
+            && spreadNearestInvalid
+            && pageNearestInvalid
+            && spreadContainsInvalid
+            && pageContainsInvalid
             && nearestVisiblePoint(coordinateInput).valid === false
             && containsPoint(coordinateInput) === false
             && typeof viewport.itemToImage === "undefined"
             && typeof viewport.imageToItem === "undefined"
             && typeof viewport.nearestVisibleImagePoint === "undefined"
             && typeof viewport.containsVisibleImagePoint === "undefined"
+            && typeof viewport.nearestVisibleSpreadPoint === "undefined"
+            && typeof viewport.nearestVisiblePagePoint === "undefined"
+            && typeof viewport.containsVisibleSpreadPoint === "undefined"
+            && typeof viewport.containsVisiblePagePoint === "undefined"
     }
 }
 )",

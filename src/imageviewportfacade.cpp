@@ -206,10 +206,6 @@ CoordinateResult ImageViewport::spreadToItem(double x, double y) const
 {
     return d->spreadToItem(x, y);
 }
-CoordinateResult ImageViewport::nearestVisibleSpreadPoint(double x, double y) const
-{
-    return d->nearestVisibleSpreadPoint(x, y);
-}
 CoordinateResult ImageViewport::itemToPage(PageRole role, double x, double y) const
 {
     return d->itemToPage(role, x, y);
@@ -218,19 +214,7 @@ CoordinateResult ImageViewport::pageToItem(PageRole role, double x, double y) co
 {
     return d->pageToItem(role, x, y);
 }
-CoordinateResult ImageViewport::nearestVisiblePagePoint(PageRole role, double x, double y) const
-{
-    return d->nearestVisiblePagePoint(role, x, y);
-}
 PageGeometry ImageViewport::pageGeometry(PageRole role) const { return d->pageGeometry(role); }
-bool ImageViewport::containsVisibleSpreadPoint(double x, double y) const
-{
-    return d->containsVisibleSpreadPoint(x, y);
-}
-bool ImageViewport::containsVisiblePagePoint(PageRole role, double x, double y) const
-{
-    return d->containsVisiblePagePoint(role, x, y);
-}
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {

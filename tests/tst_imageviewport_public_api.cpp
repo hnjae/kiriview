@@ -125,6 +125,10 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "imageToItem(double,double)",
         "nearestVisibleImagePoint(double,double)",
         "containsVisibleImagePoint(double,double)",
+        "nearestVisibleSpreadPoint(double,double)",
+        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
+        "containsVisibleSpreadPoint(double,double)",
+        "containsVisiblePagePoint(ImageViewport::PageRole,double,double)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "setFitMode(ImageViewport::FitMode,QPointF)",
@@ -327,9 +331,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "pageGeometry(ImageViewport::PageRole)",
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
-        "containsVisibleSpreadPoint(double,double)",
-        "nearestVisibleSpreadPoint(double,double)",
-        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
     };
 
     for (const QByteArray& method : methods) {
@@ -375,8 +376,6 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         "spreadToItem(double,double)",
         "itemToPage(ImageViewport::PageRole,double,double)",
         "pageToItem(ImageViewport::PageRole,double,double)",
-        "nearestVisibleSpreadPoint(double,double)",
-        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
     };
     for (const QByteArray& methodName : coordinateMethods) {
         const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
@@ -478,9 +477,9 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
     verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 1.0, 1.0));
-    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(1.0, 1.0));
+    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(
-        item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
+        nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
     verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 1.0, 1.0), false);
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
@@ -542,12 +541,12 @@ void ImageViewportPublicApiTest::
     QSignalSpy commandSpy(&item, &ImageViewport::commandRevisionChanged);
 
     const double infinity = std::numeric_limits<double>::infinity();
-    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(1.0, 1.0));
-    verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(infinity, 1.0));
+    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, 1.0, 1.0));
+    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, infinity, 1.0));
     verifyInvalidCoordinateResult(
-        item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
+        nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
     verifyInvalidCoordinateResult(
-        item.nearestVisiblePagePoint(static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
+        nearestVisiblePageCoordinate(item, static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
     verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
 
     QCOMPARE(item.displayRevision(), displayRevision);
