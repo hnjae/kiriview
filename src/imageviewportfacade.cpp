@@ -204,6 +204,10 @@ ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPoi
 {
     return d->setZoomPercent(percent, anchor);
 }
+ImageViewport::CommandOutcome ImageViewport::zoomByStep(int stepCount, QPointF anchor)
+{
+    return d->zoomByStep(stepCount, anchor);
+}
 double ImageViewport::clampedManualZoomPercent(double percent) const
 {
     return d->clampedManualZoomPercent(percent);

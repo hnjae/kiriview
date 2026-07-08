@@ -118,6 +118,7 @@ public:
     CommandOutcome setPageGap(double gap);
     CommandOutcome setFitMode(FitMode mode, QPointF anchor);
     CommandOutcome setZoomPercent(double percent, QPointF anchor);
+    CommandOutcome zoomByStep(int stepCount, QPointF anchor);
     CommandOutcome panBy(QPointF delta);
     CommandOutcome panToStart();
     CommandOutcome panToEnd();

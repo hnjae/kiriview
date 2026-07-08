@@ -322,6 +322,13 @@ ViewportCommandResult ViewportController::setZoomPercent(
     return acceptedPresentationCommand(viewport, presentationChanges(viewport, true));
 }
 
+ViewportCommandResult ViewportController::zoomByStep(
+    int stepCount, QPointF anchor, double devicePixelRatio)
+{
+    return setZoomPercent(
+        steppedManualZoomPercent(stepCount, devicePixelRatio), anchor, devicePixelRatio);
+}
+
 ViewportCommandResult ViewportController::panBy(QPointF delta)
 {
     if (!ImageViewportInternal::isFinitePoint(delta)) {

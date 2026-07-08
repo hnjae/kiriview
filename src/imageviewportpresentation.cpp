@@ -300,6 +300,14 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
     return result.outcome;
 }
 
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::zoomByStep(int stepCount, QPointF anchor)
+{
+    const ViewportCommandResult result
+        = controller.zoomByStep(stepCount, anchor, effectiveDevicePixelRatio(*this));
+    applyControllerChanges(result.changes);
+    return result.outcome;
+}
+
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panBy(QPointF delta)
 {
     auto* const controllerAccess = &controller;

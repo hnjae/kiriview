@@ -298,6 +298,8 @@ public:
     ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);
     ViewportCommandResult setZoomPercent(
         double percent, QPointF anchor, double devicePixelRatio = 1.0);
+    ViewportCommandResult zoomByStep(
+        int stepCount, QPointF anchor, double devicePixelRatio = 1.0);
     ViewportCommandResult panBy(QPointF delta);
     ViewportCommandResult panToStart();
     ViewportCommandResult panToEnd();
