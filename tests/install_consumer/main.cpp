@@ -471,16 +471,16 @@ ImageViewport {
     }
 
     Component.onCompleted: {
-        const playOutcome = play()
-        const pauseOutcome = pause()
-        const stopOutcome = stop()
-        const seekOutcome = seek(0)
-        const positionSeekOutcome = seekToPosition(0)
+        const playOutcome = play().outcome
+        const pauseOutcome = pause().outcome
+        const stopOutcome = stop().outcome
+        const seekOutcome = seek(0).outcome
+        const positionSeekOutcome = seekToPosition(0).outcome
         zoomCommand.manualZoomPercent = 200
-        const zoomOutcome = setPresentation(zoomCommand)
+        const zoomOutcome = setPresentation(zoomCommand).outcome
         zoomStepCommand.zoomStepDelta = 1
-        const stepOutcome = setPresentation(zoomStepCommand)
-        const resetViewOutcome = resetView()
+        const stepOutcome = setPresentation(zoomStepCommand).outcome
+        const resetViewOutcome = resetView().outcome
         const minimum = state.presentation.minimumManualZoomPercent
         const maximum = state.presentation.maximumManualZoomPercent
         commandSurfaceAvailable = state.request.status === ImageViewport.RequestStatus.NoRequest
@@ -833,7 +833,7 @@ int main(int argc, char** argv)
         || installedSpread.secondary() != timedResult->sequence()) {
         return 1;
     }
-    if (typedPageSetViewport.setPageSet(installedSpread, PageSetTransitionPolicy {})
+    if (typedPageSetViewport.setPageSet(installedSpread, PageSetTransitionPolicy {}).outcome()
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
@@ -847,6 +847,7 @@ int main(int argc, char** argv)
     typedPageSetPolicy.setPageGap(2.0);
     if (typedPageSetViewport.setPageSet(
             ImageViewportPageSet(deviceIndependentStillResult->sequence()), typedPageSetPolicy)
+            .outcome()
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
@@ -860,6 +861,7 @@ int main(int argc, char** argv)
     installedSecondaryOnly.setSecondary(timedResult->sequence());
     if (installedSecondaryOnly.isValid()
         || typedPageSetViewport.setPageSet(installedSecondaryOnly, PageSetTransitionPolicy {})
+                .outcome()
             != ImageViewport::CommandOutcome::Invalid
         || typedPageSetViewport.state().primary().sequence()
             != deviceIndependentStillResult->sequence()) {
@@ -887,7 +889,7 @@ int main(int argc, char** argv)
     ImageViewport steppedCommandViewport;
     ImageViewportPresentationCommand stepCommand;
     stepCommand.setZoomStepDelta(1);
-    if (steppedCommandViewport.setPresentation(stepCommand)
+    if (steppedCommandViewport.setPresentation(stepCommand).outcome()
             != ImageViewport::CommandOutcome::Accepted
         || !nearlyEqual(steppedCommandViewport.state().presentation().zoomPercent(), 125.0)) {
         return 1;
@@ -931,7 +933,7 @@ int main(int argc, char** argv)
         || !installedPresentationCommand.hasPageGap()
         || !installedPresentationCommand.hasQualityPreference()
         || !installedPresentationCommand.hasExactnessPreference()
-        || helperViewport.setPresentation(installedPresentationCommand)
+        || helperViewport.setPresentation(installedPresentationCommand).outcome()
             != ImageViewport::CommandOutcome::Accepted
         || helperViewport.state().presentation().fitMode() != ImageViewport::FitMode::Manual
         || !nearlyEqual(helperViewport.state().presentation().zoomPercent(), 125.0)

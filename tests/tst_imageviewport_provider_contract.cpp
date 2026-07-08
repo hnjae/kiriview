@@ -637,12 +637,12 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, &workerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
-        QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, &workerThread);
     }
 
@@ -699,12 +699,12 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, controllerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
-        QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, controllerThread);
     }
 
@@ -913,7 +913,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("session")));
 
     const ImageViewportRevisionToken failedRequestRevision = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(

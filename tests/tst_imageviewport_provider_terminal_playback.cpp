@@ -50,7 +50,7 @@ void ImageViewportProviderTerminalPlaybackTest::providerTimedPlaybackStopsOnFram
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     QCOMPARE(
         playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Waiting"));
@@ -71,7 +71,7 @@ void ImageViewportProviderTerminalPlaybackTest::providerTimedPlaybackStopsOnFram
     QVERIFY(
         viewportErrorString(item).contains(QStringLiteral("playback frame failed")));
 
-    QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(0).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(*frameRequestCount, 3);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -126,7 +126,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken failedToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -159,7 +159,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QVERIFY(
         viewportErrorString(item).contains(QStringLiteral("playback frame failed")));
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken retryToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -236,7 +236,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -316,7 +316,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken cancelledToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -349,7 +349,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("playback cancelled by provider")));
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken retryToken
         = sessionFactory->lastSession()->lastFrameToken();
 
@@ -422,7 +422,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -452,7 +452,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("playback request unsupported")));
 
-    QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 3);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
@@ -499,7 +499,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken unsupportedToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -533,7 +533,7 @@ void ImageViewportProviderTerminalPlaybackTest::
     QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("playback request unsupported")));
 
-    QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
     const ImageSequenceProviderRequestToken retryToken
         = sessionFactory->lastSession()->lastFrameToken();
 

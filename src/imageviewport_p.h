@@ -36,6 +36,7 @@ public:
     }
 
     ImageViewportStateSnapshot state() const;
+    ImageViewportCommandResult commandResult(CommandOutcome outcome) const;
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
     SpreadDirection spreadDirection() const;

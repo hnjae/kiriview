@@ -15,37 +15,46 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
-ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }
-ImageViewport::CommandOutcome ImageViewport::play() { return d->play(); }
-ImageViewport::CommandOutcome ImageViewport::play(PageRole role) { return d->play(role); }
-ImageViewport::CommandOutcome ImageViewport::pause() { return d->pause(); }
-ImageViewport::CommandOutcome ImageViewport::pause(PageRole role) { return d->pause(role); }
-ImageViewport::CommandOutcome ImageViewport::stop() { return d->stop(); }
-ImageViewport::CommandOutcome ImageViewport::stop(PageRole role) { return d->stop(role); }
-ImageViewport::CommandOutcome ImageViewport::seek(int frame) { return d->seek(frame); }
-ImageViewport::CommandOutcome ImageViewport::seek(PageRole role, int frame)
+ImageViewportCommandResult ImageViewport::clear() { return d->commandResult(d->clear()); }
+ImageViewportCommandResult ImageViewport::play() { return d->commandResult(d->play()); }
+ImageViewportCommandResult ImageViewport::play(PageRole role)
 {
-    return d->seek(role, frame);
+    return d->commandResult(d->play(role));
 }
-ImageViewport::CommandOutcome ImageViewport::seekToPosition(int milliseconds)
+ImageViewportCommandResult ImageViewport::pause() { return d->commandResult(d->pause()); }
+ImageViewportCommandResult ImageViewport::pause(PageRole role)
 {
-    return d->seekToPosition(milliseconds);
+    return d->commandResult(d->pause(role));
 }
-ImageViewport::CommandOutcome ImageViewport::seekToPosition(PageRole role, int milliseconds)
+ImageViewportCommandResult ImageViewport::stop() { return d->commandResult(d->stop()); }
+ImageViewportCommandResult ImageViewport::stop(PageRole role)
 {
-    return d->seekToPosition(role, milliseconds);
+    return d->commandResult(d->stop(role));
 }
-ImageViewport::CommandOutcome ImageViewport::setPageSet(
+ImageViewportCommandResult ImageViewport::seek(int frame) { return d->commandResult(d->seek(frame)); }
+ImageViewportCommandResult ImageViewport::seek(PageRole role, int frame)
+{
+    return d->commandResult(d->seek(role, frame));
+}
+ImageViewportCommandResult ImageViewport::seekToPosition(int milliseconds)
+{
+    return d->commandResult(d->seekToPosition(milliseconds));
+}
+ImageViewportCommandResult ImageViewport::seekToPosition(PageRole role, int milliseconds)
+{
+    return d->commandResult(d->seekToPosition(role, milliseconds));
+}
+ImageViewportCommandResult ImageViewport::setPageSet(
     ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
 {
-    return d->setPageSet(pageSet, policy);
+    return d->commandResult(d->setPageSet(pageSet, policy));
 }
-ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
+ImageViewportCommandResult ImageViewport::resetView() { return d->commandResult(d->resetView()); }
 
-ImageViewport::CommandOutcome ImageViewport::setPresentation(
+ImageViewportCommandResult ImageViewport::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    return d->setPresentation(command);
+    return d->commandResult(d->setPresentation(command));
 }
 
 ImageViewportCoordinateResult ImageViewport::mapPoint(ImageViewportCoordinateInput input) const

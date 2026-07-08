@@ -613,7 +613,7 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
     item.setSize(QSizeF(26.0, 20.0));
     QCOMPARE(item.setPageSet(
                  ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()),
-                 PageSetTransitionPolicy {}),
+                 PageSetTransitionPolicy {}).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
 
@@ -703,7 +703,7 @@ void ImageViewportPublicApiTest::typedPageSetTransitionPolicyPreservesStateWhenI
 
     const auto outcome = item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), invalidPolicy);
 
-    QCOMPARE(outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), firstResult->sequence());
     QCOMPARE(viewportRequestRevision(item), requestRevision);
     QCOMPARE(viewportDisplayRevision(item), displayRevision);

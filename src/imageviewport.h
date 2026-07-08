@@ -943,22 +943,22 @@ public:
 
     ImageViewportStateSnapshot state() const;
 
-    Q_INVOKABLE ImageViewport::CommandOutcome clear();
-    Q_INVOKABLE ImageViewport::CommandOutcome play();
-    Q_INVOKABLE ImageViewport::CommandOutcome play(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewport::CommandOutcome pause();
-    Q_INVOKABLE ImageViewport::CommandOutcome pause(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewport::CommandOutcome stop();
-    Q_INVOKABLE ImageViewport::CommandOutcome stop(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewport::CommandOutcome seek(int frame);
-    Q_INVOKABLE ImageViewport::CommandOutcome seek(ImageViewport::PageRole role, int frame);
-    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
-    Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(
+    Q_INVOKABLE ImageViewportCommandResult clear();
+    Q_INVOKABLE ImageViewportCommandResult play();
+    Q_INVOKABLE ImageViewportCommandResult play(ImageViewport::PageRole role);
+    Q_INVOKABLE ImageViewportCommandResult pause();
+    Q_INVOKABLE ImageViewportCommandResult pause(ImageViewport::PageRole role);
+    Q_INVOKABLE ImageViewportCommandResult stop();
+    Q_INVOKABLE ImageViewportCommandResult stop(ImageViewport::PageRole role);
+    Q_INVOKABLE ImageViewportCommandResult seek(int frame);
+    Q_INVOKABLE ImageViewportCommandResult seek(ImageViewport::PageRole role, int frame);
+    Q_INVOKABLE ImageViewportCommandResult seekToPosition(int milliseconds);
+    Q_INVOKABLE ImageViewportCommandResult seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
-    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
+    Q_INVOKABLE ImageViewportCommandResult setPageSet(
         ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
-    Q_INVOKABLE ImageViewport::CommandOutcome resetView();
-    Q_INVOKABLE ImageViewport::CommandOutcome setPresentation(
+    Q_INVOKABLE ImageViewportCommandResult resetView();
+    Q_INVOKABLE ImageViewportCommandResult setPresentation(
         ImageViewportPresentationCommand command);
     Q_INVOKABLE ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
     Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;

@@ -206,6 +206,13 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
             commandRevision, snapshotRevision));
 }
 
+ImageViewportCommandResult ImageViewportPrivate::commandResult(CommandOutcome outcome) const
+{
+    const ImageViewportStateSnapshot snapshot = state();
+    return ImageViewportCommandResult(outcome, snapshot.diagnostics().commandReason(),
+        snapshot.revisions().command(), snapshot.revisions().snapshot());
+}
+
 void ImageViewportPrivate::refreshStateSnapshot()
 {
     const ImageViewportStateSnapshot currentSnapshot = state();

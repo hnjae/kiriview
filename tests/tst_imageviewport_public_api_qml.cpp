@@ -137,7 +137,7 @@ ImageViewport {
 
     Component.onCompleted: {
         pageSet.primary = suppliedSequence
-        initialSetAccepted = setPageSet(pageSet, policy) === ImageViewport.CommandOutcome.Accepted
+        initialSetAccepted = setPageSet(pageSet, policy).outcome === ImageViewport.CommandOutcome.Accepted
     }
 }
 )",
@@ -270,7 +270,7 @@ ImageViewport {
         policy.pageGap = -1
         policy.pageGapTransition = 1
         const invalidPageSetOutcome = setPageSet(pageSet, policy)
-        pageSetValidationPreservedState = invalidPageSetOutcome === ImageViewport.CommandOutcome.Invalid
+        pageSetValidationPreservedState = invalidPageSetOutcome.outcome === ImageViewport.CommandOutcome.Invalid
             && state.primary.sequence === null
             && state.secondary.sequence === null
             && state.request.status === ImageViewport.RequestStatus.NoRequest
@@ -278,11 +278,11 @@ ImageViewport {
             && state.revisions.request === requestRevisionBefore
             && state.revisions.display === displayRevisionBefore
 
-        roleCommandsReachViewport = play(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
-            && pause(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
-            && stop(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
-            && seek(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
-            && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
+        roleCommandsReachViewport = play(ImageViewport.PageRole.Secondary).outcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && pause(ImageViewport.PageRole.Secondary).outcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && stop(ImageViewport.PageRole.Secondary).outcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && seek(ImageViewport.PageRole.Secondary, 0).outcome === ImageViewport.CommandOutcome.IgnoredNoRequest
+            && seekToPosition(ImageViewport.PageRole.Secondary, 0).outcome === ImageViewport.CommandOutcome.IgnoredNoRequest
 
         spreadDirectionCommand.spreadDirection = ImageViewport.SpreadDirection.LeftToRight
         pageGapCommand.pageGap = 0
@@ -297,20 +297,20 @@ ImageViewport {
         horizontalMirrorCommand.mirrorHorizontally = false
         verticalMirrorCommand.mirrorVertically = false
         panCommand.panDelta = Qt.point(0, 0)
-        presentationCommandsReachViewport = setPresentation(spreadDirectionCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(pageGapCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(fitModeCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(manualZoomCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(zoomStepCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(panCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanStartCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanEndCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanNextCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(scanPreviousCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(rotationCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(horizontalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
-            && setPresentation(verticalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
-            && resetView() === ImageViewport.CommandOutcome.Accepted
+        presentationCommandsReachViewport = setPresentation(spreadDirectionCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(pageGapCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(fitModeCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(manualZoomCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(zoomStepCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(panCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanStartCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanEndCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanNextCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanPreviousCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(rotationCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(horizontalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
+            && resetView().outcome === ImageViewport.CommandOutcome.Accepted
 
         coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Spread
         coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Spread
@@ -428,7 +428,7 @@ ImageViewport {
 
     ImageViewportPresentationCommand zoomCommand;
     zoomCommand.setManualZoomPercent(200.0);
-    QCOMPARE(viewport->setPresentation(zoomCommand), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(viewport->setPresentation(zoomCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCoreApplication::processEvents();
 
     QVERIFY(recorder.count() > refreshCountBefore);
@@ -594,13 +594,30 @@ import QtQuick
 import ImageViewport 1.0
 
 ImageViewport {
-    property int playOutcome: play()
-    property int pauseOutcome: pause()
-    property int stopOutcome: stop()
-    property int seekOutcome: seek(0)
-    property int positionSeekOutcome: seekToPosition(0)
-    property int clearOutcome: clear()
-    property int resetViewOutcome: resetView()
+    property int playOutcome: -1
+    property int playReason: -1
+    property bool playCommandRevisionValid: false
+    property bool playSnapshotRevisionCurrent: false
+    property int pauseOutcome: -1
+    property int stopOutcome: -1
+    property int seekOutcome: -1
+    property int positionSeekOutcome: -1
+    property int clearOutcome: -1
+    property int resetViewOutcome: -1
+
+    Component.onCompleted: {
+        const playResult = play()
+        playOutcome = playResult.outcome
+        playReason = playResult.reason
+        playCommandRevisionValid = playResult.commandRevision.valid
+        playSnapshotRevisionCurrent = playResult.snapshotRevision === state.revisions.snapshot
+        pauseOutcome = pause().outcome
+        stopOutcome = stop().outcome
+        seekOutcome = seek(0).outcome
+        positionSeekOutcome = seekToPosition(0).outcome
+        clearOutcome = clear().outcome
+        resetViewOutcome = resetView().outcome
+    }
 }
 )",
         QUrl());
@@ -613,6 +630,10 @@ ImageViewport {
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(object->property("playOutcome").toInt(),
         enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
+    QCOMPARE(object->property("playReason").toInt(),
+        enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(object->property("playCommandRevisionValid").toBool(), true);
+    QCOMPARE(object->property("playSnapshotRevisionCurrent").toBool(), true);
     QCOMPARE(object->property("pauseOutcome").toInt(),
         enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
     QCOMPARE(object->property("stopOutcome").toInt(),
