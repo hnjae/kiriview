@@ -59,6 +59,15 @@ static ImageViewport::CommandOutcome setManualZoomPercentCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setQualityTogglesCommand(
+    ImageViewport& item, bool smoothing, bool mipmap)
+{
+    ImageViewportPresentationCommand command;
+    command.setSmoothing(smoothing);
+    command.setMipmap(mipmap);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPublicApiCommandsTest::unsupportedSequencePropertyWritesPreserveState()
 {
     ImageSequenceFactory factory;
@@ -651,8 +660,7 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     mirrorCommand.setMirrorHorizontally(true);
     mirrorCommand.setMirrorVertically(true);
     QCOMPARE(item.setPresentation(mirrorCommand), ImageViewport::CommandOutcome::Accepted);
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
     item.setLooping(true);

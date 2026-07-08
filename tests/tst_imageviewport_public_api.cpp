@@ -117,6 +117,17 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
             metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) < 0,
             method.constData());
     }
+
+    const QList<QByteArray> readOnlyProperties = {
+        "smoothing",
+        "mipmap",
+    };
+
+    for (const QByteArray& property : readOnlyProperties) {
+        const int propertyIndex = metaObject->indexOfProperty(property.constData());
+        QVERIFY2(propertyIndex >= 0, property.constData());
+        QVERIFY2(!metaObject->property(propertyIndex).isWritable(), property.constData());
+    }
 }
 
 void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()

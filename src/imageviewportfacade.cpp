@@ -140,9 +140,7 @@ double ImageViewport::maximumManualZoomPercent() const { return d->maximumManual
 double ImageViewport::manualZoomStepFactor() const { return d->manualZoomStepFactor(); }
 int ImageViewport::rotationDegrees() const { return d->rotationDegrees(); }
 bool ImageViewport::smoothing() const { return d->smoothing(); }
-void ImageViewport::setSmoothing(bool smoothing) { d->setSmoothing(smoothing); }
 bool ImageViewport::mipmap() const { return d->mipmap(); }
-void ImageViewport::setMipmap(bool mipmap) { d->setMipmap(mipmap); }
 bool ImageViewport::mirrorHorizontally() const { return d->mirrorHorizontally(); }
 void ImageViewport::setMirrorHorizontally(bool mirror) { d->setMirrorHorizontally(mirror); }
 bool ImageViewport::mirrorVertically() const { return d->mirrorVertically(); }

@@ -295,7 +295,9 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
     const ImageViewportStateSnapshot before = item.state();
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
-    item.setSmoothing(!item.smoothing());
+    ImageViewportPresentationCommand smoothingCommand;
+    smoothingCommand.setSmoothing(!item.smoothing());
+    QCOMPARE(item.setPresentation(smoothingCommand), ImageViewport::CommandOutcome::Accepted);
     const ImageViewportStateSnapshot after = item.state();
 
     QCOMPARE(stateSpy.count(), 1);
@@ -304,7 +306,9 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
     QCOMPARE(after.presentation().smoothing(), item.smoothing());
     QVERIFY(after != before);
 
-    item.setSmoothing(item.smoothing());
+    smoothingCommand = {};
+    smoothingCommand.setSmoothing(item.smoothing());
+    QCOMPARE(item.setPresentation(smoothingCommand), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(stateSpy.count(), 1);
 }
 

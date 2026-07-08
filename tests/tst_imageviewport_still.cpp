@@ -58,6 +58,15 @@ static ImageViewport::CommandOutcome setManualZoomPercentCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setQualityTogglesCommand(
+    ImageViewport& item, bool smoothing, bool mipmap)
+{
+    ImageViewportPresentationCommand command;
+    command.setSmoothing(smoothing);
+    command.setMipmap(mipmap);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
@@ -156,8 +165,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
@@ -421,8 +429,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
@@ -565,8 +572,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);

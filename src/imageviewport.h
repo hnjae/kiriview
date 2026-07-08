@@ -955,8 +955,8 @@ class ImageViewport : public QQuickItem
         double maximumManualZoomPercent READ maximumManualZoomPercent NOTIFY geometryStateChanged)
     Q_PROPERTY(double manualZoomStepFactor READ manualZoomStepFactor CONSTANT)
     Q_PROPERTY(int rotationDegrees READ rotationDegrees NOTIFY presentationChanged)
-    Q_PROPERTY(bool smoothing READ smoothing WRITE setSmoothing NOTIFY presentationChanged)
-    Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap NOTIFY presentationChanged)
+    Q_PROPERTY(bool smoothing READ smoothing NOTIFY presentationChanged)
+    Q_PROPERTY(bool mipmap READ mipmap NOTIFY presentationChanged)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally NOTIFY
             presentationChanged)
     Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically NOTIFY
@@ -1205,9 +1205,7 @@ public:
     double manualZoomStepFactor() const;
     int rotationDegrees() const;
     bool smoothing() const;
-    void setSmoothing(bool smoothing);
     bool mipmap() const;
-    void setMipmap(bool mipmap);
     bool mirrorHorizontally() const;
     void setMirrorHorizontally(bool mirror);
     bool mirrorVertically() const;

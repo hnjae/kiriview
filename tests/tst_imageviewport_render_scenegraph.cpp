@@ -81,6 +81,15 @@ ImageViewport::CommandOutcome setFitModeCommand(ImageViewport& item, ImageViewpo
     return item.setPresentation(command);
 }
 
+ImageViewport::CommandOutcome setQualityTogglesCommand(
+    ImageViewport& item, bool smoothing, bool mipmap)
+{
+    ImageViewportPresentationCommand command;
+    command.setSmoothing(smoothing);
+    command.setMipmap(mipmap);
+    return item.setPresentation(command);
+}
+
 class NullTextureSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
 {
 public:
@@ -633,8 +642,7 @@ void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode(
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(40.0, 20.0));
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setSequence(result->sequence());

@@ -112,6 +112,15 @@ static ImageViewport::CommandOutcome setManualZoomPercentCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setQualityTogglesCommand(
+    ImageViewport& item, bool smoothing, bool mipmap)
+{
+    ImageViewportPresentationCommand command;
+    command.setSmoothing(smoothing);
+    command.setMipmap(mipmap);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -134,8 +143,7 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotN
     QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
@@ -249,8 +257,7 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    item.setSmoothing(false);
-    item.setMipmap(true);
+    QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.smoothing(), false);
     QCOMPARE(item.mipmap(), true);
