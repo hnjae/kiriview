@@ -107,6 +107,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "panToEnd()",
         "panBy(QPointF)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
+        "setPageGap(double)",
     };
 
     for (const QByteArray& method : absentMethods) {
@@ -293,7 +294,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setPageSet(QVariant)",
         "setPageSet(QVariant,QVariant)",
         "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
-        "setPageGap(double)",
         "pageGeometry(ImageViewport::PageRole)",
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",

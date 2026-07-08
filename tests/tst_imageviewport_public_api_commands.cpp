@@ -44,6 +44,13 @@ static ImageViewport::CommandOutcome setSpreadDirectionCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
+{
+    ImageViewportPresentationCommand command;
+    command.setPageGap(gap);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPublicApiCommandsTest::unsupportedSequencePropertyWritesPreserveState()
 {
     ImageSequenceFactory factory;
@@ -629,7 +636,7 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
         item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(9.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 9.0), ImageViewport::CommandOutcome::Accepted);
     ImageViewportPresentationCommand rotationCommand;
     rotationCommand.setRotationDegrees(90);
     QCOMPARE(item.setPresentation(rotationCommand), ImageViewport::CommandOutcome::Accepted);
@@ -1013,6 +1020,30 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QVERIFY(item.commandRevision() != invalidCommandRevision);
     QCOMPARE(item.commandReason(), ImageViewport::CommandReason::InvalidRequest);
 
+    RevisionToken previousInvalidCommandRevision = item.commandRevision();
+    ImageViewportPresentationCommand invalidPageGapCommand;
+    invalidPageGapCommand.setPageGap(-1.0);
+    QCOMPARE(item.setPresentation(invalidPageGapCommand), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.zoomPercent(), zoomPercent);
+    QCOMPARE(item.pageGap(), pageGap);
+    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QVERIFY(item.commandRevision() != previousInvalidCommandRevision);
+    QCOMPARE(item.commandReason(), ImageViewport::CommandReason::InvalidRequest);
+
+    previousInvalidCommandRevision = item.commandRevision();
+    invalidPageGapCommand = {};
+    invalidPageGapCommand.setPageGap(std::numeric_limits<double>::infinity());
+    QCOMPARE(item.setPresentation(invalidPageGapCommand), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.zoomPercent(), zoomPercent);
+    QCOMPARE(item.pageGap(), pageGap);
+    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.requestRevision(), requestRevision);
+    QCOMPARE(item.displayRevision(), displayRevision);
+    QVERIFY(item.commandRevision() != previousInvalidCommandRevision);
+    QCOMPARE(item.commandReason(), ImageViewport::CommandReason::InvalidRequest);
+
     ImageViewportPresentationCommand resetCommand
         = ImageViewportPresentationCommand::resetViewCommand();
     resetCommand.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
@@ -1160,30 +1191,11 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     const auto spreadDirection = item.spreadDirection();
     const double pageGap = item.pageGap();
-    const QRectF contentRect = item.contentRect();
-    const QRectF primaryPageRect = item.primaryPageRect();
     const int commandReason = item.property("commandReason").toInt();
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
-
-    QCOMPARE(item.setPageGap(-1.0), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(), commandReason);
-    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
-    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.contentRect(), contentRect);
-    QCOMPARE(item.primaryPageRect(), primaryPageRect);
-
-    QCOMPARE(item.setPageGap(std::numeric_limits<double>::infinity()),
-        ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(), commandReason);
-    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
-    QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
-    QCOMPARE(item.pageGap(), pageGap);
 
     QCOMPARE(
         setSpreadDirectionCommand(item, spreadDirection), ImageViewport::CommandOutcome::Accepted);
@@ -1192,7 +1204,7 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
 
-    QCOMPARE(item.setPageGap(pageGap), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, pageGap), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(), commandReason);
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);

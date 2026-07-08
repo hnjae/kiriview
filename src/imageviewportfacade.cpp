@@ -206,7 +206,6 @@ ImageViewport::CommandOutcome ImageViewport::setPageSet(
 {
     return d->setPageSet(primary, secondary, policy);
 }
-ImageViewport::CommandOutcome ImageViewport::setPageGap(double gap) { return d->setPageGap(gap); }
 ImageViewport::CommandOutcome ImageViewport::setFitMode(FitMode mode, QPointF anchor)
 {
     return d->setFitMode(mode, anchor);

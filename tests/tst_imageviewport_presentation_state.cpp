@@ -89,6 +89,13 @@ static ImageViewport::CommandOutcome setSpreadDirectionCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
+{
+    ImageViewportPresentationCommand command;
+    command.setPageGap(gap);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -389,7 +396,7 @@ void ImageViewportPresentationStateTest::twoPageSpreadGeometryUsesDirectionAndGa
     QCOMPARE(item.property("visiblePrimaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
     QCOMPARE(item.property("visibleSecondaryPageRect").toRectF(), QRectF(0.0, 0.0, 30.0, 20.0));
 
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("displayedSpreadSize").toSizeF(), QSizeF(44.0, 20.0));
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 2.0, 88.0, 40.0));
     QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
@@ -425,7 +432,7 @@ void ImageViewportPresentationStateTest::twoPageManualPanUsesSpreadGeometry()
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(
         item.setZoomPercent(100.0, QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
@@ -463,7 +470,7 @@ void ImageViewportPresentationStateTest::rotatedTwoPageManualPanUsesSpreadGeomet
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
@@ -506,7 +513,7 @@ void ImageViewportPresentationStateTest::twoPageNonPositiveItemGeometrySuppresse
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     item.setSize(QSizeF(0.0, 44.0));
@@ -549,7 +556,7 @@ void ImageViewportPresentationStateTest::retainedTwoPageGeometryUsesDisplayedSec
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("displayedSpreadSize").toSizeF(), QSizeF(44.0, 20.0));
     QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(28.0, 2.0, 60.0, 40.0));
 
@@ -616,7 +623,7 @@ void ImageViewportPresentationStateTest::
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
     const auto sessionCount = std::make_shared<int>(0);
     const auto metadataRequestCount = std::make_shared<int>(0);
@@ -677,7 +684,7 @@ void ImageViewportPresentationStateTest::spreadCoordinateHelpersRejectGapAndEdge
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
     const CoordinateResult gapSpreadPoint = item.itemToSpread(22.0, 22.0);
     QCOMPARE(gapSpreadPoint.isValid(), true);
@@ -784,7 +791,7 @@ void ImageViewportPresentationStateTest::nearestVisibleHelpersClampTwoPageSpread
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF(0.0, 0.0, 44.0, 20.0));
     QCOMPARE(item.property("visiblePrimaryPageRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
@@ -894,7 +901,7 @@ void ImageViewportPresentationStateTest::
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(rotatedItem);
-    QCOMPARE(rotatedItem.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(rotatedItem, 4.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(rotatedItem, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.setZoomPercent(100.0, QPointF(10.0, 10.0)),
@@ -1104,7 +1111,7 @@ void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateA
     QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(12.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 12.0), ImageViewport::CommandOutcome::Accepted);
 
     ImageSequence* sequence = item.sequence();
     const auto fitMode = item.fitMode();

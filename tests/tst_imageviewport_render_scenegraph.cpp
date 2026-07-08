@@ -67,6 +67,13 @@ RenderAdapter::Input renderAdapterInputForPayload(
     return input;
 }
 
+ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
+{
+    ImageViewportPresentationCommand command;
+    command.setPageGap(gap);
+    return item.setPresentation(command);
+}
+
 class NullTextureSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
 {
 public:
@@ -268,7 +275,7 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -310,7 +317,7 @@ void ImageViewportRenderSceneGraphTest::
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QScopedPointer<QSGNode> readyRoot(item.takePaintNode());
@@ -392,7 +399,7 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(*sessionCount, 1);
@@ -481,7 +488,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     QCOMPARE(item.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
                  QVariant::fromValue<QObject*>(secondaryResult->sequence())),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(*primarySessionCount, 1);
