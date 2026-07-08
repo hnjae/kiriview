@@ -418,7 +418,8 @@ void ImageViewportPresentationStateTest::twoPageManualPanUsesSpreadGeometry()
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(12.0, 0.0));
     QCOMPARE(item.property("maximumContentPosition").toPointF(), QPointF(24.0, 0.0));
 
-    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(item, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-24.0, 0.0, 44.0, 20.0));
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(24.0, 0.0));
@@ -459,7 +460,8 @@ void ImageViewportPresentationStateTest::rotatedTwoPageManualPanUsesSpreadGeomet
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(0.0, 12.0));
     QCOMPARE(item.property("maximumContentPosition").toPointF(), QPointF(0.0, 24.0));
 
-    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(item, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -24.0, 20.0, 44.0));
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(0.0, 24.0));
@@ -834,7 +836,8 @@ void ImageViewportPresentationStateTest::
     acknowledgePendingRenderCommitForTest(mirroredItem);
     QCOMPARE(mirroredItem.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(mirroredItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(mirroredItem, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(mirroredItem.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
 
     const CoordinateResult pannedLeft = mirroredItem.nearestVisibleImagePoint(0.0, 4.0);
@@ -882,7 +885,8 @@ void ImageViewportPresentationStateTest::
     QCOMPARE(rotatedItem.setZoomPercent(100.0, QPointF(10.0, 10.0)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(rotatedItem, 90), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(rotatedItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(rotatedItem, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.property("visibleSpreadRect").toRectF(), QRectF(24.0, 0.0, 20.0, 20.0));
 
     const CoordinateResult rotatedLeft = rotatedItem.nearestVisibleSpreadPoint(0.0, 10.0);
@@ -922,7 +926,8 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.property("horizontalPannable").toBool(), true);
     QCOMPARE(item.property("verticalPannable").toBool(), false);
 
-    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(item, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-120.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(120.0, 0.0));
 
@@ -1078,7 +1083,8 @@ void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateA
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
         item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(item, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
@@ -1334,7 +1340,8 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
     acknowledgePendingRenderCommitForTest(horizontalItem);
     QCOMPARE(horizontalItem.setZoomPercent(200.0, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(horizontalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(horizontalItem, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
 
     const QPointF horizontalAnchor(50.0, 50.0);
     const CoordinateResult horizontalBefore
@@ -1354,7 +1361,8 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
     acknowledgePendingRenderCommitForTest(verticalItem);
     QCOMPARE(verticalItem.setZoomPercent(200.0, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(verticalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setScanDirection(verticalItem, ImageViewport::ScanDirection::End),
+        ImageViewport::CommandOutcome::Accepted);
 
     const QPointF verticalAnchor(50.0, 50.0);
     const CoordinateResult verticalBefore

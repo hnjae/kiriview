@@ -104,6 +104,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "setMirrorHorizontally(bool,QPointF)",
         "setMirrorVertically(bool,QPointF)",
         "panToStart()",
+        "panToEnd()",
     };
 
     for (const QByteArray& method : absentMethods) {
@@ -293,7 +294,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "pageGeometry(ImageViewport::PageRole)",
-        "panToEnd()",
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
         "containsVisibleSpreadPoint(double,double)",

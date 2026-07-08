@@ -1249,7 +1249,6 @@ public:
         ImageViewport::FitMode mode, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
-    Q_INVOKABLE ImageViewport::CommandOutcome panToEnd();
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE ImageViewport::CommandOutcome setPresentation(
         ImageViewportPresentationCommand command);

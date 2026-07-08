@@ -825,7 +825,9 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitWidth, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    ImageViewportPresentationCommand scanCommand;
+    scanCommand.setScanDirection(ImageViewport::ScanDirection::End);
+    QCOMPARE(item.setPresentation(scanCommand), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -100.0, 100.0, 200.0));
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 8.0, 8.0, 8.0));
