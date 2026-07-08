@@ -226,7 +226,7 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
     item.setSequence(result->sequence());
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), QStringLiteral("metadata unavailable"));
     drainQueuedProviderResults();
 

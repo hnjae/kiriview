@@ -58,7 +58,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QCOMPARE(*frameRequestCount, 1);
@@ -66,7 +66,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     acknowledgePendingRenderCommitForTest(item);
 
@@ -107,7 +107,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(2.0, 1.0)));
     drainQueuedProviderResults();
@@ -117,7 +117,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     image.setDevicePixelRatio(2.0);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
@@ -167,7 +167,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(2.0, 3.0)));
     drainQueuedProviderResults();
@@ -181,7 +181,7 @@ void ImageViewportProviderFrameAdmissionTest::
     image.setPixelColor(1, 1, QColor(0, 255, 255, 255));
     image.setPixelColor(2, 1, QColor(255, 0, 255, 255));
     ImageFrame frame(image, ImageFrame::OrientationPolicy::Rotate90);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     acknowledgePendingRenderCommitForTest(item);
@@ -216,7 +216,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -274,7 +274,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -283,7 +283,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
     QImage image(8, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
@@ -319,7 +319,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatch
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -380,7 +380,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -408,7 +408,7 @@ void ImageViewportProviderFrameAdmissionTest::
     ImageFrame frame(image);
     const ImageSequenceProviderRequestToken frameToken
         = sessionFactory->lastSession()->lastPositionToken();
-    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         frameToken, &frame, ImageSequenceProviderFrameMetadata::timedFrame(1, 350));
     drainQueuedProviderResults();
 
@@ -460,7 +460,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -523,7 +523,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -532,7 +532,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
     drainQueuedProviderResults();
@@ -569,7 +569,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -578,7 +578,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
         ImageSequenceProviderFrameMetadata::stillFrame());
     drainQueuedProviderResults();
@@ -615,7 +615,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -624,7 +624,7 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameWithMetadataReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame,
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 250));
     drainQueuedProviderResults();
@@ -662,7 +662,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -707,7 +707,7 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -786,7 +786,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -795,7 +795,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     const std::unique_ptr<ImageFrame> frame = makeImageFrameWithPayloadByteSizeForTest(image, -1);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), frame.get());
     drainQueuedProviderResults();
 
@@ -831,7 +831,7 @@ void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadR
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -842,7 +842,7 @@ void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadR
               ++*releaseCount;
               delete frame;
           });
-    emit sessionFactory->lastSession()->frameHandleReady(
+    emitProviderFrameHandleReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
@@ -876,7 +876,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -896,7 +896,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameHandleReady(staleToken, payload);
+    emitProviderFrameHandleReady(sessionFactory->lastSession(), staleToken, payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
@@ -931,7 +931,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -946,7 +946,7 @@ void ImageViewportProviderFrameAdmissionTest::
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameHandleReady(frameToken, payload);
+    emitProviderFrameHandleReady(sessionFactory->lastSession(), frameToken, payload);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
@@ -982,7 +982,7 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -995,7 +995,7 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameHandleReady(
+    emitProviderFrameHandleReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
@@ -1047,7 +1047,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(20.0, 10.0)));
     drainQueuedProviderResults();
@@ -1062,7 +1062,7 @@ void ImageViewportProviderFrameAdmissionTest::
             ++*releaseCount;
             delete frame;
         });
-    emit sessionFactory->lastSession()->frameHandleReady(
+    emitProviderFrameHandleReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
@@ -1109,7 +1109,7 @@ void ImageViewportProviderFrameAdmissionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1117,7 +1117,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
@@ -1163,7 +1163,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1171,7 +1171,7 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 

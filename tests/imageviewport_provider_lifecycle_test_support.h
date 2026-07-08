@@ -1,5 +1,6 @@
 #pragma once
 
+#include "imageviewport_provider_event_test_support.h"
 #include "imageviewport_test_support.h"
 
 #include <QtCore/QCoreApplication>
@@ -129,7 +130,7 @@ public:
         case ImageSequenceProviderRequestKind::Cancel:
             for (ImageSequenceProviderRequestToken token : request.tokens()) {
                 ++*m_cancelRequestCount;
-                emit providerCancelled(token, QStringLiteral("request cleanup complete"));
+                emitProviderCancelled(this, token, QStringLiteral("request cleanup complete"));
             }
             break;
         case ImageSequenceProviderRequestKind::Close:

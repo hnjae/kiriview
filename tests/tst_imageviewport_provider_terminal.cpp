@@ -40,7 +40,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -49,7 +49,7 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
     const ImageSequenceProviderRequestToken frameToken
         = sessionFactory->lastSession()->lastFrameToken();
 
-    emit sessionFactory->lastSession()->providerUnsupportedWithCause(frameToken,
+    emitProviderUnsupported(sessionFactory->lastSession(), frameToken,
         ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
         QStringLiteral("frame operation unsupported"));
     drainQueuedProviderResults();
@@ -91,7 +91,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -108,7 +108,7 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
 
-    emit sessionFactory->lastSession()->providerUnsupportedWithCause(playbackToken,
+    emitProviderUnsupported(sessionFactory->lastSession(), playbackToken,
         ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
         QStringLiteral("playback payload unsupported"));
     drainQueuedProviderResults();
@@ -149,7 +149,7 @@ void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFa
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("metadata service unavailable"));
     drainQueuedProviderResults();
@@ -191,8 +191,10 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerUnsupported(
-        sessionFactory->lastSession()->lastMetadataToken(), QStringLiteral("unsupported codec"));
+    emitProviderUnsupported(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("unsupported codec"));
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 0);
@@ -267,7 +269,7 @@ void ImageViewportProviderTerminalTest::providerMetadataCancellationReportsProvi
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerCancelled(
+    emitProviderCancelled(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("metadata cancelled by provider"));
     drainQueuedProviderResults();
@@ -309,8 +311,8 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->endOfSequence(
-        sessionFactory->lastSession()->lastMetadataToken());
+    emitProviderEndOfSequence(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastMetadataToken());
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 0);
@@ -367,15 +369,15 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
 
-    emit sessionFactory->lastSession()->endOfSequence(
-        sessionFactory->lastSession()->lastFrameToken());
+    emitProviderEndOfSequence(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken());
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 1);
@@ -433,7 +435,7 @@ void ImageViewportProviderTerminalTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -455,7 +457,7 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(item.property("requestedFrame").toInt(), 1);
     QCOMPARE(item.property("requestedPosition").toInt(), 350);
 
-    emit sessionFactory->lastSession()->endOfSequence(totalDurationToken);
+    emitProviderEndOfSequence(sessionFactory->lastSession(), totalDurationToken);
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 1);

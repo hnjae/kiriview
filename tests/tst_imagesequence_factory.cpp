@@ -620,7 +620,7 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QVERIFY(sessionFactory->lastSession());
 
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -636,8 +636,8 @@ void ImageSequenceFactoryTest::assignedProviderSequenceSurvivesResultDestruction
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     acknowledgePendingPrimaryRenderCommitForTest(item);
 

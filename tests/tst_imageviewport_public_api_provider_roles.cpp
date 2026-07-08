@@ -82,7 +82,7 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
         ImageViewport::CommandOutcome::Accepted);
     QVERIFY(sessionFactory->lastSession());
 
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
     drainQueuedProviderResults();

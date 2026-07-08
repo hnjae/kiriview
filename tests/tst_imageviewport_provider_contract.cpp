@@ -624,7 +624,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         QVERIFY(session);
         QCOMPARE(*metadataRequestThread, &workerThread);
 
-        emit session->metadataReady(session->lastMetadataToken(),
+        emitProviderMetadataReady(session, session->lastMetadataToken(),
             ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
         drainQueuedProviderResults();
         QCOMPARE(*frameRequestThread, &workerThread);
@@ -632,8 +632,8 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         ImageFrame frame(image);
-        emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
-            ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
+        emitProviderFrameReady(session, session->lastFrameToken(), &frame,
+            ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
@@ -685,7 +685,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         QVERIFY(session);
         QCOMPARE(*metadataRequestThread, controllerThread);
 
-        emit session->metadataReady(session->lastMetadataToken(),
+        emitProviderMetadataReady(session, session->lastMetadataToken(),
             ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
         QCOMPARE(*frameRequestThread, nullptr);
         drainQueuedProviderResults();
@@ -694,8 +694,8 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
         ImageFrame frame(image);
-        emit session->imageFrameWithMetadataReady(session->lastFrameToken(), &frame,
-            ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
+        emitProviderFrameReady(session, session->lastFrameToken(), &frame,
+            ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 100));
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
@@ -765,7 +765,7 @@ void ImageViewportProviderContractTest::providerSequenceOpensSessionAfterAdapter
         enumValue(metaObject, "TriState", "Unavailable"));
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -815,8 +815,8 @@ void ImageViewportProviderContractTest::providerSharedSequenceUsesIndependentVie
     QVERIFY(firstSession != secondSession);
     QCOMPARE(firstSession->lastMetadataToken(), secondSession->lastMetadataToken());
 
-    emit firstSession->metadataReady(
-        firstSession->lastMetadataToken(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+    emitProviderMetadataReady(firstSession, firstSession->lastMetadataToken(),
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
@@ -835,7 +835,7 @@ void ImageViewportProviderContractTest::providerSharedSequenceUsesIndependentVie
     QCOMPARE(second.property("requestedPosition").toInt(), -1);
     QCOMPARE(second.property("frameCount").toInt(), -1);
 
-    emit secondSession->metadataReady(secondSession->lastMetadataToken(),
+    emitProviderMetadataReady(secondSession, secondSession->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(20.0, 10.0)));
     drainQueuedProviderResults();
 

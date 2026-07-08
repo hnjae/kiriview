@@ -416,29 +416,6 @@ public:
     virtual void request(const ImageSequenceProviderRequest& request) = 0;
 
 signals:
-    void metadataReady(const ImageSequenceProviderRequestToken& token,
-        const ImageSequenceProviderMetadata& metadata);
-    // Compatibility borrowed-frame results. The provider retains ownership until delivery returns.
-    void imageFrameReady(const ImageSequenceProviderRequestToken& token, ImageFrame* frame);
-    void imageFrameWithMetadataReady(const ImageSequenceProviderRequestToken& token,
-        ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata);
-    // Transfer results. The viewport releases the handle exactly once after accepting or dropping
-    // it.
-    void frameHandleReady(
-        const ImageSequenceProviderRequestToken& token, ImageSequenceProviderFrameHandle* frame);
-    void frameHandleWithMetadataReady(const ImageSequenceProviderRequestToken& token,
-        ImageSequenceProviderFrameHandle* frame,
-        const ImageSequenceProviderFrameMetadata& metadata);
-    void providerWaiting(const ImageSequenceProviderRequestToken& token);
-    void providerProgress(const ImageSequenceProviderRequestToken& token, double progress);
-    void endOfSequence(const ImageSequenceProviderRequestToken& token);
-    void providerFailed(const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
-    void providerUnsupportedWithCause(const ImageSequenceProviderRequestToken& token,
-        ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic);
-    void providerUnsupported(
-        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
-    void providerCancelled(
-        const ImageSequenceProviderRequestToken& token, const QString& diagnostic);
     void providerEvent(const ImageSequenceProviderEvent& event);
 };
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "imageviewport_provider_event_test_support.h"
 #include "imageviewport_test_support.h"
 
 #include <QtCore/QCoreApplication>
@@ -44,8 +45,8 @@ public:
     {
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             ++*m_metadataRequestCount;
-            emit metadataReady(
-                request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+            emitProviderMetadataReady(
+                this, request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
         } else if (request.kind() == ImageSequenceProviderRequestKind::Frame) {
             ++*m_frameRequestCount;
         }
@@ -98,7 +99,7 @@ public:
         }
         if (request.kind() == ImageSequenceProviderRequestKind::Frame) {
             ++*m_frameRequestCount;
-            emit imageFrameReady(request.token(), m_frame.get());
+            emitProviderFrameReady(this, request.token(), m_frame.get());
         }
     }
 
@@ -138,7 +139,8 @@ public:
     {
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             ++*m_metadataRequestCount;
-            emit providerFailed(request.token(), QStringLiteral("metadata failed synchronously"));
+            emitProviderFailed(
+                this, request.token(), QStringLiteral("metadata failed synchronously"));
         }
     }
 
@@ -178,8 +180,9 @@ public:
     {
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             ++*m_metadataRequestCount;
-            emit providerUnsupported(
-                request.token(), QStringLiteral("metadata unsupported synchronously"));
+            emitProviderUnsupported(this, request.token(),
+                ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+                QStringLiteral("metadata unsupported synchronously"));
         }
     }
 

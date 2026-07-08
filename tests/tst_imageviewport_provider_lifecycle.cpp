@@ -332,7 +332,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -497,7 +497,7 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(*metadataRequestCount, 1);
 
     failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -718,7 +718,7 @@ void ImageViewportProviderLifecycleTest::providerDestructionCancelsActiveFrameRe
         item.setSequence(result->sequence());
 
         QVERIFY(sessionFactory->lastSession());
-        emit sessionFactory->lastSession()->metadataReady(
+        emitProviderMetadataReady(sessionFactory->lastSession(),
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
         drainQueuedProviderResults();
@@ -767,7 +767,7 @@ void ImageViewportProviderLifecycleTest::providerReplacementCancelsActiveFrameRe
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -817,7 +817,7 @@ void ImageViewportProviderLifecycleTest::providerClearCancelsActiveFrameRequestB
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -950,7 +950,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallba
     const ImageSequenceProviderRequestToken metadataToken = secondarySession->lastMetadataToken();
     QVERIFY(metadataToken.isValid());
 
-    emit secondarySession->metadataReady(
+    emitProviderMetadataReady(secondarySession,
         metadataToken, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken frameToken = secondarySession->lastFrameToken();
@@ -974,17 +974,17 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresLateSecondaryCallba
     QImage lateImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     lateImage.fill(Qt::transparent);
     ImageFrame lateFrame(lateImage);
-    emit secondarySession->providerWaiting(metadataToken);
-    emit secondarySession->providerProgress(metadataToken, 0.5);
-    emit secondarySession->metadataReady(
+    emitProviderWaiting(secondarySession, metadataToken);
+    emitProviderProgress(secondarySession, metadataToken, 0.5);
+    emitProviderMetadataReady(secondarySession,
         metadataToken, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
-    emit secondarySession->imageFrameReady(frameToken, &lateFrame);
-    emit secondarySession->providerCancelled(frameToken, QStringLiteral("late cancellation"));
-    emit secondarySession->providerUnsupportedWithCause(frameToken,
+    emitProviderFrameReady(secondarySession, frameToken, &lateFrame);
+    emitProviderCancelled(secondarySession, frameToken, QStringLiteral("late cancellation"));
+    emitProviderUnsupported(secondarySession, frameToken,
         ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
         QStringLiteral("late unsupported"));
-    emit secondarySession->providerFailed(frameToken, QStringLiteral("late failure"));
-    emit secondarySession->endOfSequence(frameToken);
+    emitProviderFailed(secondarySession, frameToken, QStringLiteral("late failure"));
+    emitProviderEndOfSequence(secondarySession, frameToken);
 
     drainQueuedProviderResults();
     QCOMPARE(*cancelRequestCount, 1);
@@ -1349,13 +1349,13 @@ void ImageViewportProviderLifecycleTest::
         QVERIFY(lastProviderTransportDiagnosticForTest(item).valid);
         QVERIFY(lastProviderTransportDiagnosticForTest(item).pendingCleanup);
 
-        emit session->providerWaiting(metadataToken);
-        emit session->metadataReady(
+        emitProviderWaiting(session, metadataToken);
+        emitProviderMetadataReady(session,
             metadataToken, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
-        emit session->providerUnsupportedWithCause(metadataToken,
+        emitProviderUnsupported(session, metadataToken,
             ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
             QStringLiteral("late unsupported after failed close"));
-        emit session->providerFailed(
+        emitProviderFailed(session,
             metadataToken, QStringLiteral("late failure after failed close"));
 
         QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
@@ -1396,7 +1396,7 @@ void ImageViewportProviderLifecycleTest::providerNullSequenceCancelsActiveFrameR
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1631,7 +1631,7 @@ void ImageViewportProviderLifecycleTest::providerClearIgnoresCancelledFrameAckno
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1730,7 +1730,7 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("requestedFrame").toInt(), -1);
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
 
@@ -1806,7 +1806,7 @@ void ImageViewportProviderLifecycleTest::
     QCOMPARE(item.property("frameCount").toInt(), -1);
 
     QVERIFY(replacementSessionFactory->lastSession());
-    emit replacementSessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(replacementSessionFactory->lastSession(),
         replacementSessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(20.0, 10.0)));
     drainQueuedProviderResults();

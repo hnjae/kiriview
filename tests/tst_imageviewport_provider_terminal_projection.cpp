@@ -5,13 +5,13 @@ void emitTerminal(CountingProviderSession* session, ImageSequenceProviderRequest
     int terminalKind, int unsupportedCause, const QString& diagnostic)
 {
     if (terminalKind == 0) {
-        emit session->providerFailed(token, diagnostic);
+        emitProviderFailed(session, token, diagnostic);
     } else if (terminalKind == 1) {
-        emit session->providerUnsupportedWithCause(token,
-            static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause),
+        emitProviderUnsupported(session, token,
+            static_cast<ImageSequenceProviderUnsupportedCause>(unsupportedCause),
             diagnostic);
     } else {
-        emit session->providerCancelled(token, diagnostic);
+        emitProviderCancelled(session, token, diagnostic);
     }
     drainQueuedProviderResults();
 }
@@ -75,7 +75,7 @@ void ImageViewportProviderTerminalProjectionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("secondary metadata service unavailable"));
     drainQueuedProviderResults();
@@ -166,8 +166,8 @@ void ImageViewportProviderTerminalProjectionTest::
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    emit sessionFactory->lastSession()->providerUnsupportedWithCause(metadataToken,
-        static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause), diagnostic);
+    emitProviderUnsupported(sessionFactory->lastSession(), metadataToken,
+        static_cast<ImageSequenceProviderUnsupportedCause>(unsupportedCause), diagnostic);
     drainQueuedProviderResults();
 
     QCOMPARE(*metadataRequestCount, 1);
@@ -285,10 +285,10 @@ void ImageViewportProviderTerminalProjectionTest::
     CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
     QVERIFY(primarySession);
     QVERIFY(secondarySession);
-    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
-    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
     drainQueuedProviderResults();
     QCOMPARE(*primaryFrameRequestCount, 1);
@@ -352,14 +352,14 @@ void ImageViewportProviderTerminalProjectionTest::
     CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
     QVERIFY(primarySession);
     QVERIFY(secondarySession);
-    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
-    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
     drainQueuedProviderResults();
 
-    emit secondarySession->providerFailed(
+    emitProviderFailed(secondarySession,
         secondarySession->lastFrameToken(), QStringLiteral("secondary frame failed"));
     drainQueuedProviderResults();
 
@@ -418,14 +418,14 @@ void ImageViewportProviderTerminalProjectionTest::
     CountingProviderSession* secondarySession = secondarySessionFactory->lastSession();
     QVERIFY(primarySession);
     QVERIFY(secondarySession);
-    emit primarySession->metadataReady(primarySession->lastMetadataToken(),
+    emitProviderMetadataReady(primarySession, primarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
-    emit secondarySession->metadataReady(secondarySession->lastMetadataToken(),
+    emitProviderMetadataReady(secondarySession, secondarySession->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(20.0, 10.0), { 100, 250 }));
     drainQueuedProviderResults();
 
-    emit primarySession->providerFailed(
+    emitProviderFailed(primarySession,
         primarySession->lastFrameToken(), QStringLiteral("primary frame failed"));
     drainQueuedProviderResults();
 
@@ -463,7 +463,7 @@ void ImageViewportProviderTerminalProjectionTest::clearAndReplacementEscapeSeale
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("metadata generation failed"));
     drainQueuedProviderResults();
@@ -549,7 +549,7 @@ void ImageViewportProviderTerminalProjectionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(20.0, 10.0)));
     drainQueuedProviderResults();
@@ -558,13 +558,13 @@ void ImageViewportProviderTerminalProjectionTest::
     const ImageSequenceProviderRequestToken frameToken
         = sessionFactory->lastSession()->lastFrameToken();
     if (terminalKind == 0) {
-        emit sessionFactory->lastSession()->providerFailed(frameToken, diagnostic);
+        emitProviderFailed(sessionFactory->lastSession(), frameToken, diagnostic);
     } else if (terminalKind == 1) {
-        emit sessionFactory->lastSession()->providerUnsupportedWithCause(frameToken,
-            static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause),
+        emitProviderUnsupported(sessionFactory->lastSession(), frameToken,
+            static_cast<ImageSequenceProviderUnsupportedCause>(unsupportedCause),
             diagnostic);
     } else {
-        emit sessionFactory->lastSession()->providerCancelled(frameToken, diagnostic);
+        emitProviderCancelled(sessionFactory->lastSession(), frameToken, diagnostic);
     }
     drainQueuedProviderResults();
 
@@ -643,7 +643,7 @@ void ImageViewportProviderTerminalProjectionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -671,13 +671,13 @@ void ImageViewportProviderTerminalProjectionTest::
     const ImageSequenceProviderRequestToken playbackToken
         = sessionFactory->lastSession()->lastFrameToken();
     if (terminalKind == 0) {
-        emit sessionFactory->lastSession()->providerFailed(playbackToken, diagnostic);
+        emitProviderFailed(sessionFactory->lastSession(), playbackToken, diagnostic);
     } else if (terminalKind == 1) {
-        emit sessionFactory->lastSession()->providerUnsupportedWithCause(playbackToken,
-            static_cast<ImageSequenceProviderSession::UnsupportedCause>(unsupportedCause),
+        emitProviderUnsupported(sessionFactory->lastSession(), playbackToken,
+            static_cast<ImageSequenceProviderUnsupportedCause>(unsupportedCause),
             diagnostic);
     } else {
-        emit sessionFactory->lastSession()->providerCancelled(playbackToken, diagnostic);
+        emitProviderCancelled(sessionFactory->lastSession(), playbackToken, diagnostic);
     }
     drainQueuedProviderResults();
 
@@ -744,13 +744,13 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
     if (tokenScope == 0) {
         terminalToken = sessionFactory->lastSession()->lastMetadataToken();
     } else if (tokenScope == 1) {
-        emit sessionFactory->lastSession()->metadataReady(
+        emitProviderMetadataReady(sessionFactory->lastSession(),
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
         drainQueuedProviderResults();
         terminalToken = sessionFactory->lastSession()->lastFrameToken();
     } else {
-        emit sessionFactory->lastSession()->metadataReady(
+        emitProviderMetadataReady(sessionFactory->lastSession(),
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
         drainQueuedProviderResults();
@@ -766,8 +766,8 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
     }
     QVERIFY(terminalToken.isValid());
 
-    emit sessionFactory->lastSession()->providerUnsupportedWithCause(terminalToken,
-        static_cast<ImageSequenceProviderSession::UnsupportedCause>(-1), suppliedDiagnostic);
+    emitProviderUnsupported(sessionFactory->lastSession(), terminalToken,
+        static_cast<ImageSequenceProviderUnsupportedCause>(-1), suppliedDiagnostic);
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 1);
@@ -810,16 +810,17 @@ void ImageViewportProviderTerminalProjectionTest::
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token failure"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerUnsupported(
-        ImageSequenceProviderRequestToken(), QStringLiteral("invalid token unsupported"));
+    emitProviderUnsupported(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("invalid token unsupported"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerCancelled(
+    emitProviderCancelled(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token cancellation"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->endOfSequence(ImageSequenceProviderRequestToken());
+    emitProviderEndOfSequence(sessionFactory->lastSession(), ImageSequenceProviderRequestToken());
     drainQueuedProviderResults();
 
     QCOMPARE(*metadataRequestCount, 1);
@@ -859,7 +860,7 @@ void ImageViewportProviderTerminalProjectionTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -869,16 +870,17 @@ void ImageViewportProviderTerminalProjectionTest::
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token failure"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerUnsupported(
-        ImageSequenceProviderRequestToken(), QStringLiteral("invalid token unsupported"));
+    emitProviderUnsupported(sessionFactory->lastSession(), ImageSequenceProviderRequestToken(),
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("invalid token unsupported"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerCancelled(
+    emitProviderCancelled(sessionFactory->lastSession(),
         ImageSequenceProviderRequestToken(), QStringLiteral("invalid token cancellation"));
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->endOfSequence(ImageSequenceProviderRequestToken());
+    emitProviderEndOfSequence(sessionFactory->lastSession(), ImageSequenceProviderRequestToken());
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);

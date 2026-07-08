@@ -24,28 +24,32 @@ public:
     {
         switch (request.kind()) {
         case ImageSequenceProviderRequestKind::Metadata:
-            emit metadataReady(
-                request.token(), ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
+            emit providerEvent(ImageSequenceProviderEvent::metadataReady(
+                request.token(), ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0))));
             break;
         case ImageSequenceProviderRequestKind::Frame: {
             QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
             image.fill(Qt::transparent);
             auto payload = std::make_unique<ImageFrame>(image);
-            emit frameHandleWithMetadataReady(request.token(),
-                new ImageSequenceProviderFrameHandle(std::move(payload)),
-                ImageSequenceProviderFrameMetadata::timedFrame(request.frame(), 0, 100));
+            ImageSequenceProviderFrameEnvelope envelope = payload->envelope();
+            envelope.setFrame(request.frame());
+            envelope.setFrameStartPosition(0);
+            envelope.setFrameDuration(100);
+            emit providerEvent(ImageSequenceProviderEvent::frameReady(request.token(),
+                new ImageSequenceProviderFrameHandle(std::move(payload)), envelope));
             break;
         }
         case ImageSequenceProviderRequestKind::Playback:
             m_lastPlaybackFrame = request.frame();
             m_lastPlaybackPosition = request.requestedPosition();
-            emit providerProgress(request.token(), 0.5);
-            emit endOfSequence(request.token());
+            emit providerEvent(ImageSequenceProviderEvent::progress(request.token(), 0.5));
+            emit providerEvent(ImageSequenceProviderEvent::endOfSequence(request.token()));
             break;
         case ImageSequenceProviderRequestKind::Cancel:
             for (ImageSequenceProviderRequestToken token : request.tokens()) {
                 m_lastCancelledToken = token;
-                emit providerCancelled(token, QStringLiteral("cancelled"));
+                emit providerEvent(
+                    ImageSequenceProviderEvent::cancelled(token, QStringLiteral("cancelled")));
             }
             break;
         case ImageSequenceProviderRequestKind::Close:
@@ -142,8 +146,8 @@ public:
     {
         if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
             *m_capturedToken = request.token();
-            emit metadataReady(
-                request.token(), ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
+            emit providerEvent(ImageSequenceProviderEvent::metadataReady(
+                request.token(), ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0))));
         }
     }
 
@@ -555,18 +559,17 @@ bool canUseInstalledProviderSessionSurface()
     bool progressReceived = false;
     bool endReceived = false;
     bool cancellationReceived = false;
-    QObject::connect(&session, &ImageSequenceProviderSession::providerProgress,
-        [&progressReceived, &token](const ImageSequenceProviderRequestToken& receivedToken,
-            double progress) { progressReceived = receivedToken == token && progress == 0.5; });
-    QObject::connect(&session, &ImageSequenceProviderSession::endOfSequence,
-        [&endReceived, &token](const ImageSequenceProviderRequestToken& receivedToken) {
-            endReceived = receivedToken == token;
-        });
-    QObject::connect(&session, &ImageSequenceProviderSession::providerCancelled,
-        [&cancellationReceived, &token](
-            const ImageSequenceProviderRequestToken& receivedToken, const QString& diagnostic) {
-            cancellationReceived
-                = receivedToken == token && diagnostic == QStringLiteral("cancelled");
+    QObject::connect(&session, &ImageSequenceProviderSession::providerEvent,
+        [&progressReceived, &endReceived, &cancellationReceived, &token](
+            const ImageSequenceProviderEvent& event) {
+            if (event.kind() == ImageSequenceProviderEventKind::Progress) {
+                progressReceived = event.token() == token && event.progress() == 0.5;
+            } else if (event.kind() == ImageSequenceProviderEventKind::EndOfSequence) {
+                endReceived = event.token() == token;
+            } else if (event.kind() == ImageSequenceProviderEventKind::Cancelled) {
+                cancellationReceived
+                    = event.token() == token && event.diagnostic() == QStringLiteral("cancelled");
+            }
         });
 
     session.request(ImageSequenceProviderRequest::playback(
@@ -594,7 +597,7 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
         && session.lastFrame() == 3;
 }
 
-bool canUseInstalledProviderBorrowedRawFrameSignalSurface()
+bool canUseInstalledProviderTypedEventSurface()
 {
     ConsumerSession session;
     const ImageSequenceProviderRequestToken token = makeInstalledProviderRequestToken();
@@ -604,30 +607,24 @@ bool canUseInstalledProviderBorrowedRawFrameSignalSurface()
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    const ImageSequenceProviderFrameMetadata metadata
-        = ImageSequenceProviderFrameMetadata::timedFrame(1, 100, 100);
-    bool rawFrameReceived = false;
-    bool rawFrameWithMetadataReceived = false;
+    ImageSequenceProviderFrameEnvelope envelope = frame.envelope();
+    envelope.setFrame(1);
+    envelope.setFrameStartPosition(100);
+    envelope.setFrameDuration(100);
+    bool frameEventReceived = false;
 
-    QObject::connect(&session, &ImageSequenceProviderSession::imageFrameReady,
-        [&rawFrameReceived, &token, &frame](
-            const ImageSequenceProviderRequestToken& receivedToken, ImageFrame* receivedFrame) {
-            rawFrameReceived = receivedToken == token && receivedFrame == &frame;
-        });
-    QObject::connect(&session, &ImageSequenceProviderSession::imageFrameWithMetadataReady,
-        [&rawFrameWithMetadataReceived, &token, &frame, &metadata](
-            const ImageSequenceProviderRequestToken& receivedToken, ImageFrame* receivedFrame,
-            const ImageSequenceProviderFrameMetadata& receivedMetadata) {
-            rawFrameWithMetadataReceived = receivedToken == token && receivedFrame == &frame
-                && receivedMetadata.isTimedFrame() && receivedMetadata.frame() == metadata.frame()
-                && receivedMetadata.frameStartPosition() == metadata.frameStartPosition()
-                && receivedMetadata.frameDuration() == metadata.frameDuration();
+    QObject::connect(&session, &ImageSequenceProviderSession::providerEvent,
+        [&frameEventReceived, &token, &frame, &envelope](const ImageSequenceProviderEvent& event) {
+            frameEventReceived = event.kind() == ImageSequenceProviderEventKind::FrameReady
+                && event.token() == token && event.frameHandle()
+                && event.frameHandle()->frame() == &frame && event.frameEnvelope() == envelope;
         });
 
-    emit session.imageFrameReady(token, &frame);
-    emit session.imageFrameWithMetadataReady(token, &frame, metadata);
+    auto handle = std::make_unique<ImageSequenceProviderFrameHandle>(&frame, [](ImageFrame*) {});
+    emit session.providerEvent(
+        ImageSequenceProviderEvent::frameReady(token, handle.get(), envelope));
 
-    return rawFrameReceived && rawFrameWithMetadataReceived;
+    return frameEventReceived;
 }
 }
 
@@ -1048,7 +1045,7 @@ int main(int argc, char** argv)
             && installedQmlOpaqueTypesAreNotCreatable() && canUseInstalledQmlCommandSurface()
             && canUseInstalledProviderSessionSurface()
             && canUseInstalledProviderPlaybackFallbackSurface()
-            && canUseInstalledProviderBorrowedRawFrameSignalSurface()
+            && canUseInstalledProviderTypedEventSurface()
         ? 0
         : 1;
 }

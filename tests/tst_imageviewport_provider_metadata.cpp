@@ -261,14 +261,14 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
     switch (static_cast<MetadataProjectionScenario>(scenario)) {
     case RuntimeStillMetadata:
         QVERIFY(sessionFactory->lastSession());
-        emit sessionFactory->lastSession()->metadataReady(
+        emitProviderMetadataReady(sessionFactory->lastSession(),
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
         drainQueuedProviderResults();
         break;
     case RuntimeTimedMetadata:
         QVERIFY(sessionFactory->lastSession());
-        emit sessionFactory->lastSession()->metadataReady(
+        emitProviderMetadataReady(sessionFactory->lastSession(),
             sessionFactory->lastSession()->lastMetadataToken(),
             ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
         drainQueuedProviderResults();
@@ -653,7 +653,7 @@ void ImageViewportProviderMetadataTest::providerLogicalSizeFactsWaitForRuntimeMe
     QCOMPARE(item.property("totalDuration").toInt(), -1);
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -726,7 +726,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownL
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
     drainQueuedProviderResults();
@@ -760,7 +760,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownF
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250, 300 }));
     drainQueuedProviderResults();
@@ -805,7 +805,7 @@ void ImageViewportProviderMetadataTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(secondarySessionFactory->lastSession());
-    emit secondarySessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
         secondarySessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0)));
     drainQueuedProviderResults();
@@ -854,7 +854,7 @@ void ImageViewportProviderMetadataTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(secondarySessionFactory->lastSession());
-    emit secondarySessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
         secondarySessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -905,7 +905,7 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
 
     QVERIFY(secondarySessionFactory->lastSession());
-    emit secondarySessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
         secondarySessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1203,7 +1203,7 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionR
               const QMetaObject* metaObject = item.metaObject();
 
               QVERIFY(sessionFactory->lastSession());
-              emit sessionFactory->lastSession()->metadataReady(
+              emitProviderMetadataReady(sessionFactory->lastSession(),
                   sessionFactory->lastSession()->lastMetadataToken(), metadata);
               drainQueuedProviderResults();
 
@@ -1258,7 +1258,7 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradict
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -1307,7 +1307,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverr
     auto metadata = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
     metadata.setTimedPlaybackSupport(false);
     metadata.setPositionSeekSupport(false);
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), metadata);
     drainQueuedProviderResults();
 
@@ -1500,7 +1500,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsNonFiniteLogicalS
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(std::numeric_limits<double>::infinity(), 8.0)));
     drainQueuedProviderResults();
@@ -1539,7 +1539,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsHugeFiniteLogical
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(1.0e20, 8.0)));
     drainQueuedProviderResults();
@@ -1578,7 +1578,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCou
 
     QVector<int> durations(ImageSequenceLimits::maximumTimedListFrameCount() + 1, 1);
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), durations));
     drainQueuedProviderResults();
@@ -1619,7 +1619,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedDuration
               const QMetaObject* metaObject = item.metaObject();
 
               QVERIFY(sessionFactory->lastSession());
-              emit sessionFactory->lastSession()->metadataReady(
+              emitProviderMetadataReady(sessionFactory->lastSession(),
                   sessionFactory->lastSession()->lastMetadataToken(),
                   ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), durations));
               drainQueuedProviderResults();
@@ -1673,7 +1673,7 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
 
     const ImageSequenceProviderMetadata metadata
         = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), metadata);
     drainQueuedProviderResults();
 
@@ -1730,7 +1730,7 @@ void ImageViewportProviderMetadataTest::providerTimedMetadataSelectsInitialFrame
 
     const ImageSequenceProviderMetadata metadata
         = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), metadata);
     drainQueuedProviderResults();
 
@@ -1780,7 +1780,7 @@ void ImageViewportProviderMetadataTest::providerFixedDurationMetadataSelectsInit
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 3, 100));
     drainQueuedProviderResults();
@@ -1838,9 +1838,9 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
-    emit sessionFactory->lastSession()->providerProgress(metadataToken, 0.5);
+    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerWaiting(metadataToken);
+    emitProviderWaiting(sessionFactory->lastSession(), metadataToken);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -1854,7 +1854,7 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(requestRevisionSpy.count(), 0);
 
-    emit sessionFactory->lastSession()->metadataReady(metadataToken,
+    emitProviderMetadataReady(sessionFactory->lastSession(), metadataToken,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
 
@@ -1862,7 +1862,7 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     QCOMPARE(requestSpy.count(), 1);
     QCOMPARE(requestRevisionSpy.count(), 1);
 
-    emit sessionFactory->lastSession()->providerProgress(metadataToken, 1.0);
+    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 1.0);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -1899,14 +1899,15 @@ void ImageViewportProviderMetadataTest::providerInvalidProgressResultsAreIgnored
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
-    emit sessionFactory->lastSession()->providerProgress(metadataToken, -0.1);
+    emitProviderProgress(sessionFactory->lastSession(), metadataToken, -0.1);
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerProgress(metadataToken, 1.1);
+    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 1.1);
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerProgress(
+    emitProviderProgress(sessionFactory->lastSession(),
         metadataToken, std::numeric_limits<double>::quiet_NaN());
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerProgress(ImageSequenceProviderRequestToken(), 0.5);
+    emitProviderProgress(
+        sessionFactory->lastSession(), ImageSequenceProviderRequestToken(), 0.5);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -1943,7 +1944,7 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    emit sessionFactory->lastSession()->providerProgress(metadataToken, 0.5);
+    emitProviderProgress(sessionFactory->lastSession(), metadataToken, 0.5);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -1952,7 +1953,7 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(*closeCount, 0);
 
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         metadataToken, QStringLiteral("metadata failed after progress"));
     drainQueuedProviderResults();
 
@@ -1990,7 +1991,7 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     drainQueuedProviderResults();
@@ -2001,7 +2002,7 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(frameToken, &frame);
+    emitProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -2019,9 +2020,9 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
 
-    emit sessionFactory->lastSession()->providerProgress(frameToken, 0.75);
+    emitProviderProgress(sessionFactory->lastSession(), frameToken, 0.75);
     drainQueuedProviderResults();
-    emit sessionFactory->lastSession()->providerWaiting(frameToken);
+    emitProviderWaiting(sessionFactory->lastSession(), frameToken);
     drainQueuedProviderResults();
 
     QCOMPARE(
@@ -2111,12 +2112,12 @@ void ImageViewportProviderMetadataTest::providerMetadataReadySealsMetadataToken(
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    emit sessionFactory->lastSession()->metadataReady(metadataToken,
+    emitProviderMetadataReady(sessionFactory->lastSession(), metadataToken,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         metadataToken, QStringLiteral("late metadata failure"));
     drainQueuedProviderResults();
 

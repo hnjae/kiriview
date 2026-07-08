@@ -233,7 +233,7 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -241,7 +241,7 @@ void ImageViewportRenderCommitTest::mixedBuiltInProviderSpreadWaitsForCompleteRe
     QImage providerImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     providerImage.fill(QColor(0, 0, 255, 255));
     ImageFrame providerFrame(providerImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &providerFrame);
     drainQueuedProviderResults();
 
@@ -656,7 +656,7 @@ void ImageViewportRenderCommitTest::providerTimedFramePaintFailureRetainsPreviou
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -733,7 +733,7 @@ void ImageViewportRenderCommitTest::providerTimedPlaybackPaintFailureStopsPlayba
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -823,7 +823,7 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -903,7 +903,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -963,7 +963,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -1039,7 +1039,7 @@ void ImageViewportRenderCommitTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -1131,7 +1131,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(4.0, 2.0));
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -1142,7 +1142,7 @@ void ImageViewportRenderCommitTest::secondaryProviderSpreadRenderFailureRetainsP
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 0, 255, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -1197,7 +1197,7 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -1205,7 +1205,7 @@ void ImageViewportRenderCommitTest::twoPageSinglePayloadCommitAcknowledgementIsI
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 0, 255, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -1277,7 +1277,7 @@ void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWith
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -1285,7 +1285,7 @@ void ImageViewportRenderCommitTest::secondaryRoleRenderFailureReportsFailureWith
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 0, 255, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -1341,7 +1341,7 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -1349,7 +1349,7 @@ void ImageViewportRenderCommitTest::staleSecondaryRoleRenderFailureIsIgnoredWith
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 0, 255, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -1408,7 +1408,7 @@ void ImageViewportRenderCommitTest::staleRenderCommitAcknowledgementIsIgnoredWit
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -1476,7 +1476,7 @@ void ImageViewportRenderCommitTest::staleRenderFailureAcknowledgementIsIgnoredWi
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -1553,7 +1553,7 @@ void ImageViewportRenderCommitTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();
@@ -1727,7 +1727,7 @@ void ImageViewportRenderCommitTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();

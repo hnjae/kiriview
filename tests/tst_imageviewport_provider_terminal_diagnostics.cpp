@@ -50,8 +50,9 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     item.setSequence(result->sequence());
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
-        sessionFactory->lastSession()->lastMetadataToken(), diagnostic);
+    emitProviderFailed(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastMetadataToken(),
+        diagnostic);
     drainQueuedProviderResults();
 
     const QString errorString = item.property("errorString").toString();
@@ -78,7 +79,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("decoder failed for https://user:secret@example.test/image.png token=abc123 "
                        "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png"));
@@ -135,11 +136,13 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         "/home/ops/private/image.png and C:\\Users\\ops\\secret.png");
     verifyDiagnostic(
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
-            emit session->providerUnsupported(token, diagnostic);
+            emitProviderUnsupported(
+                session, token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+                diagnostic);
         });
     verifyDiagnostic(
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
-            emit session->providerCancelled(token, diagnostic);
+            emitProviderCancelled(session, token, diagnostic);
         });
 }
 
@@ -164,9 +167,9 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     const QString suppliedDiagnostic
         = QStringLiteral("invalid cause for https://user:secret@example.test/image.png token=abc123");
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerUnsupportedWithCause(
+    emitProviderUnsupported(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
-        static_cast<ImageSequenceProviderSession::UnsupportedCause>(-1), suppliedDiagnostic);
+        static_cast<ImageSequenceProviderUnsupportedCause>(-1), suppliedDiagnostic);
     drainQueuedProviderResults();
 
     const QString errorString = item.property("errorString").toString();
@@ -200,7 +203,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->providerFailed(
+    emitProviderFailed(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         QStringLiteral("decoder <b>failed</b>\n<script>alert(1)</script>\ttry again"));
     drainQueuedProviderResults();

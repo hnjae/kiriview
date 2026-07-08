@@ -457,7 +457,7 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -472,7 +472,7 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 255, 0, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -542,7 +542,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     QCOMPARE(*primaryMetadataRequestCount, 1);
     QCOMPARE(*secondaryMetadataRequestCount, 1);
 
-    emit primarySessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(primarySessionFactory->lastSession(),
         primarySessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
     drainQueuedProviderResults();
@@ -553,7 +553,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(QColor(255, 0, 0, 255));
     ImageFrame primaryFrame(primaryImage);
-    emit primarySessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(primarySessionFactory->lastSession(),
         primarySessionFactory->lastSession()->lastFrameToken(), &primaryFrame);
     drainQueuedProviderResults();
 
@@ -569,7 +569,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     QCOMPARE(item.property("requestReason").toInt(),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
-    emit secondarySessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(secondarySessionFactory->lastSession(),
         secondarySessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(30.0, 20.0)));
     drainQueuedProviderResults();
@@ -580,7 +580,7 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(QColor(0, 255, 0, 255));
     ImageFrame secondaryFrame(secondaryImage);
-    emit secondarySessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(secondarySessionFactory->lastSession(),
         secondarySessionFactory->lastSession()->lastFrameToken(), &secondaryFrame);
     drainQueuedProviderResults();
 
@@ -1046,7 +1046,7 @@ void ImageViewportRenderSceneGraphTest::providerStillFrameCreatesTexturePaintNod
     item.setSequence(result->sequence());
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(4.0, 2.0)));
     drainQueuedProviderResults();
@@ -1054,7 +1054,7 @@ void ImageViewportRenderSceneGraphTest::providerStillFrameCreatesTexturePaintNod
     QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
@@ -1091,7 +1091,7 @@ void ImageViewportRenderSceneGraphTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::still(QSizeF(4.0, 2.0)));
     drainQueuedProviderResults();
@@ -1099,7 +1099,7 @@ void ImageViewportRenderSceneGraphTest::
     QImage image(4, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(QColor(255, 0, 0, 255));
     ImageFrame frame(image);
-    emit sessionFactory->lastSession()->imageFrameReady(
+    emitProviderFrameReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
@@ -1166,7 +1166,7 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    emit sessionFactory->lastSession()->metadataReady(
+    emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(4.0, 2.0), { 100, 250 }));
     drainQueuedProviderResults();

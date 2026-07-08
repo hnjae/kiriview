@@ -699,7 +699,7 @@ Remove v1 flat properties, legacy provider adapter/session APIs, compatibility p
 - Legacy coordinate aliases and geometry value types: remove `CoordinateResult`, `PageGeometry`, `itemToSpread`, `spreadToItem`, `nearestVisibleSpreadPoint`, `itemToPage`, `pageToItem`, `nearestVisiblePagePoint`, `pageGeometry`, `containsVisibleSpreadPoint`, `containsVisiblePagePoint`, `itemToImage`, `imageToItem`, `nearestVisibleImagePoint`, and `containsVisibleImagePoint` from the public item surface. Replacement coverage: `ImageViewportCoordinateInput`, `ImageViewportCoordinateResult`, `mapPoint`, `containsPoint`, `nearestVisiblePoint`, `state.display`, role geometry snapshots, `imageviewport_public_api_commands` coordinate tests, presentation-state geometry tests, and install-consumer coordinate checks. Status: removed.
 - Legacy provider adapter construction virtuals: remove `ImageSequenceProviderAdapter::sessionFactory()`, `knownMetadata()`, `knownFacts()`, `timedPlaybackCapability()`, `frameSeekCapability()`, `positionSeekCapability()`, `authoredAnimationFacts()`, and `threadingContract()` after all adapters implement `descriptor()` directly. Replacement coverage: `ImageSequenceProviderDescriptor`, `imagesequence_factory`, `imageviewport_provider_contract`, provider lifecycle/counting support, and `imageviewport_install_consumer`. Status: removed.
 - Legacy provider session virtuals and direct transport entry points: remove `requestMetadata`, `requestFrame`, `requestPosition`, `requestPlayback`, direct `cancelRequest`, and direct `close` once sessions handle typed `request(const ImageSequenceProviderRequest&)` for metadata/frame/position/playback/cancel/close. Replacement coverage: typed request construction tests, provider contract typed-session tests, lifecycle/affinity/counting support converted to typed requests, and bridge transport tests. Status: removed.
-- Legacy provider session signals and borrowed frame signals: remove `metadataReady`, `imageFrameReady`, `imageFrameWithMetadataReady`, `frameHandleReady`, `frameHandleWithMetadataReady`, `providerWaiting`, `providerProgress`, `endOfSequence`, `providerFailed`, `providerUnsupportedWithCause`, `providerUnsupported`, and `providerCancelled`; borrowed raw-frame signals are removed with the same group. Replacement coverage: `providerEvent(const ImageSequenceProviderEvent&)`, typed event factory tests, provider terminal/projection/recovery/frame-admission/playback tests, render commit tests, and install-consumer event checks. Status: pending; most provider tests still emit legacy signals and must be converted before removal.
+- Legacy provider session signals and borrowed frame signals: remove `metadataReady`, `imageFrameReady`, `imageFrameWithMetadataReady`, `frameHandleReady`, `frameHandleWithMetadataReady`, `providerWaiting`, `providerProgress`, `endOfSequence`, `providerFailed`, `providerUnsupportedWithCause`, `providerUnsupported`, and `providerCancelled`; borrowed raw-frame signals are removed with the same group. Replacement coverage: `providerEvent(const ImageSequenceProviderEvent&)`, typed event factory tests, provider terminal/projection/recovery/frame-admission/playback tests, render commit tests, and install-consumer event checks. Status: removed.
 - Obsolete private helpers and old tests: remove private facade/controller helper methods only after no public surface, test, or structural guard references them. Old tests scheduled for rewrite are `tst_imageviewport_public_api`, `tst_imageviewport_public_api_qml`, `tst_imageviewport_public_api_commands`, legacy coordinate cases in `tst_imageviewport_still` and `tst_imageviewport_presentation_state`, provider terminal/projection/recovery/frame-admission/playback tests that emit legacy signals, provider lifecycle/affinity/counting support that overrides legacy virtuals, and install-consumer snippets that compile legacy symbols. Replacement coverage is the v2 test named in each ledger row; each deletion must be adjacent to, or immediately follow, its passing replacement. Status: presentation property-setter private shims are removed; other obsolete private helpers and old-test rewrites are pending.
 
 ### Completion Criteria
@@ -842,6 +842,66 @@ Verification for this slice: `cmake --build build-ninja` passed, focused `ctest 
 The provider bridge typed-request cleanup slice is complete: `ViewportProviderBridge` now exposes a single typed request delivery path instead of internal `requestMetadata`, `requestFrame`, `requestPosition`, `requestPlayback`, and `cancelRequest` entry points. The host constructs metadata, frame, position, playback, and cancel requests from controller transport effects before delivery; session close remains a lifecycle cleanup operation that sends typed cancel and close requests to the retiring session.
 
 Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_contract|imageviewport_provider_lifecycle|imageviewport_provider_metadata|imageviewport_provider_requests|imageviewport_provider_frame_admission|imageviewport_provider_terminal|imageviewport_provider_playback|viewportcontroller_provider|viewportcontroller_playback|imageviewport_install_consumer' --output-on-failure` passed 14/14, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider typed-event support conversion slice is complete: shared provider test support now emits typed `providerEvent` values for metadata, frame, waiting, progress, terminal, and cancellation paths; installed-consumer coverage now observes and emits `providerEvent` directly instead of legacy provider session signals. Direct legacy signal emissions remain in provider/render behavior suites until their focused conversion slices.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_contract|imageviewport_provider_lifecycle|imageviewport_provider_metadata|imageviewport_provider_requests|imageviewport_provider_frame_admission|imageviewport_provider_terminal|imageviewport_provider_playback|viewportcontroller_provider|viewportcontroller_playback|imageviewport_install_consumer' --output-on-failure` passed 14/14, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The first direct provider-event test conversion slice is complete: public provider-role, state-snapshot, image-sequence factory, provider-contract, and provider terminal-diagnostics tests now emit typed provider events for straightforward metadata, frame, failure, unsupported, and cancellation cases.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_public_api_provider_roles|imageviewport_state_snapshot|imagesequence_factory|imageviewport_provider_contract|imageviewport_provider_terminal_diagnostics' --output-on-failure` passed 5/5, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The typed invalid unsupported-cause conversion slice is complete: invalid typed `Unsupported` events preserve their invalid cause through the existing provider protocol-violation projection, and terminal diagnostics no longer emits legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal_diagnostics' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The base provider terminal typed-event conversion slice is complete: `imageviewport_provider_terminal` now emits typed metadata, unsupported, failure, cancellation, and end-of-sequence events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal$' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider terminal playback typed-event conversion slice is complete: `imageviewport_provider_terminal_playback` now emits typed metadata, failure, cancellation, and unsupported events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal_playback' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The render scenegraph typed-event conversion slice is complete: `imageviewport_render_scenegraph` now emits typed provider metadata and frame-ready events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_render_scenegraph' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The render commit typed-event conversion slice is complete: `imageviewport_render_commit` now emits typed provider metadata and frame-ready events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_render_commit' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider lifecycle typed-event conversion slice is complete: `imageviewport_provider_lifecycle` now emits typed metadata, waiting, progress, frame, cancellation, unsupported, failure, and end-of-sequence events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_lifecycle' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider terminal recovery typed-event conversion slice is complete: `imageviewport_provider_terminal_recovery` now emits typed metadata, progress, waiting, frame, failure, unsupported, and cancellation events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal_recovery' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider metadata typed-event conversion slice is complete: `imageviewport_provider_metadata` now emits typed metadata, progress, waiting, frame, and failure events instead of legacy provider session signals. The typed bridge now preserves invalid metadata events for metadata-admission rejection and invalid progress events for advisory-progress ignoring, matching the existing public behavior.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_metadata' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider requests typed-event conversion slice is complete: `imageviewport_provider_requests` now emits typed metadata, frame, unsupported, cancellation, and failure events instead of legacy provider session signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_requests' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider terminal projection typed-event conversion slice is complete: `imageviewport_provider_terminal_projection` now emits typed metadata, failure, unsupported, cancellation, and end-of-sequence events instead of legacy provider session signals, including invalid typed unsupported causes for protocol-violation coverage.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_terminal_projection' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider frame admission typed-event conversion slice is complete: `imageviewport_provider_frame_admission` now emits typed metadata, frame-ready, frame-with-metadata, and owned-frame-handle events instead of legacy provider session signals. The typed bridge now preserves invalid frame-ready events for frame-admission rejection, and typed frame test helpers transfer owned handles to the bridge/controller for release.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_frame_admission' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The provider playback typed-event conversion slice is complete: `imageviewport_provider_playback` now emits typed metadata, end-of-sequence, unsupported, cancellation, and failure events instead of legacy provider session signals. At this point, no provider/render behavior suite emits the legacy provider session signals directly.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_provider_playback' --output-on-failure` passed 1/1, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
+The legacy provider session signal removal slice is complete: `ImageSequenceProviderSession` now exposes typed `providerEvent(const ImageSequenceProviderEvent&)` as its only provider result signal, and `ViewportProviderBridge` no longer connects compatibility result signals.
+
+Verification for this slice: `cmake --build build-ninja` passed, focused `ctest --test-dir build-ninja -R 'imageviewport_public_api$|imageviewport_public_api_qml|imageviewport_provider_contract|imageviewport_provider_lifecycle|imageviewport_provider_metadata|imageviewport_provider_requests|imageviewport_provider_frame_admission|imageviewport_provider_terminal|imageviewport_provider_terminal_diagnostics|imageviewport_provider_terminal_playback|imageviewport_provider_terminal_projection|imageviewport_provider_terminal_recovery|imageviewport_provider_playback|viewportcontroller_provider|viewportcontroller_playback|imageviewport_install_consumer' --output-on-failure` passed 16/16, and full `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
 
 ### Risks And Rollback Criteria
 

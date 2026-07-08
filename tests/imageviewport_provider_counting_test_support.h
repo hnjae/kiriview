@@ -1,5 +1,6 @@
 #pragma once
 
+#include "imageviewport_provider_event_test_support.h"
 #include "imageviewport_test_support.h"
 
 #include <QtCore/QCoreApplication>
@@ -292,18 +293,23 @@ void drainQueuedProviderResults()
 
 void emitTimedProviderFrameReady(CountingProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageFrame* frame, int frameIndex,
-    int frameStartPosition)
+    int frameStartPosition, int frameDuration = -1)
 {
-    emit session->imageFrameWithMetadataReady(token, frame,
-        ImageSequenceProviderFrameMetadata::timedFrame(frameIndex, frameStartPosition));
+    const int resolvedFrameDuration
+        = frameDuration > 0 ? frameDuration : (frameStartPosition == 0 ? 100 : 250);
+    emitProviderFrameReady(
+        session, token, frame,
+        ImageSequenceProviderFrameMetadata::timedFrame(
+            frameIndex, frameStartPosition, resolvedFrameDuration));
     drainQueuedProviderResults();
 }
 
 void emitTimedProviderFrameReady(
-    CountingProviderSession* session, ImageFrame* frame, int frameIndex, int frameStartPosition)
+    CountingProviderSession* session, ImageFrame* frame, int frameIndex, int frameStartPosition,
+    int frameDuration = -1)
 {
     emitTimedProviderFrameReady(
-        session, session->lastFrameToken(), frame, frameIndex, frameStartPosition);
+        session, session->lastFrameToken(), frame, frameIndex, frameStartPosition, frameDuration);
 }
 
 }
