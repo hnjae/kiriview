@@ -1076,3 +1076,9 @@ Finalize installed headers, QML module metadata, package consumer tests, public-
 - Risk: package metadata passes in-tree but fails after install. Roll back packaging changes that depend on build-tree include paths, generated files outside install rules, or build-tree-only QML imports.
 - Risk: QML metadata accidentally promises unsupported compatibility. Roll back metadata until the supported v2 import contract is explicit in tests and packaging docs.
 - Risk: installed headers expose private internals to make tests compile. Roll back and add public value wrappers instead.
+
+### Status
+
+Complete as of 2026-07-08. The installed public header generation now exposes the v2 public value surface while stripping private implementation details without stale test-probe allowances, and `imageviewport_install_consumer` rejects private-header leaks including controller, provider transport, render, scenegraph, native texture, instrumentation, and frame-preparation internals. The installed consumer builds through the exported `ImageViewport::ImageViewport` and `ImageViewport::ImageViewportplugin` package targets, imports the installed QML module, constructs page sets and presentation commands, reads nested snapshots, compares equality-only tokens, constructs explicit frame envelopes, uses descriptor-based typed providers, exercises typed requests/events/demands, verifies QML singletons, and checks removed v1 item symbols remain absent.
+
+Verification for this milestone: clean configure `cmake -S /home/ops/Projects/image-viewport -B /tmp/image-viewport-m12-clean -G Ninja -DIMAGEVIEWPORT_BUILD_TESTS=ON -DIMAGEVIEWPORT_BUILD_EXAMPLES=ON` passed, clean `cmake --build /tmp/image-viewport-m12-clean` passed, and clean `ctest --test-dir /tmp/image-viewport-m12-clean --output-on-failure` passed 44/44 including `imageviewport_install_consumer`.
