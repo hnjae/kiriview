@@ -124,16 +124,6 @@ ViewportProviderEvent providerEvent(ImageViewport::PageRole role, quint64 sessio
     return event;
 }
 
-ImageSequenceProviderDisplayDemand providerDemand(
-    ImageViewport::PageRole role, int resolvedFrame, int requestedPosition)
-{
-    ImageSequenceProviderDisplayDemand demand;
-    demand.setRole(role);
-    demand.setResolvedFrame(resolvedFrame);
-    demand.setRequestedPosition(requestedPosition);
-    return demand;
-}
-
 ImageSequenceProviderSession::UnsupportedCause legacyUnsupportedCause(
     ImageSequenceProviderUnsupportedCause cause)
 {
@@ -237,6 +227,18 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
         queued,
         pendingCleanup,
     };
+}
+
+ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
+    ImageViewport::PageRole role, const ImageSequenceProviderRequest& request)
+{
+    if (request.kind() != ImageSequenceProviderRequestKind::Cancel) {
+        return {};
+    }
+    const QVector<ImageSequenceProviderRequestToken> tokens = request.tokens();
+    return providerTransportDiagnostic(role,
+        ImageViewportInternal::ProviderTransportOperation::Cancel, {},
+        tokens.isEmpty() ? ImageSequenceProviderRequestToken {} : tokens.first(), false, false);
 }
 }
 
@@ -463,86 +465,22 @@ bool ViewportProviderBridge::openSession()
     return true;
 }
 
-bool ViewportProviderBridge::requestMetadata(ImageSequenceProviderRequestToken token)
-{
-    if (!token.isValid()) {
-        return false;
-    }
-    if (takeForcedDeliveryFailureForTest()) {
-        return false;
-    }
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    const ImageSequenceProviderRequest request = ImageSequenceProviderRequest::metadata(token);
-    return executor().invokeSessionCommand(
-        session, threadingContract(), [session, request]() { session->request(request); });
-}
-
-bool ViewportProviderBridge::requestFrame(ImageSequenceProviderRequestToken token, int frame)
-{
-    if (!token.isValid()) {
-        return false;
-    }
-    if (takeForcedDeliveryFailureForTest()) {
-        return false;
-    }
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    const ImageSequenceProviderRequest request
-        = ImageSequenceProviderRequest::frame(token, role, frame, providerDemand(role, frame, -1));
-    return executor().invokeSessionCommand(
-        session, threadingContract(), [session, request]() { session->request(request); });
-}
-
-bool ViewportProviderBridge::requestPosition(
-    ImageSequenceProviderRequestToken token, int frame, int position)
-{
-    if (!token.isValid()) {
-        return false;
-    }
-    if (takeForcedDeliveryFailureForTest()) {
-        return false;
-    }
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    const ImageSequenceProviderRequest request = ImageSequenceProviderRequest::position(
-        token, role, position, frame, providerDemand(role, frame, position));
-    return executor().invokeSessionCommand(
-        session, threadingContract(), [session, request]() { session->request(request); });
-}
-
-bool ViewportProviderBridge::requestPlayback(
-    ImageSequenceProviderRequestToken token, int frame, int position)
-{
-    if (!token.isValid()) {
-        return false;
-    }
-    if (takeForcedDeliveryFailureForTest()) {
-        return false;
-    }
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    const ImageSequenceProviderRequest request = ImageSequenceProviderRequest::playback(
-        token, role, frame, position, providerDemand(role, frame, position));
-    return executor().invokeSessionCommand(
-        session, threadingContract(), [session, request]() { session->request(request); });
-}
-
-ViewportProviderTransportResult ViewportProviderBridge::cancelRequest(
-    ImageSequenceProviderRequestToken token)
+ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
+    const ImageSequenceProviderRequest& request)
 {
     ViewportProviderTransportResult result;
-    if (!token.isValid()) {
+    if (!request.isValid()) {
         return result;
     }
     if (takeForcedDeliveryFailureForTest()) {
-        result.diagnostic = providerTransportDiagnostic(role,
-            ImageViewportInternal::ProviderTransportOperation::Cancel, {}, token, false, false);
+        result.diagnostic = providerTransportDiagnostic(role, request);
         return result;
     }
     ImageSequenceProviderSession* session = client.currentProviderSession(role);
-    const ImageSequenceProviderRequest request = ImageSequenceProviderRequest::cancel({ token });
     result.delivered = executor().invokeSessionCommand(
         session, threadingContract(), [session, request]() { session->request(request); });
     if (!result.delivered) {
-        result.diagnostic = providerTransportDiagnostic(role,
-            ImageViewportInternal::ProviderTransportOperation::Cancel, {}, token, false, false);
+        result.diagnostic = providerTransportDiagnostic(role, request);
     }
     return result;
 }

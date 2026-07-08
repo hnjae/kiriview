@@ -69,11 +69,7 @@ public:
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
     bool openSession();
-    bool requestMetadata(ImageSequenceProviderRequestToken token);
-    bool requestFrame(ImageSequenceProviderRequestToken token, int frame);
-    bool requestPosition(ImageSequenceProviderRequestToken token, int frame, int position);
-    bool requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
-    ViewportProviderTransportResult cancelRequest(ImageSequenceProviderRequestToken token);
+    ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest();
