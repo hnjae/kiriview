@@ -103,9 +103,9 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromTimedFrameList(TimedImageF
             QStringLiteral("TimedImageFrameList must contain at least one frame"));
     }
 
-    std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createTimedList(
-        list->logicalSize(), list->frameDurations(), list->frameImages(),
-        list->authoredAnimationFacts());
+    std::shared_ptr<ImageSequence> sequence
+        = ImageSequencePrivateAccess::createTimedList(list->logicalSize(), list->frameDurations(),
+            list->frameImages(), list->authoredAnimationFacts());
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }
@@ -119,24 +119,26 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
             QStringLiteral("ImageSequenceProviderAdapter is required"));
     }
 
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory = adapter->sessionFactory();
+    const ImageSequenceProviderDescriptor descriptor = adapter->descriptor();
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory
+        = descriptor.sessionFactory();
     if (!sessionFactory) {
         return new ImageSequenceFactoryResult(nullptr,
             ImageSequenceFactoryResult::FactoryOutcome::Invalid,
             QStringLiteral("ImageSequenceProviderAdapter must provide a bounded session factory"));
     }
 
-    const ImageSequenceProviderMetadata knownMetadata = adapter->knownMetadata();
-    const ImageSequenceProviderKnownFacts knownFacts = adapter->knownFacts();
+    const ImageSequenceProviderMetadata knownMetadata = descriptor.knownMetadata();
+    const ImageSequenceProviderKnownFacts knownFacts = descriptor.knownFacts();
     const ImageSequenceProviderCapabilitySupport timedPlaybackCapability
-        = adapter->timedPlaybackCapability();
+        = descriptor.timedPlaybackCapability();
     const ImageSequenceProviderCapabilitySupport frameSeekCapability
-        = adapter->frameSeekCapability();
+        = descriptor.frameSeekCapability();
     const ImageSequenceProviderCapabilitySupport positionSeekCapability
-        = adapter->positionSeekCapability();
+        = descriptor.positionSeekCapability();
     const ImageSequenceAuthoredAnimationFacts authoredAnimationFacts
-        = adapter->authoredAnimationFacts();
-    const ImageSequenceProviderThreadingContract threadingContract = adapter->threadingContract();
+        = descriptor.authoredAnimationFacts();
+    const ImageSequenceProviderThreadingContract threadingContract = descriptor.threadingContract();
     if (knownMetadata.isSpecified()) {
         const auto metadataAdmission = FramePreparation::admitProviderMetadata(knownMetadata);
         if (!metadataAdmission.accepted()) {
@@ -195,10 +197,10 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromProvider(
             QStringLiteral("provider construction facts contradict declared capabilities"));
     }
 
-    std::shared_ptr<ImageSequence> sequence = ImageSequencePrivateAccess::createProvider(
-        std::move(sessionFactory), effectiveKnownFacts, effectiveTimedPlaybackCapability,
-        effectiveFrameSeekCapability, effectivePositionSeekCapability, authoredAnimationFacts,
-        threadingContract);
+    std::shared_ptr<ImageSequence> sequence
+        = ImageSequencePrivateAccess::createProvider(std::move(sessionFactory), effectiveKnownFacts,
+            effectiveTimedPlaybackCapability, effectiveFrameSeekCapability,
+            effectivePositionSeekCapability, authoredAnimationFacts, threadingContract);
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }

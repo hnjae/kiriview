@@ -2,6 +2,97 @@
 
 #include <QtCore/QElapsedTimer>
 
+namespace {
+ImageSequenceProviderFrameEnvelope exactTestEnvelope(QSizeF logicalSize, QSize payloadSize,
+    qint64 payloadBytes, bool hasAlpha, int frame = 0, int frameStart = -1, int frameDuration = -1)
+{
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.setSourceLogicalSize(logicalSize);
+    envelope.setPayloadRasterSize(QSizeF(payloadSize));
+    envelope.setSourceToPayloadScale(QSizeF(
+        payloadSize.width() / logicalSize.width(), payloadSize.height() / logicalSize.height()));
+    envelope.setPayloadByteSize(payloadBytes);
+    envelope.setQuality(ImageViewport::PayloadQuality::Exact);
+    envelope.setExactness(ImageViewport::PayloadExactness::ExactForSource);
+    envelope.setFrame(frame);
+    envelope.setFrameStartPosition(frameStart);
+    envelope.setFrameDuration(frameDuration);
+    envelope.setHasAlpha(hasAlpha);
+    return envelope;
+}
+
+class TypedProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit TypedProviderSession(QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+    {
+    }
+
+    void request(const ImageSequenceProviderRequest& request) override
+    {
+        requests.append(request);
+        if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
+            emit providerEvent(ImageSequenceProviderEvent::metadataReady(
+                request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0))));
+        }
+    }
+
+    void emitFrameReady(ImageSequenceProviderRequestToken token)
+    {
+        QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        ImageSequenceProviderFrameEnvelope envelope = exactTestEnvelope(
+            QSizeF(16.0, 8.0), image.size(), image.sizeInBytes(), image.hasAlphaChannel());
+        auto frame = std::make_unique<ImageFrame>(image, envelope);
+        emit providerEvent(ImageSequenceProviderEvent::frameReady(
+            token, new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
+    }
+
+    QVector<ImageSequenceProviderRequest> requests;
+};
+
+class TypedProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        lastSession = new TypedProviderSession(parent);
+        return lastSession;
+    }
+
+    QPointer<TypedProviderSession> lastSession;
+};
+
+class TypedDescriptorProviderAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit TypedDescriptorProviderAdapter(
+        std::shared_ptr<TypedProviderSessionFactory> factory, QObject* parent = nullptr)
+        : ImageSequenceProviderAdapter(parent)
+        , m_factory(std::move(factory))
+    {
+    }
+
+    ImageSequenceProviderDescriptor descriptor() const override
+    {
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(m_factory);
+        descriptor.setFrameSeekCapability(ImageSequenceProviderCapabilitySupport::KnownTrue);
+        descriptor.setThreadingContract(ImageSequenceProviderThreadingContract::ThreadSafe);
+        return descriptor;
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return {};
+    }
+
+private:
+    std::shared_ptr<TypedProviderSessionFactory> m_factory;
+};
+}
+
 class ImageViewportProviderContractTest : public QObject
 {
     Q_OBJECT
@@ -14,6 +105,8 @@ public:
 
 private slots:
     void providerPublicValueTypesValidateTiming();
+    void providerTypedProtocolValuesValidateShape();
+    void typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath();
     void providerFactoryRejectsBaseAdapterWithoutSessionFactory();
     void providerFactoryRejectsContradictoryConstructionFacts();
     void providerFactoryRejectsInvalidKnownMetadata();
@@ -198,6 +291,158 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     NullSessionFactoryProviderAdapter nullAdapter;
     QCOMPARE(
         nullAdapter.threadingContract(), ImageSequenceProviderThreadingContract::AffinityBound);
+}
+
+void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape()
+{
+    const ImageSequenceProviderRequestToken token(42);
+
+    ImageSequenceProviderDisplayDemand demand;
+    QCOMPARE(demand.demandRevision().isValid(), false);
+    QCOMPARE(demand.requestRevision().isValid(), false);
+    QCOMPARE(demand.presentationRevision().isValid(), false);
+    QCOMPARE(demand.role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(demand.resolvedFrame(), -1);
+    QCOMPARE(demand.requestedPosition(), -1);
+    QCOMPARE(demand.maximumTextureSize(), -1);
+    QCOMPARE(demand.maximumPayloadBytes(), -1);
+    QCOMPARE(demand.displayByteBudget(), -1);
+    QCOMPARE(demand.currentPayloadQuality(), ImageViewport::PayloadQuality::Unknown);
+    QCOMPARE(demand.currentPayloadExactness(), ImageViewport::PayloadExactness::Unknown);
+
+    demand.setRole(ImageViewport::PageRole::Secondary);
+    demand.setResolvedFrame(3);
+    demand.setRequestedPosition(125);
+    const ImageSequenceProviderRequest metadataRequest
+        = ImageSequenceProviderRequest::metadata(token);
+    QVERIFY(metadataRequest.isValid());
+    QCOMPARE(metadataRequest.kind(), ImageSequenceProviderRequestKind::Metadata);
+    QCOMPARE(metadataRequest.token(), token);
+
+    const ImageSequenceProviderRequest frameRequest
+        = ImageSequenceProviderRequest::frame(token, ImageViewport::PageRole::Secondary, 3, demand);
+    QVERIFY(frameRequest.isValid());
+    QCOMPARE(frameRequest.kind(), ImageSequenceProviderRequestKind::Frame);
+    QCOMPARE(frameRequest.role(), ImageViewport::PageRole::Secondary);
+    QCOMPARE(frameRequest.frame(), 3);
+    QCOMPARE(frameRequest.resolvedFrame(), 3);
+    QCOMPARE(frameRequest.requestedPosition(), -1);
+    QCOMPARE(frameRequest.demand().resolvedFrame(), 3);
+
+    const ImageSequenceProviderRequest positionRequest = ImageSequenceProviderRequest::position(
+        token, ImageViewport::PageRole::Secondary, 125, 3, demand);
+    QVERIFY(positionRequest.isValid());
+    QCOMPARE(positionRequest.kind(), ImageSequenceProviderRequestKind::Position);
+    QCOMPARE(positionRequest.requestedPosition(), 125);
+    QCOMPARE(positionRequest.resolvedFrame(), 3);
+
+    const ImageSequenceProviderRequest playbackRequest = ImageSequenceProviderRequest::playback(
+        token, ImageViewport::PageRole::Secondary, 3, 125, demand);
+    QVERIFY(playbackRequest.isValid());
+    QCOMPARE(playbackRequest.kind(), ImageSequenceProviderRequestKind::Playback);
+    QCOMPARE(playbackRequest.frame(), 3);
+    QCOMPARE(playbackRequest.requestedPosition(), 125);
+
+    QVERIFY(ImageSequenceProviderRequest::cancel({ token }).isValid());
+    QVERIFY(ImageSequenceProviderRequest::close().isValid());
+    QVERIFY(!ImageSequenceProviderRequest::metadata({}).isValid());
+    QVERIFY(!ImageSequenceProviderRequest::frame({}, ImageViewport::PageRole::Primary, 0, demand)
+            .isValid());
+    QVERIFY(!ImageSequenceProviderRequest::cancel({}).isValid());
+
+    const ImageSequenceProviderFrameEnvelope stillEnvelope
+        = exactTestEnvelope(QSizeF(16.0, 8.0), QSize(16, 8), 512, true);
+    QVERIFY(stillEnvelope.isValid());
+    QCOMPARE(stillEnvelope.frame(), 0);
+    QCOMPARE(stillEnvelope.frameStartPosition(), -1);
+    QCOMPARE(stillEnvelope.frameDuration(), -1);
+    QCOMPARE(stillEnvelope.quality(), ImageViewport::PayloadQuality::Exact);
+    QCOMPARE(stillEnvelope.exactness(), ImageViewport::PayloadExactness::ExactForSource);
+
+    ImageSequenceProviderFrameEnvelope invalidEnvelope = stillEnvelope;
+    invalidEnvelope.setSourceToPayloadScale(QSizeF(2.0, 1.0));
+    QVERIFY(!invalidEnvelope.isValid());
+    invalidEnvelope = stillEnvelope;
+    invalidEnvelope.setQuality(ImageViewport::PayloadQuality::Unknown);
+    QVERIFY(!invalidEnvelope.isValid());
+
+    const ImageSequenceProviderFrameEnvelope timedEnvelope
+        = exactTestEnvelope(QSizeF(16.0, 8.0), QSize(16, 8), 512, true, 2, 250, 125);
+    QVERIFY(timedEnvelope.isValid());
+    QCOMPARE(timedEnvelope.frame(), 2);
+    QCOMPARE(timedEnvelope.frameStartPosition(), 250);
+    QCOMPARE(timedEnvelope.frameDuration(), 125);
+
+    auto frame = std::make_unique<ImageFrame>(
+        QImage(QSize(16, 8), QImage::Format_ARGB32_Premultiplied), stillEnvelope);
+    ImageSequenceProviderFrameHandle handle(std::move(frame));
+    QVERIFY(ImageSequenceProviderEvent::metadataReady(
+        token, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)))
+            .isValid());
+    QVERIFY(ImageSequenceProviderEvent::frameReady(token, &handle, stillEnvelope).isValid());
+    QVERIFY(ImageSequenceProviderEvent::waiting(token).isValid());
+    QVERIFY(ImageSequenceProviderEvent::progress(token, 0.5).isValid());
+    QVERIFY(!ImageSequenceProviderEvent::progress(token, 1.5).isValid());
+    QVERIFY(ImageSequenceProviderEvent::endOfSequence(token).isValid());
+    QVERIFY(ImageSequenceProviderEvent::unsupported(token,
+        ImageSequenceProviderUnsupportedCause::UnsupportedRequest, QStringLiteral("unsupported"))
+            .isValid());
+    QVERIFY(!ImageSequenceProviderEvent::unsupported(
+        token, static_cast<ImageSequenceProviderUnsupportedCause>(-1), QStringLiteral("bad"))
+            .isValid());
+    QVERIFY(ImageSequenceProviderEvent::cancelled(token).isValid());
+    QVERIFY(ImageSequenceProviderEvent::failed(token, QStringLiteral("failed")).isValid());
+    QVERIFY(!ImageSequenceProviderEvent::waiting({}).isValid());
+
+    const ImageSequenceProviderDescriptor descriptor;
+    QVERIFY(!descriptor.isValid());
+    QCOMPARE(descriptor.threadingContract(), ImageSequenceProviderThreadingContract::AffinityBound);
+}
+
+void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMatchesLegacyPath()
+{
+    ImageSequenceFactory factory;
+    auto sessionFactory = std::make_shared<TypedProviderSessionFactory>();
+    TypedDescriptorProviderAdapter adapter(sessionFactory);
+
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result);
+    QVERIFY(result->sequence());
+    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 50.0));
+    useSynchronousProviderEventDeliveryForTest(item);
+
+    item.setSequence(result->sequence());
+
+    QVERIFY(sessionFactory->lastSession);
+    QVERIFY(sessionFactory->lastSession->requests.size() >= 2);
+    const ImageSequenceProviderRequest metadataRequest
+        = sessionFactory->lastSession->requests.at(0);
+    QCOMPARE(metadataRequest.kind(), ImageSequenceProviderRequestKind::Metadata);
+    QVERIFY(metadataRequest.token().isValid());
+
+    const ImageSequenceProviderRequest frameRequest = sessionFactory->lastSession->requests.at(1);
+    QCOMPARE(frameRequest.kind(), ImageSequenceProviderRequestKind::Frame);
+    QCOMPARE(frameRequest.token().isValid(), true);
+    QCOMPARE(frameRequest.role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(frameRequest.frame(), 0);
+    QCOMPARE(frameRequest.demand().role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(frameRequest.demand().resolvedFrame(), 0);
+    QCOMPARE(frameRequest.demand().requestedPosition(), -1);
+    QCOMPARE(frameRequest.demand().demandRevision().isValid(), false);
+
+    sessionFactory->lastSession->emitFrameReady(frameRequest.token());
+
+    QCOMPARE(item.requestStatus(), ImageViewport::RequestStatus::Loading);
+    QCOMPARE(item.requestReason(), ImageViewport::RequestReason::UploadPending);
+    QVERIFY(hasPendingRenderCommitForTest(item));
+    acknowledgePendingPrimaryRenderCommitForTest(item);
+    QCOMPARE(item.requestStatus(), ImageViewport::RequestStatus::Ready);
+    QCOMPARE(item.requestReason(), ImageViewport::RequestReason::Ready);
+    QCOMPARE(item.displayStatus(), ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(item.displayedImageSize(), QSizeF(16.0, 8.0));
 }
 
 void ImageViewportProviderContractTest::providerFactoryRejectsBaseAdapterWithoutSessionFactory()

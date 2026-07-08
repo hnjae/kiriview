@@ -4,11 +4,19 @@
 
 #include <QtGui/QTransform>
 
+#include <cmath>
 #include <utility>
 
 using namespace ImageViewportInternal;
 
 namespace {
+bool isPositiveFiniteValue(double value) { return std::isfinite(value) && value > 0.0; }
+
+bool isPositiveFiniteSize(QSizeF size)
+{
+    return isPositiveFiniteValue(size.width()) && isPositiveFiniteValue(size.height());
+}
+
 QImage normalizedImageForOrientation(
     const QImage& image, ImageFrame::OrientationPolicy orientationPolicy)
 {
@@ -31,6 +39,41 @@ QImage normalizedImageForOrientation(
         return image.transformed(QTransform().rotate(270));
     }
     return image;
+}
+
+QSizeF scaleFor(QSizeF sourceLogicalSize, QSize payloadRasterSize)
+{
+    if (!isPositiveFiniteSize(sourceLogicalSize) || payloadRasterSize.isEmpty()) {
+        return {};
+    }
+    return QSizeF(payloadRasterSize.width() / sourceLogicalSize.width(),
+        payloadRasterSize.height() / sourceLogicalSize.height());
+}
+
+ImageSequenceProviderFrameEnvelope exactEnvelopeForImage(
+    const QImage& image, ImageFrame::OrientationPolicy orientationPolicy, qint64 payloadByteSize)
+{
+    ImageSequenceProviderFrameEnvelope envelope;
+    const QSizeF logicalSize = image.deviceIndependentSize();
+    envelope.setSourceLogicalSize(logicalSize);
+    envelope.setPayloadRasterSize(QSizeF(image.size()));
+    envelope.setSourceToPayloadScale(scaleFor(logicalSize, image.size()));
+    envelope.setPayloadByteSize(payloadByteSize);
+    envelope.setQuality(ImageViewport::PayloadQuality::Exact);
+    envelope.setExactness(ImageViewport::PayloadExactness::ExactForSource);
+    envelope.setFrame(0);
+    envelope.setFrameStartPosition(-1);
+    envelope.setFrameDuration(-1);
+    envelope.setHasAlpha(image.hasAlphaChannel());
+    envelope.setOrientationPolicy(orientationPolicy);
+    return envelope;
+}
+
+bool envelopeMatchesPayload(const QImage& image, const ImageSequenceProviderFrameEnvelope& envelope)
+{
+    return envelope.isValid() && !image.isNull()
+        && envelope.payloadRasterSize() == QSizeF(image.size())
+        && envelope.payloadByteSize() >= image.sizeInBytes();
 }
 
 }
@@ -121,8 +164,9 @@ std::unique_ptr<ImageSequenceData> ImageSequenceData::provider(
     data->providerSessionFactory = std::move(providerSessionFactory);
     data->providerKnownFacts = std::move(providerKnownFacts);
     data->hasCompleteProviderKnownMetadata = data->providerKnownFacts.isComplete();
-    data->providerKnownLogicalSize
-        = data->providerKnownFacts.isSpecified() ? data->providerKnownFacts.logicalSize() : QSizeF();
+    data->providerKnownLogicalSize = data->providerKnownFacts.isSpecified()
+        ? data->providerKnownFacts.logicalSize()
+        : QSizeF();
     data->providerKnownTimingIntervals = data->providerKnownFacts.isTimedFrameList()
         ? std::make_shared<TimingIntervals>(
               TimingIntervals::fromFrameDurations(data->providerKnownFacts.frameDurations()))
@@ -170,10 +214,10 @@ std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createProvider(
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts,
     ImageSequenceProviderThreadingContract providerThreadingContract)
 {
-    std::shared_ptr<ImageSequence> sequence(new ImageSequence(ImageSequenceData::provider(
-        std::move(providerSessionFactory), std::move(providerKnownFacts), timedPlaybackCapability,
-        frameSeekCapability, positionSeekCapability, authoredAnimationFacts,
-        providerThreadingContract)));
+    std::shared_ptr<ImageSequence> sequence(
+        new ImageSequence(ImageSequenceData::provider(std::move(providerSessionFactory),
+            std::move(providerKnownFacts), timedPlaybackCapability, frameSeekCapability,
+            positionSeekCapability, authoredAnimationFacts, providerThreadingContract)));
     sequence->d->owner = sequence;
     return sequence;
 }
@@ -268,9 +312,8 @@ QImage ImageSequencePrivateAccess::frameImage(const ImageSequence* sequence, int
 
 TimingIntervals ImageSequencePrivateAccess::timingIntervals(const ImageSequence* sequence)
 {
-    return sequence && sequence->d && sequence->d->timingIntervals
-        ? *sequence->d->timingIntervals
-        : TimingIntervals {};
+    return sequence && sequence->d && sequence->d->timingIntervals ? *sequence->d->timingIntervals
+                                                                   : TimingIntervals {};
 }
 
 ImageSequenceAuthoredAnimationFacts ImageSequencePrivateAccess::authoredAnimationFacts(
@@ -330,7 +373,7 @@ std::shared_ptr<ImageSequenceProviderSessionFactory>
 ImageSequencePrivateAccess::providerSessionFactory(const ImageSequence* sequence)
 {
     return sequence && sequence->d && isProvider(sequence) ? sequence->d->providerSessionFactory
-                                                          : nullptr;
+                                                           : nullptr;
 }
 
 ImageSequenceProviderThreadingContract ImageSequencePrivateAccess::providerThreadingContract(
@@ -360,15 +403,40 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
     : QObject(parent)
 {
     const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
-    const QSizeF logicalSize = normalizedImage.deviceIndependentSize();
-    if (!normalizedImage.isNull() && isPositiveFiniteInteger(logicalSize.width())
-        && isPositiveFiniteInteger(logicalSize.height())) {
-        m_logicalSize = logicalSize;
-        m_payloadByteSize = normalizedImage.sizeInBytes();
-        m_hasAlphaChannel = normalizedImage.hasAlphaChannel();
-        m_orientationPolicy = orientationPolicy;
+    const ImageSequenceProviderFrameEnvelope envelope
+        = exactEnvelopeForImage(normalizedImage, orientationPolicy, normalizedImage.sizeInBytes());
+    if (envelopeMatchesPayload(normalizedImage, envelope)
+        && isPositiveFiniteInteger(envelope.sourceLogicalSize().width())
+        && isPositiveFiniteInteger(envelope.sourceLogicalSize().height())) {
+        m_logicalSize = envelope.sourceLogicalSize();
+        m_payloadByteSize = envelope.payloadByteSize();
+        m_payloadRasterSize = envelope.payloadRasterSize();
+        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
+        m_hasAlphaChannel = envelope.hasAlpha();
+        m_orientationPolicy = envelope.orientationPolicy();
+        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
         if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
             m_image = normalizedImage.copy();
+        }
+    }
+}
+
+ImageFrame::ImageFrame(
+    const QImage& image, const ImageSequenceProviderFrameEnvelope& envelope, QObject* parent)
+    : QObject(parent)
+{
+    if (envelopeMatchesPayload(image, envelope)
+        && isPositiveFiniteInteger(envelope.sourceLogicalSize().width())
+        && isPositiveFiniteInteger(envelope.sourceLogicalSize().height())) {
+        m_logicalSize = envelope.sourceLogicalSize();
+        m_payloadByteSize = envelope.payloadByteSize();
+        m_payloadRasterSize = envelope.payloadRasterSize();
+        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
+        m_hasAlphaChannel = envelope.hasAlpha();
+        m_orientationPolicy = envelope.orientationPolicy();
+        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
+        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+            m_image = image.copy();
         }
     }
 }
@@ -379,9 +447,14 @@ ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, Q
     const QSizeF logicalSize = image.deviceIndependentSize();
     if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
         && isPositiveFiniteInteger(logicalSize.height())) {
+        const ImageSequenceProviderFrameEnvelope envelope
+            = exactEnvelopeForImage(image, OrientationPolicy::Identity, payloadByteSizeOverride);
         m_logicalSize = logicalSize;
         m_payloadByteSize = payloadByteSizeOverride;
+        m_payloadRasterSize = envelope.payloadRasterSize();
+        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
         m_hasAlphaChannel = image.hasAlphaChannel();
+        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
         m_image = image.copy();
     }
 }
@@ -394,6 +467,15 @@ bool ImageFrame::isValid() const
 QSizeF ImageFrame::logicalSize() const { return m_logicalSize; }
 
 qint64 ImageFrame::payloadByteSize() const { return m_payloadByteSize; }
+
+QSizeF ImageFrame::payloadRasterSize() const { return m_payloadRasterSize; }
+
+QSizeF ImageFrame::sourceToPayloadScale() const { return m_sourceToPayloadScale; }
+
+ImageSequenceProviderFrameEnvelope ImageFrame::envelope() const
+{
+    return m_envelope ? *m_envelope : ImageSequenceProviderFrameEnvelope {};
+}
 
 bool ImageFrame::hasAlphaChannel() const { return m_hasAlphaChannel; }
 

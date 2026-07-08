@@ -601,6 +601,65 @@ int main(int argc, char** argv)
         || imageFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
+    const ImageSequenceProviderFrameEnvelope exactEnvelope = imageFrame.envelope();
+    if (!exactEnvelope.isValid() || exactEnvelope.sourceLogicalSize() != QSizeF(2.0, 2.0)
+        || exactEnvelope.payloadRasterSize() != QSizeF(2.0, 2.0)
+        || exactEnvelope.sourceToPayloadScale() != QSizeF(1.0, 1.0)
+        || exactEnvelope.quality() != ImageViewport::PayloadQuality::Exact
+        || exactEnvelope.exactness() != ImageViewport::PayloadExactness::ExactForSource) {
+        return 1;
+    }
+
+    ImageSequenceProviderFrameEnvelope previewEnvelope;
+    previewEnvelope.setSourceLogicalSize(QSizeF(4.0, 4.0));
+    previewEnvelope.setPayloadRasterSize(QSizeF(2.0, 2.0));
+    previewEnvelope.setSourceToPayloadScale(QSizeF(0.5, 0.5));
+    previewEnvelope.setPayloadByteSize(image.sizeInBytes());
+    previewEnvelope.setQuality(ImageViewport::PayloadQuality::Preview);
+    previewEnvelope.setExactness(ImageViewport::PayloadExactness::NotExact);
+    previewEnvelope.setFrame(0);
+    previewEnvelope.setFrameStartPosition(-1);
+    previewEnvelope.setFrameDuration(-1);
+    previewEnvelope.setHasAlpha(true);
+    const ImageFrame previewFrame(image, previewEnvelope);
+    if (!previewEnvelope.isValid() || !previewFrame.isValid()
+        || previewFrame.logicalSize() != QSizeF(4.0, 4.0)
+        || previewFrame.payloadRasterSize() != QSizeF(2.0, 2.0)
+        || previewFrame.sourceToPayloadScale() != QSizeF(0.5, 0.5)
+        || previewFrame.envelope() != previewEnvelope) {
+        return 1;
+    }
+
+    ImageSequenceProviderDisplayDemand installedDemand;
+    installedDemand.setRole(ImageViewport::PageRole::Secondary);
+    installedDemand.setResolvedFrame(1);
+    installedDemand.setRequestedPosition(100);
+    const ImageSequenceProviderRequest installedRequest = ImageSequenceProviderRequest::position(
+        token, ImageViewport::PageRole::Secondary, 100, 1, installedDemand);
+    if (!installedRequest.isValid()
+        || installedRequest.kind() != ImageSequenceProviderRequestKind::Position
+        || installedRequest.demand().role() != ImageViewport::PageRole::Secondary
+        || installedRequest.demand().demandRevision().isValid()) {
+        return 1;
+    }
+    auto installedHandleFrame = std::make_unique<ImageFrame>(image);
+    ImageSequenceProviderFrameHandle installedHandle(std::move(installedHandleFrame));
+    const ImageSequenceProviderEvent installedFrameEvent
+        = ImageSequenceProviderEvent::frameReady(token, &installedHandle, exactEnvelope);
+    if (!installedFrameEvent.isValid()
+        || installedFrameEvent.kind() != ImageSequenceProviderEventKind::FrameReady
+        || installedFrameEvent.frameHandle() != &installedHandle
+        || installedFrameEvent.frameEnvelope() != exactEnvelope) {
+        return 1;
+    }
+    const ImageSequenceProviderEvent unsupportedEvent = ImageSequenceProviderEvent::unsupported(
+        token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
+        QStringLiteral("unsupported"));
+    if (!unsupportedEvent.isValid()
+        || unsupportedEvent.unsupportedCause()
+            != ImageSequenceProviderUnsupportedCause::UnsupportedRequest) {
+        return 1;
+    }
 
     QImage deviceIndependentImage(4, 2, QImage::Format_ARGB32_Premultiplied);
     deviceIndependentImage.setDevicePixelRatio(2.0);
@@ -644,6 +703,14 @@ int main(int argc, char** argv)
         return 1;
     }
     if (timedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+        return 1;
+    }
+
+    ConsumerAdapter consumerAdapter;
+    const ImageSequenceProviderDescriptor consumerDescriptor = consumerAdapter.descriptor();
+    if (!consumerDescriptor.isValid() || !consumerDescriptor.knownMetadata().isTimedFrameList()
+        || consumerDescriptor.timedPlaybackCapability()
+            != ImageSequenceProviderCapabilitySupport::KnownTrue) {
         return 1;
     }
 

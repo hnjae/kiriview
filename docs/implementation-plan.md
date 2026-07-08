@@ -258,6 +258,18 @@ Introduce `ImageSequenceProviderDescriptor`, `ImageSequenceProviderRequest`, `Im
 - Providers receive display demand on frame, position, and playback typed requests.
 - Demand revisions advance for every temporary adapter-owned payload-affecting field, and unavailable demand fields are explicit invalid sentinels.
 
+### Status
+
+Complete as of 2026-07-08. Added public typed provider values for descriptors, requests, events, display demand, frame envelopes, request/event kinds, and unsupported causes; added `ImageFrame` envelope access and explicit-envelope construction while keeping bare-`QImage` construction as an exact-only convenience path.
+
+The provider adapter now has a descriptor bridge: legacy construction virtuals still work, while `ImageSequenceFactory::fromProvider()` consumes `ImageSequenceProviderDescriptor`. Provider sessions now expose `request(const ImageSequenceProviderRequest&)` and `providerEvent(const ImageSequenceProviderEvent&)`; the provider bridge sends typed requests, maps the base typed request implementation back to legacy virtuals, and normalizes typed events into the existing controller event shape. Legacy provider signals and virtuals remain available.
+
+Focused coverage is in `imageviewport_provider_contract`, `imagesequence_factory`, and `imageviewport_install_consumer`: typed value validation, explicit frame-envelope validation, descriptor-backed provider construction, typed request demand delivery, typed event frame admission through the existing upload/render path, exact bare-image envelope inference, logical source size distinct from payload raster size, and installed-header use of the new values.
+
+Verification: `ctest --test-dir build-ninja --output-on-failure` passed 43/43 after the implementation and install-consumer update.
+
+Adapter assumptions recorded for later milestones: display demand currently carries role, resolved frame, and requested position on typed frame/position/playback requests, while demand revision, request revision, presentation revision, caps, budgets, allocation generation, visible source rect, target display size, DPR, and current payload facts remain explicit invalid sentinels until presentation/provider ownership moves into the engine; `RequireExact` admission and demand-revision stale rejection remain compatibility placeholders until provider payload admission migrates in Milestone 9.
+
 ### Risks And Rollback Criteria
 
 - Risk: dual provider paths classify errors differently. Roll back if typed parity tests diverge from legacy behavior for the same input.

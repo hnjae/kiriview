@@ -34,6 +34,7 @@ private slots:
     void clearReleasesAssignedFactorySequenceOwner();
     void imageFrameRetainsImmutablePayload();
     void imageFrameExposesPayloadMetadata();
+    void imageFrameExplicitEnvelopeSeparatesLogicalAndPayloadSize();
     void imageFrameOrientationPoliciesNormalizePayload();
     void imageFrameUsesDeviceIndependentLogicalSize();
     void providerMetadataAdmissionAcceptsTimedMetadata();
@@ -743,6 +744,9 @@ void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
     QVERIFY(metaObject->indexOfProperty("valid") >= 0);
     QVERIFY(metaObject->indexOfProperty("logicalSize") >= 0);
     QVERIFY(metaObject->indexOfProperty("payloadByteSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("payloadRasterSize") >= 0);
+    QVERIFY(metaObject->indexOfProperty("sourceToPayloadScale") >= 0);
+    QVERIFY(metaObject->indexOfProperty("envelope") >= 0);
     QVERIFY(metaObject->indexOfProperty("hasAlphaChannel") >= 0);
     QVERIFY(metaObject->indexOfProperty("orientationPolicy") >= 0);
     verifyEnumValues(metaObject, "OrientationPolicy",
@@ -753,6 +757,15 @@ void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
     QCOMPARE(transparentFrame.property("logicalSize").toSizeF(), QSizeF(2.0, 1.0));
     QCOMPARE(transparentFrame.property("payloadByteSize").toLongLong(),
         transparentFrame.payloadByteSize());
+    QCOMPARE(transparentFrame.property("payloadRasterSize").toSizeF(), QSizeF(2.0, 1.0));
+    QCOMPARE(transparentFrame.property("sourceToPayloadScale").toSizeF(), QSizeF(1.0, 1.0));
+    const ImageSequenceProviderFrameEnvelope exactEnvelope
+        = transparentFrame.property("envelope").value<ImageSequenceProviderFrameEnvelope>();
+    QVERIFY(exactEnvelope.isValid());
+    QCOMPARE(exactEnvelope.sourceLogicalSize(), QSizeF(2.0, 1.0));
+    QCOMPARE(exactEnvelope.payloadRasterSize(), QSizeF(2.0, 1.0));
+    QCOMPARE(exactEnvelope.quality(), ImageViewport::PayloadQuality::Exact);
+    QCOMPARE(exactEnvelope.exactness(), ImageViewport::PayloadExactness::ExactForSource);
     QCOMPARE(transparentFrame.property("hasAlphaChannel").toBool(), true);
     QCOMPARE(transparentFrame.property("orientationPolicy").toInt(),
         enumValue(metaObject, "OrientationPolicy", "Identity"));
@@ -767,9 +780,54 @@ void ImageSequenceFactoryTest::imageFrameExposesPayloadMetadata()
     QCOMPARE(emptyFrame.property("valid").toBool(), false);
     QCOMPARE(emptyFrame.property("logicalSize").toSizeF(), QSizeF());
     QCOMPARE(emptyFrame.property("payloadByteSize").toLongLong(), 0);
+    QCOMPARE(emptyFrame.property("payloadRasterSize").toSizeF(), QSizeF());
+    QCOMPARE(emptyFrame.property("sourceToPayloadScale").toSizeF(), QSizeF());
     QCOMPARE(emptyFrame.property("hasAlphaChannel").toBool(), false);
     QCOMPARE(emptyFrame.property("orientationPolicy").toInt(),
         enumValue(metaObject, "OrientationPolicy", "Identity"));
+}
+
+void ImageSequenceFactoryTest::imageFrameExplicitEnvelopeSeparatesLogicalAndPayloadSize()
+{
+    QImage previewPayload(8, 4, QImage::Format_ARGB32_Premultiplied);
+    previewPayload.fill(Qt::transparent);
+
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.setSourceLogicalSize(QSizeF(16.0, 8.0));
+    envelope.setPayloadRasterSize(QSizeF(8.0, 4.0));
+    envelope.setSourceToPayloadScale(QSizeF(0.5, 0.5));
+    envelope.setPayloadByteSize(previewPayload.sizeInBytes());
+    envelope.setQuality(ImageViewport::PayloadQuality::Preview);
+    envelope.setExactness(ImageViewport::PayloadExactness::NotExact);
+    envelope.setFrame(0);
+    envelope.setFrameStartPosition(-1);
+    envelope.setFrameDuration(-1);
+    envelope.setHasAlpha(true);
+    QVERIFY(envelope.isValid());
+
+    ImageFrame previewFrame(previewPayload, envelope);
+    QCOMPARE(previewFrame.isValid(), true);
+    QCOMPARE(previewFrame.logicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(previewFrame.payloadRasterSize(), QSizeF(8.0, 4.0));
+    QCOMPARE(previewFrame.sourceToPayloadScale(), QSizeF(0.5, 0.5));
+    QCOMPARE(previewFrame.payloadByteSize(), static_cast<qint64>(previewPayload.sizeInBytes()));
+    QCOMPARE(previewFrame.envelope(), envelope);
+
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> previewResult(factory.fromFrame(&previewFrame));
+    QVERIFY(previewResult);
+    QVERIFY(previewResult->sequence());
+    QCOMPARE(previewResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+
+    ImageSequenceProviderFrameEnvelope invalidEnvelope = envelope;
+    invalidEnvelope.setPayloadRasterSize(QSizeF(4.0, 4.0));
+    QVERIFY(!invalidEnvelope.isValid());
+    ImageFrame invalidFrame(previewPayload, invalidEnvelope);
+    QCOMPARE(invalidFrame.isValid(), false);
+    QScopedPointer<ImageSequenceFactoryResult> invalidResult(factory.fromFrame(&invalidFrame));
+    QVERIFY(invalidResult);
+    QCOMPARE(invalidResult->sequence(), nullptr);
+    QCOMPARE(invalidResult->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Invalid);
 }
 
 void ImageSequenceFactoryTest::imageFrameOrientationPoliciesNormalizePayload()
