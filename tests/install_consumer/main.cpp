@@ -424,6 +424,9 @@ ImageViewport {
             && positionSeekBounds.maximum === -1
             && itemToImage(1, 1).valid === false
             && imageToItem(1, 1).x === 0
+            && nearestVisibleImagePoint(1, 1).valid === false
+            && nearestVisibleSpreadPoint(1, 1).valid === false
+            && nearestVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1).valid === false
             && containsVisibleImagePoint(1, 1) === false
     }
 }
@@ -676,7 +679,11 @@ int main(int argc, char** argv)
         || helperViewport.manualZoomStepFactor() != 1.25
         || helperViewport.clampedManualZoomPercent(-1.0) != minimumManualZoom
         || helperViewport.clampedManualZoomPercent(maximumManualZoom + 1.0) != maximumManualZoom
-        || !nearlyEqual(helperViewport.steppedManualZoomPercent(1), 125.0)) {
+        || !nearlyEqual(helperViewport.steppedManualZoomPercent(1), 125.0)
+        || helperViewport.nearestVisibleSpreadPoint(1.0, 1.0).isValid()
+        || helperViewport.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0)
+            .isValid()
+        || helperViewport.nearestVisibleImagePoint(1.0, 1.0).isValid()) {
         return 1;
     }
 

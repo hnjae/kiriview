@@ -383,10 +383,13 @@ ImageViewport {
 
         coordinateAliasesAvailable = itemToSpread(1, 1).valid === false
             && spreadToItem(1, 1).valid === false
+            && nearestVisibleSpreadPoint(1, 1).valid === false
             && itemToPage(ImageViewport.PageRole.Primary, 1, 1).valid === false
             && pageToItem(ImageViewport.PageRole.Primary, 1, 1).valid === false
+            && nearestVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1).valid === false
             && containsVisibleSpreadPoint(1, 1) === false
             && containsVisiblePagePoint(ImageViewport.PageRole.Primary, 1, 1) === false
+            && nearestVisibleImagePoint(1, 1).valid === false
     }
 }
 )",

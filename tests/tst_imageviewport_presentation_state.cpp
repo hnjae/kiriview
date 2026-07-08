@@ -31,6 +31,7 @@ private slots:
     void spreadCoordinateHelpersRejectGapAndEdges();
     void nearestVisibleHelpersClampPrimaryOnlyVisibleGeometry();
     void nearestVisibleHelpersClampTwoPageSpreadAndPageDomains();
+    void nearestVisibleHelpersFollowPanRotationMirrorAndRetainedGeometry();
     void fitModesExposeZoomAndPannability();
     void preserveManualPercentDiffersFromPreserveWhenResultingFitIsManual();
     void directZoomPropertyAssignmentUsesItemCenterAnchor();
@@ -535,6 +536,16 @@ void ImageViewportPresentationStateTest::retainedTwoPageGeometryUsesDisplayedSec
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 2.0, 88.0, 40.0));
     QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 2.0, 20.0, 40.0));
     QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(28.0, 2.0, 60.0, 40.0));
+
+    const CoordinateResult retainedSpread = item.nearestVisibleSpreadPoint(44.0, 20.0);
+    QCOMPARE(retainedSpread.isValid(), true);
+    QCOMPARE(retainedSpread.x(), std::nextafter(44.0, 0.0));
+    QCOMPARE(retainedSpread.y(), std::nextafter(20.0, 0.0));
+    const CoordinateResult retainedSecondary
+        = item.nearestVisiblePagePoint(ImageViewport::PageRole::Secondary, 30.0, 20.0);
+    QCOMPARE(retainedSecondary.isValid(), true);
+    QCOMPARE(retainedSecondary.x(), std::nextafter(30.0, 0.0));
+    QCOMPARE(retainedSecondary.y(), std::nextafter(20.0, 0.0));
 }
 
 void ImageViewportPresentationStateTest::
@@ -778,6 +789,83 @@ void ImageViewportPresentationStateTest::nearestVisibleHelpersClampTwoPageSpread
     QCOMPARE(secondaryBottomRight.y(), bottomInside);
     verifyInvalidCoordinateResult(
         item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0));
+}
+
+void ImageViewportPresentationStateTest::
+    nearestVisibleHelpersFollowPanRotationMirrorAndRetainedGeometry()
+{
+    ImageSequenceFactory factory;
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageFrame frame(image);
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport mirroredItem;
+    mirroredItem.setSize(QSizeF(100.0, 100.0));
+    mirroredItem.setSequence(result->sequence());
+    acknowledgePendingRenderCommitForTest(mirroredItem);
+    QCOMPARE(mirroredItem.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(mirroredItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(mirroredItem.property("visibleImageRect").toRectF(), QRectF(8.0, 0.0, 8.0, 8.0));
+
+    const CoordinateResult pannedLeft = mirroredItem.nearestVisibleImagePoint(0.0, 4.0);
+    QCOMPARE(pannedLeft.isValid(), true);
+    QCOMPARE(pannedLeft.x(), 8.0);
+    QCOMPARE(pannedLeft.y(), 4.0);
+    const CoordinateResult pannedRight = mirroredItem.nearestVisibleImagePoint(16.0, 4.0);
+    QCOMPARE(pannedRight.isValid(), true);
+    QCOMPARE(pannedRight.x(), std::nextafter(16.0, 8.0));
+    QCOMPARE(pannedRight.y(), 4.0);
+
+    QCOMPARE(mirroredItem.panToStart(), ImageViewport::CommandOutcome::Accepted);
+    mirroredItem.setMirrorHorizontally(true);
+    QCOMPARE(mirroredItem.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
+    const CoordinateResult mirroredLeft = mirroredItem.nearestVisibleImagePoint(-1.0, 4.0);
+    QCOMPARE(mirroredLeft.isValid(), true);
+    QCOMPARE(mirroredLeft.x(), 0.0);
+    QCOMPARE(mirroredLeft.y(), 4.0);
+    const CoordinateResult mirroredRight = mirroredItem.nearestVisibleImagePoint(16.0, 4.0);
+    QCOMPARE(mirroredRight.isValid(), true);
+    QCOMPARE(mirroredRight.x(), std::nextafter(8.0, 0.0));
+    QCOMPARE(mirroredRight.y(), 4.0);
+
+    QImage primaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(primaryResult->sequence());
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport rotatedItem;
+    rotatedItem.setSize(QSizeF(20.0, 20.0));
+    QCOMPARE(rotatedItem.setPageSet(QVariant::fromValue<QObject*>(primaryResult->sequence()),
+                 QVariant::fromValue<QObject*>(secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommitForTest(rotatedItem);
+    QCOMPARE(rotatedItem.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(rotatedItem.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(rotatedItem.setZoomPercent(100.0, QPointF(10.0, 10.0)),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        rotatedItem.rotateClockwise(QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(rotatedItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(rotatedItem.property("visibleSpreadRect").toRectF(), QRectF(24.0, 0.0, 20.0, 20.0));
+
+    const CoordinateResult rotatedLeft = rotatedItem.nearestVisibleSpreadPoint(0.0, 10.0);
+    QCOMPARE(rotatedLeft.isValid(), true);
+    QCOMPARE(rotatedLeft.x(), 24.0);
+    QCOMPARE(rotatedLeft.y(), 10.0);
+    const CoordinateResult rotatedBottomRight = rotatedItem.nearestVisibleSpreadPoint(44.0, 20.0);
+    QCOMPARE(rotatedBottomRight.isValid(), true);
+    QCOMPARE(rotatedBottomRight.x(), std::nextafter(44.0, 24.0));
+    QCOMPARE(rotatedBottomRight.y(), std::nextafter(20.0, 0.0));
 }
 
 void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
