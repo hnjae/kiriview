@@ -348,6 +348,7 @@ ImageViewport {
             && typeof viewport.zoomByStep === "undefined"
             && typeof viewport.scanNext === "undefined"
             && typeof viewport.scanPrevious === "undefined"
+            && typeof viewport.rotateClockwise === "undefined"
             && typeof viewport.rotateCounterClockwise === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
@@ -385,7 +386,6 @@ ImageViewport {
             && panToEnd() === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanNextCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanPreviousCommand) === ImageViewport.CommandOutcome.Accepted
-            && rotateClockwise(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(rotationCommand) === ImageViewport.CommandOutcome.Accepted
             && setMirrorHorizontally(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setMirrorVertically(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted

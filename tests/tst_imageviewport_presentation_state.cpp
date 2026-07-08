@@ -45,6 +45,13 @@ private slots:
     void rotationAffectsSpreadMapping();
 };
 
+static ImageViewport::CommandOutcome setRotationDegrees(ImageViewport& item, int degrees)
+{
+    ImageViewportPresentationCommand command;
+    command.setRotationDegrees(degrees);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -423,7 +430,7 @@ void ImageViewportPresentationStateTest::rotatedTwoPageManualPanUsesSpreadGeomet
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         item.setZoomPercent(100.0, QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.rotateClockwise(QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("rotationDegrees").toInt(), 90);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -12.0, 20.0, 44.0));
@@ -851,8 +858,7 @@ void ImageViewportPresentationStateTest::
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.setZoomPercent(100.0, QPointF(10.0, 10.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(
-        rotatedItem.rotateClockwise(QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setRotationDegrees(rotatedItem, 90), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.property("visibleSpreadRect").toRectF(), QRectF(24.0, 0.0, 20.0, 20.0));
 
@@ -1050,7 +1056,7 @@ void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateA
     QCOMPARE(
         item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setMirrorHorizontally(true, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
@@ -1136,8 +1142,7 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
 
     const int rotationDegrees = item.property("rotationDegrees").toInt();
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(item.rotateClockwise(QPointF(std::numeric_limits<double>::infinity(), 0.0)),
-        ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(setRotationDegrees(item, 45), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.property("rotationDegrees").toInt(), rotationDegrees);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(item.property("commandReason").toInt(),
@@ -1355,7 +1360,7 @@ void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("rotationDegrees").toInt(), 90);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));

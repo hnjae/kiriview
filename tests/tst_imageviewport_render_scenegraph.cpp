@@ -677,10 +677,9 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     item.setMirrorHorizontally(mirrorHorizontally);
     item.setMirrorVertically(mirrorVertically);
     item.setSequence(result->sequence());
-    for (int degrees = 0; degrees < rotationDegrees; degrees += 90) {
-        QCOMPARE(
-            item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
-    }
+    ImageViewportPresentationCommand rotationCommand;
+    rotationCommand.setRotationDegrees(rotationDegrees);
+    QCOMPARE(item.setPresentation(rotationCommand), ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);

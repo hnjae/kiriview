@@ -99,6 +99,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "zoomByStep(int,QPointF)",
         "scanNext()",
         "scanPrevious()",
+        "rotateClockwise(QPointF)",
         "rotateCounterClockwise(QPointF)",
     };
 

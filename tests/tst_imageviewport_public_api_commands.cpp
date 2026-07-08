@@ -622,7 +622,9 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setPageGap(9.0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.rotateClockwise(QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    ImageViewportPresentationCommand rotationCommand;
+    rotationCommand.setRotationDegrees(90);
+    QCOMPARE(item.setPresentation(rotationCommand), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setMirrorHorizontally(true, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setMirrorVertically(true, QPointF(50.0, 50.0)),
