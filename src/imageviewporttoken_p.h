@@ -21,6 +21,7 @@ public:
     static RevisionToken fromValue(quint64 value) { return RevisionToken(value); }
 
     static quint64 value(RevisionToken token) { return token.m_value; }
+    static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }
 };
 
 } // namespace ImageViewportInternal

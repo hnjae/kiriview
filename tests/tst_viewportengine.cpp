@@ -141,7 +141,7 @@ void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
     QCOMPARE(request.status, ImageViewport::RequestStatus::NoRequest);
     QCOMPARE(request.reason, ImageViewport::RequestReason::NoRequest);
     QCOMPARE(request.commandReason, ImageViewport::CommandReason::NoCommand);
-    QCOMPARE(request.playbackPhase, item.playbackPhase());
+    QCOMPARE(request.playbackPhase, item.state().request().playbackPhase());
     QCOMPARE(request.looping, item.state().presentation().looping());
     QCOMPARE(request.stopPlaybackWhenRequestReady, false);
     QCOMPARE(request.providerPlaybackStartPending, false);

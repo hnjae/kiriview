@@ -370,18 +370,18 @@ Item {
         const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
         const appendAccepted = list.appendFrame(suppliedFrame, 100)
         const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
-        viewport.sequence = timedResult.sequence
+        viewport.setPageSet(timedResult.sequence, null)
         typedFactorySurfaceAvailable = frameResult.sequence !== null
             && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
             && appendAccepted === true
             && list.count === 1
             && timedResult.sequence !== null
             && timedResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
-            && viewport.requestStatus === ImageViewport.RequestStatus.Loading
-            && viewport.requestReason === ImageViewport.RequestReason.UploadPending
-            && viewport.displayStatus === ImageViewport.DisplayStatus.Empty
-            && viewport.frameCount === 1
-            && viewport.totalDuration === 100
+            && viewport.state.request.status === ImageViewport.RequestStatus.Loading
+            && viewport.state.request.reason === ImageViewport.RequestReason.UploadPending
+            && viewport.state.display.status === ImageViewport.DisplayStatus.Empty
+            && viewport.state.primary.metadata.frameCount === 1
+            && viewport.state.primary.metadata.totalDuration === 100
     }
 }
 )",
@@ -480,10 +480,10 @@ ImageViewport {
         const resetViewOutcome = resetView()
         const minimum = state.presentation.minimumManualZoomPercent
         const maximum = state.presentation.maximumManualZoomPercent
-        commandSurfaceAvailable = requestStatus === ImageViewport.RequestStatus.NoRequest
-            && requestReason === ImageViewport.RequestReason.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && playbackPhase === ImageViewport.PlaybackPhase.Stopped
+        commandSurfaceAvailable = state.request.status === ImageViewport.RequestStatus.NoRequest
+            && state.request.reason === ImageViewport.RequestReason.NoRequest
+            && state.display.status === ImageViewport.DisplayStatus.Empty
+            && state.request.playbackPhase === ImageViewport.PlaybackPhase.Stopped
             && playOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && pauseOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && stopOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
@@ -492,8 +492,8 @@ ImageViewport {
             && zoomOutcome === ImageViewport.CommandOutcome.Accepted
             && stepOutcome === ImageViewport.CommandOutcome.Accepted
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
-            && commandReason === ImageViewport.CommandReason.NoCommand
-            && commandRevision.valid
+            && state.diagnostics.commandReason === ImageViewport.CommandReason.NoCommand
+            && state.revisions.command.valid
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 100
             && minimum > 0
@@ -508,12 +508,12 @@ ImageViewport {
             && typeof minimumManualZoomPercent === "undefined"
             && typeof maximumManualZoomPercent === "undefined"
             && typeof manualZoomStepFactor === "undefined"
-            && contentPosition.x === 0
-            && contentPosition.y === 0
-            && frameSeekBounds.minimum === -1
-            && frameSeekBounds.maximum === -1
-            && positionSeekBounds.minimum === -1
-            && positionSeekBounds.maximum === -1
+            && state.display.contentPosition.x === 0
+            && state.display.contentPosition.y === 0
+            && state.primary.metadata.frameSeekBounds.minimum === -1
+            && state.primary.metadata.frameSeekBounds.maximum === -1
+            && state.primary.metadata.positionSeekBounds.minimum === -1
+            && state.primary.metadata.positionSeekBounds.maximum === -1
             && mapPoint(coordinateInput).valid === false
             && mapPoint(coordinateInput).point.x === 0
             && nearestVisiblePoint(coordinateInput).valid === false
@@ -834,8 +834,8 @@ int main(int argc, char** argv)
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
-    if (typedPageSetViewport.primarySequence() != stillResult->sequence()
-        || typedPageSetViewport.secondarySequence() != timedResult->sequence()) {
+    if (typedPageSetViewport.state().primary().sequence() != stillResult->sequence()
+        || typedPageSetViewport.state().secondary().sequence() != timedResult->sequence()) {
         return 1;
     }
     PageSetTransitionPolicy typedPageSetPolicy;
@@ -847,8 +847,9 @@ int main(int argc, char** argv)
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
-    if (typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()
-        || typedPageSetViewport.secondarySequence() != nullptr
+    if (typedPageSetViewport.state().primary().sequence()
+            != deviceIndependentStillResult->sequence()
+        || typedPageSetViewport.state().secondary().sequence() != nullptr
         || typedPageSetViewport.state().presentation().pageGap() != 2.0) {
         return 1;
     }
@@ -857,7 +858,8 @@ int main(int argc, char** argv)
     if (installedSecondaryOnly.isValid()
         || typedPageSetViewport.setPageSet(installedSecondaryOnly)
             != ImageViewport::CommandOutcome::Invalid
-        || typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()) {
+        || typedPageSetViewport.state().primary().sequence()
+            != deviceIndependentStillResult->sequence()) {
         return 1;
     }
 
@@ -1024,18 +1026,20 @@ int main(int argc, char** argv)
 
     ImageViewport providerViewport;
     providerViewport.setSequence(result->sequence());
-    if (providerViewport.requestStatus() != ImageViewport::RequestStatus::Loading
-        || providerViewport.requestReason() != ImageViewport::RequestReason::ProviderWaiting
-        || providerViewport.requestedFrame() != 0 || providerViewport.requestedPosition() != 0
-        || providerViewport.frameCount() != 2 || providerViewport.totalDuration() != 200) {
+    if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
+        || providerViewport.state().request().reason() != ImageViewport::RequestReason::ProviderWaiting
+        || providerViewport.state().primary().request().frame() != 0
+        || providerViewport.state().primary().request().position() != 0
+        || providerViewport.state().primary().metadata().frameCount() != 2
+        || providerViewport.state().primary().metadata().totalDuration() != 200) {
         return 1;
     }
 
     QCoreApplication::processEvents();
-    if (providerViewport.requestStatus() != ImageViewport::RequestStatus::Loading
-        || providerViewport.requestReason() != ImageViewport::RequestReason::RenderWaiting
-        || providerViewport.displayStatus() != ImageViewport::DisplayStatus::Empty
-        || providerViewport.displayedFrame() != -1) {
+    if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
+        || providerViewport.state().request().reason() != ImageViewport::RequestReason::RenderWaiting
+        || providerViewport.state().display().status() != ImageViewport::DisplayStatus::Empty
+        || providerViewport.state().primary().display().frame() != -1) {
         return 1;
     }
 

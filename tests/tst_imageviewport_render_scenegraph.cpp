@@ -200,13 +200,13 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayStateSpy(&item, &ImageViewport::displayStateChanged);
@@ -221,15 +221,15 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
     QCOMPARE(background->color(), QColor(20, 40, 60, 255));
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedPosition").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(primaryDisplayedPosition(item), -1);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displayStateSpy.count(), 0);
     QCOMPARE(playbackSpy.count(), 0);
@@ -296,7 +296,7 @@ void ImageViewportRenderSceneGraphTest::stillImageCreatesTexturePaintNode()
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+    QCOMPARE(imageNode->rect(), contentRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNodes()
@@ -330,14 +330,14 @@ void ImageViewportRenderSceneGraphTest::twoPageStillSpreadCreatesRoleTextureNode
     auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
     QVERIFY(primaryNode);
     QVERIFY(primaryNode->texture());
-    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
-    QCOMPARE(primaryNode->sourceRect(), item.property("visiblePrimaryPageRect").toRectF());
+    QCOMPARE(primaryNode->rect(), primaryItemRect(item));
+    QCOMPARE(primaryNode->sourceRect(), visiblePrimaryPageRect(item));
 
     auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
     QVERIFY(secondaryNode->texture());
-    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
-    QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
+    QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
+    QCOMPARE(secondaryNode->sourceRect(), visibleSecondaryPageRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::
@@ -370,7 +370,7 @@ void ImageViewportRenderSceneGraphTest::
     QVERIFY(readyRoot);
     QCOMPARE(readyRoot->childCount(), 2);
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     const auto sessionCount = std::make_shared<int>(0);
     const auto metadataRequestCount = std::make_shared<int>(0);
@@ -388,12 +388,12 @@ void ImageViewportRenderSceneGraphTest::
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("secondaryDisplayedImageSize").toSizeF(), QSizeF(30.0, 20.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(secondaryDisplayedImageSize(item), QSizeF(30.0, 20.0));
 
     QScopedPointer<QSGNode> retainedRoot(item.takePaintNode());
     QVERIFY(retainedRoot);
@@ -401,18 +401,18 @@ void ImageViewportRenderSceneGraphTest::
 
     auto* primaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild());
     QVERIFY(primaryNode);
-    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
+    QCOMPARE(primaryNode->rect(), primaryItemRect(item));
 
     auto* secondaryNode = dynamic_cast<QSGImageNode*>(retainedRoot->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
-    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
-    QCOMPARE(secondaryNode->sourceRect(), item.property("visibleSecondaryPageRect").toRectF());
+    QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
+    QCOMPARE(secondaryNode->sourceRect(), visibleSecondaryPageRect(item));
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "NoRequest"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QScopedPointer<QSGNode> clearedRoot(item.takePaintNode());
     QVERIFY(clearedRoot.isNull());
 }
@@ -452,8 +452,8 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     QVERIFY(sessionFactory->lastSession());
@@ -465,8 +465,8 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     QImage secondaryImage(30, 20, QImage::Format_ARGB32_Premultiplied);
@@ -477,25 +477,25 @@ void ImageViewportRenderSceneGraphTest::secondaryProviderFrameCompletesSpreadTex
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
     QCOMPARE(root->childCount(), 2);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     auto* primaryNode = dynamic_cast<QSGImageNode*>(root->firstChild());
     QVERIFY(primaryNode);
-    QCOMPARE(primaryNode->rect(), item.property("primaryItemRect").toRectF());
+    QCOMPARE(primaryNode->rect(), primaryItemRect(item));
 
     auto* secondaryNode = dynamic_cast<QSGImageNode*>(root->firstChild()->nextSibling());
     QVERIFY(secondaryNode);
-    QCOMPARE(secondaryNode->rect(), item.property("secondaryItemRect").toRectF());
+    QCOMPARE(secondaryNode->rect(), secondaryItemRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitOneSpread()
@@ -558,15 +558,15 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QVERIFY(hasPendingRenderCommitForTest(item));
     QScopedPointer<QSGNode> partialRoot(item.takePaintNode());
     QVERIFY(partialRoot.isNull());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
 
     emitProviderMetadataReady(secondarySessionFactory->lastSession(),
@@ -585,17 +585,17 @@ void ImageViewportRenderSceneGraphTest::primaryAndSecondaryProviderFramesCommitO
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
     QCOMPARE(root->childCount(), 2);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalTextureSourceRect()
@@ -621,7 +621,7 @@ void ImageViewportRenderSceneGraphTest::deviceIndependentStillImageUsesPhysicalT
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 2.0, 1.0));
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 2.0, 1.0));
     QCOMPARE(imageNode->sourceRect(), QRectF(0.0, 0.0, 4.0, 2.0));
 }
 
@@ -656,7 +656,7 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+    QCOMPARE(imageNode->rect(), contentRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::qualityAndMirroringConfigureTextureNode()
@@ -745,7 +745,7 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
 
-    const QRectF targetRect = item.property("contentRect").toRectF();
+    const QRectF targetRect = contentRect(item);
     const bool swapsAxes = rotationDegrees == 90 || rotationDegrees == 270;
     const QSizeF unrotatedSize = swapsAxes
         ? QSizeF(targetRect.height(), targetRect.width())
@@ -756,7 +756,7 @@ void ImageViewportRenderSceneGraphTest::rotatedImageTextureNodeUsesTransform()
         unrotatedSize.width(),
         unrotatedSize.height());
     QCOMPARE(imageNode->rect(), unrotatedRect);
-    QCOMPARE(imageNode->sourceRect(), item.property("visibleImageRect").toRectF());
+    QCOMPARE(imageNode->sourceRect(), visibleImageRect(item));
     QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorHorizontally),
         mirrorHorizontally);
     QCOMPARE(bool(imageNode->textureCoordinatesTransform() & QSGImageNode::MirrorVertically),
@@ -857,11 +857,11 @@ void ImageViewportRenderSceneGraphTest::initialRenderFailureWithoutRetainedConte
 
     QVERIFY(root.isNull());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderFailure"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
 }
 
 void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
@@ -890,18 +890,18 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     std::unique_ptr<QSGNode> readyRoot(item.takePaintNode());
     QVERIFY(readyRoot);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryDisplayedFrame(item), 0);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
     item.setParentItem(nullptr);
@@ -914,12 +914,12 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderFailure"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
@@ -1021,7 +1021,7 @@ void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRe
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
     QCOMPARE(imageNode->rect(), QRectF(0.0, 0.0, 100.0, 100.0));
-    QCOMPARE(imageNode->sourceRect(), item.property("visibleImageRect").toRectF());
+    QCOMPARE(imageNode->sourceRect(), visibleImageRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::providerStillFrameCreatesTexturePaintNode()
@@ -1064,7 +1064,7 @@ void ImageViewportRenderSceneGraphTest::providerStillFrameCreatesTexturePaintNod
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+    QCOMPARE(imageNode->rect(), contentRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::
@@ -1104,35 +1104,35 @@ void ImageViewportRenderSceneGraphTest::
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
 
     QScopedPointer<QSGNode> zeroSizeRoot(item.takePaintNode());
     QVERIFY(zeroSizeRoot.isNull());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
 
     item.setSize(QSizeF(40.0, 20.0));
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QVERIFY(commitPaintNode(item));
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -1140,7 +1140,7 @@ void ImageViewportRenderSceneGraphTest::
     auto* imageNode = dynamic_cast<QSGImageNode*>(root->lastChild());
     QVERIFY(imageNode);
     QVERIFY(imageNode->texture());
-    QCOMPARE(imageNode->rect(), item.property("contentRect").toRectF());
+    QCOMPARE(imageNode->rect(), contentRect(item));
 }
 
 void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryIgnoresEmptyPaint()
@@ -1178,10 +1178,10 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
 
     QVERIFY(commitPaintNode(item));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 20.0));
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
@@ -1193,41 +1193,41 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &secondFrame, 1, 100);
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
     const quint64 pendingPayloadId = pendingRenderPayloadIdForTest(item);
 
     QScopedPointer<QSGNode> zeroSizeRoot(item.takePaintNode());
     QVERIFY(zeroSizeRoot.isNull());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
     QCOMPARE(pendingRenderPayloadIdForTest(item), pendingPayloadId);
 
     item.setSize(QSizeF(40.0, 20.0));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QVERIFY(commitPaintNode(item));
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedFrame").toInt(), 1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(pendingRenderPayloadIdForTest(item), 0U);
 }
 

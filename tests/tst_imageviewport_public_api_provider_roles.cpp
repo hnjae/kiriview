@@ -43,15 +43,15 @@ void ImageViewportPublicApiProviderRolesTest::
         QVariant::fromValue<QObject*>(secondaryResult->sequence()));
 
     QCOMPARE(outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("primarySequence").value<ImageSequence*>(), primaryResult->sequence());
+    QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
     QCOMPARE(
-        item.property("secondarySequence").value<ImageSequence*>(), secondaryResult->sequence());
+        viewportSecondarySequence(item), secondaryResult->sequence());
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(requestStatusValue(item),
         enumValue(item.metaObject(), "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(item.metaObject(), "RequestReason", "ProviderWaiting"));
 }
 
@@ -87,13 +87,11 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
         ImageSequenceProviderMetadata::still(QSizeF(10.0, 20.0)));
     drainQueuedProviderResults();
 
-    QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(rangeProperty(item, "secondaryFrameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "secondaryFrameSeekBounds").maximum(), 0);
-    QCOMPARE(item.property("secondaryFrameSeekSupport").toInt(),
-        enumValue(item.metaObject(), "TriState", "True"));
-    QCOMPARE(item.property("secondaryTimedPlaybackSupport").toInt(),
-        enumValue(item.metaObject(), "TriState", "False"));
+    QCOMPARE(secondaryFrameCount(item), 1);
+    QCOMPARE(secondaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(secondaryFrameSeekBounds(item).maximum(), 0);
+    QCOMPARE(secondaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
 }
 QTEST_MAIN(ImageViewportPublicApiProviderRolesTest)
 

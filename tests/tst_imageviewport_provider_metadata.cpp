@@ -15,41 +15,6 @@ enum MetadataProjectionScenario {
     RuntimeTimedMetadata,
 };
 
-struct RoleMetadataProperties
-{
-    const char* frameCount;
-    const char* totalDuration;
-    const char* frameSeekBounds;
-    const char* positionSeekBounds;
-    const char* timedPlaybackSupport;
-    const char* frameSeekSupport;
-    const char* positionSeekSupport;
-};
-
-RoleMetadataProperties metadataPropertiesForRole(bool secondaryRole)
-{
-    if (secondaryRole) {
-        return {
-            "secondaryFrameCount",
-            "secondaryTotalDuration",
-            "secondaryFrameSeekBounds",
-            "secondaryPositionSeekBounds",
-            "secondaryTimedPlaybackSupport",
-            "secondaryFrameSeekSupport",
-            "secondaryPositionSeekSupport",
-        };
-    }
-    return {
-        "primaryFrameCount",
-        "primaryTotalDuration",
-        "primaryFrameSeekBounds",
-        "primaryPositionSeekBounds",
-        "primaryTimedPlaybackSupport",
-        "primaryFrameSeekSupport",
-        "primaryPositionSeekSupport",
-    };
-}
-
 void verifyImageViewportMetadataProjectionIsControllerForwarding()
 {
     QFile sourceFile(QStringLiteral(IMAGEVIEWPORT_SOURCE_DIR "/src/imageviewport.cpp"));
@@ -280,34 +245,35 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
         break;
     }
 
-    const RoleMetadataProperties properties = metadataPropertiesForRole(secondaryRole);
+    const ImageViewportRoleMetadataSnapshot roleMetadata
+        = secondaryRole ? item.state().secondary().metadata() : item.state().primary().metadata();
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.property(properties.frameCount).toInt(), expectedFrameCount);
-    QCOMPARE(item.property(properties.totalDuration).toInt(), expectedTotalDuration);
-    QCOMPARE(rangeProperty(item, properties.frameSeekBounds).minimum(), expectedFrameMinimum);
-    QCOMPARE(rangeProperty(item, properties.frameSeekBounds).maximum(), expectedFrameMaximum);
-    QCOMPARE(rangeProperty(item, properties.positionSeekBounds).minimum(), expectedPositionMinimum);
-    QCOMPARE(rangeProperty(item, properties.positionSeekBounds).maximum(), expectedPositionMaximum);
-    QCOMPARE(item.property(properties.timedPlaybackSupport).toInt(),
-        enumValue(metaObject, "TriState", expectedTimedPlaybackSupport.constData()));
-    QCOMPARE(item.property(properties.frameSeekSupport).toInt(),
-        enumValue(metaObject, "TriState", expectedFrameSeekSupport.constData()));
-    QCOMPARE(item.property(properties.positionSeekSupport).toInt(),
-        enumValue(metaObject, "TriState", expectedPositionSeekSupport.constData()));
+    const auto expectedTimedSupport = static_cast<ImageViewport::CapabilitySupport>(
+        enumValue(metaObject, "CapabilitySupport", expectedTimedPlaybackSupport.constData()));
+    const auto expectedFrameSupport = static_cast<ImageViewport::CapabilitySupport>(
+        enumValue(metaObject, "CapabilitySupport", expectedFrameSeekSupport.constData()));
+    const auto expectedPositionSupport = static_cast<ImageViewport::CapabilitySupport>(
+        enumValue(metaObject, "CapabilitySupport", expectedPositionSeekSupport.constData()));
+    QCOMPARE(roleMetadata.frameCount(), expectedFrameCount);
+    QCOMPARE(roleMetadata.totalDuration(), expectedTotalDuration);
+    QCOMPARE(roleMetadata.frameSeekBounds().minimum(), expectedFrameMinimum);
+    QCOMPARE(roleMetadata.frameSeekBounds().maximum(), expectedFrameMaximum);
+    QCOMPARE(roleMetadata.positionSeekBounds().minimum(), expectedPositionMinimum);
+    QCOMPARE(roleMetadata.positionSeekBounds().maximum(), expectedPositionMaximum);
+    QCOMPARE(roleMetadata.timedPlaybackSupport(), expectedTimedSupport);
+    QCOMPARE(roleMetadata.frameSeekSupport(), expectedFrameSupport);
+    QCOMPARE(roleMetadata.positionSeekSupport(), expectedPositionSupport);
 
     if (!secondaryRole) {
-        QCOMPARE(item.property("frameCount").toInt(), expectedFrameCount);
-        QCOMPARE(item.property("totalDuration").toInt(), expectedTotalDuration);
-        QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), expectedFrameMinimum);
-        QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), expectedFrameMaximum);
-        QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), expectedPositionMinimum);
-        QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), expectedPositionMaximum);
-        QCOMPARE(item.property("timedPlaybackSupport").toInt(),
-            enumValue(metaObject, "TriState", expectedTimedPlaybackSupport.constData()));
-        QCOMPARE(item.property("frameSeekSupport").toInt(),
-            enumValue(metaObject, "TriState", expectedFrameSeekSupport.constData()));
-        QCOMPARE(item.property("positionSeekSupport").toInt(),
-            enumValue(metaObject, "TriState", expectedPositionSeekSupport.constData()));
+        QCOMPARE(primaryFrameCount(item), expectedFrameCount);
+        QCOMPARE(primaryTotalDuration(item), expectedTotalDuration);
+        QCOMPARE(primaryFrameSeekBounds(item).minimum(), expectedFrameMinimum);
+        QCOMPARE(primaryFrameSeekBounds(item).maximum(), expectedFrameMaximum);
+        QCOMPARE(primaryPositionSeekBounds(item).minimum(), expectedPositionMinimum);
+        QCOMPARE(primaryPositionSeekBounds(item).maximum(), expectedPositionMaximum);
+        QCOMPARE(primaryTimedPlaybackSupport(item), expectedTimedSupport);
+        QCOMPARE(primaryFrameSeekSupport(item), expectedFrameSupport);
+        QCOMPARE(primaryPositionSeekSupport(item), expectedPositionSupport);
     }
 }
 
@@ -341,24 +307,24 @@ void ImageViewportProviderMetadataTest::providerConstructionMetadataSelectsIniti
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 350);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -389,24 +355,24 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 3);
-    QCOMPARE(item.property("totalDuration").toInt(), 300);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 2);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 300);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 3);
+    QCOMPARE(primaryTotalDuration(item), 300);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 300);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -434,24 +400,24 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 350);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -474,30 +440,30 @@ void ImageViewportProviderMetadataTest::
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
-    const RevisionToken initialRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken initialRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RequestQueued"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(primaryRequestedPosition(item), 100);
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
     verifyRevisionChanged(item, "requestRevision", initialRequestRevision);
 }
 
@@ -519,52 +485,52 @@ void ImageViewportProviderMetadataTest::providerKnownStillConstructionMetadataCo
     ImageViewport item;
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryFrameCount(item), 1);
+    QCOMPARE(primaryTotalDuration(item), -1);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 1);
 
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+    QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 1);
 }
@@ -588,32 +554,32 @@ void ImageViewportProviderMetadataTest::
     ImageViewport item;
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 350);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
 
     QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 1);
 
     QCOMPARE(item.seekToPosition(351), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 0);
@@ -644,13 +610,13 @@ void ImageViewportProviderMetadataTest::providerLogicalSizeFactsWaitForRuntimeMe
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), -1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryFrameCount(item), -1);
+    QCOMPARE(primaryTotalDuration(item), -1);
 
     QVERIFY(sessionFactory->lastSession());
     emitProviderMetadataReady(sessionFactory->lastSession(),
@@ -661,13 +627,13 @@ void ImageViewportProviderMetadataTest::providerLogicalSizeFactsWaitForRuntimeMe
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryFrameCount(item), 1);
+    QCOMPARE(primaryTotalDuration(item), -1);
 }
 
 void ImageViewportProviderMetadataTest::providerTimedFrameCountFactsProjectFrameBoundsOnly()
@@ -694,16 +660,15 @@ void ImageViewportProviderMetadataTest::providerTimedFrameCountFactsProjectFrame
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 3);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 2);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("positionSeekSupport").toInt(),
-        enumValue(metaObject, "TriState", "Unavailable"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryFrameCount(item), 3);
+    QCOMPARE(primaryTotalDuration(item), -1);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
 }
 
 void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownLogicalSizeFacts()
@@ -734,10 +699,10 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownL
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("construction-time")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("construction-time")));
 }
 
 void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownFrameCountFacts()
@@ -768,10 +733,10 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownF
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("construction-time")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("construction-time")));
 }
 
 void ImageViewportProviderMetadataTest::
@@ -813,11 +778,11 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(*secondaryFrameRequestCount, 0);
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(item.property("secondaryFrameCount").toInt(), -1);
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("construction-time")));
+    QCOMPARE(secondaryFrameCount(item), -1);
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("construction-time")));
 }
 
 void ImageViewportProviderMetadataTest::
@@ -862,11 +827,11 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(*secondaryFrameRequestCount, 0);
     QCOMPARE(*secondaryCloseCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(item.property("secondaryFrameCount").toInt(), -1);
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("capabilities")));
+    QCOMPARE(secondaryFrameCount(item), -1);
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("capabilities")));
 }
 
 void ImageViewportProviderMetadataTest::
@@ -898,11 +863,11 @@ void ImageViewportProviderMetadataTest::
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*secondaryMetadataRequestCount, 1);
     QCOMPARE(*secondaryFrameRequestCount, 0);
-    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
+    QCOMPARE(secondaryRequestedFrame(item), -1);
 
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(secondaryRequestedFrame(item), -1);
 
     QVERIFY(secondarySessionFactory->lastSession());
     emitProviderMetadataReady(secondarySessionFactory->lastSession(),
@@ -912,10 +877,10 @@ void ImageViewportProviderMetadataTest::
 
     QCOMPARE(*secondaryFrameRequestCount, 0);
     QCOMPARE(*secondaryCloseCount, 0);
-    QCOMPARE(item.property("secondaryFrameCount").toInt(), 1);
-    QCOMPARE(item.property("secondaryRequestedFrame").toInt(), -1);
-    QCOMPARE(item.property("secondaryRequestedPosition").toInt(), -1);
-    QVERIFY(item.property("errorString").toString().isEmpty());
+    QCOMPARE(secondaryFrameCount(item), 1);
+    QCOMPARE(secondaryRequestedFrame(item), -1);
+    QCOMPARE(secondaryRequestedPosition(item), -1);
+    QVERIFY(viewportErrorString(item).isEmpty());
 }
 
 void ImageViewportProviderMetadataTest::
@@ -944,13 +909,13 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(*closeCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 200);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 200);
 }
 
 void ImageViewportProviderMetadataTest::providerCompleteKnownFactsSelectInitialFrameRequest()
@@ -977,13 +942,13 @@ void ImageViewportProviderMetadataTest::providerCompleteKnownFactsSelectInitialF
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
 }
 
 void ImageViewportProviderMetadataTest::providerMetadataLoadingPauseStopPreserveInitialRequest()
@@ -1019,18 +984,18 @@ void ImageViewportProviderMetadataTest::providerMetadataLoadingPauseStopPreserve
     QCOMPARE(*lastPlaybackPosition, -1);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
-    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displaySpy(&item, &ImageViewport::displayStateChanged);
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
@@ -1046,19 +1011,19 @@ void ImageViewportProviderMetadataTest::providerMetadataLoadingPauseStopPreserve
     QCOMPARE(*lastPlaybackFrame, -1);
     QCOMPARE(*lastPlaybackPosition, -1);
     QCOMPARE(*cancelRequestCount, 0);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(requestSpy.count(), 0);
@@ -1090,20 +1055,18 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityProjectsBefore
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(displaySpy.count(), 0);
     QCOMPARE(geometrySpy.count(), 0);
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), -1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryFrameCount(item), -1);
+    QCOMPARE(primaryTotalDuration(item), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(),
-        enumValue(metaObject, "TriState", "Unavailable"));
-    QCOMPARE(item.property("positionSeekSupport").toInt(),
-        enumValue(metaObject, "TriState", "Unavailable"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityProjectsBeforeMetadata()
@@ -1130,17 +1093,17 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityProjectsBe
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), -1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryFrameCount(item), -1);
+    QCOMPARE(primaryTotalDuration(item), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerKnownCapabilityProjectsBeforeMetadata()
@@ -1167,14 +1130,14 @@ void ImageViewportProviderMetadataTest::providerKnownCapabilityProjectsBeforeMet
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::False);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionRejectsMetadata()
@@ -1184,7 +1147,7 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionR
               ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport,
               ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport,
               ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport,
-              const char* projectedProperty) {
+              ImageViewport::CapabilitySupport (*projectedSupport)(const ImageViewport&)) {
               ImageSequenceFactory factory;
               const auto sessionCount = std::make_shared<int>(0);
               const auto metadataRequestCount = std::make_shared<int>(0);
@@ -1209,31 +1172,29 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionR
 
               QCOMPARE(*frameRequestCount, 0);
               QCOMPARE(*closeCount, 1);
-              QCOMPARE(item.property("requestStatus").toInt(),
+              QCOMPARE(requestStatusValue(item),
                   enumValue(metaObject, "RequestStatus", "Error"));
-              QCOMPARE(item.property("requestReason").toInt(),
+              QCOMPARE(requestReasonValue(item),
                   enumValue(metaObject, "RequestReason", "PayloadRejection"));
-              QVERIFY(item.property("errorString")
-                      .toString()
+              QVERIFY(viewportErrorString(item)
                       .contains(QStringLiteral("provider metadata")));
-              QCOMPARE(item.property(projectedProperty).toInt(),
-                  enumValue(metaObject, "TriState", "False"));
+              QCOMPARE(projectedSupport(item), ImageViewport::CapabilitySupport::False);
           };
 
     verifyRejectedMetadata(
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
         ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
         ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, "timedPlaybackSupport");
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, primaryTimedPlaybackSupport);
     verifyRejectedMetadata(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
         ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
         ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, "frameSeekSupport");
+        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, primaryFrameSeekSupport);
     verifyRejectedMetadata(
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
         ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
         ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse, "positionSeekSupport");
+        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse, primaryPositionSeekSupport);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradictionRejectsMetadata()
@@ -1266,14 +1227,14 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradict
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QVERIFY(item.property("errorString").toString().contains(QStringLiteral("provider metadata")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider metadata")));
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverrideTimingInference()
@@ -1314,26 +1275,26 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverr
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(*playbackRequestCount, 0);
     QCOMPARE(item.seekToPosition(100), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(*positionRequestCount, 0);
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("requestedPosition").toInt(), 100);
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
 }
@@ -1359,17 +1320,17 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoPlaybackRejectsPlayBef
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
 
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1395,17 +1356,17 @@ void ImageViewportProviderMetadataTest::providerKnownNoPlaybackRejectsPlayBefore
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
 
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+    QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1432,14 +1393,14 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoFrameSeekRejectsSeekBe
 
     QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Unsupported);
 
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1468,15 +1429,15 @@ void ImageViewportProviderMetadataTest::
 
     QCOMPARE(item.seekToPosition(250), ImageViewport::CommandOutcome::Unsupported);
 
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
+    QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1508,15 +1469,14 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsNonFiniteLogicalS
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.property("errorString")
-            .toString()
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("provider metadata is invalid")));
 }
 
@@ -1547,15 +1507,15 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsHugeFiniteLogical
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
     QVERIFY(
-        item.property("errorString").toString().contains(QStringLiteral("maximumLogicalWidth")));
+        viewportErrorString(item).contains(QStringLiteral("maximumLogicalWidth")));
 }
 
 void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCountLimit()
@@ -1586,15 +1546,14 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCou
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QVERIFY(item.property("errorString")
-            .toString()
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("maximumTimedListFrameCount")));
 }
 
@@ -1626,15 +1585,15 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedDuration
 
               QCOMPARE(*frameRequestCount, 0);
               QCOMPARE(*closeCount, 1);
-              QCOMPARE(item.property("requestStatus").toInt(),
+              QCOMPARE(requestStatusValue(item),
                   enumValue(metaObject, "RequestStatus", "Error"));
-              QCOMPARE(item.property("requestReason").toInt(),
+              QCOMPARE(requestReasonValue(item),
                   enumValue(metaObject, "RequestReason", "PayloadRejection"));
-              QCOMPARE(item.property("displayStatus").toInt(),
+              QCOMPARE(displayStatusValue(item),
                   enumValue(metaObject, "DisplayStatus", "Empty"));
-              QCOMPARE(item.property("requestedFrame").toInt(), -1);
-              QCOMPARE(item.property("displayedFrame").toInt(), -1);
-              QVERIFY(item.property("errorString").toString().contains(expectedDiagnostic));
+              QCOMPARE(primaryRequestedFrame(item), -1);
+              QCOMPARE(primaryDisplayedFrame(item), -1);
+              QVERIFY(viewportErrorString(item).contains(expectedDiagnostic));
           };
 
     verifyRejectedDurations({}, QStringLiteral("provider metadata is invalid"));
@@ -1666,7 +1625,7 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
 
     QVERIFY(sessionFactory->lastSession());
     QCOMPARE(*frameRequestCount, 0);
-    const RevisionToken metadataWaitingRequestRevision
+    const ImageViewportRevisionToken metadataWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
@@ -1680,25 +1639,25 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(primaryFrameCount(item), 1);
+    QCOMPARE(primaryTotalDuration(item), -1);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
     verifyRevisionChanged(item, "requestRevision", metadataWaitingRequestRevision);
     QCOMPARE(requestSpy.count(), 1);
     QCOMPARE(requestRevisionSpy.count(), 1);
@@ -1723,7 +1682,7 @@ void ImageViewportProviderMetadataTest::providerTimedMetadataSelectsInitialFrame
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
-    const RevisionToken metadataWaitingRequestRevision
+    const ImageViewportRevisionToken metadataWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
@@ -1737,25 +1696,25 @@ void ImageViewportProviderMetadataTest::providerTimedMetadataSelectsInitialFrame
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 2);
-    QCOMPARE(item.property("totalDuration").toInt(), 350);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 350);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(primaryFrameCount(item), 2);
+    QCOMPARE(primaryTotalDuration(item), 350);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
     verifyRevisionChanged(item, "requestRevision", metadataWaitingRequestRevision);
     QCOMPARE(requestSpy.count(), 1);
     QCOMPARE(requestRevisionSpy.count(), 1);
@@ -1788,29 +1747,29 @@ void ImageViewportProviderMetadataTest::providerFixedDurationMetadataSelectsInit
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("frameCount").toInt(), 3);
-    QCOMPARE(item.property("totalDuration").toInt(), 300);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 2);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), 300);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryFrameCount(item), 3);
+    QCOMPARE(primaryTotalDuration(item), 300);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), 300);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
 
     QCOMPARE(item.seekToPosition(250), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 1);
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RequestQueued"));
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 2);
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 2);
-    QCOMPARE(item.property("requestedPosition").toInt(), 250);
+    QCOMPARE(primaryRequestedFrame(item), 2);
+    QCOMPARE(primaryRequestedPosition(item), 250);
 }
 
 void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
@@ -1834,7 +1793,7 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
@@ -1844,12 +1803,12 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(item.property("errorString").toString(), QString());
-    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(viewportErrorString(item), QString());
+    QCOMPARE(viewportWarningString(item), QString());
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(requestRevisionSpy.count(), 0);
@@ -1866,8 +1825,8 @@ void ImageViewportProviderMetadataTest::providerProgressResultsAreAdvisory()
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(requestSpy.count(), 1);
@@ -1895,7 +1854,7 @@ void ImageViewportProviderMetadataTest::providerInvalidProgressResultsAreIgnored
     QVERIFY(sessionFactory->lastSession());
     const ImageSequenceProviderRequestToken metadataToken
         = sessionFactory->lastSession()->lastMetadataToken();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
 
@@ -1911,12 +1870,12 @@ void ImageViewportProviderMetadataTest::providerInvalidProgressResultsAreIgnored
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(item.property("errorString").toString(), QString());
-    QCOMPARE(item.property("warningString").toString(), QString());
+    QCOMPARE(viewportErrorString(item), QString());
+    QCOMPARE(viewportWarningString(item), QString());
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestSpy.count(), 0);
@@ -1948,8 +1907,8 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(*closeCount, 0);
 
@@ -1958,16 +1917,15 @@ void ImageViewportProviderMetadataTest::providerTerminalResultDominatesProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QVERIFY(item.property("errorString")
-            .toString()
+    QVERIFY(viewportErrorString(item)
             .contains(QStringLiteral("metadata failed after progress")));
 }
 
@@ -2006,16 +1964,16 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(*closeCount, 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const RevisionToken renderWaitingRequestRevision
+    const ImageViewportRevisionToken renderWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy diagnosticsSpy(&item, &ImageViewport::diagnosticsChanged);
@@ -2026,14 +1984,14 @@ void ImageViewportProviderMetadataTest::providerFrameReadyDominatesLateProgress(
     drainQueuedProviderResults();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), renderWaitingRequestRevision);
-    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
 }
@@ -2059,16 +2017,16 @@ void ImageViewportProviderMetadataTest::
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
-    const RevisionToken metadataWaitingRequestRevision
+    const ImageViewportRevisionToken metadataWaitingRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy requestRevisionSpy(&item, &ImageViewport::requestRevisionChanged);
@@ -2076,14 +2034,14 @@ void ImageViewportProviderMetadataTest::
     item.setSize(QSizeF(100.0, 100.0));
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), metadataWaitingRequestRevision);
@@ -2124,10 +2082,10 @@ void ImageViewportProviderMetadataTest::providerMetadataReadySealsMetadataToken(
     QCOMPARE(*closeCount, 0);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(item.property("errorString").toString(), QString());
+    QCOMPARE(viewportErrorString(item), QString());
 }
 
 QTEST_MAIN(ImageViewportProviderMetadataTest)

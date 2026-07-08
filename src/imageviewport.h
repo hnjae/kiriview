@@ -629,6 +629,7 @@ private:
     friend ImageViewportPrivate;
     friend class ImageViewportRevisionsSnapshot;
     friend class ImageViewportDisplaySnapshot;
+    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
 };
 
 class ImageViewportPageSetGenerationToken
@@ -784,90 +785,6 @@ class ImageViewport : public QQuickItem
     Q_CLASSINFO("RegisterEnumClassesUnscoped", "false")
     QML_ELEMENT
     Q_PROPERTY(ImageViewportStateSnapshot state READ state NOTIFY stateChanged)
-    Q_PROPERTY(ImageSequence* sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
-    Q_PROPERTY(ImageSequence* primarySequence READ primarySequence NOTIFY sequenceChanged)
-    Q_PROPERTY(ImageSequence* secondarySequence READ secondarySequence NOTIFY sequenceChanged)
-    Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
-    Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
-    Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
-    Q_PROPERTY(DisplayStatus displayStatus READ displayStatus NOTIFY displayStateChanged)
-    Q_PROPERTY(PlaybackPhase playbackPhase READ playbackPhase NOTIFY playbackPhaseChanged)
-    Q_PROPERTY(int displayedFrame READ displayedFrame NOTIFY displayStateChanged)
-    Q_PROPERTY(int requestedFrame READ requestedFrame NOTIFY requestStateChanged)
-    Q_PROPERTY(int primaryDisplayedFrame READ primaryDisplayedFrame NOTIFY displayStateChanged)
-    Q_PROPERTY(int primaryRequestedFrame READ primaryRequestedFrame NOTIFY requestStateChanged)
-    Q_PROPERTY(int secondaryDisplayedFrame READ secondaryDisplayedFrame NOTIFY displayStateChanged)
-    Q_PROPERTY(int secondaryRequestedFrame READ secondaryRequestedFrame NOTIFY requestStateChanged)
-    Q_PROPERTY(int displayedPosition READ displayedPosition NOTIFY displayStateChanged)
-    Q_PROPERTY(int requestedPosition READ requestedPosition NOTIFY requestStateChanged)
-    Q_PROPERTY(
-        int primaryDisplayedPosition READ primaryDisplayedPosition NOTIFY displayStateChanged)
-    Q_PROPERTY(
-        int primaryRequestedPosition READ primaryRequestedPosition NOTIFY requestStateChanged)
-    Q_PROPERTY(
-        int secondaryDisplayedPosition READ secondaryDisplayedPosition NOTIFY displayStateChanged)
-    Q_PROPERTY(
-        int secondaryRequestedPosition READ secondaryRequestedPosition NOTIFY requestStateChanged)
-    Q_PROPERTY(int frameCount READ frameCount NOTIFY requestStateChanged)
-    Q_PROPERTY(int totalDuration READ totalDuration NOTIFY requestStateChanged)
-    Q_PROPERTY(ImageViewportRange frameSeekBounds READ frameSeekBounds NOTIFY requestStateChanged)
-    Q_PROPERTY(
-        ImageViewportRange positionSeekBounds READ positionSeekBounds NOTIFY requestStateChanged)
-    Q_PROPERTY(int primaryFrameCount READ primaryFrameCount NOTIFY requestStateChanged)
-    Q_PROPERTY(int secondaryFrameCount READ secondaryFrameCount NOTIFY requestStateChanged)
-    Q_PROPERTY(int primaryTotalDuration READ primaryTotalDuration NOTIFY requestStateChanged)
-    Q_PROPERTY(int secondaryTotalDuration READ secondaryTotalDuration NOTIFY requestStateChanged)
-    Q_PROPERTY(ImageViewportRange primaryFrameSeekBounds READ primaryFrameSeekBounds NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(ImageViewportRange secondaryFrameSeekBounds READ secondaryFrameSeekBounds NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(ImageViewportRange primaryPositionSeekBounds READ primaryPositionSeekBounds NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(ImageViewportRange secondaryPositionSeekBounds READ secondaryPositionSeekBounds
-            NOTIFY requestStateChanged)
-    Q_PROPERTY(TriState timedPlaybackSupport READ timedPlaybackSupport NOTIFY requestStateChanged)
-    Q_PROPERTY(TriState frameSeekSupport READ frameSeekSupport NOTIFY requestStateChanged)
-    Q_PROPERTY(TriState positionSeekSupport READ positionSeekSupport NOTIFY requestStateChanged)
-    Q_PROPERTY(TriState primaryTimedPlaybackSupport READ primaryTimedPlaybackSupport NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(TriState secondaryTimedPlaybackSupport READ secondaryTimedPlaybackSupport NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(
-        TriState primaryFrameSeekSupport READ primaryFrameSeekSupport NOTIFY requestStateChanged)
-    Q_PROPERTY(TriState secondaryFrameSeekSupport READ secondaryFrameSeekSupport NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(TriState primaryPositionSeekSupport READ primaryPositionSeekSupport NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(TriState secondaryPositionSeekSupport READ secondaryPositionSeekSupport NOTIFY
-            requestStateChanged)
-    Q_PROPERTY(QSizeF displayedImageSize READ displayedImageSize NOTIFY displayStateChanged)
-    Q_PROPERTY(QSizeF displayedSpreadSize READ displayedSpreadSize NOTIFY displayStateChanged)
-    Q_PROPERTY(
-        QSizeF primaryDisplayedImageSize READ primaryDisplayedImageSize NOTIFY displayStateChanged)
-    Q_PROPERTY(QSizeF secondaryDisplayedImageSize READ secondaryDisplayedImageSize NOTIFY
-            displayStateChanged)
-    Q_PROPERTY(QRectF contentRect READ contentRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF visibleImageRect READ visibleImageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF visibleSpreadRect READ visibleSpreadRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF primaryPageRect READ primaryPageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF secondaryPageRect READ secondaryPageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF primaryItemRect READ primaryItemRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QRectF secondaryItemRect READ secondaryItemRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(
-        QRectF visiblePrimaryPageRect READ visiblePrimaryPageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(
-        QRectF visibleSecondaryPageRect READ visibleSecondaryPageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(QSizeF contentSize READ contentSize NOTIFY geometryStateChanged)
-    Q_PROPERTY(QPointF contentPosition READ contentPosition NOTIFY geometryStateChanged)
-    Q_PROPERTY(
-        QPointF maximumContentPosition READ maximumContentPosition NOTIFY geometryStateChanged)
-    Q_PROPERTY(bool horizontalPannable READ horizontalPannable NOTIFY geometryStateChanged)
-    Q_PROPERTY(bool verticalPannable READ verticalPannable NOTIFY geometryStateChanged)
-    Q_PROPERTY(RevisionToken displayRevision READ displayRevision NOTIFY displayRevisionChanged)
-    Q_PROPERTY(RevisionToken requestRevision READ requestRevision NOTIFY requestRevisionChanged)
-    Q_PROPERTY(RevisionToken commandRevision READ commandRevision NOTIFY commandRevisionChanged)
-    Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
-    Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
 
 public:
     enum class PageRole {
@@ -1025,71 +942,7 @@ public:
     ~ImageViewport() override;
 
     ImageViewportStateSnapshot state() const;
-    ImageSequence* sequence() const;
     void setSequence(ImageSequence* sequence);
-    ImageSequence* primarySequence() const;
-    ImageSequence* secondarySequence() const;
-    RequestStatus requestStatus() const;
-    RequestReason requestReason() const;
-    CommandReason commandReason() const;
-    DisplayStatus displayStatus() const;
-    PlaybackPhase playbackPhase() const;
-    int displayedFrame() const;
-    int requestedFrame() const;
-    int primaryDisplayedFrame() const;
-    int primaryRequestedFrame() const;
-    int secondaryDisplayedFrame() const;
-    int secondaryRequestedFrame() const;
-    int displayedPosition() const;
-    int requestedPosition() const;
-    int primaryDisplayedPosition() const;
-    int primaryRequestedPosition() const;
-    int secondaryDisplayedPosition() const;
-    int secondaryRequestedPosition() const;
-    int frameCount() const;
-    int totalDuration() const;
-    ImageViewportRange frameSeekBounds() const;
-    ImageViewportRange positionSeekBounds() const;
-    int primaryFrameCount() const;
-    int secondaryFrameCount() const;
-    int primaryTotalDuration() const;
-    int secondaryTotalDuration() const;
-    ImageViewportRange primaryFrameSeekBounds() const;
-    ImageViewportRange secondaryFrameSeekBounds() const;
-    ImageViewportRange primaryPositionSeekBounds() const;
-    ImageViewportRange secondaryPositionSeekBounds() const;
-    TriState timedPlaybackSupport() const;
-    TriState frameSeekSupport() const;
-    TriState positionSeekSupport() const;
-    TriState primaryTimedPlaybackSupport() const;
-    TriState secondaryTimedPlaybackSupport() const;
-    TriState primaryFrameSeekSupport() const;
-    TriState secondaryFrameSeekSupport() const;
-    TriState primaryPositionSeekSupport() const;
-    TriState secondaryPositionSeekSupport() const;
-    QSizeF displayedImageSize() const;
-    QSizeF displayedSpreadSize() const;
-    QSizeF primaryDisplayedImageSize() const;
-    QSizeF secondaryDisplayedImageSize() const;
-    QRectF contentRect() const;
-    QRectF visibleImageRect() const;
-    QRectF visibleSpreadRect() const;
-    QRectF primaryPageRect() const;
-    QRectF secondaryPageRect() const;
-    QRectF primaryItemRect() const;
-    QRectF secondaryItemRect() const;
-    QRectF visiblePrimaryPageRect() const;
-    QRectF visibleSecondaryPageRect() const;
-    QSizeF contentSize() const;
-    QPointF contentPosition() const;
-    QPointF maximumContentPosition() const;
-    bool horizontalPannable() const;
-    bool verticalPannable() const;
-    RevisionToken displayRevision() const;
-    RevisionToken requestRevision() const;
-    RevisionToken commandRevision() const;
-    QString errorString() const;
-    QString warningString() const;
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();

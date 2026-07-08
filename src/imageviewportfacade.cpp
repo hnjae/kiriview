@@ -15,110 +15,7 @@ ImageViewport::ImageViewport(QQuickItem* parent)
 ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
-ImageSequence* ImageViewport::sequence() const { return d->sequence(); }
 void ImageViewport::setSequence(ImageSequence* sequence) { d->setSequence(sequence); }
-ImageSequence* ImageViewport::primarySequence() const { return d->primarySequence(); }
-ImageSequence* ImageViewport::secondarySequence() const { return d->secondarySequence(); }
-ImageViewport::RequestStatus ImageViewport::requestStatus() const { return d->requestStatus(); }
-ImageViewport::RequestReason ImageViewport::requestReason() const { return d->requestReason(); }
-ImageViewport::CommandReason ImageViewport::commandReason() const { return d->commandReason(); }
-ImageViewport::DisplayStatus ImageViewport::displayStatus() const { return d->displayStatus(); }
-ImageViewport::PlaybackPhase ImageViewport::playbackPhase() const { return d->playbackPhase(); }
-int ImageViewport::displayedFrame() const { return d->displayedFrame(); }
-int ImageViewport::requestedFrame() const { return d->requestedFrame(); }
-int ImageViewport::primaryDisplayedFrame() const { return d->primaryDisplayedFrame(); }
-int ImageViewport::primaryRequestedFrame() const { return d->primaryRequestedFrame(); }
-int ImageViewport::secondaryDisplayedFrame() const { return d->secondaryDisplayedFrame(); }
-int ImageViewport::secondaryRequestedFrame() const { return d->secondaryRequestedFrame(); }
-int ImageViewport::displayedPosition() const { return d->displayedPosition(); }
-int ImageViewport::requestedPosition() const { return d->requestedPosition(); }
-int ImageViewport::primaryDisplayedPosition() const { return d->primaryDisplayedPosition(); }
-int ImageViewport::primaryRequestedPosition() const { return d->primaryRequestedPosition(); }
-int ImageViewport::secondaryDisplayedPosition() const { return d->secondaryDisplayedPosition(); }
-int ImageViewport::secondaryRequestedPosition() const { return d->secondaryRequestedPosition(); }
-int ImageViewport::frameCount() const { return d->frameCount(); }
-int ImageViewport::totalDuration() const { return d->totalDuration(); }
-ImageViewportRange ImageViewport::frameSeekBounds() const { return d->frameSeekBounds(); }
-ImageViewportRange ImageViewport::positionSeekBounds() const { return d->positionSeekBounds(); }
-int ImageViewport::primaryFrameCount() const { return d->primaryFrameCount(); }
-int ImageViewport::secondaryFrameCount() const { return d->secondaryFrameCount(); }
-int ImageViewport::primaryTotalDuration() const { return d->primaryTotalDuration(); }
-int ImageViewport::secondaryTotalDuration() const { return d->secondaryTotalDuration(); }
-ImageViewportRange ImageViewport::primaryFrameSeekBounds() const
-{
-    return d->primaryFrameSeekBounds();
-}
-ImageViewportRange ImageViewport::secondaryFrameSeekBounds() const
-{
-    return d->secondaryFrameSeekBounds();
-}
-ImageViewportRange ImageViewport::primaryPositionSeekBounds() const
-{
-    return d->primaryPositionSeekBounds();
-}
-ImageViewportRange ImageViewport::secondaryPositionSeekBounds() const
-{
-    return d->secondaryPositionSeekBounds();
-}
-ImageViewport::TriState ImageViewport::timedPlaybackSupport() const
-{
-    return d->timedPlaybackSupport();
-}
-ImageViewport::TriState ImageViewport::frameSeekSupport() const { return d->frameSeekSupport(); }
-ImageViewport::TriState ImageViewport::positionSeekSupport() const
-{
-    return d->positionSeekSupport();
-}
-ImageViewport::TriState ImageViewport::primaryTimedPlaybackSupport() const
-{
-    return d->primaryTimedPlaybackSupport();
-}
-ImageViewport::TriState ImageViewport::secondaryTimedPlaybackSupport() const
-{
-    return d->secondaryTimedPlaybackSupport();
-}
-ImageViewport::TriState ImageViewport::primaryFrameSeekSupport() const
-{
-    return d->primaryFrameSeekSupport();
-}
-ImageViewport::TriState ImageViewport::secondaryFrameSeekSupport() const
-{
-    return d->secondaryFrameSeekSupport();
-}
-ImageViewport::TriState ImageViewport::primaryPositionSeekSupport() const
-{
-    return d->primaryPositionSeekSupport();
-}
-ImageViewport::TriState ImageViewport::secondaryPositionSeekSupport() const
-{
-    return d->secondaryPositionSeekSupport();
-}
-QSizeF ImageViewport::displayedImageSize() const { return d->displayedImageSize(); }
-QSizeF ImageViewport::displayedSpreadSize() const { return d->displayedSpreadSize(); }
-QSizeF ImageViewport::primaryDisplayedImageSize() const { return d->primaryDisplayedImageSize(); }
-QSizeF ImageViewport::secondaryDisplayedImageSize() const
-{
-    return d->secondaryDisplayedImageSize();
-}
-QRectF ImageViewport::contentRect() const { return d->contentRect(); }
-QRectF ImageViewport::visibleImageRect() const { return d->visibleImageRect(); }
-QRectF ImageViewport::visibleSpreadRect() const { return d->visibleSpreadRect(); }
-QRectF ImageViewport::primaryPageRect() const { return d->primaryPageRect(); }
-QRectF ImageViewport::secondaryPageRect() const { return d->secondaryPageRect(); }
-QRectF ImageViewport::primaryItemRect() const { return d->primaryItemRect(); }
-QRectF ImageViewport::secondaryItemRect() const { return d->secondaryItemRect(); }
-QRectF ImageViewport::visiblePrimaryPageRect() const { return d->visiblePrimaryPageRect(); }
-QRectF ImageViewport::visibleSecondaryPageRect() const { return d->visibleSecondaryPageRect(); }
-QSizeF ImageViewport::contentSize() const { return d->contentSize(); }
-QPointF ImageViewport::contentPosition() const { return d->contentPosition(); }
-QPointF ImageViewport::maximumContentPosition() const { return d->maximumContentPosition(); }
-bool ImageViewport::horizontalPannable() const { return d->horizontalPannable(); }
-bool ImageViewport::verticalPannable() const { return d->verticalPannable(); }
-RevisionToken ImageViewport::displayRevision() const { return d->displayRevision(); }
-RevisionToken ImageViewport::requestRevision() const { return d->requestRevision(); }
-RevisionToken ImageViewport::commandRevision() const { return d->commandRevision(); }
-QString ImageViewport::errorString() const { return d->errorString(); }
-QString ImageViewport::warningString() const { return d->warningString(); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }
 ImageViewport::CommandOutcome ImageViewport::play() { return d->play(); }
 ImageViewport::CommandOutcome ImageViewport::play(PageRole role) { return d->play(role); }
@@ -276,6 +173,11 @@ RevisionToken revisionTokenForTest(quint64 token)
 }
 
 quint64 revisionTokenValueForTest(RevisionToken token)
+{
+    return ImageViewportInternal::RevisionTokenPrivateAccess::value(token);
+}
+
+quint64 revisionTokenValueForTest(ImageViewportRevisionToken token)
 {
     return ImageViewportInternal::RevisionTokenPrivateAccess::value(token);
 }

@@ -36,7 +36,6 @@ public:
     }
 
     ImageViewportStateSnapshot state() const;
-    ImageSequence* sequence() const;
     void setSequence(ImageSequence* sequence);
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
@@ -68,8 +67,6 @@ public:
     int secondarySequenceTotalDuration() const override;
     int secondarySequenceFrameIndexForPosition(int position) const override;
     int secondarySequenceFrameStartPosition(int frame) const override;
-    ImageViewportRange frameSeekBounds() const;
-    ImageViewportRange positionSeekBounds() const;
     int primaryFrameCount() const;
     int secondaryFrameCount() const;
     int primaryTotalDuration() const;
@@ -78,15 +75,6 @@ public:
     ImageViewportRange secondaryFrameSeekBounds() const;
     ImageViewportRange primaryPositionSeekBounds() const;
     ImageViewportRange secondaryPositionSeekBounds() const;
-    TriState timedPlaybackSupport() const;
-    TriState frameSeekSupport() const;
-    TriState positionSeekSupport() const;
-    TriState primaryTimedPlaybackSupport() const;
-    TriState secondaryTimedPlaybackSupport() const;
-    TriState primaryFrameSeekSupport() const;
-    TriState secondaryFrameSeekSupport() const;
-    TriState primaryPositionSeekSupport() const;
-    TriState secondaryPositionSeekSupport() const;
     QSizeF displayedImageSize() const;
     QSizeF displayedSpreadSize() const;
     QSizeF primaryDisplayedImageSize() const;

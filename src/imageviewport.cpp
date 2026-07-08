@@ -208,8 +208,6 @@ bool pageSetPolicyFromValue(const QVariant& value, PageSetTransitionPolicy& poli
 
 }
 
-ImageSequence* ImageViewportPrivate::sequence() const { return controller.requestState().sequence; }
-
 void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 {
     if (!controller.requestState().sequence && !controller.requestState().secondarySequence
@@ -233,7 +231,10 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
     playbackScheduler.sync();
 }
 
-ImageSequence* ImageViewportPrivate::primarySequence() const { return sequence(); }
+ImageSequence* ImageViewportPrivate::primarySequence() const
+{
+    return controller.requestState().sequence;
+}
 
 ImageSequence* ImageViewportPrivate::secondarySequence() const
 {
@@ -415,16 +416,6 @@ ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
     return controller.requestState().secondarySequenceSource.facts.authoredAnimationFacts;
 }
 
-ImageViewportRange ImageViewportPrivate::frameSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameSeekBounds;
-}
-
-ImageViewportRange ImageViewportPrivate::positionSeekBounds() const
-{
-    return controller.metadataProjection(PageRole::Primary).positionSeekBounds;
-}
-
 int ImageViewportPrivate::primaryFrameCount() const
 {
     return controller.metadataProjection(PageRole::Primary).frameCount;
@@ -463,51 +454,6 @@ ImageViewportRange ImageViewportPrivate::primaryPositionSeekBounds() const
 ImageViewportRange ImageViewportPrivate::secondaryPositionSeekBounds() const
 {
     return controller.metadataProjection(PageRole::Secondary).positionSeekBounds;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::timedPlaybackSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).timedPlaybackSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::frameSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameSeekSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::positionSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).positionSeekSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::primaryTimedPlaybackSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).timedPlaybackSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::secondaryTimedPlaybackSupport() const
-{
-    return controller.metadataProjection(PageRole::Secondary).timedPlaybackSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::primaryFrameSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).frameSeekSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::secondaryFrameSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Secondary).frameSeekSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::primaryPositionSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Primary).positionSeekSupport;
-}
-
-ImageViewportPrivate::TriState ImageViewportPrivate::secondaryPositionSeekSupport() const
-{
-    return controller.metadataProjection(PageRole::Secondary).positionSeekSupport;
 }
 
 QSizeF ImageViewportPrivate::displayedImageSize() const

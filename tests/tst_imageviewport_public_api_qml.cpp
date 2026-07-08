@@ -36,8 +36,8 @@ public:
     }
 
 private slots:
-    void qmlUnsupportedSequenceAssignmentsPreserveState();
-    void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
+    void qmlRemovedSequencePropertyPreservesDefaultState();
+    void qmlRemovedSequencePropertyPreservesReadyState();
     void qmlFinalApiScaffoldDefaultsAndCommands();
     void manualZoomLimitQmlBindingRefreshesWithGeometryState();
     void qmlImportsDocumentedSurface();
@@ -53,19 +53,10 @@ private slots:
     void imageSequenceLimitsIsQmlSingletonOnly();
 };
 
-void ImageViewportPublicApiQmlTest::qmlUnsupportedSequenceAssignmentsPreserveState()
+void ImageViewportPublicApiQmlTest::qmlRemovedSequencePropertyPreservesDefaultState()
 {
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory);
-    engine.rootContext()->setContextProperty(QStringLiteral("rawProvider"), &adapter);
 
     QQmlComponent component(&engine);
     component.setData(R"(
@@ -74,75 +65,16 @@ import ImageViewport 1.0
 
 ImageViewport {
     id: viewport
-    QtObject { id: rawObject }
-    property bool stringAssignmentPreserved: false
-    property bool urlAssignmentPreserved: false
-    property bool byteBufferAssignmentPreserved: false
-    property bool jsObjectAssignmentPreserved: false
-    property bool objectAssignmentPreserved: false
-    property bool providerAssignmentPreserved: false
+    property bool removedSequencePropertyPreservedState: false
 
     Component.onCompleted: {
-        try {
-            sequence = "image.png"
-        } catch (error) {
-        }
-        stringAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
-        try {
-            sequence = Qt.resolvedUrl("image.png")
-        } catch (error) {
-        }
-        urlAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
-        try {
-            sequence = new ArrayBuffer(4)
-        } catch (error) {
-        }
-        byteBufferAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
-        try {
-            sequence = ({ url: "image.png" })
-        } catch (error) {
-        }
-        jsObjectAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
-        try {
-            sequence = rawObject
-        } catch (error) {
-        }
-        objectAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
-        try {
-            sequence = rawProvider
-        } catch (error) {
-        }
-        providerAssignmentPreserved = sequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && !requestRevision.valid
-            && !displayRevision.valid
-            && errorString === ""
+        removedSequencePropertyPreservedState = typeof viewport.sequence === "undefined"
+            && state.primary.sequence === null
+            && state.request.status === ImageViewport.RequestStatus.NoRequest
+            && state.display.status === ImageViewport.DisplayStatus.Empty
+            && !state.revisions.request.valid
+            && !state.revisions.display.valid
+            && state.diagnostics.errorString === ""
     }
 }
 )",
@@ -151,16 +83,10 @@ ImageViewport {
     QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
     QScopedPointer<QObject> object(component.create());
     QVERIFY2(object, qPrintable(componentErrors(component)));
-    QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("providerAssignmentPreserved").toBool(), true);
-    QCOMPARE(*sessionCount, 0);
+    QCOMPARE(object->property("removedSequencePropertyPreservedState").toBool(), true);
 }
 
-void ImageViewportPublicApiQmlTest::qmlUnsupportedSequenceAssignmentsPreserveReadyState()
+void ImageViewportPublicApiQmlTest::qmlRemovedSequencePropertyPreservesReadyState()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -171,15 +97,6 @@ void ImageViewportPublicApiQmlTest::qmlUnsupportedSequenceAssignmentsPreserveRea
 
     QQmlEngine engine;
     engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
-    const auto sessionCount = std::make_shared<int>(0);
-    const auto metadataRequestCount = std::make_shared<int>(0);
-    const auto frameRequestCount = std::make_shared<int>(0);
-    const auto lastRequestedFrame = std::make_shared<int>(-1);
-    const auto closeCount = std::make_shared<int>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory);
-    engine.rootContext()->setContextProperty(QStringLiteral("rawProvider"), &adapter);
 
     QQmlComponent component(&engine);
     component.setData(R"(
@@ -192,64 +109,32 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    QtObject { id: rawObject }
-
-    property bool stringAssignmentPreserved: false
-    property bool urlAssignmentPreserved: false
-    property bool byteBufferAssignmentPreserved: false
-    property bool jsObjectAssignmentPreserved: false
-    property bool objectAssignmentPreserved: false
-    property bool providerAssignmentPreserved: false
+    property bool initialSetAccepted: false
+    property bool removedSequencePropertyPreservedReadyState: false
 
     function readyStatePreserved(requestRevisionBefore, displayRevisionBefore) {
-        return sequence === suppliedSequence
-            && requestStatus === ImageViewport.RequestStatus.Ready
-            && requestReason === ImageViewport.RequestReason.Ready
-            && displayStatus === ImageViewport.DisplayStatus.Ready
-            && requestedFrame === 0
-            && displayedFrame === 0
-            && requestRevision === requestRevisionBefore
-            && displayRevision === displayRevisionBefore
-            && errorString === ""
+        return typeof viewport.sequence === "undefined"
+            && initialSetAccepted
+            && state.primary.sequence === suppliedSequence
+            && state.request.status === ImageViewport.RequestStatus.Ready
+            && state.request.reason === ImageViewport.RequestReason.Ready
+            && state.display.status === ImageViewport.DisplayStatus.Ready
+            && state.primary.request.frame === 0
+            && state.primary.display.frame === 0
+            && state.revisions.request === requestRevisionBefore
+            && state.revisions.display === displayRevisionBefore
+            && state.diagnostics.errorString === ""
     }
 
-    function exerciseUnsupportedAssignments() {
-        const requestRevisionBefore = requestRevision
-        const displayRevisionBefore = displayRevision
-        try {
-            sequence = "image.png"
-        } catch (error) {
-        }
-        stringAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-        try {
-            sequence = Qt.resolvedUrl("image.png")
-        } catch (error) {
-        }
-        urlAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-        try {
-            sequence = new ArrayBuffer(4)
-        } catch (error) {
-        }
-        byteBufferAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-        try {
-            sequence = ({ url: "image.png" })
-        } catch (error) {
-        }
-        jsObjectAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-        try {
-            sequence = rawObject
-        } catch (error) {
-        }
-        objectAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
-        try {
-            sequence = rawProvider
-        } catch (error) {
-        }
-        providerAssignmentPreserved = readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
+    function verifyRemovedSequencePropertyPreservesReadyState() {
+        const requestRevisionBefore = state.revisions.request
+        const displayRevisionBefore = state.revisions.display
+        removedSequencePropertyPreservedReadyState =
+            readyStatePreserved(requestRevisionBefore, displayRevisionBefore)
     }
 
     Component.onCompleted: {
-        sequence = suppliedSequence
+        initialSetAccepted = setPageSet(suppliedSequence, null) === ImageViewport.CommandOutcome.Accepted
     }
 }
 )",
@@ -264,14 +149,9 @@ ImageViewport {
     auto* viewport = qobject_cast<ImageViewport*>(object.data());
     QVERIFY(viewport);
     acknowledgePendingRenderCommitForTest(*viewport);
-    QVERIFY(QMetaObject::invokeMethod(object.data(), "exerciseUnsupportedAssignments"));
-    QCOMPARE(object->property("stringAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("urlAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("byteBufferAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("jsObjectAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("objectAssignmentPreserved").toBool(), true);
-    QCOMPARE(object->property("providerAssignmentPreserved").toBool(), true);
-    QCOMPARE(*sessionCount, 0);
+    QVERIFY(QMetaObject::invokeMethod(
+        object.data(), "verifyRemovedSequencePropertyPreservesReadyState"));
+    QCOMPARE(object->property("removedSequencePropertyPreservedReadyState").toBool(), true);
 }
 
 void ImageViewportPublicApiQmlTest::qmlFinalApiScaffoldDefaultsAndCommands()
@@ -313,33 +193,33 @@ ImageViewport {
     }
 
     Component.onCompleted: {
-        defaultsValid = sequence === null
-            && primarySequence === null
-            && secondarySequence === null
+        defaultsValid = typeof viewport.sequence === "undefined"
+            && state.primary.sequence === null
+            && state.secondary.sequence === null
             && state.presentation.spreadDirection === ImageViewport.SpreadDirection.LeftToRight
             && state.presentation.pageGap === 0
-            && primaryDisplayedFrame === -1
-            && secondaryDisplayedFrame === -1
-            && primaryRequestedPosition === -1
-            && secondaryRequestedPosition === -1
-            && primaryFrameCount === -1
-            && secondaryFrameCount === -1
-            && primaryFrameSeekBounds.minimum === -1
-            && secondaryFrameSeekBounds.maximum === -1
-            && primaryTimedPlaybackSupport === ImageViewport.TriState.Unavailable
-            && secondaryTimedPlaybackSupport === ImageViewport.TriState.Unavailable
-            && displayedSpreadSize.width === 0
-            && primaryDisplayedImageSize.height === 0
-            && secondaryDisplayedImageSize.width === 0
-            && visibleSpreadRect.width === 0
-            && primaryPageRect.height === 0
-            && secondaryItemRect.width === 0
-            && visiblePrimaryPageRect.height === 0
-            && contentSize.width === 0
-            && contentPosition.x === 0
-            && maximumContentPosition.y === 0
-            && horizontalPannable === false
-            && verticalPannable === false
+            && state.primary.display.frame === -1
+            && state.secondary.display.frame === -1
+            && state.primary.request.position === -1
+            && state.secondary.request.position === -1
+            && state.primary.metadata.frameCount === -1
+            && state.secondary.metadata.frameCount === -1
+            && state.primary.metadata.frameSeekBounds.minimum === -1
+            && state.secondary.metadata.frameSeekBounds.maximum === -1
+            && state.primary.metadata.timedPlaybackSupport === ImageViewport.CapabilitySupport.Unavailable
+            && state.secondary.metadata.timedPlaybackSupport === ImageViewport.CapabilitySupport.Unavailable
+            && state.display.spreadSize.width === 0
+            && state.primary.display.sourceLogicalSize.height <= 0
+            && state.secondary.display.sourceLogicalSize.width <= 0
+            && state.display.visibleSpreadRect.width === 0
+            && state.primary.geometry.acceptedPageRect.height === 0
+            && state.secondary.geometry.acceptedItemRect.width === 0
+            && state.primary.geometry.acceptedVisiblePageRect.height === 0
+            && state.display.contentSize.width === 0
+            && state.display.contentPosition.x === 0
+            && state.display.maximumContentPosition.y === 0
+            && state.display.horizontalPannable === false
+            && state.display.verticalPannable === false
             && state.presentation.fitMode === ImageViewport.FitMode.Contain
             && state.presentation.zoomPercent === 100
             && state.presentation.minimumManualZoomPercent > 0
@@ -347,9 +227,9 @@ ImageViewport {
             && state.presentation.manualZoomStepFactor === 1.25
             && state.presentation.rotationDegrees === 0
 
-        const requestRevisionBefore = requestRevision
-        const displayRevisionBefore = displayRevision
-        const commandRevisionBefore = commandRevision
+        const requestRevisionBefore = state.revisions.request
+        const displayRevisionBefore = state.revisions.display
+        const commandRevisionBefore = state.revisions.command
         const minimum = state.presentation.minimumManualZoomPercent
         const maximum = state.presentation.maximumManualZoomPercent
         manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
@@ -378,19 +258,18 @@ ImageViewport {
             && typeof viewport.rotationDegrees === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
-            && requestRevision === requestRevisionBefore
-            && displayRevision === displayRevisionBefore
-            && commandRevision === commandRevisionBefore
+            && state.revisions.request === requestRevisionBefore
+            && state.revisions.display === displayRevisionBefore
+            && state.revisions.command === commandRevisionBefore
 
         const invalidPageSetOutcome = setPageSet("image.png", null)
         pageSetValidationPreservedState = invalidPageSetOutcome === ImageViewport.CommandOutcome.Invalid
-            && sequence === null
-            && primarySequence === null
-            && secondarySequence === null
-            && requestStatus === ImageViewport.RequestStatus.NoRequest
-            && displayStatus === ImageViewport.DisplayStatus.Empty
-            && requestRevision === requestRevisionBefore
-            && displayRevision === displayRevisionBefore
+            && state.primary.sequence === null
+            && state.secondary.sequence === null
+            && state.request.status === ImageViewport.RequestStatus.NoRequest
+            && state.display.status === ImageViewport.DisplayStatus.Empty
+            && state.revisions.request === requestRevisionBefore
+            && state.revisions.display === displayRevisionBefore
 
         roleCommandsReachViewport = play(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
             && pause(ImageViewport.PageRole.Secondary) === ImageViewport.CommandOutcome.IgnoredNoRequest
@@ -519,7 +398,7 @@ ImageViewport {
     property real observedMaximum: recorder.rememberMaximum(state.presentation.maximumManualZoomPercent)
 
     Component.onCompleted: {
-        sequence = suppliedSequence
+        setPageSet(suppliedSequence, null)
     }
 }
 )",
@@ -575,12 +454,12 @@ ImageViewport {
     property bool mappingInvalid: mapPoint(mappingInput).valid === false
     property bool mappingHasPointField: mapPoint(mappingInput).point.x === 0
         && mapPoint(mappingInput).point.y === 0
-    property bool unavailableValuesHaveDocumentedFields: frameSeekBounds.minimum === -1
-        && frameSeekBounds.maximum === -1
-        && positionSeekBounds.minimum === -1
-        && positionSeekBounds.maximum === -1
-        && contentRect.width === 0
-        && visibleImageRect.height === 0
+    property bool unavailableValuesHaveDocumentedFields: state.primary.metadata.frameSeekBounds.minimum === -1
+        && state.primary.metadata.frameSeekBounds.maximum === -1
+        && state.primary.metadata.positionSeekBounds.minimum === -1
+        && state.primary.metadata.positionSeekBounds.maximum === -1
+        && state.display.contentRect.width === 0
+        && state.primary.geometry.displayedVisiblePageRect.height === 0
     property bool limitsAvailable: ImageSequenceLimits.maximumLogicalWidth >= 8192
         && ImageSequenceLimits.maximumLogicalHeight >= 8192
         && ImageSequenceLimits.maximumPixelsPerFrame >= 67108864
@@ -657,23 +536,23 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property bool readyValuesHaveDocumentedFields: displayedImageSize.width === 16
-        && displayedImageSize.height === 8
-        && contentRect.x === 0
-        && contentRect.y === 25
-        && contentRect.width === 100
-        && contentRect.height === 50
-        && visibleImageRect.x === 0
-        && visibleImageRect.y === 0
-        && visibleImageRect.width === 16
-        && visibleImageRect.height === 8
-        && frameSeekBounds.minimum === 0
-        && frameSeekBounds.maximum === 0
-        && positionSeekBounds.minimum === -1
-        && positionSeekBounds.maximum === -1
+    property bool readyValuesHaveDocumentedFields: state.primary.display.sourceLogicalSize.width === 16
+        && state.primary.display.sourceLogicalSize.height === 8
+        && state.display.contentRect.x === 0
+        && state.display.contentRect.y === 25
+        && state.display.contentRect.width === 100
+        && state.display.contentRect.height === 50
+        && state.primary.geometry.displayedVisiblePageRect.x === 0
+        && state.primary.geometry.displayedVisiblePageRect.y === 0
+        && state.primary.geometry.displayedVisiblePageRect.width === 16
+        && state.primary.geometry.displayedVisiblePageRect.height === 8
+        && state.primary.metadata.frameSeekBounds.minimum === 0
+        && state.primary.metadata.frameSeekBounds.maximum === 0
+        && state.primary.metadata.positionSeekBounds.minimum === -1
+        && state.primary.metadata.positionSeekBounds.maximum === -1
 
     Component.onCompleted: {
-        sequence = suppliedSequence
+        setPageSet(suppliedSequence, null)
     }
 }
 )",

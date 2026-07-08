@@ -27,6 +27,7 @@ ImageSequenceProviderRequestToken providerRequestTokenForTest(quint64 token);
 quint64 providerRequestTokenValueForTest(ImageSequenceProviderRequestToken token);
 RevisionToken revisionTokenForTest(quint64 token);
 quint64 revisionTokenValueForTest(RevisionToken token);
+quint64 revisionTokenValueForTest(ImageViewportRevisionToken token);
 bool hasPendingRenderCommitForTest(const ImageViewport& item);
 quint64 activeRequestIdForTest(const ImageViewport& item);
 quint64 displayedRequestIdForTest(const ImageViewport& item);

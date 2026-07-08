@@ -99,10 +99,10 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
 
     QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
-    const RevisionToken displayRevisionBeforeReset = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken displayRevisionBeforeReset = revisionTokenProperty(item, "displayRevision");
 
     QSignalSpy requestSpy(&item, &ImageViewport::requestStateChanged);
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
@@ -115,20 +115,20 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
 
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(contentPosition(item), QPointF());
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     verifyRevisionChanged(item, "displayRevision", displayRevisionBeforeReset);
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(requestSpy.count(), 0);
     QCOMPARE(displayRevisionSpy.count(), 1);
     QCOMPARE(geometrySpy.count(), 0);
@@ -143,7 +143,7 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::IgnoredNoRequest);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
@@ -158,16 +158,16 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
 
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(contentPosition(item), QPointF());
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(displayRevisionSpy.count(), 0);
     QCOMPARE(geometrySpy.count(), 0);
     QCOMPARE(presentationSpy.count(), 0);
@@ -197,19 +197,19 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.sequence(), result->sequence());
+    QCOMPARE(viewportPrimarySequence(item), result->sequence());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
@@ -219,7 +219,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
+    QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(item.state().presentation().looping(), true);
 }
 
@@ -242,46 +242,46 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
 
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(playbackSpy.count(), 0);
     QCOMPARE(diagnosticsSpy.count(), 0);
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("displayedPosition").toInt(), -1);
-    QCOMPARE(item.property("frameCount").toInt(), 1);
-    QCOMPARE(item.property("totalDuration").toInt(), -1);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").minimum(), 0);
-    QCOMPARE(rangeProperty(item, "frameSeekBounds").maximum(), 0);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").minimum(), -1);
-    QCOMPARE(rangeProperty(item, "positionSeekBounds").maximum(), -1);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryDisplayedPosition(item), -1);
+    QCOMPARE(primaryFrameCount(item), 1);
+    QCOMPARE(primaryTotalDuration(item), -1);
+    QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
+    QCOMPARE(primaryFrameSeekBounds(item).maximum(), 0);
+    QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
+    QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
     QCOMPARE(
-        item.property("timedPlaybackSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("frameSeekSupport").toInt(), enumValue(metaObject, "TriState", "True"));
+        primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(
-        item.property("positionSeekSupport").toInt(), enumValue(metaObject, "TriState", "False"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+        primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
     const double changedWidth = 100.0 + 5.0e-13;
@@ -326,22 +326,22 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsDisplayObservations()
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), -1);
-    QCOMPARE(item.property("requestedPosition").toInt(), -1);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedPosition").toInt(), -1);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), -1);
+    QCOMPARE(primaryRequestedPosition(item), -1);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(primaryDisplayedPosition(item), -1);
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
     verifyRevisionChanged(item, "requestRevision", readyRequestRevision);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
 
@@ -359,15 +359,15 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsDisplayObservations()
     item.setSequence(providerResult->sequence());
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     verifyRequestStatusReasonPair(item);
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedPosition").toInt(), -1);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(primaryDisplayedPosition(item), -1);
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
 }
 
 void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
@@ -385,21 +385,21 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     item.setSequence(nullptr);
 
-    QCOMPARE(item.sequence(), nullptr);
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(viewportPrimarySequence(item), nullptr);
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("commandReason").toInt(),
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(commandSpy.count(), 1);
@@ -420,21 +420,21 @@ void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
-    const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
+    const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.sequence(), nullptr);
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(viewportPrimarySequence(item), nullptr);
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("commandReason").toInt(),
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
     QCOMPARE(commandSpy.count(), 1);
@@ -464,14 +464,14 @@ void ImageViewportStillTest::clearPreservesPresentationState()
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.sequence(), nullptr);
-    QCOMPARE(item.property("requestStatus").toInt(),
+    QCOMPARE(viewportPrimarySequence(item), nullptr);
+    QCOMPARE(requestStatusValue(item),
         enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(item.property("requestReason").toInt(),
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "NoRequest"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
     QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
@@ -480,7 +480,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 250.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
+    QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(item.state().presentation().looping(), true);
 }
 
@@ -497,16 +497,16 @@ void ImageViewportStillTest::clearReadyDisplayEmitsGeometryStateChanged()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
     item.setSequence(nullptr);
 
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
+    QCOMPARE(contentRect(item), QRectF());
+    QCOMPARE(visibleImageRect(item), QRectF());
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
     QCOMPARE(geometrySpy.count(), 1);
 }
 
@@ -523,15 +523,15 @@ void ImageViewportStillTest::clearNonPresentableDisplayDoesNotEmitGeometryStateC
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     item.setSize(QSizeF(0.0, 100.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(contentRect(item), QRectF());
+    QCOMPARE(visibleImageRect(item), QRectF());
 
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
     item.setSequence(nullptr);
 
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
+    QCOMPARE(contentRect(item), QRectF());
+    QCOMPARE(visibleImageRect(item), QRectF());
     QCOMPARE(geometrySpy.count(), 0);
 }
 
@@ -556,21 +556,21 @@ void ImageViewportStillTest::stillImageReadyReplacementIncrementsDisplayRevision
     item.setSequence(firstResult->sequence());
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
-    const RevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
 
     item.setSequence(replacementResult->sequence());
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     verifyRevisionChanged(item, "requestRevision", readyRequestRevision);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
 }
@@ -608,16 +608,16 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     item.setSequence(replacementResult->sequence());
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
     QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
@@ -626,7 +626,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
+    QCOMPARE(contentPosition(item), QPointF());
     QCOMPARE(item.state().presentation().looping(), true);
 }
 
@@ -645,66 +645,66 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    const RevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     verifyRevisionChanged(item, "requestRevision", readyRequestRevision);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.pause(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.stop(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
-    const RevisionToken afterAcceptedSeekRequestRevision
+    const ImageViewportRevisionToken afterAcceptedSeekRequestRevision
         = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QCOMPARE(item.seek(2), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
     QCOMPARE(item.seekToPosition(0), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
@@ -713,14 +713,14 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
-    QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(contentPosition(item), QPointF());
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportStillTest::secondaryStillImagePlayReportsUnsupported()
@@ -745,21 +745,21 @@ void ImageViewportStillTest::secondaryStillImagePlayReportsUnsupported()
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
     QCOMPARE(
         item.play(ImageViewport::PageRole::Secondary), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportStillTest::secondaryStillImagePositionSeekReportsUnsupported()
@@ -784,21 +784,21 @@ void ImageViewportStillTest::secondaryStillImagePositionSeekReportsUnsupported()
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
-    const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
 
     QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Secondary, 0),
         ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), displayRevision);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 }
 
 void ImageViewportStillTest::coordinateHelpersRejectNonFiniteInputs()
@@ -844,8 +844,8 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     QCOMPARE(setPanDelta(item, QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorCommand(item, true, false), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 0.0, 8.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF(-100.0, 0.0, 200.0, 100.0));
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 8.0, 8.0));
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 7.999, 4.0), true);
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 4.0), false);
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 15.999, 4.0), false);
@@ -879,8 +879,8 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
     scanCommand.setScanDirection(ImageViewport::ScanDirection::End);
     QCOMPARE(item.setPresentation(scanCommand), ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, -100.0, 100.0, 200.0));
-    QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF(0.0, 8.0, 8.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF(0.0, -100.0, 100.0, 200.0));
+    QCOMPARE(visibleImageRect(item), QRectF(0.0, 8.0, 8.0, 8.0));
     QCOMPARE(mapItemToPrimaryPage(item, 50.0, 0.0).point().y(), 8.0);
     QVERIFY(mapItemToPrimaryPage(item, 50.0, 99.0).point().y() > 15.9);
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 4.0, 7.999), false);
@@ -903,43 +903,43 @@ void ImageViewportStillTest::stillImageAssignmentWaitsForPositiveGeometry()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), -1);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), -1);
+    QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
+    QCOMPARE(contentRect(item), QRectF());
     verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 0.0, 0.0));
 
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
     item.setSize(QSizeF(0.0, 100.0));
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF());
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 8.0, 4.0));
     QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 4.0), false);
 }
@@ -985,30 +985,30 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     advancePlaybackForTest(item, 350);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryDisplayedPosition(item), 0);
 
     QCOMPARE(item.seek(-1), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.property("commandReason").toInt(),
+    QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.property("requestedPosition").toInt(), 0);
-    QCOMPARE(item.property("displayedPosition").toInt(), 0);
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(primaryRequestedPosition(item), 0);
+    QCOMPARE(primaryDisplayedPosition(item), 0);
 
     advancePlaybackForTest(item, 100);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Playing"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 1);
-    QCOMPARE(item.property("displayedFrame").toInt(), 1);
-    QCOMPARE(item.property("requestedPosition").toInt(), 100);
-    QCOMPARE(item.property("displayedPosition").toInt(), 100);
+        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
+    QCOMPARE(primaryRequestedFrame(item), 1);
+    QCOMPARE(primaryDisplayedFrame(item), 1);
+    QCOMPARE(primaryRequestedPosition(item), 100);
+    QCOMPARE(primaryDisplayedPosition(item), 100);
 }
 
 void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeometry()
@@ -1032,56 +1032,56 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 
     item.setSize(QSizeF(0.0, 100.0));
-    const RevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const ImageViewportRevisionToken readyDisplayRevision = revisionTokenProperty(item, "displayRevision");
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
     item.setSequence(replacementResult->sequence());
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("requestedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF());
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(primaryRequestedFrame(item), 0);
+    QCOMPARE(primaryDisplayedFrame(item), 0);
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(mapItemToPrimaryPage(item, 1.0, 1.0).isValid(), false);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     QCOMPARE(displayRevisionSpy.count(), 1);
 
-    const RevisionToken retainedRequestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken retainedRequestRevision = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
     verifyRevisionChanged(item, "requestRevision", retainedRequestRevision);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(16.0, 8.0));
-    const RevisionToken retainedDisplayRevision = revisionTokenProperty(item, "displayRevision");
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
+    const ImageViewportRevisionToken retainedDisplayRevision = revisionTokenProperty(item, "displayRevision");
     const int retainedDisplayRevisionSignalCount = displayRevisionSpy.count();
 
     item.setSize(QSizeF(100.0, 100.0));
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Retained"));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(
-        item.property("requestReason").toInt(), enumValue(metaObject, "RequestReason", "Ready"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
     QCOMPARE(
-        item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(8.0, 8.0));
-    QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 100.0, 100.0));
+        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(displayedImageSize(item), QSizeF(8.0, 8.0));
+    QCOMPARE(contentRect(item), QRectF(0.0, 0.0, 100.0, 100.0));
     verifyRevisionChanged(item, "displayRevision", retainedDisplayRevision);
     QCOMPARE(displayRevisionSpy.count(), retainedDisplayRevisionSignalCount + 1);
 }

@@ -55,7 +55,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
         diagnostic);
     drainQueuedProviderResults();
 
-    const QString errorString = item.property("errorString").toString();
+    const QString errorString = viewportErrorString(item);
     QCOMPARE(errorString.toUcs4().size(), limit);
     QCOMPARE(errorString, expected);
 }
@@ -85,10 +85,10 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
                        "path /home/ops/private/image.png and C:\\Users\\ops\\secret.png"));
     drainQueuedProviderResults();
 
-    const QString errorString = item.property("errorString").toString();
+    const QString errorString = viewportErrorString(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(!errorString.contains(QStringLiteral("https://")));
     QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
@@ -122,7 +122,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::
             sessionFactory->lastSession(), sessionFactory->lastSession()->lastMetadataToken());
         drainQueuedProviderResults();
 
-        const QString errorString = item.property("errorString").toString();
+        const QString errorString = viewportErrorString(item);
         QVERIFY(!errorString.contains(QStringLiteral("https://")));
         QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
         QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
@@ -172,10 +172,10 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
         static_cast<ImageSequenceProviderUnsupportedCause>(-1), suppliedDiagnostic);
     drainQueuedProviderResults();
 
-    const QString errorString = item.property("errorString").toString();
+    const QString errorString = viewportErrorString(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QVERIFY(errorString.contains(QStringLiteral("provider protocol violation")));
     QVERIFY(!errorString.contains(QStringLiteral("https://")));
@@ -208,10 +208,10 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
         QStringLiteral("decoder <b>failed</b>\n<script>alert(1)</script>\ttry again"));
     drainQueuedProviderResults();
 
-    const QString errorString = item.property("errorString").toString();
+    const QString errorString = viewportErrorString(item);
     QCOMPARE(
-        item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(item.property("requestReason").toInt(),
+        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item),
         enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(!errorString.contains(QLatin1Char('<')));
     QVERIFY(!errorString.contains(QLatin1Char('>')));

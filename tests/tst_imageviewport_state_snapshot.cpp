@@ -109,24 +109,24 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     QCOMPARE(snapshot.display().displayedRoleSet(), ImageViewportRoleSet(true, false));
     QCOMPARE(snapshot.display().belongsToAcceptedPageSet(), true);
     QCOMPARE(snapshot.display().retained(), false);
-    QCOMPARE(snapshot.display().spreadSize(), item.displayedSpreadSize());
-    QCOMPARE(snapshot.display().contentRect(), item.contentRect());
-    QCOMPARE(snapshot.display().contentSize(), item.contentSize());
-    QCOMPARE(snapshot.display().contentPosition(), item.contentPosition());
-    QCOMPARE(snapshot.display().maximumContentPosition(), item.maximumContentPosition());
-    QCOMPARE(snapshot.display().visibleSpreadRect(), item.visibleSpreadRect());
-    QCOMPARE(snapshot.display().horizontalPannable(), item.horizontalPannable());
-    QCOMPARE(snapshot.display().verticalPannable(), item.verticalPannable());
+    QCOMPARE(snapshot.display().spreadSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(snapshot.display().contentRect(), contentRect(item));
+    QCOMPARE(snapshot.display().contentSize(), QSizeF(100.0, 50.0));
+    QCOMPARE(snapshot.display().contentPosition(), QPointF());
+    QCOMPARE(snapshot.display().maximumContentPosition(), QPointF());
+    QCOMPARE(snapshot.display().visibleSpreadRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(snapshot.display().horizontalPannable(), false);
+    QCOMPARE(snapshot.display().verticalPannable(), false);
 
     QCOMPARE(snapshot.primary().present(), true);
     QCOMPARE(snapshot.primary().sequence(), result->sequence());
-    QCOMPARE(snapshot.primary().request().frame(), item.requestedFrame());
-    QCOMPARE(snapshot.primary().request().position(), item.requestedPosition());
+    QCOMPARE(snapshot.primary().request().frame(), 0);
+    QCOMPARE(snapshot.primary().request().position(), -1);
     QCOMPARE(snapshot.primary().request().sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().belongsToAcceptedPageSet(), true);
     QCOMPARE(snapshot.primary().display().retained(), false);
-    QCOMPARE(snapshot.primary().display().frame(), item.displayedFrame());
-    QCOMPARE(snapshot.primary().display().position(), item.displayedPosition());
+    QCOMPARE(snapshot.primary().display().frame(), 0);
+    QCOMPARE(snapshot.primary().display().position(), -1);
     QCOMPARE(snapshot.primary().display().sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().sourceToPayloadScale(), QSizeF(1.0, 1.0));
@@ -135,15 +135,18 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
         snapshot.primary().display().exactness(), ImageViewport::PayloadExactness::ExactForSource);
     QCOMPARE(snapshot.primary().metadata().available(), true);
     QCOMPARE(snapshot.primary().metadata().sourceLogicalSize(), QSizeF(16.0, 8.0));
-    QCOMPARE(snapshot.primary().metadata().frameCount(), item.frameCount());
-    QCOMPARE(snapshot.primary().metadata().totalDuration(), item.totalDuration());
-    QCOMPARE(snapshot.primary().metadata().frameSeekBounds(), item.frameSeekBounds());
-    QCOMPARE(snapshot.primary().metadata().positionSeekBounds(), item.positionSeekBounds());
-    QCOMPARE(snapshot.primary().geometry().acceptedPageRect(), item.primaryPageRect());
-    QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), item.primaryItemRect());
+    QCOMPARE(snapshot.primary().metadata().frameCount(), 1);
+    QCOMPARE(snapshot.primary().metadata().totalDuration(), -1);
+    QCOMPARE(snapshot.primary().metadata().frameSeekBounds().minimum(), 0);
+    QCOMPARE(snapshot.primary().metadata().frameSeekBounds().maximum(), 0);
+    QCOMPARE(snapshot.primary().metadata().positionSeekBounds().minimum(), -1);
+    QCOMPARE(snapshot.primary().metadata().positionSeekBounds().maximum(), -1);
+    QCOMPARE(snapshot.primary().geometry().acceptedPageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(
-        snapshot.primary().geometry().acceptedVisiblePageRect(), item.visiblePrimaryPageRect());
-    QCOMPARE(snapshot.primary().geometry().displayedPageRect(), item.primaryPageRect());
+        snapshot.primary().geometry().acceptedVisiblePageRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(snapshot.primary().geometry().displayedPageRect(),
+        snapshot.primary().geometry().acceptedPageRect());
 
     QVERIFY(snapshot.revisions().request().isValid());
     QVERIFY(snapshot.revisions().display().isValid());
@@ -237,7 +240,7 @@ void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics(
     QCOMPARE(snapshot.primary().request().frame(), -1);
     QCOMPARE(snapshot.diagnostics().errorString().contains(QStringLiteral("metadata unavailable")),
         true);
-    QCOMPARE(snapshot.diagnostics().commandReason(), item.commandReason());
+    QCOMPARE(snapshot.diagnostics().commandReason(), viewportCommandReason(item));
     QVERIFY(snapshot.revisions().request().isValid());
     QVERIFY(snapshot.revisions().snapshot().isValid());
     QVERIFY(stateSpy.count() >= 2);
@@ -347,10 +350,11 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
         ImageViewport::QualityPreference::BalancedDetail);
     QCOMPARE(snapshot.presentation().exactnessPreference(),
         ImageViewport::ExactnessPreference::PreferExact);
-    QCOMPARE(snapshot.display().contentRect(), item.contentRect());
-    QCOMPARE(snapshot.display().visibleSpreadRect(), item.visibleSpreadRect());
-    QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), item.primaryItemRect());
-    QCOMPARE(snapshot.primary().geometry().displayedItemRect(), item.primaryItemRect());
+    QCOMPARE(snapshot.display().contentRect(), contentRect(item));
+    QCOMPARE(snapshot.display().visibleSpreadRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), snapshot.display().contentRect());
+    QCOMPARE(snapshot.primary().geometry().displayedItemRect(),
+        snapshot.primary().geometry().acceptedItemRect());
     QVERIFY(snapshot.revisions().presentation().isValid());
 }
 
