@@ -320,6 +320,16 @@ Introduce `ViewportEngine` beside the existing controller and move small pure st
 - Existing public, provider, render, playback, and controller suites pass.
 - No broad controller rewrite or helper deletion has occurred.
 
+### Status
+
+Complete as of 2026-07-08. Added the private `ViewportEngine` module beside the existing controller and wired it into the build without removing or weakening controller behavior.
+
+Focused coverage is in the new `viewportengine` test target: default request/display/role/diagnostic/revision projection parity for the domains the engine owns in this milestone, invalid command diagnostics and command-revision allocation, malformed enum rejection, clear-from-empty no-op handling, and presentation no-op enum validation. Presentation geometry values remain adapter/controller-projected until the presentation migration milestone.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after adding the engine target.
+
+Adapter assumptions recorded for later milestones: the engine is built and tested as the pure transition core, but the item/controller path still remains authoritative for runtime public behavior until assignment, presentation, provider, render, and playback domains are migrated behind typed effects in subsequent milestones.
+
 ### Risks And Rollback Criteria
 
 - Risk: two owners mutate the same state. Roll back if a migrated domain can be changed by both controller and engine after one public command.

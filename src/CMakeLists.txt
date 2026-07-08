@@ -47,6 +47,8 @@ qt_add_qml_module(
     renderfailurecause_p.h
     timingintervals.cpp
     timingintervals_p.h
+    viewportengine.cpp
+    viewportengine_p.h
     viewportcontroller.cpp
     viewportcontrollerassignmentcontract_p.h
     viewportcontrollercommandcontract_p.h
