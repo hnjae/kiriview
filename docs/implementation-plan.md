@@ -696,6 +696,12 @@ Remove v1 flat properties, legacy provider adapter/session APIs, compatibility p
 - Full test suite passes with v2 coverage replacing old compatibility coverage.
 - Installed public header exposes no private controller, provider transport, render adapter, scenegraph, native texture, or instrumentation types.
 
+### Status
+
+In progress as of 2026-07-08. The numeric token cleanup slice is complete: `RevisionToken::value`, the `RevisionToken.value` QML property, public `ImageSequenceProviderRequestToken(quint64)`, and `ImageSequenceProviderRequestToken::id()` were removed from the public surface; internal diagnostics and stale-token tests now use private/test-only token helpers, and installed-consumer coverage obtains valid provider tokens through the public provider callback path instead of numeric construction. Replacement coverage is in `imageviewport_public_api/revisionTokensExposeValidityAndEquality`, `imageviewport_provider_contract/providerPublicValueTypesValidateTiming`, provider lifecycle/request/playback equality assertions, `imageviewport_presentation_state/revisionTokensUseSharedNonWrappingAllocator`, `viewportcontroller_provider` stale-token tests, `viewportengine/providerStateOwnsTokensQueuesAndMetadataByRole`, and `imageviewport_install_consumer`.
+
+Verification for this slice: `cmake --build build-ninja` passed, and `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
 ### Risks And Rollback Criteria
 
 - Risk: behavior is lost under the cover of API cleanup. Roll back any removal commit whose ledger lacks a passing v2 replacement test.

@@ -102,8 +102,6 @@ ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
 {
 }
 
-quint64 ImageSequenceProviderRequestToken::id() const { return m_id; }
-
 bool ImageSequenceProviderRequestToken::isValid() const { return m_id != 0; }
 
 ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::logicalSize(QSizeF logicalSize)

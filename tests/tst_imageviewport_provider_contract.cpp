@@ -122,15 +122,14 @@ private slots:
 void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
 {
     const ImageSequenceProviderRequestToken defaultToken;
-    QCOMPARE(defaultToken.id(), 0U);
     QCOMPARE(defaultToken.isValid(), false);
     QCOMPARE(defaultToken, ImageSequenceProviderRequestToken());
 
-    const ImageSequenceProviderRequestToken token(42);
-    QCOMPARE(token.id(), 42U);
+    const ImageSequenceProviderRequestToken token = providerRequestTokenForTest(42);
     QCOMPARE(token.isValid(), true);
     QVERIFY(token != defaultToken);
-    QCOMPARE(token, ImageSequenceProviderRequestToken(42));
+    QCOMPARE(token, providerRequestTokenForTest(42));
+    QVERIFY(token != providerRequestTokenForTest(43));
 
     const ImageSequenceProviderMetadata emptyMetadata;
     QCOMPARE(emptyMetadata.isSpecified(), false);
@@ -295,7 +294,7 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
 
 void ImageViewportProviderContractTest::providerTypedProtocolValuesValidateShape()
 {
-    const ImageSequenceProviderRequestToken token(42);
+    const ImageSequenceProviderRequestToken token = providerRequestTokenForTest(42);
 
     ImageSequenceProviderDisplayDemand demand;
     QCOMPARE(demand.demandRevision().isValid(), false);
@@ -817,7 +816,7 @@ void ImageViewportProviderContractTest::providerSharedSequenceUsesIndependentVie
     QVERIFY(firstSession);
     QVERIFY(secondSession);
     QVERIFY(firstSession != secondSession);
-    QCOMPARE(firstSession->lastMetadataToken().id(), secondSession->lastMetadataToken().id());
+    QCOMPARE(firstSession->lastMetadataToken(), secondSession->lastMetadataToken());
 
     emit firstSession->metadataReady(
         firstSession->lastMetadataToken(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));

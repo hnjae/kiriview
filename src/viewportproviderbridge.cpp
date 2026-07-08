@@ -1,5 +1,7 @@
 #include "viewportproviderbridge_p.h"
 
+#include "imageviewporttoken_p.h"
+
 #include <QtCore/QMetaObject>
 #include <QtCore/QPointer>
 #include <QtCore/QThread>
@@ -225,9 +227,13 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
         role,
         operation,
         metadataToken.isValid(),
-        metadataToken.isValid() ? metadataToken.id() : 0,
+        metadataToken.isValid()
+            ? ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(metadataToken)
+            : 0,
         frameToken.isValid(),
-        frameToken.isValid() ? frameToken.id() : 0,
+        frameToken.isValid()
+            ? ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(frameToken)
+            : 0,
         queued,
         pendingCleanup,
     };

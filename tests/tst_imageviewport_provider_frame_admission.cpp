@@ -368,8 +368,8 @@ void ImageViewportProviderFrameAdmissionTest::
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());

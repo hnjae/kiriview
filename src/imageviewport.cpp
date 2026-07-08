@@ -1,5 +1,6 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
+#include "imageviewporttoken_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollermetadatacontract_p.h"
@@ -545,17 +546,17 @@ QSizeF ImageViewportPrivate::secondaryDisplayedImageSize() const
 
 RevisionToken ImageViewportPrivate::displayRevision() const
 {
-    return RevisionToken(controller.displayState().revision);
+    return RevisionTokenPrivateAccess::fromValue(controller.displayState().revision);
 }
 
 RevisionToken ImageViewportPrivate::requestRevision() const
 {
-    return RevisionToken(controller.requestState().requestRevision);
+    return RevisionTokenPrivateAccess::fromValue(controller.requestState().requestRevision);
 }
 
 RevisionToken ImageViewportPrivate::commandRevision() const
 {
-    return RevisionToken(controller.requestState().commandRevision);
+    return RevisionTokenPrivateAccess::fromValue(controller.requestState().commandRevision);
 }
 
 QString ImageViewportPrivate::errorString() const { return controller.requestState().errorString; }

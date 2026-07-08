@@ -1,3 +1,4 @@
+#include "imageviewport_testhooks_p.h"
 #include "viewportengine_p.h"
 
 #include <QtCore/QScopedPointer>
@@ -247,8 +248,8 @@ void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
 
     provider.sessionSerial = 11;
     provider.nextRequestToken = 3;
-    provider.activeMetadataToken = ImageSequenceProviderRequestToken(4);
-    provider.activeFrameToken = ImageSequenceProviderRequestToken(5);
+    provider.activeMetadataToken = ImageViewportTestHooks::providerRequestTokenForTest(4);
+    provider.activeFrameToken = ImageViewportTestHooks::providerRequestTokenForTest(5);
     provider.queuedFrameRequest = true;
     provider.queuedFrameGeneration = 7;
     provider.queuedFrameRequestId = 13;
@@ -274,8 +275,8 @@ void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
     const auto& observed = engine.providerState();
     QCOMPARE(observed.sessionSerial, 11);
     QCOMPARE(observed.nextRequestToken, 3);
-    QCOMPARE(observed.activeMetadataToken, ImageSequenceProviderRequestToken(4));
-    QCOMPARE(observed.activeFrameToken, ImageSequenceProviderRequestToken(5));
+    QCOMPARE(observed.activeMetadataToken, ImageViewportTestHooks::providerRequestTokenForTest(4));
+    QCOMPARE(observed.activeFrameToken, ImageViewportTestHooks::providerRequestTokenForTest(5));
     QCOMPARE(observed.queuedFrameRequest, true);
     QCOMPARE(observed.queuedFrameGeneration, 7);
     QCOMPARE(observed.queuedFrameRequestId, 13);

@@ -107,8 +107,8 @@ void ImageViewportProviderRequestsTest::providerFrameSeekUsesFrameRequest()
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
@@ -373,8 +373,8 @@ void ImageViewportProviderRequestsTest::providerPositionSeekBeforeMetadataResolv
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -432,8 +432,8 @@ void ImageViewportProviderRequestsTest::providerPositionSeekUsesPositionRequest(
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
@@ -470,8 +470,8 @@ void ImageViewportProviderRequestsTest::providerTotalDurationPositionSeekUsesPos
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
@@ -505,8 +505,8 @@ void ImageViewportProviderRequestsTest::providerPreMetadataPositionSeekResolvesT
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -546,8 +546,8 @@ void ImageViewportProviderRequestsTest::providerTotalDurationSeekBeforeMetadataR
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -770,11 +770,11 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     const auto lastRequestedFrame = std::make_shared<int>(-1);
     const auto closeCount = std::make_shared<int>(0);
     const auto cancelRequestCount = std::make_shared<int>(0);
-    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
-        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount,
-        lastCancelledTokenId);
+    const auto lastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    auto sessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount,
+            frameRequestCount, lastRequestedFrame, closeCount, std::shared_ptr<int>(),
+            std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount, lastCancelledToken);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -804,7 +804,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     QCOMPARE(item.seek(1), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*lastCancelledToken, initialFrameToken);
     const ImageSequenceProviderRequestToken seekFrameToken = session->lastFrameToken();
     QVERIFY(seekFrameToken.isValid());
     QVERIFY(seekFrameToken != initialFrameToken);
@@ -940,11 +940,11 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     const auto lastRequestedFrame = std::make_shared<int>(-1);
     const auto closeCount = std::make_shared<int>(0);
     const auto cancelRequestCount = std::make_shared<int>(0);
-    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
-        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount,
-        lastCancelledTokenId);
+    const auto lastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    auto sessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount,
+            frameRequestCount, lastRequestedFrame, closeCount, std::shared_ptr<int>(),
+            std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount, lastCancelledToken);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -975,7 +975,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActi
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*lastCancelledToken, initialFrameToken);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1070,11 +1070,11 @@ void ImageViewportProviderRequestsTest::
     const auto lastRequestedFrame = std::make_shared<int>(-1);
     const auto closeCount = std::make_shared<int>(0);
     const auto cancelRequestCount = std::make_shared<int>(0);
-    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
-    auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
-        metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
-        std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount,
-        lastCancelledTokenId);
+    const auto lastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    auto sessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount,
+            frameRequestCount, lastRequestedFrame, closeCount, std::shared_ptr<int>(),
+            std::shared_ptr<int>(), std::shared_ptr<int>(), cancelRequestCount, lastCancelledToken);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -1102,7 +1102,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(item.seek(0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*lastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*lastCancelledToken, initialFrameToken);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -1121,8 +1121,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(diagnostic.activeRequestId, activeRequestIdForTest(item));
     QCOMPARE(diagnostic.queuedRequestId, activeRequestIdForTest(item));
     QCOMPARE(diagnostic.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Frame);
-    QCOMPARE(diagnostic.operation,
-        ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
+    QCOMPARE(diagnostic.operation, ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
 }
 
 void ImageViewportProviderRequestsTest::
@@ -1141,12 +1140,12 @@ void ImageViewportProviderRequestsTest::
     const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
     const auto secondaryCloseCount = std::make_shared<int>(0);
     const auto secondaryCancelRequestCount = std::make_shared<int>(0);
-    const auto secondaryLastCancelledTokenId = std::make_shared<quint64>(0);
-    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
-        secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<int>(), secondaryCancelRequestCount,
-        secondaryLastCancelledTokenId);
+    const auto secondaryLastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    auto secondarySessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(secondarySessionCount,
+            secondaryMetadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame,
+            secondaryCloseCount, std::shared_ptr<int>(), std::shared_ptr<int>(),
+            std::shared_ptr<int>(), secondaryCancelRequestCount, secondaryLastCancelledToken);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1177,7 +1176,7 @@ void ImageViewportProviderRequestsTest::
         item.seek(ImageViewport::PageRole::Secondary, 0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*secondaryCancelRequestCount, 1);
-    QCOMPARE(*secondaryLastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*secondaryLastCancelledToken, initialFrameToken);
     QCOMPARE(*secondaryFrameRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Error"));
@@ -1196,8 +1195,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(diagnostic.activeRequestId, activeRequestIdForTest(item));
     QCOMPARE(diagnostic.queuedRequestId, activeRequestIdForTest(item));
     QCOMPARE(diagnostic.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Frame);
-    QCOMPARE(diagnostic.operation,
-        ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
+    QCOMPARE(diagnostic.operation, ProviderSchedulerOperationForTest::FlushQueuedFrameRequest);
 }
 
 void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFrame()
@@ -1448,8 +1446,8 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame,
-        lastRequestedPosition);
+        std::shared_ptr<int>(), std::shared_ptr<ImageSequenceProviderRequestToken>(),
+        positionRequestCount, lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
@@ -1602,8 +1600,8 @@ void ImageViewportProviderRequestsTest::
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), secondaryPositionRequestCount, secondaryLastPositionFrame,
-        secondaryLastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), secondaryPositionRequestCount,
+        secondaryLastPositionFrame, secondaryLastRequestedPosition);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1663,8 +1661,8 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekUsesFrameReque
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), secondaryPositionRequestCount, secondaryLastPositionFrame,
-        secondaryLastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), secondaryPositionRequestCount,
+        secondaryLastPositionFrame, secondaryLastRequestedPosition);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1717,8 +1715,8 @@ void ImageViewportProviderRequestsTest::secondaryProviderPositionSeekRequestsRes
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), secondaryPositionRequestCount, secondaryLastPositionFrame,
-        secondaryLastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), secondaryPositionRequestCount,
+        secondaryLastPositionFrame, secondaryLastRequestedPosition);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1851,8 +1849,8 @@ void ImageViewportProviderRequestsTest::
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), secondaryPositionRequestCount, secondaryLastPositionFrame,
-        secondaryLastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), secondaryPositionRequestCount,
+        secondaryLastPositionFrame, secondaryLastRequestedPosition);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1940,8 +1938,8 @@ void ImageViewportProviderRequestsTest::
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
         std::shared_ptr<int>(), std::shared_ptr<int>(), std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), secondaryPositionRequestCount, secondaryLastPositionFrame,
-        secondaryLastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), secondaryPositionRequestCount,
+        secondaryLastPositionFrame, secondaryLastRequestedPosition);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -1994,12 +1992,12 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSuperse
     const auto secondaryLastRequestedFrame = std::make_shared<int>(-1);
     const auto secondaryCloseCount = std::make_shared<int>(0);
     const auto secondaryCancelRequestCount = std::make_shared<int>(0);
-    const auto secondaryLastCancelledTokenId = std::make_shared<quint64>(0);
-    auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
-        secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
-        secondaryLastRequestedFrame, secondaryCloseCount, std::shared_ptr<int>(),
-        std::shared_ptr<int>(), std::shared_ptr<int>(), secondaryCancelRequestCount,
-        secondaryLastCancelledTokenId);
+    const auto secondaryLastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    auto secondarySessionFactory
+        = std::make_shared<CountingProviderSessionFactory>(secondarySessionCount,
+            secondaryMetadataRequestCount, secondaryFrameRequestCount, secondaryLastRequestedFrame,
+            secondaryCloseCount, std::shared_ptr<int>(), std::shared_ptr<int>(),
+            std::shared_ptr<int>(), secondaryCancelRequestCount, secondaryLastCancelledToken);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
@@ -2024,7 +2022,7 @@ void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSuperse
     QCOMPARE(
         item.seek(ImageViewport::PageRole::Secondary, 1), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*secondaryCancelRequestCount, 1);
-    QCOMPARE(*secondaryLastCancelledTokenId, initialFrameToken.id());
+    QCOMPARE(*secondaryLastCancelledToken, initialFrameToken);
     QCOMPARE(*secondaryFrameRequestCount, 1);
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Loading"));

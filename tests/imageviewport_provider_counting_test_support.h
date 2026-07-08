@@ -20,7 +20,7 @@ public:
         const std::shared_ptr<int>& lastPlaybackFrame = {},
         const std::shared_ptr<int>& lastPlaybackPosition = {},
         const std::shared_ptr<int>& cancelRequestCount = {},
-        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<ImageSequenceProviderRequestToken>& lastCancelledToken = {},
         const std::shared_ptr<int>& positionRequestCount = {},
         const std::shared_ptr<int>& lastPositionFrame = {},
         const std::shared_ptr<int>& lastRequestedPosition = {}, QObject* parent = nullptr)
@@ -33,7 +33,7 @@ public:
         , m_lastPlaybackFrame(lastPlaybackFrame)
         , m_lastPlaybackPosition(lastPlaybackPosition)
         , m_cancelRequestCount(cancelRequestCount)
-        , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_lastCancelledTokenSink(lastCancelledToken)
         , m_positionRequestCount(positionRequestCount)
         , m_lastPositionFrame(lastPositionFrame)
         , m_lastRequestedPosition(lastRequestedPosition)
@@ -92,8 +92,8 @@ public:
         if (m_cancelRequestCount) {
             ++*m_cancelRequestCount;
         }
-        if (m_lastCancelledTokenId) {
-            *m_lastCancelledTokenId = token.id();
+        if (m_lastCancelledTokenSink) {
+            *m_lastCancelledTokenSink = token;
         }
     }
 
@@ -116,7 +116,7 @@ private:
     std::shared_ptr<int> m_lastPlaybackFrame;
     std::shared_ptr<int> m_lastPlaybackPosition;
     std::shared_ptr<int> m_cancelRequestCount;
-    std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<ImageSequenceProviderRequestToken> m_lastCancelledTokenSink;
     std::shared_ptr<int> m_positionRequestCount;
     std::shared_ptr<int> m_lastPositionFrame;
     std::shared_ptr<int> m_lastRequestedPosition;
@@ -137,7 +137,7 @@ public:
         const std::shared_ptr<int>& lastPlaybackFrame = {},
         const std::shared_ptr<int>& lastPlaybackPosition = {},
         const std::shared_ptr<int>& cancelRequestCount = {},
-        const std::shared_ptr<quint64>& lastCancelledTokenId = {},
+        const std::shared_ptr<ImageSequenceProviderRequestToken>& lastCancelledToken = {},
         const std::shared_ptr<int>& positionRequestCount = {},
         const std::shared_ptr<int>& lastPositionFrame = {},
         const std::shared_ptr<int>& lastRequestedPosition = {})
@@ -150,7 +150,7 @@ public:
         , m_lastPlaybackFrame(lastPlaybackFrame)
         , m_lastPlaybackPosition(lastPlaybackPosition)
         , m_cancelRequestCount(cancelRequestCount)
-        , m_lastCancelledTokenId(lastCancelledTokenId)
+        , m_lastCancelledToken(lastCancelledToken)
         , m_positionRequestCount(positionRequestCount)
         , m_lastPositionFrame(lastPositionFrame)
         , m_lastRequestedPosition(lastRequestedPosition)
@@ -160,11 +160,10 @@ public:
     ImageSequenceProviderSession* createSession(QObject* parent) override
     {
         ++*m_sessionCount;
-        CountingProviderSession* session
-            = new CountingProviderSession(m_metadataRequestCount, m_frameRequestCount,
-                m_lastRequestedFrame, m_closeCount, m_playbackRequestCount, m_lastPlaybackFrame,
-                m_lastPlaybackPosition, m_cancelRequestCount, m_lastCancelledTokenId,
-                m_positionRequestCount, m_lastPositionFrame, m_lastRequestedPosition, parent);
+        CountingProviderSession* session = new CountingProviderSession(m_metadataRequestCount,
+            m_frameRequestCount, m_lastRequestedFrame, m_closeCount, m_playbackRequestCount,
+            m_lastPlaybackFrame, m_lastPlaybackPosition, m_cancelRequestCount, m_lastCancelledToken,
+            m_positionRequestCount, m_lastPositionFrame, m_lastRequestedPosition, parent);
         m_lastSession = session;
         m_sessions.append(session);
         return session;
@@ -184,7 +183,7 @@ private:
     std::shared_ptr<int> m_lastPlaybackFrame;
     std::shared_ptr<int> m_lastPlaybackPosition;
     std::shared_ptr<int> m_cancelRequestCount;
-    std::shared_ptr<quint64> m_lastCancelledTokenId;
+    std::shared_ptr<ImageSequenceProviderRequestToken> m_lastCancelledToken;
     std::shared_ptr<int> m_positionRequestCount;
     std::shared_ptr<int> m_lastPositionFrame;
     std::shared_ptr<int> m_lastRequestedPosition;

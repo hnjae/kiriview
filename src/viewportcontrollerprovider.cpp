@@ -1,5 +1,7 @@
 #include "viewportcontrollerplaybackhelpers_p.h"
 
+#include "imageviewporttoken_p.h"
+
 #include <memory>
 
 namespace {
@@ -1367,7 +1369,8 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
     }
 
     ++provider.nextRequestToken;
-    allocation.token = ImageSequenceProviderRequestToken(provider.nextRequestToken);
+    allocation.token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
+        provider.nextRequestToken);
     return allocation;
 }
 

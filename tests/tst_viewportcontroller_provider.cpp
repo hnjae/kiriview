@@ -1,7 +1,8 @@
 #include "imageviewport.h"
+#include "imageviewport_testhooks_p.h"
+#include "viewportcontroller_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerrendercontract_p.h"
-#include "viewportcontroller_p.h"
 
 #include <QtTest/QTest>
 
@@ -9,6 +10,8 @@
 #include <utility>
 
 namespace {
+
+using namespace ImageViewportTestHooks;
 
 class StubProviderSession final : public ImageSequenceProviderSession
 {
@@ -35,8 +38,7 @@ class StubProviderAdapter final : public ImageSequenceProviderAdapter
 
 public:
     explicit StubProviderAdapter(ImageSequenceProviderMetadata knownMetadata = {},
-        ImageSequenceProviderKnownFacts knownFacts = {},
-        QObject* parent = nullptr)
+        ImageSequenceProviderKnownFacts knownFacts = {}, QObject* parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
         , m_factory(std::make_shared<StubProviderSessionFactory>())
         , m_knownMetadata(std::move(knownMetadata))
@@ -126,8 +128,8 @@ std::unique_ptr<ImageSequenceFactoryResult> makeDetachedProviderSequence(
     return std::unique_ptr<ImageSequenceFactoryResult>(factory.fromProvider(&adapter));
 }
 
-std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
-    ImageSequenceFactory& factory, ProviderControllerContext& context,
+std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(ImageSequenceFactory& factory,
+    ProviderControllerContext& context,
     const ImageSequenceProviderMetadata& knownMetadata = ImageSequenceProviderMetadata {})
 {
     auto result = makeDetachedProviderSequence(factory, knownMetadata, context.knownFacts);
@@ -139,7 +141,8 @@ std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
     if (knownMetadata.isSpecified()) {
         context.completeKnownMetadata = true;
         if (knownMetadata.isStill()) {
-            context.knownFacts = ImageSequenceProviderKnownFacts::still(knownMetadata.logicalSize());
+            context.knownFacts
+                = ImageSequenceProviderKnownFacts::still(knownMetadata.logicalSize());
         } else if (knownMetadata.isTimedFrameList()) {
             context.knownFacts = ImageSequenceProviderKnownFacts::timedFrameList(
                 knownMetadata.logicalSize(), knownMetadata.frameDurations());
@@ -189,8 +192,7 @@ void ViewportControllerProviderTest::
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -211,15 +213,15 @@ void ViewportControllerProviderTest::
 
     const ViewportProviderTerminalEventResult staleFailure
         = controller.handleProviderDispatchFailure(ImageViewport::PageRole::Primary,
-            { ImageSequenceProviderRequestToken(activeToken.id() + 1),
+            { providerRequestTokenForTest(providerRequestTokenValueForTest(activeToken) + 1),
                 QStringLiteral("stale delivery failure") });
     QCOMPARE(staleFailure.changes.requestState, false);
     QCOMPARE(staleFailure.providerFrameTransport.closeSession, false);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
 
     const ViewportProviderTerminalEventResult activeFailure
-        = controller.handleProviderDispatchFailure(ImageViewport::PageRole::Primary,
-            { activeToken, QStringLiteral("delivery failed") });
+        = controller.handleProviderDispatchFailure(
+            ImageViewport::PageRole::Primary, { activeToken, QStringLiteral("delivery failed") });
     QCOMPARE(activeFailure.changes.requestState, true);
     QCOMPARE(activeFailure.changes.requestRevision, true);
     QCOMPARE(activeFailure.changes.diagnostics, true);
@@ -262,14 +264,14 @@ void ViewportControllerProviderTest::
 
     const ViewportProviderTerminalEventResult staleFailure
         = controller.handleProviderDispatchFailure(ImageViewport::PageRole::Primary,
-            { ImageSequenceProviderRequestToken(activeToken.id() + 1),
+            { providerRequestTokenForTest(providerRequestTokenValueForTest(activeToken) + 1),
                 QStringLiteral("stale delivery failure") });
     QCOMPARE(staleFailure.changes.requestState, false);
     QCOMPARE(staleFailure.providerFrameTransport.closeSession, false);
 
     const ViewportProviderTerminalEventResult activeFailure
-        = controller.handleProviderDispatchFailure(ImageViewport::PageRole::Primary,
-            { activeToken, QStringLiteral("delivery failed") });
+        = controller.handleProviderDispatchFailure(
+            ImageViewport::PageRole::Primary, { activeToken, QStringLiteral("delivery failed") });
     QCOMPARE(activeFailure.changes.requestState, true);
     QCOMPARE(activeFailure.providerFrameTransport.closeSession, true);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
@@ -279,13 +281,11 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.takeProviderSession(), &session);
 }
 
-void ViewportControllerProviderTest::
-    metadataDispatchFailureReportsNullSessionAfterAcceptance()
+void ViewportControllerProviderTest::metadataDispatchFailureReportsNullSessionAfterAcceptance()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -300,9 +300,8 @@ void ViewportControllerProviderTest::
     QVERIFY(metadataToken.isValid());
     QCOMPARE(controller.takeProviderSession(), &session);
 
-    const ViewportProviderTerminalEventResult failure
-        = controller.handleProviderDispatchFailure(ImageViewport::PageRole::Primary,
-            { metadataToken, QStringLiteral("missing session") });
+    const ViewportProviderTerminalEventResult failure = controller.handleProviderDispatchFailure(
+        ImageViewport::PageRole::Primary, { metadataToken, QStringLiteral("missing session") });
     QCOMPARE(failure.changes.requestState, true);
     QCOMPARE(failure.providerFrameTransport.closeSession, false);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
@@ -314,8 +313,7 @@ void ViewportControllerProviderTest::sessionSerialRejectsSupersededSessionResult
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -341,8 +339,7 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -358,7 +355,7 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
 
     const ViewportProviderMetadataEventAcceptance staleMetadata
         = controller.acceptProviderMetadataEvent(
-            { ImageSequenceProviderRequestToken(metadataToken.id() + 1) });
+            { providerRequestTokenForTest(providerRequestTokenValueForTest(metadataToken) + 1) });
     QCOMPARE(staleMetadata.accepted, false);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
 
@@ -380,10 +377,9 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    const ImageViewportInternal::ViewportChangeSet staleFrame
-        = controller.handleProviderFrameEvent(
-            { ImageSequenceProviderRequestToken(frameToken.id() + 1) }, &frame,
-            ImageSequenceProviderFrameMetadata::stillFrame());
+    const ImageViewportInternal::ViewportChangeSet staleFrame = controller.handleProviderFrameEvent(
+        { providerRequestTokenForTest(providerRequestTokenValueForTest(frameToken) + 1) }, &frame,
+        ImageSequenceProviderFrameMetadata::stillFrame());
     QCOMPARE(staleFrame.requestState, false);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
 
@@ -398,8 +394,7 @@ void ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTarget
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -417,15 +412,15 @@ void ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTarget
         = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
     const ViewportProviderMetadataReadyResult stale
         = controller.handleProviderMetadataReadyEvent(ImageViewport::PageRole::Primary,
-            { ImageSequenceProviderRequestToken(metadataToken.id() + 1), metadata });
+            { providerRequestTokenForTest(providerRequestTokenValueForTest(metadataToken) + 1),
+                metadata });
     QCOMPARE(stale.changes.requestState, false);
     QCOMPARE(stale.providerFrameTransport.sendCommand, false);
     QCOMPARE(controller.providerMetadataReady(), false);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderWaiting);
 
-    const ViewportProviderMetadataReadyResult ready
-        = controller.handleProviderMetadataReadyEvent(
-            ImageViewport::PageRole::Primary, { metadataToken, metadata });
+    const ViewportProviderMetadataReadyResult ready = controller.handleProviderMetadataReadyEvent(
+        ImageViewport::PageRole::Primary, { metadataToken, metadata });
     QCOMPARE(ready.changes.requestState, true);
     QCOMPARE(ready.changes.requestRevision, true);
     QCOMPARE(ready.providerFrameTransport.sendCommand, true);
@@ -439,8 +434,7 @@ void ViewportControllerProviderTest::secondaryMetadataReadyEventUsesSameShape()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> primary
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
     std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
     QVERIFY(primary);
     QVERIFY(secondary);
@@ -475,8 +469,7 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -583,8 +576,7 @@ void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole(
 
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> primary
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
     QVERIFY(primary);
     std::unique_ptr<ImageSequenceFactoryResult> secondary;
     ViewportSequenceAssignment assignment;
@@ -601,7 +593,8 @@ void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole(
 
     StubProviderSession session;
     controller.installProviderSession(pageRole, &session);
-    const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened(pageRole);
+    const ViewportProviderSessionOpenResult opened
+        = controller.handleProviderSessionOpened(pageRole);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
     const ViewportProviderMetadataReadyResult metadataReady
@@ -619,8 +612,8 @@ void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole(
             pageRole, { token }, &frame, ImageSequenceProviderFrameMetadata::stillFrame());
     };
 
-    const ImageViewportInternal::ViewportChangeSet staleFrame
-        = dispatchFrame(ImageSequenceProviderRequestToken(frameToken.id() + 1));
+    const ImageViewportInternal::ViewportChangeSet staleFrame = dispatchFrame(
+        providerRequestTokenForTest(providerRequestTokenValueForTest(frameToken) + 1));
     QCOMPARE(staleFrame.requestState, false);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderWaiting);
@@ -649,8 +642,7 @@ void ViewportControllerProviderTest::providerTerminalEventsCloseMetadataGenerati
 
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> primary
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> primary = makeProviderSequence(factory, context);
     QVERIFY(primary);
     std::unique_ptr<ImageSequenceFactoryResult> secondary;
     ViewportSequenceAssignment assignment;
@@ -667,13 +659,14 @@ void ViewportControllerProviderTest::providerTerminalEventsCloseMetadataGenerati
 
     StubProviderSession session;
     controller.installProviderSession(pageRole, &session);
-    const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened(pageRole);
+    const ViewportProviderSessionOpenResult opened
+        = controller.handleProviderSessionOpened(pageRole);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
 
     const ViewportProviderTerminalEventResult staleTerminal
         = controller.handleProviderTerminalEvent(pageRole,
-            { ImageSequenceProviderRequestToken(metadataToken.id() + 1),
+            { providerRequestTokenForTest(providerRequestTokenValueForTest(metadataToken) + 1),
                 ViewportProviderTerminalEvent::Kind::Failure,
                 ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
                 QStringLiteral("stale metadata failure") });
@@ -739,18 +732,16 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::Ready);
     QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Ready);
-    QCOMPARE(controller.displayState().displayedRequest.request.preparedPayloadId,
-        payload.payloadId);
+    QCOMPARE(
+        controller.displayState().displayedRequest.request.preparedPayloadId, payload.payloadId);
     QCOMPARE(controller.displayState().pendingRenderPayload.commitPending, false);
 }
 
-void ViewportControllerProviderTest::
-    cancellationTerminalEventClosesActiveMetadataGeneration()
+void ViewportControllerProviderTest::cancellationTerminalEventClosesActiveMetadataGeneration()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
-    std::unique_ptr<ImageSequenceFactoryResult> sequence
-        = makeProviderSequence(factory, context);
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
     ViewportController controller(context);
 
@@ -764,11 +755,10 @@ void ViewportControllerProviderTest::
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
 
-    const ViewportProviderTerminalEventResult cancellation
-        = controller.handleProviderTerminalEvent(
-            { metadataToken, ViewportProviderTerminalEvent::Kind::Cancellation,
-                ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-                QStringLiteral("provider cancelled metadata") });
+    const ViewportProviderTerminalEventResult cancellation = controller.handleProviderTerminalEvent(
+        { metadataToken, ViewportProviderTerminalEvent::Kind::Cancellation,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+            QStringLiteral("provider cancelled metadata") });
     QCOMPARE(cancellation.changes.requestState, true);
     QCOMPARE(cancellation.providerFrameTransport.closeSession, true);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
@@ -798,9 +788,9 @@ void ViewportControllerProviderTest::requiredRoleWaitPriorityAggregatesBeforePro
     QTest::newRow("upload-over-render")
         << true << false << false << false << true << false << false << true << false
         << static_cast<int>(ImageViewport::RequestReason::UploadPending);
-    QTest::newRow("render-only")
-        << true << false << false << false << true << false << false << false << true
-        << static_cast<int>(ImageViewport::RequestReason::RenderWaiting);
+    QTest::newRow("render-only") << true << false << false << false << true << false << false
+                                 << false << true
+                                 << static_cast<int>(ImageViewport::RequestReason::RenderWaiting);
     QTest::newRow("non-required-secondary-ignored")
         << false << false << false << true << false << true << true << false << false
         << static_cast<int>(ImageViewport::RequestReason::UploadPending);
@@ -859,8 +849,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs_d
         << static_cast<int>(TerminalScopeCase::MetadataEndOfSequenceProtocolViolation) << true;
     QTest::newRow("frame-end-of-sequence-protocol-violation")
         << static_cast<int>(TerminalScopeCase::FrameEndOfSequenceProtocolViolation) << false;
-    QTest::newRow("render-failure")
-        << static_cast<int>(TerminalScopeCase::RenderFailure) << false;
+    QTest::newRow("render-failure") << static_cast<int>(TerminalScopeCase::RenderFailure) << false;
 }
 
 void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
@@ -913,9 +902,8 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
             const ImageViewportInternal::PreparedPayloadIdentity payload
                 = controller.displayState().pendingRenderPayload.identity();
             const ImageViewportInternal::ViewportChangeSet renderFailure
-                = controller.acknowledgeRenderFailure(
-                    { payload, {}, ImageViewport::PageRole::Primary,
-                        RenderFailureCause::TextureCreationFailure });
+                = controller.acknowledgeRenderFailure({ payload, {},
+                    ImageViewport::PageRole::Primary, RenderFailureCause::TextureCreationFailure });
             QCOMPARE(renderFailure.requestState, true);
         } else {
             const ImageSequenceProviderRequestToken metadataToken
@@ -924,10 +912,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
 
             if (scopeCase == TerminalScopeCase::MetadataProductionFailure) {
                 const ViewportProviderTerminalEventResult terminal
-                    = controller.handleProviderTerminalEvent(
-                        { metadataToken, ViewportProviderTerminalEvent::Kind::Failure,
-                            UnsupportedCause::PayloadRejection,
-                            QStringLiteral("metadata failed") });
+                    = controller.handleProviderTerminalEvent({ metadataToken,
+                        ViewportProviderTerminalEvent::Kind::Failure,
+                        UnsupportedCause::PayloadRejection, QStringLiteral("metadata failed") });
                 QCOMPARE(terminal.changes.requestState, true);
             } else if (scopeCase == TerminalScopeCase::MetadataEndOfSequenceProtocolViolation) {
                 const ViewportProviderEndOfSequenceResult endOfSequence
@@ -968,8 +955,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
                         if (scopeCase == TerminalScopeCase::FrameUnsupported) {
                             const ViewportProviderTerminalEventResult terminal
                                 = controller.handleProviderTerminalEvent(
-                                    { frameToken,
-                                        ViewportProviderTerminalEvent::Kind::Unsupported,
+                                    { frameToken, ViewportProviderTerminalEvent::Kind::Unsupported,
                                         UnsupportedCause::UnsupportedRequest,
                                         QStringLiteral("frame unsupported") });
                             QCOMPARE(terminal.changes.requestState, true);
@@ -1004,8 +990,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
     }
 
     const ViewportCommandResult seek = controller.seek(0);
-    QCOMPARE(seek.outcome, generationTerminal ? ImageViewport::CommandOutcome::Unsupported
-                                              : ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(seek.outcome,
+        generationTerminal ? ImageViewport::CommandOutcome::Unsupported
+                           : ImageViewport::CommandOutcome::Accepted);
 }
 
 void ViewportControllerProviderTest::
@@ -1036,8 +1023,8 @@ void ViewportControllerProviderTest::
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
     QCOMPARE(controller
-            .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
-            .accepted,
+                 .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
+                 .accepted,
         true);
 
     const ViewportProviderMetadataAdmissionResult admission
@@ -1051,8 +1038,7 @@ void ViewportControllerProviderTest::
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("construction-time")));
 }
 
-void ViewportControllerProviderTest::
-    secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest()
+void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
@@ -1083,8 +1069,8 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
 
     QCOMPARE(controller
-            .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
-            .accepted,
+                 .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
+                 .accepted,
         true);
     const ViewportProviderMetadataAdmissionResult admission
         = controller.handleProviderMetadataAdmission(ImageViewport::PageRole::Secondary,

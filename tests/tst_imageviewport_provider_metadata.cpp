@@ -15,7 +15,8 @@ enum MetadataProjectionScenario {
     RuntimeTimedMetadata,
 };
 
-struct RoleMetadataProperties {
+struct RoleMetadataProperties
+{
     const char* frameCount;
     const char* totalDuration;
     const char* frameSeekBounds;
@@ -69,7 +70,7 @@ void verifyImageViewportMetadataProjectionIsControllerForwarding()
     for (const QString& token : forbiddenTokens) {
         QVERIFY2(!source.contains(token),
             qPrintable(QStringLiteral("ImageViewportPrivate metadata projection still uses %1")
-                           .arg(token)));
+                    .arg(token)));
     }
 }
 
@@ -143,37 +144,37 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath_
     QTest::addColumn<QByteArray>("expectedFrameSeekSupport");
     QTest::addColumn<QByteArray>("expectedPositionSeekSupport");
 
-    const auto addRow = [](const char* name, bool secondaryRole,
-                            MetadataProjectionScenario scenario, int expectedFrameCount,
-                            int expectedTotalDuration, int expectedFrameMinimum,
-                            int expectedFrameMaximum, int expectedPositionMinimum,
-                            int expectedPositionMaximum, const char* expectedTimedPlaybackSupport,
-                            const char* expectedFrameSeekSupport,
-                            const char* expectedPositionSeekSupport) {
-        QTest::newRow(name) << secondaryRole << static_cast<int>(scenario) << expectedFrameCount
-                            << expectedTotalDuration << expectedFrameMinimum
-                            << expectedFrameMaximum << expectedPositionMinimum
-                            << expectedPositionMaximum << QByteArray(expectedTimedPlaybackSupport)
-                            << QByteArray(expectedFrameSeekSupport)
-                            << QByteArray(expectedPositionSeekSupport);
-    };
+    const auto addRow
+        = [](const char* name, bool secondaryRole, MetadataProjectionScenario scenario,
+              int expectedFrameCount, int expectedTotalDuration, int expectedFrameMinimum,
+              int expectedFrameMaximum, int expectedPositionMinimum, int expectedPositionMaximum,
+              const char* expectedTimedPlaybackSupport, const char* expectedFrameSeekSupport,
+              const char* expectedPositionSeekSupport) {
+              QTest::newRow(name) << secondaryRole << static_cast<int>(scenario)
+                                  << expectedFrameCount << expectedTotalDuration
+                                  << expectedFrameMinimum << expectedFrameMaximum
+                                  << expectedPositionMinimum << expectedPositionMaximum
+                                  << QByteArray(expectedTimedPlaybackSupport)
+                                  << QByteArray(expectedFrameSeekSupport)
+                                  << QByteArray(expectedPositionSeekSupport);
+          };
 
-    addRow("primary-unknown-provider-facts", false, UnknownProviderFacts, -1, -1, -1, -1, -1,
-        -1, "Unavailable", "Unavailable", "Unavailable");
-    addRow("secondary-unknown-provider-facts", true, UnknownProviderFacts, -1, -1, -1, -1, -1,
-        -1, "Unavailable", "Unavailable", "Unavailable");
+    addRow("primary-unknown-provider-facts", false, UnknownProviderFacts, -1, -1, -1, -1, -1, -1,
+        "Unavailable", "Unavailable", "Unavailable");
+    addRow("secondary-unknown-provider-facts", true, UnknownProviderFacts, -1, -1, -1, -1, -1, -1,
+        "Unavailable", "Unavailable", "Unavailable");
     addRow("primary-partial-known-facts", false, PartialKnownFacts, 3, -1, 0, 2, -1, -1,
         "Unavailable", "True", "Unavailable");
     addRow("secondary-partial-known-facts", true, PartialKnownFacts, 3, -1, 0, 2, -1, -1,
         "Unavailable", "True", "Unavailable");
-    addRow("primary-complete-still-facts", false, CompleteStillFacts, 1, -1, 0, 0, -1, -1,
-        "False", "True", "False");
-    addRow("secondary-complete-still-facts", true, CompleteStillFacts, 1, -1, 0, 0, -1, -1,
-        "False", "True", "False");
-    addRow("primary-complete-timed-facts", false, CompleteTimedFacts, 2, 350, 0, 1, 0, 350,
-        "True", "True", "True");
-    addRow("secondary-complete-timed-facts", true, CompleteTimedFacts, 2, 350, 0, 1, 0, 350,
-        "True", "True", "True");
+    addRow("primary-complete-still-facts", false, CompleteStillFacts, 1, -1, 0, 0, -1, -1, "False",
+        "True", "False");
+    addRow("secondary-complete-still-facts", true, CompleteStillFacts, 1, -1, 0, 0, -1, -1, "False",
+        "True", "False");
+    addRow("primary-complete-timed-facts", false, CompleteTimedFacts, 2, 350, 0, 1, 0, 350, "True",
+        "True", "True");
+    addRow("secondary-complete-timed-facts", true, CompleteTimedFacts, 2, 350, 0, 1, 0, 350, "True",
+        "True", "True");
     addRow("primary-runtime-still-metadata", false, RuntimeStillMetadata, 1, -1, 0, 0, -1, -1,
         "False", "True", "False");
     addRow("secondary-runtime-still-metadata", true, RuntimeStillMetadata, 1, -1, 0, 0, -1, -1,
@@ -285,10 +286,8 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
     QCOMPARE(item.property(properties.totalDuration).toInt(), expectedTotalDuration);
     QCOMPARE(rangeProperty(item, properties.frameSeekBounds).minimum(), expectedFrameMinimum);
     QCOMPARE(rangeProperty(item, properties.frameSeekBounds).maximum(), expectedFrameMaximum);
-    QCOMPARE(
-        rangeProperty(item, properties.positionSeekBounds).minimum(), expectedPositionMinimum);
-    QCOMPARE(
-        rangeProperty(item, properties.positionSeekBounds).maximum(), expectedPositionMaximum);
+    QCOMPARE(rangeProperty(item, properties.positionSeekBounds).minimum(), expectedPositionMinimum);
+    QCOMPARE(rangeProperty(item, properties.positionSeekBounds).maximum(), expectedPositionMaximum);
     QCOMPARE(item.property(properties.timedPlaybackSupport).toInt(),
         enumValue(metaObject, "TriState", expectedTimedPlaybackSupport.constData()));
     QCOMPARE(item.property(properties.frameSeekSupport).toInt(),
@@ -793,8 +792,8 @@ void ImageViewportProviderMetadataTest::
     auto secondarySessionFactory = std::make_shared<CountingProviderSessionFactory>(
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount);
-    CountingProviderAdapter secondaryAdapter(secondarySessionFactory,
-        ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0)));
+    CountingProviderAdapter secondaryAdapter(
+        secondarySessionFactory, ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
     QVERIFY(secondaryResult->sequence());
@@ -1294,7 +1293,8 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverr
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(sessionCount,
         metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount,
         playbackRequestCount, lastPlaybackFrame, lastPlaybackPosition, std::shared_ptr<int>(),
-        std::shared_ptr<quint64>(), positionRequestCount, lastPositionFrame, lastRequestedPosition);
+        std::shared_ptr<ImageSequenceProviderRequestToken>(), positionRequestCount,
+        lastPositionFrame, lastRequestedPosition);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());

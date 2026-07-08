@@ -3,6 +3,12 @@
 
 #include <cmath>
 #include <limits>
+#include <type_traits>
+
+static_assert(!std::is_constructible_v<ImageSequenceProviderRequestToken, quint64>,
+    "provider request tokens must not expose numeric construction as public API");
+static_assert(!std::is_constructible_v<RevisionToken, quint64>,
+    "revision tokens must not expose numeric construction as public API");
 
 class ImageViewportPublicApiTest : public QObject
 {
@@ -504,7 +510,8 @@ void ImageViewportPublicApiTest::manualZoomHelpersExposeDefaultsAndDoNotAdvanceR
     QCOMPARE(commandSpy.count(), 0);
 }
 
-void ImageViewportPublicApiTest::nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions()
+void ImageViewportPublicApiTest::
+    nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions()
 {
     ImageViewport item;
     const RevisionToken displayRevision = item.displayRevision();
@@ -519,8 +526,8 @@ void ImageViewportPublicApiTest::nearestVisibleHelpersExposeInvalidDefaultsAndDo
     verifyInvalidCoordinateResult(item.nearestVisibleSpreadPoint(infinity, 1.0));
     verifyInvalidCoordinateResult(
         item.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0));
-    verifyInvalidCoordinateResult(item.nearestVisiblePagePoint(
-        static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
+    verifyInvalidCoordinateResult(
+        item.nearestVisiblePagePoint(static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
     verifyInvalidCoordinateResult(item.nearestVisibleImagePoint(1.0, 1.0));
 
     QCOMPARE(item.displayRevision(), displayRevision);
@@ -627,6 +634,10 @@ void ImageViewportPublicApiTest::pageGeometryValueTypeFields()
 
 void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
 {
+    const QMetaObject& revisionTokenMetaObject = RevisionToken::staticMetaObject;
+    QVERIFY(revisionTokenMetaObject.indexOfProperty("valid") >= 0);
+    QVERIFY(revisionTokenMetaObject.indexOfProperty("value") < 0);
+
     ImageViewport item;
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
 

@@ -1,5 +1,6 @@
 #include "viewportcommandoutcome_p.h"
 
+#include "imageviewporttoken_p.h"
 #include "viewportcontroller_p.h"
 
 namespace ImageViewportInternal::CommandOutcome {
@@ -71,7 +72,8 @@ ViewportCommandResult fromEngineCommand(
     if (command.commandRevisionChanged) {
         viewport.requestState().setCommandDiagnostic(command.reason);
         result.changes.commandRevision = true;
-        result.changes.commandRevisionValue = command.commandRevision.value();
+        result.changes.commandRevisionValue
+            = ImageViewportInternal::RevisionTokenPrivateAccess::value(command.commandRevision);
     }
     return result;
 }

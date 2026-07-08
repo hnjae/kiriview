@@ -127,7 +127,76 @@ public:
     }
 };
 
+class TokenCaptureSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit TokenCaptureSession(
+        std::shared_ptr<ImageSequenceProviderRequestToken> capturedToken, QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , m_capturedToken(std::move(capturedToken))
+    {
+    }
+
+    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    {
+        *m_capturedToken = token;
+        emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(2.0, 2.0)));
+    }
+
+private:
+    std::shared_ptr<ImageSequenceProviderRequestToken> m_capturedToken;
+};
+
+class TokenCaptureSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit TokenCaptureSessionFactory(
+        std::shared_ptr<ImageSequenceProviderRequestToken> capturedToken)
+        : m_capturedToken(std::move(capturedToken))
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new TokenCaptureSession(m_capturedToken, parent);
+    }
+
+private:
+    std::shared_ptr<ImageSequenceProviderRequestToken> m_capturedToken;
+};
+
+class TokenCaptureAdapter final : public ImageSequenceProviderAdapter
+{
+public:
+    explicit TokenCaptureAdapter(std::shared_ptr<ImageSequenceProviderRequestToken> capturedToken)
+        : m_capturedToken(std::move(capturedToken))
+    {
+    }
+
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const override
+    {
+        return std::make_shared<TokenCaptureSessionFactory>(m_capturedToken);
+    }
+
+private:
+    std::shared_ptr<ImageSequenceProviderRequestToken> m_capturedToken;
+};
+
 namespace {
+ImageSequenceProviderRequestToken makeInstalledProviderRequestToken()
+{
+    auto capturedToken = std::make_shared<ImageSequenceProviderRequestToken>();
+    TokenCaptureAdapter adapter(capturedToken);
+    ImageSequenceFactory factory;
+    std::unique_ptr<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    if (!result || !result->sequence()) {
+        return {};
+    }
+    ImageViewport viewport;
+    viewport.setSequence(result->sequence());
+    return *capturedToken;
+}
+
 bool canCreateInstalledQmlViewport()
 {
     QQmlEngine engine;
@@ -451,7 +520,10 @@ ImageViewport {
 bool canUseInstalledProviderSessionSurface()
 {
     ConsumerSession session;
-    const ImageSequenceProviderRequestToken token(7);
+    const ImageSequenceProviderRequestToken token = makeInstalledProviderRequestToken();
+    if (!token.isValid()) {
+        return false;
+    }
     bool progressReceived = false;
     bool endReceived = false;
     bool cancellationReceived = false;
@@ -481,7 +553,10 @@ bool canUseInstalledProviderSessionSurface()
 bool canUseInstalledProviderPlaybackFallbackSurface()
 {
     DefaultPlaybackFallbackSession session;
-    const ImageSequenceProviderRequestToken token(9);
+    const ImageSequenceProviderRequestToken token = makeInstalledProviderRequestToken();
+    if (!token.isValid()) {
+        return false;
+    }
 
     session.requestPlayback(token, 3, 250);
 
@@ -492,7 +567,10 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
 bool canUseInstalledProviderBorrowedRawFrameSignalSurface()
 {
     ConsumerSession session;
-    const ImageSequenceProviderRequestToken token(11);
+    const ImageSequenceProviderRequestToken token = makeInstalledProviderRequestToken();
+    if (!token.isValid()) {
+        return false;
+    }
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
@@ -531,8 +609,12 @@ int main(int argc, char** argv)
         = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
     [[maybe_unused]] const auto knownFalse
         = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
-    ImageSequenceProviderRequestToken token(1);
-    if (!token.isValid() || token.id() != 1 || token != ImageSequenceProviderRequestToken(1)) {
+    ImageSequenceProviderRequestToken defaultToken;
+    if (defaultToken.isValid() || defaultToken != ImageSequenceProviderRequestToken()) {
+        return 1;
+    }
+    const ImageSequenceProviderRequestToken token = makeInstalledProviderRequestToken();
+    if (!token.isValid() || token == defaultToken) {
         return 1;
     }
 

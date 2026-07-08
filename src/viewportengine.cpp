@@ -1,5 +1,7 @@
 #include "viewportengine_p.h"
 
+#include "imageviewporttoken_p.h"
+
 #include <limits>
 
 namespace {
@@ -171,7 +173,7 @@ ViewportEngine::CommandResult ViewportEngine::acceptedPreservingCommandDiagnosti
 
 RevisionToken ViewportEngine::nextCommandRevision()
 {
-    return RevisionToken(allocateRevisionValue());
+    return ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(allocateRevisionValue());
 }
 
 quint64 ViewportEngine::allocateRevisionValue()

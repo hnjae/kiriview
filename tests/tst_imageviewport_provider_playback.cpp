@@ -1239,8 +1239,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.property("requestedPosition").toInt(), 100);
 }
 
-void ImageViewportProviderPlaybackTest::
-    providerTimedPlaybackEndOfSequenceUsesAuthoredInfiniteLoop()
+void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAuthoredInfiniteLoop()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1303,8 +1302,7 @@ void ImageViewportProviderPlaybackTest::
     QCOMPARE(item.property("requestedPosition").toInt(), 0);
 }
 
-void ImageViewportProviderPlaybackTest::
-    providerTimedPlaybackEndOfSequenceUsesAuthoredFiniteLoop()
+void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAuthoredFiniteLoop()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -2174,11 +2172,11 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
     const auto lastPlaybackFrame = std::make_shared<int>(-1);
     const auto lastPlaybackPosition = std::make_shared<int>(-1);
     const auto cancelRequestCount = std::make_shared<int>(0);
-    const auto lastCancelledTokenId = std::make_shared<quint64>(0);
+    const auto lastCancelledToken = std::make_shared<ImageSequenceProviderRequestToken>();
     auto sessionFactory
         = std::make_shared<CountingProviderSessionFactory>(sessionCount, metadataRequestCount,
             frameRequestCount, lastRequestedFrame, closeCount, playbackRequestCount,
-            lastPlaybackFrame, lastPlaybackPosition, cancelRequestCount, lastCancelledTokenId);
+            lastPlaybackFrame, lastPlaybackPosition, cancelRequestCount, lastCancelledToken);
     CountingProviderAdapter adapter(sessionFactory);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromProvider(&adapter));
     QVERIFY(secondaryResult->sequence());
@@ -2218,7 +2216,7 @@ void ImageViewportProviderPlaybackTest::secondaryProviderTimedStopCancelsPlaybac
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(*lastCancelledTokenId, playbackToken.id());
+    QCOMPARE(*lastCancelledToken, playbackToken);
     QCOMPARE(
         item.property("playbackPhase").toInt(), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(

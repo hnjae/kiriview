@@ -43,6 +43,7 @@ class ImageViewportRoleRequestSnapshot;
 class ImageViewportRoleSnapshot;
 class ImageViewportStateSnapshot;
 class PageGeometry;
+class RevisionToken;
 class PageSetTransitionPolicy;
 class TimingIntervals;
 
@@ -50,6 +51,8 @@ namespace ImageViewportInternal {
 class ImageFramePrivateAccess;
 class ImageSequenceData;
 class ImageSequencePrivateAccess;
+class ProviderRequestTokenPrivateAccess;
+class RevisionTokenPrivateAccess;
 }
 
 enum class ImageSequenceProviderThreadingContract {
@@ -310,9 +313,7 @@ class ImageSequenceProviderRequestToken
 {
 public:
     ImageSequenceProviderRequestToken() = default;
-    explicit ImageSequenceProviderRequestToken(quint64 id);
 
-    quint64 id() const;
     bool isValid() const;
 
     friend bool operator==(
@@ -328,7 +329,11 @@ public:
     }
 
 private:
+    explicit ImageSequenceProviderRequestToken(quint64 id);
+
     quint64 m_id = 0;
+
+    friend class ImageViewportInternal::ProviderRequestTokenPrivateAccess;
 };
 
 class ImageSequenceProviderMetadata
@@ -642,17 +647,11 @@ class RevisionToken
     Q_GADGET
     QML_VALUE_TYPE(revisionToken)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
-    Q_PROPERTY(quint64 value READ value CONSTANT)
 
 public:
     RevisionToken() = default;
-    explicit RevisionToken(quint64 value)
-        : m_value(value)
-    {
-    }
 
     bool isValid() const { return m_value != 0; }
-    quint64 value() const { return m_value; }
 
     friend bool operator==(RevisionToken lhs, RevisionToken rhs)
     {
@@ -661,7 +660,14 @@ public:
     friend bool operator!=(RevisionToken lhs, RevisionToken rhs) { return !(lhs == rhs); }
 
 private:
+    explicit RevisionToken(quint64 value)
+        : m_value(value)
+    {
+    }
+
     quint64 m_value = 0;
+
+    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
 };
 
 class ImageViewportRevisionToken
@@ -3128,8 +3134,7 @@ inline QDebug operator<<(QDebug debug, CoordinateResult result)
 inline QDebug operator<<(QDebug debug, RevisionToken token)
 {
     const QDebugStateSaver saver(debug);
-    debug.nospace() << "RevisionToken(valid=" << token.isValid() << ", value=" << token.value()
-                    << ")";
+    debug.nospace() << "RevisionToken(valid=" << token.isValid() << ")";
     return debug;
 }
 

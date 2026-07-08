@@ -1,6 +1,7 @@
 #include "imagesequence_p.h"
 #include "imageviewport_p.h"
 #include "imageviewport_testhooks_p.h"
+#include "imageviewporttoken_p.h"
 
 #include <QtQuick/QSGNode>
 
@@ -387,6 +388,26 @@ void useSynchronousProviderEventDeliveryForTest(ImageViewport& item)
 void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item)
 {
     ImageViewportPrivate::get(item)->useSynchronousProviderQueueFlushSchedulerForTest();
+}
+
+ImageSequenceProviderRequestToken providerRequestTokenForTest(quint64 token)
+{
+    return ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(token);
+}
+
+quint64 providerRequestTokenValueForTest(ImageSequenceProviderRequestToken token)
+{
+    return ImageViewportInternal::ProviderRequestTokenPrivateAccess::value(token);
+}
+
+RevisionToken revisionTokenForTest(quint64 token)
+{
+    return ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(token);
+}
+
+quint64 revisionTokenValueForTest(RevisionToken token)
+{
+    return ImageViewportInternal::RevisionTokenPrivateAccess::value(token);
 }
 
 bool hasPendingRenderCommitForTest(const ImageViewport& item)
