@@ -226,10 +226,6 @@ ImageViewport::CommandOutcome ImageViewport::rotateClockwise(QPointF anchor)
 {
     return d->rotateClockwise(anchor);
 }
-ImageViewport::CommandOutcome ImageViewport::rotateCounterClockwise(QPointF anchor)
-{
-    return d->rotateCounterClockwise(anchor);
-}
 ImageViewport::CommandOutcome ImageViewport::setMirrorHorizontally(bool enabled, QPointF anchor)
 {
     return d->setMirrorHorizontally(enabled, anchor);
