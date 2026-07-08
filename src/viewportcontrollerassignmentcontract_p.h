@@ -39,6 +39,16 @@ struct ControllerTransitionPolicy
 
 struct ViewportSequenceAssignment
 {
+    ViewportSequenceAssignment() = default;
+    ViewportSequenceAssignment(ImageSequence* primarySequence)
+        : pageSet(primarySequence ? ImageViewportPageSet(primarySequence)
+                                  : ImageViewportPageSet::clear())
+        , sequence(primarySequence)
+    {
+        source.sequence = primarySequence;
+    }
+
+    ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
     ImageViewportInternal::ImageSequenceSource source;
     ImageViewportInternal::ImageSequenceSource secondarySourceHandle;
     ImageSequence* sequence = nullptr;

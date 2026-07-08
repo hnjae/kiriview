@@ -36,6 +36,7 @@ struct ViewportChangeSet
     bool displayRevision = false;
     bool requestRevision = false;
     bool commandRevision = false;
+    quint64 commandRevisionValue = 0;
     bool scheduleUpdate = false;
     RenderFailureDiagnostic renderFailureDiagnostic;
 };

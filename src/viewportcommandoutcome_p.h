@@ -3,6 +3,7 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "viewportcontrollercommandcontract_p.h"
+#include "viewportengine_p.h"
 
 class ViewportControllerPort;
 
@@ -20,5 +21,7 @@ ViewportCommandResult rejected(ViewportControllerPort& viewport,
 ViewportCommandResult invalid(ViewportControllerPort& viewport);
 ViewportCommandResult unsupported(ViewportControllerPort& viewport);
 ViewportCommandResult ignoredNoRequest(ViewportControllerPort& viewport);
+ViewportCommandResult fromEngineCommand(
+    ViewportControllerPort& viewport, const ViewportEngine::CommandResult& command);
 
 }

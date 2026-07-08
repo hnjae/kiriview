@@ -218,11 +218,13 @@ void ImageViewportPrivate::setSequence(ImageSequence* sequence)
 
     ImageSequenceSource source = factorySequenceSource(sequence);
     ViewportSequenceAssignment assignment;
+    assignment.pageSet = sequence ? ImageViewportPageSet(sequence) : ImageViewportPageSet::clear();
     assignment.source = std::move(source);
     ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
     applyControllerChanges(result.changes);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
@@ -400,8 +402,7 @@ int ImageViewportPrivate::secondarySequenceTotalDuration() const
 
 int ImageViewportPrivate::secondarySequenceFrameIndexForPosition(int position) const
 {
-    return sourceFrameIndexForPosition(
-        controller.requestState().secondarySequenceSource, position);
+    return sourceFrameIndexForPosition(controller.requestState().secondarySequenceSource, position);
 }
 
 int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
@@ -618,32 +619,10 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(ImageViewp
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
 {
-    if (!pageSet.isValid()) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    return setPageSet(pageSet.primary(), pageSet.secondary(), policy);
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    ImageSequence* primary, ImageSequence* secondary)
-{
-    return setPageSet(primary, secondary, PageSetTransitionPolicy {});
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    ImageSequence* primarySequence,
-    ImageSequence* secondarySequence,
-    PageSetTransitionPolicy policy)
-{
-    ImageSequenceSource primarySource = factorySequenceSource(primarySequence);
-    ImageSequenceSource secondarySourceHandle = factorySequenceSource(secondarySequence);
-    if (!primarySequence) {
-        secondarySourceHandle = {};
-    }
+    ImageSequenceSource primarySource = factorySequenceSource(pageSet.primary());
+    ImageSequenceSource secondarySourceHandle = factorySequenceSource(pageSet.secondary());
     ViewportSequenceAssignment assignment;
+    assignment.pageSet = pageSet;
     assignment.source = std::move(primarySource);
     assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;
@@ -654,7 +633,8 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     }
     applyControllerChanges(result.changes);
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(result.secondaryProviderFrameTransport, PageRole::Secondary);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
@@ -662,8 +642,52 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
         return result.outcome;
     }
     if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(PageRole::Secondary,
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(
+            PageRole::Secondary, QStringLiteral("provider session creation failed")));
+    }
+    playbackScheduler.sync();
+    return result.outcome;
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    ImageSequence* primary, ImageSequence* secondary)
+{
+    return setPageSet(primary, secondary, PageSetTransitionPolicy {});
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    ImageSequence* primarySequence, ImageSequence* secondarySequence,
+    PageSetTransitionPolicy policy)
+{
+    ImageSequenceSource primarySource = factorySequenceSource(primarySequence);
+    ImageSequenceSource secondarySourceHandle = factorySequenceSource(secondarySequence);
+    if (!primarySequence) {
+        secondarySourceHandle = {};
+    }
+    ViewportSequenceAssignment assignment;
+    assignment.pageSet = primarySequence ? ImageViewportPageSet(primarySequence, secondarySequence)
+                                         : ImageViewportPageSet::clear();
+    assignment.source = std::move(primarySource);
+    assignment.secondarySourceHandle = std::move(secondarySourceHandle);
+    assignment.transitionPolicy = policy;
+    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
+    if (result.outcome != CommandOutcome::Accepted) {
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+    applyControllerChanges(result.changes);
+    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
+    if (result.openProviderSession && !providerHost.openSession()) {
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
+        playbackScheduler.sync();
+        return result.outcome;
+    }
+    if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
+        applyControllerChanges(controller.handleProviderSessionOpenFailure(
+            PageRole::Secondary, QStringLiteral("provider session creation failed")));
     }
     playbackScheduler.sync();
     return result.outcome;

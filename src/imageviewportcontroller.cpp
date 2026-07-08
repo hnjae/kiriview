@@ -147,7 +147,11 @@ void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::Viewpor
         incrementRequestRevision();
     }
     if (changes.commandRevision) {
-        controller.incrementCommandRevision();
+        if (changes.commandRevisionValue != 0) {
+            controller.setCommandRevision(changes.commandRevisionValue);
+        } else {
+            controller.incrementCommandRevision();
+        }
         emit q->commandRevisionChanged();
         emit q->commandStateChanged();
     }

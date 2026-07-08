@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerassignmentcontract_p.h"
+#include "viewportengine_p.h"
 
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
@@ -64,7 +65,7 @@ struct ViewportControllerState
     ImageViewportInternal::ProviderGenerationState provider;
     ImageViewportInternal::ProviderGenerationState secondaryProvider;
     ViewportSequenceRoleSource secondarySource;
-    quint64 nextRevisionToken = 0;
+    ViewportEngine engine;
 };
 
 class ViewportControllerContext
@@ -217,6 +218,7 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
+    ViewportEngine::PageSetState pageSetState() const;
     bool hasProviderSession() const;
     bool hasProviderSession(ImageViewport::PageRole role) const;
     bool providerMetadataReady() const;
@@ -253,6 +255,7 @@ public:
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void incrementCommandRevision();
+    void setCommandRevision(quint64 revision);
     void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
         ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
     void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
@@ -298,8 +301,7 @@ public:
     ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);
     ViewportCommandResult setZoomPercent(
         double percent, QPointF anchor, double devicePixelRatio = 1.0);
-    ViewportCommandResult zoomByStep(
-        int stepCount, QPointF anchor, double devicePixelRatio = 1.0);
+    ViewportCommandResult zoomByStep(int stepCount, QPointF anchor, double devicePixelRatio = 1.0);
     ViewportCommandResult panBy(QPointF delta);
     ViewportCommandResult panToStart();
     ViewportCommandResult panToEnd();
@@ -311,8 +313,8 @@ public:
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
     ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
-        ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
+    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(ImageViewport::PageRole role,
+        ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
         ViewportProviderFrameEvent event, ImageFrame* frame,
@@ -357,13 +359,11 @@ public:
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
-        ImageViewport::PageRole role,
-        const ViewportProviderAcceptedMetadataFacts& facts);
+        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
         const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
-        ImageViewport::PageRole role,
-        const ViewportProviderAcceptedMetadataFacts& facts);
+        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ViewportProviderEndOfSequenceEvent event);
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
@@ -400,8 +400,8 @@ public:
     quint64 pendingRenderGenerationForTest() const;
     quint64 pendingRenderPayloadIdForTest() const;
     quint64 secondaryPendingRenderPayloadIdForTest() const;
-    ImageViewportInternal::RenderFailureDiagnostic lastAcceptedRenderFailureDiagnosticForTest()
-        const;
+    ImageViewportInternal::RenderFailureDiagnostic
+    lastAcceptedRenderFailureDiagnosticForTest() const;
 #endif
 
 private:
@@ -409,6 +409,8 @@ private:
     ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
         const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
         double previousZoomPercent);
+    ViewportCommandResult applyAcceptedClearPageSet(
+        const ViewportEngine::PageSetAssignmentResult& assignment);
     void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
     void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
@@ -436,8 +438,7 @@ private:
         ImageViewport::PageRole role) const;
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
         ImageViewport::PageRole role, ViewportProviderFrameEvent event);
-    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
-        ViewportProviderFrameEvent event);
+    ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(ViewportProviderFrameEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         ImageViewport::PageRole role,
         const FramePreparation::ProviderFrameAdmissionResult& admission);
@@ -480,7 +481,8 @@ private:
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
+        ImageViewport::PageRole role);
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
         ImageViewport::PageRole role);

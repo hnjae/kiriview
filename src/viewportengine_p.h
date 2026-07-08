@@ -5,6 +5,24 @@
 class ViewportEngine
 {
 public:
+    struct PageSetState
+    {
+        ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
+        ImageViewportRoleSet acceptedRoleSet;
+        ImageViewportRoleSet targetRoleSet;
+        quint64 generation = 0;
+        quint64 primaryRoleGeneration = 0;
+        quint64 secondaryRoleGeneration = 0;
+        ImageViewport::PageRole activeRole = ImageViewport::PageRole::Primary;
+        bool activeRoleValid = false;
+    };
+
+    struct PageSetAssignmentInput
+    {
+        ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
+        PageSetTransitionPolicy transitionPolicy;
+    };
+
     struct CommandDiagnostics
     {
         ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
@@ -19,21 +37,43 @@ public:
         bool commandRevisionChanged = false;
     };
 
+    struct PageSetAssignmentResult
+    {
+        CommandResult command;
+        PageSetState pageSetState;
+        bool pageSetChanged = false;
+        bool clear = true;
+        bool retainPreviousDisplay = true;
+        bool releaseDisplayedState = false;
+        bool resetDisplayRequests = false;
+        bool stopPlayback = false;
+        bool closeProviderSessions = false;
+    };
+
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
+    PageSetState pageSetState() const;
 
+    PageSetAssignmentResult assignPageSet(PageSetAssignmentInput input);
     CommandResult rejectInvalidCommand();
     CommandResult rejectMalformedEnumCommand();
     CommandResult clearFromEmpty();
     CommandResult validatePresentationNoop(ImageViewport::FitMode mode);
+    quint64 allocateRevisionValue();
+    void setNextRevisionValueForTest(quint64 token);
 
 private:
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();
+    CommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();
+    quint64 nextPageSetGeneration();
+    PageSetState pageSetStateFor(ImageViewportPageSet pageSet, quint64 generation) const;
 
     quint64 m_nextRevision = 0;
+    quint64 m_nextPageSetGeneration = 0;
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
+    PageSetState m_pageSetState;
 };

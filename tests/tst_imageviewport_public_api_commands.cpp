@@ -19,6 +19,7 @@ private slots:
     void canonicalPageSetValueDefaultsAndConstruction();
     void canonicalPageSetOverloadMatchesPrimarySecondaryPath();
     void canonicalPageSetRejectsSecondaryWithoutPrimary();
+    void pageSetAssignmentUpdatesSnapshotGenerationIdentity();
     void qmlCanonicalPageSetValueAssignsAndRejectsArbitraryVariants();
     void compatibilitySequenceAssignmentClearsSecondaryRole();
     void clearStylePageSetWithSecondaryClearsAcceptedRoles();
@@ -327,6 +328,65 @@ void ImageViewportPublicApiCommandsTest::canonicalPageSetRejectsSecondaryWithout
     QCOMPARE(item.displayRevision(), displayRevision);
     QVERIFY(item.commandRevision() != commandRevision);
     QCOMPARE(item.commandReason(), ImageViewport::CommandReason::InvalidRequest);
+}
+
+void ImageViewportPublicApiCommandsTest::pageSetAssignmentUpdatesSnapshotGenerationIdentity()
+{
+    ImageSequenceFactory factory;
+    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::transparent);
+    ImageFrame primaryFrame(primaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
+    QVERIFY(primaryResult->sequence());
+
+    QImage secondaryImage(8, 16, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::transparent);
+    ImageFrame secondaryFrame(secondaryImage);
+    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
+    QVERIFY(secondaryResult->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    QCOMPARE(item.state().request().acceptedPageSetGeneration().isValid(), false);
+    QCOMPARE(item.state().request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
+    QCOMPARE(item.state().request().targetRoleSet(), ImageViewportRoleSet(false, false));
+
+    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const ImageViewportStateSnapshot primarySnapshot = item.state();
+    const ImageViewportPageSetGenerationToken primaryGeneration
+        = primarySnapshot.request().acceptedPageSetGeneration();
+    QVERIFY(primaryGeneration.isValid());
+    QCOMPARE(primarySnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, false));
+    QCOMPARE(primarySnapshot.request().targetRoleSet(), ImageViewportRoleSet(true, false));
+    QCOMPARE(primarySnapshot.primary().present(), true);
+    QCOMPARE(primarySnapshot.primary().sequence(), primaryResult->sequence());
+    QCOMPARE(primarySnapshot.primary().request().pageSetGeneration(), primaryGeneration);
+    QCOMPARE(primarySnapshot.secondary().present(), false);
+
+    QCOMPARE(item.setPageSet(
+                 ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence())),
+        ImageViewport::CommandOutcome::Accepted);
+    const ImageViewportStateSnapshot spreadSnapshot = item.state();
+    const ImageViewportPageSetGenerationToken spreadGeneration
+        = spreadSnapshot.request().acceptedPageSetGeneration();
+    QVERIFY(spreadGeneration.isValid());
+    QVERIFY(spreadGeneration != primaryGeneration);
+    QCOMPARE(spreadSnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(spreadSnapshot.request().targetRoleSet(), ImageViewportRoleSet(true, true));
+    QCOMPARE(spreadSnapshot.primary().request().pageSetGeneration(), spreadGeneration);
+    QCOMPARE(spreadSnapshot.secondary().present(), true);
+    QCOMPARE(spreadSnapshot.secondary().sequence(), secondaryResult->sequence());
+    QCOMPARE(spreadSnapshot.secondary().request().pageSetGeneration(), spreadGeneration);
+
+    QCOMPARE(
+        item.setPageSet(ImageViewportPageSet::clear()), ImageViewport::CommandOutcome::Accepted);
+    const ImageViewportStateSnapshot clearSnapshot = item.state();
+    QCOMPARE(clearSnapshot.request().acceptedPageSetGeneration().isValid(), false);
+    QCOMPARE(clearSnapshot.request().acceptedRoleSet(), ImageViewportRoleSet(false, false));
+    QCOMPARE(clearSnapshot.request().targetRoleSet(), ImageViewportRoleSet(false, false));
+    QCOMPARE(clearSnapshot.primary().present(), false);
+    QCOMPARE(clearSnapshot.secondary().present(), false);
 }
 
 void ImageViewportPublicApiCommandsTest::

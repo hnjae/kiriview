@@ -1,5 +1,7 @@
 #include "viewportengine_p.h"
 
+#include <limits>
+
 namespace {
 bool fitModeValid(ImageViewport::FitMode mode)
 {
@@ -19,6 +21,37 @@ ImageViewportStateSnapshot ViewportEngine::snapshot() const { return {}; }
 ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 {
     return { m_commandReason, m_commandRevision };
+}
+
+ViewportEngine::PageSetState ViewportEngine::pageSetState() const { return m_pageSetState; }
+
+ViewportEngine::PageSetAssignmentResult ViewportEngine::assignPageSet(PageSetAssignmentInput input)
+{
+    if (!input.pageSet.isValid() || !input.transitionPolicy.isValid()) {
+        return { rejectInvalidCommand(), m_pageSetState };
+    }
+
+    const bool clear = input.pageSet.isClear();
+    const bool clearNoop = clear && m_pageSetState.acceptedRoleSet == ImageViewportRoleSet();
+    const bool pageSetChanged = !clearNoop;
+    PageSetAssignmentResult result;
+    result.command = acceptedPreservingCommandDiagnostics();
+    result.pageSetChanged = pageSetChanged;
+    result.clear = clear;
+    result.retainPreviousDisplay = input.transitionPolicy.displayTransition()
+        == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+    result.releaseDisplayedState = clear || !result.retainPreviousDisplay;
+    result.resetDisplayRequests = pageSetChanged;
+    result.stopPlayback = pageSetChanged;
+    result.closeProviderSessions = pageSetChanged;
+
+    if (pageSetChanged) {
+        const quint64 generation = nextPageSetGeneration();
+        m_pageSetState = pageSetStateFor(input.pageSet, generation);
+    }
+
+    result.pageSetState = m_pageSetState;
+    return result;
 }
 
 ViewportEngine::CommandResult ViewportEngine::rejectInvalidCommand()
@@ -62,8 +95,55 @@ ViewportEngine::CommandResult ViewportEngine::accepted()
     return { ImageViewport::CommandOutcome::Accepted, m_commandReason, m_commandRevision, false };
 }
 
+ViewportEngine::CommandResult ViewportEngine::acceptedPreservingCommandDiagnostics() const
+{
+    return { ImageViewport::CommandOutcome::Accepted, m_commandReason, m_commandRevision, false };
+}
+
 RevisionToken ViewportEngine::nextCommandRevision()
 {
-    ++m_nextRevision;
-    return RevisionToken(m_nextRevision);
+    return RevisionToken(allocateRevisionValue());
+}
+
+quint64 ViewportEngine::allocateRevisionValue()
+{
+    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport revision token allocator exhausted");
+    }
+    return ++m_nextRevision;
+}
+
+void ViewportEngine::setNextRevisionValueForTest(quint64 token)
+{
+    m_nextRevision = token == 0 ? 0 : token - 1;
+    m_commandRevision = {};
+}
+
+quint64 ViewportEngine::nextPageSetGeneration()
+{
+    if (m_nextPageSetGeneration == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport page-set generation allocator exhausted");
+    }
+    return ++m_nextPageSetGeneration;
+}
+
+ViewportEngine::PageSetState ViewportEngine::pageSetStateFor(
+    ImageViewportPageSet pageSet, quint64 generation) const
+{
+    PageSetState state;
+    if (pageSet.isClear()) {
+        state.pageSet = ImageViewportPageSet::clear();
+        state.generation = generation;
+        return state;
+    }
+
+    state.pageSet = pageSet;
+    state.acceptedRoleSet = ImageViewportRoleSet(true, pageSet.secondary() != nullptr);
+    state.targetRoleSet = state.acceptedRoleSet;
+    state.generation = generation;
+    state.primaryRoleGeneration = generation;
+    state.secondaryRoleGeneration = pageSet.secondary() ? generation : 0;
+    state.activeRole = ImageViewport::PageRole::Primary;
+    state.activeRoleValid = true;
+    return state;
 }

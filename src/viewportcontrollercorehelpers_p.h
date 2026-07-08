@@ -128,15 +128,15 @@ const ImageViewportInternal::DisplayRequest& latestNonPlaybackRequestForRole(
 ViewportProviderRoleState providerRoleStateFor(
     ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return { providerGenerationStateForRole(state, role),
-        activeRequestForRole(state.request, role), latestNonPlaybackRequestForRole(state.request, role) };
+    return { providerGenerationStateForRole(state, role), activeRequestForRole(state.request, role),
+        latestNonPlaybackRequestForRole(state.request, role) };
 }
 
 ConstViewportProviderRoleState providerRoleStateFor(
     const ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return { providerGenerationStateForRole(state, role),
-        activeRequestForRole(state.request, role), latestNonPlaybackRequestForRole(state.request, role) };
+    return { providerGenerationStateForRole(state, role), activeRequestForRole(state.request, role),
+        latestNonPlaybackRequestForRole(state.request, role) };
 }
 
 ViewportDisplayRoleState displayRoleStateFor(
@@ -305,7 +305,8 @@ ViewportSequenceRoleSource resolvedSecondarySource(
         source.present = assignment.secondarySourceHandle.facts.present;
         source.provider = assignment.secondarySourceHandle.facts.provider;
         source.timed = assignment.secondarySourceHandle.facts.timed;
-        source.authoredAnimationFacts = assignment.secondarySourceHandle.facts.authoredAnimationFacts;
+        source.authoredAnimationFacts
+            = assignment.secondarySourceHandle.facts.authoredAnimationFacts;
     }
     if (source.present && !source.provider && source.frameCount < 0) {
         source.frameCount = assignment.secondarySourceHandle.facts.frameCount;
@@ -475,6 +476,9 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     target.displayRevision = target.displayRevision || source.displayRevision;
     target.requestRevision = target.requestRevision || source.requestRevision;
     target.commandRevision = target.commandRevision || source.commandRevision;
+    if (source.commandRevisionValue != 0) {
+        target.commandRevisionValue = source.commandRevisionValue;
+    }
     target.scheduleUpdate = target.scheduleUpdate || source.scheduleUpdate;
     if (source.renderFailureDiagnostic.valid) {
         target.renderFailureDiagnostic = source.renderFailureDiagnostic;
@@ -549,7 +553,6 @@ bool hasProviderSequenceForRole(ViewportControllerPort viewport, ImageViewport::
               && viewportRequestState(viewport).secondarySequenceIsProvider);
 }
 
-
 bool hasSecondarySequence(ViewportControllerPort& viewport)
 {
     return sequenceForRole(viewportRequestState(viewport), ImageViewport::PageRole::Secondary)
@@ -615,6 +618,5 @@ bool displayedSecondaryPayloadMatchesActiveTarget(ViewportControllerPort& viewpo
         && secondaryDisplay.displayedRequest.request.resolvedFrame.position
         == secondaryRequest.resolvedFrame.position;
 }
-
 
 }

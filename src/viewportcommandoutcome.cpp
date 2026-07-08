@@ -63,4 +63,17 @@ ViewportCommandResult ignoredNoRequest(ViewportControllerPort& viewport)
         ImageViewport::CommandReason::IgnoredNoRequest);
 }
 
+ViewportCommandResult fromEngineCommand(
+    ViewportControllerPort& viewport, const ViewportEngine::CommandResult& command)
+{
+    ViewportCommandResult result;
+    result.outcome = command.outcome;
+    if (command.commandRevisionChanged) {
+        viewport.requestState().setCommandDiagnostic(command.reason);
+        result.changes.commandRevision = true;
+        result.changes.commandRevisionValue = command.commandRevision.value();
+    }
+    return result;
+}
+
 }

@@ -17,8 +17,7 @@ ImageViewportInternal::TargetSpreadRoleTerminalState& controllerTargetSpreadTerm
                                                     : request.targetSpreadTerminal.secondary;
 }
 
-const ImageViewportInternal::TargetSpreadRoleTerminalState*
-controllerTargetSpreadTerminalForRole(
+const ImageViewportInternal::TargetSpreadRoleTerminalState* controllerTargetSpreadTerminalForRole(
     const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
 {
     return role == ImageViewport::PageRole::Primary ? &request.targetSpreadTerminal.primary
@@ -39,8 +38,8 @@ bool controllerTargetSpreadRequiresRole(
     return static_cast<bool>(sequenceForRole(viewportRequestState(viewport), role));
 }
 
-const ImageViewportInternal::TargetSpreadRoleTerminalState*
-controllerCurrentTerminalForRole(ViewportControllerPort viewport, ImageViewport::PageRole role)
+const ImageViewportInternal::TargetSpreadRoleTerminalState* controllerCurrentTerminalForRole(
+    ViewportControllerPort viewport, ImageViewport::PageRole role)
 {
     if (!controllerTargetSpreadTerminalMatchesActiveRequest(viewport)
         || !controllerTargetSpreadRequiresRole(viewport, role)) {
@@ -52,8 +51,8 @@ controllerCurrentTerminalForRole(ViewportControllerPort viewport, ImageViewport:
     return terminal->terminal ? terminal : nullptr;
 }
 
-const ImageViewportInternal::TargetSpreadRoleTerminalState*
-controllerProjectedTargetSpreadTerminal(ViewportControllerPort viewport)
+const ImageViewportInternal::TargetSpreadRoleTerminalState* controllerProjectedTargetSpreadTerminal(
+    ViewportControllerPort viewport)
 {
     const auto* primary
         = controllerCurrentTerminalForRole(viewport, ImageViewport::PageRole::Primary);
@@ -557,8 +556,8 @@ int ViewportControllerPort::secondaryTotalDuration() const
 {
     return state.request.secondarySequenceIsProvider && state.secondaryProvider.metadataReady
         ? (state.secondaryProvider.timedMetadata
-                ? state.secondaryProvider.timingIntervals.totalDuration()
-                : -1)
+                  ? state.secondaryProvider.timingIntervals.totalDuration()
+                  : -1)
         : secondarySequenceTotalDuration();
 }
 
@@ -710,8 +709,8 @@ void ViewportController::setSecondaryActiveRequest(DisplayRequestTarget target,
     }
 }
 
-void ViewportController::initializeSecondaryActiveRequest(DisplayRequestTarget target,
-    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
+void ViewportController::initializeSecondaryActiveRequest(
+    DisplayRequestTarget target, ImageViewportInternal::ResolvedFrameIdentity resolvedFrame)
 {
     setSecondaryActiveRequest(target, resolvedFrame, true);
 }
@@ -904,6 +903,11 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
     return state.request;
 }
 
+ViewportEngine::PageSetState ViewportController::pageSetState() const
+{
+    return state.engine.pageSetState();
+}
+
 bool ViewportController::hasProviderSession() const { return state.provider.session != nullptr; }
 
 bool ViewportController::hasProviderSession(ImageViewport::PageRole role) const
@@ -1024,13 +1028,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool loo
     return changes;
 }
 
-quint64 ViewportController::allocateRevisionToken()
-{
-    if (state.nextRevisionToken == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport revision token allocator exhausted");
-    }
-    return ++state.nextRevisionToken;
-}
+quint64 ViewportController::allocateRevisionToken() { return state.engine.allocateRevisionValue(); }
 
 void ViewportController::incrementDisplayRevision()
 {
@@ -1047,10 +1045,37 @@ void ViewportController::incrementCommandRevision()
     state.request.commandRevision = allocateRevisionToken();
 }
 
+void ViewportController::setCommandRevision(quint64 revision)
+{
+    state.request.commandRevision = revision;
+}
+
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {
     ViewportSequenceAssignmentResult result;
+    if (assignment.pageSet.isClear()) {
+        ImageSequence* const primarySequence
+            = assignment.source.sequence ? assignment.source.sequence : assignment.sequence;
+        ImageSequence* const secondarySequence = assignment.secondarySourceHandle.sequence
+            ? assignment.secondarySourceHandle.sequence
+            : assignment.secondarySequence;
+        if (primarySequence) {
+            assignment.pageSet = ImageViewportPageSet(primarySequence, secondarySequence);
+        }
+    }
+
+    const ViewportEngine::PageSetAssignmentResult engineAssignment
+        = state.engine.assignPageSet({ assignment.pageSet, assignment.transitionPolicy });
+    if (engineAssignment.command.outcome != ImageViewport::CommandOutcome::Accepted) {
+        const ViewportCommandResult commandResult
+            = ImageViewportInternal::CommandOutcome::fromEngineCommand(
+                viewport, engineAssignment.command);
+        result.outcome = commandResult.outcome;
+        result.changes = commandResult.changes;
+        return result;
+    }
+
     if (assignment.source.sequence && !assignment.source.facts.present) {
         assignment.source = ImageViewportInternal::makeImageSequenceSource(
             assignment.source.sequence, std::move(assignment.source.owner));
@@ -1070,18 +1095,12 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     }
     const std::optional<ControllerTransitionPolicy> transitionPolicy
         = normalizeControllerTransitionPolicy(assignment.transitionPolicy);
-    if (!transitionPolicy) {
-        const ViewportCommandResult commandResult
-            = ImageViewportInternal::CommandOutcome::invalid(viewport);
-        result.outcome = commandResult.outcome;
-        result.changes = commandResult.changes;
-        return result;
-    }
+    Q_ASSERT(transitionPolicy.has_value());
     const bool retainDisplay = transitionPolicy->displayTransition
         == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
 
-    if (!assignment.source.sequence) {
-        const ViewportCommandResult clearResult = clear();
+    if (engineAssignment.clear) {
+        const ViewportCommandResult clearResult = applyAcceptedClearPageSet(engineAssignment);
         result.outcome = clearResult.outcome;
         result.changes = clearResult.changes;
         result.providerFrameTransport = clearResult.providerFrameTransport;
@@ -1112,14 +1131,15 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         = resolvedFrameForRoleSource(secondarySource);
 
     viewportRequestState(viewport).sequenceSource = std::move(assignment.source);
-    viewportRequestState(viewport).sequence = viewportRequestState(viewport).sequenceSource.sequence;
+    viewportRequestState(viewport).sequence
+        = viewportRequestState(viewport).sequenceSource.sequence;
     viewportRequestState(viewport).secondarySequenceSource
         = std::move(assignment.secondarySourceHandle);
     viewportRequestState(viewport).secondarySequence
         = viewportRequestState(viewport).secondarySequenceSource.sequence;
     viewportRequestState(viewport).secondarySequenceIsProvider = secondarySource.provider;
     state.secondarySource = secondarySource;
-    ++viewportRequestState(viewport).sequenceGeneration;
+    viewportRequestState(viewport).sequenceGeneration = engineAssignment.pageSetState.generation;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
     viewportDisplayState(viewport).clearPendingRenderPayload();
@@ -1137,8 +1157,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     viewportProviderState(viewport).timedPlaybackSupport = false;
     viewportProviderState(viewport).frameSeekSupport = false;
     viewportProviderState(viewport).positionSeekSupport = false;
-    viewportProviderState(viewport).authoredAnimationFacts
-        = viewport.hasProviderSequence()
+    viewportProviderState(viewport).authoredAnimationFacts = viewport.hasProviderSequence()
         ? viewportRequestState(viewport).sequenceSource.facts.authoredAnimationFacts
         : ImageSequenceAuthoredAnimationFacts {};
     viewportProviderState(viewport).logicalSize = {};
@@ -1237,8 +1256,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         result.openSecondaryProviderSession = true;
     }
 
-    transitionChanges
-        = applyPresentationTransition(*transitionPolicy, previousContentPosition, previousZoomPercent);
+    transitionChanges = applyPresentationTransition(
+        *transitionPolicy, previousContentPosition, previousZoomPercent);
 
     armAuthoredAutoplayIfEligible();
 
@@ -1275,8 +1294,15 @@ ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
 
 ViewportCommandResult ViewportController::clear()
 {
+    return applyAcceptedClearPageSet(
+        state.engine.assignPageSet({ ImageViewportPageSet::clear(), {} }));
+}
+
+ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
+    const ViewportEngine::PageSetAssignmentResult& assignment)
+{
     ViewportCommandResult result;
-    result.outcome = ImageViewport::CommandOutcome::Accepted;
+    result.outcome = assignment.command.outcome;
     const bool sequenceValueChanged = viewportRequestState(viewport).sequence != nullptr
         || viewportRequestState(viewport).secondarySequence != nullptr;
     const bool requestChanged = viewport.hasActiveRequest()
@@ -1302,7 +1328,9 @@ ViewportCommandResult ViewportController::clear()
     viewportRequestState(viewport).secondarySequence = nullptr;
     viewportRequestState(viewport).secondarySequenceIsProvider = false;
     state.secondarySource = {};
-    ++viewportRequestState(viewport).sequenceGeneration;
+    if (assignment.pageSetChanged) {
+        viewportRequestState(viewport).sequenceGeneration = assignment.pageSetState.generation;
+    }
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).clearDisplayedDisplay();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
@@ -1366,7 +1394,7 @@ void ViewportController::setNextProviderRequestTokenForTest(
 
 void ViewportController::setNextRevisionTokenForTest(quint64 token)
 {
-    state.nextRevisionToken = token == 0 ? 0 : token - 1;
+    state.engine.setNextRevisionValueForTest(token);
     state.display.revision = 0;
     state.request.requestRevision = 0;
     state.request.commandRevision = 0;

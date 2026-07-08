@@ -381,6 +381,18 @@ Move accepted page-set identity, role generation identity, page-set transition v
 - No rejected page-set command can mutate provider, render, playback, display, presentation, or retained-display state except command diagnostics.
 - Compatibility assignment APIs remain available and behave through the engine path.
 
+### Status
+
+Complete as of 2026-07-08. `ViewportEngine` now owns accepted page-set state, target role sets, active role identity, page-set generation allocation, role generation identity, clear/null-primary semantics, assignment validation, retained-versus-clear display transaction flags, and command-diagnostic results for rejected page-set transactions.
+
+The controller keeps provider, render, playback, and presentation side effects as adapters, but valid canonical, compatibility, and private controller assignment calls now derive or carry `ImageViewportPageSet` into the engine before mutating controller state. Runtime request generation and snapshot accepted/target role-set projection are sourced from the engine-owned page-set state, while legacy flat sequence fields remain synchronized for compatibility.
+
+Focused coverage is in `viewportengine`: primary-only and two-role atomic assignment, invalid secondary-only page sets, invalid transition policies, clear/null-primary transactions, clear-from-empty no-op behavior, generation and role-generation allocation, accepted assignment diagnostic preservation, and assignment effect flags. Public adapter coverage in `imageviewport_public_api_commands` now verifies snapshot page-set generation identity across primary, spread, and clear assignments, on top of the existing page-set, invalid-command, provider-side-effect, transition-policy, and compatibility assignment coverage.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after the migration and formatting.
+
+Adapter assumptions recorded for later milestones: presentation transition math remains controller-owned until Milestone 7, provider request/session effects remain provider-host/controller-owned until Milestone 9, render payload and retained-display materialization remain render/controller-owned until Milestone 10, and accepted assignment still preserves existing command diagnostics for compatibility while rejected page-set transactions use the engine command result through the command outcome boundary.
+
 ### Risks And Rollback Criteria
 
 - Risk: accepted two-role replacements expose a transient primary-only state. Roll back if atomic spread acceptance or snapshot role-set tests fail.
