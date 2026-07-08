@@ -625,10 +625,10 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     ImageViewportPresentationCommand rotationCommand;
     rotationCommand.setRotationDegrees(90);
     QCOMPARE(item.setPresentation(rotationCommand), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setMirrorHorizontally(true, QPointF(50.0, 50.0)),
-        ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setMirrorVertically(true, QPointF(50.0, 50.0)),
-        ImageViewport::CommandOutcome::Accepted);
+    ImageViewportPresentationCommand mirrorCommand;
+    mirrorCommand.setMirrorHorizontally(true);
+    mirrorCommand.setMirrorVertically(true);
+    QCOMPARE(item.setPresentation(mirrorCommand), ImageViewport::CommandOutcome::Accepted);
     item.setSmoothing(false);
     item.setMipmap(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);

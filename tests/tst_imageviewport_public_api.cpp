@@ -101,6 +101,8 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "scanPrevious()",
         "rotateClockwise(QPointF)",
         "rotateCounterClockwise(QPointF)",
+        "setMirrorHorizontally(bool,QPointF)",
+        "setMirrorVertically(bool,QPointF)",
     };
 
     for (const QByteArray& method : absentMethods) {

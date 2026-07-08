@@ -41,7 +41,7 @@ private slots:
     void manualZoomMaximumFallsBackAcrossDisplayStates();
     void manualZoomAbovePublishedLimitIsInvalid();
     void presentationCommandZoomStepDeltaUsesSharedSetZoomPath();
-    void mirrorCommandsPreserveAnchor();
+    void mirrorPresentationCommandsPreserveItemCenterAnchor();
     void rotationAffectsSpreadMapping();
 };
 
@@ -49,6 +49,20 @@ static ImageViewport::CommandOutcome setRotationDegrees(ImageViewport& item, int
 {
     ImageViewportPresentationCommand command;
     command.setRotationDegrees(degrees);
+    return item.setPresentation(command);
+}
+
+static ImageViewport::CommandOutcome setMirrorHorizontallyCommand(ImageViewport& item, bool mirror)
+{
+    ImageViewportPresentationCommand command;
+    command.setMirrorHorizontally(mirror);
+    return item.setPresentation(command);
+}
+
+static ImageViewport::CommandOutcome setMirrorVerticallyCommand(ImageViewport& item, bool mirror)
+{
+    ImageViewportPresentationCommand command;
+    command.setMirrorVertically(mirror);
     return item.setPresentation(command);
 }
 
@@ -1057,8 +1071,7 @@ void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateA
         item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.panToEnd(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setMirrorHorizontally(true, QPointF(50.0, 50.0)),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setPageGap(12.0), ImageViewport::CommandOutcome::Accepted);
@@ -1292,7 +1305,7 @@ void ImageViewportPresentationStateTest::presentationCommandZoomStepDeltaUsesSha
     QCOMPARE(item.zoomPercent(), item.maximumManualZoomPercent());
 }
 
-void ImageViewportPresentationStateTest::mirrorCommandsPreserveAnchor()
+void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemCenterAnchor()
 {
     ImageSequenceFactory factory;
     QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
@@ -1314,11 +1327,11 @@ void ImageViewportPresentationStateTest::mirrorCommandsPreserveAnchor()
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(horizontalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
 
-    const QPointF horizontalAnchor(25.0, 50.0);
+    const QPointF horizontalAnchor(50.0, 50.0);
     const CoordinateResult horizontalBefore
         = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
     QCOMPARE(horizontalBefore.isValid(), true);
-    QCOMPARE(horizontalItem.setMirrorHorizontally(true, horizontalAnchor),
+    QCOMPARE(setMirrorHorizontallyCommand(horizontalItem, true),
         ImageViewport::CommandOutcome::Accepted);
     const CoordinateResult horizontalAfter
         = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
@@ -1334,12 +1347,12 @@ void ImageViewportPresentationStateTest::mirrorCommandsPreserveAnchor()
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(verticalItem.panToEnd(), ImageViewport::CommandOutcome::Accepted);
 
-    const QPointF verticalAnchor(50.0, 25.0);
+    const QPointF verticalAnchor(50.0, 50.0);
     const CoordinateResult verticalBefore
         = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
     QCOMPARE(verticalBefore.isValid(), true);
-    QCOMPARE(verticalItem.setMirrorVertically(true, verticalAnchor),
-        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        setMirrorVerticallyCommand(verticalItem, true), ImageViewport::CommandOutcome::Accepted);
     const CoordinateResult verticalAfter
         = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
     QCOMPARE(verticalAfter.isValid(), true);

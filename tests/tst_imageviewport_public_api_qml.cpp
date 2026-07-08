@@ -298,6 +298,8 @@ ImageViewport {
     property imageViewportPresentationCommand scanNextCommand
     property imageViewportPresentationCommand scanPreviousCommand
     property imageViewportPresentationCommand rotationCommand
+    property imageViewportPresentationCommand horizontalMirrorCommand
+    property imageViewportPresentationCommand verticalMirrorCommand
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -350,6 +352,8 @@ ImageViewport {
             && typeof viewport.scanPrevious === "undefined"
             && typeof viewport.rotateClockwise === "undefined"
             && typeof viewport.rotateCounterClockwise === "undefined"
+            && typeof viewport.setMirrorHorizontally === "undefined"
+            && typeof viewport.setMirrorVertically === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -376,6 +380,8 @@ ImageViewport {
         scanNextCommand.scanDirection = ImageViewport.ScanDirection.Next
         scanPreviousCommand.scanDirection = ImageViewport.ScanDirection.Previous
         rotationCommand.rotationDegrees = 0
+        horizontalMirrorCommand.mirrorHorizontally = false
+        verticalMirrorCommand.mirrorVertically = false
         presentationCommandsReachViewport = setSpreadDirection(ImageViewport.SpreadDirection.LeftToRight) === ImageViewport.CommandOutcome.Accepted
             && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
             && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
@@ -387,8 +393,8 @@ ImageViewport {
             && setPresentation(scanNextCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanPreviousCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(rotationCommand) === ImageViewport.CommandOutcome.Accepted
-            && setMirrorHorizontally(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
-            && setMirrorVertically(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(horizontalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(verticalMirrorCommand) === ImageViewport.CommandOutcome.Accepted
             && resetView() === ImageViewport.CommandOutcome.Accepted
 
         coordinateAliasesAvailable = itemToSpread(1, 1).valid === false

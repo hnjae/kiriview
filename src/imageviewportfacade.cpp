@@ -222,14 +222,6 @@ ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPoi
 ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::panToStart() { return d->panToStart(); }
 ImageViewport::CommandOutcome ImageViewport::panToEnd() { return d->panToEnd(); }
-ImageViewport::CommandOutcome ImageViewport::setMirrorHorizontally(bool enabled, QPointF anchor)
-{
-    return d->setMirrorHorizontally(enabled, anchor);
-}
-ImageViewport::CommandOutcome ImageViewport::setMirrorVertically(bool enabled, QPointF anchor)
-{
-    return d->setMirrorVertically(enabled, anchor);
-}
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
 
 ImageViewport::CommandOutcome ImageViewport::setPresentation(
