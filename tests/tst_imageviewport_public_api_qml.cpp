@@ -39,7 +39,7 @@ private slots:
     void qmlUnsupportedSequenceAssignmentsPreserveState();
     void qmlUnsupportedSequenceAssignmentsPreserveReadyState();
     void qmlFinalApiScaffoldDefaultsAndCommands();
-    void manualZoomHelperQmlBindingRefreshesWithGeometryState();
+    void manualZoomLimitQmlBindingRefreshesWithGeometryState();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
     void pageGeometryQmlValueType();
@@ -292,7 +292,7 @@ ImageViewport {
     property bool roleCommandsReachViewport: false
     property bool pageSetValidationPreservedState: false
     property bool presentationCommandsReachViewport: false
-    property bool manualZoomHelpersAvailable: false
+    property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
 
     function nearlyEqual(left, right) {
@@ -339,13 +339,10 @@ ImageViewport {
         const commandRevisionBefore = commandRevision
         const minimum = minimumManualZoomPercent
         const maximum = maximumManualZoomPercent
-        manualZoomHelpersAvailable = clampedManualZoomPercent(-1) === minimum
-            && clampedManualZoomPercent(Number.POSITIVE_INFINITY) === minimum
-            && clampedManualZoomPercent(maximum + 1) === maximum
-            && nearlyEqual(clampedManualZoomPercent(125), 125)
-            && nearlyEqual(steppedManualZoomPercent(0), 100)
-            && nearlyEqual(steppedManualZoomPercent(1), 125)
-            && nearlyEqual(steppedManualZoomPercent(-1), 80)
+        manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
+            && typeof viewport.steppedManualZoomPercent === "undefined"
+            && minimum > 0
+            && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
             && displayRevision === displayRevisionBefore
             && commandRevision === commandRevisionBefore
@@ -404,11 +401,11 @@ ImageViewport {
     QCOMPARE(object->property("pageSetValidationPreservedState").toBool(), true);
     QCOMPARE(object->property("roleCommandsReachViewport").toBool(), true);
     QCOMPARE(object->property("presentationCommandsReachViewport").toBool(), true);
-    QCOMPARE(object->property("manualZoomHelpersAvailable").toBool(), true);
+    QCOMPARE(object->property("manualZoomHelpersRemoved").toBool(), true);
     QCOMPARE(object->property("coordinateAliasesAvailable").toBool(), true);
 }
 
-void ImageViewportPublicApiQmlTest::manualZoomHelperQmlBindingRefreshesWithGeometryState()
+void ImageViewportPublicApiQmlTest::manualZoomLimitQmlBindingRefreshesWithGeometryState()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);

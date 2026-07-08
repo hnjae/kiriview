@@ -223,14 +223,6 @@ ImageViewport::CommandOutcome ImageViewport::zoomByStep(int stepCount, QPointF a
 {
     return d->zoomByStep(stepCount, anchor);
 }
-double ImageViewport::clampedManualZoomPercent(double percent) const
-{
-    return d->clampedManualZoomPercent(percent);
-}
-double ImageViewport::steppedManualZoomPercent(int stepCount) const
-{
-    return d->steppedManualZoomPercent(stepCount);
-}
 ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::panToStart() { return d->panToStart(); }
 ImageViewport::CommandOutcome ImageViewport::panToEnd() { return d->panToEnd(); }

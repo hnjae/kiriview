@@ -484,9 +484,8 @@ ImageViewport {
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && manualZoomStepFactor === 1.25
-            && clampedManualZoomPercent(-1) === minimum
-            && clampedManualZoomPercent(maximum + 1) === maximum
-            && nearlyEqual(steppedManualZoomPercent(1), 125)
+            && typeof clampedManualZoomPercent === "undefined"
+            && typeof steppedManualZoomPercent === "undefined"
             && contentPosition.x === 0
             && contentPosition.y === 0
             && frameSeekBounds.minimum === -1
@@ -842,9 +841,6 @@ int main(int argc, char** argv)
     if (minimumManualZoom <= 0.0
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
         || helperViewport.manualZoomStepFactor() != 1.25
-        || helperViewport.clampedManualZoomPercent(-1.0) != minimumManualZoom
-        || helperViewport.clampedManualZoomPercent(maximumManualZoom + 1.0) != maximumManualZoom
-        || !nearlyEqual(helperViewport.steppedManualZoomPercent(1), 125.0)
         || helperViewport.nearestVisibleSpreadPoint(1.0, 1.0).isValid()
         || helperViewport.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0)
             .isValid()

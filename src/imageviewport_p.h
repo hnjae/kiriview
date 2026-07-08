@@ -194,8 +194,6 @@ public:
     double minimumManualZoomPercent() const;
     double maximumManualZoomPercent() const;
     double manualZoomStepFactor() const;
-    double clampedManualZoomPercent(double percent) const;
-    double steppedManualZoomPercent(int stepCount) const;
     int rotationDegrees() const;
     bool smoothing() const;
     void setSmoothing(bool smoothing);

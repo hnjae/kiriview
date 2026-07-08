@@ -1249,8 +1249,6 @@ public:
         ImageViewport::FitMode mode, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome zoomByStep(int stepCount, QPointF anchor);
-    Q_INVOKABLE double clampedManualZoomPercent(double percent) const;
-    Q_INVOKABLE double steppedManualZoomPercent(int stepCount) const;
     Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
     Q_INVOKABLE ImageViewport::CommandOutcome panToStart();
     Q_INVOKABLE ImageViewport::CommandOutcome panToEnd();
