@@ -832,7 +832,7 @@ int main(int argc, char** argv)
     }
     if (typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()
         || typedPageSetViewport.secondarySequence() != nullptr
-        || typedPageSetViewport.pageGap() != 2.0) {
+        || typedPageSetViewport.state().presentation().pageGap() != 2.0) {
         return 1;
     }
     ImageViewportPageSet installedSecondaryOnly;
@@ -847,11 +847,12 @@ int main(int argc, char** argv)
     ImageViewport helperViewport;
     const auto nearlyEqual
         = [](double left, double right) { return std::abs(left - right) < 0.000001; };
-    const double minimumManualZoom = helperViewport.minimumManualZoomPercent();
-    const double maximumManualZoom = helperViewport.maximumManualZoomPercent();
+    const ImageViewportPresentationSnapshot helperPresentation = helperViewport.state().presentation();
+    const double minimumManualZoom = helperPresentation.minimumManualZoomPercent();
+    const double maximumManualZoom = helperPresentation.maximumManualZoomPercent();
     if (minimumManualZoom <= 0.0
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
-        || helperViewport.manualZoomStepFactor() != 1.25
+        || helperPresentation.manualZoomStepFactor() != 1.25
         || helperViewport.nearestVisibleSpreadPoint(1.0, 1.0).isValid()
         || helperViewport.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0)
             .isValid()
@@ -864,7 +865,7 @@ int main(int argc, char** argv)
     stepCommand.setZoomStepDelta(1);
     if (steppedCommandViewport.setPresentation(stepCommand)
             != ImageViewport::CommandOutcome::Accepted
-        || !nearlyEqual(steppedCommandViewport.zoomPercent(), 125.0)) {
+        || !nearlyEqual(steppedCommandViewport.state().presentation().zoomPercent(), 125.0)) {
         return 1;
     }
 
@@ -908,8 +909,9 @@ int main(int argc, char** argv)
         || !installedPresentationCommand.hasExactnessPreference()
         || helperViewport.setPresentation(installedPresentationCommand)
             != ImageViewport::CommandOutcome::Accepted
-        || helperViewport.fitMode() != ImageViewport::FitMode::Manual
-        || !nearlyEqual(helperViewport.zoomPercent(), 125.0) || helperViewport.pageGap() != 3.0
+        || helperViewport.state().presentation().fitMode() != ImageViewport::FitMode::Manual
+        || !nearlyEqual(helperViewport.state().presentation().zoomPercent(), 125.0)
+        || helperViewport.state().presentation().pageGap() != 3.0
         || helperViewport.state().presentation().qualityPreference()
             != ImageViewport::QualityPreference::ExactDetail
         || helperViewport.state().presentation().exactnessPreference()

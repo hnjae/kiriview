@@ -40,14 +40,16 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QVERIFY(!snapshot.display().displayedPresentationRevision().isValid());
     QVERIFY(!snapshot.display().targetPresentationRevision().isValid());
 
-    QCOMPARE(snapshot.presentation().fitMode(), item.fitMode());
-    QCOMPARE(snapshot.presentation().zoomPercent(), item.zoomPercent());
-    QCOMPARE(snapshot.presentation().minimumManualZoomPercent(), item.minimumManualZoomPercent());
-    QCOMPARE(snapshot.presentation().maximumManualZoomPercent(), item.maximumManualZoomPercent());
-    QCOMPARE(snapshot.presentation().manualZoomStepFactor(), item.manualZoomStepFactor());
-    QCOMPARE(snapshot.presentation().rotationDegrees(), item.rotationDegrees());
-    QCOMPARE(snapshot.presentation().spreadDirection(), item.spreadDirection());
-    QCOMPARE(snapshot.presentation().pageGap(), item.pageGap());
+    QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(snapshot.presentation().zoomPercent(), 100.0);
+    QVERIFY(snapshot.presentation().minimumManualZoomPercent() > 0.0);
+    QCOMPARE(snapshot.presentation().maximumManualZoomPercent(),
+        ImageViewportDisplayLimits::maximumManualZoomPercent());
+    QCOMPARE(snapshot.presentation().manualZoomStepFactor(), 1.25);
+    QCOMPARE(snapshot.presentation().rotationDegrees(), 0);
+    QCOMPARE(
+        snapshot.presentation().spreadDirection(), ImageViewport::SpreadDirection::LeftToRight);
+    QCOMPARE(snapshot.presentation().pageGap(), 0.0);
     QCOMPARE(
         snapshot.presentation().qualityPreference(), ImageViewport::QualityPreference::Default);
     QCOMPARE(
@@ -296,18 +298,18 @@ void ImageViewportStateSnapshotTest::presentationOnlyChangesUpdateSnapshot()
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     ImageViewportPresentationCommand smoothingCommand;
-    smoothingCommand.setSmoothing(!item.smoothing());
+    smoothingCommand.setSmoothing(!before.presentation().smoothing());
     QCOMPARE(item.setPresentation(smoothingCommand), ImageViewport::CommandOutcome::Accepted);
     const ImageViewportStateSnapshot after = item.state();
 
     QCOMPARE(stateSpy.count(), 1);
     QCOMPARE(after.request(), before.request());
     QCOMPARE(after.display().status(), before.display().status());
-    QCOMPARE(after.presentation().smoothing(), item.smoothing());
+    QCOMPARE(after.presentation().smoothing(), !before.presentation().smoothing());
     QVERIFY(after != before);
 
     smoothingCommand = {};
-    smoothingCommand.setSmoothing(item.smoothing());
+    smoothingCommand.setSmoothing(after.presentation().smoothing());
     QCOMPARE(item.setPresentation(smoothingCommand), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(stateSpy.count(), 1);
 }
@@ -340,7 +342,7 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
 
     const ImageViewportStateSnapshot snapshot = item.state();
     QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Manual);
-    QCOMPARE(snapshot.presentation().zoomPercent(), item.zoomPercent());
+    QCOMPARE(snapshot.presentation().zoomPercent(), 200.0);
     QCOMPARE(snapshot.presentation().qualityPreference(),
         ImageViewport::QualityPreference::BalancedDetail);
     QCOMPARE(snapshot.presentation().exactnessPreference(),

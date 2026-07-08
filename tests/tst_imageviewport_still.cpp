@@ -211,16 +211,16 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
-    QCOMPARE(item.smoothing(), false);
-    QCOMPARE(item.mipmap(), true);
-    QCOMPARE(item.mirrorHorizontally(), true);
-    QCOMPARE(item.mirrorVertically(), true);
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
-    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.state().presentation().smoothing(), false);
+    QCOMPARE(item.state().presentation().mipmap(), true);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 625.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.looping(), true);
+    QCOMPARE(item.state().presentation().looping(), true);
 }
 
 void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
@@ -472,16 +472,16 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     QCOMPARE(
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(item.property("displayedImageSize").toSizeF(), QSizeF(0.0, 0.0));
-    QCOMPARE(item.smoothing(), false);
-    QCOMPARE(item.mipmap(), true);
-    QCOMPARE(item.mirrorHorizontally(), true);
-    QCOMPARE(item.mirrorVertically(), true);
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
-    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.state().presentation().smoothing(), false);
+    QCOMPARE(item.state().presentation().mipmap(), true);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 250.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.looping(), true);
+    QCOMPARE(item.state().presentation().looping(), true);
 }
 
 void ImageViewportStillTest::clearReadyDisplayEmitsGeometryStateChanged()
@@ -618,16 +618,16 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
         item.property("displayStatus").toInt(), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(item.property("requestedFrame").toInt(), 0);
     QCOMPARE(item.property("displayedFrame").toInt(), 0);
-    QCOMPARE(item.smoothing(), false);
-    QCOMPARE(item.mipmap(), true);
-    QCOMPARE(item.mirrorHorizontally(), true);
-    QCOMPARE(item.mirrorVertically(), true);
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
-    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.state().presentation().smoothing(), false);
+    QCOMPARE(item.state().presentation().mipmap(), true);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
+    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
+    QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF());
-    QCOMPARE(item.looping(), true);
+    QCOMPARE(item.state().presentation().looping(), true);
 }
 
 void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState()

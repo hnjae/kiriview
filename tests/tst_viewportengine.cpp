@@ -142,7 +142,7 @@ void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
     QCOMPARE(request.reason, ImageViewport::RequestReason::NoRequest);
     QCOMPARE(request.commandReason, ImageViewport::CommandReason::NoCommand);
     QCOMPARE(request.playbackPhase, item.playbackPhase());
-    QCOMPARE(request.looping, item.looping());
+    QCOMPARE(request.looping, item.state().presentation().looping());
     QCOMPARE(request.stopPlaybackWhenRequestReady, false);
     QCOMPARE(request.providerPlaybackStartPending, false);
     QCOMPARE(request.activeRequest.identity.id, 0);
@@ -371,17 +371,18 @@ void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
     ViewportEngine engine;
     ImageViewport item;
 
-    QCOMPARE(engine.presentationState().fitMode, item.fitMode());
-    QCOMPARE(engine.presentationState().manualZoom * 100.0, item.zoomPercent());
-    QCOMPARE(engine.presentationState().rotationDegrees, item.rotationDegrees());
-    QCOMPARE(engine.presentationState().mirrorHorizontally, item.mirrorHorizontally());
-    QCOMPARE(engine.presentationState().mirrorVertically, item.mirrorVertically());
-    QCOMPARE(engine.presentationState().spreadDirection, item.spreadDirection());
-    QCOMPARE(engine.presentationState().pageGap, item.pageGap());
-    QCOMPARE(engine.presentationState().backgroundMode, item.backgroundMode());
-    QCOMPARE(engine.presentationState().backgroundColor, item.backgroundColor());
-    QCOMPARE(engine.presentationState().smoothing, item.smoothing());
-    QCOMPARE(engine.presentationState().mipmap, item.mipmap());
+    const ImageViewportPresentationSnapshot presentation = item.state().presentation();
+    QCOMPARE(engine.presentationState().fitMode, presentation.fitMode());
+    QCOMPARE(engine.presentationState().manualZoom * 100.0, presentation.zoomPercent());
+    QCOMPARE(engine.presentationState().rotationDegrees, presentation.rotationDegrees());
+    QCOMPARE(engine.presentationState().mirrorHorizontally, presentation.mirrorHorizontally());
+    QCOMPARE(engine.presentationState().mirrorVertically, presentation.mirrorVertically());
+    QCOMPARE(engine.presentationState().spreadDirection, presentation.spreadDirection());
+    QCOMPARE(engine.presentationState().pageGap, presentation.pageGap());
+    QCOMPARE(engine.presentationState().backgroundMode, presentation.backgroundMode());
+    QCOMPARE(engine.presentationState().backgroundColor, presentation.backgroundColor());
+    QCOMPARE(engine.presentationState().smoothing, presentation.smoothing());
+    QCOMPARE(engine.presentationState().mipmap, presentation.mipmap());
     QCOMPARE(
         engine.presentationState().qualityPreference, ImageViewport::QualityPreference::Default);
     QCOMPARE(engine.presentationState().exactnessPreference,

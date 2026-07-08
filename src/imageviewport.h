@@ -1105,9 +1105,6 @@ public:
     void setSequence(ImageSequence* sequence);
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
-    SpreadDirection spreadDirection() const;
-    double pageGap() const;
-
     RequestStatus requestStatus() const;
     RequestReason requestReason() const;
     CommandReason commandReason() const;
@@ -1171,20 +1168,6 @@ public:
     RevisionToken commandRevision() const;
     QString errorString() const;
     QString warningString() const;
-
-    FitMode fitMode() const;
-    double zoomPercent() const;
-    double minimumManualZoomPercent() const;
-    double maximumManualZoomPercent() const;
-    double manualZoomStepFactor() const;
-    int rotationDegrees() const;
-    bool smoothing() const;
-    bool mipmap() const;
-    bool mirrorHorizontally() const;
-    bool mirrorVertically() const;
-    BackgroundMode backgroundMode() const;
-    QColor backgroundColor() const;
-    bool looping() const;
 
     Q_INVOKABLE ImageViewport::CommandOutcome clear();
     Q_INVOKABLE ImageViewport::CommandOutcome play();

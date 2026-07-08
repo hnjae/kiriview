@@ -1036,8 +1036,8 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
         ImageViewport::CommandOutcome::Accepted);
 
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
-    QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);

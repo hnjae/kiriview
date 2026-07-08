@@ -19,11 +19,6 @@ ImageSequence* ImageViewport::sequence() const { return d->sequence(); }
 void ImageViewport::setSequence(ImageSequence* sequence) { d->setSequence(sequence); }
 ImageSequence* ImageViewport::primarySequence() const { return d->primarySequence(); }
 ImageSequence* ImageViewport::secondarySequence() const { return d->secondarySequence(); }
-ImageViewport::SpreadDirection ImageViewport::spreadDirection() const
-{
-    return d->spreadDirection();
-}
-double ImageViewport::pageGap() const { return d->pageGap(); }
 ImageViewport::RequestStatus ImageViewport::requestStatus() const { return d->requestStatus(); }
 ImageViewport::RequestReason ImageViewport::requestReason() const { return d->requestReason(); }
 ImageViewport::CommandReason ImageViewport::commandReason() const { return d->commandReason(); }
@@ -126,19 +121,6 @@ RevisionToken ImageViewport::requestRevision() const { return d->requestRevision
 RevisionToken ImageViewport::commandRevision() const { return d->commandRevision(); }
 QString ImageViewport::errorString() const { return d->errorString(); }
 QString ImageViewport::warningString() const { return d->warningString(); }
-ImageViewport::FitMode ImageViewport::fitMode() const { return d->fitMode(); }
-double ImageViewport::zoomPercent() const { return d->zoomPercent(); }
-double ImageViewport::minimumManualZoomPercent() const { return d->minimumManualZoomPercent(); }
-double ImageViewport::maximumManualZoomPercent() const { return d->maximumManualZoomPercent(); }
-double ImageViewport::manualZoomStepFactor() const { return d->manualZoomStepFactor(); }
-int ImageViewport::rotationDegrees() const { return d->rotationDegrees(); }
-bool ImageViewport::smoothing() const { return d->smoothing(); }
-bool ImageViewport::mipmap() const { return d->mipmap(); }
-bool ImageViewport::mirrorHorizontally() const { return d->mirrorHorizontally(); }
-bool ImageViewport::mirrorVertically() const { return d->mirrorVertically(); }
-ImageViewport::BackgroundMode ImageViewport::backgroundMode() const { return d->backgroundMode(); }
-QColor ImageViewport::backgroundColor() const { return d->backgroundColor(); }
-bool ImageViewport::looping() const { return d->looping(); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }
 ImageViewport::CommandOutcome ImageViewport::play() { return d->play(); }
 ImageViewport::CommandOutcome ImageViewport::play(PageRole role) { return d->play(role); }

@@ -515,9 +515,10 @@ void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNot
     QSignalSpy requestSpy(&item, &ImageViewport::requestRevisionChanged);
     QSignalSpy commandSpy(&item, &ImageViewport::commandRevisionChanged);
 
-    const double minimum = item.minimumManualZoomPercent();
-    const double maximum = item.maximumManualZoomPercent();
-    const double stepFactor = item.manualZoomStepFactor();
+    const ImageViewportPresentationSnapshot presentation = item.state().presentation();
+    const double minimum = presentation.minimumManualZoomPercent();
+    const double maximum = presentation.maximumManualZoomPercent();
+    const double stepFactor = presentation.manualZoomStepFactor();
 
     QVERIFY(std::isfinite(minimum));
     QVERIFY(minimum > 0.0);

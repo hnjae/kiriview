@@ -1275,7 +1275,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAu
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.looping(), false);
+    QCOMPARE(item.state().presentation().looping(), false);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken
@@ -1338,7 +1338,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackEndOfSequenceUsesAu
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.looping(), false);
+    QCOMPARE(item.state().presentation().looping(), false);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 100);
     const ImageSequenceProviderRequestToken playbackToken

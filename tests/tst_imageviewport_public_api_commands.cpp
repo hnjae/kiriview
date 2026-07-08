@@ -264,7 +264,7 @@ void ImageViewportPublicApiCommandsTest::cppTypedPageSetOverloadsCompileAndRepla
     QCOMPARE(item.sequence(), replacementResult->sequence());
     QCOMPARE(item.primarySequence(), replacementResult->sequence());
     QCOMPARE(item.secondarySequence(), nullptr);
-    QCOMPARE(item.pageGap(), 4.0);
+    QCOMPARE(item.state().presentation().pageGap(), 4.0);
 }
 
 void ImageViewportPublicApiCommandsTest::canonicalPageSetValueDefaultsAndConstruction()
@@ -682,19 +682,20 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
 
-    const auto fitMode = item.fitMode();
-    const double zoomPercent = item.zoomPercent();
+    const ImageViewportPresentationSnapshot presentation = item.state().presentation();
+    const auto fitMode = presentation.fitMode();
+    const double zoomPercent = presentation.zoomPercent();
     const QPointF contentPosition = item.property("contentPosition").toPointF();
-    const auto spreadDirection = item.spreadDirection();
-    const double pageGap = item.pageGap();
-    const int rotationDegrees = item.rotationDegrees();
-    const bool mirrorHorizontally = item.mirrorHorizontally();
-    const bool mirrorVertically = item.mirrorVertically();
-    const bool smoothing = item.smoothing();
-    const bool mipmap = item.mipmap();
-    const auto backgroundMode = item.backgroundMode();
-    const QColor backgroundColor = item.backgroundColor();
-    const bool looping = item.looping();
+    const auto spreadDirection = presentation.spreadDirection();
+    const double pageGap = presentation.pageGap();
+    const int rotationDegrees = presentation.rotationDegrees();
+    const bool mirrorHorizontally = presentation.mirrorHorizontally();
+    const bool mirrorVertically = presentation.mirrorVertically();
+    const bool smoothing = presentation.smoothing();
+    const bool mipmap = presentation.mipmap();
+    const auto backgroundMode = presentation.backgroundMode();
+    const QColor backgroundColor = presentation.backgroundColor();
+    const bool looping = presentation.looping();
 
     PageSetTransitionPolicy policy;
     policy.setDisplayTransition(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
@@ -719,19 +720,20 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
         enumValue(item.metaObject(), "RequestStatus", "NoRequest"));
     QCOMPARE(item.property("displayStatus").toInt(),
         enumValue(item.metaObject(), "DisplayStatus", "Empty"));
-    QCOMPARE(item.fitMode(), fitMode);
-    QCOMPARE(item.zoomPercent(), zoomPercent);
+    const ImageViewportPresentationSnapshot afterClearPresentation = item.state().presentation();
+    QCOMPARE(afterClearPresentation.fitMode(), fitMode);
+    QCOMPARE(afterClearPresentation.zoomPercent(), zoomPercent);
     QCOMPARE(item.property("contentPosition").toPointF(), contentPosition);
-    QCOMPARE(item.spreadDirection(), spreadDirection);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.rotationDegrees(), rotationDegrees);
-    QCOMPARE(item.mirrorHorizontally(), mirrorHorizontally);
-    QCOMPARE(item.mirrorVertically(), mirrorVertically);
-    QCOMPARE(item.smoothing(), smoothing);
-    QCOMPARE(item.mipmap(), mipmap);
-    QCOMPARE(item.backgroundMode(), backgroundMode);
-    QCOMPARE(item.backgroundColor(), backgroundColor);
-    QCOMPARE(item.looping(), looping);
+    QCOMPARE(afterClearPresentation.spreadDirection(), spreadDirection);
+    QCOMPARE(afterClearPresentation.pageGap(), pageGap);
+    QCOMPARE(afterClearPresentation.rotationDegrees(), rotationDegrees);
+    QCOMPARE(afterClearPresentation.mirrorHorizontally(), mirrorHorizontally);
+    QCOMPARE(afterClearPresentation.mirrorVertically(), mirrorVertically);
+    QCOMPARE(afterClearPresentation.smoothing(), smoothing);
+    QCOMPARE(afterClearPresentation.mipmap(), mipmap);
+    QCOMPARE(afterClearPresentation.backgroundMode(), backgroundMode);
+    QCOMPARE(afterClearPresentation.backgroundColor(), backgroundColor);
+    QCOMPARE(afterClearPresentation.looping(), looping);
 }
 
 void ImageViewportPublicApiCommandsTest::invalidPageSetSecondaryPreservesAcceptedRoles()
@@ -989,15 +991,16 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     command.setExactnessPreference(ImageViewport::ExactnessPreference::RequireExact);
 
     QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
-    QCOMPARE(item.zoomPercent(), 150.0);
-    QCOMPARE(item.spreadDirection(), ImageViewport::SpreadDirection::RightToLeft);
-    QCOMPARE(item.pageGap(), 5.0);
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
-    QCOMPARE(item.backgroundColor(), QColor(10, 20, 30, 255));
-    QCOMPARE(item.smoothing(), false);
-    QCOMPARE(item.mipmap(), true);
-    QCOMPARE(item.looping(), true);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
+    QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
+    QCOMPARE(item.state().presentation().spreadDirection(),
+        ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(item.state().presentation().pageGap(), 5.0);
+    QCOMPARE(item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(item.state().presentation().backgroundColor(), QColor(10, 20, 30, 255));
+    QCOMPARE(item.state().presentation().smoothing(), false);
+    QCOMPARE(item.state().presentation().mipmap(), true);
+    QCOMPARE(item.state().presentation().looping(), true);
     QCOMPARE(item.state().presentation().qualityPreference(),
         ImageViewport::QualityPreference::ExactDetail);
     QCOMPARE(item.state().presentation().exactnessPreference(),
@@ -1019,9 +1022,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     const RevisionToken requestRevision = item.requestRevision();
     const RevisionToken displayRevision = item.displayRevision();
     const RevisionToken commandRevision = item.commandRevision();
-    const double zoomPercent = item.zoomPercent();
-    const double pageGap = item.pageGap();
-    const auto spreadDirection = item.spreadDirection();
+    const ImageViewportPresentationSnapshot preservedPresentation = item.state().presentation();
 
     ImageViewportPresentationCommand invalidCommand;
     invalidCommand.setManualZoomPercent(125.0);
@@ -1029,9 +1030,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     invalidCommand.setPageGap(12.0);
 
     QCOMPARE(item.setPresentation(invalidCommand), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.zoomPercent(), zoomPercent);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
+    QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
+    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(item.requestRevision(), requestRevision);
     QCOMPARE(item.displayRevision(), displayRevision);
     QVERIFY(item.commandRevision() != commandRevision);
@@ -1043,9 +1044,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
         999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
     invalidDirectionCommand.setSpreadDirection(invalidDirection);
     QCOMPARE(item.setPresentation(invalidDirectionCommand), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.zoomPercent(), zoomPercent);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
+    QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
+    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(item.requestRevision(), requestRevision);
     QCOMPARE(item.displayRevision(), displayRevision);
     QVERIFY(item.commandRevision() != invalidCommandRevision);
@@ -1055,9 +1056,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     ImageViewportPresentationCommand invalidPageGapCommand;
     invalidPageGapCommand.setPageGap(-1.0);
     QCOMPARE(item.setPresentation(invalidPageGapCommand), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.zoomPercent(), zoomPercent);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
+    QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
+    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(item.requestRevision(), requestRevision);
     QCOMPARE(item.displayRevision(), displayRevision);
     QVERIFY(item.commandRevision() != previousInvalidCommandRevision);
@@ -1067,9 +1068,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     invalidPageGapCommand = {};
     invalidPageGapCommand.setPageGap(std::numeric_limits<double>::infinity());
     QCOMPARE(item.setPresentation(invalidPageGapCommand), ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(item.zoomPercent(), zoomPercent);
-    QCOMPARE(item.pageGap(), pageGap);
-    QCOMPARE(item.spreadDirection(), spreadDirection);
+    QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
+    QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
+    QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
     QCOMPARE(item.requestRevision(), requestRevision);
     QCOMPARE(item.displayRevision(), displayRevision);
     QVERIFY(item.commandRevision() != previousInvalidCommandRevision);
@@ -1080,8 +1081,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     resetCommand.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
 
     QCOMPARE(item.setPresentation(resetCommand), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.fitMode(), ImageViewport::FitMode::Contain);
-    QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
+    QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(
+        item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
 
     ImageViewportCoordinateInput mapInput;
     mapInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
@@ -1220,8 +1222,8 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const RevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
     const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
-    const auto spreadDirection = item.spreadDirection();
-    const double pageGap = item.pageGap();
+    const auto spreadDirection = item.state().presentation().spreadDirection();
+    const double pageGap = item.state().presentation().pageGap();
     const int commandReason = item.property("commandReason").toInt();
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
     QSignalSpy displayRevisionSpy(&item, &ImageViewport::displayRevisionChanged);
@@ -1248,7 +1250,8 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
 
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.spreadDirection(), ImageViewport::SpreadDirection::RightToLeft);
+    QCOMPARE(item.state().presentation().spreadDirection(),
+        ImageViewport::SpreadDirection::RightToLeft);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
     verifyRevisionChanged(item, "commandRevision", commandRevision);
