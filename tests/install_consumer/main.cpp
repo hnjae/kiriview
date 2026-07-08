@@ -449,6 +449,7 @@ ImageViewport {
     height: 10
 
     property bool commandSurfaceAvailable: false
+    property imageViewportPresentationCommand zoomCommand
     property imageViewportPresentationCommand zoomStepCommand
 
     function nearlyEqual(left, right) {
@@ -461,7 +462,8 @@ ImageViewport {
         const stopOutcome = stop()
         const seekOutcome = seek(0)
         const positionSeekOutcome = seekToPosition(0)
-        const zoomOutcome = setZoomPercent(200, Qt.point(5, 5))
+        zoomCommand.manualZoomPercent = 200
+        const zoomOutcome = setPresentation(zoomCommand)
         zoomStepCommand.zoomStepDelta = 1
         const stepOutcome = setPresentation(zoomStepCommand)
         const resetViewOutcome = resetView()
@@ -489,6 +491,7 @@ ImageViewport {
             && typeof clampedManualZoomPercent === "undefined"
             && typeof steppedManualZoomPercent === "undefined"
             && typeof zoomByStep === "undefined"
+            && typeof setZoomPercent === "undefined"
             && contentPosition.x === 0
             && contentPosition.y === 0
             && frameSeekBounds.minimum === -1

@@ -51,6 +51,14 @@ static ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, doub
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setManualZoomPercentCommand(
+    ImageViewport& item, double percent)
+{
+    ImageViewportPresentationCommand command;
+    command.setManualZoomPercent(percent);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPublicApiCommandsTest::unsupportedSequencePropertyWritesPreserveState()
 {
     ImageSequenceFactory factory;
@@ -632,8 +640,7 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    QCOMPARE(
-        item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setPageGapCommand(item, 9.0), ImageViewport::CommandOutcome::Accepted);
@@ -971,8 +978,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.state().presentation().exactnessPreference(),
         ImageViewport::ExactnessPreference::RequireExact);
 
-    QCOMPARE(
-        item.setZoomPercent(1000.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewport::CommandOutcome::Accepted);
     QVERIFY(item.maximumContentPosition().x() > 0.0 || item.maximumContentPosition().y() > 0.0);
 
     ImageViewportPresentationCommand scanCommand;

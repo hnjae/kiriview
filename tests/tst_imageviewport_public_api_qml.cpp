@@ -297,6 +297,7 @@ ImageViewport {
     property imageViewportPresentationCommand spreadDirectionCommand
     property imageViewportPresentationCommand pageGapCommand
     property imageViewportPresentationCommand fitModeCommand
+    property imageViewportPresentationCommand manualZoomCommand
     property imageViewportPresentationCommand zoomStepCommand
     property imageViewportPresentationCommand panCommand
     property imageViewportPresentationCommand scanStartCommand
@@ -366,6 +367,7 @@ ImageViewport {
             && typeof viewport.setSpreadDirection === "undefined"
             && typeof viewport.setPageGap === "undefined"
             && typeof viewport.setFitMode === "undefined"
+            && typeof viewport.setZoomPercent === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -391,6 +393,7 @@ ImageViewport {
         spreadDirectionCommand.spreadDirection = ImageViewport.SpreadDirection.LeftToRight
         pageGapCommand.pageGap = 0
         fitModeCommand.fitMode = ImageViewport.FitMode.Contain
+        manualZoomCommand.manualZoomPercent = 100
         zoomStepCommand.zoomStepDelta = 1
         scanStartCommand.scanDirection = ImageViewport.ScanDirection.Start
         scanEndCommand.scanDirection = ImageViewport.ScanDirection.End
@@ -403,7 +406,7 @@ ImageViewport {
         presentationCommandsReachViewport = setPresentation(spreadDirectionCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(pageGapCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(fitModeCommand) === ImageViewport.CommandOutcome.Accepted
-            && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(manualZoomCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(zoomStepCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(panCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(scanStartCommand) === ImageViewport.CommandOutcome.Accepted
@@ -488,8 +491,9 @@ ImageViewport {
     QCoreApplication::processEvents();
     const int refreshCountBefore = recorder.count();
 
-    QCOMPARE(viewport->setZoomPercent(200.0, QPointF(50.0, 50.0)),
-        ImageViewport::CommandOutcome::Accepted);
+    ImageViewportPresentationCommand zoomCommand;
+    zoomCommand.setManualZoomPercent(200.0);
+    QCOMPARE(viewport->setPresentation(zoomCommand), ImageViewport::CommandOutcome::Accepted);
     QCoreApplication::processEvents();
 
     QVERIFY(recorder.count() > refreshCountBefore);

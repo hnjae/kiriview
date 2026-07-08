@@ -50,12 +50,20 @@ static ImageViewport::CommandOutcome setFitModeCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setManualZoomPercentCommand(
+    ImageViewport& item, double percent)
+{
+    ImageViewportPresentationCommand command;
+    command.setManualZoomPercent(percent);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.setZoomPercent(200.0, QPointF()), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.play(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
@@ -154,8 +162,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    QCOMPARE(
-        item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
     const RevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
 
@@ -420,8 +427,7 @@ void ImageViewportStillTest::clearPreservesPresentationState()
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    QCOMPARE(
-        item.setZoomPercent(250.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 250.0), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
 
     QCOMPARE(item.clear(), ImageViewport::CommandOutcome::Accepted);
@@ -565,8 +571,7 @@ void ImageViewportStillTest::stillImageReplacementPreservesPresentationState()
     item.setMirrorVertically(true);
     item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
     item.setBackgroundColor(QColor(20, 40, 60, 255));
-    QCOMPARE(
-        item.setZoomPercent(150.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 150.0), ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
 
     item.setSequence(replacementResult->sequence());
@@ -672,8 +677,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
         enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
 
-    QCOMPARE(
-        item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));

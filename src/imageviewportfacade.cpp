@@ -206,10 +206,6 @@ ImageViewport::CommandOutcome ImageViewport::setPageSet(
 {
     return d->setPageSet(primary, secondary, policy);
 }
-ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPointF anchor)
-{
-    return d->setZoomPercent(percent, anchor);
-}
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
 
 ImageViewport::CommandOutcome ImageViewport::setPresentation(

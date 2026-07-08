@@ -1242,7 +1242,6 @@ public:
     ImageViewport::CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
     ImageViewport::CommandOutcome setPageSet(
         ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);
-    Q_INVOKABLE ImageViewport::CommandOutcome setZoomPercent(double percent, QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome resetView();
     Q_INVOKABLE ImageViewport::CommandOutcome setPresentation(
         ImageViewportPresentationCommand command);
