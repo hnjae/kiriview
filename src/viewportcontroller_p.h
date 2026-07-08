@@ -248,7 +248,6 @@ public:
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void incrementCommandRevision();
-    void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
     void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
         ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
     void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
@@ -259,16 +258,8 @@ public:
     void setSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
         bool rememberAsLatestNonPlayback = false);
-    void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
     void publishReadyDisplayState();
-    void stageBuiltInPrimarySpreadPayload();
     void publishRenderWaitingState();
-    void publishUploadPendingState();
-    void publishPendingRenderState();
-    void publishSequenceReadyState();
-    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
-    void publishStagedBuiltInPrimarySpreadReadyState();
     void publishAcceptedTargetState();
     void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
     void publishProviderFrameLoadingState();
@@ -279,10 +270,7 @@ public:
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportCommandResult rejectInvalidCommand();
-    ViewportCommandResult rejectUnsupportedCommand();
-    ViewportCommandResult rejectIgnoredNoRequestCommand();
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
-    ViewportCommandResult acceptNoopCommand();
     ViewportCommandResult clear();
     ViewportCommandResult play();
     ViewportCommandResult play(ImageViewport::PageRole role);
@@ -294,10 +282,6 @@ public:
     ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
     ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
-    ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
-    ViewportCommandResult seekSecondaryProvider(int frame);
-    ViewportCommandResult seekSecondaryProviderToPosition(int milliseconds);
     ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
     ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
     ImageViewportInternal::ViewportChangeSet setMirrorHorizontally(bool enabled);
@@ -372,29 +356,11 @@ public:
     ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
         ImageViewport::PageRole role,
         const ViewportProviderAcceptedMetadataFacts& facts);
-    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
-        ViewportProviderWaitingEvent event);
-    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
-        ImageViewport::PageRole role, ViewportProviderWaitingEvent event);
-    ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ViewportProviderEndOfSequenceEvent event);
     ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
         ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event);
     ViewportProviderFrameTransportEffect closeProviderSession();
-    ViewportProviderSessionClose handleProviderSessionClose();
-    ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(ImageViewport::PageRole role);
-    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
-    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
-        ImageViewport::PageRole role);
-    ViewportProviderFrameQueueResult queueProviderFrameRequest(
-        ViewportProviderFrameQueueRequest request);
-    ViewportProviderFrameQueueResult queueProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportProviderFrameQueueRequest request);
-    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
-    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
     ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent();
     ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent(
         ImageViewport::PageRole role);
@@ -435,6 +401,21 @@ private:
     ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
         const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
         double previousZoomPercent);
+    void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
+    void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
+    void stageBuiltInPrimarySpreadPayload();
+    void publishUploadPendingState();
+    void publishPendingRenderState();
+    void publishSequenceReadyState();
+    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
+    void publishStagedBuiltInPrimarySpreadReadyState();
+    ViewportCommandResult rejectUnsupportedCommand();
+    ViewportCommandResult rejectIgnoredNoRequestCommand();
+    ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
+        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
+    ViewportCommandResult seekSecondaryProvider(int frame);
+    ViewportCommandResult seekSecondaryProviderToPosition(int milliseconds);
     bool targetSpreadTerminalSealedForActiveRequest();
     bool hasGenerationTerminalProviderFailure();
     void recordTargetSpreadTerminal(ImageViewport::PageRole role,
@@ -483,6 +464,24 @@ private:
     ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence(
         ImageViewport::PageRole role);
     ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
+    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
+        ViewportProviderWaitingEvent event);
+    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
+        ImageViewport::PageRole role, ViewportProviderWaitingEvent event);
+    ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
+    ViewportProviderSessionClose handleProviderSessionClose();
+    ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(ImageViewport::PageRole role);
+    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
+    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
+        ImageViewport::PageRole role);
+    ViewportProviderFrameQueueResult queueProviderFrameRequest(
+        ViewportProviderFrameQueueRequest request);
+    ViewportProviderFrameQueueResult queueProviderFrameRequest(
+        ImageViewport::PageRole role, ViewportProviderFrameQueueRequest request);
+    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
+    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 
     ViewportControllerState state;
     ViewportControllerPort viewport;

@@ -1377,11 +1377,6 @@ ViewportCommandResult ViewportController::clear()
     return result;
 }
 
-ViewportCommandResult ViewportController::acceptNoopCommand()
-{
-    return ImageViewportInternal::CommandOutcome::accepted(viewport);
-}
-
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
