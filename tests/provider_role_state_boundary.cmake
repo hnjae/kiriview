@@ -3,9 +3,14 @@ set(provider_file "${IMAGEVIEWPORT_SOURCE_DIR}/src/viewportcontrollerprovider.cp
 file(READ "${provider_file}" provider_content)
 
 set(forbidden_patterns
+    "state\\.provider"
     "state\\.secondaryProvider"
+    "viewportProviderState[ \t\r\n]*\\([ \t\r\n]*viewport[ \t\r\n]*\\)"
+    "\\.providerState[ \t\r\n]*\\("
     "\\.secondaryProviderState[ \t\r\n]*\\("
+    "\\.activeRequest"
     "\\.secondaryActiveRequest"
+    "\\.latestNonPlaybackRequest"
     "\\.secondaryLatestNonPlaybackRequest")
 
 set(violations)

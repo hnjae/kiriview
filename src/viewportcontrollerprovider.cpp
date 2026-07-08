@@ -232,18 +232,21 @@ ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEven
     }
 
     if (role == ImageViewport::PageRole::Secondary) {
+        ImageViewportInternal::DisplayState& display = viewportDisplayState(viewport);
+        ImageViewportInternal::RequestState& request = viewportRequestState(viewport);
         ImageViewportInternal::PreparedPayload& preparedPayload
-            = viewportDisplayState(viewport).pendingRenderPayload;
+            = pendingPayloadForRole(display, ImageViewport::PageRole::Primary);
+        ImageViewportInternal::DisplayRequest& primaryRequest
+            = activeRequestForRole(request, ImageViewport::PageRole::Primary);
         if (!preparedPayload.identity().isValid()) {
             preparedPayload.commitPending = true;
-            preparedPayload.generation = viewportRequestState(viewport).sequenceGeneration;
-            preparedPayload.requestId = viewportRequestState(viewport).activeRequest.identity.id;
-            preparedPayload.payloadId = ++viewportDisplayState(viewport).nextPreparedPayloadId;
+            preparedPayload.generation = request.sequenceGeneration;
+            preparedPayload.requestId = primaryRequest.identity.id;
+            preparedPayload.payloadId = ++display.nextPreparedPayloadId;
             if (displayedPrimaryPayloadMatchesActiveTarget(viewport)) {
-                preparedPayload.image = viewportDisplayState(viewport).displayedImage;
+                preparedPayload.image = display.displayedImage;
             }
-            viewportRequestState(viewport).activeRequest.preparedPayloadId
-                = preparedPayload.payloadId;
+            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
         }
         provider.activeFrameToken = {};
     }
@@ -871,11 +874,12 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
 {
     ImageViewportInternal::ViewportChangeSet changes;
     if (rejection.updateActiveTarget) {
-        viewportRequestState(viewport).activeRequest.target.frame = rejection.selectedFrame;
-        viewportRequestState(viewport).activeRequest.resolvedFrame
-            = { rejection.selectedFrame, -1 };
+        ImageViewportInternal::DisplayRequest& activeRequest
+            = activeRequestForRole(viewportRequestState(viewport), role);
+        activeRequest.target.frame = rejection.selectedFrame;
+        activeRequest.resolvedFrame = { rejection.selectedFrame, -1 };
         if (!rejection.selectedFromPosition) {
-            viewportRequestState(viewport).activeRequest.target.position = -1;
+            activeRequest.target.position = -1;
         }
         viewportRequestState(viewport).playbackPosition = -1;
     }
@@ -948,8 +952,10 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
     }
 
     ViewportProviderMetadataTargetPolicyResult result;
+    const ImageViewportInternal::DisplayRequest& activeTargetRequest = activeRequestForRole(
+        viewportRequestState(viewport), ImageViewport::PageRole::Primary);
     const bool currentIdentity = request.identity.id != 0
-        && request.identity.id == viewportRequestState(viewport).activeRequest.identity.id;
+        && request.identity.id == activeTargetRequest.identity.id;
     if (!currentIdentity) {
         return result;
     }
@@ -1050,7 +1056,7 @@ ViewportController::handleProviderMetadataTargetSelection(
     const bool rememberAsLatestNonPlayback
         = selection.targetKind != ImageViewportInternal::ProviderRequestTargetKind::Playback;
     const int selectedPosition = selection.selectedFromPosition
-        ? viewportRequestState(viewport).activeRequest.target.position
+        ? primaryActiveRequest.target.position
         : selection.timedMetadata ? viewport.providerFrameStartPosition(selection.selectedFrame)
                                   : -1;
     const ImageViewportInternal::ResolvedFrameIdentity resolvedFrame {
@@ -1069,12 +1075,12 @@ ViewportController::handleProviderMetadataTargetSelection(
         carriedSecondaryRequest.preparedPayloadId = activePrimaryRequest.preparedPayloadId;
     }
     viewportRequestState(viewport).playbackPosition
-        = viewportRequestState(viewport).activeRequest.target.position;
+        = primaryActiveRequest.target.position;
     publishProviderFrameLoadingState();
 
     viewportRequestState(viewport).providerPlaybackStartPending = false;
     const ViewportProviderFrameRequestStartResult start
-        = startProviderFrameRequest({ viewportRequestState(viewport).activeRequest.target });
+        = startProviderFrameRequest({ primaryActiveRequest.target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
         result.changes.requestRevision = true;
@@ -1278,14 +1284,15 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
     };
     if (role == ImageViewport::PageRole::Secondary) {
         const ImageViewportInternal::DisplayRequest primaryRequest
-            = viewportRequestState(viewport).activeRequest;
+            = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary);
         beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback, primaryRequest.target,
             primaryRequest.resolvedFrame, false);
         setSecondaryActiveRequest(providerTarget, { selectedFrame, selectedPosition }, false);
     } else {
-        viewportRequestState(viewport).activeRequest.target = providerTarget;
-        viewportRequestState(viewport).activeRequest.resolvedFrame
-            = { selectedFrame, selectedPosition };
+        ImageViewportInternal::DisplayRequest& activeRequest
+            = activeRequestForRole(viewportRequestState(viewport), role);
+        activeRequest.target = providerTarget;
+        activeRequest.resolvedFrame = { selectedFrame, selectedPosition };
     }
 
     if (role == ImageViewport::PageRole::Primary && !loopPlayback
@@ -1332,7 +1339,8 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 {
     ViewportProviderFrameTransportEffect effect;
-    effect.closeSession = viewportProviderState(viewport).session != nullptr;
+    effect.closeSession = providerGenerationStateForRole(
+                              state, ImageViewport::PageRole::Primary).session != nullptr;
     effect.sessionClose = handleProviderSessionClose();
     return effect;
 }
