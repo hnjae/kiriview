@@ -34,7 +34,7 @@ private slots:
     void nearestVisibleHelpersFollowPanRotationMirrorAndRetainedGeometry();
     void fitModesExposeZoomAndPannability();
     void preserveManualPercentDiffersFromPreserveWhenResultingFitIsManual();
-    void directZoomPropertyAssignmentUsesItemCenterAnchor();
+    void manualZoomCommandUsesItemCenterAnchor();
     void revisionTokensUseSharedNonWrappingAllocator();
     void invalidPageSetTransitionPreservesStateAndRevisions();
     void presentationCommandsUpdateCommandDiagnostics();
@@ -1063,7 +1063,7 @@ void ImageViewportPresentationStateTest::
     QCOMPARE(manualPercentItem.zoomPercent(), 200.0);
 }
 
-void ImageViewportPresentationStateTest::directZoomPropertyAssignmentUsesItemCenterAnchor()
+void ImageViewportPresentationStateTest::manualZoomCommandUsesItemCenterAnchor()
 {
     ImageSequenceFactory factory;
     QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
@@ -1082,7 +1082,7 @@ void ImageViewportPresentationStateTest::directZoomPropertyAssignmentUsesItemCen
         ImageViewport::CommandOutcome::Invalid);
     const RevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
 
-    QVERIFY(item.setProperty("zoomPercent", 300.0));
+    QCOMPARE(setManualZoomPercentCommand(item, 300.0), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.zoomPercent(), 300.0);

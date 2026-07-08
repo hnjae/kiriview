@@ -859,9 +859,8 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(ImageSequence* sequence READ sequence WRITE setSequence NOTIFY sequenceChanged)
     Q_PROPERTY(ImageSequence* primarySequence READ primarySequence NOTIFY sequenceChanged)
     Q_PROPERTY(ImageSequence* secondarySequence READ secondarySequence NOTIFY sequenceChanged)
-    Q_PROPERTY(SpreadDirection spreadDirection READ spreadDirection WRITE setSpreadDirectionProperty
-            NOTIFY presentationChanged)
-    Q_PROPERTY(double pageGap READ pageGap WRITE setPageGapProperty NOTIFY presentationChanged)
+    Q_PROPERTY(SpreadDirection spreadDirection READ spreadDirection NOTIFY presentationChanged)
+    Q_PROPERTY(double pageGap READ pageGap NOTIFY presentationChanged)
     Q_PROPERTY(RequestStatus requestStatus READ requestStatus NOTIFY requestStateChanged)
     Q_PROPERTY(RequestReason requestReason READ requestReason NOTIFY requestStateChanged)
     Q_PROPERTY(CommandReason commandReason READ commandReason NOTIFY commandStateChanged)
@@ -947,9 +946,8 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(RevisionToken commandRevision READ commandRevision NOTIFY commandRevisionChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
     Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
-    Q_PROPERTY(FitMode fitMode READ fitMode WRITE setFitModeProperty NOTIFY presentationChanged)
-    Q_PROPERTY(
-        double zoomPercent READ zoomPercent WRITE setZoomPercentProperty NOTIFY presentationChanged)
+    Q_PROPERTY(FitMode fitMode READ fitMode NOTIFY presentationChanged)
+    Q_PROPERTY(double zoomPercent READ zoomPercent NOTIFY presentationChanged)
     Q_PROPERTY(double minimumManualZoomPercent READ minimumManualZoomPercent CONSTANT)
     Q_PROPERTY(
         double maximumManualZoomPercent READ maximumManualZoomPercent NOTIFY geometryStateChanged)
@@ -1124,9 +1122,7 @@ public:
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
     SpreadDirection spreadDirection() const;
-    void setSpreadDirectionProperty(SpreadDirection direction);
     double pageGap() const;
-    void setPageGapProperty(double gap);
 
     RequestStatus requestStatus() const;
     RequestReason requestReason() const;
@@ -1193,9 +1189,7 @@ public:
     QString warningString() const;
 
     FitMode fitMode() const;
-    void setFitModeProperty(FitMode mode);
     double zoomPercent() const;
-    void setZoomPercentProperty(double percent);
     double minimumManualZoomPercent() const;
     double maximumManualZoomPercent() const;
     double manualZoomStepFactor() const;

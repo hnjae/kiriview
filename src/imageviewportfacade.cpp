@@ -23,12 +23,7 @@ ImageViewport::SpreadDirection ImageViewport::spreadDirection() const
 {
     return d->spreadDirection();
 }
-void ImageViewport::setSpreadDirectionProperty(SpreadDirection direction)
-{
-    d->setSpreadDirectionProperty(direction);
-}
 double ImageViewport::pageGap() const { return d->pageGap(); }
-void ImageViewport::setPageGapProperty(double gap) { d->setPageGapProperty(gap); }
 ImageViewport::RequestStatus ImageViewport::requestStatus() const { return d->requestStatus(); }
 ImageViewport::RequestReason ImageViewport::requestReason() const { return d->requestReason(); }
 ImageViewport::CommandReason ImageViewport::commandReason() const { return d->commandReason(); }
@@ -132,9 +127,7 @@ RevisionToken ImageViewport::commandRevision() const { return d->commandRevision
 QString ImageViewport::errorString() const { return d->errorString(); }
 QString ImageViewport::warningString() const { return d->warningString(); }
 ImageViewport::FitMode ImageViewport::fitMode() const { return d->fitMode(); }
-void ImageViewport::setFitModeProperty(FitMode mode) { d->setFitModeProperty(mode); }
 double ImageViewport::zoomPercent() const { return d->zoomPercent(); }
-void ImageViewport::setZoomPercentProperty(double percent) { d->setZoomPercentProperty(percent); }
 double ImageViewport::minimumManualZoomPercent() const { return d->minimumManualZoomPercent(); }
 double ImageViewport::maximumManualZoomPercent() const { return d->maximumManualZoomPercent(); }
 double ImageViewport::manualZoomStepFactor() const { return d->manualZoomStepFactor(); }

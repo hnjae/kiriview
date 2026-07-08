@@ -119,6 +119,10 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
     }
 
     const QList<QByteArray> readOnlyProperties = {
+        "spreadDirection",
+        "pageGap",
+        "fitMode",
+        "zoomPercent",
         "smoothing",
         "mipmap",
         "mirrorHorizontally",
