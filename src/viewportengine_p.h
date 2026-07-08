@@ -64,6 +64,8 @@ public:
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
     PageSetState pageSetState() const;
+    ImageViewportInternal::RequestState& requestState();
+    const ImageViewportInternal::RequestState& requestState() const;
     const ImageViewportInternal::PresentationState& presentationState() const;
     ImageViewportInternal::PresentationState& presentationState();
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
@@ -92,5 +94,6 @@ private:
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
     PageSetState m_pageSetState;
+    ImageViewportInternal::RequestState m_requestState;
     ImageViewportInternal::PresentationState m_presentationState;
 };

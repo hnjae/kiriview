@@ -10,6 +10,8 @@ class ViewportEngineTest : public QObject
 
 private slots:
     void defaultSnapshotMatchesPublicDefaultProjection();
+    void defaultRequestStateMatchesPublicDefaults();
+    void requestStateOwnsPlaybackDriverAndRequestIdentity();
     void invalidCommandUpdatesOnlyCommandDiagnostics();
     void malformedEnumRejectionMatchesInvalidCommand();
     void clearFromEmptyIsAcceptedNoop();
@@ -51,6 +53,81 @@ void ViewportEngineTest::defaultSnapshotMatchesPublicDefaultProjection()
     QCOMPARE(engineSnapshot.revisions(), itemSnapshot.revisions());
     QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::NoCommand);
     QCOMPARE(engine.commandDiagnostics().revision.isValid(), false);
+}
+
+void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
+{
+    ViewportEngine engine;
+    ImageViewport item;
+    const auto& request = engine.requestState();
+
+    QCOMPARE(request.status, ImageViewport::RequestStatus::NoRequest);
+    QCOMPARE(request.reason, ImageViewport::RequestReason::NoRequest);
+    QCOMPARE(request.commandReason, ImageViewport::CommandReason::NoCommand);
+    QCOMPARE(request.playbackPhase, item.playbackPhase());
+    QCOMPARE(request.looping, item.looping());
+    QCOMPARE(request.stopPlaybackWhenRequestReady, false);
+    QCOMPARE(request.providerPlaybackStartPending, false);
+    QCOMPARE(request.activeRequest.identity.id, 0);
+    QCOMPARE(request.secondaryActiveRequest.identity.id, 0);
+    QCOMPARE(request.latestNonPlaybackRequest.identity.id, 0);
+    QCOMPARE(request.secondaryLatestNonPlaybackRequest.identity.id, 0);
+    QCOMPARE(request.playbackPosition, -1);
+    QCOMPARE(request.playbackRole, ImageViewport::PageRole::Primary);
+    QCOMPARE(request.playbackLoopIterationsCompleted, 0);
+    QCOMPARE(request.sequenceGeneration, 0);
+    QCOMPARE(request.nextRequestId, 0);
+    QCOMPARE(request.requestRevision, 0);
+    QCOMPARE(request.commandRevision, 0);
+}
+
+void ViewportEngineTest::requestStateOwnsPlaybackDriverAndRequestIdentity()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+
+    request.sequenceGeneration = 7;
+    request.status = ImageViewport::RequestStatus::Loading;
+    request.reason = ImageViewport::RequestReason::ProviderWaiting;
+    request.playbackPhase = ImageViewport::PlaybackPhase::Waiting;
+    request.looping = true;
+    request.stopPlaybackWhenRequestReady = true;
+    request.providerPlaybackStartPending = true;
+    request.playbackRole = ImageViewport::PageRole::Secondary;
+    request.playbackPosition = 125;
+    request.playbackLoopIterationsCompleted = 2;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback,
+        ImageViewportInternal::DisplayRequestTarget {
+            3, 120, ImageViewportInternal::ProviderRequestTargetKind::Playback },
+        false);
+    request.secondaryActiveRequest.identity = request.activeRequest.identity;
+    request.secondaryActiveRequest.target
+        = { 4, 160, ImageViewportInternal::ProviderRequestTargetKind::Playback };
+    request.secondaryLatestNonPlaybackRequest.identity = request.secondaryActiveRequest.identity;
+    request.secondaryLatestNonPlaybackRequest.target
+        = { 1, 40, ImageViewportInternal::ProviderRequestTargetKind::Frame };
+
+    const auto& observed = engine.requestState();
+    QCOMPARE(observed.sequenceGeneration, 7);
+    QCOMPARE(observed.status, ImageViewport::RequestStatus::Loading);
+    QCOMPARE(observed.reason, ImageViewport::RequestReason::ProviderWaiting);
+    QCOMPARE(observed.playbackPhase, ImageViewport::PlaybackPhase::Waiting);
+    QCOMPARE(observed.looping, true);
+    QCOMPARE(observed.stopPlaybackWhenRequestReady, true);
+    QCOMPARE(observed.providerPlaybackStartPending, true);
+    QCOMPARE(observed.playbackRole, ImageViewport::PageRole::Secondary);
+    QCOMPARE(observed.playbackPosition, 125);
+    QCOMPARE(observed.playbackLoopIterationsCompleted, 2);
+    QVERIFY(observed.activeRequest.identity.id != 0);
+    QCOMPARE(observed.activeRequest.identity.origin,
+        ImageViewportInternal::DisplayRequestOrigin::Playback);
+    QCOMPARE(observed.activeRequest.target.frame, 3);
+    QCOMPARE(observed.activeRequest.target.position, 120);
+    QCOMPARE(observed.secondaryActiveRequest.identity.id, observed.activeRequest.identity.id);
+    QCOMPARE(
+        observed.secondaryActiveRequest.identity.origin, observed.activeRequest.identity.origin);
+    QCOMPARE(observed.secondaryActiveRequest.target.frame, 4);
+    QCOMPARE(observed.secondaryLatestNonPlaybackRequest.target.frame, 1);
 }
 
 void ViewportEngineTest::invalidCommandUpdatesOnlyCommandDiagnostics()

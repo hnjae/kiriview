@@ -4,10 +4,10 @@ ViewportMetadataProjection ViewportController::metadataProjection(
     ImageViewport::PageRole role) const
 {
     if (role == ImageViewport::PageRole::Secondary) {
-        if (!state.request.secondarySequence) {
+        if (!state.engine.requestState().secondarySequence) {
             return {};
         }
-        if (state.request.secondarySequenceIsProvider) {
+        if (state.engine.requestState().secondarySequenceIsProvider) {
             const ImageViewportInternal::ProviderGenerationState& provider
                 = providerGenerationStateForRole(state, role);
             if (provider.metadataReady) {

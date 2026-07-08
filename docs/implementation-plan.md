@@ -508,6 +508,18 @@ Move playback, seek, timing, looping, autoplay, pause/stop, and stale request re
 - Playback scheduler remains an effect consumer and has no ownership over playback phase.
 - Snapshot playback fields are authoritative and flat fields project from them.
 
+### Status
+
+Complete as of 2026-07-08. `ViewportEngine` now owns the request state that carries playback phase, looping override, active playback role, playback position, loop-iteration progress, stop-on-ready flags, active primary/secondary display request identities, latest non-playback targets, accepted request revisions, and command revisions. Controller, provider, render, and scheduler code access that state through the engine-backed controller port instead of owning a separate controller-local request state.
+
+Seek and playback target identities now live in engine-owned request state, so stale provider/render/preparation checks, stop restoration, snapshot request projection, flat request fields, and provider-role adapters all read the same engine-owned active/latest request identities. The playback scheduler remains an external effect consumer; it still asks the controller adapter for timer intervals and delivers elapsed ticks, while the authoritative phase/target state is stored in the engine.
+
+Focused coverage is in `viewportengine` for default request/playback ownership and engine-owned playback driver/request identity state, and in `imageviewport_state_snapshot` for snapshot playback phase/role projection across timed `play`, `pause`, and `stop`. Existing `imageviewport_timed`, `imageviewport_provider_playback`, `imageviewport_provider_terminal_playback`, `viewportcontroller_playback`, `playback_timeline`, `playback_clock`, render, provider, and structural playback scheduler suites remain green.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after the migration and formatting.
+
+Adapter assumptions recorded for later milestones: playback command validation, provider playback dispatch, render commit/failure handling, and scheduler tick calculation still execute in controller/helper adapters while mutating engine-owned request state; provider transport remains host/controller-owned until Milestone 9; render commit admission remains render/controller-owned until Milestone 10; `ViewportEngine::requestState()` is intentionally mutable for these adapters until typed engine effects replace direct mutation.
+
 ### Risks And Rollback Criteria
 
 - Risk: playback accumulates elapsed time while waiting for metadata, provider work, render commit, or geometry. Roll back if deterministic playback tests show catch-up behavior.

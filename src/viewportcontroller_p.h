@@ -60,7 +60,6 @@ struct ViewportSequenceAssignmentResult;
 struct ViewportControllerState
 {
     ImageViewportInternal::DisplayState display;
-    ImageViewportInternal::RequestState request;
     ImageViewportInternal::ProviderGenerationState provider;
     ImageViewportInternal::ProviderGenerationState secondaryProvider;
     ViewportSequenceRoleSource secondarySource;

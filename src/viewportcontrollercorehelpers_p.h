@@ -128,15 +128,17 @@ const ImageViewportInternal::DisplayRequest& latestNonPlaybackRequestForRole(
 ViewportProviderRoleState providerRoleStateFor(
     ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return { providerGenerationStateForRole(state, role), activeRequestForRole(state.request, role),
-        latestNonPlaybackRequestForRole(state.request, role) };
+    return { providerGenerationStateForRole(state, role),
+        activeRequestForRole(state.engine.requestState(), role),
+        latestNonPlaybackRequestForRole(state.engine.requestState(), role) };
 }
 
 ConstViewportProviderRoleState providerRoleStateFor(
     const ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return { providerGenerationStateForRole(state, role), activeRequestForRole(state.request, role),
-        latestNonPlaybackRequestForRole(state.request, role) };
+    return { providerGenerationStateForRole(state, role),
+        activeRequestForRole(state.engine.requestState(), role),
+        latestNonPlaybackRequestForRole(state.engine.requestState(), role) };
 }
 
 ViewportDisplayRoleState displayRoleStateFor(
