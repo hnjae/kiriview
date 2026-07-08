@@ -159,8 +159,6 @@ ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
     return controller.presentationState().fitMode;
 }
 
-void ImageViewportPrivate::setFitModeProperty(FitMode mode) { setFitMode(mode, itemCenter(*this)); }
-
 double ImageViewportPrivate::zoomPercent() const
 {
     const PresentationGeometry::State state = geometryState(*this);
@@ -171,11 +169,6 @@ double ImageViewportPrivate::zoomPercent() const
     }
 
     return content.width() / spreadSize.width() * effectiveDevicePixelRatio(*this) * 100.0;
-}
-
-void ImageViewportPrivate::setZoomPercentProperty(double percent)
-{
-    setZoomPercent(percent, itemCenter(*this));
 }
 
 double ImageViewportPrivate::minimumManualZoomPercent() const

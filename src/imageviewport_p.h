@@ -40,9 +40,7 @@ public:
     ImageSequence* primarySequence() const;
     ImageSequence* secondarySequence() const;
     SpreadDirection spreadDirection() const;
-    void setSpreadDirectionProperty(SpreadDirection direction);
     double pageGap() const;
-    void setPageGapProperty(double gap);
 
     RequestStatus requestStatus() const;
     RequestReason requestReason() const;
@@ -188,9 +186,7 @@ public:
     bool horizontalPannable() const;
     bool verticalPannable() const;
     FitMode fitMode() const;
-    void setFitModeProperty(FitMode mode);
     double zoomPercent() const;
-    void setZoomPercentProperty(double percent);
     double minimumManualZoomPercent() const;
     double maximumManualZoomPercent() const;
     double manualZoomStepFactor() const;

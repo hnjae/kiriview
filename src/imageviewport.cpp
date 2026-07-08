@@ -245,14 +245,7 @@ ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() co
     return controller.presentationState().spreadDirection;
 }
 
-void ImageViewportPrivate::setSpreadDirectionProperty(SpreadDirection direction)
-{
-    setSpreadDirection(direction);
-}
-
 double ImageViewportPrivate::pageGap() const { return controller.presentationState().pageGap; }
-
-void ImageViewportPrivate::setPageGapProperty(double gap) { setPageGap(gap); }
 
 ImageViewportPrivate::RequestStatus ImageViewportPrivate::requestStatus() const
 {
