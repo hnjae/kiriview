@@ -570,6 +570,18 @@ Move metadata, frame admission, cancellation, terminal projection, diagnostics, 
 - Typed provider integration coverage exists for every legacy behavior area planned for removal.
 - Existing legacy provider tests still pass.
 
+### Status
+
+Complete as of 2026-07-08. `ViewportEngine` now owns the primary and secondary provider generation state used for provider request-token allocation, active metadata/frame tokens, queued frame request identity, queued playback/seek target facts, metadata readiness, capability flags, accepted logical size, timing intervals, authored animation facts, and provider generation/session serial identity. Controller provider-role adapters, playback helpers, geometry demand helpers, metadata projection, and provider event paths now read and mutate the engine-backed provider generation state instead of controller-local provider fields.
+
+Provider transport behavior is preserved: the existing provider bridge and host still install sessions, deliver typed/legacy events, dispatch requests, close sessions, and run cleanup on the existing affinity path. The engine-backed provider state still carries the compatibility session reference used by those adapters, but behavioral identity, token, queue, and metadata facts now live under the engine boundary.
+
+Focused coverage is in `viewportengine` for empty provider generation defaults and role-isolated ownership of tokens, queued frame identity, playback target kind, metadata capability flags, logical size, timing intervals, and authored loop facts. Existing provider contract, lifecycle, metadata, request, frame-admission, terminal, recovery, playback, controller-provider, install-consumer, and structural provider boundary suites remain green.
+
+Verification: `cmake --build build-ninja && ctest --test-dir build-ninja --output-on-failure` passed 44/44 after the migration and formatting.
+
+Adapter assumptions recorded for later milestones: provider event admission, metadata validation decisions, payload admission, terminal projection, diagnostics projection, handle release, and transport effect creation still execute in controller/provider adapters while using engine-owned provider state; exactness and demand-revision stale-payload rejection remain compatibility placeholders until payload admission is fully typed; provider session storage and cleanup are still implemented by the existing bridge/host path and will need a cleaner transport-only split before compatibility removal.
+
 ### Risks And Rollback Criteria
 
 - Risk: lifecycle cleanup waits for cancellation acknowledgements. Roll back if clear/replacement/destruction tests block or require provider cooperation.

@@ -358,23 +358,23 @@ const ImageViewportInternal::RequestState& ViewportControllerPort::requestState(
 
 ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::providerState()
 {
-    return state.provider;
+    return state.engine.providerState();
 }
 
 const ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::providerState() const
 {
-    return state.provider;
+    return state.engine.providerState();
 }
 
 ImageViewportInternal::ProviderGenerationState& ViewportControllerPort::secondaryProviderState()
 {
-    return state.secondaryProvider;
+    return state.engine.secondaryProviderState();
 }
 
 const ImageViewportInternal::ProviderGenerationState&
 ViewportControllerPort::secondaryProviderState() const
 {
-    return state.secondaryProvider;
+    return state.engine.secondaryProviderState();
 }
 
 ViewportEngine& ViewportControllerPort::engine() { return state.engine; }
@@ -486,33 +486,38 @@ int ViewportControllerPort::providerKnownFactsFrameCount() const
 
 int ViewportControllerPort::providerFrameStartPosition(int frame) const
 {
-    return state.provider.timedMetadata ? state.provider.timingIntervals.frameStartPosition(frame)
-                                        : providerKnownTimingIntervals().frameStartPosition(frame);
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameStartPosition(frame)
+        : providerKnownTimingIntervals().frameStartPosition(frame);
 }
 
 int ViewportControllerPort::providerFrameIndexForPosition(int position) const
 {
-    return state.provider.timedMetadata
-        ? state.provider.timingIntervals.frameIndexForPosition(position)
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameIndexForPosition(position)
         : providerKnownTimingIntervals().frameIndexForPosition(position);
 }
 
 ImageSequenceAuthoredAnimationFacts ViewportControllerPort::providerAuthoredAnimationFacts() const
 {
-    return state.provider.authoredAnimationFacts;
+    return state.engine.providerState().authoredAnimationFacts;
 }
 
 int ViewportControllerPort::frameCount() const
 {
-    return hasProviderSequence() && state.provider.metadataReady
-        ? (state.provider.timedMetadata ? state.provider.timingIntervals.frameCount() : 1)
+    return hasProviderSequence() && state.engine.providerState().metadataReady
+        ? (state.engine.providerState().timedMetadata
+                  ? state.engine.providerState().timingIntervals.frameCount()
+                  : 1)
         : sequenceFrameCount();
 }
 
 int ViewportControllerPort::totalDuration() const
 {
-    return hasProviderSequence() && state.provider.metadataReady
-        ? (state.provider.timedMetadata ? state.provider.timingIntervals.totalDuration() : -1)
+    return hasProviderSequence() && state.engine.providerState().metadataReady
+        ? (state.engine.providerState().timedMetadata
+                  ? state.engine.providerState().timingIntervals.totalDuration()
+                  : -1)
         : sequenceTotalDuration();
 }
 
@@ -559,9 +564,9 @@ int ViewportControllerPort::secondarySequenceTotalDuration() const
 int ViewportControllerPort::secondaryTotalDuration() const
 {
     return state.engine.requestState().secondarySequenceIsProvider
-            && state.secondaryProvider.metadataReady
-        ? (state.secondaryProvider.timedMetadata
-                  ? state.secondaryProvider.timingIntervals.totalDuration()
+            && state.engine.secondaryProviderState().metadataReady
+        ? (state.engine.secondaryProviderState().timedMetadata
+                  ? state.engine.secondaryProviderState().timingIntervals.totalDuration()
                   : -1)
         : secondarySequenceTotalDuration();
 }
@@ -915,109 +920,129 @@ ViewportEngine::PageSetState ViewportController::pageSetState() const
     return state.engine.pageSetState();
 }
 
-bool ViewportController::hasProviderSession() const { return state.provider.session != nullptr; }
+bool ViewportController::hasProviderSession() const
+{
+    return state.engine.providerState().session != nullptr;
+}
 
 bool ViewportController::hasProviderSession(ImageViewport::PageRole role) const
 {
-    return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider.session != nullptr
-                                                      : hasProviderSession();
+    return role == ImageViewport::PageRole::Secondary
+        ? state.engine.secondaryProviderState().session != nullptr
+        : hasProviderSession();
 }
 
-bool ViewportController::providerMetadataReady() const { return state.provider.metadataReady; }
+bool ViewportController::providerMetadataReady() const
+{
+    return state.engine.providerState().metadataReady;
+}
 
 bool ViewportController::secondaryProviderMetadataReady() const
 {
-    return state.secondaryProvider.metadataReady;
+    return state.engine.secondaryProviderState().metadataReady;
 }
 
-bool ViewportController::providerTimedMetadata() const { return state.provider.timedMetadata; }
+bool ViewportController::providerTimedMetadata() const
+{
+    return state.engine.providerState().timedMetadata;
+}
 
 ImageSequenceAuthoredAnimationFacts ViewportController::providerAuthoredAnimationFacts() const
 {
-    return state.provider.authoredAnimationFacts;
+    return state.engine.providerState().authoredAnimationFacts;
 }
 
 bool ViewportController::secondaryProviderTimedMetadata() const
 {
-    return state.secondaryProvider.timedMetadata;
+    return state.engine.secondaryProviderState().timedMetadata;
 }
 
 bool ViewportController::providerTimedPlaybackSupported() const
 {
-    return state.provider.timedPlaybackSupport;
+    return state.engine.providerState().timedPlaybackSupport;
 }
 
 bool ViewportController::secondaryProviderTimedPlaybackSupported() const
 {
-    return state.secondaryProvider.timedPlaybackSupport;
+    return state.engine.secondaryProviderState().timedPlaybackSupport;
 }
 
 bool ViewportController::providerFrameSeekSupported() const
 {
-    return state.provider.frameSeekSupport;
+    return state.engine.providerState().frameSeekSupport;
 }
 
 bool ViewportController::secondaryProviderFrameSeekSupported() const
 {
-    return state.secondaryProvider.frameSeekSupport;
+    return state.engine.secondaryProviderState().frameSeekSupport;
 }
 
 bool ViewportController::providerPositionSeekSupported() const
 {
-    return state.provider.positionSeekSupport;
+    return state.engine.providerState().positionSeekSupport;
 }
 
 bool ViewportController::secondaryProviderPositionSeekSupported() const
 {
-    return state.secondaryProvider.positionSeekSupport;
+    return state.engine.secondaryProviderState().positionSeekSupport;
 }
 
-QSizeF ViewportController::providerLogicalSize() const { return state.provider.logicalSize; }
+QSizeF ViewportController::providerLogicalSize() const
+{
+    return state.engine.providerState().logicalSize;
+}
 
 QSizeF ViewportController::secondaryProviderLogicalSize() const
 {
-    return state.secondaryProvider.logicalSize;
+    return state.engine.secondaryProviderState().logicalSize;
 }
 
 int ViewportController::providerFrameCount() const
 {
-    return state.provider.timedMetadata ? state.provider.timingIntervals.frameCount() : 1;
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameCount()
+        : 1;
 }
 
 int ViewportController::secondaryProviderFrameCount() const
 {
-    return state.secondaryProvider.timedMetadata
-        ? state.secondaryProvider.timingIntervals.frameCount()
+    return state.engine.secondaryProviderState().timedMetadata
+        ? state.engine.secondaryProviderState().timingIntervals.frameCount()
         : 1;
 }
 
 int ViewportController::providerTotalDuration() const
 {
-    return state.provider.timedMetadata ? state.provider.timingIntervals.totalDuration() : -1;
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.totalDuration()
+        : -1;
 }
 
 int ViewportController::secondaryProviderTotalDuration() const
 {
-    return state.secondaryProvider.timedMetadata
-        ? state.secondaryProvider.timingIntervals.totalDuration()
+    return state.engine.secondaryProviderState().timedMetadata
+        ? state.engine.secondaryProviderState().timingIntervals.totalDuration()
         : -1;
 }
 
 int ViewportController::providerFrameDuration(int frame) const
 {
-    return state.provider.timedMetadata ? state.provider.timingIntervals.frameDuration(frame) : -1;
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameDuration(frame)
+        : -1;
 }
 
 int ViewportController::providerFrameStartPosition(int frame) const
 {
-    return state.provider.timedMetadata ? state.provider.timingIntervals.frameStartPosition(frame)
-                                        : -1;
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameStartPosition(frame)
+        : -1;
 }
 
 int ViewportController::providerFrameIndexForPosition(int position) const
 {
-    return state.provider.timedMetadata
-        ? state.provider.timingIntervals.frameIndexForPosition(position)
+    return state.engine.providerState().timedMetadata
+        ? state.engine.providerState().timingIntervals.frameIndexForPosition(position)
         : -1;
 }
 
@@ -1173,18 +1198,18 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     discardPendingRenderCommit();
     viewportProviderState(viewport).activeMetadataToken = {};
     viewportProviderState(viewport).activeFrameToken = {};
-    state.secondaryProvider.metadataReady = false;
-    state.secondaryProvider.timedMetadata = false;
-    state.secondaryProvider.timedPlaybackSupport = false;
-    state.secondaryProvider.frameSeekSupport = false;
-    state.secondaryProvider.positionSeekSupport = false;
-    state.secondaryProvider.authoredAnimationFacts = secondarySource.provider
+    state.engine.secondaryProviderState().metadataReady = false;
+    state.engine.secondaryProviderState().timedMetadata = false;
+    state.engine.secondaryProviderState().timedPlaybackSupport = false;
+    state.engine.secondaryProviderState().frameSeekSupport = false;
+    state.engine.secondaryProviderState().positionSeekSupport = false;
+    state.engine.secondaryProviderState().authoredAnimationFacts = secondarySource.provider
         ? secondarySource.authoredAnimationFacts
         : ImageSequenceAuthoredAnimationFacts {};
-    state.secondaryProvider.logicalSize = {};
-    state.secondaryProvider.timingIntervals = {};
-    state.secondaryProvider.activeMetadataToken = {};
-    state.secondaryProvider.activeFrameToken = {};
+    state.engine.secondaryProviderState().logicalSize = {};
+    state.engine.secondaryProviderState().timingIntervals = {};
+    state.engine.secondaryProviderState().activeMetadataToken = {};
+    state.engine.secondaryProviderState().activeFrameToken = {};
 
     if (viewport.hasProviderSequence()) {
         if (viewport.providerHasCompleteKnownMetadata()) {
@@ -1357,16 +1382,16 @@ ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
     viewportProviderState(viewport).timingIntervals = {};
     viewportProviderState(viewport).activeMetadataToken = {};
     viewportProviderState(viewport).activeFrameToken = {};
-    state.secondaryProvider.metadataReady = false;
-    state.secondaryProvider.timedMetadata = false;
-    state.secondaryProvider.timedPlaybackSupport = false;
-    state.secondaryProvider.frameSeekSupport = false;
-    state.secondaryProvider.positionSeekSupport = false;
-    state.secondaryProvider.authoredAnimationFacts = {};
-    state.secondaryProvider.logicalSize = {};
-    state.secondaryProvider.timingIntervals = {};
-    state.secondaryProvider.activeMetadataToken = {};
-    state.secondaryProvider.activeFrameToken = {};
+    state.engine.secondaryProviderState().metadataReady = false;
+    state.engine.secondaryProviderState().timedMetadata = false;
+    state.engine.secondaryProviderState().timedPlaybackSupport = false;
+    state.engine.secondaryProviderState().frameSeekSupport = false;
+    state.engine.secondaryProviderState().positionSeekSupport = false;
+    state.engine.secondaryProviderState().authoredAnimationFacts = {};
+    state.engine.secondaryProviderState().logicalSize = {};
+    state.engine.secondaryProviderState().timingIntervals = {};
+    state.engine.secondaryProviderState().activeMetadataToken = {};
+    state.engine.secondaryProviderState().activeFrameToken = {};
     viewportRequestState(viewport).errorString.clear();
     viewportRequestState(viewport).warningString.clear();
     ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
@@ -1386,14 +1411,14 @@ ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
-    state.provider.nextRequestToken = token;
+    state.engine.providerState().nextRequestToken = token;
 }
 
 void ViewportController::setNextProviderRequestTokenForTest(
     ImageViewport::PageRole role, quint64 token)
 {
     if (role == ImageViewport::PageRole::Secondary) {
-        state.secondaryProvider.nextRequestToken = token;
+        state.engine.secondaryProviderState().nextRequestToken = token;
         return;
     }
 

@@ -32,6 +32,26 @@ const ImageViewportInternal::RequestState& ViewportEngine::requestState() const
     return m_requestState;
 }
 
+ImageViewportInternal::ProviderGenerationState& ViewportEngine::providerState()
+{
+    return m_providerState;
+}
+
+const ImageViewportInternal::ProviderGenerationState& ViewportEngine::providerState() const
+{
+    return m_providerState;
+}
+
+ImageViewportInternal::ProviderGenerationState& ViewportEngine::secondaryProviderState()
+{
+    return m_secondaryProviderState;
+}
+
+const ImageViewportInternal::ProviderGenerationState& ViewportEngine::secondaryProviderState() const
+{
+    return m_secondaryProviderState;
+}
+
 const ImageViewportInternal::PresentationState& ViewportEngine::presentationState() const
 {
     return m_presentationState;

@@ -60,13 +60,15 @@ ImageViewportInternal::ProviderGenerationState& viewportProviderState(
 ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
     ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider : state.provider;
+    return role == ImageViewport::PageRole::Secondary ? state.engine.secondaryProviderState()
+                                                      : state.engine.providerState();
 }
 
 const ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
     const ViewportControllerState& state, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? state.secondaryProvider : state.provider;
+    return role == ImageViewport::PageRole::Secondary ? state.engine.secondaryProviderState()
+                                                      : state.engine.providerState();
 }
 
 QPointer<ImageSequence>& sequenceForRole(

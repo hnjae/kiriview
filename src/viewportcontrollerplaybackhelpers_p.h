@@ -94,9 +94,8 @@ bool hasTimedBuiltInSequenceForRole(ViewportControllerPort viewport, ImageViewpo
     return source.sequence && source.facts.timed && source.facts.timingIntervals.isValid();
 }
 
-ViewportPlaybackRoleTiming playbackTimingForRole(
-    ViewportControllerPort viewport, const ViewportControllerState& state,
-    ImageViewport::PageRole role)
+ViewportPlaybackRoleTiming playbackTimingForRole(ViewportControllerPort viewport,
+    const ViewportControllerState& state, ImageViewport::PageRole role)
 {
     if (hasProviderSequenceForRole(viewport, role)) {
         const ImageViewportInternal::ProviderGenerationState& provider
@@ -140,15 +139,13 @@ const ViewportSequenceRoleSource& secondaryRoleSource(const ViewportControllerSt
     return state.secondarySource;
 }
 
-DisplayRequestTarget providerPlaybackStartTarget(
-    ViewportControllerPort& viewport, const ViewportControllerState& state,
-    ImageViewport::PageRole role)
+DisplayRequestTarget providerPlaybackStartTarget(ViewportControllerPort& viewport,
+    const ViewportControllerState& state, ImageViewport::PageRole role)
 {
     int selectedFrame = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
     const ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
-    if (selectedFrame < 0
-        || selectedFrame >= provider.timingIntervals.frameCount()) {
+    if (selectedFrame < 0 || selectedFrame >= provider.timingIntervals.frameCount()) {
         selectedFrame = 0;
     }
     return DisplayRequestTarget { selectedFrame,
@@ -219,8 +216,7 @@ bool effectiveLoopingForPlayback(
     return false;
 }
 
-void updateLoopProgressForAcceptedPlaybackTarget(
-    ViewportControllerPort& viewport, bool looped)
+void updateLoopProgressForAcceptedPlaybackTarget(ViewportControllerPort& viewport, bool looped)
 {
     if (looped && !viewportRequestState(viewport).looping) {
         ++viewportRequestState(viewport).playbackLoopIterationsCompleted;

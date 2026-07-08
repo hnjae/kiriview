@@ -66,6 +66,10 @@ public:
     PageSetState pageSetState() const;
     ImageViewportInternal::RequestState& requestState();
     const ImageViewportInternal::RequestState& requestState() const;
+    ImageViewportInternal::ProviderGenerationState& providerState();
+    const ImageViewportInternal::ProviderGenerationState& providerState() const;
+    ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
+    const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
     const ImageViewportInternal::PresentationState& presentationState() const;
     ImageViewportInternal::PresentationState& presentationState();
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
@@ -95,5 +99,7 @@ private:
     RevisionToken m_commandRevision;
     PageSetState m_pageSetState;
     ImageViewportInternal::RequestState m_requestState;
+    ImageViewportInternal::ProviderGenerationState m_providerState;
+    ImageViewportInternal::ProviderGenerationState m_secondaryProviderState;
     ImageViewportInternal::PresentationState m_presentationState;
 };

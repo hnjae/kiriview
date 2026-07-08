@@ -1,6 +1,6 @@
-#include "viewportcontrollerplaybackhelpers_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportcommandoutcome_p.h"
+#include "viewportcontrollerplaybackhelpers_p.h"
 
 namespace {
 constexpr ImageViewport::PageRole primaryRole = ImageViewport::PageRole::Primary;
@@ -32,9 +32,8 @@ DisplayRequestTarget providerLatestNonPlaybackTarget(
     return target;
 }
 
-DisplayRequestTarget providerStopRestoreTarget(
-    ViewportControllerPort& viewport, const ViewportControllerState& state,
-    ImageViewport::PageRole role)
+DisplayRequestTarget providerStopRestoreTarget(ViewportControllerPort& viewport,
+    const ViewportControllerState& state, ImageViewport::PageRole role)
 {
     const ImageViewportInternal::DisplayRequest& activeRequest
         = activeRequestForRole(viewportRequestState(viewport), role);
@@ -94,12 +93,12 @@ void applyProviderStopRestoreTarget(ViewportControllerPort& viewport, DisplayReq
 
 bool stopRestoreTargetIsReadyDisplay(ViewportControllerPort& viewport)
 {
-    const auto primaryDisplay
-        = displayRoleStateFor(viewportDisplayState(viewport), primaryRole);
+    const auto primaryDisplay = displayRoleStateFor(viewportDisplayState(viewport), primaryRole);
     const ImageViewportInternal::DisplayRequest& primaryRequest
         = activeRequestForRole(viewportRequestState(viewport), primaryRole);
     return viewport.hasReadyDisplay()
-        && primaryDisplay.displayedRequest.generation == viewportRequestState(viewport).sequenceGeneration
+        && primaryDisplay.displayedRequest.generation
+        == viewportRequestState(viewport).sequenceGeneration
         && primaryDisplay.displayedRequest.request.resolvedFrame.frame
         == primaryRequest.resolvedFrame.frame
         && primaryDisplay.displayedRequest.request.resolvedFrame.position
@@ -140,15 +139,13 @@ StopRestorePlan stopRestorePlanFor(
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading
         && (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
             || viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Paused)
-        && provider.activeRequest.target.frame < 0
-        && provider.activeRequest.target.position < 0) {
+        && provider.activeRequest.target.frame < 0 && provider.activeRequest.target.position < 0) {
         return { StopRestorePlanKind::ProviderPendingMetadata,
             providerLatestNonPlaybackTarget(viewport, primaryRole),
             provider.latestNonPlaybackRequest.resolvedFrame };
     }
     if (viewport.hasProviderSequence() && provider.provider.timedMetadata
-        && provider.provider.queuedFrameRequest
-        && provider.provider.queuedFrameFromPlayback) {
+        && provider.provider.queuedFrameRequest && provider.provider.queuedFrameFromPlayback) {
         const DisplayRequestTarget target = providerStopRestoreTarget(viewport, state, primaryRole);
         return { StopRestorePlanKind::ProviderQueuedPlayback, target,
             providerStopRestoreResolvedFrame(viewport, state, primaryRole, target) };
@@ -167,8 +164,7 @@ StopRestorePlan stopRestorePlanFor(
         && provider.latestNonPlaybackRequest.target.frame >= 0
         && provider.activeRequest.target.frame != provider.latestNonPlaybackRequest.target.frame) {
         return { StopRestorePlanKind::BuiltInRenderWait,
-            DisplayRequestTarget {
-                provider.latestNonPlaybackRequest.target.frame,
+            DisplayRequestTarget { provider.latestNonPlaybackRequest.target.frame,
                 provider.latestNonPlaybackRequest.target.position },
             provider.latestNonPlaybackRequest.resolvedFrame };
     }
@@ -176,8 +172,8 @@ StopRestorePlan stopRestorePlanFor(
 }
 
 StopRestorePublication publishStopRestoreTarget(ViewportController& controller,
-    ViewportControllerPort& viewport,
-    DisplayRequestTarget target, ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
+    ViewportControllerPort& viewport, DisplayRequestTarget target,
+    ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
     StopRestoreWaitingState waitingState)
 {
     StopRestorePublication publication;
@@ -206,9 +202,9 @@ void completeStopRestoreRequest(
     markRequestMutation(result.changes);
 }
 
-bool appendProviderStopRestoreFrameStart(
-    ViewportController& controller, ViewportControllerPort& viewport,
-    const ViewportControllerState& state, ViewportCommandResult& result)
+bool appendProviderStopRestoreFrameStart(ViewportController& controller,
+    ViewportControllerPort& viewport, const ViewportControllerState& state,
+    ViewportCommandResult& result)
 {
     const ConstViewportProviderRoleState provider = providerRoleStateFor(state, primaryRole);
     if (!provider.provider.session || provider.activeRequest.target.frame < 0) {
@@ -240,8 +236,8 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
     case StopRestorePlanKind::ProviderQueuedPlayback: {
         clearQueuedProviderFrameRequest(state, primaryRole);
 
-        const StopRestorePublication publication = publishStopRestoreTarget(controller,
-            viewport, plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);
+        const StopRestorePublication publication = publishStopRestoreTarget(controller, viewport,
+            plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);
         if (!publication.readyDisplay) {
             if (!appendProviderStopRestoreFrameStart(controller, viewport, state, result)) {
                 return true;
@@ -254,13 +250,12 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
         ImageViewportInternal::ProviderGenerationState& provider
             = providerGenerationStateForRole(state, primaryRole);
         if (provider.session) {
-            result.providerFrameTransport.cancelToken
-                = provider.activeFrameToken;
+            result.providerFrameTransport.cancelToken = provider.activeFrameToken;
         }
         provider.activeFrameToken = {};
 
-        const StopRestorePublication publication = publishStopRestoreTarget(controller,
-            viewport, plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);
+        const StopRestorePublication publication = publishStopRestoreTarget(controller, viewport,
+            plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);
         if (publication.readyDisplay) {
             const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
             completeStopRestoreRequest(controller, viewport, result);
@@ -277,8 +272,8 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
         return true;
     }
     case StopRestorePlanKind::BuiltInRenderWait: {
-        const StopRestorePublication publication = publishStopRestoreTarget(controller,
-            viewport, plan.target, plan.resolvedFrame, StopRestoreWaitingState::RenderWaiting);
+        const StopRestorePublication publication = publishStopRestoreTarget(controller, viewport,
+            plan.target, plan.resolvedFrame, StopRestoreWaitingState::RenderWaiting);
         completeStopRestoreRequest(controller, viewport, result);
         result.changes.displayRevision
             = viewportDisplayState(viewport).status != publication.oldDisplayStatus;
@@ -306,8 +301,8 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
     ViewportCommandResult result;
     result.outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::CommandOutcome::markAccepted(viewport, result);
-    controller.beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
-        target, resolvedFrame, true);
+    controller.beginAcceptedDisplayRequest(
+        ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek, target, resolvedFrame, true);
     viewportRequestState(viewport).providerPlaybackStartPending = false;
     viewportRequestState(viewport).playbackPosition = target.position;
 
@@ -386,12 +381,11 @@ void applyProviderPlaybackStartTarget(ViewportControllerPort& viewport, DisplayR
 void applyPendingProviderPlaybackTarget(
     ViewportControllerPort& viewport, DisplayRequestTarget target)
 {
-    applyPendingProviderPlaybackTargetForRole(
-        viewport, ImageViewport::PageRole::Primary, target);
+    applyPendingProviderPlaybackTargetForRole(viewport, ImageViewport::PageRole::Primary, target);
 }
 
-void setActiveDisplayRequestForRole(ViewportControllerPort& viewport,
-    ImageViewport::PageRole role, ImageViewportInternal::DisplayRequestTarget target,
+void setActiveDisplayRequestForRole(ViewportControllerPort& viewport, ImageViewport::PageRole role,
+    ImageViewportInternal::DisplayRequestTarget target,
     ImageViewportInternal::ResolvedFrameIdentity resolvedFrame, bool rememberAsLatestNonPlayback)
 {
     ImageViewportInternal::RequestState& request = viewportRequestState(viewport);
@@ -423,8 +417,8 @@ void beginPlaybackDisplayRequestForRole(ViewportController& controller,
         = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary);
     controller.beginAcceptedDisplayRequest(
         origin, primaryRequest.target, primaryRequest.resolvedFrame, false);
-    setActiveDisplayRequestForRole(viewport, role, target, resolvedFrame,
-        rememberAsLatestNonPlayback);
+    setActiveDisplayRequestForRole(
+        viewport, role, target, resolvedFrame, rememberAsLatestNonPlayback);
 }
 
 template <typename FrameStartFor>
@@ -450,8 +444,8 @@ void applyPlaybackAdvancePhase(ViewportControllerPort& viewport,
         viewportRequestState(viewport).stopPlaybackWhenRequestReady
             = viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading;
     }
-    const ImageViewport::PlaybackPhase phase = playbackAdvancePhaseForRequest(
-        viewportRequestState(viewport).status, target.reachedEnd);
+    const ImageViewport::PlaybackPhase phase
+        = playbackAdvancePhaseForRequest(viewportRequestState(viewport).status, target.reachedEnd);
     if (viewportRequestState(viewport).playbackPhase == phase) {
         return;
     }
@@ -472,8 +466,8 @@ void appendPlaybackRequestChange(ViewportControllerPort& viewport,
     changes.displayState = true;
 }
 
-void publishProviderPlaybackAdvanceLoadingState(ViewportController& controller,
-    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+void publishProviderPlaybackAdvanceLoadingState(
+    ViewportController& controller, ViewportControllerPort& viewport, ImageViewport::PageRole role)
 {
     if (role == ImageViewport::PageRole::Primary) {
         controller.publishProviderFrameLoadingState();
@@ -482,10 +476,8 @@ void publishProviderPlaybackAdvanceLoadingState(ViewportController& controller,
 
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-    const auto primaryDisplay
-        = displayRoleStateFor(viewportDisplayState(viewport), primaryRole);
-    viewportDisplayState(viewport).status
-        = primaryDisplay.displayedImageSize.isValid()
+    const auto primaryDisplay = displayRoleStateFor(viewportDisplayState(viewport), primaryRole);
+    viewportDisplayState(viewport).status = primaryDisplay.displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
 }
@@ -539,8 +531,8 @@ ViewportCommandResult playProviderRole(ViewportController& controller,
         = activeRequestForRole(viewportRequestState(viewport), role);
     const ImageViewportInternal::DisplayRequest& primaryRequest
         = activeRequestForRole(viewportRequestState(viewport), primaryRole);
-    const bool currentIdentity = request.identity.id != 0
-        && request.identity.id == primaryRequest.identity.id;
+    const bool currentIdentity
+        = request.identity.id != 0 && request.identity.id == primaryRequest.identity.id;
     if (!viewport.hasActiveRequest() || !currentIdentity) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::IgnoredNoRequest;
@@ -689,8 +681,7 @@ ViewportCommandResult ViewportController::play()
     const ImageViewportInternal::ProviderGenerationState& primaryProvider
         = providerGenerationStateForRole(state, primaryRole);
     if (viewport.hasProviderSequence() && primaryProvider.metadataReady
-        && primaryProvider.timedMetadata
-        && primaryProvider.timedPlaybackSupport) {
+        && primaryProvider.timedMetadata && primaryProvider.timedPlaybackSupport) {
         ViewportCommandResult result;
         result.outcome = ImageViewport::CommandOutcome::Accepted;
         const bool preservePlaybackPosition
@@ -895,11 +886,9 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
             return result;
         }
 
-        if (activeProviderFrameRequestIsPlayback(
-                state, viewport, secondaryRole)) {
+        if (activeProviderFrameRequestIsPlayback(state, viewport, secondaryRole)) {
             const auto provider = providerRoleStateFor(state, role);
-            result.secondaryProviderFrameTransport.cancelToken
-                = provider.provider.activeFrameToken;
+            result.secondaryProviderFrameTransport.cancelToken = provider.provider.activeFrameToken;
             provider.provider.activeFrameToken = {};
         }
 
@@ -1183,9 +1172,8 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
-        const int maximumFrame = provider.timedMetadata
-            ? provider.timingIntervals.frameCount() - 1
-            : 0;
+        const int maximumFrame
+            = provider.timedMetadata ? provider.timingIntervals.frameCount() - 1 : 0;
         if (frame > maximumFrame) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
@@ -1461,8 +1449,7 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
                 viewport, result, ImageViewport::CommandReason::UnsupportedRequest);
             return result;
         }
-        const int frame
-            = providerFrameIndexForPositionForRole(state, secondaryRole, milliseconds);
+        const int frame = providerFrameIndexForPositionForRole(state, secondaryRole, milliseconds);
         if (frame < 0) {
             ViewportCommandResult result;
             result.outcome = ImageViewport::CommandOutcome::Invalid;
@@ -1495,7 +1482,8 @@ int ViewportController::playbackTimerInterval() const
     if (!timing.valid) {
         return -1;
     }
-    const int currentFrame = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
+    const int currentFrame
+        = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
     if (currentFrame < 0 || currentFrame >= timing.frameCount) {
         return -1;
     }
@@ -1530,13 +1518,14 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
     if (!timing.valid) {
         return result;
     }
-    const int previousFrame = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
-    const int currentFrame = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
+    const int previousFrame
+        = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
+    const int currentFrame
+        = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
     const PlaybackAdvanceTarget target = playbackAdvanceTarget(
         elapsedMilliseconds, currentFrame, viewportRequestState(viewport).playbackPosition,
-        effectiveLoopingForPlayback(viewport, timing.authoredAnimationFacts),
-        timing.totalDuration, timing.frameCount,
-        [&timing](int frame) { return timing.frameStartPosition(frame); },
+        effectiveLoopingForPlayback(viewport, timing.authoredAnimationFacts), timing.totalDuration,
+        timing.frameCount, [&timing](int frame) { return timing.frameStartPosition(frame); },
         [&timing](int position) { return timing.frameIndexForPosition(position); });
     if (!target.valid) {
         return result;

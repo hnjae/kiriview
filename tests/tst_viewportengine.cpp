@@ -12,6 +12,8 @@ private slots:
     void defaultSnapshotMatchesPublicDefaultProjection();
     void defaultRequestStateMatchesPublicDefaults();
     void requestStateOwnsPlaybackDriverAndRequestIdentity();
+    void defaultProviderStateMatchesEmptyGeneration();
+    void providerStateOwnsTokensQueuesAndMetadataByRole();
     void invalidCommandUpdatesOnlyCommandDiagnostics();
     void malformedEnumRejectionMatchesInvalidCommand();
     void clearFromEmptyIsAcceptedNoop();
@@ -128,6 +130,105 @@ void ViewportEngineTest::requestStateOwnsPlaybackDriverAndRequestIdentity()
         observed.secondaryActiveRequest.identity.origin, observed.activeRequest.identity.origin);
     QCOMPARE(observed.secondaryActiveRequest.target.frame, 4);
     QCOMPARE(observed.secondaryLatestNonPlaybackRequest.target.frame, 1);
+}
+
+void ViewportEngineTest::defaultProviderStateMatchesEmptyGeneration()
+{
+    ViewportEngine engine;
+    const auto& provider = engine.providerState();
+    const auto& secondaryProvider = engine.secondaryProviderState();
+
+    QVERIFY(provider.session == nullptr);
+    QCOMPARE(provider.sessionSerial, 0);
+    QCOMPARE(provider.nextRequestToken, 0);
+    QVERIFY(!provider.activeMetadataToken.isValid());
+    QVERIFY(!provider.activeFrameToken.isValid());
+    QCOMPARE(provider.queuedFrameRequest, false);
+    QCOMPARE(provider.queuedFrameGeneration, 0);
+    QCOMPARE(provider.queuedFrameRequestId, 0);
+    QCOMPARE(provider.queuedFrame, -1);
+    QCOMPARE(provider.queuedPosition, -1);
+    QCOMPARE(provider.queuedResolvedFrame.isValid(), false);
+    QCOMPARE(provider.queuedFrameFromPlayback, false);
+    QCOMPARE(
+        provider.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Unknown);
+    QCOMPARE(provider.metadataReady, false);
+    QCOMPARE(provider.timedMetadata, false);
+    QCOMPARE(provider.timedPlaybackSupport, false);
+    QCOMPARE(provider.frameSeekSupport, false);
+    QCOMPARE(provider.positionSeekSupport, false);
+    QCOMPARE(provider.logicalSize, QSizeF());
+    QCOMPARE(provider.timingIntervals.isValid(), false);
+
+    QCOMPARE(secondaryProvider.sessionSerial, 0);
+    QCOMPARE(secondaryProvider.nextRequestToken, 0);
+    QCOMPARE(secondaryProvider.metadataReady, false);
+}
+
+void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
+{
+    ViewportEngine engine;
+    auto& provider = engine.providerState();
+    auto& secondaryProvider = engine.secondaryProviderState();
+
+    provider.sessionSerial = 11;
+    provider.nextRequestToken = 3;
+    provider.activeMetadataToken = ImageSequenceProviderRequestToken(4);
+    provider.activeFrameToken = ImageSequenceProviderRequestToken(5);
+    provider.queuedFrameRequest = true;
+    provider.queuedFrameGeneration = 7;
+    provider.queuedFrameRequestId = 13;
+    provider.queuedFrame = 2;
+    provider.queuedPosition = 120;
+    provider.queuedResolvedFrame = { 2, 120 };
+    provider.queuedFrameFromPlayback = true;
+    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    provider.metadataReady = true;
+    provider.timedMetadata = true;
+    provider.timedPlaybackSupport = true;
+    provider.frameSeekSupport = true;
+    provider.positionSeekSupport = true;
+    provider.authoredAnimationFacts = ImageSequenceAuthoredAnimationFacts::finiteLoop(3);
+    provider.logicalSize = QSizeF(16.0, 8.0);
+    provider.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
+
+    secondaryProvider.sessionSerial = 21;
+    secondaryProvider.nextRequestToken = 9;
+    secondaryProvider.metadataReady = true;
+    secondaryProvider.logicalSize = QSizeF(4.0, 6.0);
+
+    const auto& observed = engine.providerState();
+    QCOMPARE(observed.sessionSerial, 11);
+    QCOMPARE(observed.nextRequestToken, 3);
+    QCOMPARE(observed.activeMetadataToken, ImageSequenceProviderRequestToken(4));
+    QCOMPARE(observed.activeFrameToken, ImageSequenceProviderRequestToken(5));
+    QCOMPARE(observed.queuedFrameRequest, true);
+    QCOMPARE(observed.queuedFrameGeneration, 7);
+    QCOMPARE(observed.queuedFrameRequestId, 13);
+    QCOMPARE(observed.queuedFrame, 2);
+    QCOMPARE(observed.queuedPosition, 120);
+    QCOMPARE(observed.queuedResolvedFrame.frame, 2);
+    QCOMPARE(observed.queuedResolvedFrame.position, 120);
+    QCOMPARE(observed.queuedFrameFromPlayback, true);
+    QCOMPARE(
+        observed.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Playback);
+    QCOMPARE(observed.metadataReady, true);
+    QCOMPARE(observed.timedMetadata, true);
+    QCOMPARE(observed.timedPlaybackSupport, true);
+    QCOMPARE(observed.frameSeekSupport, true);
+    QCOMPARE(observed.positionSeekSupport, true);
+    QCOMPARE(observed.authoredAnimationFacts.loopMode(),
+        ImageSequenceAuthoredAnimationFacts::LoopMode::Finite);
+    QCOMPARE(observed.authoredAnimationFacts.loopCount(), 3);
+    QCOMPARE(observed.logicalSize, QSizeF(16.0, 8.0));
+    QCOMPARE(observed.timingIntervals.frameCount(), 2);
+    QCOMPARE(observed.timingIntervals.totalDuration(), 350);
+
+    QCOMPARE(engine.secondaryProviderState().sessionSerial, 21);
+    QCOMPARE(engine.secondaryProviderState().nextRequestToken, 9);
+    QCOMPARE(engine.secondaryProviderState().metadataReady, true);
+    QCOMPARE(engine.secondaryProviderState().logicalSize, QSizeF(4.0, 6.0));
+    QCOMPARE(engine.providerState().logicalSize, QSizeF(16.0, 8.0));
 }
 
 void ViewportEngineTest::invalidCommandUpdatesOnlyCommandDiagnostics()
