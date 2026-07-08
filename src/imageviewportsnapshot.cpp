@@ -114,7 +114,8 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
         minimumManualZoomPercent(), maximumManualZoomPercent(), manualZoomStepFactor(),
         rotationDegrees(), mirrorHorizontally(), mirrorVertically(), spreadDirection(), pageGap(),
         backgroundMode(), backgroundColor(), smoothing(), mipmap(), looping(),
-        ImageViewport::QualityPreference::Default, ImageViewport::ExactnessPreference::Default);
+        controller.presentationState().qualityPreference,
+        controller.presentationState().exactnessPreference);
 
     const auto roleSnapshot = [this, &request, &display, acceptedGeneration, &pageSetState](
                                   PageRole role) -> ImageViewportRoleSnapshot {

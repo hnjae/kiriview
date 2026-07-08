@@ -293,6 +293,10 @@ public:
     ImageViewportInternal::ViewportChangeSet setMirrorVertically(bool enabled);
     ImageViewportInternal::ViewportChangeSet setBackgroundMode(ImageViewport::BackgroundMode mode);
     ImageViewportInternal::ViewportChangeSet setBackgroundColor(const QColor& color);
+    ImageViewportInternal::ViewportChangeSet setQualityPreference(
+        ImageViewport::QualityPreference preference);
+    ImageViewportInternal::ViewportChangeSet setExactnessPreference(
+        ImageViewport::ExactnessPreference preference);
     ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
     ViewportCommandResult setPageGap(double gap);
     ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);

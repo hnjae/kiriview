@@ -330,11 +330,17 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
 
     command = {};
     command.setManualZoomPercent(200.0);
+    command.setQualityPreference(ImageViewport::QualityPreference::BalancedDetail);
+    command.setExactnessPreference(ImageViewport::ExactnessPreference::PreferExact);
     QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportStateSnapshot snapshot = item.state();
     QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(snapshot.presentation().zoomPercent(), item.zoomPercent());
+    QCOMPARE(snapshot.presentation().qualityPreference(),
+        ImageViewport::QualityPreference::BalancedDetail);
+    QCOMPARE(snapshot.presentation().exactnessPreference(),
+        ImageViewport::ExactnessPreference::PreferExact);
     QCOMPARE(snapshot.display().contentRect(), item.contentRect());
     QCOMPARE(snapshot.display().visibleSpreadRect(), item.visibleSpreadRect());
     QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), item.primaryItemRect());

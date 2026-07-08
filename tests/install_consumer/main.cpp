@@ -888,12 +888,22 @@ int main(int argc, char** argv)
     ImageViewportPresentationCommand installedPresentationCommand;
     installedPresentationCommand.setManualZoomPercent(125.0);
     installedPresentationCommand.setPageGap(3.0);
+    installedPresentationCommand.setQualityPreference(
+        ImageViewport::QualityPreference::ExactDetail);
+    installedPresentationCommand.setExactnessPreference(
+        ImageViewport::ExactnessPreference::RequireExact);
     if (!installedPresentationCommand.hasManualZoomPercent()
         || !installedPresentationCommand.hasPageGap()
+        || !installedPresentationCommand.hasQualityPreference()
+        || !installedPresentationCommand.hasExactnessPreference()
         || helperViewport.setPresentation(installedPresentationCommand)
             != ImageViewport::CommandOutcome::Accepted
         || helperViewport.fitMode() != ImageViewport::FitMode::Manual
-        || !nearlyEqual(helperViewport.zoomPercent(), 125.0) || helperViewport.pageGap() != 3.0) {
+        || !nearlyEqual(helperViewport.zoomPercent(), 125.0) || helperViewport.pageGap() != 3.0
+        || helperViewport.state().presentation().qualityPreference()
+            != ImageViewport::QualityPreference::ExactDetail
+        || helperViewport.state().presentation().exactnessPreference()
+            != ImageViewport::ExactnessPreference::RequireExact) {
         return 1;
     }
     ImageViewportCoordinateInput installedCoordinateInput;

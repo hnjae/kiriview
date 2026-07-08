@@ -382,6 +382,10 @@ void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
     QCOMPARE(engine.presentationState().backgroundColor, item.backgroundColor());
     QCOMPARE(engine.presentationState().smoothing, item.smoothing());
     QCOMPARE(engine.presentationState().mipmap, item.mipmap());
+    QCOMPARE(
+        engine.presentationState().qualityPreference, ImageViewport::QualityPreference::Default);
+    QCOMPARE(engine.presentationState().exactnessPreference,
+        ImageViewport::ExactnessPreference::Default);
 }
 
 void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()

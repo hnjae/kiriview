@@ -26,6 +26,19 @@ inline bool isValidFitMode(ImageViewport::FitMode mode)
     return false;
 }
 
+inline bool isValidScanDirection(ImageViewport::ScanDirection direction)
+{
+    switch (direction) {
+    case ImageViewport::ScanDirection::Start:
+    case ImageViewport::ScanDirection::Previous:
+    case ImageViewport::ScanDirection::Next:
+    case ImageViewport::ScanDirection::End:
+        return true;
+    }
+
+    return false;
+}
+
 inline bool isValidSpreadDirection(ImageViewport::SpreadDirection direction)
 {
     switch (direction) {
@@ -54,6 +67,32 @@ inline bool isValidBackgroundMode(ImageViewport::BackgroundMode mode)
     case ImageViewport::BackgroundMode::Transparent:
     case ImageViewport::BackgroundMode::SolidColor:
     case ImageViewport::BackgroundMode::Checkerboard:
+        return true;
+    }
+
+    return false;
+}
+
+inline bool isValidQualityPreference(ImageViewport::QualityPreference preference)
+{
+    switch (preference) {
+    case ImageViewport::QualityPreference::Default:
+    case ImageViewport::QualityPreference::FastFirstDisplay:
+    case ImageViewport::QualityPreference::BalancedDetail:
+    case ImageViewport::QualityPreference::ExactDetail:
+        return true;
+    }
+
+    return false;
+}
+
+inline bool isValidExactnessPreference(ImageViewport::ExactnessPreference preference)
+{
+    switch (preference) {
+    case ImageViewport::ExactnessPreference::Default:
+    case ImageViewport::ExactnessPreference::AllowInexact:
+    case ImageViewport::ExactnessPreference::PreferExact:
+    case ImageViewport::ExactnessPreference::RequireExact:
         return true;
     }
 

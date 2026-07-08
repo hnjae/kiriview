@@ -988,6 +988,14 @@ public:
     };
     Q_ENUM(FitMode)
 
+    enum class ScanDirection {
+        Start,
+        Previous,
+        Next,
+        End,
+    };
+    Q_ENUM(ScanDirection)
+
     enum class RequestStatus {
         NoRequest,
         Loading,
@@ -1315,6 +1323,8 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(QPointF contentPosition READ contentPosition WRITE setContentPosition)
     Q_PROPERTY(bool panDeltaSet READ hasPanDelta CONSTANT)
     Q_PROPERTY(QPointF panDelta READ panDelta WRITE setPanDelta)
+    Q_PROPERTY(bool scanDirectionSet READ hasScanDirection CONSTANT)
+    Q_PROPERTY(ImageViewport::ScanDirection scanDirection READ scanDirection WRITE setScanDirection)
     Q_PROPERTY(bool rotationDegreesSet READ hasRotationDegrees CONSTANT)
     Q_PROPERTY(int rotationDegrees READ rotationDegrees WRITE setRotationDegrees)
     Q_PROPERTY(bool mirrorHorizontallySet READ hasMirrorHorizontally CONSTANT)
@@ -1337,6 +1347,12 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(bool mipmap READ mipmap WRITE setMipmap)
     Q_PROPERTY(bool loopingSet READ hasLooping CONSTANT)
     Q_PROPERTY(bool looping READ looping WRITE setLooping)
+    Q_PROPERTY(bool qualityPreferenceSet READ hasQualityPreference CONSTANT)
+    Q_PROPERTY(ImageViewport::QualityPreference qualityPreference READ qualityPreference WRITE
+            setQualityPreference)
+    Q_PROPERTY(bool exactnessPreferenceSet READ hasExactnessPreference CONSTANT)
+    Q_PROPERTY(ImageViewport::ExactnessPreference exactnessPreference READ exactnessPreference WRITE
+            setExactnessPreference)
 
 public:
     ImageViewportPresentationCommand() = default;
@@ -1384,6 +1400,13 @@ public:
     {
         m_panDelta = delta;
         m_hasPanDelta = true;
+    }
+    bool hasScanDirection() const { return m_hasScanDirection; }
+    ImageViewport::ScanDirection scanDirection() const { return m_scanDirection; }
+    void setScanDirection(ImageViewport::ScanDirection direction)
+    {
+        m_scanDirection = direction;
+        m_hasScanDirection = true;
     }
     bool hasRotationDegrees() const { return m_hasRotationDegrees; }
     int rotationDegrees() const { return m_rotationDegrees; }
@@ -1455,6 +1478,20 @@ public:
         m_looping = looping;
         m_hasLooping = true;
     }
+    bool hasQualityPreference() const { return m_hasQualityPreference; }
+    ImageViewport::QualityPreference qualityPreference() const { return m_qualityPreference; }
+    void setQualityPreference(ImageViewport::QualityPreference preference)
+    {
+        m_qualityPreference = preference;
+        m_hasQualityPreference = true;
+    }
+    bool hasExactnessPreference() const { return m_hasExactnessPreference; }
+    ImageViewport::ExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    void setExactnessPreference(ImageViewport::ExactnessPreference preference)
+    {
+        m_exactnessPreference = preference;
+        m_hasExactnessPreference = true;
+    }
 
 private:
     bool m_resetView = false;
@@ -1468,6 +1505,8 @@ private:
     QPointF m_contentPosition;
     bool m_hasPanDelta = false;
     QPointF m_panDelta;
+    bool m_hasScanDirection = false;
+    ImageViewport::ScanDirection m_scanDirection = ImageViewport::ScanDirection::Start;
     bool m_hasRotationDegrees = false;
     int m_rotationDegrees = 0;
     bool m_hasMirrorHorizontally = false;
@@ -1488,6 +1527,12 @@ private:
     bool m_mipmap = false;
     bool m_hasLooping = false;
     bool m_looping = false;
+    bool m_hasQualityPreference = false;
+    ImageViewport::QualityPreference m_qualityPreference
+        = ImageViewport::QualityPreference::Default;
+    bool m_hasExactnessPreference = false;
+    ImageViewport::ExactnessPreference m_exactnessPreference
+        = ImageViewport::ExactnessPreference::Default;
 };
 
 class PageGeometry

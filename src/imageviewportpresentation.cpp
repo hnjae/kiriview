@@ -381,11 +381,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
 {
     const bool resetConflicts = command.resetView()
         && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
-            || command.hasContentPosition() || command.hasPanDelta() || command.hasRotationDegrees()
-            || command.hasMirrorHorizontally() || command.hasMirrorVertically());
+            || command.hasContentPosition() || command.hasPanDelta() || command.hasScanDirection()
+            || command.hasRotationDegrees() || command.hasMirrorHorizontally()
+            || command.hasMirrorVertically());
     const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
         + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
-        + (command.hasPanDelta() ? 1 : 0);
+        + (command.hasPanDelta() ? 1 : 0) + (command.hasScanDirection() ? 1 : 0);
     const auto validRotation = [](int degrees) {
         return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
     };
@@ -398,12 +399,18 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
         || (command.hasContentPosition()
             && !ImageViewportInternal::isFinitePoint(command.contentPosition()))
         || (command.hasPanDelta() && !ImageViewportInternal::isFinitePoint(command.panDelta()))
+        || (command.hasScanDirection()
+            && !ImageViewportInternal::isValidScanDirection(command.scanDirection()))
         || (command.hasRotationDegrees() && !validRotation(command.rotationDegrees()))
         || (command.hasSpreadDirection()
             && !ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
         || (command.hasPageGap() && (!std::isfinite(command.pageGap()) || command.pageGap() < 0.0))
         || (command.hasBackgroundMode()
-            && !ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()));
+            && !ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()))
+        || (command.hasQualityPreference()
+            && !ImageViewportInternal::isValidQualityPreference(command.qualityPreference()))
+        || (command.hasExactnessPreference()
+            && !ImageViewportInternal::isValidExactnessPreference(command.exactnessPreference()));
 
     if (invalid) {
         const ViewportCommandResult result = controller.rejectInvalidCommand();
@@ -433,6 +440,30 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     }
     if (command.hasPanDelta() && !accepted(panBy(command.panDelta()))) {
         return CommandOutcome::Invalid;
+    }
+    if (command.hasScanDirection()) {
+        switch (command.scanDirection()) {
+        case ImageViewport::ScanDirection::Start:
+            if (!accepted(panToStart())) {
+                return CommandOutcome::Invalid;
+            }
+            break;
+        case ImageViewport::ScanDirection::Previous:
+            if (!accepted(scanPrevious())) {
+                return CommandOutcome::Invalid;
+            }
+            break;
+        case ImageViewport::ScanDirection::Next:
+            if (!accepted(scanNext())) {
+                return CommandOutcome::Invalid;
+            }
+            break;
+        case ImageViewport::ScanDirection::End:
+            if (!accepted(panToEnd())) {
+                return CommandOutcome::Invalid;
+            }
+            break;
+        }
     }
     if (command.hasRotationDegrees()) {
         const auto normalize = [](int degrees) { return ((degrees % 360) + 360) % 360; };
@@ -470,6 +501,12 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     }
     if (command.hasLooping()) {
         setLooping(command.looping());
+    }
+    if (command.hasQualityPreference()) {
+        applyControllerChanges(controller.setQualityPreference(command.qualityPreference()));
+    }
+    if (command.hasExactnessPreference()) {
+        applyControllerChanges(controller.setExactnessPreference(command.exactnessPreference()));
     }
     return CommandOutcome::Accepted;
 }

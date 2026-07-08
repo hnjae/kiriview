@@ -263,6 +263,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "PageRole",
         "SpreadDirection",
         "FitMode",
+        "ScanDirection",
     };
 
     for (const QByteArray& enumerator : enumerators) {
@@ -273,6 +274,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     verifyEnumValues(metaObject, "PageRole", { "Primary", "Secondary" });
     verifyEnumValues(metaObject, "SpreadDirection", { "LeftToRight", "RightToLeft" });
     verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
+    verifyEnumValues(metaObject, "ScanDirection", { "Start", "Previous", "Next", "End" });
 
     const QList<QByteArray> methods = {
         "setPageSet(QVariant)",
@@ -406,6 +408,21 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
     verifyEnumValues(&policyMetaObject, "FitModeTransition", { "Preserve", "SetExplicit" });
     verifyEnumValues(&policyMetaObject, "SpreadDirectionTransition", { "Preserve", "SetExplicit" });
     verifyEnumValues(&policyMetaObject, "PageGapTransition", { "Preserve", "SetExplicit" });
+
+    const QMetaObject& presentationCommandMetaObject
+        = ImageViewportPresentationCommand::staticMetaObject;
+    const QList<QByteArray> presentationCommandProperties = {
+        "scanDirectionSet",
+        "scanDirection",
+        "qualityPreferenceSet",
+        "qualityPreference",
+        "exactnessPreferenceSet",
+        "exactnessPreference",
+    };
+    for (const QByteArray& propertyName : presentationCommandProperties) {
+        QVERIFY2(presentationCommandMetaObject.indexOfProperty(propertyName.constData()) >= 0,
+            propertyName.constData());
+    }
 }
 
 void ImageViewportPublicApiTest::hasDocumentedDefaultState()

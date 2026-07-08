@@ -223,6 +223,9 @@ struct PresentationState
     ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
     ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
+    ImageViewport::QualityPreference qualityPreference = ImageViewport::QualityPreference::Default;
+    ImageViewport::ExactnessPreference exactnessPreference
+        = ImageViewport::ExactnessPreference::Default;
     QColor backgroundColor = Qt::transparent;
     double manualZoom = 1.0;
     double pageGap = 0.0;

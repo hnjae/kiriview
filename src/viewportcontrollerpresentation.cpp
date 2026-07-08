@@ -253,6 +253,30 @@ ImageViewportInternal::ViewportChangeSet ViewportController::setBackgroundColor(
     return presentationChanges(viewport, false);
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportController::setQualityPreference(
+    ImageViewport::QualityPreference preference)
+{
+    if (!ImageViewportInternal::isValidQualityPreference(preference)
+        || state.engine.presentationState().qualityPreference == preference) {
+        return {};
+    }
+
+    state.engine.presentationState().qualityPreference = preference;
+    return presentationChanges(viewport, false);
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::setExactnessPreference(
+    ImageViewport::ExactnessPreference preference)
+{
+    if (!ImageViewportInternal::isValidExactnessPreference(preference)
+        || state.engine.presentationState().exactnessPreference == preference) {
+        return {};
+    }
+
+    state.engine.presentationState().exactnessPreference = preference;
+    return presentationChanges(viewport, false);
+}
+
 ViewportCommandResult ViewportController::setSpreadDirection(
     ImageViewport::SpreadDirection direction)
 {

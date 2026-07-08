@@ -702,6 +702,10 @@ In progress as of 2026-07-08. The numeric token cleanup slice is complete: `Revi
 
 Verification for this slice: `cmake --build build-ninja` passed, and `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
 
+The presentation-command completion slice is complete: `ImageViewportPresentationCommand` now exposes the documented `scanDirection`, `qualityPreference`, and `exactnessPreference` fields; quality and exactness preferences are engine-owned presentation state projected through `state.presentation`; and scan direction reuses the existing pan/scan command behavior. This adds the v2 replacement coverage needed before removing legacy presentation helpers. Replacement coverage is in `imageviewport_public_api`, `imageviewport_public_api_commands/presentationCommandAppliesAndRejectsTransactionally`, `imageviewport_state_snapshot`, `viewportengine`, and `imageviewport_install_consumer`.
+
+Verification for this slice: `cmake --build build-ninja` passed, and `ctest --test-dir build-ninja --output-on-failure` passed 44/44.
+
 ### Risks And Rollback Criteria
 
 - Risk: behavior is lost under the cover of API cleanup. Roll back any removal commit whose ledger lacks a passing v2 replacement test.

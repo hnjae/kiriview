@@ -936,6 +936,8 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     command.setSmoothing(false);
     command.setMipmap(true);
     command.setLooping(true);
+    command.setQualityPreference(ImageViewport::QualityPreference::ExactDetail);
+    command.setExactnessPreference(ImageViewport::ExactnessPreference::RequireExact);
 
     QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.fitMode(), ImageViewport::FitMode::Manual);
@@ -947,6 +949,24 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.smoothing(), false);
     QCOMPARE(item.mipmap(), true);
     QCOMPARE(item.looping(), true);
+    QCOMPARE(item.state().presentation().qualityPreference(),
+        ImageViewport::QualityPreference::ExactDetail);
+    QCOMPARE(item.state().presentation().exactnessPreference(),
+        ImageViewport::ExactnessPreference::RequireExact);
+
+    QCOMPARE(
+        item.setZoomPercent(1000.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
+    QVERIFY(item.maximumContentPosition().x() > 0.0 || item.maximumContentPosition().y() > 0.0);
+
+    ImageViewportPresentationCommand scanCommand;
+    scanCommand.setScanDirection(ImageViewport::ScanDirection::End);
+    QCOMPARE(item.setPresentation(scanCommand), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.contentPosition(), item.maximumContentPosition());
+
+    scanCommand = {};
+    scanCommand.setScanDirection(ImageViewport::ScanDirection::Start);
+    QCOMPARE(item.setPresentation(scanCommand), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.contentPosition(), QPointF());
 
     const RevisionToken requestRevision = item.requestRevision();
     const RevisionToken displayRevision = item.displayRevision();
@@ -957,7 +977,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportPresentationCommand invalidCommand;
     invalidCommand.setManualZoomPercent(125.0);
-    invalidCommand.setPanDelta(QPointF(1.0, 0.0));
+    invalidCommand.setScanDirection(ImageViewport::ScanDirection::Next);
     invalidCommand.setPageGap(12.0);
 
     QCOMPARE(item.setPresentation(invalidCommand), ImageViewport::CommandOutcome::Invalid);
