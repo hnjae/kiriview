@@ -132,6 +132,7 @@ private slots:
     void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
     void nearestVisibleHelpersUseDevicePixelRatioAdjustedManualGeometry();
     void manualZoomHelpersUseControllerPresentationGeometry();
+    void zoomByStepUsesControllerStepMathAndValidation();
 };
 
 void ViewportControllerPresentationTest::standalonePresentationCommandsMutateControllerState()
@@ -546,6 +547,46 @@ void ViewportControllerPresentationTest::manualZoomHelpersUseControllerPresentat
 
     context.itemSize = QSizeF(0.0, 100.0);
     QCOMPARE(controller.maximumManualZoomPercent(2.0), displayDemandCeiling);
+}
+
+void ViewportControllerPresentationTest::zoomByStepUsesControllerStepMathAndValidation()
+{
+    const double displayDemandCeiling = ImageViewportDisplayLimits::maximumManualZoomPercent();
+    const auto verifyClose = [](double actual, double expected) {
+        QVERIFY2(qAbs(actual - expected) < 0.000001,
+            qPrintable(QStringLiteral("actual %1 expected %2").arg(actual).arg(expected)));
+    };
+    ImageSequenceFactory factory;
+    PresentationControllerContext context;
+    std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
+    QVERIFY(sequence);
+    context.readyDisplay = true;
+    ViewportController controller(context);
+
+    QCOMPARE(controller.assignSequence({ sequence->sequence() }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    acknowledgePendingRenderCommit(controller);
+    QCOMPARE(controller.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+
+    const ViewportCommandResult stepResult
+        = controller.zoomByStep(1, QPointF(50.0, 50.0), 2.0);
+    QCOMPARE(stepResult.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Manual);
+    verifyClose(controller.presentationState().manualZoom, 31.25);
+    verifyClose(controller.steppedManualZoomPercent(0, 2.0), 3125.0);
+
+    const double manualBeforeInvalid = controller.presentationState().manualZoom;
+    const ViewportCommandResult invalidResult = controller.zoomByStep(
+        1, QPointF(std::numeric_limits<double>::infinity(), 50.0), 2.0);
+    QCOMPARE(invalidResult.outcome, ImageViewport::CommandOutcome::Invalid);
+    verifyClose(controller.presentationState().manualZoom, manualBeforeInvalid);
+
+    const ViewportCommandResult largeResult
+        = controller.zoomByStep(std::numeric_limits<int>::max(), QPointF(50.0, 50.0), 2.0);
+    QCOMPARE(largeResult.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Manual);
+    QCOMPARE(controller.presentationState().manualZoom, displayDemandCeiling / 100.0);
 }
 
 QTEST_MAIN(ViewportControllerPresentationTest)

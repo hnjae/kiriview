@@ -392,6 +392,7 @@ ImageViewport {
         const seekOutcome = seek(0)
         const positionSeekOutcome = seekToPosition(0)
         const zoomOutcome = setZoomPercent(200, Qt.point(5, 5))
+        const stepOutcome = zoomByStep(1, Qt.point(5, 5))
         const resetViewOutcome = resetView()
         const minimum = minimumManualZoomPercent
         const maximum = maximumManualZoomPercent
@@ -405,6 +406,7 @@ ImageViewport {
             && seekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && positionSeekOutcome === ImageViewport.CommandOutcome.IgnoredNoRequest
             && zoomOutcome === ImageViewport.CommandOutcome.Accepted
+            && stepOutcome === ImageViewport.CommandOutcome.Accepted
             && resetViewOutcome === ImageViewport.CommandOutcome.Accepted
             && commandReason === ImageViewport.CommandReason.NoCommand
             && commandRevision.valid
@@ -684,6 +686,12 @@ int main(int argc, char** argv)
         || helperViewport.nearestVisiblePagePoint(ImageViewport::PageRole::Primary, 1.0, 1.0)
             .isValid()
         || helperViewport.nearestVisibleImagePoint(1.0, 1.0).isValid()) {
+        return 1;
+    }
+
+    ImageViewport steppedCommandViewport;
+    if (steppedCommandViewport.zoomByStep(1, QPointF()) != ImageViewport::CommandOutcome::Accepted
+        || !nearlyEqual(steppedCommandViewport.zoomPercent(), 125.0)) {
         return 1;
     }
 

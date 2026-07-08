@@ -370,6 +370,7 @@ ImageViewport {
             && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
             && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && zoomByStep(1, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && panBy(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && panToStart() === ImageViewport.CommandOutcome.Accepted
             && panToEnd() === ImageViewport.CommandOutcome.Accepted

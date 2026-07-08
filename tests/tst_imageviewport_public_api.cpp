@@ -274,6 +274,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "pageGeometry(ImageViewport::PageRole)",
+        "zoomByStep(int,QPointF)",
         "panToStart()",
         "panToEnd()",
         "scanNext()",
@@ -368,6 +369,12 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         QVERIFY2(index >= 0, methodName.constData());
         QCOMPARE(QByteArray(metaObject->method(index).typeName()), QByteArray("double"));
     }
+
+    const int zoomByStepMethodIndex
+        = metaObject->indexOfMethod(QMetaObject::normalizedSignature("zoomByStep(int,QPointF)"));
+    QVERIFY(zoomByStepMethodIndex >= 0);
+    QCOMPARE(QByteArray(metaObject->method(zoomByStepMethodIndex).typeName()),
+        QByteArray("ImageViewport::CommandOutcome"));
 
     const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {
