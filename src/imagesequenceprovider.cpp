@@ -324,52 +324,6 @@ ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
 {
 }
 
-void ImageSequenceProviderSession::request(const ImageSequenceProviderRequest& request)
-{
-    switch (request.kind()) {
-    case ImageSequenceProviderRequestKind::Metadata:
-        requestMetadata(request.token());
-        return;
-    case ImageSequenceProviderRequestKind::Frame:
-        requestFrame(request.token(), request.frame());
-        return;
-    case ImageSequenceProviderRequestKind::Position:
-        requestPosition(request.token(), request.resolvedFrame(), request.requestedPosition());
-        return;
-    case ImageSequenceProviderRequestKind::Playback:
-        requestPlayback(request.token(), request.frame(), request.requestedPosition());
-        return;
-    case ImageSequenceProviderRequestKind::Cancel:
-        for (const ImageSequenceProviderRequestToken& token : request.tokens()) {
-            cancelRequest(token);
-        }
-        return;
-    case ImageSequenceProviderRequestKind::Close:
-        close();
-        return;
-    }
-}
-
-void ImageSequenceProviderSession::requestMetadata(ImageSequenceProviderRequestToken) { }
-
-void ImageSequenceProviderSession::requestFrame(ImageSequenceProviderRequestToken, int) { }
-
-void ImageSequenceProviderSession::requestPosition(
-    ImageSequenceProviderRequestToken token, int resolvedFrame, int)
-{
-    requestFrame(token, resolvedFrame);
-}
-
-void ImageSequenceProviderSession::requestPlayback(
-    ImageSequenceProviderRequestToken token, int frame, int)
-{
-    requestFrame(token, frame);
-}
-
-void ImageSequenceProviderSession::cancelRequest(ImageSequenceProviderRequestToken) { }
-
-void ImageSequenceProviderSession::close() { }
-
 bool ImageSequenceProviderFrameEnvelope::isValid() const
 {
     if (!isPositiveFiniteSize(m_sourceLogicalSize) || !isPositiveFiniteSize(m_payloadRasterSize)

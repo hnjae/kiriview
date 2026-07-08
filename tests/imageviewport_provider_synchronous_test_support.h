@@ -13,13 +13,15 @@ namespace {
 class PlaybackFallbackSession final : public ImageSequenceProviderSession
 {
 public:
-    void requestMetadata(ImageSequenceProviderRequestToken) override { }
-
-    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        lastFrameToken = token;
-        lastFrame = frame;
-        ++frameRequestCount;
+        if (request.kind() == ImageSequenceProviderRequestKind::Frame
+            || request.kind() == ImageSequenceProviderRequestKind::Playback
+            || request.kind() == ImageSequenceProviderRequestKind::Position) {
+            lastFrameToken = request.token();
+            lastFrame = request.resolvedFrame();
+            ++frameRequestCount;
+        }
     }
 
     ImageSequenceProviderRequestToken lastFrameToken;
@@ -38,13 +40,16 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        ++*m_metadataRequestCount;
-        emit metadataReady(token, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
+            ++*m_metadataRequestCount;
+            emit metadataReady(
+                request.token(), ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
+        } else if (request.kind() == ImageSequenceProviderRequestKind::Frame) {
+            ++*m_frameRequestCount;
+        }
     }
-
-    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
@@ -86,15 +91,15 @@ public:
         m_frame = std::make_unique<ImageFrame>(image);
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        QFAIL("complete construction metadata should not request runtime metadata");
-    }
-
-    void requestFrame(ImageSequenceProviderRequestToken token, int) override
-    {
-        ++*m_frameRequestCount;
-        emit imageFrameReady(token, m_frame.get());
+        if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
+            QFAIL("complete construction metadata should not request runtime metadata");
+        }
+        if (request.kind() == ImageSequenceProviderRequestKind::Frame) {
+            ++*m_frameRequestCount;
+            emit imageFrameReady(request.token(), m_frame.get());
+        }
     }
 
 private:
@@ -129,10 +134,12 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        ++*m_metadataRequestCount;
-        emit providerFailed(token, QStringLiteral("metadata failed synchronously"));
+        if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
+            ++*m_metadataRequestCount;
+            emit providerFailed(request.token(), QStringLiteral("metadata failed synchronously"));
+        }
     }
 
 private:
@@ -167,10 +174,13 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        ++*m_metadataRequestCount;
-        emit providerUnsupported(token, QStringLiteral("metadata unsupported synchronously"));
+        if (request.kind() == ImageSequenceProviderRequestKind::Metadata) {
+            ++*m_metadataRequestCount;
+            emit providerUnsupported(
+                request.token(), QStringLiteral("metadata unsupported synchronously"));
+        }
     }
 
 private:

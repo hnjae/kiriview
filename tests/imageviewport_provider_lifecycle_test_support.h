@@ -23,17 +23,22 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        m_lastMetadataToken = token;
-    }
-
-    void cancelRequest(ImageSequenceProviderRequestToken) override { ++*m_cancelRequestCount; }
-
-    void close() override
-    {
-        QTest::qSleep(m_cleanupDelayMilliseconds);
-        ++*m_closeCount;
+        switch (request.kind()) {
+        case ImageSequenceProviderRequestKind::Metadata:
+            m_lastMetadataToken = request.token();
+            break;
+        case ImageSequenceProviderRequestKind::Cancel:
+            *m_cancelRequestCount += request.tokens().size();
+            break;
+        case ImageSequenceProviderRequestKind::Close:
+            QTest::qSleep(m_cleanupDelayMilliseconds);
+            ++*m_closeCount;
+            break;
+        default:
+            break;
+        }
     }
 
     ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
@@ -111,21 +116,29 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        m_lastMetadataToken = token;
-        ++*m_metadataRequestCount;
+        switch (request.kind()) {
+        case ImageSequenceProviderRequestKind::Metadata:
+            m_lastMetadataToken = request.token();
+            ++*m_metadataRequestCount;
+            break;
+        case ImageSequenceProviderRequestKind::Frame:
+            ++*m_frameRequestCount;
+            break;
+        case ImageSequenceProviderRequestKind::Cancel:
+            for (ImageSequenceProviderRequestToken token : request.tokens()) {
+                ++*m_cancelRequestCount;
+                emit providerCancelled(token, QStringLiteral("request cleanup complete"));
+            }
+            break;
+        case ImageSequenceProviderRequestKind::Close:
+            ++*m_closeCount;
+            break;
+        default:
+            break;
+        }
     }
-
-    void requestFrame(ImageSequenceProviderRequestToken, int) override { ++*m_frameRequestCount; }
-
-    void cancelRequest(ImageSequenceProviderRequestToken token) override
-    {
-        ++*m_cancelRequestCount;
-        emit providerCancelled(token, QStringLiteral("request cleanup complete"));
-    }
-
-    void close() override { ++*m_closeCount; }
 
     ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
 

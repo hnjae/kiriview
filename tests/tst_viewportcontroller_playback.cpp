@@ -18,7 +18,7 @@ class StubProviderSession final : public ImageSequenceProviderSession
 public:
     using ImageSequenceProviderSession::ImageSequenceProviderSession;
 
-    void requestMetadata(ImageSequenceProviderRequestToken) override { }
+    void request(const ImageSequenceProviderRequest&) override { }
 };
 
 class StubProviderSessionFactory final : public ImageSequenceProviderSessionFactory

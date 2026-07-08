@@ -413,14 +413,7 @@ public:
     explicit ImageSequenceProviderSession(QObject* parent = nullptr);
     ~ImageSequenceProviderSession() override = default;
 
-    virtual void request(const ImageSequenceProviderRequest& request);
-    virtual void requestMetadata(ImageSequenceProviderRequestToken token);
-    virtual void requestFrame(ImageSequenceProviderRequestToken token, int frame);
-    virtual void requestPosition(
-        ImageSequenceProviderRequestToken token, int resolvedFrame, int requestedPosition);
-    virtual void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position);
-    virtual void cancelRequest(ImageSequenceProviderRequestToken token);
-    virtual void close();
+    virtual void request(const ImageSequenceProviderRequest& request) = 0;
 
 signals:
     void metadataReady(const ImageSequenceProviderRequestToken& token,

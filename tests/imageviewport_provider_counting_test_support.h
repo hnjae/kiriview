@@ -40,64 +40,60 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        m_lastMetadataToken = token;
-        ++*m_metadataRequestCount;
-    }
-
-    void requestFrame(ImageSequenceProviderRequestToken token, int frame) override
-    {
-        m_lastFrameToken = token;
-        *m_lastRequestedFrame = frame;
-        ++*m_frameRequestCount;
-    }
-
-    void requestPosition(
-        ImageSequenceProviderRequestToken token, int resolvedFrame, int requestedPosition) override
-    {
-        if (!m_positionRequestCount && !m_lastPositionFrame && !m_lastRequestedPosition) {
-            ImageSequenceProviderSession::requestPosition(token, resolvedFrame, requestedPosition);
-            return;
-        }
-        m_lastPositionToken = token;
-        if (m_positionRequestCount) {
-            ++*m_positionRequestCount;
-        }
-        if (m_lastPositionFrame) {
-            *m_lastPositionFrame = resolvedFrame;
-        }
-        if (m_lastRequestedPosition) {
-            *m_lastRequestedPosition = requestedPosition;
-        }
-    }
-
-    void requestPlayback(ImageSequenceProviderRequestToken token, int frame, int position) override
-    {
-        if (m_playbackRequestCount) {
-            ++*m_playbackRequestCount;
-        }
-        if (m_lastPlaybackFrame) {
-            *m_lastPlaybackFrame = frame;
-        }
-        if (m_lastPlaybackPosition) {
-            *m_lastPlaybackPosition = position;
-        }
-        ImageSequenceProviderSession::requestPlayback(token, frame, position);
-    }
-
-    void cancelRequest(ImageSequenceProviderRequestToken token) override
-    {
-        m_lastCancelledToken = token;
-        if (m_cancelRequestCount) {
-            ++*m_cancelRequestCount;
-        }
-        if (m_lastCancelledTokenSink) {
-            *m_lastCancelledTokenSink = token;
+        switch (request.kind()) {
+        case ImageSequenceProviderRequestKind::Metadata:
+            m_lastMetadataToken = request.token();
+            ++*m_metadataRequestCount;
+            break;
+        case ImageSequenceProviderRequestKind::Frame:
+            recordFrameRequest(request.token(), request.frame());
+            break;
+        case ImageSequenceProviderRequestKind::Position:
+            if (!m_positionRequestCount && !m_lastPositionFrame && !m_lastRequestedPosition) {
+                recordFrameRequest(request.token(), request.resolvedFrame());
+                break;
+            }
+            m_lastPositionToken = request.token();
+            if (m_positionRequestCount) {
+                ++*m_positionRequestCount;
+            }
+            if (m_lastPositionFrame) {
+                *m_lastPositionFrame = request.resolvedFrame();
+            }
+            if (m_lastRequestedPosition) {
+                *m_lastRequestedPosition = request.requestedPosition();
+            }
+            break;
+        case ImageSequenceProviderRequestKind::Playback:
+            if (m_playbackRequestCount) {
+                ++*m_playbackRequestCount;
+            }
+            if (m_lastPlaybackFrame) {
+                *m_lastPlaybackFrame = request.frame();
+            }
+            if (m_lastPlaybackPosition) {
+                *m_lastPlaybackPosition = request.requestedPosition();
+            }
+            recordFrameRequest(request.token(), request.frame());
+            break;
+        case ImageSequenceProviderRequestKind::Cancel:
+            for (ImageSequenceProviderRequestToken token : request.tokens()) {
+                m_lastCancelledToken = token;
+                if (m_cancelRequestCount) {
+                    ++*m_cancelRequestCount;
+                }
+                if (m_lastCancelledTokenSink) {
+                    *m_lastCancelledTokenSink = token;
+                }
+            }
+            break;
+        case ImageSequenceProviderRequestKind::Close:
+            ++*m_closeCount;
+            break;
         }
     }
-
-    void close() override { ++*m_closeCount; }
 
     ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
 
@@ -108,6 +104,13 @@ public:
     ImageSequenceProviderRequestToken lastCancelledToken() const { return m_lastCancelledToken; }
 
 private:
+    void recordFrameRequest(ImageSequenceProviderRequestToken token, int frame)
+    {
+        m_lastFrameToken = token;
+        *m_lastRequestedFrame = frame;
+        ++*m_frameRequestCount;
+    }
+
     std::shared_ptr<int> m_metadataRequestCount;
     std::shared_ptr<int> m_frameRequestCount;
     std::shared_ptr<int> m_lastRequestedFrame;

@@ -27,36 +27,30 @@ public:
     {
     }
 
-    void requestMetadata(ImageSequenceProviderRequestToken token) override
+    void request(const ImageSequenceProviderRequest& request) override
     {
-        *m_metadataRequestThread = QThread::currentThread();
-        m_lastMetadataToken = token;
+        switch (request.kind()) {
+        case ImageSequenceProviderRequestKind::Metadata:
+            *m_metadataRequestThread = QThread::currentThread();
+            m_lastMetadataToken = request.token();
+            break;
+        case ImageSequenceProviderRequestKind::Frame:
+        case ImageSequenceProviderRequestKind::Position:
+            *m_frameRequestThread = QThread::currentThread();
+            m_lastFrameToken = request.token();
+            break;
+        case ImageSequenceProviderRequestKind::Playback:
+            *m_playbackRequestThread = QThread::currentThread();
+            m_lastPlaybackToken = request.token();
+            break;
+        case ImageSequenceProviderRequestKind::Cancel:
+            *m_cancelRequestThread = QThread::currentThread();
+            break;
+        case ImageSequenceProviderRequestKind::Close:
+            *m_closeThread = QThread::currentThread();
+            break;
+        }
     }
-
-    void requestFrame(ImageSequenceProviderRequestToken token, int) override
-    {
-        *m_frameRequestThread = QThread::currentThread();
-        m_lastFrameToken = token;
-    }
-
-    void requestPosition(ImageSequenceProviderRequestToken token, int, int) override
-    {
-        *m_frameRequestThread = QThread::currentThread();
-        m_lastFrameToken = token;
-    }
-
-    void requestPlayback(ImageSequenceProviderRequestToken token, int, int) override
-    {
-        *m_playbackRequestThread = QThread::currentThread();
-        m_lastPlaybackToken = token;
-    }
-
-    void cancelRequest(ImageSequenceProviderRequestToken) override
-    {
-        *m_cancelRequestThread = QThread::currentThread();
-    }
-
-    void close() override { *m_closeThread = QThread::currentThread(); }
 
     ImageSequenceProviderRequestToken lastMetadataToken() const { return m_lastMetadataToken; }
 

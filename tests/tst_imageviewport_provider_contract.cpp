@@ -273,11 +273,13 @@ void ImageViewportProviderContractTest::providerPublicValueTypesValidateTiming()
     QCOMPARE(listFacts.frameDurations(), QVector<int>({ 100, 250 }));
 
     PlaybackFallbackSession session;
-    session.requestPlayback(token, 7, 125);
+    session.request(ImageSequenceProviderRequest::playback(
+        token, ImageViewport::PageRole::Primary, 7, 125, {}));
     QCOMPARE(session.frameRequestCount, 1);
     QCOMPARE(session.lastFrameToken, token);
     QCOMPARE(session.lastFrame, 7);
-    session.requestPosition(token, 8, 349);
+    session.request(ImageSequenceProviderRequest::position(
+        token, ImageViewport::PageRole::Primary, 349, 8, {}));
     QCOMPARE(session.frameRequestCount, 2);
     QCOMPARE(session.lastFrameToken, token);
     QCOMPARE(session.lastFrame, 8);
