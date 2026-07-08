@@ -1,5 +1,6 @@
 #pragma once
 
+#include "coordinateresult_p.h"
 #include "imageviewport.h"
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportplaybackscheduler_p.h"

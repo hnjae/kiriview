@@ -1,5 +1,6 @@
 #pragma once
 
+#include "coordinateresult_p.h"
 #include "imageviewport.h"
 #include "imageviewport_testhooks_p.h"
 

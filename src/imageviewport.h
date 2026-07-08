@@ -608,39 +608,6 @@ private:
     int m_maximum = -1;
 };
 
-class CoordinateResult
-{
-    Q_GADGET
-    QML_VALUE_TYPE(coordinateResult)
-    Q_PROPERTY(bool valid READ isValid CONSTANT)
-    Q_PROPERTY(double x READ x CONSTANT)
-    Q_PROPERTY(double y READ y CONSTANT)
-
-public:
-    CoordinateResult() = default;
-    CoordinateResult(bool valid, double x, double y)
-        : m_valid(valid)
-        , m_x(x)
-        , m_y(y)
-    {
-    }
-
-    bool isValid() const { return m_valid; }
-    double x() const { return m_x; }
-    double y() const { return m_y; }
-
-    friend bool operator==(CoordinateResult lhs, CoordinateResult rhs)
-    {
-        return lhs.m_valid == rhs.m_valid && lhs.m_x == rhs.m_x && lhs.m_y == rhs.m_y;
-    }
-    friend bool operator!=(CoordinateResult lhs, CoordinateResult rhs) { return !(lhs == rhs); }
-
-private:
-    bool m_valid = false;
-    double m_x = 0.0;
-    double m_y = 0.0;
-};
-
 class RevisionToken
 {
     Q_GADGET
@@ -3031,14 +2998,6 @@ inline QDebug operator<<(QDebug debug, ImageViewportRange range)
     return debug;
 }
 
-inline QDebug operator<<(QDebug debug, CoordinateResult result)
-{
-    const QDebugStateSaver saver(debug);
-    debug.nospace() << "CoordinateResult(valid=" << result.isValid() << ", x=" << result.x()
-                    << ", y=" << result.y() << ")";
-    return debug;
-}
-
 inline QDebug operator<<(QDebug debug, RevisionToken token)
 {
     const QDebugStateSaver saver(debug);
@@ -3059,7 +3018,6 @@ Q_DECLARE_METATYPE(ImageSequenceProviderRequest)
 Q_DECLARE_METATYPE(ImageSequenceProviderEvent)
 Q_DECLARE_METATYPE(ImageSequenceProviderDescriptor)
 Q_DECLARE_METATYPE(ImageViewportRange)
-Q_DECLARE_METATYPE(CoordinateResult)
 Q_DECLARE_METATYPE(RevisionToken)
 Q_DECLARE_METATYPE(ImageViewportRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportPageSetGenerationToken)
