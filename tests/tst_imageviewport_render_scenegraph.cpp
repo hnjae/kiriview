@@ -99,6 +99,23 @@ ImageViewport::CommandOutcome setMirrorCommand(
     return item.setPresentation(command);
 }
 
+ImageViewport::CommandOutcome setBackgroundModeCommand(
+    ImageViewport& item, ImageViewport::BackgroundMode mode)
+{
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(mode);
+    return item.setPresentation(command);
+}
+
+ImageViewport::CommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+{
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(mode);
+    command.setBackgroundColor(color);
+    return item.setPresentation(command);
+}
+
 class NullTextureSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
 {
 public:
@@ -133,7 +150,8 @@ void ImageViewportRenderSceneGraphTest::transparentBackgroundDoesNotCreatePaintN
 {
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
-    item.setBackgroundMode(ImageViewport::BackgroundMode::Transparent);
+    QCOMPARE(setBackgroundModeCommand(item, ImageViewport::BackgroundMode::Transparent),
+        ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(!root);
@@ -143,8 +161,9 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundCreatesPaintNode()
 {
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -172,8 +191,9 @@ void ImageViewportRenderSceneGraphTest::backgroundOnlyPaintDoesNotAdvanceProvide
 
     PaintProbeViewport item;
     item.setSize(QSizeF(24.0, 12.0));
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
     item.setSequence(result->sequence());
     const QMetaObject* metaObject = item.metaObject();
 
@@ -219,7 +239,8 @@ void ImageViewportRenderSceneGraphTest::checkerboardBackgroundCreatesPaintNode()
 {
     PaintProbeViewport item;
     item.setSize(QSizeF(18.0, 10.0));
-    item.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
+    QCOMPARE(setBackgroundModeCommand(item, ImageViewport::BackgroundMode::Checkerboard),
+        ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
@@ -618,8 +639,9 @@ void ImageViewportRenderSceneGraphTest::solidBackgroundRendersBehindImageNode()
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(40.0, 20.0));
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
     item.setSequence(result->sequence());
 
     QScopedPointer<QSGNode> root(item.takePaintNode());

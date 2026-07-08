@@ -144,9 +144,7 @@ bool ImageViewport::mipmap() const { return d->mipmap(); }
 bool ImageViewport::mirrorHorizontally() const { return d->mirrorHorizontally(); }
 bool ImageViewport::mirrorVertically() const { return d->mirrorVertically(); }
 ImageViewport::BackgroundMode ImageViewport::backgroundMode() const { return d->backgroundMode(); }
-void ImageViewport::setBackgroundMode(BackgroundMode mode) { d->setBackgroundMode(mode); }
 QColor ImageViewport::backgroundColor() const { return d->backgroundColor(); }
-void ImageViewport::setBackgroundColor(const QColor& color) { d->setBackgroundColor(color); }
 bool ImageViewport::looping() const { return d->looping(); }
 void ImageViewport::setLooping(bool looping) { d->setLooping(looping); }
 ImageViewport::CommandOutcome ImageViewport::clear() { return d->clear(); }

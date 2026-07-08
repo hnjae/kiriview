@@ -42,6 +42,15 @@ private slots:
     void timedFrameListStopAfterPauseWhileRenderWaitingRestoresPreviousDisplay();
 };
 
+static ImageViewport::CommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+{
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(mode);
+    command.setBackgroundColor(color);
+    return item.setPresentation(command);
+}
+
 void ImageViewportTimedTest::stillImageFactoryRejectsInvalidPayloadByteSize()
 {
     ImageSequenceFactory factory;
@@ -1023,8 +1032,9 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
     QSignalSpy geometrySpy(&item, &ImageViewport::geometryStateChanged);
 
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.backgroundColor(), QColor(20, 40, 60, 255));

@@ -68,6 +68,15 @@ static ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+{
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(mode);
+    command.setBackgroundColor(color);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPublicApiCommandsTest::unsupportedSequencePropertyWritesPreserveState()
 {
     ImageSequenceFactory factory;
@@ -661,8 +670,9 @@ void ImageViewportPublicApiCommandsTest::clearStylePageSetPolicyPreservesPresent
     mirrorCommand.setMirrorVertically(true);
     QCOMPARE(item.setPresentation(mirrorCommand), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
     item.setLooping(true);
 
     const auto fitMode = item.fitMode();

@@ -16,7 +16,7 @@ public:
     }
 
 private slots:
-    void invalidPresentationEnumValuesAreIgnored();
+    void invalidPresentationEnumCommandsRejectWithoutDisplayMutation();
     void presentationChangesWithoutDisplayDoNotNotifyGeometryState();
     void backgroundPresentationDoesNotChangeRequestOrPlayback();
     void qualityPresentationDoesNotChangeRequestGeometryOrPlayback();
@@ -121,15 +121,31 @@ static ImageViewport::CommandOutcome setQualityTogglesCommand(
     return item.setPresentation(command);
 }
 
-void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
+static ImageViewport::CommandOutcome setBackgroundCommand(
+    ImageViewport& item, ImageViewport::BackgroundMode mode, QColor color)
+{
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(mode);
+    command.setBackgroundColor(color);
+    return item.setPresentation(command);
+}
+
+void ImageViewportPresentationStateTest::invalidPresentationEnumCommandsRejectWithoutDisplayMutation()
 {
     ImageViewport item;
     const RevisionToken initialDisplayRevision = revisionTokenProperty(item, "displayRevision");
+    const RevisionToken initialCommandRevision = revisionTokenProperty(item, "commandRevision");
 
-    QVERIFY(item.setProperty("backgroundMode", 999));
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(static_cast<ImageViewport::BackgroundMode>(
+        999)); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
 
+    QCOMPARE(item.setPresentation(command), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(item.backgroundMode(), ImageViewport::BackgroundMode::Transparent);
     QCOMPARE(revisionTokenProperty(item, "displayRevision"), initialDisplayRevision);
+    verifyRevisionChanged(item, "commandRevision", initialCommandRevision);
+    QCOMPARE(item.property("commandReason").toInt(),
+        enumValue(item.metaObject(), "CommandReason", "InvalidRequest"));
 }
 
 void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotNotifyGeometryState()
@@ -146,8 +162,8 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotN
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorVerticallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(Qt::red);
+    QCOMPARE(setBackgroundCommand(item, ImageViewport::BackgroundMode::SolidColor, Qt::red),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF());
     QCOMPARE(item.property("visibleImageRect").toRectF(), QRectF());
@@ -196,8 +212,9 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
     QSignalSpy playbackSpy(&item, &ImageViewport::playbackPhaseChanged);
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
 
-    item.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
-    item.setBackgroundColor(QColor(20, 40, 60, 255));
+    QCOMPARE(setBackgroundCommand(
+                 item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(
         item.property("requestStatus").toInt(), enumValue(metaObject, "RequestStatus", "Ready"));

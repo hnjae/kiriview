@@ -959,10 +959,8 @@ class ImageViewport : public QQuickItem
     Q_PROPERTY(bool mipmap READ mipmap NOTIFY presentationChanged)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally NOTIFY presentationChanged)
     Q_PROPERTY(bool mirrorVertically READ mirrorVertically NOTIFY presentationChanged)
-    Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode WRITE setBackgroundMode NOTIFY
-            presentationChanged)
-    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY
-            presentationChanged)
+    Q_PROPERTY(BackgroundMode backgroundMode READ backgroundMode NOTIFY presentationChanged)
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor NOTIFY presentationChanged)
     Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
 
 public:
@@ -1207,9 +1205,7 @@ public:
     bool mirrorHorizontally() const;
     bool mirrorVertically() const;
     BackgroundMode backgroundMode() const;
-    void setBackgroundMode(BackgroundMode mode);
     QColor backgroundColor() const;
-    void setBackgroundColor(const QColor& color);
     bool looping() const;
     void setLooping(bool looping);
 

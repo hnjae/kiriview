@@ -123,6 +123,8 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "mipmap",
         "mirrorHorizontally",
         "mirrorVertically",
+        "backgroundMode",
+        "backgroundColor",
     };
 
     for (const QByteArray& property : readOnlyProperties) {
