@@ -206,10 +206,6 @@ ImageViewport::CommandOutcome ImageViewport::setPageSet(
 {
     return d->setPageSet(primary, secondary, policy);
 }
-ImageViewport::CommandOutcome ImageViewport::setSpreadDirection(SpreadDirection direction)
-{
-    return d->setSpreadDirection(direction);
-}
 ImageViewport::CommandOutcome ImageViewport::setPageGap(double gap) { return d->setPageGap(gap); }
 ImageViewport::CommandOutcome ImageViewport::setFitMode(FitMode mode, QPointF anchor)
 {

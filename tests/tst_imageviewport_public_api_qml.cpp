@@ -294,6 +294,7 @@ ImageViewport {
     property bool presentationCommandsReachViewport: false
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
+    property imageViewportPresentationCommand spreadDirectionCommand
     property imageViewportPresentationCommand zoomStepCommand
     property imageViewportPresentationCommand panCommand
     property imageViewportPresentationCommand scanStartCommand
@@ -360,6 +361,7 @@ ImageViewport {
             && typeof viewport.panToStart === "undefined"
             && typeof viewport.panToEnd === "undefined"
             && typeof viewport.panBy === "undefined"
+            && typeof viewport.setSpreadDirection === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -382,6 +384,7 @@ ImageViewport {
             && seek(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
             && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
 
+        spreadDirectionCommand.spreadDirection = ImageViewport.SpreadDirection.LeftToRight
         zoomStepCommand.zoomStepDelta = 1
         scanStartCommand.scanDirection = ImageViewport.ScanDirection.Start
         scanEndCommand.scanDirection = ImageViewport.ScanDirection.End
@@ -391,7 +394,7 @@ ImageViewport {
         horizontalMirrorCommand.mirrorHorizontally = false
         verticalMirrorCommand.mirrorVertically = false
         panCommand.panDelta = Qt.point(0, 0)
-        presentationCommandsReachViewport = setSpreadDirection(ImageViewport.SpreadDirection.LeftToRight) === ImageViewport.CommandOutcome.Accepted
+        presentationCommandsReachViewport = setPresentation(spreadDirectionCommand) === ImageViewport.CommandOutcome.Accepted
             && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
             && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted

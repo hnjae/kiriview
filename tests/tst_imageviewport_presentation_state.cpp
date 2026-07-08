@@ -81,6 +81,14 @@ static ImageViewport::CommandOutcome setPanDelta(ImageViewport& item, QPointF de
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setSpreadDirectionCommand(
+    ImageViewport& item, ImageViewport::SpreadDirection direction)
+{
+    ImageViewportPresentationCommand command;
+    command.setSpreadDirection(direction);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -389,7 +397,7 @@ void ImageViewportPresentationStateTest::twoPageSpreadGeometryUsesDirectionAndGa
     QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 2.0, 20.0, 40.0));
     QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF(28.0, 2.0, 60.0, 40.0));
 
-    QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+    QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("primaryPageRect").toRectF(), QRectF(34.0, 0.0, 10.0, 20.0));
     QCOMPARE(item.property("secondaryPageRect").toRectF(), QRectF(0.0, 0.0, 30.0, 20.0));
@@ -456,7 +464,7 @@ void ImageViewportPresentationStateTest::rotatedTwoPageManualPanUsesSpreadGeomet
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+    QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(
         item.setZoomPercent(100.0, QPointF(10.0, 10.0)), ImageViewport::CommandOutcome::Accepted);
@@ -887,7 +895,7 @@ void ImageViewportPresentationStateTest::
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(rotatedItem);
     QCOMPARE(rotatedItem.setPageGap(4.0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(rotatedItem.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+    QCOMPARE(setSpreadDirectionCommand(rotatedItem, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(rotatedItem.setZoomPercent(100.0, QPointF(10.0, 10.0)),
         ImageViewport::CommandOutcome::Accepted);
@@ -1094,7 +1102,7 @@ void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateA
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setRotationDegrees(item, 90), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorHorizontallyCommand(item, true), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft),
+    QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.setPageGap(12.0), ImageViewport::CommandOutcome::Accepted);
 
