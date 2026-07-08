@@ -643,10 +643,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
             waitState.secondary.uploadPending = true;
         }
         publishLoadingWaitState(waitState);
-        viewportDisplayState(viewport).status
-            = viewportDisplayState(viewport).displayedImageSize.isValid()
-            ? ImageViewport::DisplayStatus::Retained
-            : ImageViewport::DisplayStatus::Empty;
     } else {
         publishAcceptedTargetState(admission.preparedPayload);
         if (hasSecondaryProviderSequence(viewport)
@@ -660,10 +656,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
             }
             waitState.secondary.providerWaiting = true;
             publishLoadingWaitState(waitState);
-            viewportDisplayState(viewport).status
-                = viewportDisplayState(viewport).displayedImageSize.isValid()
-                ? ImageViewport::DisplayStatus::Retained
-                : ImageViewport::DisplayStatus::Empty;
         }
         if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
             && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready
@@ -675,15 +667,11 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrame
         }
     }
     changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
-    changes.displayRevision = true;
     changes.requestState = true;
-    changes.displayState = true;
-    changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    changes.diagnostics = diagnosticsValueChanged;
-    changes.scheduleUpdate = true;
+    markDisplayMutation(changes);
+    changes.geometryState = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    markDiagnosticsMutation(changes, diagnosticsValueChanged);
+    markScheduleUpdate(changes);
     return changes;
 }
 
@@ -890,7 +878,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
     recordTargetSpreadTerminal(role, rejection.status, rejection.reason,
         ImageViewportInternal::FailureScope::DisplayRequest, {}, changes);
     setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
-    changes.diagnostics = changes.diagnostics || diagnosticsValueChanged;
+    markDiagnosticsMutation(changes, diagnosticsValueChanged);
     return changes;
 }
 
@@ -1032,10 +1020,9 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
     const ViewportProviderFrameDispatchResult dispatch
         = dispatchProviderFrameRequest(role, { target });
     result.providerFrameTransport = dispatch.transport;
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
+    markRequestMutation(result.changes);
     if (!dispatch.accepted) {
-        result.changes.diagnostics = true;
+        markDiagnosticsMutation(result.changes);
     }
     return result;
 }
@@ -1083,14 +1070,11 @@ ViewportController::handleProviderMetadataTargetSelection(
         = startProviderFrameRequest({ primaryActiveRequest.target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
     if (!start.accepted) {
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = true;
+        markProviderDispatchFailure(result.changes);
         return result;
     }
 
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
+    markRequestMutation(result.changes);
     return result;
 }
 
@@ -1120,8 +1104,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAccep
 
     ImageViewportInternal::ViewportChangeSet changes;
     if (role == ImageViewport::PageRole::Secondary) {
-        changes.requestRevision = true;
-        changes.requestState = true;
+        markRequestMutation(changes);
     }
     return changes;
 }
@@ -1170,8 +1153,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
     }
 
     viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-    changes.requestRevision = true;
-    changes.requestState = true;
+    markRequestMutation(changes);
     return changes;
 }
 
@@ -1306,12 +1288,9 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         publishReadyDisplayState();
         setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Stopped);
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-        result.changes.requestRevision = true;
-        result.changes.displayRevision = true;
-        result.changes.requestState = true;
-        result.changes.displayState = true;
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
+        markRequestAndDisplayMutation(result.changes);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+        markScheduleUpdate(result.changes);
         return result;
     }
 
@@ -1320,19 +1299,14 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
         = dispatchProviderFrameRequest(role, { providerTarget });
     result.providerFrameTransport = dispatch.transport;
     if (!dispatch.accepted) {
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = true;
+        markProviderDispatchFailure(result.changes);
         return result;
     }
     updateLoopProgressForAcceptedPlaybackTarget(viewport, loopPlayback);
     setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Waiting);
-    result.changes.requestRevision = true;
-    result.changes.displayRevision = true;
-    result.changes.requestState = true;
-    result.changes.displayState = true;
-    result.changes.diagnostics = diagnosticsValueChanged;
-    result.changes.scheduleUpdate = true;
+    markRequestAndDisplayMutation(result.changes);
+    markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+    markScheduleUpdate(result.changes);
     return result;
 }
 
@@ -1438,10 +1412,6 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
         waitState.primary.providerWaiting = true;
     }
     publishLoadingWaitState(waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
 
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
@@ -1494,10 +1464,6 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
         waitState.primary.requestQueued = true;
     }
     publishLoadingWaitState(waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
     discardPendingRenderCommit();
 
     ImageViewportInternal::ProviderGenerationState& provider
@@ -1595,11 +1561,10 @@ ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFra
     const ViewportProviderFrameRequestStartResult start
         = startProviderFrameRequest(role, { target });
     appendProviderFrameStartResult(result.providerFrameTransport, start);
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
+    markRequestMutation(result.changes);
     if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Error
         && viewportRequestState(viewport).reason == ImageViewport::RequestReason::ProviderFailure) {
-        result.changes.diagnostics = true;
+        markDiagnosticsMutation(result.changes);
     }
     return result;
 }

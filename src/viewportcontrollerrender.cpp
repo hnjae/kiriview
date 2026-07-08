@@ -189,6 +189,24 @@ bool renderFailureAcknowledgementMatchesPending(
         acknowledgementPayloadForRole(acknowledgement, ImageViewport::PageRole::Secondary),
         expectedRenderPayloadForRole(viewport, ImageViewport::PageRole::Secondary));
 }
+
+void recordRenderFailureDiagnostic(ViewportControllerPort& viewport,
+    ImageViewportInternal::ViewportChangeSet& changes,
+    const ViewportRenderAcknowledgement& acknowledgement)
+{
+    const ImageViewportInternal::PreparedPayloadIdentity failedPayload
+        = acknowledgementPayloadForRole(acknowledgement, acknowledgement.failedRole);
+    const ImageViewportInternal::RenderFailureDiagnostic renderFailureDiagnostic {
+        true,
+        acknowledgement.failedRole,
+        failedPayload.generation,
+        failedPayload.requestId,
+        failedPayload.payloadId,
+        acknowledgement.failureCause,
+    };
+    viewportRequestState(viewport).lastAcceptedRenderFailure = renderFailureDiagnostic;
+    changes.renderFailureDiagnostic = renderFailureDiagnostic;
+}
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChanged(
@@ -207,11 +225,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
         if (!viewport.hasProviderSequence()) {
             stageBuiltInPrimarySpreadPayload();
             publishPendingRenderState();
-            changes.requestRevision = true;
-            changes.displayRevision = true;
-            changes.requestState = true;
-            changes.displayState = true;
-            changes.scheduleUpdate = true;
+            markRequestAndDisplayMutation(changes);
+            markScheduleUpdate(changes);
             return changes;
         }
     } else if (viewport.hasProviderSequence()
@@ -221,18 +236,15 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
         && !displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary)
                 .pendingPayload.image.isNull()) {
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::RenderWaiting;
-        changes.requestRevision = true;
-        changes.requestState = true;
+        markRequestMutation(changes);
         changes.displayRevision = true;
     } else {
         changes.displayRevision = true;
     }
 
     changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    changes.scheduleUpdate = true;
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    markScheduleUpdate(changes);
     return changes;
 }
 
@@ -327,9 +339,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
         viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
     }
     if (synchronization.pendingTargetCommit) {
-        changes.requestRevision = true;
+        markRequestMutation(changes);
         changes.displayRevision = true;
-        changes.requestState = true;
         changes.displayState = viewportDisplayState(viewport).status
             != (viewport.hasProviderSequence() ? synchronization.oldDisplayStatus
                                                : oldDisplayStatus);
@@ -362,18 +373,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
     const ImageViewport::DisplayStatus oldDisplayStatus = viewportDisplayState(viewport).status;
 
-    const ImageViewportInternal::PreparedPayloadIdentity failedPayload
-        = acknowledgementPayloadForRole(acknowledgement, acknowledgement.failedRole);
-    const ImageViewportInternal::RenderFailureDiagnostic renderFailureDiagnostic {
-        true,
-        acknowledgement.failedRole,
-        failedPayload.generation,
-        failedPayload.requestId,
-        failedPayload.payloadId,
-        acknowledgement.failureCause,
-    };
-    viewportRequestState(viewport).lastAcceptedRenderFailure = renderFailureDiagnostic;
-    changes.renderFailureDiagnostic = renderFailureDiagnostic;
+    recordRenderFailureDiagnostic(viewport, changes, acknowledgement);
 
     viewportDisplayState(viewport).clearPendingRenderPayload();
     if (viewportDisplayState(viewport).renderFailureRetainedDisplayValid) {
@@ -397,8 +397,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
     changes.displayRevision = true;
     changes.displayState = viewportDisplayState(viewport).status != oldDisplayStatus;
     changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     return changes;
 }

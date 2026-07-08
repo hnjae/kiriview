@@ -202,8 +202,7 @@ void completeStopRestoreRequest(
     ViewportController& controller, ViewportControllerPort& viewport, ViewportCommandResult& result)
 {
     controller.setPlaybackPhase(result, ImageViewport::PlaybackPhase::Stopped);
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
+    markRequestMutation(result.changes);
 }
 
 bool appendProviderStopRestoreFrameStart(
@@ -224,9 +223,7 @@ bool appendProviderStopRestoreFrameStart(
         return true;
     }
 
-    result.changes.requestRevision = true;
-    result.changes.requestState = true;
-    result.changes.diagnostics = true;
+    markProviderDispatchFailure(result.changes);
     return false;
 }
 
@@ -266,9 +263,8 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
         if (publication.readyDisplay) {
             const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
             completeStopRestoreRequest(controller, viewport, result);
-            result.changes.displayRevision = true;
-            result.changes.displayState = true;
-            result.changes.diagnostics = diagnosticsValueChanged;
+            markDisplayMutation(result.changes);
+            markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
             return true;
         }
         const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
@@ -276,7 +272,7 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
             return true;
         }
         completeStopRestoreRequest(controller, viewport, result);
-        result.changes.diagnostics = diagnosticsValueChanged;
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
         return true;
     }
     case StopRestorePlanKind::BuiltInRenderWait: {
@@ -286,7 +282,7 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
         result.changes.displayRevision
             = viewportDisplayState(viewport).status != publication.oldDisplayStatus;
         result.changes.displayState = result.changes.displayRevision;
-        result.changes.scheduleUpdate = true;
+        markScheduleUpdate(result.changes);
         return true;
     }
     case StopRestorePlanKind::None:
@@ -322,23 +318,17 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
             = controller.dispatchProviderFrameRequest({ target });
         result.providerFrameTransport = dispatch.transport;
         if (!dispatch.accepted) {
-            result.changes.requestRevision = true;
-            result.changes.displayRevision = true;
-            result.changes.requestState = true;
-            result.changes.displayState = true;
-            result.changes.diagnostics = true;
-            result.changes.scheduleUpdate = true;
+            markProviderDispatchFailure(result.changes);
+            markDisplayMutation(result.changes);
+            markScheduleUpdate(result.changes);
             return result;
         }
         if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Playing) {
             controller.setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
         }
-        result.changes.requestRevision = true;
-        result.changes.displayRevision = true;
-        result.changes.requestState = true;
-        result.changes.displayState = true;
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
+        markRequestAndDisplayMutation(result.changes);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+        markScheduleUpdate(result.changes);
         return result;
     }
     case ExplicitSeekMaterialization::ProviderPendingMetadata: {
@@ -346,9 +336,8 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
         controller.discardPendingRenderCommit();
         const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = diagnosticsValueChanged;
+        markRequestMutation(result.changes);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
         return result;
     }
     case ExplicitSeekMaterialization::BuiltIn: {
@@ -360,16 +349,11 @@ ViewportCommandResult acceptExplicitSeek(ViewportController& controller,
             && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading) {
             controller.setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
         }
-        result.changes.requestRevision = true;
-        result.changes.displayRevision = true;
-        result.changes.requestState = true;
-        result.changes.displayState = true;
+        markRequestAndDisplayMutation(result.changes);
         result.changes.geometryState
-            = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-            || ImageViewportInternal::rectsDifferExactly(
-                viewport.visibleImageRect(), oldVisibleImageRect);
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
+            = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+        markScheduleUpdate(result.changes);
         return result;
     }
     }
@@ -479,12 +463,11 @@ void appendPlaybackRequestChange(ViewportControllerPort& viewport,
     ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PageRole role,
     int previousFrame)
 {
-    changes.requestRevision = true;
+    markRequestMutation(changes);
     if (activeRequestForRole(viewportRequestState(viewport), role).target.frame != previousFrame
         || viewportDisplayState(viewport).status != ImageViewport::DisplayStatus::Ready) {
         changes.displayRevision = true;
     }
-    changes.requestState = true;
     changes.displayState = true;
 }
 
@@ -591,8 +574,7 @@ ViewportCommandResult playProviderRole(ViewportController& controller,
         viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
         applyPendingProviderPlaybackTargetForRole(viewport, role, pendingProviderPlaybackTarget());
         controller.setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
+        markRequestMutation(result.changes);
         return result;
     }
 
@@ -730,15 +712,12 @@ ViewportCommandResult ViewportController::play()
                 = dispatchProviderFrameRequest({ target });
             result.providerFrameTransport = dispatch.transport;
             if (!dispatch.accepted) {
-                result.changes.requestRevision = true;
-                result.changes.requestState = true;
-                result.changes.diagnostics = true;
+                markProviderDispatchFailure(result.changes);
                 return result;
             }
             setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
-            result.changes.requestRevision = true;
-            result.changes.requestState = true;
-            result.changes.diagnostics = diagnosticsValueChanged;
+            markRequestMutation(result.changes);
+            markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
             return result;
         }
 
@@ -770,8 +749,7 @@ ViewportCommandResult ViewportController::play()
         viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
         applyPendingProviderPlaybackTarget(viewport, pendingProviderPlaybackTarget());
         setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
+        markRequestMutation(result.changes);
         return result;
     }
 
@@ -798,19 +776,16 @@ ViewportCommandResult ViewportController::play()
                 [this](int frame) { return viewport.sequenceFrameStartPosition(frame); });
             viewportRequestState(viewport).playbackLoopIterationsCompleted = 0;
             setPlaybackPhase(result, playbackPhaseForCurrentRequest(viewport));
-            result.changes.requestRevision = true;
+            markRequestMutation(result.changes);
             const bool displayValueChanged
                 = viewportDisplayState(viewport).status != oldDisplayStatus
                 || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
             result.changes.displayRevision = displayValueChanged;
-            result.changes.requestState = true;
             result.changes.displayState = displayValueChanged;
             result.changes.geometryState
-                = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-                || ImageViewportInternal::rectsDifferExactly(
-                    viewport.visibleImageRect(), oldVisibleImageRect);
-            result.changes.diagnostics = diagnosticsValueChanged;
-            result.changes.scheduleUpdate = true;
+                = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+            markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+            markScheduleUpdate(result.changes);
             return result;
         }
         if (!preservePlaybackPosition) {
@@ -945,17 +920,14 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
                 publishAcceptedTargetState();
             }
             setPlaybackPhase(result, ImageViewport::PlaybackPhase::Stopped);
-            result.changes.requestRevision = true;
+            markRequestMutation(result.changes);
             const bool displayValueChanged
                 = viewportDisplayState(viewport).status != oldDisplayStatus
                 || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
             result.changes.displayRevision = displayValueChanged;
-            result.changes.requestState = true;
             result.changes.displayState = displayValueChanged;
             result.changes.geometryState
-                = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-                || ImageViewportInternal::rectsDifferExactly(
-                    viewport.visibleImageRect(), oldVisibleImageRect);
+                = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
             result.changes.scheduleUpdate = true;
             return result;
         }
@@ -1132,17 +1104,14 @@ ViewportCommandResult ViewportController::seekSecondaryBuiltIn(
         setPlaybackPhase(result, ImageViewport::PlaybackPhase::Waiting);
     }
 
-    result.changes.requestRevision = true;
+    markRequestMutation(result.changes);
     const bool displayValueChanged = viewportDisplayState(viewport).status != oldDisplayStatus
         || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
     result.changes.displayRevision = displayValueChanged;
-    result.changes.requestState = true;
     result.changes.displayState = displayValueChanged;
     result.changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    result.changes.diagnostics = diagnosticsValueChanged;
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
     result.changes.scheduleUpdate = true;
     return result;
 }
@@ -1192,15 +1161,14 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
             result.changes.displayState = true;
             result.changes.scheduleUpdate = true;
             if (!dispatch.accepted) {
-                result.changes.diagnostics = true;
+                markDiagnosticsMutation(result.changes);
             }
         } else {
             publishProviderFrameLoadingState(ImageViewport::PageRole::Secondary);
         }
 
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = result.changes.diagnostics || diagnosticsValueChanged;
+        markRequestMutation(result.changes);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
         return result;
     };
 
@@ -1433,15 +1401,14 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
             result.changes.displayState = true;
             result.changes.scheduleUpdate = true;
             if (!dispatch.accepted) {
-                result.changes.diagnostics = true;
+                markDiagnosticsMutation(result.changes);
             }
         } else {
             publishProviderFrameLoadingState(ImageViewport::PageRole::Secondary);
         }
 
-        result.changes.requestRevision = true;
-        result.changes.requestState = true;
-        result.changes.diagnostics = result.changes.diagnostics || diagnosticsValueChanged;
+        markRequestMutation(result.changes);
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
         return result;
     };
 
@@ -1609,15 +1576,15 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
         setPlaybackProviderFrameTransportForRole(result, role, dispatch.transport);
         appendPlaybackRequestChange(viewport, result.changes, role, previousFrame);
         if (!dispatch.accepted) {
-            result.changes.diagnostics = true;
-            result.changes.scheduleUpdate = true;
+            markDiagnosticsMutation(result.changes);
+            markScheduleUpdate(result.changes);
             return result;
         }
 
         applyPlaybackAdvancePhase(viewport, result.changes, target);
         updateLoopProgressForAcceptedPlaybackTarget(viewport, target);
-        result.changes.diagnostics = diagnosticsValueChanged;
-        result.changes.scheduleUpdate = true;
+        markDiagnosticsMutation(result.changes, diagnosticsValueChanged);
+        markScheduleUpdate(result.changes);
         return result;
     }
 
@@ -1635,9 +1602,7 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
     applyPlaybackAdvancePhase(viewport, result.changes, target);
     appendPlaybackRequestChange(viewport, result.changes, role, previousFrame);
     result.changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
-    result.changes.scheduleUpdate = true;
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
+    markScheduleUpdate(result.changes);
     return result;
 }

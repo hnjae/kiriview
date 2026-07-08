@@ -173,6 +173,8 @@ Work: Preserve the existing `ImageViewportInternal::CommandOutcome` boundary and
 
 Work: Preserve documented diagnostic-preserving exceptions as explicit call sites.
 
+Assumption: every current loading wait-state publication also projects aggregate display status to retained when an existing primary displayed image remains valid and to empty otherwise, so `publishLoadingWaitState` owns that projection until a future display-state policy changes it explicitly.
+
 Acceptance: Existing behavior tests that cover command failure preservation, request/display revision behavior, provider terminal projection, provider stale results, render acknowledgement identity, and retained display still pass.
 
 Acceptance: Mutation helpers are small and domain-named; they do not become a new broad convenience layer that grants unrelated mutable access.

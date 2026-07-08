@@ -108,9 +108,8 @@ void publishControllerTargetSpreadTerminalProjection(
     viewportRequestState(viewport).status = terminal->status;
     viewportRequestState(viewport).reason = terminal->reason;
     viewportRequestState(viewport).errorString = terminal->diagnostic;
-    changes.requestRevision = true;
-    changes.requestState = true;
-    changes.diagnostics = changes.diagnostics || diagnosticsValueChanged;
+    markRequestMutation(changes);
+    markDiagnosticsMutation(changes, diagnosticsValueChanged);
 }
 
 void clearControllerDisplayRequestTerminalForAcceptedRequest(ViewportControllerPort& viewport)
@@ -679,6 +678,7 @@ void ViewportController::publishLoadingWaitState(
 {
     viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
     viewportRequestState(viewport).reason = ImageViewportInternal::projectWaitReason(waitState);
+    publishRetainedOrEmptyDisplayStatus(viewport);
 }
 
 void ViewportController::beginAcceptedDisplayRequest(
@@ -745,10 +745,6 @@ void ViewportController::publishRenderWaitingState()
         waitState.secondary.renderWaiting = true;
     }
     publishLoadingWaitState(waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
 }
 
 void ViewportController::publishUploadPendingState()
@@ -760,10 +756,6 @@ void ViewportController::publishUploadPendingState()
         waitState.secondary.uploadPending = true;
     }
     publishLoadingWaitState(waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
 }
 
 void ViewportController::publishPendingRenderState()
@@ -902,10 +894,6 @@ void ViewportController::publishProviderFrameLoadingState(ImageViewport::PageRol
         waitState.primary.providerWaiting = true;
     }
     publishLoadingWaitState(waitState);
-    viewportDisplayState(viewport).status
-        = viewportDisplayState(viewport).displayedImageSize.isValid()
-        ? ImageViewport::DisplayStatus::Retained
-        : ImageViewport::DisplayStatus::Empty;
     discardPendingRenderCommit();
 }
 
@@ -1222,10 +1210,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         }
         viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-        viewportDisplayState(viewport).status
-            = viewportDisplayState(viewport).displayedImageSize.isValid()
-            ? ImageViewport::DisplayStatus::Retained
-            : ImageViewport::DisplayStatus::Empty;
+        publishRetainedOrEmptyDisplayStatus(viewport);
         result.openProviderSession = true;
     } else if (viewport.hasDisplayableSequence()) {
         const DisplayRequestTarget initialTarget {
@@ -1254,11 +1239,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     if (secondarySource.provider) {
         viewportRequestState(viewport).status = ImageViewport::RequestStatus::Loading;
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-        if (retainDisplay && viewportDisplayState(viewport).displayedImageSize.isValid()) {
-            viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Retained;
-        } else {
-            viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Empty;
-        }
+        viewportDisplayState(viewport).status = retainDisplay
+            ? retainedOrEmptyDisplayStatus(viewport)
+            : ImageViewport::DisplayStatus::Empty;
         result.openSecondaryProviderSession = true;
     }
 
@@ -1267,17 +1250,14 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
 
     armAuthoredAutoplayIfEligible();
 
-    result.changes.requestRevision = true;
+    markRequestMutation(result.changes);
     const bool displayValueChanged = viewportDisplayState(viewport).status != oldDisplayStatus
         || viewportDisplayState(viewport).status == ImageViewport::DisplayStatus::Ready;
     result.changes.displayRevision = displayValueChanged;
     result.changes.sequence = true;
-    result.changes.requestState = true;
     result.changes.displayState = displayValueChanged;
     result.changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     result.changes.playbackPhase = viewportRequestState(viewport).playbackPhase != oldPlaybackPhase;
     result.changes.diagnostics = viewportRequestState(viewport).errorString != oldErrorString
         || viewportRequestState(viewport).warningString != oldWarningString;
@@ -1368,9 +1348,7 @@ ViewportCommandResult ViewportController::clear()
     result.changes.requestState = requestChanged;
     result.changes.displayState = displayChanged;
     result.changes.geometryState
-        = ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
-        || ImageViewportInternal::rectsDifferExactly(
-            viewport.visibleImageRect(), oldVisibleImageRect);
+        = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     result.changes.playbackPhase = playbackChanged;
     result.changes.diagnostics = diagnosticsValueChanged;
     result.changes.scheduleUpdate = true;

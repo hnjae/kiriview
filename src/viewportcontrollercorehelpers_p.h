@@ -5,6 +5,7 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportcontrollermetadatacontract_p.h"
+#include "viewportgeometryhelpers_p.h"
 
 #include <optional>
 #include <utility>
@@ -377,6 +378,63 @@ bool requestStatusChanged(ViewportControllerPort& viewport, RequestStatusSnapsho
 {
     return viewportRequestState(viewport).status != snapshot.status
         || viewportRequestState(viewport).reason != snapshot.reason;
+}
+
+void markRequestMutation(ImageViewportInternal::ViewportChangeSet& changes)
+{
+    changes.requestRevision = true;
+    changes.requestState = true;
+}
+
+void markDisplayMutation(
+    ImageViewportInternal::ViewportChangeSet& changes, bool displayStateChanged = true)
+{
+    changes.displayRevision = true;
+    changes.displayState = changes.displayState || displayStateChanged;
+}
+
+void markRequestAndDisplayMutation(ImageViewportInternal::ViewportChangeSet& changes)
+{
+    markRequestMutation(changes);
+    markDisplayMutation(changes);
+}
+
+void markDiagnosticsMutation(
+    ImageViewportInternal::ViewportChangeSet& changes, bool diagnosticsChanged = true)
+{
+    changes.diagnostics = changes.diagnostics || diagnosticsChanged;
+}
+
+void markProviderDispatchFailure(ImageViewportInternal::ViewportChangeSet& changes)
+{
+    markRequestMutation(changes);
+    markDiagnosticsMutation(changes);
+}
+
+void markScheduleUpdate(ImageViewportInternal::ViewportChangeSet& changes)
+{
+    changes.scheduleUpdate = true;
+}
+
+bool viewportGeometryChanged(ViewportControllerPort& viewport, const QRectF& oldContentRect,
+    const QRectF& oldVisibleImageRect)
+{
+    return ImageViewportInternal::rectsDifferExactly(viewport.contentRect(), oldContentRect)
+        || ImageViewportInternal::rectsDifferExactly(
+            viewport.visibleImageRect(), oldVisibleImageRect);
+}
+
+ImageViewport::DisplayStatus retainedOrEmptyDisplayStatus(ViewportControllerPort& viewport)
+{
+    const auto primaryDisplay
+        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
+    return primaryDisplay.displayedImageSize.isValid() ? ImageViewport::DisplayStatus::Retained
+                                                       : ImageViewport::DisplayStatus::Empty;
+}
+
+void publishRetainedOrEmptyDisplayStatus(ViewportControllerPort& viewport)
+{
+    viewportDisplayState(viewport).status = retainedOrEmptyDisplayStatus(viewport);
 }
 
 std::optional<ControllerTransitionPolicy> normalizeControllerTransitionPolicy(
