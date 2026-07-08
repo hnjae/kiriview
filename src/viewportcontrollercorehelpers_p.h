@@ -522,18 +522,24 @@ bool isUnknownMetadataInitialRequest(const ImageViewportInternal::DisplayRequest
 bool targetRequiresSecondaryPayload(ViewportControllerPort& viewport)
 {
     return hasSecondarySequence(viewport)
-        && viewportRequestState(viewport).secondaryActiveRequest.target.frame >= 0;
+        && activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Secondary)
+               .target.frame
+        >= 0;
 }
 
 bool displayedPrimaryPayloadMatchesActiveTarget(ViewportControllerPort& viewport)
 {
+    const auto primaryDisplay
+        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
+    const ImageViewportInternal::DisplayRequest& primaryRequest
+        = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary);
     return viewport.hasReadyDisplay()
-        && viewportDisplayState(viewport).displayedRequest.generation
+        && primaryDisplay.displayedRequest.generation
         == viewportRequestState(viewport).sequenceGeneration
-        && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.frame
-        == viewportRequestState(viewport).activeRequest.resolvedFrame.frame
-        && viewportDisplayState(viewport).displayedRequest.request.resolvedFrame.position
-        == viewportRequestState(viewport).activeRequest.resolvedFrame.position;
+        && primaryDisplay.displayedRequest.request.resolvedFrame.frame
+        == primaryRequest.resolvedFrame.frame
+        && primaryDisplay.displayedRequest.request.resolvedFrame.position
+        == primaryRequest.resolvedFrame.position;
 }
 
 bool displayedSecondaryPayloadMatchesActiveTarget(ViewportControllerPort& viewport)
@@ -541,13 +547,17 @@ bool displayedSecondaryPayloadMatchesActiveTarget(ViewportControllerPort& viewpo
     if (!hasSecondarySequence(viewport)) {
         return true;
     }
+    const auto secondaryDisplay
+        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
+    const ImageViewportInternal::DisplayRequest& secondaryRequest
+        = activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Secondary);
     return viewport.hasReadyDisplay()
-        && viewportDisplayState(viewport).secondaryDisplayedRequest.generation
+        && secondaryDisplay.displayedRequest.generation
         == viewportRequestState(viewport).sequenceGeneration
-        && viewportDisplayState(viewport).secondaryDisplayedRequest.request.resolvedFrame.frame
-        == viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame.frame
-        && viewportDisplayState(viewport).secondaryDisplayedRequest.request.resolvedFrame.position
-        == viewportRequestState(viewport).secondaryActiveRequest.resolvedFrame.position;
+        && secondaryDisplay.displayedRequest.request.resolvedFrame.frame
+        == secondaryRequest.resolvedFrame.frame
+        && secondaryDisplay.displayedRequest.request.resolvedFrame.position
+        == secondaryRequest.resolvedFrame.position;
 }
 
 

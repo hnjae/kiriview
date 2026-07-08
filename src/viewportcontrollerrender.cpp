@@ -218,7 +218,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChang
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Loading
         && viewportRequestState(viewport).reason == ImageViewport::RequestReason::UploadPending
         && viewport.itemBounds().isEmpty()
-        && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull()) {
+        && !displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary)
+                .pendingPayload.image.isNull()) {
         viewportRequestState(viewport).reason = ImageViewport::RequestReason::RenderWaiting;
         changes.requestRevision = true;
         changes.requestState = true;
@@ -311,10 +312,12 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
     const bool resumePlaybackAfterCommit
         = viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready;
+    const auto primaryDisplay
+        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
     viewportDisplayState(viewport).commitDisplayedRequestSnapshot(
         viewportRequestState(viewport).sequenceGeneration,
-        viewportRequestState(viewport).activeRequest,
-        viewportDisplayState(viewport).pendingRenderPayload.payloadId);
+        activeRequestForRole(viewportRequestState(viewport), ImageViewport::PageRole::Primary),
+        primaryDisplay.pendingPayload.payloadId);
     viewportDisplayState(viewport).clearPendingRenderPayload();
     viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
     if (resumePlaybackAfterCommit) {
@@ -374,13 +377,12 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFa
 
     viewportDisplayState(viewport).clearPendingRenderPayload();
     if (viewportDisplayState(viewport).renderFailureRetainedDisplayValid) {
+        ViewportDisplayRoleState primaryDisplay
+            = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
         viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Retained;
-        viewportDisplayState(viewport).displayedRequest
-            = viewportDisplayState(viewport).renderFailureRetainedRequest;
-        viewportDisplayState(viewport).displayedImageSize
-            = viewportDisplayState(viewport).renderFailureRetainedImageSize;
-        viewportDisplayState(viewport).displayedImage
-            = viewportDisplayState(viewport).renderFailureRetainedImage;
+        primaryDisplay.displayedRequest = viewportDisplayState(viewport).renderFailureRetainedRequest;
+        primaryDisplay.displayedImageSize = viewportDisplayState(viewport).renderFailureRetainedImageSize;
+        primaryDisplay.displayedImage = viewportDisplayState(viewport).renderFailureRetainedImage;
     } else {
         viewportDisplayState(viewport).status = ImageViewport::DisplayStatus::Empty;
         viewportDisplayState(viewport).clearDisplayedDisplay();

@@ -4,6 +4,10 @@ file(READ "${render_file}" render_content)
 
 set(forbidden_patterns
     "state\\.secondaryProvider"
+    "viewportDisplayState\\(viewport\\)\\.displayedRequest"
+    "viewportDisplayState\\(viewport\\)\\.displayedImageSize"
+    "viewportDisplayState\\(viewport\\)\\.displayedImage"
+    "viewportDisplayState\\(viewport\\)\\.pendingRenderPayload"
     "\\.secondaryDisplayedRequest"
     "\\.secondaryDisplayedImageSize"
     "\\.secondaryDisplayedImage"
