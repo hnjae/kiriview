@@ -1,0 +1,630 @@
+# ImageViewport v2 Implementation Plan
+
+This plan sequences the migration from the current controller-centered implementation to the v2 end state defined by `docs/spec/**` and `docs/architecture/**`. It is intentionally a milestone document: it may describe temporary adapters, compatibility shims, sequencing, and replacement criteria that do not belong in the authoritative spec or architecture documents. It lives at `docs/implementation-plan.md` because this path was explicitly requested for the v2 migration plan; treat it as the accepted roadmap artifact for this migration rather than as a normative spec or architecture file.
+
+## Operating Rules
+
+- Treat `docs/spec/**` and `docs/architecture/**` as the target contract. Do not change their meaning to match temporary implementation limits.
+- Do not delete existing source or test files during the migration. Remove obsolete files only in the compatibility removal milestone after no build target or test references them.
+- Keep existing behavior tests green unless a milestone explicitly adds durable v2 coverage for the same behavior and identifies the old test as obsolete.
+- Add v2 behavior through adapters first, then move ownership into the engine one domain at a time.
+- Decide and test the QML import/version strategy before the first QML-visible v2 API lands. Temporary additive exposure may keep existing imports green, but compatibility removal must not begin until the final v2 import and QML metadata expectations are represented in tests.
+- Prefer focused behavior or boundary tests over source-pattern tests. Keep structural tests only for stable ownership boundaries.
+- Commit each milestone independently. If a milestone changes the public product contract or durable architecture intent beyond the already documented end state, update and commit the relevant intent document before tests or implementation.
+
+## Baseline Inputs
+
+- Current reset baseline: `main` at `9dc1b23 docs: define v2 snapshot API`, with a clean worktree before this plan was written.
+- Public end-state sources: `docs/spec/image-viewport.md`, `docs/spec/image-viewport-api.md`, `docs/spec/image-viewport-state.md`, `docs/spec/image-sequence-provider-protocol.md`, `docs/spec/image-sequence-provider-adapter.md`, and `docs/spec/image-viewport-packaging.md`.
+- Architecture end-state sources: `docs/architecture/subsystem-boundaries.md`, `docs/architecture/provider-protocol.md`, `docs/architecture/presentation-geometry.md`, `docs/architecture/playback-state-machine.md`, `docs/architecture/rendering.md`, and `docs/architecture/build-and-package.md`.
+- Current implementation targets: `src/CMakeLists.txt` builds the public static QML module from `imageviewport*`, `viewportcontroller*`, provider host/bridge files, render adapter/host files, playback utilities, frame preparation, and public source-handle types.
+- Current test targets: `tests/CMakeLists.txt` defines public API/QML tests, still/timed behavior tests, provider contract/lifecycle/metadata/request/admission/terminal/playback tests, render scenegraph/commit tests, controller unit tests, install-consumer coverage, and structural boundary checks.
+
+## Milestone 1: Baseline and Guardrails
+
+### Goal
+
+Establish the migration baseline, inventory current public behavior, and make it explicit which tests must remain green until replaced by durable v2 coverage.
+
+### Scope
+
+- Record the current public API surface: flat `ImageViewport` properties, command invokables, `setPageSet` overloads, `PageSetTransitionPolicy`, coordinate helpers, provider adapter methods/signals, factory methods, limits, QML import surface, and installed package consumer expectations.
+- Record existing behavior by suite and by ownership domain: public API, sequence assignment, presentation geometry, provider protocol, playback, render commit, diagnostics, lifecycle cleanup, structural boundaries, and packaging.
+- Keep this milestone docs/test-only except for optional test harness annotations or baseline inventory updates.
+
+### Existing Behavior That Must Be Preserved
+
+- `tests/CMakeLists.txt` baseline anchors must stay green: `imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek`, `imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision`, `imageviewport_provider_requests/providerTimedFrameSeekCancelsSupersededRequest`, `imageviewport_render_commit/providerSupersededRenderFailureIsIgnored`, `imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay`, `imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest`, and `imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata`.
+- Public API and QML scaffolding tests must continue to prove current behavior while v2 adapters are introduced: `imageviewport_public_api`, `imageviewport_public_api_commands`, `imageviewport_public_api_provider_roles`, and `imageviewport_public_api_qml`.
+- Existing source-handle and package boundaries must remain usable by installed consumers: `imagesequence_factory`, `imageviewport_install_consumer`, and the structural package/header checks.
+- Current provider, render, presentation, timed playback, and controller tests must remain in the target graph and must not be removed or weakened in this milestone.
+
+### Tests To Add Or Update
+
+- Add a small baseline inventory test or checklist only if the current `structural::refactorBaselineInventory` output is insufficient for future comparison.
+- Update `tests/CMakeLists.txt` comments only if they become stale; do not add release-gate identifiers or milestone progress language to specs or architecture docs.
+- No behavior tests should be deleted in this milestone.
+
+### Implementation Steps
+
+1. Run the full test suite from a clean build and capture failures before migration work begins.
+2. Confirm each existing test target in `tests/CMakeLists.txt` still builds and runs under the same CMake options used by CI.
+3. Produce an inventory of public `Q_PROPERTY`, `Q_INVOKABLE`, provider signal, provider virtual method, installed header, and QML singleton surfaces from `src/imageviewport.h`.
+4. Map each inventory area to current behavior suites so later milestones can name the v2 replacement test before changing compatibility behavior.
+5. If a current test is brittle because it asserts incidental implementation text or private layout, leave it in place but identify the future v2 behavior test that will supersede it.
+
+### Completion Criteria
+
+- A clean baseline test report exists for the reset commit.
+- Every existing test file and test target remains present.
+- The migration guardrail inventory names the behavior suite that protects each current public behavior area.
+- No source or test implementation behavior changes have been made.
+
+### Risks And Rollback Criteria
+
+- Risk: future sessions remove tests as "legacy" before v2 equivalents exist. Roll back any commit that deletes, disables, or weakens a behavior test without naming equivalent v2 coverage.
+- Risk: inventory becomes a brittle source-pattern gate. Keep inventory informational unless it protects a durable architecture boundary.
+- Roll back this milestone if it changes product behavior, source files, or public docs outside the plan/inventory scope.
+
+## Milestone 2: Snapshot API Adapter
+
+### Goal
+
+Add v2 snapshot value types and a read-only `state` projection over the existing implementation while leaving v1 flat properties and behavior intact.
+
+### Scope
+
+- Introduce public value types for `ImageViewportStateSnapshot`, request/display/presentation/role/diagnostics/revision snapshots, role sets, page-set generation tokens, revision tokens, demand revision tokens, command results, coordinate inputs/results, and enum aliases required by the v2 state spec.
+- Add `ImageViewport::state` and `stateChanged` as a projection from the current controller state.
+- Keep current flat properties, flat notification signals, command return values, and coordinate helper methods unchanged.
+- Keep v2 snapshot projection read-only. Do not move state ownership yet.
+
+### Existing Behavior That Must Be Preserved
+
+- Flat property tests remain authoritative until compatibility removal: request/display status, frame/position observations, metadata capability tri-states, diagnostics, presentation fields, geometry fields, revision tokens, and QML bindings must continue to behave as they do now.
+- Existing revision behavior must remain unchanged for flat properties while `state.revisions` is projected consistently.
+- Retained display observations must preserve current behavior for failed replacement, loading replacement, and secondary role retention.
+- QML import behavior must remain compatible with existing tests and installed consumers.
+
+### Tests To Add Or Update
+
+- Add `imageviewport_state_snapshot` or extend `imageviewport_public_api` to verify default snapshot values, QML readability, C++ copying, equality-only token helpers, invalid sentinel values, and `stateChanged` emission.
+- Add projection parity tests that compare snapshot fields against current flat observations for representative ready, loading, retained, unsupported, and error states.
+- Add retained-display snapshot tests covering separate accepted-request and displayed-presentation identity using existing retained-display scenarios.
+- Add QML tests that bind to nested snapshot fields and verify flat properties still emit as before.
+
+### Implementation Steps
+
+1. Add public Q_GADGET/QML value types and metatype declarations in the public header without removing existing value types.
+2. Add private projection helpers that translate current `ImageViewportState` and controller observations into the v2 snapshot schema.
+3. Add a `state` property to `ImageViewport` backed by the projection helper and emit `stateChanged` whenever any projected field changes.
+4. Route existing notification sites through a single projection comparison so `stateChanged` is coherent and not emitted for unchanged snapshots.
+5. Keep old `RevisionToken` behavior for flat properties; introduce v2 token names as wrappers or aliases only where they can be copied and compared without exposing ordering.
+6. Update installed-header generation and QML registration only as needed for the new public value types.
+
+### Completion Criteria
+
+- Existing public API, QML, provider, render, timed, and controller tests remain green.
+- New snapshot tests prove the v2 state projection is coherent across default, ready, loading, retained, terminal, and presentation-only states.
+- No v1 flat property or signal has been removed.
+- Installed consumers can include the new public types without private headers.
+
+### Risks And Rollback Criteria
+
+- Risk: snapshot projection accidentally becomes independent mutable state. Roll back if snapshot fields can diverge from the controller without a controller transition.
+- Risk: notification churn breaks QML bindings. Roll back if `stateChanged` or existing flat signals emit on no-op transitions beyond documented revision behavior.
+- Risk: public tokens expose numeric ordering. Roll back token APIs that require callers to compare order rather than equality/currentness.
+
+## Milestone 3: Page Set API Introduction
+
+### Goal
+
+Introduce canonical `ImageViewportPageSet` and `setPageSet(pageSet, policy)` while adapting to the existing sequence assignment path.
+
+### Scope
+
+- Add `ImageViewportPageSet` as the public v2 value carrying required primary and optional secondary `ImageSequence` handles, with clear/null-primary semantics.
+- Add the canonical `setPageSet(ImageViewportPageSet, PageSetTransitionPolicy)` overload for C++ and QML.
+- Preserve current `sequence` property and existing `setPageSet(primary, secondary, policy)` compatibility overloads until the compatibility removal milestone.
+- Keep two-role atomicity, clear behavior, invalid secondary rejection, transition policy validation, and same-target refinement validation identical to current tests until v2 ownership replaces them.
+
+### Existing Behavior That Must Be Preserved
+
+- `imageviewport_public_api_commands/setPageSetAcceptsPrimaryAndSecondaryAtomically` and related typed overload tests must keep passing.
+- Compatibility sequence assignment must keep clearing the secondary role until v1 removal.
+- Clear-style page sets must clear accepted roles, avoid starting secondary provider sessions, preserve presentation preferences as currently documented, and clear retained display when requested.
+- Invalid page-set and invalid transition-policy commands must preserve previous request/display/presentation state except command diagnostics.
+
+### Tests To Add Or Update
+
+- Add C++ and QML tests for `ImageViewportPageSet` default, clear, primary-only, and two-role construction.
+- Add tests proving canonical `setPageSet(pageSet, policy)` is behaviorally identical to existing primary/secondary overloads for still, timed, provider, clear, invalid, and retained-display transitions.
+- Add tests proving raw strings, URLs, byte arrays, JavaScript objects, raw provider objects, provider URLs, image-provider ids, load acknowledgements, and arbitrary variants are rejected by the canonical path.
+- Keep existing v1 assignment tests until compatibility removal and label their future replacement coverage in comments if needed.
+
+### Implementation Steps
+
+1. Add `ImageViewportPageSet` public value type and QML structured-value registration.
+2. Implement canonical overload validation in the item layer and convert valid page sets into the existing primary/secondary assignment call.
+3. Normalize clear handling so `clear()` and null-primary `ImageViewportPageSet` share the same policy path.
+4. Keep current overloads implemented as adapters into the canonical value where possible.
+5. Extend snapshot projection so `state.request.acceptedRoleSet`, `targetRoleSet`, and role `sequence` fields reflect the page-set command result.
+6. Update installed consumer coverage for the canonical overload while retaining old installed API coverage.
+
+### Completion Criteria
+
+- Canonical page-set API is public, QML-readable, and install-consumer usable.
+- Existing sequence assignment behavior is unchanged.
+- New page-set tests pass for still, timed, provider, clear, invalid, and two-role atomic cases.
+- No existing source or test file has been deleted.
+
+### Risks And Rollback Criteria
+
+- Risk: adding the canonical value changes v1 overload semantics through shared validation. Roll back if current compatibility tests fail without a planned replacement.
+- Risk: clear and secondary-only handling diverge between overloads. Roll back if clear/null-primary semantics are not identical across the public entry points.
+- Risk: QML structured value construction accepts arbitrary variants as sources. Roll back those conversions and require typed `ImageSequence` handles only.
+
+## Milestone 4: Typed Provider Protocol and Source Envelope Adapter
+
+### Goal
+
+Introduce `ImageSequenceProviderDescriptor`, `ImageSequenceProviderRequest`, `ImageSequenceProviderEvent`, and explicit frame envelope values while bridging them to the current source-handle and provider session APIs.
+
+### Scope
+
+- Add v2 provider public value types for descriptor, request, event, display demand, frame envelope, unsupported cause, payload quality/exactness, request/event kinds, and tokens.
+- Add a typed request/event adapter path beside the current virtual methods and legacy provider signals.
+- Add the public source payload envelope model for `ImageFrame` and provider payloads, including source-logical-size versus payload-raster-size separation, quality, exactness, byte-size facts, timing facts, orientation policy, and source-to-payload scale.
+- Keep bare-`QImage` `ImageFrame` and factory construction as the exact-only convenience path that infers an envelope from normalized image facts.
+- Adapt existing provider construction virtuals through `ImageSequenceProviderDescriptor`: `sessionFactory()`, `knownMetadata()`, `knownFacts()`, capability accessors, authored animation facts, and threading contract remain compatibility inputs until removal.
+- Keep current provider behavior, token allocation, session affinity, cancellation, close, frame-handle release, metadata validation, and failure classification intact.
+- Do not require all provider tests to switch to typed sessions in one step.
+
+### Existing Behavior That Must Be Preserved
+
+- Provider construction and installed consumer behavior from `imageviewport_provider_contract`, `imagesequence_factory`, and `imageviewport_install_consumer`.
+- Provider lifecycle tests for session open failure, dispatch failure, cancellation before close, clear/replacement cleanup, queued event delivery, synchronous protocol tests, and late callback rejection.
+- Provider request tests for unique tokens, seek resolution before metadata, queued frame requests, stale-token cancellation, and role-local secondary requests.
+- Provider frame admission tests for envelope validation, source logical size, payload byte limits, retained/rejected/stale handle release exactly once, and zero-geometry render waiting.
+- Provider terminal and diagnostics tests for generation-terminal versus display-request-terminal classification, unsupported causes, protocol violations, redaction, and plain text diagnostics.
+- Existing `ImageFrame`, `TimedImageFrameList`, still source, timed source, and factory tests must continue to preserve exact image construction, orientation normalization, payload retention, duration validation, and source-handle lifetime.
+
+### Tests To Add Or Update
+
+- Add public value tests for typed provider request/event defaults, required fields per kind, invalid token behavior, unsupported cause validation, demand invalid sentinels, frame envelope validation, and descriptor defaults.
+- Add public value and factory tests for explicit `ImageFrame` envelope construction, default exact-only bare-image envelopes, logical source size distinct from payload raster size, source-to-payload scale, quality/exactness defaults, invalid envelope rejection, and timed frame envelope consistency.
+- Add adapter parity tests that run the same metadata, frame, position, playback, waiting, progress, unsupported, cancelled, failed, and end-of-sequence flows through both legacy and typed provider sessions.
+- Add demand projection tests that assert role, resolved frame, requested position, source logical size, visible source rect, target physical size, DPR, rotation, mirroring, quality/exactness, caps, budgets, current payload facts, and demand revision for representative still, timed, retained, and presentation-change states.
+- Add a temporary demand-invalidation matrix test before typed demand reaches providers. Until the engine owns demand, the adapter must advance demand revisions for every known payload-affecting field it can observe: source logical size, resolved frame, requested position, visible logical rect, target physical size, effective device pixel ratio, rotation, mirroring, quality preference, exactness preference, texture caps, payload byte caps, display byte budget, allocation generation, and current payload quality/exactness/raster/scale facts; fields it cannot observe safely must use explicit invalid sentinels.
+- Add installed consumer coverage for explicit frame envelope construction and implementing a typed provider without private headers while keeping legacy provider installed coverage until removal.
+
+### Implementation Steps
+
+1. Define typed public provider and frame envelope values without deleting legacy provider virtual methods or signals.
+2. Add explicit envelope construction for `ImageFrame` and adapt bare-image construction to populate exact-only envelope facts.
+3. Adapt built-in still and timed frame-list sources to carry source logical size, payload raster size, source-to-payload scale, quality, exactness, byte size, timing, alpha, and orientation facts through the same envelope shape used by providers.
+4. Add `ImageSequenceProviderDescriptor` to `ImageSequenceProviderAdapter`, initially defaulting from existing adapter virtual methods.
+5. Bridge legacy adapter construction virtuals into descriptor fields so legacy providers keep working while typed descriptor tests are added.
+6. Add a typed session entry point and typed event signal; bridge typed requests to legacy virtuals and legacy signals to typed events where a provider has not opted into typed handling.
+7. Normalize provider events in the provider host before they enter the controller so the current controller continues to receive the existing internal event shape.
+8. Project display demand from existing geometry/request state with a documented temporary owner for each demand field and an invalidation matrix that matches the public demand-revision rules for every field the adapter can observe.
+9. Use explicit invalid sentinels, not guessed values, for demand caps, budgets, allocation, current payload facts, or geometry fields that are unavailable before later engine migrations.
+10. Update provider test support classes incrementally so new tests can choose legacy or typed mode.
+11. Keep borrowed raw-frame compatibility signals working until compatibility removal; prefer frame-handle and envelope tests for new typed coverage.
+
+### Completion Criteria
+
+- Typed provider values are public, QML/C++ metatypes where required, and install-consumer usable.
+- `ImageFrame` and built-in sequence sources expose the v2 envelope model while bare-`QImage` construction remains an exact-only compatibility convenience.
+- Existing provider tests pass unchanged or with additive typed variants.
+- Typed and legacy provider paths produce the same public request/display/diagnostic outcomes for parity scenarios.
+- Providers receive display demand on frame, position, and playback typed requests.
+- Demand revisions advance for every temporary adapter-owned payload-affecting field, and unavailable demand fields are explicit invalid sentinels.
+
+### Risks And Rollback Criteria
+
+- Risk: dual provider paths classify errors differently. Roll back if typed parity tests diverge from legacy behavior for the same input.
+- Risk: built-in source handling conflates source logical size with payload raster size. Roll back if explicit envelope and physical zoom tests show coordinate or 100% zoom regressions.
+- Risk: demand revisions become public-order dependent or miss invalidations before engine ownership. Roll back any API that requires numeric token ordering or any demand adapter that can return stale payload-affecting fields under the same revision.
+- Risk: frame handles are released on the wrong thread or more than once. Roll back if lifecycle/admission tests detect release affinity or count regressions.
+
+## Milestone 5: Engine Boundary Extraction
+
+### Goal
+
+Introduce `ViewportEngine` beside the existing controller and move small pure state transitions first without broad rewrites.
+
+### Scope
+
+- Create an engine module that owns typed inputs, typed effects, snapshot deltas, and revision allocation for a small initial domain.
+- Start with pure transitions that do not require provider transport, render synchronization, timers, or scene graph access: command diagnostic handling, invalid command rejection, clear/default state projection, simple presentation no-op validation, and snapshot projection helpers.
+- Keep the existing `ViewportController` as the authoritative behavior owner until a domain has v2 tests and a completed migration.
+- Preserve item, provider host, render host, and scheduler boundaries.
+
+### Existing Behavior That Must Be Preserved
+
+- Controller unit tests must stay green while engine tests are added.
+- Existing structural boundaries for controller facade, controller contract headers, owner-specific helpers, mutation primitives, provider host, render host, and playback scheduler must remain meaningful.
+- Rejected commands must still mutate only command diagnostics/revision, and accepted commands must preserve current revision behavior.
+- No public behavior may switch to engine ownership before corresponding v2 snapshot and behavior tests exist.
+
+### Tests To Add Or Update
+
+- Add core engine unit tests for default snapshot, command diagnostic revision, malformed enum rejection, no-request role command handling, clear from empty, and no-op presentation validation.
+- Add adapter tests proving item/controller outputs and engine projection agree for the migrated pure transitions.
+- Add or adjust structural tests to prevent item/provider/render/scheduler code from reaching directly into engine internals once the boundary exists.
+- Keep controller tests as compatibility and regression coverage until each domain migrates.
+
+### Implementation Steps
+
+1. Add `ViewportEngine` private headers/sources and CMake target entries without removing controller files.
+2. Define typed engine input and effect values for the initial pure domain.
+3. Move revision allocation for the migrated pure domain behind an engine-owned allocator while adapting existing flat revision outputs.
+4. Let the item/controller adapter call the engine only for the migrated domain and fall back to controller behavior for all other domains.
+5. Keep effect application outside the engine: provider requests, render updates, scheduler operations, and QML notifications remain item-side or host-side.
+6. Commit each domain move separately when possible so regressions can be bisected cleanly.
+
+### Completion Criteria
+
+- Engine files are present and built, but controller behavior remains intact for unmigrated domains.
+- Engine tests cover the initial pure transitions.
+- Existing public, provider, render, playback, and controller suites pass.
+- No broad controller rewrite or helper deletion has occurred.
+
+### Risks And Rollback Criteria
+
+- Risk: two owners mutate the same state. Roll back if a migrated domain can be changed by both controller and engine after one public command.
+- Risk: engine effects start invoking Qt, provider sessions, scene graph, or timers directly. Roll back boundary violations.
+- Risk: adapter complexity obscures behavior. Roll back the latest domain move if the same outcome cannot be verified through focused tests.
+
+## Milestone 6: Assignment and Page-Set Engine Migration
+
+### Goal
+
+Move accepted page-set identity, role generation identity, page-set transition validation, and request/display transaction setup into the engine before presentation, provider, playback, or render ownership is migrated further.
+
+### Scope
+
+- Make the engine own accepted page-set generation tokens, accepted role sets, target role sets, role generation identity, active role selection, clear/null-primary semantics, and page-set command validation.
+- Move page-set transition transactions into engine state: new target, clear, retained versus empty display choice, same-target refinement admission, transition policy application, command diagnostics, and revision allocation.
+- Keep provider session opening, render scheduling, and playback scheduling as effects applied by existing hosts/controllers until their later migration milestones.
+- Keep existing compatibility assignment APIs as adapters into the engine-owned page-set command path.
+
+### Existing Behavior That Must Be Preserved
+
+- `imageviewport_public_api_commands` coverage for atomic primary/secondary page-set acceptance, compatibility assignment clearing secondary roles, clear-style page sets, invalid secondary rejection, invalid role arguments, invalid transition policy preservation, and command diagnostics.
+- Still/timed behavior for null assignment, clear preserving presentation preferences, replacement preserving presentation state, assignment waiting for positive geometry, retained display while waiting for geometry, and timed initial request projection.
+- Provider behavior for construction-time metadata selecting initial frame, runtime metadata binding unknown initial targets, session-open failure after accepted replacement, secondary provider role assignment, and no provider side effects for rejected page-set commands.
+- Existing retained display, request/display revision, playback stop/restoration, and render-waiting behavior must remain green while page-set ownership moves.
+
+### Tests To Add Or Update
+
+- Add engine assignment tests for valid and invalid `ImageViewportPageSet`, whole-command validation before mutation, clear/null-primary equivalence, primary-only and two-role accepted role sets, generation token allocation, target role set projection, and rejected-command diagnostic-only revision changes.
+- Add transition tests for retained versus clear-before-load display policy, fit/zoom/content-position/rotation/mirror/spread/page-gap transition application, and same-target refinement restrictions.
+- Add integration tests proving rejected page-set commands produce no provider requests, render updates, playback scheduling, handle releases, or retained-display changes.
+- Add snapshot-first tests for `state.request.acceptedPageSetGeneration`, `acceptedRoleSet`, `targetRoleSet`, role `present`, role `sequence`, displayed generation, retained flags, and clear state.
+- Keep all existing sequence assignment and page-set compatibility tests until Milestone 11 removes v1 compatibility.
+
+### Implementation Steps
+
+1. Define engine assignment inputs for `setPageSet`, `clear`, compatibility sequence assignment, and transition policy validation.
+2. Move page-set value and transition-policy validation into engine code while preserving the current item-level rejection results through adapters.
+3. Allocate accepted page-set generation and role generation identities in the engine for accepted non-empty replacements and clear transitions.
+4. Have the engine emit typed effects for provider session open/close, built-in payload staging, render invalidation, playback stop, and retained-display release decisions without executing those effects directly.
+5. Keep existing controller/provider/render/playback paths consuming those effects through adapters until their domain migrations.
+6. Project both v2 snapshot fields and v1 flat fields from the engine-owned assignment state.
+7. Mark old controller assignment helpers obsolete only after assignment engine tests and existing public behavior tests pass.
+
+### Completion Criteria
+
+- Engine owns accepted page-set identity, role generation identity, accepted/target role-set projection, clear state, and page-set transition transaction setup.
+- Existing page-set, sequence assignment, provider metadata initial selection, retained display, render waiting, and playback restoration tests pass.
+- No rejected page-set command can mutate provider, render, playback, display, presentation, or retained-display state except command diagnostics.
+- Compatibility assignment APIs remain available and behave through the engine path.
+
+### Risks And Rollback Criteria
+
+- Risk: accepted two-role replacements expose a transient primary-only state. Roll back if atomic spread acceptance or snapshot role-set tests fail.
+- Risk: rejected page-set commands leak provider sessions, render work, playback changes, or handle releases. Roll back if side-effect isolation tests fail.
+- Risk: same-target refinement changes source logical coordinates or presentation state. Roll back if refinement tests show geometry, zoom, pan, role placement, or logical-size regressions.
+- Risk: page-set migration duplicates generation identity between controller and engine. Roll back if stale provider/render results can match both identity systems.
+
+## Milestone 7: Presentation and Geometry Migration
+
+### Goal
+
+Move zoom, fit, pan, rotation, mirroring, spread geometry, page gap, coordinate helpers, and display-demand geometry into the v2 command/snapshot path while preserving existing presentation behavior.
+
+### Scope
+
+- Migrate canonical presentation state and geometry projection into the engine.
+- Keep existing presentation commands and property setters as adapters until compatibility removal.
+- Route v2 `ImageViewportPresentationCommand`, `setPresentation(command)`, `resetView()`, and coordinate helpers through engine-owned validation and projection.
+- Preserve physical-pixel-aware zoom, non-positive item geometry behavior, retained-display geometry identity, spread direction/gap, and page-scoped coordinate invalidation.
+
+### Existing Behavior That Must Be Preserved
+
+- `imageviewport_presentation_state` coverage for invalid enum handling, presentation-only notifications, background/quality/looping effects, two-page spread geometry, manual pan, rotation, retained geometry, gap/edge rejection, nearest visible helpers, fit modes, manual zoom limits, zoom steps, mirroring anchors, and rotation mapping.
+- Still/timed tests for cover behavior, mirror visible rects, assignment waiting for positive geometry, replacement retained display while waiting for geometry, and unchanged-geometry notification suppression.
+- Render scenegraph tests for texture node mapping, rotation transforms, physical source rects, smoothing/mipmap/mirroring, background rendering, and role layer geometry.
+- Provider demand tests added in Milestone 4 must continue to reflect the engine geometry projection.
+
+### Tests To Add Or Update
+
+- Add v2 presentation command tests for transactional validation, conflict domains, optional field presence, resetView equivalence, quality/exactness preferences, and command result details.
+- Add snapshot-first geometry tests that assert `state.display`, `state.presentation`, and role geometry fields rather than flat properties.
+- Add coordinate helper tests for v2 `mapPoint`, `containsPoint`, and `nearestVisiblePoint` across spread/page/item domains.
+- Add retained-display geometry tests that verify `displayedPresentationRevision` and `targetPresentationRevision` diverge while retained pixels are visible.
+- Keep all existing presentation flat-property tests until v1 compatibility is removed.
+
+### Implementation Steps
+
+1. Define internal presentation command inputs matching the public v2 command shape.
+2. Move the current geometry pipeline into engine-owned pure projection functions, reusing existing `presentationgeometry` helpers where stable.
+3. Adapt old setters and invokables to construct v2 presentation commands and call the engine.
+4. Update snapshot projection to consume engine geometry directly and flat properties to project from the same engine state.
+5. Feed provider display demand from engine geometry rather than item/controller-local reconstruction.
+6. Feed render snapshots from engine-authorized geometry without changing scenegraph materialization yet.
+7. Mark duplicate private helper paths obsolete once they are unreachable, add them to the Milestone 11 removal ledger, and leave their source files in place until compatibility removal proves no build target or test references them.
+
+### Completion Criteria
+
+- Engine owns canonical presentation state and geometry projection.
+- V2 presentation commands and snapshot geometry are tested.
+- Existing flat presentation, coordinate, render mapping, and provider demand tests pass.
+- Non-positive geometry and retained-display geometry remain unchanged.
+
+### Risks And Rollback Criteria
+
+- Risk: coordinate helpers silently clamp invalid gap or edge points. Roll back if page/spread invalid-domain tests fail.
+- Risk: retained display starts using target presentation geometry. Roll back if retained `displayedPresentationRevision` behavior regresses.
+- Risk: render and demand paths reconstruct geometry independently. Roll back boundary changes that introduce a second geometry authority.
+
+## Milestone 8: Playback and Seek Migration
+
+### Goal
+
+Move playback, seek, timing, looping, autoplay, pause/stop, and stale request rejection into the engine path.
+
+### Scope
+
+- Migrate role-scoped seek admission, seek target resolution, playback driver ownership, playback phases, scheduler effects, loop policy, authored autoplay, stop restoration, and stale playback result rejection.
+- Keep existing scheduler and playback utility classes as effect consumers/helpers until they are proven obsolete.
+- Preserve built-in timed frame lists and provider-backed timed sequences through the same public request/display path.
+
+### Existing Behavior That Must Be Preserved
+
+- `imageviewport_timed` coverage for timed assignment, frame/position seek, secondary role seek/playback, pause/stop no-ops by role, authored autoplay, authored finite/infinite loops, deterministic and runtime timer advancement, render-waiting pause/stop behavior, and unchanged-geometry playback updates.
+- `imageviewport_provider_playback` coverage for metadata-waiting playback, provider playback entry point, stop restoration, paused commits, end-of-sequence final frame handling, authored loops, secondary playback, and unsupported metadata stopping waiting playback.
+- `imageviewport_provider_terminal_playback` and render commit playback failure tests for stopping on provider/render failures and restarting play after failure.
+- `viewportcontroller_playback`, `playback_timeline`, and `playback_clock` behavior must remain green until engine tests replace their domain coverage.
+
+### Tests To Add Or Update
+
+- Add engine playback unit tests for the state machine in `docs/architecture/playback-state-machine.md`, including single-driver ownership, waiting without catch-up, pause while render waiting, stop restoration, play-once final frame promotion, looping wrap, invalid seek preservation, and role-scoped no-op commands.
+- Add snapshot-first integration tests for `state.request.playbackPhase`, active role, playback role, requested/displayed frame and position, and request/display statuses.
+- Add provider typed-protocol playback tests proving playback requests carry demand and stale playback events are ignored.
+- Add scheduler-effect tests proving the engine emits schedule/cancel effects but never starts timers directly.
+
+### Implementation Steps
+
+1. Move seek command validation and target recording into engine-owned request state.
+2. Move playback driver state and loop progress into engine role-indexed state.
+3. Convert scheduler callbacks into typed engine tick inputs and scheduler commands into engine effects.
+4. Route built-in timed frame selection and provider playback request dispatch through the same engine request path.
+5. Implement stop restoration in engine state and adapt existing controller outputs.
+6. Preserve stale provider/render/preparation rejection by matching engine request and playback identities.
+7. Keep old controller playback helpers until all playback tests pass through engine state, then mark them obsolete for Milestone 11.
+
+### Completion Criteria
+
+- Engine owns playback phase, active playback role, loop progress, and seek target identity.
+- Built-in and provider playback suites pass.
+- Playback scheduler remains an effect consumer and has no ownership over playback phase.
+- Snapshot playback fields are authoritative and flat fields project from them.
+
+### Risks And Rollback Criteria
+
+- Risk: playback accumulates elapsed time while waiting for metadata, provider work, render commit, or geometry. Roll back if deterministic playback tests show catch-up behavior.
+- Risk: `stop(role)` cancels another role or fails to restore latest non-playback target. Roll back if role-scoped stop tests regress.
+- Risk: stale playback payloads can commit after seek, loop, clear, replacement, or stop. Roll back if stale request tests fail.
+
+## Milestone 9: Provider Lifecycle and Payload Admission Migration
+
+### Goal
+
+Move metadata, frame admission, cancellation, terminal projection, diagnostics, handle release, and provider lifecycle handling into the typed protocol path.
+
+### Scope
+
+- Make the engine the owner of provider generation identity, token allocation, request queues, cancellation decisions, close effects, metadata validation outcomes, payload admission outcomes, terminal scope, diagnostics projection, and typed provider event admission.
+- Keep the provider host as transport only: session storage, affinity, delivery, cleanup scheduling, and normalized event delivery.
+- Retain legacy provider signals through a bridge until compatibility removal.
+
+### Existing Behavior That Must Be Preserved
+
+- Provider lifecycle cleanup must remain non-blocking and deterministic across replacement, clear, destruction, token overflow, dispatch failure, close failure retry, late callbacks, and queued delivery.
+- Metadata behavior must preserve construction facts, runtime contradiction handling, capability projection before and after metadata, initial target selection, unsupported generation-terminal state, and progress/waiting advisory behavior.
+- Payload admission must preserve validation for source logical size, payload raster size, byte size, timing identity, orientation normalization, quality/exactness, demand revision, public limits, role identity, and exact release-once semantics.
+- Terminal projection must preserve error precedence over unsupported, primary diagnostics tie-breaks, sealed spread behavior, clear/replacement escape, invalid token ignore rules, and provider diagnostics redaction.
+
+### Tests To Add Or Update
+
+- Add engine provider unit tests for token allocation, queued request flushing, stale event rejection, cancellation decision output, metadata admission, payload admission, terminal scope table, diagnostics projection, and spread aggregate status.
+- Add typed provider integration tests equivalent to the current lifecycle, metadata, request, frame admission, terminal, diagnostics, and recovery suites.
+- Add exactness/demand tests for `RequireExact`, inexact cached payload rejection, demand-revision stale payload release, and same-target refinement payload admission.
+- Keep legacy provider suites green until typed parity coverage exists for each behavior area.
+
+### Implementation Steps
+
+1. Move provider request token allocation and request queue state into engine-owned provider role state.
+2. Convert provider host callbacks into typed `ImageSequenceProviderEvent` inputs and let the engine perform generation/token/request admission.
+3. Emit provider transport effects for metadata/frame/position/playback/cancel/close requests from the engine.
+4. Move metadata validation result handling into engine transitions while reusing existing validation helpers.
+5. Move frame preparation/admission decisions behind engine identities and demand revisions; keep CPU preparation in the preparation boundary.
+6. Move terminal projection and diagnostics into engine state using typed status/reason/failure-scope values.
+7. Ensure handle release effects are emitted exactly once through the provider host and never from render-thread code.
+8. Mark legacy provider bridge paths as compatibility adapters once typed integration tests cover the same scenarios.
+
+### Completion Criteria
+
+- Engine owns provider identity, stale filtering, metadata status, payload admission status, terminal projection, and provider diagnostics.
+- Provider host no longer branches public behavior on provider diagnostics, token order, or controller internals.
+- Typed provider integration coverage exists for every legacy behavior area planned for removal.
+- Existing legacy provider tests still pass.
+
+### Risks And Rollback Criteria
+
+- Risk: lifecycle cleanup waits for cancellation acknowledgements. Roll back if clear/replacement/destruction tests block or require provider cooperation.
+- Risk: provider diagnostics become branching inputs. Roll back if public behavior depends on diagnostic strings instead of typed causes.
+- Risk: payload release moves onto the render thread or duplicates release. Roll back if release affinity/count tests fail.
+
+## Milestone 10: Render Commit Boundary Migration
+
+### Goal
+
+Move render planning and scenegraph commit reporting behind the new engine/render boundary while preserving render commit, retained display, and failure behavior.
+
+### Scope
+
+- Make the engine author render snapshots, prepared payload identities, target spread identities, role layer lists, and commit/failure admission.
+- Keep scenegraph materialization and Qt Quick synchronization inside the render host/adapter.
+- Preserve pure render planning before scenegraph allocation and commit acknowledgement identity for complete target spreads.
+
+### Existing Behavior That Must Be Preserved
+
+- `imageviewport_render_commit` tests for positive-geometry render waiting, built-in/timed/provider render commit, two-page spread complete commit, stale acknowledgement ignore, render failure retention, playback failure stopping, restart after failure, same-frame fresh request identity, commit without scenegraph, secondary role failures, diagnostics cause preservation, and geometry recovery.
+- `imageviewport_render_scenegraph` tests for transparent/solid/checkerboard backgrounds, still/provider texture nodes, two-page role nodes, retained secondary layers, mixed provider spreads, physical texture source rects, quality/mirroring, rotation transforms, render failure causes, retained failure paint behavior, pure render plans, and provider retained frame waiting for geometry.
+- Presentation migration tests proving render consumes engine geometry and does not reconstruct canonical mapping.
+
+### Tests To Add Or Update
+
+- Add engine render unit tests for render snapshot creation, target spread identity, role payload identity matching, complete two-role commit admission, stale commit/failure ignore, active render failure projection, retained fallback choice, and presentation-only display revision updates.
+- Add render-host boundary tests proving scenegraph code consumes engine render snapshots and reports only typed commit/failure acknowledgements.
+- Add snapshot-first integration tests for `state.display.phase`, `displayedRoleSet`, `targetRoleSet`, retained flags, displayed generation, and displayed/target presentation revisions around render commit and failure.
+
+### Implementation Steps
+
+1. Define engine render snapshot/effect values for pending render attempts, committed display identities, role layer payloads, background, and presentation mapping.
+2. Make frame preparation produce engine-admissible prepared payload values with stable role payload identities.
+3. Feed render host from engine render snapshots instead of item/controller-local display fields.
+4. Report render commits/failures back as typed engine inputs carrying target spread identity and required role payload identities.
+5. Move retained display and render failure admission into engine state.
+6. Keep render adapter scenegraph materialization unchanged except for consuming the new snapshot value.
+7. Delete no render files; leave obsolete helpers unreachable until Milestone 11 proves they are unused.
+
+### Completion Criteria
+
+- Engine owns render readiness, retained fallback state, target spread commit identity, and render failure projection.
+- Render host owns scenegraph synchronization only.
+- Render commit and scenegraph suites pass.
+- Snapshot display fields are authoritative for render commit/failure behavior.
+
+### Risks And Rollback Criteria
+
+- Risk: two-page spreads publish partial ready display. Roll back if incomplete single-role commit can set ready display for a two-role target.
+- Risk: stale render failures overwrite newer diagnostics or visible state. Roll back if stale acknowledgement tests fail.
+- Risk: scenegraph code starts querying provider/controller mutable state to repair snapshots. Roll back render-host boundary violations.
+
+## Milestone 11: Compatibility Removal
+
+### Goal
+
+Remove v1 flat properties, legacy provider adapter/session APIs, compatibility provider signals, and obsolete helper paths only after equivalent v2 behavior is implemented and covered.
+
+### Scope
+
+- Remove public v1 flat observation properties and legacy command/property setters that are superseded by `state`, `setPageSet(ImageViewportPageSet, policy)`, `setPresentation(command)`, v2 coordinate helpers, and typed command results.
+- Remove legacy sequence assignment and observation surfaces after canonical page-set and snapshot tests cover them: `sequence`, `setSequence`, `primarySequence`, `secondarySequence`, primary/secondary `setPageSet` overloads, and QML assignments that accept anything other than typed `ImageViewportPageSet` and `ImageSequence` handles.
+- Remove public numeric token access and legacy token-order expectations after equality/currentness helpers are covered: `RevisionToken::value`, `ImageSequenceProviderRequestToken::id()`, QML numeric token reads, and tests that infer ordering, density, or monotonic arithmetic from public tokens.
+- Remove legacy provider adapter construction virtuals only after `ImageSequenceProviderDescriptor` installed-consumer and integration tests cover their behavior: `sessionFactory()`, `knownMetadata()`, `knownFacts()`, capability accessors, authored animation facts, and threading contract accessors.
+- Remove legacy provider session virtuals and signals only after typed provider request/event tests cover their behavior: `requestMetadata`, `requestFrame`, `requestPosition`, `requestPlayback`, direct `cancelRequest`, direct `close`, metadata/frame/progress/waiting/end/failed/unsupported/cancelled signals, borrowed raw-frame signals, and legacy frame-handle signals that bypass `ImageSequenceProviderEvent`.
+- Remove obsolete private helpers only when no build target or test references them.
+- Keep product behavior; only remove obsolete API surfaces and compatibility adapters.
+
+### Existing Behavior That Must Be Preserved
+
+- All product behavior covered by old tests must have v2 snapshot/command/protocol tests before old tests are deleted or rewritten.
+- No behavior may be deleted merely because the old API surface is removed.
+- Source-handle behavior, provider construction, rendering, playback, retained display, diagnostics, packaging, limits, and role/spread behavior remain part of the product.
+
+### Tests To Add Or Update
+
+- Replace flat-property public tests with snapshot-first tests that assert the same observable states through `state`.
+- Replace old command return tests with `ImageViewportCommandResult` tests that assert outcome, reason, command revision, and snapshot revision.
+- Replace sequence-property and primary/secondary overload tests with canonical `ImageViewportPageSet` tests, then add negative QML/public-header/install-consumer checks for the removed sequence properties and overloads.
+- Replace numeric token tests with equality-only token tests and negative QML/public-header/install-consumer checks for removed token value/id accessors.
+- Replace legacy provider adapter construction and session signal/virtual tests with descriptor plus typed request/event tests and installed consumer coverage.
+- Add negative public API boundary tests proving removed v1 symbols and legacy provider adapter/session members are not exposed in QML, public headers, or installed consumers once removal begins.
+- Keep a removal ledger in this plan or a roadmap note that maps each deleted old test to the v2 test covering the same behavior.
+
+### Implementation Steps
+
+1. Build a removal ledger listing each v1 flat property, legacy sequence assignment property/overload, public numeric token accessor, legacy signal, legacy invokable, legacy provider adapter construction virtual, legacy provider session virtual/signal, private helper, and old test scheduled for removal.
+2. For each ledger row, name the v2 test that covers the behavior. If no v2 test exists, add it before removal.
+3. Remove or rewrite public API tests only after their v2 equivalent passes in the same commit or an immediately preceding test commit.
+4. Confirm the final QML import/version strategy and update enough CMake/QML metadata, QML type expectations, and QML tests in this milestone to keep the suite green during compatibility removal; Milestone 12 finishes install/package cleanup for that final surface.
+5. Remove compatibility adapters in small groups: flat observation properties, sequence properties, old presentation setters, old coordinate helpers, old page-set overloads, public numeric token accessors, legacy adapter construction virtuals, legacy provider request methods/signals, borrowed frame signals, legacy direct close/cancel entry points, then obsolete private helpers.
+6. Update installed header generation and package consumer tests with the v2 public surface before removing the corresponding installed compatibility surface.
+7. Run full tests after each group and stop on the first behavior regression.
+
+### Completion Criteria
+
+- Public API matches the v2 spec: snapshot observation, canonical page-set command, no legacy sequence assignment properties, presentation command, typed command result, equality-only tokens without numeric public accessors, v2 coordinate helpers, provider descriptor construction, and typed provider request/event protocol.
+- No source or test file is deleted until it is unreferenced; deleted tests have explicit v2 replacements.
+- Full test suite passes with v2 coverage replacing old compatibility coverage.
+- Installed public header exposes no private controller, provider transport, render adapter, scenegraph, native texture, or instrumentation types.
+
+### Risks And Rollback Criteria
+
+- Risk: behavior is lost under the cover of API cleanup. Roll back any removal commit whose ledger lacks a passing v2 replacement test.
+- Risk: downstream installed consumers lose still-needed source-handle or provider behavior. Roll back public header removals not called for by the v2 specs.
+- Risk: compatibility removal outruns QML metadata changes. Roll back any removal that leaves QML tests importing stale compatibility-only symbols or no tested final v2 import.
+- Risk: private helper deletion breaks bisectability. Roll back broad cleanup and remove obsolete helpers in smaller commits.
+
+## Milestone 12: Packaging and Install Consumer Cleanup
+
+### Goal
+
+Finalize installed headers, QML module metadata, package consumer tests, public-header boundaries, and build/install metadata for the v2 API.
+
+### Scope
+
+- Update installed public header generation to include v2 public value types and exclude removed compatibility/private types.
+- Finish QML type metadata, static plugin packaging, exported CMake package target, and Linux/static install-consumer expectations for the final v2 surface chosen before compatibility removal.
+- Ensure installed consumers can construct explicit frame envelopes, build descriptor-based typed providers, construct page sets, issue presentation commands, read snapshots, compare tokens, and consume limits using only public headers and the package target.
+
+### Existing Behavior That Must Be Preserved
+
+- Installed package remains Linux/static plugin oriented as defined by `docs/spec/image-viewport-packaging.md` and `docs/architecture/build-and-package.md`.
+- `imageviewport_install_consumer` must continue to prove public headers and package targets are sufficient without private include paths or build-tree-only QML imports.
+- QML singletons `ImageSequenceLimits` and `ImageViewportDisplayLimits` remain available.
+- Public headers must not expose private controller, provider transport, render adapter, scenegraph, native texture, or instrumentation types.
+
+### Tests To Add Or Update
+
+- Expand install-consumer tests to compile and run against `ImageViewportStateSnapshot`, `ImageViewportPageSet`, `PageSetTransitionPolicy`, `ImageViewportPresentationCommand`, `ImageViewportCommandResult`, explicit `ImageFrame` envelope construction, typed provider descriptor/request/event/session values, frame envelopes, demand values, and token equality helpers.
+- Add QML install-consumer tests for importing the v2 module, creating an `ImageViewport`, assigning a page set from factory output, issuing v2 commands, and reading nested snapshot fields.
+- Update structural public-header checks to reject private type leaks and removed v1 compatibility symbols.
+- Keep package tests focused on the supported Linux/static boundary; do not add cross-platform plugin layout commitments.
+
+### Implementation Steps
+
+1. Update `src/CMakeLists.txt`, installed-header generation, exported CMake config, and QML module metadata for the final public surface.
+2. Update `tests/install_consumer/main.cpp` and install-consumer CMake to exercise the v2 public API only.
+3. Verify QML import/version expectations against the strategy chosen before compatibility removal and remove any leftover packaging metadata for compatibility-only symbols.
+4. Run install, package, and full test suites from a clean build tree.
+5. Remove compatibility packaging allowances only after the v2 install consumer passes.
+
+### Completion Criteria
+
+- A downstream installed consumer can build and run against the v2 public API without private headers or source-tree include paths.
+- QML imports expose the final v2 item, value types, commands, snapshots, source envelope values, provider protocol values, and limits.
+- Public-header structural tests reject private leaks and removed v1 symbols.
+- Full test suite and install-consumer suite pass from a clean build.
+
+### Risks And Rollback Criteria
+
+- Risk: package metadata passes in-tree but fails after install. Roll back packaging changes that depend on build-tree include paths, generated files outside install rules, or build-tree-only QML imports.
+- Risk: QML metadata accidentally promises unsupported compatibility. Roll back metadata until the supported v2 import contract is explicit in tests and packaging docs.
+- Risk: installed headers expose private internals to make tests compile. Roll back and add public value wrappers instead.
