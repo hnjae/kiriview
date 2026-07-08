@@ -182,6 +182,19 @@ ImageViewport::CommandOutcome ImageViewport::setPageSet(
 {
     return d->setPageSet(primary, secondary, policy);
 }
+ImageViewport::CommandOutcome ImageViewport::setPageSet(const QVariant& pageSet)
+{
+    return d->setPageSet(pageSet);
+}
+ImageViewport::CommandOutcome ImageViewport::setPageSet(ImageViewportPageSet pageSet)
+{
+    return d->setPageSet(pageSet);
+}
+ImageViewport::CommandOutcome ImageViewport::setPageSet(
+    ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
+{
+    return d->setPageSet(pageSet, policy);
+}
 ImageViewport::CommandOutcome ImageViewport::setPageSet(
     ImageSequence* primary, ImageSequence* secondary)
 {

@@ -26,6 +26,7 @@ class ImageViewportCoordinateInput;
 class ImageViewportCoordinateResult;
 class ImageViewportDiagnosticsSnapshot;
 class ImageViewportDisplaySnapshot;
+class ImageViewportPageSet;
 class ImageViewportPresentationSnapshot;
 class ImageViewportRequestSnapshot;
 class ImageViewportRevisionsSnapshot;
@@ -779,6 +780,50 @@ private:
     bool m_secondary = false;
 };
 
+class ImageViewportPageSet
+{
+    Q_GADGET
+    QML_VALUE_TYPE(imageViewportPageSet)
+    Q_PROPERTY(ImageSequence* primary READ primary WRITE setPrimary)
+    Q_PROPERTY(ImageSequence* secondary READ secondary WRITE setSecondary)
+    Q_PROPERTY(bool clear READ isClear CONSTANT)
+    Q_PROPERTY(bool valid READ isValid CONSTANT)
+
+public:
+    ImageViewportPageSet() = default;
+    explicit ImageViewportPageSet(ImageSequence* primary)
+        : m_primary(primary)
+    {
+    }
+    ImageViewportPageSet(ImageSequence* primary, ImageSequence* secondary)
+        : m_primary(primary)
+        , m_secondary(secondary)
+    {
+    }
+
+    static ImageViewportPageSet clear() { return {}; }
+
+    ImageSequence* primary() const { return m_primary; }
+    void setPrimary(ImageSequence* primary) { m_primary = primary; }
+    ImageSequence* secondary() const { return m_secondary; }
+    void setSecondary(ImageSequence* secondary) { m_secondary = secondary; }
+    bool isClear() const { return !m_primary && !m_secondary; }
+    bool isValid() const { return m_primary || !m_secondary; }
+
+    friend bool operator==(const ImageViewportPageSet& lhs, const ImageViewportPageSet& rhs)
+    {
+        return lhs.m_primary == rhs.m_primary && lhs.m_secondary == rhs.m_secondary;
+    }
+    friend bool operator!=(const ImageViewportPageSet& lhs, const ImageViewportPageSet& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+private:
+    QPointer<ImageSequence> m_primary;
+    QPointer<ImageSequence> m_secondary;
+};
+
 class ImageViewport : public QQuickItem
 {
     Q_OBJECT
@@ -1152,10 +1197,14 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(int milliseconds);
     Q_INVOKABLE ImageViewport::CommandOutcome seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
+    Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(const QVariant& pageSet);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary);
     Q_INVOKABLE ImageViewport::CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
+    ImageViewport::CommandOutcome setPageSet(ImageViewportPageSet pageSet);
+    ImageViewport::CommandOutcome setPageSet(
+        ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
     ImageViewport::CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
     ImageViewport::CommandOutcome setPageSet(
         ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);
@@ -2446,6 +2495,7 @@ Q_DECLARE_METATYPE(ImageViewportRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportPageSetGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)
+Q_DECLARE_METATYPE(ImageViewportPageSet)
 Q_DECLARE_METATYPE(ImageViewportRequestSnapshot)
 Q_DECLARE_METATYPE(ImageViewportDisplaySnapshot)
 Q_DECLARE_METATYPE(ImageViewportPresentationSnapshot)

@@ -109,9 +109,12 @@ public:
     CommandOutcome seek(PageRole role, int frame);
     CommandOutcome seekToPosition(int milliseconds);
     CommandOutcome seekToPosition(PageRole role, int milliseconds);
+    CommandOutcome setPageSet(const QVariant& pageSet);
     CommandOutcome setPageSet(const QVariant& primary, const QVariant& secondary);
     CommandOutcome setPageSet(
         const QVariant& primary, const QVariant& secondary, PageSetTransitionPolicy policy);
+    CommandOutcome setPageSet(ImageViewportPageSet pageSet);
+    CommandOutcome setPageSet(ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
     CommandOutcome setPageSet(ImageSequence* primary, ImageSequence* secondary);
     CommandOutcome setPageSet(
         ImageSequence* primary, ImageSequence* secondary, PageSetTransitionPolicy policy);

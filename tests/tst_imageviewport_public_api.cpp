@@ -269,6 +269,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
 
     const QList<QByteArray> methods = {
+        "setPageSet(QVariant)",
         "setPageSet(QVariant,QVariant)",
         "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",

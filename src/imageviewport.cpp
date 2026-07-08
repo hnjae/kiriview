@@ -179,6 +179,32 @@ ImageSequence* sequenceFromPageSetValue(const QVariant& value, bool& ok)
     return nullptr;
 }
 
+bool pageSetFromValue(const QVariant& value, ImageViewportPageSet& pageSet)
+{
+    if (!value.isValid() || value.isNull()) {
+        return false;
+    }
+    if (!value.canConvert<ImageViewportPageSet>()) {
+        return false;
+    }
+
+    pageSet = value.value<ImageViewportPageSet>();
+    return true;
+}
+
+bool pageSetPolicyFromValue(const QVariant& value, PageSetTransitionPolicy& policy)
+{
+    if (!value.isValid() || value.isNull()) {
+        return false;
+    }
+    if (!value.canConvert<PageSetTransitionPolicy>()) {
+        return false;
+    }
+
+    policy = value.value<PageSetTransitionPolicy>();
+    return true;
+}
+
 }
 
 ImageSequence* ImageViewportPrivate::sequence() const { return controller.requestState().sequence; }
@@ -541,7 +567,30 @@ QString ImageViewportPrivate::warningString() const
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     const QVariant& primary, const QVariant& secondary)
 {
+    ImageViewportPageSet pageSet;
+    PageSetTransitionPolicy policy;
+    if (pageSetFromValue(primary, pageSet)) {
+        if (pageSetPolicyFromValue(secondary, policy)) {
+            return setPageSet(pageSet, policy);
+        }
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+
     return setPageSet(primary, secondary, PageSetTransitionPolicy {});
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(const QVariant& pageSet)
+{
+    ImageViewportPageSet typedPageSet;
+    if (!pageSetFromValue(pageSet, typedPageSet)) {
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+
+    return setPageSet(typedPageSet);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
@@ -559,6 +608,23 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
     }
 
     return setPageSet(primarySequence, secondarySequence, policy);
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(ImageViewportPageSet pageSet)
+{
+    return setPageSet(pageSet, PageSetTransitionPolicy {});
+}
+
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
+    ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
+{
+    if (!pageSet.isValid()) {
+        const ViewportCommandResult result = controller.rejectInvalidCommand();
+        applyControllerChanges(result.changes);
+        return result.outcome;
+    }
+
+    return setPageSet(pageSet.primary(), pageSet.secondary(), policy);
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(

@@ -648,7 +648,13 @@ int main(int argc, char** argv)
     }
 
     ImageViewport typedPageSetViewport;
-    if (typedPageSetViewport.setPageSet(stillResult->sequence(), timedResult->sequence())
+    const ImageViewportPageSet installedSpread(stillResult->sequence(), timedResult->sequence());
+    if (!installedSpread.isValid() || installedSpread.isClear()
+        || installedSpread.primary() != stillResult->sequence()
+        || installedSpread.secondary() != timedResult->sequence()) {
+        return 1;
+    }
+    if (typedPageSetViewport.setPageSet(installedSpread)
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
@@ -661,13 +667,21 @@ int main(int argc, char** argv)
         PageSetTransitionPolicy::PageGapTransition::SetExplicit);
     typedPageSetPolicy.setPageGap(2.0);
     if (typedPageSetViewport.setPageSet(
-            deviceIndependentStillResult->sequence(), nullptr, typedPageSetPolicy)
+            ImageViewportPageSet(deviceIndependentStillResult->sequence()), typedPageSetPolicy)
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
     if (typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()
         || typedPageSetViewport.secondarySequence() != nullptr
         || typedPageSetViewport.pageGap() != 2.0) {
+        return 1;
+    }
+    ImageViewportPageSet installedSecondaryOnly;
+    installedSecondaryOnly.setSecondary(timedResult->sequence());
+    if (installedSecondaryOnly.isValid()
+        || typedPageSetViewport.setPageSet(installedSecondaryOnly)
+            != ImageViewport::CommandOutcome::Invalid
+        || typedPageSetViewport.primarySequence() != deviceIndependentStillResult->sequence()) {
         return 1;
     }
 

@@ -185,6 +185,16 @@ Introduce canonical `ImageViewportPageSet` and `setPageSet(pageSet, policy)` whi
 - New page-set tests pass for still, timed, provider, clear, invalid, and two-role atomic cases.
 - No existing source or test file has been deleted.
 
+### Status
+
+Complete as of 2026-07-08. Added public `ImageViewportPageSet`, C++ `setPageSet(ImageViewportPageSet, PageSetTransitionPolicy)` overloads, QML structured-value assignment through the existing QVariant invokable surface, and installed-consumer coverage for primary-only, two-role, policy, and invalid secondary-only page sets.
+
+Focused coverage is in `imageviewport_public_api_commands`: value default/construction semantics, canonical C++ assignment parity with the primary/secondary path, canonical secondary-without-primary rejection, QML typed value assignment, QML `(pageSet, policy)` dispatch, and arbitrary string/object/provider rejection without request or display mutation. `imageviewport_public_api_qml` remains green for legacy two-argument QML assignment calls, and `imageviewport_install_consumer` now compiles and uses `ImageViewportPageSet` from the installed header.
+
+Verification: `ctest --test-dir build-ninja --output-on-failure` passed 43/43 after the implementation and install-consumer update.
+
+Adapter assumptions recorded for later milestones: canonical typed page sets reject secondary-only values, while the legacy QVariant primary/secondary compatibility path keeps its documented null-primary clear behavior until compatibility removal; QML exposes the canonical one-argument value path through `setPageSet(QVariant)` to avoid Qt overload-resolution conflicts with legacy two-argument assignment calls; valid typed page sets still adapt into the existing controller assignment transaction until the engine owns page-set identity.
+
 ### Risks And Rollback Criteria
 
 - Risk: adding the canonical value changes v1 overload semantics through shared validation. Roll back if current compatibility tests fail without a planned replacement.
