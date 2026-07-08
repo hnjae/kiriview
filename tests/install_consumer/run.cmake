@@ -57,6 +57,7 @@ foreach(
         ImageSequenceData
         ImageSequencePrivateAccess
         ImageFramePrivateAccess
+        FramePreparation
         QSGNode
         ViewportController
         RenderAdapter

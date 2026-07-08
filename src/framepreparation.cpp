@@ -2,6 +2,7 @@
 
 #include "imageviewportdiagnostics_p.h"
 #include "imageviewportlimits_p.h"
+#include "imagesequence_p.h"
 #include "imagesequencesource_p.h"
 #include "timingintervals_p.h"
 
@@ -297,7 +298,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             {},
             { state.preparedPayload.commitPending, state.preparedPayload.generation,
                 state.preparedPayload.requestId, state.preparedPayload.payloadId,
-                frame->imagePayload() },
+                ImageFramePrivateAccess::image(*frame) },
         };
     }
 
@@ -316,7 +317,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         {},
         { state.preparedPayload.commitPending, state.preparedPayload.generation,
             state.preparedPayload.requestId, state.preparedPayload.payloadId,
-            frame->imagePayload() },
+            ImageFramePrivateAccess::image(*frame) },
     };
 }
 

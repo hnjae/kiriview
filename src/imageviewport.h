@@ -216,7 +216,6 @@ private:
 
     friend class ImageSequenceFactory;
     friend class TimedImageFrameList;
-    friend class FramePreparation;
     friend class ImageViewport;
     friend class ImageViewportInternal::ImageFramePrivateAccess;
 };
