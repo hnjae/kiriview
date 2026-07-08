@@ -35,6 +35,13 @@ private slots:
     void replacementRetainsPreviousDisplayWhileWaitingForGeometry();
 };
 
+static ImageViewport::CommandOutcome setPanDelta(ImageViewport& item, QPointF delta)
+{
+    ImageViewportPresentationCommand command;
+    command.setPanDelta(delta);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
@@ -659,7 +666,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
 
     QCOMPARE(
         item.setZoomPercent(200.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.panBy(QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.resetView(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("fitMode").toInt(), enumValue(metaObject, "FitMode", "Contain"));
     QCOMPARE(item.property("zoomPercent").toDouble(), 625.0);
@@ -791,7 +798,7 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
         ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.panBy(QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPanDelta(item, QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
 
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-100.0, 0.0, 200.0, 100.0));

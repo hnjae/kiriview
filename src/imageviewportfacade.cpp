@@ -219,7 +219,6 @@ ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPoi
 {
     return d->setZoomPercent(percent, anchor);
 }
-ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::resetView() { return d->resetView(); }
 
 ImageViewport::CommandOutcome ImageViewport::setPresentation(

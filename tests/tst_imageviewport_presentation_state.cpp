@@ -74,6 +74,13 @@ static ImageViewport::CommandOutcome setScanDirection(
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setPanDelta(ImageViewport& item, QPointF delta)
+{
+    ImageViewportPresentationCommand command;
+    command.setPanDelta(delta);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -330,7 +337,7 @@ void ImageViewportPresentationStateTest::presentationChangesNotifyGeometryState(
         item.setZoomPercent(1000.0, QPointF(50.0, 50.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 1);
 
-    QCOMPARE(item.panBy(QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 2);
 
     QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
@@ -931,7 +938,7 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-120.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(120.0, 0.0));
 
-    QCOMPARE(item.panBy(QPointF(-500.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setPanDelta(item, QPointF(-500.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(0.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("contentPosition").toPointF(), QPointF(0.0, 0.0));
 

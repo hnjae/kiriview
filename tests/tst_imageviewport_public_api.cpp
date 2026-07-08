@@ -105,6 +105,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "setMirrorVertically(bool,QPointF)",
         "panToStart()",
         "panToEnd()",
+        "panBy(QPointF)",
     };
 
     for (const QByteArray& method : absentMethods) {
