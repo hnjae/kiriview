@@ -158,14 +158,21 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
             = animationFacts.loopMode() == ImageSequenceAuthoredAnimationFacts::LoopMode::Finite
             ? animationFacts.loopCount()
             : -1;
-        const PageGeometry geometry = this->pageGeometry(role);
-        const QRectF acceptedPageRect = present ? geometry.pageRect() : QRectF();
-        const QRectF acceptedItemRect = present ? geometry.itemRect() : QRectF();
-        const QRectF acceptedVisiblePageRect = present ? geometry.visiblePageRect() : QRectF();
-        const QRectF displayedPageRect = roleDisplayed ? geometry.pageRect() : QRectF();
-        const QRectF displayedItemRect = roleDisplayed ? geometry.itemRect() : QRectF();
+        const QRectF rolePageRect = primary ? this->primaryPageRect() : this->secondaryPageRect();
+        const QRectF roleItemRect = primary ? this->primaryItemRect() : this->secondaryItemRect();
+        const QRectF roleVisiblePageRect
+            = primary ? this->visiblePrimaryPageRect() : this->visibleSecondaryPageRect();
+        const bool geometryAvailable = !rolePageRect.isEmpty();
+        const QRectF acceptedPageRect = present && geometryAvailable ? rolePageRect : QRectF();
+        const QRectF acceptedItemRect = present && geometryAvailable ? roleItemRect : QRectF();
+        const QRectF acceptedVisiblePageRect
+            = present && geometryAvailable ? roleVisiblePageRect : QRectF();
+        const QRectF displayedPageRect
+            = roleDisplayed && geometryAvailable ? rolePageRect : QRectF();
+        const QRectF displayedItemRect
+            = roleDisplayed && geometryAvailable ? roleItemRect : QRectF();
         const QRectF displayedVisiblePageRect
-            = roleDisplayed ? geometry.visiblePageRect() : QRectF();
+            = roleDisplayed && geometryAvailable ? roleVisiblePageRect : QRectF();
 
         return ImageViewportRoleSnapshot(present, sequence,
             ImageViewportRoleRequestSnapshot(present,

@@ -950,21 +950,26 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const PageGeometry installedPrimaryGeometry = typedPageSetViewport.primaryPageGeometry();
-    const PageGeometry installedSecondaryGeometry = typedPageSetViewport.secondaryPageGeometry();
-    if (installedPrimaryGeometry.role() != ImageViewport::PageRole::Primary
-        || installedPrimaryGeometry.isAvailable() || installedPrimaryGeometry.pageRect() != QRectF()
-        || installedPrimaryGeometry.itemRect() != QRectF()
-        || installedPrimaryGeometry.visiblePageRect() != QRectF()) {
+    const ImageViewportStateSnapshot installedPageSetState = typedPageSetViewport.state();
+    const ImageViewportRoleGeometrySnapshot installedPrimaryGeometry
+        = installedPageSetState.primary().geometry();
+    const ImageViewportRoleGeometrySnapshot installedSecondaryGeometry
+        = installedPageSetState.secondary().geometry();
+    if (!installedPageSetState.primary().present() || installedPageSetState.secondary().present()
+        || installedPrimaryGeometry.acceptedPageRect() != QRectF()
+        || installedPrimaryGeometry.acceptedItemRect() != QRectF()
+        || installedPrimaryGeometry.acceptedVisiblePageRect() != QRectF()
+        || installedPrimaryGeometry.displayedPageRect() != QRectF()
+        || installedPrimaryGeometry.displayedItemRect() != QRectF()
+        || installedPrimaryGeometry.displayedVisiblePageRect() != QRectF()) {
         return 1;
     }
-    if (installedSecondaryGeometry.role() != ImageViewport::PageRole::Secondary
-        || installedSecondaryGeometry.isAvailable()
-        || installedSecondaryGeometry.pageRect() != QRectF()
-        || installedSecondaryGeometry.itemRect() != QRectF()
-        || installedSecondaryGeometry.visiblePageRect() != QRectF()
-        || typedPageSetViewport.pageGeometry(ImageViewport::PageRole::Secondary)
-            != installedSecondaryGeometry) {
+    if (installedSecondaryGeometry.acceptedPageRect() != QRectF()
+        || installedSecondaryGeometry.acceptedItemRect() != QRectF()
+        || installedSecondaryGeometry.acceptedVisiblePageRect() != QRectF()
+        || installedSecondaryGeometry.displayedPageRect() != QRectF()
+        || installedSecondaryGeometry.displayedItemRect() != QRectF()
+        || installedSecondaryGeometry.displayedVisiblePageRect() != QRectF()) {
         return 1;
     }
 

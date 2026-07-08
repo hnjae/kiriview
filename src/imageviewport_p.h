@@ -177,9 +177,6 @@ public:
     QRectF secondaryItemRect() const;
     QRectF visiblePrimaryPageRect() const;
     QRectF visibleSecondaryPageRect() const;
-    PageGeometry primaryPageGeometry() const;
-    PageGeometry secondaryPageGeometry() const;
-    PageGeometry pageGeometry(PageRole role) const;
     QSizeF contentSize() const;
     QPointF contentPosition() const;
     QPointF maximumContentPosition() const;

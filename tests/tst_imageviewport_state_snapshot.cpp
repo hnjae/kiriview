@@ -380,6 +380,8 @@ ImageViewport {
         && state.display.status === ImageViewport.DisplayStatus.Empty
         && state.display.phase === ImageViewport.DisplayPhase.NoPresentation
         && state.primary.present === false
+        && state.primary.geometry.acceptedPageRect.width === 0
+        && state.primary.geometry.displayedItemRect.height === 0
         && state.diagnostics.errorString === ""
         && !state.revisions.request.valid
     property bool readyOk: state.request.status === ImageViewport.RequestStatus.Ready
@@ -390,6 +392,11 @@ ImageViewport {
         && state.primary.display.frame === 0
         && state.primary.metadata.available
         && state.primary.metadata.frameCount === 1
+        && state.primary.geometry.acceptedPageRect.width === 16
+        && state.primary.geometry.acceptedPageRect.height === 8
+        && state.primary.geometry.acceptedItemRect.y === 25
+        && state.primary.geometry.acceptedItemRect.height === 50
+        && state.primary.geometry.displayedVisiblePageRect.width === 16
         && state.revisions.request.valid
         && state.revisions.display.valid
 

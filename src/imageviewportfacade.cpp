@@ -109,8 +109,6 @@ QRectF ImageViewport::primaryItemRect() const { return d->primaryItemRect(); }
 QRectF ImageViewport::secondaryItemRect() const { return d->secondaryItemRect(); }
 QRectF ImageViewport::visiblePrimaryPageRect() const { return d->visiblePrimaryPageRect(); }
 QRectF ImageViewport::visibleSecondaryPageRect() const { return d->visibleSecondaryPageRect(); }
-PageGeometry ImageViewport::primaryPageGeometry() const { return d->primaryPageGeometry(); }
-PageGeometry ImageViewport::secondaryPageGeometry() const { return d->secondaryPageGeometry(); }
 QSizeF ImageViewport::contentSize() const { return d->contentSize(); }
 QPointF ImageViewport::contentPosition() const { return d->contentPosition(); }
 QPointF ImageViewport::maximumContentPosition() const { return d->maximumContentPosition(); }
@@ -197,8 +195,6 @@ ImageViewportCoordinateResult ImageViewport::nearestVisiblePoint(
 {
     return d->nearestVisiblePoint(std::move(input));
 }
-
-PageGeometry ImageViewport::pageGeometry(PageRole role) const { return d->pageGeometry(role); }
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {

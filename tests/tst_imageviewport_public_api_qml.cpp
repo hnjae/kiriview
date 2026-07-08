@@ -42,7 +42,6 @@ private slots:
     void manualZoomLimitQmlBindingRefreshesWithGeometryState();
     void qmlImportsDocumentedSurface();
     void qmlReadyValuesExposeDocumentedFields();
-    void pageGeometryQmlValueType();
     void qmlCommandsReturnDocumentedOutcomes();
     void qmlFactoryFailuresReturnDocumentedDiagnostics();
     void imageSequenceIsNotQmlCreatable();
@@ -467,6 +466,9 @@ ImageViewport {
             && typeof viewport.spreadToItem === "undefined"
             && typeof viewport.itemToPage === "undefined"
             && typeof viewport.pageToItem === "undefined"
+            && typeof viewport.primaryPageGeometry === "undefined"
+            && typeof viewport.secondaryPageGeometry === "undefined"
+            && typeof viewport.pageGeometry === "undefined"
             && typeof viewport.nearestVisibleSpreadPoint === "undefined"
             && typeof viewport.nearestVisiblePagePoint === "undefined"
             && typeof viewport.containsVisibleSpreadPoint === "undefined"
@@ -687,96 +689,6 @@ ImageViewport {
     QVERIFY(viewport);
     acknowledgePendingRenderCommitForTest(*viewport);
     QCOMPARE(object->property("readyValuesHaveDocumentedFields").toBool(), true);
-}
-
-void ImageViewportPublicApiQmlTest::pageGeometryQmlValueType()
-{
-    ImageSequenceFactory factory;
-    QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
-    primaryImage.fill(Qt::transparent);
-    ImageFrame primaryFrame(primaryImage);
-    QScopedPointer<ImageSequenceFactoryResult> primaryResult(factory.fromFrame(&primaryFrame));
-    QVERIFY(primaryResult);
-    QVERIFY(primaryResult->sequence());
-
-    QImage secondaryImage(10, 20, QImage::Format_ARGB32_Premultiplied);
-    secondaryImage.fill(Qt::transparent);
-    ImageFrame secondaryFrame(secondaryImage);
-    QScopedPointer<ImageSequenceFactoryResult> secondaryResult(factory.fromFrame(&secondaryFrame));
-    QVERIFY(secondaryResult);
-    QVERIFY(secondaryResult->sequence());
-
-    QQmlEngine engine;
-    engine.addImportPath(QStringLiteral(IMAGEVIEWPORT_QML_IMPORT_PATH));
-
-    QQmlComponent component(&engine);
-    component.setData(R"(
-import QtQuick
-import ImageViewport 1.0
-
-ImageViewport {
-    id: viewport
-    width: 26
-    height: 20
-
-    property ImageSequence suppliedPrimary
-    property ImageSequence suppliedSecondary
-    property bool pageGeometryHasFields: false
-    property bool secondaryUnavailableHasFields: false
-
-    function capturePageGeometry() {
-        const primaryGeometry = primaryPageGeometry
-        const secondaryGeometry = pageGeometry(ImageViewport.PageRole.Secondary)
-        pageGeometryHasFields = primaryGeometry.available === true
-            && primaryGeometry.role === ImageViewport.PageRole.Primary
-            && primaryGeometry.pageRect.x === 0
-            && primaryGeometry.pageRect.y === 0
-            && primaryGeometry.pageRect.width === 16
-            && primaryGeometry.pageRect.height === 8
-            && primaryGeometry.itemRect.x === primaryItemRect.x
-            && primaryGeometry.itemRect.width === primaryItemRect.width
-            && primaryGeometry.visiblePageRect.width === visiblePrimaryPageRect.width
-            && secondaryGeometry.available === true
-            && secondaryGeometry.role === ImageViewport.PageRole.Secondary
-            && secondaryGeometry.pageRect.x === 16
-            && secondaryGeometry.pageRect.y === 0
-            && secondaryGeometry.pageRect.width === 10
-            && secondaryGeometry.pageRect.height === 20
-            && secondaryGeometry.itemRect.x === secondaryItemRect.x
-            && secondaryGeometry.visiblePageRect.height === visibleSecondaryPageRect.height
-
-        clear()
-        setPageSet(suppliedPrimary, null)
-        const unavailableSecondary = secondaryPageGeometry
-        secondaryUnavailableHasFields = unavailableSecondary.available === false
-            && unavailableSecondary.role === ImageViewport.PageRole.Secondary
-            && unavailableSecondary.pageRect.width === 0
-            && unavailableSecondary.itemRect.height === 0
-            && unavailableSecondary.visiblePageRect.width === 0
-    }
-
-    Component.onCompleted: {
-        setPageSet(suppliedPrimary, suppliedSecondary)
-    }
-}
-)",
-        QUrl());
-
-    QVERIFY2(component.isReady(), qPrintable(componentErrors(component)));
-    QVariantMap initialProperties;
-    initialProperties.insert(QStringLiteral("suppliedPrimary"),
-        QVariant::fromValue<QObject*>(primaryResult->sequence()));
-    initialProperties.insert(QStringLiteral("suppliedSecondary"),
-        QVariant::fromValue<QObject*>(secondaryResult->sequence()));
-    QScopedPointer<QObject> object(component.createWithInitialProperties(initialProperties));
-    QVERIFY2(object, qPrintable(componentErrors(component)));
-    auto* viewport = qobject_cast<ImageViewport*>(object.data());
-    QVERIFY(viewport);
-    acknowledgePendingRenderCommitForTest(*viewport);
-    QVERIFY(QMetaObject::invokeMethod(object.data(), "capturePageGeometry"));
-    acknowledgePendingRenderCommitForTest(*viewport);
-    QCOMPARE(object->property("pageGeometryHasFields").toBool(), true);
-    QCOMPARE(object->property("secondaryUnavailableHasFields").toBool(), true);
 }
 
 void ImageViewportPublicApiQmlTest::qmlCommandsReturnDocumentedOutcomes()

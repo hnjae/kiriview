@@ -50,23 +50,6 @@ QSizeF orientedSpreadSize(const PresentationGeometry::State& state)
     return spreadSize;
 }
 
-PageGeometry pageGeometryForRole(
-    const PresentationGeometry::State& state, ImageViewport::PageRole role)
-{
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        return PageGeometry(role, {}, {}, {}, false);
-    }
-    const QRectF pageRect = role == ImageViewport::PageRole::Secondary
-        ? PresentationGeometry::secondaryPageRect(state)
-        : PresentationGeometry::primaryPageRect(state);
-    const bool available = !pageRect.isEmpty();
-    if (!available) {
-        return PageGeometry(role, {}, {}, {}, false);
-    }
-    return PageGeometry(role, pageRect, PresentationGeometry::pageItemRect(state, role),
-        PresentationGeometry::visiblePageRect(state, role), true);
-}
-
 }
 
 QRectF ImageViewportPrivate::contentRect() const
@@ -112,21 +95,6 @@ QRectF ImageViewportPrivate::visiblePrimaryPageRect() const
 QRectF ImageViewportPrivate::visibleSecondaryPageRect() const
 {
     return PresentationGeometry::visiblePageRect(geometryState(*this), PageRole::Secondary);
-}
-
-PageGeometry ImageViewportPrivate::primaryPageGeometry() const
-{
-    return pageGeometry(PageRole::Primary);
-}
-
-PageGeometry ImageViewportPrivate::secondaryPageGeometry() const
-{
-    return pageGeometry(PageRole::Secondary);
-}
-
-PageGeometry ImageViewportPrivate::pageGeometry(PageRole role) const
-{
-    return pageGeometryForRole(geometryState(*this), role);
 }
 
 QSizeF ImageViewportPrivate::contentSize() const

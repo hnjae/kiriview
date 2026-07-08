@@ -42,7 +42,6 @@ class ImageViewportRoleMetadataSnapshot;
 class ImageViewportRoleRequestSnapshot;
 class ImageViewportRoleSnapshot;
 class ImageViewportStateSnapshot;
-class PageGeometry;
 class RevisionToken;
 class PageSetTransitionPolicy;
 class TimingIntervals;
@@ -929,10 +928,6 @@ class ImageViewport : public QQuickItem
         QRectF visiblePrimaryPageRect READ visiblePrimaryPageRect NOTIFY geometryStateChanged)
     Q_PROPERTY(
         QRectF visibleSecondaryPageRect READ visibleSecondaryPageRect NOTIFY geometryStateChanged)
-    Q_PROPERTY(
-        PageGeometry primaryPageGeometry READ primaryPageGeometry NOTIFY geometryStateChanged)
-    Q_PROPERTY(
-        PageGeometry secondaryPageGeometry READ secondaryPageGeometry NOTIFY geometryStateChanged)
     Q_PROPERTY(QSizeF contentSize READ contentSize NOTIFY geometryStateChanged)
     Q_PROPERTY(QPointF contentPosition READ contentPosition NOTIFY geometryStateChanged)
     Q_PROPERTY(
@@ -1156,8 +1151,6 @@ public:
     QRectF secondaryItemRect() const;
     QRectF visiblePrimaryPageRect() const;
     QRectF visibleSecondaryPageRect() const;
-    PageGeometry primaryPageGeometry() const;
-    PageGeometry secondaryPageGeometry() const;
     QSizeF contentSize() const;
     QPointF contentPosition() const;
     QPointF maximumContentPosition() const;
@@ -1199,7 +1192,6 @@ public:
     Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;
     Q_INVOKABLE ImageViewportCoordinateResult nearestVisiblePoint(
         ImageViewportCoordinateInput input) const;
-    Q_INVOKABLE PageGeometry pageGeometry(ImageViewport::PageRole role) const;
 
 signals:
     void sequenceChanged();
@@ -1451,53 +1443,6 @@ private:
     bool m_hasExactnessPreference = false;
     ImageViewport::ExactnessPreference m_exactnessPreference
         = ImageViewport::ExactnessPreference::Default;
-};
-
-class PageGeometry
-{
-    Q_GADGET
-    QML_VALUE_TYPE(pageGeometry)
-    Q_PROPERTY(ImageViewport::PageRole role READ role CONSTANT)
-    Q_PROPERTY(QRectF pageRect READ pageRect CONSTANT)
-    Q_PROPERTY(QRectF itemRect READ itemRect CONSTANT)
-    Q_PROPERTY(QRectF visiblePageRect READ visiblePageRect CONSTANT)
-    Q_PROPERTY(bool available READ isAvailable CONSTANT)
-
-public:
-    PageGeometry() = default;
-    PageGeometry(ImageViewport::PageRole role, QRectF pageRect, QRectF itemRect,
-        QRectF visiblePageRect, bool available)
-        : m_role(role)
-        , m_pageRect(pageRect)
-        , m_itemRect(itemRect)
-        , m_visiblePageRect(visiblePageRect)
-        , m_available(available)
-    {
-    }
-
-    ImageViewport::PageRole role() const { return m_role; }
-    QRectF pageRect() const { return m_pageRect; }
-    QRectF itemRect() const { return m_itemRect; }
-    QRectF visiblePageRect() const { return m_visiblePageRect; }
-    bool isAvailable() const { return m_available; }
-
-    friend bool operator==(const PageGeometry& lhs, const PageGeometry& rhs)
-    {
-        return lhs.m_role == rhs.m_role && lhs.m_pageRect == rhs.m_pageRect
-            && lhs.m_itemRect == rhs.m_itemRect && lhs.m_visiblePageRect == rhs.m_visiblePageRect
-            && lhs.m_available == rhs.m_available;
-    }
-    friend bool operator!=(const PageGeometry& lhs, const PageGeometry& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-private:
-    ImageViewport::PageRole m_role = ImageViewport::PageRole::Primary;
-    QRectF m_pageRect;
-    QRectF m_itemRect;
-    QRectF m_visiblePageRect;
-    bool m_available = false;
 };
 
 enum class ImageSequenceProviderRequestKind {
@@ -3101,16 +3046,6 @@ inline QDebug operator<<(QDebug debug, RevisionToken token)
     return debug;
 }
 
-inline QDebug operator<<(QDebug debug, const PageGeometry& geometry)
-{
-    const QDebugStateSaver saver(debug);
-    debug.nospace() << "PageGeometry(role=" << static_cast<int>(geometry.role())
-                    << ", available=" << geometry.isAvailable()
-                    << ", pageRect=" << geometry.pageRect() << ", itemRect=" << geometry.itemRect()
-                    << ", visiblePageRect=" << geometry.visiblePageRect() << ")";
-    return debug;
-}
-
 Q_DECLARE_METATYPE(ImageSequenceProviderRequestToken)
 Q_DECLARE_METATYPE(ImageSequenceAuthoredAnimationFacts)
 Q_DECLARE_METATYPE(ImageSequenceProviderMetadata)
@@ -3146,5 +3081,4 @@ Q_DECLARE_METATYPE(ImageViewportStateSnapshot)
 Q_DECLARE_METATYPE(ImageViewportCommandResult)
 Q_DECLARE_METATYPE(ImageViewportCoordinateInput)
 Q_DECLARE_METATYPE(ImageViewportCoordinateResult)
-Q_DECLARE_METATYPE(PageGeometry)
 Q_DECLARE_METATYPE(PageSetTransitionPolicy)
