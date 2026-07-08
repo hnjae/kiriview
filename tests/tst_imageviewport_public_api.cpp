@@ -125,6 +125,10 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "imageToItem(double,double)",
         "nearestVisibleImagePoint(double,double)",
         "containsVisibleImagePoint(double,double)",
+        "itemToSpread(double,double)",
+        "spreadToItem(double,double)",
+        "itemToPage(ImageViewport::PageRole,double,double)",
+        "pageToItem(ImageViewport::PageRole,double,double)",
         "nearestVisibleSpreadPoint(double,double)",
         "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
         "containsVisibleSpreadPoint(double,double)",
@@ -329,8 +333,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "setPageSet(QVariant,QVariant)",
         "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
         "pageGeometry(ImageViewport::PageRole)",
-        "itemToSpread(double,double)",
-        "spreadToItem(double,double)",
     };
 
     for (const QByteArray& method : methods) {
@@ -369,18 +371,6 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         const int index = metaObject->indexOfProperty(propertyName.constData());
         QVERIFY2(index >= 0, propertyName.constData());
         QCOMPARE(QByteArray(metaObject->property(index).typeName()), QByteArray("RevisionToken"));
-    }
-
-    const QList<QByteArray> coordinateMethods = {
-        "itemToSpread(double,double)",
-        "spreadToItem(double,double)",
-        "itemToPage(ImageViewport::PageRole,double,double)",
-        "pageToItem(ImageViewport::PageRole,double,double)",
-    };
-    for (const QByteArray& methodName : coordinateMethods) {
-        const int index = metaObject->indexOfMethod(QMetaObject::normalizedSignature(methodName));
-        QVERIFY2(index >= 0, methodName.constData());
-        QCOMPARE(QByteArray(metaObject->method(index).typeName()), QByteArray("CoordinateResult"));
     }
 
     const QList<QByteArray> pageGeometryProperties = {

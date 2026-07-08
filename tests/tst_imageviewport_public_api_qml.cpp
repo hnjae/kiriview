@@ -432,15 +432,27 @@ ImageViewport {
         coordinateInput.point = Qt.point(1, 1)
         const spreadNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
         const spreadContainsInvalid = containsPoint(coordinateInput) === false
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Spread
+        const itemToSpreadInvalid = mapPoint(coordinateInput).valid === false
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
+        const spreadToItemInvalid = mapPoint(coordinateInput).valid === false
         coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
         coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
         coordinateInput.pageRole = ImageViewport.PageRole.Primary
         const pageNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
         const pageContainsInvalid = containsPoint(coordinateInput) === false
-        coordinateAliasesAvailable = itemToSpread(1, 1).valid === false
-            && spreadToItem(1, 1).valid === false
-            && itemToPage(ImageViewport.PageRole.Primary, 1, 1).valid === false
-            && pageToItem(ImageViewport.PageRole.Primary, 1, 1).valid === false
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
+        const itemToPageInvalid = mapPoint(coordinateInput).valid === false
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
+        const pageToItemInvalid = mapPoint(coordinateInput).valid === false
+        coordinateAliasesAvailable = itemToSpreadInvalid
+            && spreadToItemInvalid
+            && itemToPageInvalid
+            && pageToItemInvalid
             && spreadNearestInvalid
             && pageNearestInvalid
             && spreadContainsInvalid
@@ -451,6 +463,10 @@ ImageViewport {
             && typeof viewport.imageToItem === "undefined"
             && typeof viewport.nearestVisibleImagePoint === "undefined"
             && typeof viewport.containsVisibleImagePoint === "undefined"
+            && typeof viewport.itemToSpread === "undefined"
+            && typeof viewport.spreadToItem === "undefined"
+            && typeof viewport.itemToPage === "undefined"
+            && typeof viewport.pageToItem === "undefined"
             && typeof viewport.nearestVisibleSpreadPoint === "undefined"
             && typeof viewport.nearestVisiblePagePoint === "undefined"
             && typeof viewport.containsVisibleSpreadPoint === "undefined"

@@ -98,20 +98,42 @@ ImageViewportCoordinateInput coordinateInput(ImageViewport::CoordinateSpace sour
     return input;
 }
 
+ImageViewportCoordinateResult mapItemToSpread(const ImageViewport& item, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
+        ImageViewport::CoordinateSpace::Spread, QPointF(x, y)));
+}
+
+ImageViewportCoordinateResult mapSpreadToItem(const ImageViewport& item, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Spread,
+        ImageViewport::CoordinateSpace::Item, QPointF(x, y)));
+}
+
+ImageViewportCoordinateResult mapItemToPage(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
+        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
+}
+
+ImageViewportCoordinateResult mapPageToItem(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+        ImageViewport::CoordinateSpace::Item, QPointF(x, y), QVariant::fromValue(role)));
+}
+
 ImageViewportCoordinateResult mapItemToPrimaryPage(
     const ImageViewport& item, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
-        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+    return mapItemToPage(item, ImageViewport::PageRole::Primary, x, y);
 }
 
 ImageViewportCoordinateResult mapPrimaryPageToItem(
     const ImageViewport& item, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
-        ImageViewport::CoordinateSpace::Item, QPointF(x, y),
-        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+    return mapPageToItem(item, ImageViewport::PageRole::Primary, x, y);
 }
 
 ImageViewportCoordinateResult nearestVisiblePrimaryPagePoint(

@@ -573,7 +573,7 @@ void ImageViewportPresentationStateTest::twoPageNonPositiveItemGeometrySuppresse
     QCOMPARE(item.property("visibleSecondaryPageRect").toRectF(), QRectF());
     QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF());
     QCOMPARE(item.property("secondaryItemRect").toRectF(), QRectF());
-    QCOMPARE(item.itemToSpread(0.0, 0.0).isValid(), false);
+    QCOMPARE(mapItemToSpread(item, 0.0, 0.0).isValid(), false);
     verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, 0.0, 0.0));
     verifyInvalidCoordinateResult(
         nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 0.0, 0.0));
@@ -731,26 +731,30 @@ void ImageViewportPresentationStateTest::spreadCoordinateHelpersRejectGapAndEdge
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(setPageGapCommand(item, 4.0), ImageViewport::CommandOutcome::Accepted);
 
-    const CoordinateResult gapSpreadPoint = item.itemToSpread(22.0, 22.0);
+    const ImageViewportCoordinateResult gapSpreadPoint = mapItemToSpread(item, 22.0, 22.0);
     QCOMPARE(gapSpreadPoint.isValid(), true);
-    QCOMPARE(gapSpreadPoint.x(), 11.0);
-    QCOMPARE(gapSpreadPoint.y(), 10.0);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 22.0, 22.0).isValid(), false);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Secondary, 22.0, 22.0).isValid(), false);
+    QCOMPARE(gapSpreadPoint.point().x(), 11.0);
+    QCOMPARE(gapSpreadPoint.point().y(), 10.0);
+    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Primary, 22.0, 22.0).isValid(),
+        false);
+    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Secondary, 22.0, 22.0).isValid(),
+        false);
 
-    const CoordinateResult primaryPoint
-        = item.itemToPage(ImageViewport::PageRole::Primary, 19.0, 22.0);
+    const ImageViewportCoordinateResult primaryPoint
+        = mapItemToPage(item, ImageViewport::PageRole::Primary, 19.0, 22.0);
     QCOMPARE(primaryPoint.isValid(), true);
-    QCOMPARE(primaryPoint.x(), 9.5);
-    QCOMPARE(primaryPoint.y(), 10.0);
-    QCOMPARE(item.itemToPage(ImageViewport::PageRole::Primary, 20.0, 22.0).isValid(), false);
+    QCOMPARE(primaryPoint.point().x(), 9.5);
+    QCOMPARE(primaryPoint.point().y(), 10.0);
+    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Primary, 20.0, 22.0).isValid(),
+        false);
 
-    const CoordinateResult secondaryOrigin
-        = item.pageToItem(ImageViewport::PageRole::Secondary, 0.0, 0.0);
+    const ImageViewportCoordinateResult secondaryOrigin
+        = mapPageToItem(item, ImageViewport::PageRole::Secondary, 0.0, 0.0);
     QCOMPARE(secondaryOrigin.isValid(), true);
-    QCOMPARE(secondaryOrigin.x(), 28.0);
-    QCOMPARE(secondaryOrigin.y(), 2.0);
-    QCOMPARE(item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0).isValid(), false);
+    QCOMPARE(secondaryOrigin.point().x(), 28.0);
+    QCOMPARE(secondaryOrigin.point().y(), 2.0);
+    QCOMPARE(mapPageToItem(item, ImageViewport::PageRole::Secondary, 30.0, 0.0).isValid(),
+        false);
 }
 
 void ImageViewportPresentationStateTest::nearestVisibleHelpersClampPrimaryOnlyVisibleGeometry()
@@ -811,8 +815,9 @@ void ImageViewportPresentationStateTest::nearestVisibleHelpersClampPrimaryOnlyVi
         nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Secondary, 1.0, 1.0));
     verifyInvalidCoordinateResult(
         nearestVisibleSpreadCoordinate(item, std::numeric_limits<double>::infinity(), 1.0));
-    verifyInvalidCoordinateResult(item.itemToSpread(100.0, 50.0));
-    verifyInvalidCoordinateResult(item.itemToPage(ImageViewport::PageRole::Primary, 100.0, 50.0));
+    verifyInvalidCoordinateResult(mapItemToSpread(item, 100.0, 50.0));
+    verifyInvalidCoordinateResult(
+        mapItemToPage(item, ImageViewport::PageRole::Primary, 100.0, 50.0));
 
     QCOMPARE(item.displayRevision(), displayRevision);
     QCOMPARE(item.requestRevision(), requestRevision);
@@ -861,8 +866,10 @@ void ImageViewportPresentationStateTest::nearestVisibleHelpersClampTwoPageSpread
     QCOMPARE(containsVisibleSpreadCoordinate(item, gapSpread.point().x(), gapSpread.point().y()),
         true);
 
-    verifyInvalidCoordinateResult(item.itemToPage(ImageViewport::PageRole::Primary, 22.0, 22.0));
-    verifyInvalidCoordinateResult(item.itemToPage(ImageViewport::PageRole::Secondary, 22.0, 22.0));
+    verifyInvalidCoordinateResult(
+        mapItemToPage(item, ImageViewport::PageRole::Primary, 22.0, 22.0));
+    verifyInvalidCoordinateResult(
+        mapItemToPage(item, ImageViewport::PageRole::Secondary, 22.0, 22.0));
 
     const ImageViewportCoordinateResult primaryFromGap
         = nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 11.0, 10.0);
@@ -893,7 +900,8 @@ void ImageViewportPresentationStateTest::nearestVisibleHelpersClampTwoPageSpread
     QCOMPARE(secondaryBottomRight.isValid(), true);
     QCOMPARE(secondaryBottomRight.point().x(), secondaryRightInside);
     QCOMPARE(secondaryBottomRight.point().y(), bottomInside);
-    verifyInvalidCoordinateResult(item.pageToItem(ImageViewport::PageRole::Secondary, 30.0, 0.0));
+    verifyInvalidCoordinateResult(
+        mapPageToItem(item, ImageViewport::PageRole::Secondary, 30.0, 0.0));
 }
 
 void ImageViewportPresentationStateTest::
@@ -1427,16 +1435,16 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
         ImageViewport::CommandOutcome::Accepted);
 
     const QPointF horizontalAnchor(50.0, 50.0);
-    const CoordinateResult horizontalBefore
-        = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
+    const ImageViewportCoordinateResult horizontalBefore
+        = mapItemToSpread(horizontalItem, horizontalAnchor.x(), horizontalAnchor.y());
     QCOMPARE(horizontalBefore.isValid(), true);
     QCOMPARE(setMirrorHorizontallyCommand(horizontalItem, true),
         ImageViewport::CommandOutcome::Accepted);
-    const CoordinateResult horizontalAfter
-        = horizontalItem.itemToSpread(horizontalAnchor.x(), horizontalAnchor.y());
+    const ImageViewportCoordinateResult horizontalAfter
+        = mapItemToSpread(horizontalItem, horizontalAnchor.x(), horizontalAnchor.y());
     QCOMPARE(horizontalAfter.isValid(), true);
-    verifyClose(horizontalAfter.x(), horizontalBefore.x());
-    verifyClose(horizontalAfter.y(), horizontalBefore.y());
+    verifyClose(horizontalAfter.point().x(), horizontalBefore.point().x());
+    verifyClose(horizontalAfter.point().y(), horizontalBefore.point().y());
 
     ImageViewport verticalItem;
     verticalItem.setSize(QSizeF(100.0, 100.0));
@@ -1448,16 +1456,16 @@ void ImageViewportPresentationStateTest::mirrorPresentationCommandsPreserveItemC
         ImageViewport::CommandOutcome::Accepted);
 
     const QPointF verticalAnchor(50.0, 50.0);
-    const CoordinateResult verticalBefore
-        = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
+    const ImageViewportCoordinateResult verticalBefore
+        = mapItemToSpread(verticalItem, verticalAnchor.x(), verticalAnchor.y());
     QCOMPARE(verticalBefore.isValid(), true);
     QCOMPARE(
         setMirrorVerticallyCommand(verticalItem, true), ImageViewport::CommandOutcome::Accepted);
-    const CoordinateResult verticalAfter
-        = verticalItem.itemToSpread(verticalAnchor.x(), verticalAnchor.y());
+    const ImageViewportCoordinateResult verticalAfter
+        = mapItemToSpread(verticalItem, verticalAnchor.x(), verticalAnchor.y());
     QCOMPARE(verticalAfter.isValid(), true);
-    verifyClose(verticalAfter.x(), verticalBefore.x());
-    verifyClose(verticalAfter.y(), verticalBefore.y());
+    verifyClose(verticalAfter.point().x(), verticalBefore.point().x());
+    verifyClose(verticalAfter.point().y(), verticalBefore.point().y());
 }
 
 void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
@@ -1480,16 +1488,16 @@ void ImageViewportPresentationStateTest::rotationAffectsSpreadMapping()
     QCOMPARE(item.property("visibleSpreadRect").toRectF(), QRectF(0.0, 0.0, 10.0, 20.0));
     QCOMPARE(item.property("primaryItemRect").toRectF(), QRectF(0.0, 25.0, 100.0, 50.0));
 
-    const CoordinateResult center = item.itemToSpread(50.0, 50.0);
+    const ImageViewportCoordinateResult center = mapItemToSpread(item, 50.0, 50.0);
     QCOMPARE(center.isValid(), true);
-    QCOMPARE(center.x(), 5.0);
-    QCOMPARE(center.y(), 10.0);
+    QCOMPARE(center.point().x(), 5.0);
+    QCOMPARE(center.point().y(), 10.0);
 
     const ImageViewportCoordinateResult imageCenter = mapItemToPrimaryPage(item, 50.0, 50.0);
     QCOMPARE(imageCenter.isValid(), true);
     QCOMPARE(imageCenter.point().x(), 5.0);
     QCOMPARE(imageCenter.point().y(), 10.0);
-    verifyInvalidCoordinateResult(item.spreadToItem(10.0, 10.0));
+    verifyInvalidCoordinateResult(mapSpreadToItem(item, 10.0, 10.0));
 }
 
 QTEST_MAIN(ImageViewportPresentationStateTest)
