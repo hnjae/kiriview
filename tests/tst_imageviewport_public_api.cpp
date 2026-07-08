@@ -108,6 +108,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "panBy(QPointF)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
+        "setFitMode(ImageViewport::FitMode,QPointF)",
     };
 
     for (const QByteArray& method : absentMethods) {

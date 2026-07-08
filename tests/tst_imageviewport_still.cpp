@@ -42,6 +42,14 @@ static ImageViewport::CommandOutcome setPanDelta(ImageViewport& item, QPointF de
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setFitModeCommand(
+    ImageViewport& item, ImageViewport::FitMode mode)
+{
+    ImageViewportPresentationCommand command;
+    command.setFitMode(mode);
+    return item.setPresentation(command);
+}
+
 void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDiagnostic()
 {
     ImageViewport item;
@@ -796,7 +804,7 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setPanDelta(item, QPointF(-50.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     item.setMirrorHorizontally(true);
@@ -830,7 +838,7 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitWidth, QPointF(50.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitWidth),
         ImageViewport::CommandOutcome::Accepted);
     ImageViewportPresentationCommand scanCommand;
     scanCommand.setScanDirection(ImageViewport::ScanDirection::End);

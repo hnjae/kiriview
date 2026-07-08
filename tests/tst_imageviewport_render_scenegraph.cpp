@@ -74,6 +74,13 @@ ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, double gap)
     return item.setPresentation(command);
 }
 
+ImageViewport::CommandOutcome setFitModeCommand(ImageViewport& item, ImageViewport::FitMode mode)
+{
+    ImageViewportPresentationCommand command;
+    command.setFitMode(mode);
+    return item.setPresentation(command);
+}
+
 class NullTextureSceneGraphFactory final : public RenderAdapterSceneGraph::Factory
 {
 public:
@@ -966,7 +973,7 @@ void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRe
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(100.0, 100.0));
     item.setSequence(result->sequence());
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
 
     QScopedPointer<QSGNode> root(item.takePaintNode());

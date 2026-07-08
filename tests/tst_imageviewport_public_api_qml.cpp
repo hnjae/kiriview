@@ -296,6 +296,7 @@ ImageViewport {
     property bool coordinateAliasesAvailable: false
     property imageViewportPresentationCommand spreadDirectionCommand
     property imageViewportPresentationCommand pageGapCommand
+    property imageViewportPresentationCommand fitModeCommand
     property imageViewportPresentationCommand zoomStepCommand
     property imageViewportPresentationCommand panCommand
     property imageViewportPresentationCommand scanStartCommand
@@ -364,6 +365,7 @@ ImageViewport {
             && typeof viewport.panBy === "undefined"
             && typeof viewport.setSpreadDirection === "undefined"
             && typeof viewport.setPageGap === "undefined"
+            && typeof viewport.setFitMode === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -388,6 +390,7 @@ ImageViewport {
 
         spreadDirectionCommand.spreadDirection = ImageViewport.SpreadDirection.LeftToRight
         pageGapCommand.pageGap = 0
+        fitModeCommand.fitMode = ImageViewport.FitMode.Contain
         zoomStepCommand.zoomStepDelta = 1
         scanStartCommand.scanDirection = ImageViewport.ScanDirection.Start
         scanEndCommand.scanDirection = ImageViewport.ScanDirection.End
@@ -399,7 +402,7 @@ ImageViewport {
         panCommand.panDelta = Qt.point(0, 0)
         presentationCommandsReachViewport = setPresentation(spreadDirectionCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(pageGapCommand) === ImageViewport.CommandOutcome.Accepted
-            && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(fitModeCommand) === ImageViewport.CommandOutcome.Accepted
             && setZoomPercent(100, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(zoomStepCommand) === ImageViewport.CommandOutcome.Accepted
             && setPresentation(panCommand) === ImageViewport.CommandOutcome.Accepted

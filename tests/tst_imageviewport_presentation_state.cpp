@@ -96,6 +96,14 @@ static ImageViewport::CommandOutcome setPageGapCommand(ImageViewport& item, doub
     return item.setPresentation(command);
 }
 
+static ImageViewport::CommandOutcome setFitModeCommand(
+    ImageViewport& item, ImageViewport::FitMode mode)
+{
+    ImageViewportPresentationCommand command;
+    command.setFitMode(mode);
+    return item.setPresentation(command);
+}
+
 void ImageViewportPresentationStateTest::invalidPresentationEnumValuesAreIgnored()
 {
     ImageViewport item;
@@ -116,7 +124,7 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayDoNotN
     QSignalSpy presentationSpy(&item, &ImageViewport::presentationChanged);
 
     QCOMPARE(item.setZoomPercent(200.0, QPointF()), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF()),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     item.setSmoothing(false);
     item.setMipmap(true);
@@ -355,7 +363,7 @@ void ImageViewportPresentationStateTest::presentationChangesNotifyGeometryState(
     QCOMPARE(setPanDelta(item, QPointF(4.0, 0.0)), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 2);
 
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(geometrySpy.count(), 3);
 
@@ -856,7 +864,7 @@ void ImageViewportPresentationStateTest::
     mirroredItem.setSize(QSizeF(100.0, 100.0));
     mirroredItem.setSequence(result->sequence());
     acknowledgePendingRenderCommitForTest(mirroredItem);
-    QCOMPARE(mirroredItem.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(50.0, 50.0)),
+    QCOMPARE(setFitModeCommand(mirroredItem, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setScanDirection(mirroredItem, ImageViewport::ScanDirection::End),
         ImageViewport::CommandOutcome::Accepted);
@@ -939,7 +947,7 @@ void ImageViewportPresentationStateTest::fitModesExposeZoomAndPannability()
     QCOMPARE(item.property("horizontalPannable").toBool(), false);
     QCOMPARE(item.property("verticalPannable").toBool(), false);
 
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("contentRect").toRectF(), QRectF(-60.0, 0.0, 200.0, 100.0));
     QCOMPARE(item.property("zoomPercent").toDouble(), 1250.0);
@@ -986,7 +994,7 @@ void ImageViewportPresentationStateTest::
         acknowledgePendingRenderCommitForTest(item);
         QCOMPARE(item.setZoomPercent(200.0, QPointF(40.0, 50.0)),
             ImageViewport::CommandOutcome::Accepted);
-        QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
+        QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
             ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(item.fitMode(), ImageViewport::FitMode::FitHeight);
         QCOMPARE(item.zoomPercent(), 1250.0);
@@ -1183,7 +1191,7 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
     const RevisionToken invalidSeekCommandRevision = revisionTokenProperty(item, "commandRevision");
 
     QSignalSpy commandSpy(&item, &ImageViewport::commandStateChanged);
-    QCOMPARE(item.setFitMode(ImageViewport::FitMode::FitHeight, QPointF(40.0, 50.0)),
+    QCOMPARE(setFitModeCommand(item, ImageViewport::FitMode::FitHeight),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.property("commandReason").toInt(),
         enumValue(metaObject, "CommandReason", "NoCommand"));
