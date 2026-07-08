@@ -53,6 +53,29 @@ ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapabilityForRole(
         : viewport.providerTimedPlaybackCapability();
 }
 
+ImageSequenceProviderCapabilitySupport providerFrameSeekCapabilityForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary
+        ? viewport.secondaryProviderFrameSeekCapability()
+        : viewport.providerFrameSeekCapability();
+}
+
+ImageSequenceProviderCapabilitySupport providerPositionSeekCapabilityForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary
+        ? viewport.secondaryProviderPositionSeekCapability()
+        : viewport.providerPositionSeekCapability();
+}
+
+ImageSequenceProviderKnownFacts providerKnownFactsForRole(
+    ViewportControllerPort& viewport, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? viewport.secondaryProviderKnownFacts()
+                                                      : viewport.providerKnownFacts();
+}
+
 bool shouldPreservePlaybackPositionOnPlay(
     ImageViewport::PlaybackPhase phase, bool stopWhenRequestReady)
 {
@@ -97,14 +120,40 @@ ViewportPlaybackRoleTiming playbackTimingForRole(
         source.facts.authoredAnimationFacts };
 }
 
-DisplayRequestTarget providerPlaybackStartTarget(ViewportControllerPort& viewport)
+int providerFrameStartPositionForRole(
+    const ViewportControllerState& state, ImageViewport::PageRole role, int frame)
 {
-    int selectedFrame = viewportRequestState(viewport).activeRequest.target.frame;
+    const ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    return provider.timingIntervals.frameStartPosition(frame);
+}
+
+int providerFrameIndexForPositionForRole(
+    const ViewportControllerState& state, ImageViewport::PageRole role, int position)
+{
+    const ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
+    return provider.timingIntervals.frameIndexForPosition(position);
+}
+
+const ViewportSequenceRoleSource& secondaryRoleSource(const ViewportControllerState& state)
+{
+    return state.secondarySource;
+}
+
+DisplayRequestTarget providerPlaybackStartTarget(
+    ViewportControllerPort& viewport, const ViewportControllerState& state,
+    ImageViewport::PageRole role)
+{
+    int selectedFrame = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
+    const ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(state, role);
     if (selectedFrame < 0
-        || selectedFrame >= viewportProviderState(viewport).timingIntervals.frameCount()) {
+        || selectedFrame >= provider.timingIntervals.frameCount()) {
         selectedFrame = 0;
     }
-    return DisplayRequestTarget { selectedFrame, viewport.providerFrameStartPosition(selectedFrame),
+    return DisplayRequestTarget { selectedFrame,
+        providerFrameStartPositionForRole(state, role, selectedFrame),
         ImageViewportInternal::ProviderRequestTargetKind::Playback };
 }
 

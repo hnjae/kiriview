@@ -1,7 +1,9 @@
 set(playback_file "${IMAGEVIEWPORT_SOURCE_DIR}/src/viewportcontrollerplayback.cpp")
+set(playback_helpers "${IMAGEVIEWPORT_SOURCE_DIR}/src/viewportcontrollerplaybackhelpers_p.h")
 set(controller_header "${IMAGEVIEWPORT_SOURCE_DIR}/src/viewportcontroller_p.h")
 
 file(READ "${playback_file}" playback_content)
+file(READ "${playback_helpers}" playback_helpers_content)
 file(READ "${controller_header}" controller_header_content)
 
 function(section_between content start_marker end_marker out_var)
@@ -46,7 +48,39 @@ append_violations(
     "${playback_content}"
     "applyPendingSecondaryProviderPlaybackTarget[ \t\r\n]*\\("
     "playSecondaryBuiltIn[ \t\r\n]*\\("
-    "playSecondaryProvider[ \t\r\n]*\\(")
+    "playSecondaryProvider[ \t\r\n]*\\("
+    "viewportRequestState\\(viewport\\)\\.activeRequest"
+    "viewportRequestState\\(viewport\\)\\.secondaryActiveRequest"
+    "viewportRequestState\\(viewport\\)\\.latestNonPlaybackRequest"
+    "viewportRequestState\\(viewport\\)\\.secondaryLatestNonPlaybackRequest"
+    "viewportRequestState\\(viewport\\)\\.secondarySequenceIsProvider"
+    "viewportProviderState\\(viewport\\)"
+    "state\\.secondaryProvider"
+    "state\\.secondarySource"
+    "viewportDisplayState\\(viewport\\)\\.displayedRequest"
+    "viewportDisplayState\\(viewport\\)\\.secondaryDisplayedRequest"
+    "viewportDisplayState\\(viewport\\)\\.displayedImageSize"
+    "viewportDisplayState\\(viewport\\)\\.secondaryDisplayedImageSize"
+    "viewportDisplayState\\(viewport\\)\\.displayedImage"
+    "viewportDisplayState\\(viewport\\)\\.secondaryDisplayedImage"
+    "setSecondaryActiveRequest[ \t\r\n]*\\("
+    "\\.hasSecondaryTimedSequence[ \t\r\n]*\\("
+    "\\.secondarySequenceFrameCount[ \t\r\n]*\\("
+    "\\.secondaryTotalDuration[ \t\r\n]*\\("
+    "\\.secondarySequenceFrameStartPosition[ \t\r\n]*\\("
+    "\\.secondarySequenceFrameIndexForPosition[ \t\r\n]*\\("
+    "\\.secondarySequenceAuthoredAnimationFacts[ \t\r\n]*\\(")
+
+append_violations(
+    "${playback_helpers}: helper header"
+    "${playback_helpers_content}"
+    "viewportRequestState\\(viewport\\)\\.activeRequest"
+    "viewportRequestState\\(viewport\\)\\.secondaryActiveRequest"
+    "viewportRequestState\\(viewport\\)\\.latestNonPlaybackRequest"
+    "viewportRequestState\\(viewport\\)\\.secondaryLatestNonPlaybackRequest"
+    "viewportRequestState\\(viewport\\)\\.secondarySequenceIsProvider"
+    "viewportProviderState\\(viewport\\)"
+    "state\\.secondaryProvider")
 
 section_between(
     "${playback_content}"

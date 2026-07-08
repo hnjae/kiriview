@@ -153,6 +153,8 @@ Work: Preserve aggregate playback ownership rules where one playback driver must
 
 Work: Add focused behavior tests only if existing playback tests do not cover a refactored boundary such as secondary provider stop restoration, queued playback cancellation, or loop transition ownership.
 
+Assumption: `state.secondarySource` remains the existing secondary built-in sequence adapter for frame/position calculation during this refactor; playback code may read it only through a named role/source helper until a later source-state consolidation milestone changes that contract.
+
 Acceptance: Playback controller tests and provider playback tests pass.
 
 Acceptance: Playback code has a clear distinction between role-local state selection and aggregate playback ownership.
