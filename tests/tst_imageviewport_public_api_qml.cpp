@@ -295,6 +295,8 @@ ImageViewport {
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
     property imageViewportPresentationCommand zoomStepCommand
+    property imageViewportPresentationCommand scanNextCommand
+    property imageViewportPresentationCommand scanPreviousCommand
 
     function nearlyEqual(left, right) {
         return Math.abs(left - right) < 0.000001
@@ -343,6 +345,8 @@ ImageViewport {
         manualZoomHelpersRemoved = typeof viewport.clampedManualZoomPercent === "undefined"
             && typeof viewport.steppedManualZoomPercent === "undefined"
             && typeof viewport.zoomByStep === "undefined"
+            && typeof viewport.scanNext === "undefined"
+            && typeof viewport.scanPrevious === "undefined"
             && minimum > 0
             && maximum === ImageViewportDisplayLimits.maximumManualZoomPercent
             && requestRevision === requestRevisionBefore
@@ -366,6 +370,8 @@ ImageViewport {
             && seekToPosition(ImageViewport.PageRole.Secondary, 0) === ImageViewport.CommandOutcome.IgnoredNoRequest
 
         zoomStepCommand.zoomStepDelta = 1
+        scanNextCommand.scanDirection = ImageViewport.ScanDirection.Next
+        scanPreviousCommand.scanDirection = ImageViewport.ScanDirection.Previous
         presentationCommandsReachViewport = setSpreadDirection(ImageViewport.SpreadDirection.LeftToRight) === ImageViewport.CommandOutcome.Accepted
             && setPageGap(0) === ImageViewport.CommandOutcome.Accepted
             && setFitMode(ImageViewport.FitMode.Contain, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
@@ -374,8 +380,8 @@ ImageViewport {
             && panBy(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && panToStart() === ImageViewport.CommandOutcome.Accepted
             && panToEnd() === ImageViewport.CommandOutcome.Accepted
-            && scanNext() === ImageViewport.CommandOutcome.Accepted
-            && scanPrevious() === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanNextCommand) === ImageViewport.CommandOutcome.Accepted
+            && setPresentation(scanPreviousCommand) === ImageViewport.CommandOutcome.Accepted
             && rotateClockwise(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && rotateCounterClockwise(Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted
             && setMirrorHorizontally(false, Qt.point(0, 0)) === ImageViewport.CommandOutcome.Accepted

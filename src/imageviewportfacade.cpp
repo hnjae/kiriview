@@ -222,8 +222,6 @@ ImageViewport::CommandOutcome ImageViewport::setZoomPercent(double percent, QPoi
 ImageViewport::CommandOutcome ImageViewport::panBy(QPointF delta) { return d->panBy(delta); }
 ImageViewport::CommandOutcome ImageViewport::panToStart() { return d->panToStart(); }
 ImageViewport::CommandOutcome ImageViewport::panToEnd() { return d->panToEnd(); }
-ImageViewport::CommandOutcome ImageViewport::scanNext() { return d->scanNext(); }
-ImageViewport::CommandOutcome ImageViewport::scanPrevious() { return d->scanPrevious(); }
 ImageViewport::CommandOutcome ImageViewport::rotateClockwise(QPointF anchor)
 {
     return d->rotateClockwise(anchor);

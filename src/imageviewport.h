@@ -1251,8 +1251,6 @@ public:
     Q_INVOKABLE ImageViewport::CommandOutcome panBy(QPointF delta);
     Q_INVOKABLE ImageViewport::CommandOutcome panToStart();
     Q_INVOKABLE ImageViewport::CommandOutcome panToEnd();
-    Q_INVOKABLE ImageViewport::CommandOutcome scanNext();
-    Q_INVOKABLE ImageViewport::CommandOutcome scanPrevious();
     Q_INVOKABLE ImageViewport::CommandOutcome rotateClockwise(QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome rotateCounterClockwise(QPointF anchor);
     Q_INVOKABLE ImageViewport::CommandOutcome setMirrorHorizontally(bool enabled, QPointF anchor);

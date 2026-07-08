@@ -97,6 +97,8 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "clampedManualZoomPercent(double)",
         "steppedManualZoomPercent(int)",
         "zoomByStep(int,QPointF)",
+        "scanNext()",
+        "scanPrevious()",
     };
 
     for (const QByteArray& method : absentMethods) {
@@ -288,8 +290,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         "pageGeometry(ImageViewport::PageRole)",
         "panToStart()",
         "panToEnd()",
-        "scanNext()",
-        "scanPrevious()",
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
         "containsVisibleSpreadPoint(double,double)",
