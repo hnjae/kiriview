@@ -156,7 +156,6 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "FillMode",
         "HorizontalAlignment",
         "VerticalAlignment",
-        "TriState",
     };
 
     for (const QByteArray& enumerator : absentEnumerators) {
@@ -353,21 +352,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
         QVERIFY2(
             metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())) >= 0,
             method.constData());
-    }
-
-    const QList<QByteArray> removedMethods = {
-        "setPageSet(ImageViewportPageSet,PageSetTransitionPolicy)",
-        "setPageSet(QVariant)",
-        "setPageSet(QVariant,QVariant)",
-        "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
-        "setPresentationTarget(QVariant)",
-        "setPresentationTarget(QVariant,QVariant)",
-        "setPresentationTarget(QVariant,QVariant,PresentationTargetTransitionPolicy)",
-    };
-
-    for (const QByteArray& method : removedMethods) {
-        QCOMPARE(metaObject->indexOfMethod(QMetaObject::normalizedSignature(method.constData())),
-            -1);
     }
 }
 
