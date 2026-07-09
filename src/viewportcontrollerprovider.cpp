@@ -186,71 +186,12 @@ void publishProviderTokenExhaustion(
 }
 }
 
-FramePreparation::ProviderFrameState ViewportController::providerFramePreparationState() const
-{
-    return providerFramePreparationState(ImageViewport::PageRole::Primary);
-}
-
-FramePreparation::ProviderFrameState ViewportController::providerFramePreparationState(
-    ImageViewport::PageRole role) const
-{
-    const ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    const ImageViewportInternal::DisplayRequest& request
-        = activeRequestForRole(viewportRequestState(viewport), role);
-    ImageViewportInternal::PreparedPayload preparedPayload
-        = viewportDisplayState(viewport).pendingRenderPayload;
-    if (role == ImageViewport::PageRole::Primary && !preparedPayload.identity().isValid()) {
-        preparedPayload.generation = viewportRequestState(viewport).sequenceGeneration;
-        preparedPayload.requestId = request.identity.id;
-        preparedPayload.payloadId = preparedPayload.requestId == 0
-            ? 0
-            : viewportDisplayState(viewport).nextPreparedPayloadId + 1;
-    }
-    return {
-        provider.metadataReady,
-        provider.timedMetadata,
-        provider.logicalSize,
-        provider.timingIntervals,
-        request.resolvedFrame,
-        preparedPayload,
-    };
-}
-
 ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
     ImageViewport::PageRole role, ViewportProviderFrameEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.session
-        || !activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token)) {
-        return {};
-    }
-
-    if (role == ImageViewport::PageRole::Secondary) {
-        ImageViewportInternal::DisplayState& display = viewportDisplayState(viewport);
-        ImageViewportInternal::RequestState& request = viewportRequestState(viewport);
-        ImageViewportInternal::PreparedPayload& preparedPayload
-            = pendingPayloadForRole(display, ImageViewport::PageRole::Primary);
-        ImageViewportInternal::DisplayRequest& primaryRequest
-            = activeRequestForRole(request, ImageViewport::PageRole::Primary);
-        if (!preparedPayload.identity().isValid()) {
-            preparedPayload.commitPending = true;
-            preparedPayload.generation = request.sequenceGeneration;
-            preparedPayload.requestId = primaryRequest.identity.id;
-            preparedPayload.payloadId = ++display.nextPreparedPayloadId;
-            if (displayedPrimaryPayloadMatchesActiveTarget(viewport)) {
-                preparedPayload.image = display.displayedImage;
-            }
-            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
-        }
-        provider.activeFrameToken = {};
-    }
-
-    return { true, providerFramePreparationState(role) };
+    const ViewportEngine::ProviderFrameEventAdmission admission
+        = state.engine.admitProviderFrameEvent({ role, event.token });
+    return { admission.accepted, admission.preparationState };
 }
 
 ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
@@ -289,18 +230,9 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
 ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetadataEvent(
     ImageViewport::PageRole role, ViewportProviderMetadataEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.session
-        || !provider.activeMetadataToken.isValid() || event.token != provider.activeMetadataToken) {
-        return {};
-    }
-
-    provider.activeMetadataToken = {};
-    return { true };
+    const ViewportEngine::ProviderMetadataEventAdmission admission
+        = state.engine.admitProviderMetadataEvent({ role, event.token });
+    return { admission.accepted };
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessionOpenFailure(

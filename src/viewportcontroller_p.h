@@ -428,9 +428,6 @@ private:
         ImageViewportInternal::FailureScope failureScope, const QString& diagnostic,
         ImageViewportInternal::ViewportChangeSet& changes);
     void armAuthoredAutoplayIfEligible();
-    FramePreparation::ProviderFrameState providerFramePreparationState() const;
-    FramePreparation::ProviderFrameState providerFramePreparationState(
-        ImageViewport::PageRole role) const;
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(
         ImageViewport::PageRole role, ViewportProviderFrameEvent event);
     ViewportProviderFrameEventAcceptance acceptProviderFrameEvent(ViewportProviderFrameEvent event);

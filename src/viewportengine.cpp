@@ -34,6 +34,83 @@ const ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
                                                       : display.pendingRenderPayload;
 }
 
+ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
+    ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? display.secondaryPendingRenderPayload
+                                                      : display.pendingRenderPayload;
+}
+
+ImageViewportInternal::DisplayRequest& activeRequestForRole(
+    ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondaryActiveRequest
+                                                      : request.activeRequest;
+}
+
+const ImageViewportInternal::DisplayRequest& activeRequestForRole(
+    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? request.secondaryActiveRequest
+                                                      : request.activeRequest;
+}
+
+ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
+    ViewportEngine& engine, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState()
+                                                      : engine.providerState();
+}
+
+const ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
+    const ViewportEngine& engine, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState()
+                                                      : engine.providerState();
+}
+
+bool targetSpreadTerminalMatchesActiveRequest(const ImageViewportInternal::RequestState& request)
+{
+    return request.targetSpreadTerminal.sealed
+        && request.targetSpreadTerminal.generation == request.sequenceGeneration
+        && request.targetSpreadTerminal.requestId == request.activeRequest.identity.id;
+}
+
+bool hasProviderSequenceForRole(
+    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Primary
+        ? request.sequenceSource.facts.provider
+        : (request.secondarySequence && request.secondarySequenceIsProvider);
+}
+
+bool activeProviderFrameTokenMatchesActiveRequest(const ViewportEngine& engine,
+    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role,
+    ImageSequenceProviderRequestToken token)
+{
+    const ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(engine, role);
+    if (!provider.activeFrameToken.isValid() || token != provider.activeFrameToken) {
+        return false;
+    }
+
+    const ImageViewportInternal::DisplayRequest& activeRequest
+        = activeRequestForRole(request, role);
+    return token.isValid() && token == activeRequest.providerFrameToken;
+}
+
+bool displayedPrimaryPayloadMatchesActiveTarget(const ImageViewportInternal::DisplayState& display,
+    const ImageViewportInternal::RequestState& request)
+{
+    const ImageViewportInternal::DisplayRequest& activeRequest
+        = activeRequestForRole(request, ImageViewport::PageRole::Primary);
+    return display.hasReadyDisplay(request.sequenceSource.facts.present)
+        && display.displayedRequest.generation == request.sequenceGeneration
+        && display.displayedRequest.request.resolvedFrame.frame == activeRequest.resolvedFrame.frame
+        && display.displayedRequest.request.resolvedFrame.position
+        == activeRequest.resolvedFrame.position;
+}
+
 const QImage& displayedImageForRole(
     const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
 {
@@ -191,6 +268,84 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
         renderSourceRect(input.geometryState, ImageViewport::PageRole::Secondary),
         m_presentationState, true);
     return snapshot;
+}
+
+FramePreparation::ProviderFrameState ViewportEngine::providerFramePreparationState(
+    ImageViewport::PageRole role) const
+{
+    const ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, role);
+    const ImageViewportInternal::DisplayRequest& request
+        = activeRequestForRole(m_requestState, role);
+    ImageViewportInternal::PreparedPayload preparedPayload = m_displayState.pendingRenderPayload;
+    if (role == ImageViewport::PageRole::Primary && !preparedPayload.identity().isValid()) {
+        preparedPayload.generation = m_requestState.sequenceGeneration;
+        preparedPayload.requestId = request.identity.id;
+        preparedPayload.payloadId
+            = preparedPayload.requestId == 0 ? 0 : m_displayState.nextPreparedPayloadId + 1;
+    }
+    return {
+        provider.metadataReady,
+        provider.timedMetadata,
+        provider.logicalSize,
+        provider.timingIntervals,
+        request.resolvedFrame,
+        preparedPayload,
+    };
+}
+
+ViewportEngine::ProviderFrameEventAdmission ViewportEngine::admitProviderFrameEvent(
+    ProviderEventAdmissionInput input)
+{
+    if (targetSpreadTerminalMatchesActiveRequest(m_requestState)) {
+        return {};
+    }
+
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, input.role);
+    if (!hasProviderSequenceForRole(m_requestState, input.role) || !provider.session
+        || !activeProviderFrameTokenMatchesActiveRequest(
+            *this, m_requestState, input.role, input.token)) {
+        return {};
+    }
+
+    if (input.role == ImageViewport::PageRole::Secondary) {
+        ImageViewportInternal::PreparedPayload& preparedPayload
+            = pendingPayloadForRole(m_displayState, ImageViewport::PageRole::Primary);
+        ImageViewportInternal::DisplayRequest& primaryRequest
+            = activeRequestForRole(m_requestState, ImageViewport::PageRole::Primary);
+        if (!preparedPayload.identity().isValid()) {
+            preparedPayload.commitPending = true;
+            preparedPayload.generation = m_requestState.sequenceGeneration;
+            preparedPayload.requestId = primaryRequest.identity.id;
+            preparedPayload.payloadId = ++m_displayState.nextPreparedPayloadId;
+            if (displayedPrimaryPayloadMatchesActiveTarget(m_displayState, m_requestState)) {
+                preparedPayload.image = m_displayState.displayedImage;
+            }
+            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
+        }
+        provider.activeFrameToken = {};
+    }
+
+    return { true, providerFramePreparationState(input.role) };
+}
+
+ViewportEngine::ProviderMetadataEventAdmission ViewportEngine::admitProviderMetadataEvent(
+    ProviderEventAdmissionInput input)
+{
+    if (targetSpreadTerminalMatchesActiveRequest(m_requestState)) {
+        return {};
+    }
+
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, input.role);
+    if (!hasProviderSequenceForRole(m_requestState, input.role) || !provider.session
+        || !provider.activeMetadataToken.isValid() || input.token != provider.activeMetadataToken) {
+        return {};
+    }
+
+    provider.activeMetadataToken = {};
+    return { true };
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(

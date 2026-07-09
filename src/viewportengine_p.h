@@ -1,5 +1,6 @@
 #pragma once
 
+#include "framepreparation_p.h"
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
@@ -63,6 +64,22 @@ public:
         bool stopPlayback = false;
         bool closeProviderSessions = false;
     };
+    struct ProviderEventAdmissionInput
+    {
+        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+        ImageSequenceProviderRequestToken token;
+    };
+
+    struct ProviderFrameEventAdmission
+    {
+        bool accepted = false;
+        FramePreparation::ProviderFrameState preparationState;
+    };
+
+    struct ProviderMetadataEventAdmission
+    {
+        bool accepted = false;
+    };
 
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
@@ -81,6 +98,8 @@ public:
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
+    ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
+    ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
 
     PresentationTargetAssignmentResult assignPresentationTarget(
         PresentationTargetAssignmentInput input);
@@ -92,6 +111,8 @@ public:
     void setNextRevisionValueForTest(quint64 token);
 
 private:
+    FramePreparation::ProviderFrameState providerFramePreparationState(
+        ImageViewport::PageRole role) const;
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();
