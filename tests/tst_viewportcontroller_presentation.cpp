@@ -124,9 +124,9 @@ private slots:
     void assignmentAppliesPresentationTransitionInControllerTransaction();
     void assignmentDerivesDisplayTransitionFromPolicy();
     void spreadDirectionAndPageGapPreserveCommandDiagnosticsForInvalidAndNoop();
-    void pageSetTransitionScanStartUsesReplacementSpreadGeometry();
-    void pageSetTransitionScanEndUsesReplacementSpreadGeometry();
-    void pageSetTransitionClampUsesReplacementBounds();
+    void presentationTargetTransitionScanStartUsesReplacementSpreadGeometry();
+    void presentationTargetTransitionScanEndUsesReplacementSpreadGeometry();
+    void presentationTargetTransitionClampUsesReplacementBounds();
     void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
     void nearestVisibleHelpersUseDevicePixelRatioAdjustedManualGeometry();
     void manualZoomHelpersUseControllerPresentationGeometry();
@@ -316,7 +316,8 @@ void ViewportControllerPresentationTest::
     QCOMPARE(changedDirection.changes.commandRevision, true);
 }
 
-void ViewportControllerPresentationTest::pageSetTransitionScanStartUsesReplacementSpreadGeometry()
+void ViewportControllerPresentationTest::
+    presentationTargetTransitionScanStartUsesReplacementSpreadGeometry()
 {
     ImageSequenceFactory factory;
     PresentationControllerContext context;
@@ -357,7 +358,8 @@ void ViewportControllerPresentationTest::pageSetTransitionScanStartUsesReplaceme
     QCOMPARE(PresentationGeometry::contentPosition(geometry), QPointF(0.0, 0.0));
 }
 
-void ViewportControllerPresentationTest::pageSetTransitionScanEndUsesReplacementSpreadGeometry()
+void ViewportControllerPresentationTest::
+    presentationTargetTransitionScanEndUsesReplacementSpreadGeometry()
 {
     ImageSequenceFactory factory;
     PresentationControllerContext context;
@@ -396,7 +398,7 @@ void ViewportControllerPresentationTest::pageSetTransitionScanEndUsesReplacement
     QCOMPARE(PresentationGeometry::contentPosition(geometry), maximum);
 }
 
-void ViewportControllerPresentationTest::pageSetTransitionClampUsesReplacementBounds()
+void ViewportControllerPresentationTest::presentationTargetTransitionClampUsesReplacementBounds()
 {
     ImageSequenceFactory factory;
     PresentationControllerContext context;

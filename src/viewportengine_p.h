@@ -17,9 +17,10 @@ public:
         double devicePixelRatio = 1.0;
     };
 
-    struct PageSetState
+    struct PresentationTargetState
     {
-        ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
+        ImageViewportPresentationTarget presentationTarget
+            = ImageViewportPresentationTarget::clear();
         ImageViewportRoleSet acceptedRoleSet;
         ImageViewportRoleSet targetRoleSet;
         quint64 generation = 0;
@@ -29,9 +30,10 @@ public:
         bool activeRoleValid = false;
     };
 
-    struct PageSetAssignmentInput
+    struct PresentationTargetAssignmentInput
     {
-        ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
+        ImageViewportPresentationTarget presentationTarget
+            = ImageViewportPresentationTarget::clear();
         PresentationTargetTransitionPolicy transitionPolicy;
     };
 
@@ -49,11 +51,11 @@ public:
         bool commandRevisionChanged = false;
     };
 
-    struct PageSetAssignmentResult
+    struct PresentationTargetAssignmentResult
     {
         CommandResult command;
-        PageSetState pageSetState;
-        bool pageSetChanged = false;
+        PresentationTargetState presentationTargetState;
+        bool presentationTargetChanged = false;
         bool clear = true;
         bool retainPreviousDisplay = true;
         bool releaseDisplayedState = false;
@@ -64,7 +66,7 @@ public:
 
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
-    PageSetState pageSetState() const;
+    PresentationTargetState presentationTargetState() const;
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
@@ -80,7 +82,8 @@ public:
         const ImageViewportInternal::PresentationState& presentation) const;
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
 
-    PageSetAssignmentResult assignPageSet(PageSetAssignmentInput input);
+    PresentationTargetAssignmentResult assignPresentationTarget(
+        PresentationTargetAssignmentInput input);
     CommandResult rejectInvalidCommand();
     CommandResult rejectMalformedEnumCommand();
     CommandResult clearFromEmpty();
@@ -94,14 +97,15 @@ private:
     CommandResult accepted();
     CommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();
-    quint64 nextPageSetGeneration();
-    PageSetState pageSetStateFor(ImageViewportPresentationTarget pageSet, quint64 generation) const;
+    quint64 nextPresentationTargetGeneration();
+    PresentationTargetState presentationTargetStateFor(
+        ImageViewportPresentationTarget presentationTarget, quint64 generation) const;
 
     quint64 m_nextRevision = 0;
-    quint64 m_nextPageSetGeneration = 0;
+    quint64 m_nextPresentationTargetGeneration = 0;
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
-    PageSetState m_pageSetState;
+    PresentationTargetState m_presentationTargetState;
     ImageViewportInternal::DisplayState m_displayState;
     ImageViewportInternal::RequestState m_requestState;
     ImageViewportInternal::ProviderGenerationState m_providerState;

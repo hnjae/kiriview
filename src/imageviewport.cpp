@@ -320,7 +320,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
     ViewportSequenceAssignment assignment;
-    assignment.pageSet = presentationTarget;
+    assignment.presentationTarget = presentationTarget;
     assignment.source = std::move(primarySource);
     assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;

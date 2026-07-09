@@ -41,14 +41,14 @@ struct ViewportSequenceAssignment
 {
     ViewportSequenceAssignment() = default;
     ViewportSequenceAssignment(ImageSequence* primarySequence)
-        : pageSet(primarySequence ? ImageViewportPresentationTarget(primarySequence)
-                                  : ImageViewportPresentationTarget::clear())
+        : presentationTarget(primarySequence ? ImageViewportPresentationTarget(primarySequence)
+                                             : ImageViewportPresentationTarget::clear())
         , sequence(primarySequence)
     {
         source.sequence = primarySequence;
     }
 
-    ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
+    ImageViewportPresentationTarget presentationTarget = ImageViewportPresentationTarget::clear();
     ImageViewportInternal::ImageSequenceSource source;
     ImageViewportInternal::ImageSequenceSource secondarySourceHandle;
     ImageSequence* sequence = nullptr;

@@ -198,7 +198,7 @@ import ImageViewport 1.0
 
 Item {
     property ImageFrame suppliedFrame
-    property imageViewportPresentationTarget pageSet
+    property imageViewportPresentationTarget presentationTarget
     property presentationTargetTransitionPolicy policy
     property bool frameFactoryCreated: false
     property bool timedListAcceptedFrame: false
@@ -240,8 +240,8 @@ Item {
             && timedResult.errorString === ""
             && timedResult.warningString === ""
 
-        pageSet.primary = timedResult.sequence
-        viewport.setPresentationTarget(pageSet, policy)
+        presentationTarget.primary = timedResult.sequence
+        viewport.setPresentationTarget(presentationTarget, policy)
     }
 }
 )",

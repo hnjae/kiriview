@@ -53,16 +53,18 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
 {
     const auto& request = controller.requestState();
     const auto& display = controller.displayState();
-    const ViewportEngine::PageSetState pageSetState = controller.pageSetState();
-    const bool primaryPresent
-        = pageSetState.acceptedRoleSet.primary() && pageSetState.pageSet.primary();
-    const bool secondaryPresent
-        = pageSetState.acceptedRoleSet.secondary() && pageSetState.pageSet.secondary();
+    const ViewportEngine::PresentationTargetState presentationTargetState
+        = controller.presentationTargetState();
+    const bool primaryPresent = presentationTargetState.acceptedRoleSet.primary()
+        && presentationTargetState.presentationTarget.primary();
+    const bool secondaryPresent = presentationTargetState.acceptedRoleSet.secondary()
+        && presentationTargetState.presentationTarget.secondary();
     const ImageViewportRoleSet acceptedRoleSet(primaryPresent, secondaryPresent);
-    const ImageViewportRoleSet targetRoleSet(primaryPresent && pageSetState.targetRoleSet.primary(),
-        secondaryPresent && pageSetState.targetRoleSet.secondary());
+    const ImageViewportRoleSet targetRoleSet(
+        primaryPresent && presentationTargetState.targetRoleSet.primary(),
+        secondaryPresent && presentationTargetState.targetRoleSet.secondary());
     const ImageViewportPresentationTargetGenerationToken acceptedGeneration(
-        primaryPresent ? pageSetState.generation : 0);
+        primaryPresent ? presentationTargetState.generation : 0);
     const bool primaryDisplayed
         = positiveSize(display.displayedImageSize) && display.status != DisplayStatus::Empty;
     const bool secondaryDisplayed = positiveSize(display.secondaryDisplayedImageSize)
@@ -70,14 +72,14 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
     const ImageViewportRoleSet displayedRoleSet(primaryDisplayed, secondaryDisplayed);
     const ImageViewportPresentationTargetGenerationToken displayedGeneration(
         primaryDisplayed ? display.displayedRequest.generation : 0);
-    const bool displayedBelongsToAcceptedPresentationTarget
-        = primaryDisplayed && display.displayedRequest.generation == pageSetState.generation;
+    const bool displayedBelongsToAcceptedPresentationTarget = primaryDisplayed
+        && display.displayedRequest.generation == presentationTargetState.generation;
     const ImageViewportRevisionToken requestRevision(request.requestRevision);
     const ImageViewportRevisionToken displayRevision(display.revision);
     const ImageViewportRevisionToken commandRevision(request.commandRevision);
     const ImageViewportRevisionToken presentationRevision(display.revision);
     const ImageViewportRevisionToken snapshotRevision(snapshotRevisionValue(request.requestRevision,
-        display.revision, request.commandRevision, pageSetState.generation));
+        display.revision, request.commandRevision, presentationTargetState.generation));
 
     QVariant activeRole;
     if (primaryPresent) {
@@ -105,17 +107,18 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
         controller.presentationState().qualityPreference,
         controller.presentationState().exactnessPreference);
 
-    const auto roleSnapshot = [this, &request, &display, acceptedGeneration, &pageSetState](
-                                  PageRole role) -> ImageViewportRoleSnapshot {
+    const auto roleSnapshot
+        = [this, &request, &display, acceptedGeneration, &presentationTargetState](
+              PageRole role) -> ImageViewportRoleSnapshot {
         const bool primary = role == PageRole::Primary;
-        ImageSequence* sequence
-            = primary ? pageSetState.pageSet.primary() : pageSetState.pageSet.secondary();
+        ImageSequence* sequence = primary ? presentationTargetState.presentationTarget.primary()
+                                          : presentationTargetState.presentationTarget.secondary();
         const bool present = sequence != nullptr;
         const bool roleDisplayed = display.status != DisplayStatus::Empty
             && positiveSize(
                 primary ? display.displayedImageSize : display.secondaryDisplayedImageSize);
-        const bool roleDisplayBelongsToAccepted
-            = roleDisplayed && display.displayedRequest.generation == pageSetState.generation;
+        const bool roleDisplayBelongsToAccepted = roleDisplayed
+            && display.displayedRequest.generation == presentationTargetState.generation;
         const QSizeF requestLogicalSize = present
             ? (primary ? sequenceLogicalSize() : secondarySequenceLogicalSize())
             : QSizeF();

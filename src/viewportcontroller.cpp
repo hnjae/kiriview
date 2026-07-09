@@ -881,9 +881,9 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
     return state.engine.requestState();
 }
 
-ViewportEngine::PageSetState ViewportController::pageSetState() const
+ViewportEngine::PresentationTargetState ViewportController::presentationTargetState() const
 {
-    return state.engine.pageSetState();
+    return state.engine.presentationTargetState();
 }
 
 bool ViewportController::hasProviderSession() const
@@ -1050,20 +1050,21 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {
     ViewportSequenceAssignmentResult result;
-    if (assignment.pageSet.isClear()) {
+    if (assignment.presentationTarget.isClear()) {
         ImageSequence* const primarySequence
             = assignment.source.sequence ? assignment.source.sequence : assignment.sequence;
         ImageSequence* const secondarySequence = assignment.secondarySourceHandle.sequence
             ? assignment.secondarySourceHandle.sequence
             : assignment.secondarySequence;
         if (primarySequence) {
-            assignment.pageSet
+            assignment.presentationTarget
                 = ImageViewportPresentationTarget(primarySequence, secondarySequence);
         }
     }
 
-    const ViewportEngine::PageSetAssignmentResult engineAssignment
-        = state.engine.assignPageSet({ assignment.pageSet, assignment.transitionPolicy });
+    const ViewportEngine::PresentationTargetAssignmentResult engineAssignment
+        = state.engine.assignPresentationTarget(
+            { assignment.presentationTarget, assignment.transitionPolicy });
     if (engineAssignment.command.outcome != ImageViewport::CommandOutcome::Accepted) {
         const ViewportCommandResult commandResult
             = ImageViewportInternal::CommandOutcome::fromEngineCommand(
@@ -1097,7 +1098,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
 
     if (engineAssignment.clear) {
-        const ViewportCommandResult clearResult = applyAcceptedClearPageSet(engineAssignment);
+        const ViewportCommandResult clearResult
+            = applyAcceptedClearPresentationTarget(engineAssignment);
         result.outcome = clearResult.outcome;
         result.changes = clearResult.changes;
         result.providerFrameTransport = clearResult.providerFrameTransport;
@@ -1137,7 +1139,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         = viewportRequestState(viewport).secondarySequenceSource.sequence;
     viewportRequestState(viewport).secondarySequenceIsProvider = secondarySource.provider;
     state.secondarySource = secondarySource;
-    viewportRequestState(viewport).sequenceGeneration = engineAssignment.pageSetState.generation;
+    viewportRequestState(viewport).sequenceGeneration
+        = engineAssignment.presentationTargetState.generation;
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).nextPreparedPayloadId = 0;
     viewportDisplayState(viewport).clearPendingRenderPayload();
@@ -1291,12 +1294,12 @@ ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
 
 ViewportCommandResult ViewportController::clear()
 {
-    return applyAcceptedClearPageSet(
-        state.engine.assignPageSet({ ImageViewportPresentationTarget::clear(), {} }));
+    return applyAcceptedClearPresentationTarget(
+        state.engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} }));
 }
 
-ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
-    const ViewportEngine::PageSetAssignmentResult& assignment)
+ViewportCommandResult ViewportController::applyAcceptedClearPresentationTarget(
+    const ViewportEngine::PresentationTargetAssignmentResult& assignment)
 {
     ViewportCommandResult result;
     result.outcome = assignment.command.outcome;
@@ -1323,8 +1326,9 @@ ViewportCommandResult ViewportController::applyAcceptedClearPageSet(
     viewportRequestState(viewport).secondarySequence = nullptr;
     viewportRequestState(viewport).secondarySequenceIsProvider = false;
     state.secondarySource = {};
-    if (assignment.pageSetChanged) {
-        viewportRequestState(viewport).sequenceGeneration = assignment.pageSetState.generation;
+    if (assignment.presentationTargetChanged) {
+        viewportRequestState(viewport).sequenceGeneration
+            = assignment.presentationTargetState.generation;
     }
     viewportRequestState(viewport).clearDisplayRequests();
     viewportDisplayState(viewport).clearDisplayedDisplay();

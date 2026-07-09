@@ -80,7 +80,7 @@ public:
     virtual double width() const;
     virtual double height() const;
 
-    // Page-set assignment and active request facts.
+    // Presentation-target assignment and active request facts.
     virtual bool hasActiveRequest() const;
     virtual bool hasReadyDisplay() const;
     virtual bool hasDisplayableSequence() const;
@@ -209,7 +209,7 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
-    ViewportEngine::PageSetState pageSetState() const;
+    ViewportEngine::PresentationTargetState presentationTargetState() const;
     bool hasProviderSession() const;
     bool hasProviderSession(ImageViewport::PageRole role) const;
     bool providerMetadataReady() const;
@@ -404,8 +404,8 @@ private:
     ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
         const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
         double previousZoomPercent);
-    ViewportCommandResult applyAcceptedClearPageSet(
-        const ViewportEngine::PageSetAssignmentResult& assignment);
+    ViewportCommandResult applyAcceptedClearPresentationTarget(
+        const ViewportEngine::PresentationTargetAssignmentResult& assignment);
     void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
     void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);

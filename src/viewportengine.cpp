@@ -89,7 +89,10 @@ ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
     return { m_commandReason, m_commandRevision };
 }
 
-ViewportEngine::PageSetState ViewportEngine::pageSetState() const { return m_pageSetState; }
+ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetState() const
+{
+    return m_presentationTargetState;
+}
 
 ImageViewportInternal::DisplayState& ViewportEngine::displayState() { return m_displayState; }
 
@@ -190,32 +193,35 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
     return snapshot;
 }
 
-ViewportEngine::PageSetAssignmentResult ViewportEngine::assignPageSet(PageSetAssignmentInput input)
+ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
+    PresentationTargetAssignmentInput input)
 {
-    if (!input.pageSet.isValid() || !input.transitionPolicy.isValid()) {
-        return { rejectInvalidCommand(), m_pageSetState };
+    if (!input.presentationTarget.isValid() || !input.transitionPolicy.isValid()) {
+        return { rejectInvalidCommand(), m_presentationTargetState };
     }
 
-    const bool clear = input.pageSet.isClear();
-    const bool clearNoop = clear && m_pageSetState.acceptedRoleSet == ImageViewportRoleSet();
-    const bool pageSetChanged = !clearNoop;
-    PageSetAssignmentResult result;
+    const bool clear = input.presentationTarget.isClear();
+    const bool clearNoop
+        = clear && m_presentationTargetState.acceptedRoleSet == ImageViewportRoleSet();
+    const bool presentationTargetChanged = !clearNoop;
+    PresentationTargetAssignmentResult result;
     result.command = acceptedPreservingCommandDiagnostics();
-    result.pageSetChanged = pageSetChanged;
+    result.presentationTargetChanged = presentationTargetChanged;
     result.clear = clear;
     result.retainPreviousDisplay = input.transitionPolicy.displayTransition()
         == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
     result.releaseDisplayedState = clear || !result.retainPreviousDisplay;
-    result.resetDisplayRequests = pageSetChanged;
-    result.stopPlayback = pageSetChanged;
-    result.closeProviderSessions = pageSetChanged;
+    result.resetDisplayRequests = presentationTargetChanged;
+    result.stopPlayback = presentationTargetChanged;
+    result.closeProviderSessions = presentationTargetChanged;
 
-    if (pageSetChanged) {
-        const quint64 generation = nextPageSetGeneration();
-        m_pageSetState = pageSetStateFor(input.pageSet, generation);
+    if (presentationTargetChanged) {
+        const quint64 generation = nextPresentationTargetGeneration();
+        m_presentationTargetState
+            = presentationTargetStateFor(input.presentationTarget, generation);
     }
 
-    result.pageSetState = m_pageSetState;
+    result.presentationTargetState = m_presentationTargetState;
     return result;
 }
 
@@ -284,30 +290,30 @@ void ViewportEngine::setNextRevisionValueForTest(quint64 token)
     m_commandRevision = {};
 }
 
-quint64 ViewportEngine::nextPageSetGeneration()
+quint64 ViewportEngine::nextPresentationTargetGeneration()
 {
-    if (m_nextPageSetGeneration == std::numeric_limits<quint64>::max()) {
-        qFatal("ImageViewport page-set generation allocator exhausted");
+    if (m_nextPresentationTargetGeneration == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport presentation-target generation allocator exhausted");
     }
-    return ++m_nextPageSetGeneration;
+    return ++m_nextPresentationTargetGeneration;
 }
 
-ViewportEngine::PageSetState ViewportEngine::pageSetStateFor(
-    ImageViewportPresentationTarget pageSet, quint64 generation) const
+ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetStateFor(
+    ImageViewportPresentationTarget presentationTarget, quint64 generation) const
 {
-    PageSetState state;
-    if (pageSet.isClear()) {
-        state.pageSet = ImageViewportPresentationTarget::clear();
+    PresentationTargetState state;
+    if (presentationTarget.isClear()) {
+        state.presentationTarget = ImageViewportPresentationTarget::clear();
         state.generation = generation;
         return state;
     }
 
-    state.pageSet = pageSet;
-    state.acceptedRoleSet = ImageViewportRoleSet(true, pageSet.secondary() != nullptr);
+    state.presentationTarget = presentationTarget;
+    state.acceptedRoleSet = ImageViewportRoleSet(true, presentationTarget.secondary() != nullptr);
     state.targetRoleSet = state.acceptedRoleSet;
     state.generation = generation;
     state.primaryRoleGeneration = generation;
-    state.secondaryRoleGeneration = pageSet.secondary() ? generation : 0;
+    state.secondaryRoleGeneration = presentationTarget.secondary() ? generation : 0;
     state.activeRole = ImageViewport::PageRole::Primary;
     state.activeRoleValid = true;
     return state;

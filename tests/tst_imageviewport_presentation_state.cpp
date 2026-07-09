@@ -36,7 +36,7 @@ private slots:
     void preserveManualPercentDiffersFromPreserveWhenResultingFitIsManual();
     void manualZoomCommandUsesItemCenterAnchor();
     void revisionTokensUseSharedNonWrappingAllocator();
-    void invalidPageSetTransitionPreservesStateAndRevisions();
+    void invalidPresentationTargetTransitionPreservesStateAndRevisions();
     void presentationCommandsUpdateCommandDiagnostics();
     void manualZoomMaximumFallsBackAcrossDisplayStates();
     void manualZoomAbovePublishedLimitIsInvalid();
@@ -1149,7 +1149,8 @@ void ImageViewportPresentationStateTest::revisionTokensUseSharedNonWrappingAlloc
     QCOMPARE(revisionTokenValueForTest(requestAfterAssignment), firstLargeToken + 2);
 }
 
-void ImageViewportPresentationStateTest::invalidPageSetTransitionPreservesStateAndRevisions()
+void ImageViewportPresentationStateTest::
+    invalidPresentationTargetTransitionPreservesStateAndRevisions()
 {
     ImageSequenceFactory factory;
     QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
