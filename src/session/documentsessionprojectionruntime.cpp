@@ -3,6 +3,10 @@
 
 #include "documentsessionprojectionruntime.h"
 
+#include "session/thumbnaillogging.h"
+
+#include <QDebug>
+
 #include <utility>
 
 namespace kiriview {
@@ -11,6 +15,67 @@ namespace {
     {
         static const DirectMediaNavigationCandidateSnapshot snapshot;
         return snapshot;
+    }
+
+    const char* activeNavigationSourceKindLogName(ActiveNavigationSourceKind sourceKind)
+    {
+        switch (sourceKind) {
+        case ActiveNavigationSourceKind::OrdinaryDirectMedia:
+            return "ordinary-direct-media";
+        case ActiveNavigationSourceKind::ImageDocumentPages:
+            return "image-document-pages";
+        case ActiveNavigationSourceKind::None:
+            return "none";
+        }
+
+        return "unknown";
+    }
+
+    const char* missingActiveNavigationThumbnailRowSetReason(ActiveNavigationSourceKind sourceKind,
+        ActiveNavigationSnapshot navigation,
+        const DirectMediaNavigationCandidateSnapshot& directMediaNavigationCandidateSnapshot,
+        const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
+    {
+        if (!navigation.available) {
+            return "navigation-unavailable";
+        }
+        if (!navigation.known) {
+            return "navigation-unknown";
+        }
+        if (navigation.count <= 0) {
+            return "navigation-empty";
+        }
+
+        switch (sourceKind) {
+        case ActiveNavigationSourceKind::OrdinaryDirectMedia:
+            if (!directMediaNavigationCandidateSnapshot.known) {
+                return "direct-media-candidates-unknown";
+            }
+            if (static_cast<int>(
+                    directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot)
+                        .size())
+                != navigation.count) {
+                return "direct-media-count-mismatch";
+            }
+            return "direct-media-identity-missing";
+        case ActiveNavigationSourceKind::ImageDocumentPages:
+            if (!imageDocumentPageCandidateSnapshot.known) {
+                return "image-page-candidates-unknown";
+            }
+            if (!imageDocumentPageCandidateSnapshot.source.has_value()) {
+                return "image-page-candidate-source-missing";
+            }
+            if (static_cast<int>(
+                    imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot).size())
+                != navigation.count) {
+                return "image-page-count-mismatch";
+            }
+            return "image-page-identity-missing";
+        case ActiveNavigationSourceKind::None:
+            return "source-kind-none";
+        }
+
+        return "unknown";
     }
 }
 
@@ -59,6 +124,24 @@ void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
         = activeNavigationThumbnailRowSetIdentity(sourceKind, navigation,
             directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
     if (!rowSetIdentity.has_value()) {
+        qCDebug(kiriviewThumbnailLog)
+            << "Active navigation thumbnail row-set unavailable"
+            << "reason"
+            << missingActiveNavigationThumbnailRowSetReason(sourceKind, navigation,
+                   directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot)
+            << "sourceKind" << activeNavigationSourceKindLogName(sourceKind)
+            << "navigationAvailable" << navigation.available << "navigationKnown"
+            << navigation.known << "navigationCurrent" << navigation.currentNumber
+            << "navigationCount" << navigation.count << "directCandidatesKnown"
+            << directMediaNavigationCandidateSnapshot.known << "directCandidateRevision"
+            << directMediaNavigationCandidateSnapshot.revision << "directCandidateRows"
+            << directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot).size()
+            << "imagePageCandidatesKnown" << imageDocumentPageCandidateSnapshot.known
+            << "imagePageCandidateHasSource"
+            << imageDocumentPageCandidateSnapshot.source.has_value() << "imagePageCandidateRevision"
+            << imageDocumentPageCandidateSnapshot.revision << "imagePageCandidateRows"
+            << imageDocumentPageCandidateRows(imageDocumentPageCandidateSnapshot).size()
+            << "hadPreviousIdentity" << m_activeNavigationThumbnailIdentity.has_value();
         m_activeNavigationThumbnailIdentity.reset();
         if (m_ports.setActiveNavigationThumbnailRows) {
             m_ports.setActiveNavigationThumbnailRows({});
