@@ -61,6 +61,7 @@ qt_add_qml_module(
     viewportcontrollerplaybackcontract_p.h
     viewportcontrollerprovidercontract_p.h
     viewportcontrollerrendercontract_p.h
+    viewportrendercontract_p.h
     viewportcommandoutcome.cpp
     viewportcommandoutcome_p.h
     viewportcontrollermetadata.cpp

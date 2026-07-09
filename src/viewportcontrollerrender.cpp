@@ -1,89 +1,11 @@
 #include "viewportcontrollerrenderhelpers_p.h"
 
 namespace {
-QRectF renderTargetRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
-{
-    return PresentationGeometry::pageItemRect(geometry, role).intersected(geometry.itemBounds);
-}
-
-QRectF renderSourceRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
-{
-    return PresentationGeometry::visiblePageRect(geometry, role);
-}
-
-ImageViewportInternal::PreparedPayload primaryRenderPayload(
+ViewportRenderSnapshotInput renderSnapshotInputForSynchronization(
     ViewportControllerPort viewport, const ViewportRenderSynchronization& synchronization)
 {
-    const auto primaryDisplay
-        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Primary);
-    ImageViewportInternal::PreparedPayload payload = synchronization.preparedPayload;
-    if (payload.image.isNull()
-        && viewportDisplayState(viewport).hasReadyDisplay(viewport.hasDisplayableSequence())) {
-        payload.image = primaryDisplay.displayedImage;
-    }
-    return payload;
-}
-
-ImageViewportInternal::PreparedPayload secondaryRenderPayload(ViewportControllerPort viewport,
-    const ViewportRenderSynchronization& synchronization,
-    const ImageViewportInternal::PreparedPayload& primaryPayload)
-{
-    const auto secondaryDisplay
-        = displayRoleStateFor(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary);
-    ImageViewportInternal::PreparedPayload payload = primaryPayload;
-    if (synchronization.pendingTargetCommit && !secondaryDisplay.pendingPayload.image.isNull()) {
-        return secondaryDisplay.pendingPayload;
-    }
-    payload.image = secondaryDisplay.displayedImage;
-    return payload;
-}
-
-void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::PageRole role,
-    const ImageViewportInternal::PreparedPayload& payload, const QRectF& targetRect,
-    const QRectF& sourceRect, const ImageViewportInternal::PresentationState& presentation,
-    bool requirePresentableRects)
-{
-    if (payload.image.isNull()) {
-        return;
-    }
-    if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
-        return;
-    }
-    layers.append({ role, payload, targetRect, sourceRect, presentation.rotationDegrees,
-        presentation.mirrorHorizontally, presentation.mirrorVertically });
-}
-
-ViewportRenderSnapshot renderSnapshotForSynchronization(ViewportControllerPort viewport,
-    const ViewportRenderSynchronization& synchronization,
-    const ImageViewportInternal::PresentationState& presentation)
-{
-    ViewportRenderSnapshot snapshot;
-    snapshot.itemSize = QSizeF(viewport.width(), viewport.height());
-    snapshot.backgroundMode = presentation.backgroundMode;
-    snapshot.backgroundColor = presentation.backgroundColor;
-    snapshot.smoothing = presentation.smoothing;
-    snapshot.mipmap = presentation.mipmap;
-    snapshot.rotationDegrees = presentation.rotationDegrees;
-    snapshot.mirrorHorizontally = presentation.mirrorHorizontally;
-    snapshot.mirrorVertically = presentation.mirrorVertically;
-
-    const ImageViewportInternal::PreparedPayload primaryPayload
-        = primaryRenderPayload(viewport, synchronization);
-    snapshot.preparedPayload = primaryPayload;
-    snapshot.targetRect
-        = renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
-    snapshot.sourceRect
-        = renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Primary);
-    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Primary, primaryPayload,
-        snapshot.targetRect, snapshot.sourceRect, presentation, false);
-
-    const ImageViewportInternal::PreparedPayload secondaryPayload
-        = secondaryRenderPayload(viewport, synchronization, primaryPayload);
-    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Secondary, secondaryPayload,
-        renderTargetRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
-        renderSourceRect(synchronization.geometryState, ImageViewport::PageRole::Secondary),
-        presentation, true);
-    return snapshot;
+    return { QSizeF(viewport.width(), viewport.height()), synchronization.pendingTargetCommit,
+        synchronization.preparedPayload, synchronization.geometryState };
 }
 
 bool secondaryPayloadReadyForPendingTarget(ViewportControllerPort& viewport)
@@ -258,8 +180,8 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
         synchronization.geometryState
             = controllerGeometryState(viewport, state.engine.presentationState(), devicePixelRatio,
                 std::nullopt, GeometryProjectionTarget::CurrentDisplay);
-        synchronization.renderSnapshot = renderSnapshotForSynchronization(
-            viewport, synchronization, state.engine.presentationState());
+        synchronization.renderSnapshot = state.engine.renderSnapshot(
+            renderSnapshotInputForSynchronization(viewport, synchronization));
         return synchronization;
     }
     synchronization.pendingTargetCommit = requestIsWaitingForRenderCommit(viewport)
@@ -284,8 +206,8 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
         state.engine.presentationState(), devicePixelRatio, std::nullopt,
         synchronization.pendingTargetCommit ? GeometryProjectionTarget::PendingRender
                                             : GeometryProjectionTarget::CurrentDisplay);
-    synchronization.renderSnapshot = renderSnapshotForSynchronization(
-        viewport, synchronization, state.engine.presentationState());
+    synchronization.renderSnapshot = state.engine.renderSnapshot(
+        renderSnapshotInputForSynchronization(viewport, synchronization));
     return synchronization;
 }
 

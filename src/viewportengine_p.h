@@ -3,6 +3,7 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
+#include "viewportrendercontract_p.h"
 
 class ViewportEngine
 {
@@ -77,6 +78,7 @@ public:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
+    ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
 
     PageSetAssignmentResult assignPageSet(PageSetAssignmentInput input);
     CommandResult rejectInvalidCommand();

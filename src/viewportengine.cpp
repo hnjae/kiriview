@@ -16,6 +16,70 @@ bool fitModeValid(ImageViewport::FitMode mode)
     }
     return false;
 }
+
+QRectF renderTargetRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
+{
+    return PresentationGeometry::pageItemRect(geometry, role).intersected(geometry.itemBounds);
+}
+
+QRectF renderSourceRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
+{
+    return PresentationGeometry::visiblePageRect(geometry, role);
+}
+
+const ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
+    const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? display.secondaryPendingRenderPayload
+                                                      : display.pendingRenderPayload;
+}
+
+const QImage& displayedImageForRole(
+    const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
+{
+    return role == ImageViewport::PageRole::Secondary ? display.secondaryDisplayedImage
+                                                      : display.displayedImage;
+}
+
+ImageViewportInternal::PreparedPayload primaryRenderPayload(
+    const ImageViewportInternal::DisplayState& display,
+    const ImageViewportInternal::RequestState& request, const ViewportRenderSnapshotInput& input)
+{
+    ImageViewportInternal::PreparedPayload payload = input.preparedPayload;
+    if (payload.image.isNull() && display.hasReadyDisplay(request.sequenceSource.facts.present)) {
+        payload.image = displayedImageForRole(display, ImageViewport::PageRole::Primary);
+    }
+    return payload;
+}
+
+ImageViewportInternal::PreparedPayload secondaryRenderPayload(
+    const ImageViewportInternal::DisplayState& display, const ViewportRenderSnapshotInput& input,
+    const ImageViewportInternal::PreparedPayload& primaryPayload)
+{
+    ImageViewportInternal::PreparedPayload payload = primaryPayload;
+    const auto& secondaryPending
+        = pendingPayloadForRole(display, ImageViewport::PageRole::Secondary);
+    if (input.pendingTargetCommit && !secondaryPending.image.isNull()) {
+        return secondaryPending;
+    }
+    payload.image = displayedImageForRole(display, ImageViewport::PageRole::Secondary);
+    return payload;
+}
+
+void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::PageRole role,
+    const ImageViewportInternal::PreparedPayload& payload, const QRectF& targetRect,
+    const QRectF& sourceRect, const ImageViewportInternal::PresentationState& presentation,
+    bool requirePresentableRects)
+{
+    if (payload.image.isNull()) {
+        return;
+    }
+    if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
+        return;
+    }
+    layers.append({ role, payload, targetRect, sourceRect, presentation.rotationDegrees,
+        presentation.mirrorHorizontally, presentation.mirrorVertically });
+}
 }
 
 ImageViewportStateSnapshot ViewportEngine::snapshot() const { return {}; }
@@ -94,6 +158,36 @@ PresentationGeometry::State ViewportEngine::geometryState(
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0,
         presentation.contentPosition,
     };
+}
+
+ViewportRenderSnapshot ViewportEngine::renderSnapshot(
+    const ViewportRenderSnapshotInput& input) const
+{
+    ViewportRenderSnapshot snapshot;
+    snapshot.itemSize = input.itemSize;
+    snapshot.backgroundMode = m_presentationState.backgroundMode;
+    snapshot.backgroundColor = m_presentationState.backgroundColor;
+    snapshot.smoothing = m_presentationState.smoothing;
+    snapshot.mipmap = m_presentationState.mipmap;
+    snapshot.rotationDegrees = m_presentationState.rotationDegrees;
+    snapshot.mirrorHorizontally = m_presentationState.mirrorHorizontally;
+    snapshot.mirrorVertically = m_presentationState.mirrorVertically;
+
+    const ImageViewportInternal::PreparedPayload primaryPayload
+        = primaryRenderPayload(m_displayState, m_requestState, input);
+    snapshot.preparedPayload = primaryPayload;
+    snapshot.targetRect = renderTargetRect(input.geometryState, ImageViewport::PageRole::Primary);
+    snapshot.sourceRect = renderSourceRect(input.geometryState, ImageViewport::PageRole::Primary);
+    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Primary, primaryPayload,
+        snapshot.targetRect, snapshot.sourceRect, m_presentationState, false);
+
+    const ImageViewportInternal::PreparedPayload secondaryPayload
+        = secondaryRenderPayload(m_displayState, input, primaryPayload);
+    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Secondary, secondaryPayload,
+        renderTargetRect(input.geometryState, ImageViewport::PageRole::Secondary),
+        renderSourceRect(input.geometryState, ImageViewport::PageRole::Secondary),
+        m_presentationState, true);
+    return snapshot;
 }
 
 ViewportEngine::PageSetAssignmentResult ViewportEngine::assignPageSet(PageSetAssignmentInput input)

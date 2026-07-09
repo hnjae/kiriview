@@ -23,6 +23,7 @@ private slots:
     void presentationNoopValidatesEnumShape();
     void defaultPresentationStateMatchesPublicDefaults();
     void geometryProjectionUsesEnginePresentationState();
+    void renderSnapshotUsesEnginePresentationAndPayloadState();
     void validPageSetAssignmentAllocatesGenerationAndRoleSet();
     void twoRoleAssignmentIsAcceptedAtomically();
     void invalidPageSetAssignmentMutatesOnlyCommandDiagnostics();
@@ -418,6 +419,75 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(geometry.devicePixelRatio, 2.0);
     QCOMPARE(geometry.contentPosition, QPointF(3.0, 5.0));
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));
+}
+
+void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
+{
+    ViewportEngine engine;
+    auto& presentation = engine.presentationState();
+    presentation.backgroundMode = ImageViewport::BackgroundMode::SolidColor;
+    presentation.backgroundColor = QColor(0x10, 0x20, 0x30);
+    presentation.rotationDegrees = 90;
+    presentation.smoothing = false;
+    presentation.mipmap = true;
+    presentation.mirrorHorizontally = true;
+    presentation.mirrorVertically = true;
+
+    auto& request = engine.requestState();
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        ImageViewportInternal::DisplayRequestTarget {
+            2, 100, ImageViewportInternal::ProviderRequestTargetKind::Frame },
+        ImageViewportInternal::ResolvedFrameIdentity { 2, 100 }, true);
+
+    QImage primaryImage(20, 10, QImage::Format_ARGB32_Premultiplied);
+    primaryImage.fill(Qt::red);
+    QImage secondaryImage(8, 10, QImage::Format_ARGB32_Premultiplied);
+    secondaryImage.fill(Qt::blue);
+
+    auto& display = engine.displayState();
+    display.pendingRenderPayload
+        = { true, request.sequenceGeneration, request.activeRequest.identity.id, 3, primaryImage };
+    display.secondaryPendingRenderPayload = { true, request.sequenceGeneration,
+        request.activeRequest.identity.id, 4, secondaryImage };
+
+    ViewportRenderSnapshotInput input;
+    input.itemSize = QSizeF(100.0, 80.0);
+    input.pendingTargetCommit = true;
+    input.preparedPayload = display.pendingRenderPayload;
+    input.geometryState = engine.geometryState(
+        { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
+
+    const ViewportRenderSnapshot snapshot = engine.renderSnapshot(input);
+
+    QCOMPARE(snapshot.itemSize, QSizeF(100.0, 80.0));
+    QCOMPARE(snapshot.backgroundMode, ImageViewport::BackgroundMode::SolidColor);
+    QCOMPARE(snapshot.backgroundColor, QColor(0x10, 0x20, 0x30));
+    QCOMPARE(snapshot.rotationDegrees, 90);
+    QCOMPARE(snapshot.smoothing, false);
+    QCOMPARE(snapshot.mipmap, true);
+    QCOMPARE(snapshot.mirrorHorizontally, true);
+    QCOMPARE(snapshot.mirrorVertically, true);
+    QCOMPARE(snapshot.preparedPayload.payloadId, 3);
+    QCOMPARE(snapshot.targetRect,
+        PresentationGeometry::pageItemRect(input.geometryState, ImageViewport::PageRole::Primary)
+            .intersected(input.geometryState.itemBounds));
+    QCOMPARE(snapshot.sourceRect,
+        PresentationGeometry::visiblePageRect(
+            input.geometryState, ImageViewport::PageRole::Primary));
+
+    QCOMPARE(snapshot.imageLayers.size(), 2);
+    QCOMPARE(snapshot.imageLayers.at(0).role, ImageViewport::PageRole::Primary);
+    QCOMPARE(snapshot.imageLayers.at(0).preparedPayload.payloadId, 3);
+    QCOMPARE(snapshot.imageLayers.at(0).targetRect, snapshot.targetRect);
+    QCOMPARE(snapshot.imageLayers.at(0).sourceRect, snapshot.sourceRect);
+    QCOMPARE(snapshot.imageLayers.at(0).rotationDegrees, 90);
+    QCOMPARE(snapshot.imageLayers.at(0).mirrorHorizontally, true);
+    QCOMPARE(snapshot.imageLayers.at(0).mirrorVertically, true);
+    QCOMPARE(snapshot.imageLayers.at(1).role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(snapshot.imageLayers.at(1).preparedPayload.payloadId, 4);
+    QCOMPARE(snapshot.imageLayers.at(1).preparedPayload.image, secondaryImage);
+    QCOMPARE(snapshot.imageLayers.at(1).rotationDegrees, 90);
 }
 
 void ViewportEngineTest::validPageSetAssignmentAllocatesGenerationAndRoleSet()
