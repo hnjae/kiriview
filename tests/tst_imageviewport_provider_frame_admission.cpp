@@ -54,7 +54,8 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     ImageViewport item;
     useSynchronousProviderEventDeliveryForTest(item);
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -66,16 +67,13 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameReadyCommitsDisp
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), -1);
@@ -103,7 +101,8 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     PaintProbeViewport item;
     item.setParentItem(window.contentItem());
     item.setSize(QSizeF(20.0, 20.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -117,25 +116,20 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameUsesDeviceIndepe
     image.setDevicePixelRatio(2.0);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
 
     QScopedPointer<QSGNode> root(item.takePaintNode());
     QVERIFY(root);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(displayedImageSize(item), QSizeF(2.0, 1.0));
     QCOMPARE(contentRect(item), QRectF(0.0, 5.0, 20.0, 10.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 2.0, 1.0));
@@ -163,7 +157,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -181,13 +176,12 @@ void ImageViewportProviderFrameAdmissionTest::
     image.setPixelColor(1, 1, QColor(0, 255, 255, 255));
     image.setPixelColor(2, 1, QColor(255, 0, 255, 255));
     ImageFrame frame(image, ImageFrame::OrientationPolicy::Rotate90);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayedImageSize(item), QSizeF(2.0, 3.0));
 
     const QImage normalized = imageForTest(frame);
@@ -212,7 +206,8 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -227,12 +222,9 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UploadPending"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QCOMPARE(primaryDisplayedPosition(item), -1);
     QCOMPARE(displayedImageSize(item), QSizeF(0.0, 0.0));
@@ -240,12 +232,9 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameReadyCommitsTime
 
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
@@ -270,7 +259,8 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -283,19 +273,16 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsLogicalSizeMis
     QImage image(8, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame logical size mismatch")));
+    QVERIFY(
+        viewportErrorString(item).contains(QStringLiteral("provider frame logical size mismatch")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatchRejectsPayload()
@@ -314,7 +301,8 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -330,24 +318,18 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameEnvelopeMismatch
         = sessionFactory->lastSession()->lastFrameToken();
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 1, 100);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame resolved frame mismatch")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame resolved frame mismatch")));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 0, 0);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
 }
 
@@ -374,7 +356,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -386,18 +369,15 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RequestQueued"));
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
     QCOMPARE(*positionRequestCount, 1);
     QCOMPARE(*lastPositionFrame, 1);
     QCOMPARE(*lastRequestedPosition, 350);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 350);
 
@@ -406,33 +386,27 @@ void ImageViewportProviderFrameAdmissionTest::
     ImageFrame frame(image);
     const ImageSequenceProviderRequestToken frameToken
         = sessionFactory->lastSession()->lastPositionToken();
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        frameToken, &frame, ImageSequenceProviderFrameMetadata::timedFrame(1, 350));
+    emitProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame,
+        ImageSequenceProviderFrameMetadata::timedFrame(1, 350));
     drainQueuedProviderResults();
 
     QCOMPARE(*closeCount, 0);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 350);
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QCOMPARE(primaryDisplayedPosition(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame start position mismatch")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame start position mismatch")));
 
     emitTimedProviderFrameReady(sessionFactory->lastSession(), frameToken, &frame, 1, 100);
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
 }
 
@@ -453,7 +427,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -470,28 +445,22 @@ void ImageViewportProviderFrameAdmissionTest::
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 1, 100);
 
     QCOMPARE(*closeCount, 0);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame resolved frame mismatch")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame resolved frame mismatch")));
 
     QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
     QCOMPARE(*closeCount, 0);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 350);
     QCOMPARE(primaryDisplayedFrame(item), -1);
@@ -515,7 +484,8 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -533,15 +503,12 @@ void ImageViewportProviderFrameAdmissionTest::providerStillFrameEnvelopeMismatch
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0));
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame metadata is invalid")));
+    QVERIFY(
+        viewportErrorString(item).contains(QStringLiteral("provider frame metadata is invalid")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnvelope()
@@ -560,7 +527,8 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -578,15 +546,12 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameRejectsStillEnve
         ImageSequenceProviderFrameMetadata::stillFrame());
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame metadata is invalid")));
+    QVERIFY(
+        viewportErrorString(item).contains(QStringLiteral("provider frame metadata is invalid")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatchRejectsPayload()
@@ -605,7 +570,8 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -623,15 +589,11 @@ void ImageViewportProviderFrameAdmissionTest::providerTimedFrameDurationMismatch
         ImageSequenceProviderFrameMetadata::timedFrame(0, 0, 250));
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame duration mismatch")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider frame duration mismatch")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::
@@ -651,7 +613,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -667,16 +630,12 @@ void ImageViewportProviderFrameAdmissionTest::
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
 
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(
-                QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGenerationFrameSeekable()
@@ -695,7 +654,8 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -712,29 +672,22 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &excessiveFrame, 0, 0);
 
     QCOMPARE(*closeCount, 0);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
-    QVERIFY(viewportErrorString(item)
-            .contains(
-                QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
 
     QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
     QCOMPARE(*closeCount, 0);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
     QCOMPARE(viewportErrorString(item), QString());
@@ -745,12 +698,9 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &validFrame, 1, 100);
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
@@ -773,7 +723,8 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -790,15 +741,12 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameRejectsInvalidPayload
         sessionFactory->lastSession()->lastFrameToken(), frame.get());
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame payload byte size is invalid")));
+    QVERIFY(viewportErrorString(item).contains(
+        QStringLiteral("provider frame payload byte size is invalid")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadReleasesOnce()
@@ -817,7 +765,8 @@ void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadR
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -832,17 +781,15 @@ void ImageViewportProviderFrameAdmissionTest::providerRejectedOwnedFramePayloadR
               ++*releaseCount;
               delete frame;
           });
-    emitProviderFrameHandleReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), payload);
+    emitProviderFrameHandleReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider frame payload is invalid")));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QVERIFY(
+        viewportErrorString(item).contains(QStringLiteral("provider frame payload is invalid")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadReleasesOnce()
@@ -861,7 +808,8 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -889,12 +837,9 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(viewportErrorString(item), QString());
 }
@@ -916,7 +861,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -942,12 +888,9 @@ void ImageViewportProviderFrameAdmissionTest::
 
     QCOMPARE(*releaseCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "NoRequest"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "NoRequest"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "NoRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(viewportErrorString(item), QString());
 }
 
@@ -967,7 +910,8 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -984,25 +928,20 @@ void ImageViewportProviderFrameAdmissionTest::providerAcceptedOwnedFramePayloadR
             ++*releaseCount;
             delete frame;
         });
-    emitProviderFrameHandleReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), payload);
+    emitProviderFrameHandleReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
 
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
 }
@@ -1030,7 +969,10 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}).outcome(),
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(
+                                            primaryResult->sequence(), secondaryResult->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
         ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
@@ -1050,26 +992,21 @@ void ImageViewportProviderFrameAdmissionTest::
             ++*releaseCount;
             delete frame;
         });
-    emitProviderFrameHandleReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), payload);
+    emitProviderFrameHandleReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), payload);
     drainQueuedProviderResults();
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
     acknowledgePendingRenderCommitForTest(item);
 
     QCOMPARE(*releaseCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(secondaryDisplayedFrame(item), 0);
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
@@ -1093,7 +1030,8 @@ void ImageViewportProviderFrameAdmissionTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1105,28 +1043,23 @@ void ImageViewportProviderFrameAdmissionTest::
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UploadPending"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const ImageViewportRevisionToken uploadPendingRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken uploadPendingRevision
+        = revisionTokenProperty(item, "requestRevision");
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     verifyRevisionChanged(item, "requestRevision", uploadPendingRevision);
 }
@@ -1147,7 +1080,8 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
 
     ImageViewport item;
     item.setSize(QSizeF(0.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -1159,28 +1093,23 @@ void ImageViewportProviderFrameAdmissionTest::providerFrameReadyWithZeroGeometry
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    emitProviderFrameReady(sessionFactory->lastSession(),
-        sessionFactory->lastSession()->lastFrameToken(), &frame);
+    emitProviderFrameReady(
+        sessionFactory->lastSession(), sessionFactory->lastSession()->lastFrameToken(), &frame);
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "RenderWaiting"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QVERIFY(hasPendingRenderCommitForTest(item));
 
-    const ImageViewportRevisionToken renderWaitingRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken renderWaitingRevision
+        = revisionTokenProperty(item, "requestRevision");
     item.setSize(QSizeF(100.0, 100.0));
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
-    QCOMPARE(
-        requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
     verifyRevisionChanged(item, "requestRevision", renderWaitingRevision);
 }

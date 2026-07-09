@@ -46,8 +46,8 @@ void ViewportEngineTest::defaultSnapshotMatchesPublicDefaultProjection()
     QCOMPARE(
         engineSnapshot.display().displayedRoleSet(), itemSnapshot.display().displayedRoleSet());
     QCOMPARE(engineSnapshot.display().targetRoleSet(), itemSnapshot.display().targetRoleSet());
-    QCOMPARE(engineSnapshot.display().belongsToAcceptedPageSet(),
-        itemSnapshot.display().belongsToAcceptedPageSet());
+    QCOMPARE(engineSnapshot.display().belongsToAcceptedPresentationTarget(),
+        itemSnapshot.display().belongsToAcceptedPresentationTarget());
     QCOMPARE(engineSnapshot.display().retained(), itemSnapshot.display().retained());
     QCOMPARE(engineSnapshot.display().displayedPresentationRevision().isValid(), false);
     QCOMPARE(engineSnapshot.display().targetPresentationRevision().isValid(), false);
@@ -501,7 +501,7 @@ void ViewportEngineTest::validPageSetAssignmentAllocatesGenerationAndRoleSet()
 
     ViewportEngine engine;
     const ViewportEngine::PageSetAssignmentResult result
-        = engine.assignPageSet({ ImageViewportPageSet(sequence->sequence()), {} });
+        = engine.assignPageSet({ ImageViewportPresentationTarget(sequence->sequence()), {} });
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(result.command.reason, ImageViewport::CommandReason::NoCommand);
@@ -536,7 +536,7 @@ void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
 
     ViewportEngine engine;
     const ViewportEngine::PageSetAssignmentResult result = engine.assignPageSet(
-        { ImageViewportPageSet(primary->sequence(), secondary->sequence()), {} });
+        { ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()), {} });
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(result.pageSetState.pageSet.primary(), primary->sequence());
@@ -560,9 +560,10 @@ void ViewportEngineTest::invalidPageSetAssignmentMutatesOnlyCommandDiagnostics()
     QVERIFY(secondary->sequence());
 
     ViewportEngine engine;
-    QVERIFY(engine.assignPageSet({ ImageViewportPageSet(primary->sequence()), {} }).pageSetChanged);
+    QVERIFY(engine.assignPageSet({ ImageViewportPresentationTarget(primary->sequence()), {} })
+            .pageSetChanged);
     const ViewportEngine::PageSetState previousState = engine.pageSetState();
-    ImageViewportPageSet secondaryOnly;
+    ImageViewportPresentationTarget secondaryOnly;
     secondaryOnly.setSecondary(secondary->sequence());
 
     const ViewportEngine::PageSetAssignmentResult result
@@ -592,14 +593,16 @@ void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
     QVERIFY(replacement->sequence());
 
     ViewportEngine engine;
-    QVERIFY(engine.assignPageSet({ ImageViewportPageSet(primary->sequence()), {} }).pageSetChanged);
+    QVERIFY(engine.assignPageSet({ ImageViewportPresentationTarget(primary->sequence()), {} })
+            .pageSetChanged);
     const ViewportEngine::PageSetState previousState = engine.pageSetState();
-    PageSetTransitionPolicy invalidPolicy;
-    invalidPolicy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    PresentationTargetTransitionPolicy invalidPolicy;
+    invalidPolicy.setPageGapTransition(
+        PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     invalidPolicy.setPageGap(-1.0);
 
-    const ViewportEngine::PageSetAssignmentResult result
-        = engine.assignPageSet({ ImageViewportPageSet(replacement->sequence()), invalidPolicy });
+    const ViewportEngine::PageSetAssignmentResult result = engine.assignPageSet(
+        { ImageViewportPresentationTarget(replacement->sequence()), invalidPolicy });
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(result.pageSetChanged, false);
@@ -618,16 +621,16 @@ void ViewportEngineTest::clearPageSetAllocatesTransactionAndThenNoops()
     QVERIFY(sequence->sequence());
 
     ViewportEngine engine;
-    QVERIFY(
-        engine.assignPageSet({ ImageViewportPageSet(sequence->sequence()), {} }).pageSetChanged);
+    QVERIFY(engine.assignPageSet({ ImageViewportPresentationTarget(sequence->sequence()), {} })
+            .pageSetChanged);
 
     const ViewportEngine::PageSetAssignmentResult clearResult
-        = engine.assignPageSet({ ImageViewportPageSet::clear(), {} });
+        = engine.assignPageSet({ ImageViewportPresentationTarget::clear(), {} });
 
     QCOMPARE(clearResult.command.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(clearResult.clear, true);
     QCOMPARE(clearResult.pageSetChanged, true);
-    QCOMPARE(clearResult.pageSetState.pageSet, ImageViewportPageSet::clear());
+    QCOMPARE(clearResult.pageSetState.pageSet, ImageViewportPresentationTarget::clear());
     QCOMPARE(clearResult.pageSetState.acceptedRoleSet, ImageViewportRoleSet(false, false));
     QCOMPARE(clearResult.pageSetState.targetRoleSet, ImageViewportRoleSet(false, false));
     QCOMPARE(clearResult.pageSetState.generation, 2);
@@ -636,7 +639,7 @@ void ViewportEngineTest::clearPageSetAllocatesTransactionAndThenNoops()
     QCOMPARE(clearResult.closeProviderSessions, true);
 
     const ViewportEngine::PageSetAssignmentResult noopClear
-        = engine.assignPageSet({ ImageViewportPageSet::clear(), {} });
+        = engine.assignPageSet({ ImageViewportPresentationTarget::clear(), {} });
 
     QCOMPARE(noopClear.command.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(noopClear.pageSetChanged, false);
@@ -659,7 +662,7 @@ void ViewportEngineTest::pageSetAssignmentPreservesPreviousCommandDiagnostic()
     const RevisionToken rejectedRevision = engine.commandDiagnostics().revision;
 
     const ViewportEngine::PageSetAssignmentResult accepted
-        = engine.assignPageSet({ ImageViewportPageSet(sequence->sequence()), {} });
+        = engine.assignPageSet({ ImageViewportPresentationTarget(sequence->sequence()), {} });
 
     QCOMPARE(accepted.command.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(accepted.command.reason, ImageViewport::CommandReason::InvalidRequest);
@@ -685,16 +688,17 @@ void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()
 
     ViewportEngine engine;
     const ViewportEngine::PageSetAssignmentResult retained
-        = engine.assignPageSet({ ImageViewportPageSet(first->sequence()), {} });
+        = engine.assignPageSet({ ImageViewportPresentationTarget(first->sequence()), {} });
     QCOMPARE(retained.retainPreviousDisplay, true);
     QCOMPARE(retained.releaseDisplayedState, false);
     QCOMPARE(retained.resetDisplayRequests, true);
     QCOMPARE(retained.stopPlayback, true);
 
-    PageSetTransitionPolicy policy;
-    policy.setDisplayTransition(PageSetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
+    PresentationTargetTransitionPolicy policy;
+    policy.setDisplayTransition(
+        PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
     const ViewportEngine::PageSetAssignmentResult cleared
-        = engine.assignPageSet({ ImageViewportPageSet(second->sequence()), policy });
+        = engine.assignPageSet({ ImageViewportPresentationTarget(second->sequence()), policy });
     QCOMPARE(cleared.retainPreviousDisplay, false);
     QCOMPARE(cleared.releaseDisplayedState, true);
     QCOMPARE(cleared.resetDisplayRequests, true);

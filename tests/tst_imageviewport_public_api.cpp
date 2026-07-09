@@ -32,7 +32,7 @@ private slots:
     void typedPublicValueDefaultsExposeDocumentedFields();
     void roleGeometrySnapshotFields();
     void revisionTokensExposeValidityAndEquality();
-    void typedPageSetTransitionPolicyPreservesStateWhenInvalid();
+    void typedPresentationTargetTransitionPolicyPreservesStateWhenInvalid();
     void emptyGeometryChangeIncrementsDisplayRevision();
 };
 
@@ -156,6 +156,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "FillMode",
         "HorizontalAlignment",
         "VerticalAlignment",
+        "TriState",
     };
 
     for (const QByteArray& enumerator : absentEnumerators) {
@@ -251,8 +252,9 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "RequestReason",
         "CommandReason",
         "DisplayStatus",
+        "DisplayPhase",
         "PlaybackPhase",
-        "TriState",
+        "CapabilitySupport",
         "CommandOutcome",
         "BackgroundMode",
     };
@@ -271,8 +273,10 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     verifyEnumValues(metaObject, "CommandReason",
         { "NoCommand", "IgnoredNoRequest", "InvalidRequest", "UnsupportedRequest" });
     verifyEnumValues(metaObject, "DisplayStatus", { "Empty", "Ready", "Retained" });
+    verifyEnumValues(metaObject, "DisplayPhase",
+        { "NoPresentation", "PreviousActive", "TransitioningPlaceholder", "CommittedActive" });
     verifyEnumValues(metaObject, "PlaybackPhase", { "Stopped", "Playing", "Waiting", "Paused" });
-    verifyEnumValues(metaObject, "TriState", { "Unavailable", "False", "True" });
+    verifyEnumValues(metaObject, "CapabilitySupport", { "Unavailable", "False", "True" });
     verifyEnumValues(
         metaObject, "CommandOutcome", { "Accepted", "Invalid", "Unsupported", "IgnoredNoRequest" });
     verifyEnumValues(metaObject, "BackgroundMode", { "Transparent", "SolidColor", "Checkerboard" });
@@ -342,7 +346,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     verifyEnumValues(metaObject, "ScanDirection", { "Start", "Previous", "Next", "End" });
 
     const QList<QByteArray> methods = {
-        "setPageSet(ImageViewportPageSet,PageSetTransitionPolicy)",
+        "setPresentationTarget(ImageViewportPresentationTarget,PresentationTargetTransitionPolicy)",
     };
 
     for (const QByteArray& method : methods) {
@@ -352,9 +356,13 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     }
 
     const QList<QByteArray> removedMethods = {
+        "setPageSet(ImageViewportPageSet,PageSetTransitionPolicy)",
         "setPageSet(QVariant)",
         "setPageSet(QVariant,QVariant)",
         "setPageSet(QVariant,QVariant,PageSetTransitionPolicy)",
+        "setPresentationTarget(QVariant)",
+        "setPresentationTarget(QVariant,QVariant)",
+        "setPresentationTarget(QVariant,QVariant,PresentationTargetTransitionPolicy)",
     };
 
     for (const QByteArray& method : removedMethods) {
@@ -409,7 +417,7 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
             QByteArray("QRectF"));
     }
 
-    const QMetaObject& policyMetaObject = PageSetTransitionPolicy::staticMetaObject;
+    const QMetaObject& policyMetaObject = PresentationTargetTransitionPolicy::staticMetaObject;
     const QList<QByteArray> policyProperties = {
         "displayTransition",
         "zoomTransition",
@@ -611,9 +619,9 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
 
     ImageViewport item;
     item.setSize(QSizeF(26.0, 20.0));
-    QCOMPARE(item.setPageSet(
-                 ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()),
-                 PageSetTransitionPolicy {}).outcome(),
+    QCOMPARE(item.setPresentationTarget(
+                 ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()),
+                 PresentationTargetTransitionPolicy {}).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
 
@@ -637,7 +645,7 @@ void ImageViewportPublicApiTest::roleGeometrySnapshotFields()
 
     ImageViewport primaryOnly;
     primaryOnly.setSize(QSizeF(16.0, 8.0));
-    primaryOnly.setPageSet(ImageViewportPageSet(primaryResult->sequence()), PageSetTransitionPolicy {});
+    primaryOnly.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(primaryOnly);
 
     const ImageViewportRoleGeometrySnapshot unavailableSecondary
@@ -677,7 +685,7 @@ void ImageViewportPublicApiTest::revisionTokensExposeValidityAndEquality()
     QCOMPARE(stateSpy.count(), 1);
 }
 
-void ImageViewportPublicApiTest::typedPageSetTransitionPolicyPreservesStateWhenInvalid()
+void ImageViewportPublicApiTest::typedPresentationTargetTransitionPolicyPreservesStateWhenInvalid()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -692,16 +700,16 @@ void ImageViewportPublicApiTest::typedPageSetTransitionPolicyPreservesStateWhenI
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(firstResult->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(ImageViewportPresentationTarget(firstResult->sequence()), PresentationTargetTransitionPolicy {});
     const ImageViewportRevisionToken requestRevision = viewportRequestRevision(item);
     const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
     const ImageViewportRevisionToken commandRevision = viewportCommandRevision(item);
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
-    PageSetTransitionPolicy invalidPolicy;
-    invalidPolicy.setPageGapTransition(PageSetTransitionPolicy::PageGapTransition::SetExplicit);
+    PresentationTargetTransitionPolicy invalidPolicy;
+    invalidPolicy.setPageGapTransition(PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
 
-    const auto outcome = item.setPageSet(ImageViewportPageSet(replacementResult->sequence()), invalidPolicy);
+    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget(replacementResult->sequence()), invalidPolicy);
 
     QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(viewportPrimarySequence(item), firstResult->sequence());

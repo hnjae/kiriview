@@ -129,7 +129,6 @@ public:
         descriptor.setPositionSeekCapability(CapabilitySupport::KnownTrue);
         return descriptor;
     }
-
 };
 
 class TokenCaptureSession final : public ImageSequenceProviderSession
@@ -203,7 +202,8 @@ ImageSequenceProviderRequestToken makeInstalledProviderRequestToken()
         return {};
     }
     ImageViewport viewport;
-    viewport.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    viewport.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     return *capturedToken;
 }
 
@@ -354,8 +354,8 @@ import ImageViewport 1.0
 
 Item {
     property ImageFrame suppliedFrame
-    property imageViewportPageSet pageSet
-    property pageSetTransitionPolicy policy
+    property imageViewportPresentationTarget presentationTarget
+    property presentationTargetTransitionPolicy policy
     property bool typedFactorySurfaceAvailable: false
 
     ImageViewport {
@@ -372,8 +372,8 @@ Item {
         const frameResult = ImageSequenceFactory.fromFrame(suppliedFrame)
         const appendAccepted = list.appendFrame(suppliedFrame, 100)
         const timedResult = ImageSequenceFactory.fromTimedFrameList(list)
-        pageSet.primary = timedResult.sequence
-        viewport.setPageSet(pageSet, policy)
+        presentationTarget.primary = timedResult.sequence
+        viewport.setPresentationTarget(presentationTarget, policy)
         typedFactorySurfaceAvailable = frameResult.sequence !== null
             && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Created
             && appendAccepted === true
@@ -623,7 +623,7 @@ bool canUseInstalledProviderTypedEventSurface()
                 && event.frameHandle()->frame() == &frame && event.frameEnvelope() == envelope;
         });
 
-    auto handle = std::make_unique<ImageSequenceProviderFrameHandle>(&frame, [](ImageFrame*) {});
+    auto handle = std::make_unique<ImageSequenceProviderFrameHandle>(&frame, [](ImageFrame*) { });
     emit session.providerEvent(
         ImageSequenceProviderEvent::frameReady(token, handle.get(), envelope));
 
@@ -826,44 +826,52 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    ImageViewport typedPageSetViewport;
-    const ImageViewportPageSet installedSpread(stillResult->sequence(), timedResult->sequence());
+    ImageViewport typedPresentationTargetViewport;
+    const ImageViewportPresentationTarget installedSpread(
+        stillResult->sequence(), timedResult->sequence());
     if (!installedSpread.isValid() || installedSpread.isClear()
         || installedSpread.primary() != stillResult->sequence()
         || installedSpread.secondary() != timedResult->sequence()) {
         return 1;
     }
-    if (typedPageSetViewport.setPageSet(installedSpread, PageSetTransitionPolicy {}).outcome()
-        != ImageViewport::CommandOutcome::Accepted) {
-        return 1;
-    }
-    if (typedPageSetViewport.state().primary().sequence() != stillResult->sequence()
-        || typedPageSetViewport.state().secondary().sequence() != timedResult->sequence()) {
-        return 1;
-    }
-    PageSetTransitionPolicy typedPageSetPolicy;
-    typedPageSetPolicy.setPageGapTransition(
-        PageSetTransitionPolicy::PageGapTransition::SetExplicit);
-    typedPageSetPolicy.setPageGap(2.0);
-    if (typedPageSetViewport.setPageSet(
-            ImageViewportPageSet(deviceIndependentStillResult->sequence()), typedPageSetPolicy)
+    if (typedPresentationTargetViewport
+            .setPresentationTarget(installedSpread, PresentationTargetTransitionPolicy {})
             .outcome()
         != ImageViewport::CommandOutcome::Accepted) {
         return 1;
     }
-    if (typedPageSetViewport.state().primary().sequence()
-            != deviceIndependentStillResult->sequence()
-        || typedPageSetViewport.state().secondary().sequence() != nullptr
-        || typedPageSetViewport.state().presentation().pageGap() != 2.0) {
+    if (typedPresentationTargetViewport.state().primary().sequence() != stillResult->sequence()
+        || typedPresentationTargetViewport.state().secondary().sequence()
+            != timedResult->sequence()) {
         return 1;
     }
-    ImageViewportPageSet installedSecondaryOnly;
+    PresentationTargetTransitionPolicy typedPresentationTargetPolicy;
+    typedPresentationTargetPolicy.setPageGapTransition(
+        PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
+    typedPresentationTargetPolicy.setPageGap(2.0);
+    if (typedPresentationTargetViewport
+            .setPresentationTarget(
+                ImageViewportPresentationTarget(deviceIndependentStillResult->sequence()),
+                typedPresentationTargetPolicy)
+            .outcome()
+        != ImageViewport::CommandOutcome::Accepted) {
+        return 1;
+    }
+    if (typedPresentationTargetViewport.state().primary().sequence()
+            != deviceIndependentStillResult->sequence()
+        || typedPresentationTargetViewport.state().secondary().sequence() != nullptr
+        || typedPresentationTargetViewport.state().presentation().pageGap() != 2.0) {
+        return 1;
+    }
+    ImageViewportPresentationTarget installedSecondaryOnly;
     installedSecondaryOnly.setSecondary(timedResult->sequence());
     if (installedSecondaryOnly.isValid()
-        || typedPageSetViewport.setPageSet(installedSecondaryOnly, PageSetTransitionPolicy {})
+        || typedPresentationTargetViewport
+                .setPresentationTarget(
+                    installedSecondaryOnly, PresentationTargetTransitionPolicy {})
                 .outcome()
             != ImageViewport::CommandOutcome::Invalid
-        || typedPageSetViewport.state().primary().sequence()
+        || typedPresentationTargetViewport.state().primary().sequence()
             != deviceIndependentStillResult->sequence()) {
         return 1;
     }
@@ -871,7 +879,8 @@ int main(int argc, char** argv)
     ImageViewport helperViewport;
     const auto nearlyEqual
         = [](double left, double right) { return std::abs(left - right) < 0.000001; };
-    const ImageViewportPresentationSnapshot helperPresentation = helperViewport.state().presentation();
+    const ImageViewportPresentationSnapshot helperPresentation
+        = helperViewport.state().presentation();
     const double minimumManualZoom = helperPresentation.minimumManualZoomPercent();
     const double maximumManualZoom = helperPresentation.maximumManualZoomPercent();
     ImageViewportCoordinateInput primaryPageCoordinate;
@@ -907,7 +916,7 @@ int main(int argc, char** argv)
         || snapshot.diagnostics().commandReason() != ImageViewport::CommandReason::NoCommand
         || snapshot.revisions().request().isValid()
         || snapshot.revisions().display() != ImageViewportRevisionToken()
-        || ImageViewportPageSetGenerationToken().isValid()
+        || ImageViewportPresentationTargetGenerationToken().isValid()
         || ImageViewportDemandRevisionToken().isValid()) {
         return 1;
     }
@@ -962,12 +971,14 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const ImageViewportStateSnapshot installedPageSetState = typedPageSetViewport.state();
+    const ImageViewportStateSnapshot installedPresentationTargetState
+        = typedPresentationTargetViewport.state();
     const ImageViewportRoleGeometrySnapshot installedPrimaryGeometry
-        = installedPageSetState.primary().geometry();
+        = installedPresentationTargetState.primary().geometry();
     const ImageViewportRoleGeometrySnapshot installedSecondaryGeometry
-        = installedPageSetState.secondary().geometry();
-    if (!installedPageSetState.primary().present() || installedPageSetState.secondary().present()
+        = installedPresentationTargetState.secondary().geometry();
+    if (!installedPresentationTargetState.primary().present()
+        || installedPresentationTargetState.secondary().present()
         || installedPrimaryGeometry.acceptedPageRect() != QRectF()
         || installedPrimaryGeometry.acceptedItemRect() != QRectF()
         || installedPrimaryGeometry.acceptedVisiblePageRect() != QRectF()
@@ -1030,9 +1041,11 @@ int main(int argc, char** argv)
     }
 
     ImageViewport providerViewport;
-    providerViewport.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    providerViewport.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
-        || providerViewport.state().request().reason() != ImageViewport::RequestReason::ProviderWaiting
+        || providerViewport.state().request().reason()
+            != ImageViewport::RequestReason::ProviderWaiting
         || providerViewport.state().primary().request().frame() != 0
         || providerViewport.state().primary().request().position() != 0
         || providerViewport.state().primary().metadata().frameCount() != 2
@@ -1042,7 +1055,8 @@ int main(int argc, char** argv)
 
     QCoreApplication::processEvents();
     if (providerViewport.state().request().status() != ImageViewport::RequestStatus::Loading
-        || providerViewport.state().request().reason() != ImageViewport::RequestReason::RenderWaiting
+        || providerViewport.state().request().reason()
+            != ImageViewport::RequestReason::RenderWaiting
         || providerViewport.state().display().status() != ImageViewport::DisplayStatus::Empty
         || providerViewport.state().primary().display().frame() != -1) {
         return 1;

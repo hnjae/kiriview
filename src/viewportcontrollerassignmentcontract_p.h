@@ -20,18 +20,18 @@ struct ViewportSequenceRoleSource
 
 struct ControllerTransitionPolicy
 {
-    PageSetTransitionPolicy::DisplayTransition displayTransition
-        = PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
-    PageSetTransitionPolicy::ZoomTransition magnificationPolicy
-        = PageSetTransitionPolicy::ZoomTransition::Preserve;
-    PageSetTransitionPolicy::ContentPositionTransition contentPositionTransition
-        = PageSetTransitionPolicy::ContentPositionTransition::Clamp;
-    PageSetTransitionPolicy::RotationTransition rotationTransition
-        = PageSetTransitionPolicy::RotationTransition::Preserve;
-    PageSetTransitionPolicy::MirrorTransition mirrorTransition
-        = PageSetTransitionPolicy::MirrorTransition::Preserve;
-    PageSetTransitionPolicy::ReplacementIntent replacementIntent
-        = PageSetTransitionPolicy::ReplacementIntent::NewTarget;
+    PresentationTargetTransitionPolicy::DisplayTransition displayTransition
+        = PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
+    PresentationTargetTransitionPolicy::ZoomTransition magnificationPolicy
+        = PresentationTargetTransitionPolicy::ZoomTransition::Preserve;
+    PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
+        = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
+    PresentationTargetTransitionPolicy::RotationTransition rotationTransition
+        = PresentationTargetTransitionPolicy::RotationTransition::Preserve;
+    PresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
+        = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
+    PresentationTargetTransitionPolicy::ReplacementIntent replacementIntent
+        = PresentationTargetTransitionPolicy::ReplacementIntent::NewTarget;
     std::optional<ImageViewport::FitMode> explicitFitMode;
     std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
     std::optional<double> explicitPageGap;
@@ -41,20 +41,20 @@ struct ViewportSequenceAssignment
 {
     ViewportSequenceAssignment() = default;
     ViewportSequenceAssignment(ImageSequence* primarySequence)
-        : pageSet(primarySequence ? ImageViewportPageSet(primarySequence)
-                                  : ImageViewportPageSet::clear())
+        : pageSet(primarySequence ? ImageViewportPresentationTarget(primarySequence)
+                                  : ImageViewportPresentationTarget::clear())
         , sequence(primarySequence)
     {
         source.sequence = primarySequence;
     }
 
-    ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
+    ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
     ImageViewportInternal::ImageSequenceSource source;
     ImageViewportInternal::ImageSequenceSource secondarySourceHandle;
     ImageSequence* sequence = nullptr;
     ImageSequence* secondarySequence = nullptr;
     ViewportSequenceRoleSource secondarySource;
-    PageSetTransitionPolicy transitionPolicy;
+    PresentationTargetTransitionPolicy transitionPolicy;
 };
 
 struct ViewportSequenceAssignmentResult

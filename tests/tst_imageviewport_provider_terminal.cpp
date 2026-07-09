@@ -36,7 +36,8 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -54,16 +55,13 @@ void ImageViewportProviderTerminalTest::providerFrameUnsupportedOperationReports
         QStringLiteral("frame operation unsupported"));
     drainQueuedProviderResults();
 
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("frame operation unsupported")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("frame operation unsupported")));
 }
 
 void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReportsPayloadRejection()
@@ -86,7 +84,8 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -112,18 +111,13 @@ void ImageViewportProviderTerminalTest::providerPlaybackUnsupportedPayloadReport
         QStringLiteral("playback payload unsupported"));
     drainQueuedProviderResults();
 
-    QCOMPARE(
-        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
+    QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("playback payload unsupported")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("playback payload unsupported")));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFailure()
@@ -143,7 +137,8 @@ void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFa
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -155,16 +150,12 @@ void ImageViewportProviderTerminalTest::providerMetadataFailureReportsProviderFa
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("metadata service unavailable")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata service unavailable")));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupportedRequest()
@@ -184,7 +175,8 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -197,48 +189,43 @@ void ImageViewportProviderTerminalTest::providerMetadataUnsupportedReportsUnsupp
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
     QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("unsupported codec")));
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.seekToPosition(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 
     QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Unsupported);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
-    QCOMPARE(requestStatusValue(item),
-        enumValue(metaObject, "RequestStatus", "Unsupported"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
     QCOMPARE(
-        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Unsupported"));
+    QCOMPARE(
+        requestReasonValue(item), enumValue(metaObject, "RequestReason", "UnsupportedRequest"));
+    QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
@@ -262,7 +249,8 @@ void ImageViewportProviderTerminalTest::providerMetadataCancellationReportsProvi
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -274,16 +262,12 @@ void ImageViewportProviderTerminalTest::providerMetadataCancellationReportsProvi
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("metadata cancelled by provider")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("metadata cancelled by provider")));
 }
 
 void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProtocolViolation()
@@ -303,7 +287,8 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -314,32 +299,26 @@ void ImageViewportProviderTerminalTest::providerMetadataEndOfSequenceReportsProt
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(
-        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider protocol violation")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 
@@ -360,7 +339,8 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -377,33 +357,27 @@ void ImageViewportProviderTerminalTest::providerFrameEndOfSequenceReportsProtoco
 
     QCOMPARE(*closeCount, 1);
     QCOMPARE(*cancelRequestCount, 0);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(
-        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), -1);
     QCOMPARE(primaryFrameCount(item), 1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider protocol violation")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*cancelRequestCount, 0);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 
@@ -425,7 +399,8 @@ void ImageViewportProviderTerminalTest::
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -437,17 +412,14 @@ void ImageViewportProviderTerminalTest::
     QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "RequestQueued"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RequestQueued"));
     drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken totalDurationToken
         = sessionFactory->lastSession()->lastFrameToken();
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderWaiting"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 350);
 
@@ -456,34 +428,28 @@ void ImageViewportProviderTerminalTest::
 
     QCOMPARE(*closeCount, 1);
     QCOMPARE(*cancelRequestCount, 1);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
-    QCOMPARE(
-        displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(
-        playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
+    QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 350);
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QCOMPARE(primaryDisplayedPosition(item), -1);
-    QVERIFY(viewportErrorString(item)
-            .contains(QStringLiteral("provider protocol violation")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider protocol violation")));
 
-    const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
+    const ImageViewportRevisionToken requestRevision
+        = revisionTokenProperty(item, "requestRevision");
     QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*closeCount, 1);
-    QCOMPARE(commandReasonValue(item),
-        enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
 }
 QTEST_MAIN(ImageViewportProviderTerminalTest)

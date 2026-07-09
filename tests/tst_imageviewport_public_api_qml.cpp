@@ -109,8 +109,8 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property imageViewportPageSet pageSet
-    property pageSetTransitionPolicy policy
+    property imageViewportPresentationTarget presentationTarget
+    property presentationTargetTransitionPolicy policy
     property bool initialSetAccepted: false
     property bool removedSequencePropertyPreservedReadyState: false
 
@@ -136,8 +136,8 @@ ImageViewport {
     }
 
     Component.onCompleted: {
-        pageSet.primary = suppliedSequence
-        initialSetAccepted = setPageSet(pageSet, policy).outcome === ImageViewport.CommandOutcome.Accepted
+        presentationTarget.primary = suppliedSequence
+        initialSetAccepted = setPresentationTarget(presentationTarget, policy).outcome === ImageViewport.CommandOutcome.Accepted
     }
 }
 )",
@@ -172,12 +172,12 @@ ImageViewport {
 
     property bool defaultsValid: false
     property bool roleCommandsReachViewport: false
-    property bool pageSetValidationPreservedState: false
+    property bool presentationTargetValidationPreservedState: false
     property bool presentationCommandsReachViewport: false
     property bool manualZoomHelpersRemoved: false
     property bool coordinateAliasesAvailable: false
-    property imageViewportPageSet pageSet
-    property pageSetTransitionPolicy policy
+    property imageViewportPresentationTarget presentationTarget
+    property presentationTargetTransitionPolicy policy
     property imageViewportPresentationCommand spreadDirectionCommand
     property imageViewportPresentationCommand pageGapCommand
     property imageViewportPresentationCommand fitModeCommand
@@ -269,8 +269,8 @@ ImageViewport {
 
         policy.pageGap = -1
         policy.pageGapTransition = 1
-        const invalidPageSetOutcome = setPageSet(pageSet, policy)
-        pageSetValidationPreservedState = invalidPageSetOutcome.outcome === ImageViewport.CommandOutcome.Invalid
+        const invalidPresentationTargetOutcome = setPresentationTarget(presentationTarget, policy)
+        presentationTargetValidationPreservedState = invalidPresentationTargetOutcome.outcome === ImageViewport.CommandOutcome.Invalid
             && state.primary.sequence === null
             && state.secondary.sequence === null
             && state.request.status === ImageViewport.RequestStatus.NoRequest
@@ -369,7 +369,7 @@ ImageViewport {
     QVERIFY2(object, qPrintable(componentErrors(component)));
 
     QCOMPARE(object->property("defaultsValid").toBool(), true);
-    QCOMPARE(object->property("pageSetValidationPreservedState").toBool(), true);
+    QCOMPARE(object->property("presentationTargetValidationPreservedState").toBool(), true);
     QCOMPARE(object->property("roleCommandsReachViewport").toBool(), true);
     QCOMPARE(object->property("presentationCommandsReachViewport").toBool(), true);
     QCOMPARE(object->property("manualZoomHelpersRemoved").toBool(), true);
@@ -402,13 +402,13 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property imageViewportPageSet pageSet
-    property pageSetTransitionPolicy policy
+    property imageViewportPresentationTarget presentationTarget
+    property presentationTargetTransitionPolicy policy
     property real observedMaximum: recorder.rememberMaximum(state.presentation.maximumManualZoomPercent)
 
     Component.onCompleted: {
-        pageSet.primary = suppliedSequence
-        setPageSet(pageSet, policy)
+        presentationTarget.primary = suppliedSequence
+        setPresentationTarget(presentationTarget, policy)
     }
 }
 )",
@@ -546,8 +546,8 @@ ImageViewport {
     height: 100
 
     property ImageSequence suppliedSequence
-    property imageViewportPageSet pageSet
-    property pageSetTransitionPolicy policy
+    property imageViewportPresentationTarget presentationTarget
+    property presentationTargetTransitionPolicy policy
     property bool readyValuesHaveDocumentedFields: state.primary.display.sourceLogicalSize.width === 16
         && state.primary.display.sourceLogicalSize.height === 8
         && state.display.contentRect.x === 0
@@ -564,8 +564,8 @@ ImageViewport {
         && state.primary.metadata.positionSeekBounds.maximum === -1
 
     Component.onCompleted: {
-        pageSet.primary = suppliedSequence
-        setPageSet(pageSet, policy)
+        presentationTarget.primary = suppliedSequence
+        setPresentationTarget(presentationTarget, policy)
     }
 }
 )",

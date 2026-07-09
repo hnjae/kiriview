@@ -47,12 +47,12 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     diagnostic += QStringLiteral("tail");
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
     QVERIFY(sessionFactory->lastSession());
-    emitProviderFailed(
-        sessionFactory->lastSession(), sessionFactory->lastSession()->lastMetadataToken(),
-        diagnostic);
+    emitProviderFailed(sessionFactory->lastSession(),
+        sessionFactory->lastSession()->lastMetadataToken(), diagnostic);
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
@@ -75,7 +75,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -86,10 +87,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsRedactPriv
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(!errorString.contains(QStringLiteral("https://")));
     QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
     QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
@@ -115,7 +114,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         QVERIFY(result->sequence());
 
         ImageViewport item;
-        item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+        item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+            PresentationTargetTransitionPolicy {});
 
         QVERIFY(sessionFactory->lastSession());
         emitTerminalResult(
@@ -136,9 +136,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::
         "/home/ops/private/image.png and C:\\Users\\ops\\secret.png");
     verifyDiagnostic(
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
-            emitProviderUnsupported(
-                session, token, ImageSequenceProviderUnsupportedCause::UnsupportedRequest,
-                diagnostic);
+            emitProviderUnsupported(session, token,
+                ImageSequenceProviderUnsupportedCause::UnsupportedRequest, diagnostic);
         });
     verifyDiagnostic(
         [&diagnostic](CountingProviderSession* session, ImageSequenceProviderRequestToken token) {
@@ -161,11 +160,12 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    const QString suppliedDiagnostic
-        = QStringLiteral("invalid cause for https://user:secret@example.test/image.png token=abc123");
+    const QString suppliedDiagnostic = QStringLiteral(
+        "invalid cause for https://user:secret@example.test/image.png token=abc123");
     QVERIFY(sessionFactory->lastSession());
     emitProviderUnsupported(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
@@ -173,10 +173,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "PayloadRejection"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QVERIFY(errorString.contains(QStringLiteral("provider protocol violation")));
     QVERIFY(!errorString.contains(QStringLiteral("https://")));
     QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
@@ -199,7 +197,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
     QVERIFY(result->sequence());
 
     ImageViewport item;
-    item.setPageSet(ImageViewportPageSet(result->sequence()), PageSetTransitionPolicy {});
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
     QVERIFY(sessionFactory->lastSession());
@@ -209,10 +208,8 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainTe
     drainQueuedProviderResults();
 
     const QString errorString = viewportErrorString(item);
-    QCOMPARE(
-        requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
-    QCOMPARE(requestReasonValue(item),
-        enumValue(metaObject, "RequestReason", "ProviderFailure"));
+    QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
+    QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
     QVERIFY(!errorString.contains(QLatin1Char('<')));
     QVERIFY(!errorString.contains(QLatin1Char('>')));
     QVERIFY(!errorString.contains(QLatin1Char('\n')));

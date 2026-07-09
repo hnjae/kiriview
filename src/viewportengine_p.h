@@ -19,7 +19,7 @@ public:
 
     struct PageSetState
     {
-        ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
+        ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
         ImageViewportRoleSet acceptedRoleSet;
         ImageViewportRoleSet targetRoleSet;
         quint64 generation = 0;
@@ -31,8 +31,8 @@ public:
 
     struct PageSetAssignmentInput
     {
-        ImageViewportPageSet pageSet = ImageViewportPageSet::clear();
-        PageSetTransitionPolicy transitionPolicy;
+        ImageViewportPresentationTarget pageSet = ImageViewportPresentationTarget::clear();
+        PresentationTargetTransitionPolicy transitionPolicy;
     };
 
     struct CommandDiagnostics
@@ -95,7 +95,7 @@ private:
     CommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();
     quint64 nextPageSetGeneration();
-    PageSetState pageSetStateFor(ImageViewportPageSet pageSet, quint64 generation) const;
+    PageSetState pageSetStateFor(ImageViewportPresentationTarget pageSet, quint64 generation) const;
 
     quint64 m_nextRevision = 0;
     quint64 m_nextPageSetGeneration = 0;

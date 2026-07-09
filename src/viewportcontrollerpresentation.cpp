@@ -124,7 +124,8 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
     ImageViewportInternal::ViewportChangeSet changes;
     auto markChanged = [&]() { mergeChanges(changes, presentationChanges(viewport, true)); };
 
-    if (policy.magnificationPolicy == PageSetTransitionPolicy::ZoomTransition::ResetToContain) {
+    if (policy.magnificationPolicy
+        == PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
         if (presentation.fitMode != ImageViewport::FitMode::Contain
             || presentation.manualZoom != 1.0) {
             presentation.fitMode = ImageViewport::FitMode::Contain;
@@ -136,7 +137,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
         presentation.fitMode = *policy.explicitFitMode;
         markChanged();
     }
-    if (policy.magnificationPolicy == PageSetTransitionPolicy::ZoomTransition::Preserve
+    if (policy.magnificationPolicy == PresentationTargetTransitionPolicy::ZoomTransition::Preserve
         && presentation.fitMode == ImageViewport::FitMode::Manual
         && ImageViewportInternal::isFinitePositive(previousZoomPercent)) {
         const double previousManualZoom = previousZoomPercent / 100.0;
@@ -145,12 +146,12 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
             markChanged();
         }
     }
-    if (policy.rotationTransition == PageSetTransitionPolicy::RotationTransition::Reset
+    if (policy.rotationTransition == PresentationTargetTransitionPolicy::RotationTransition::Reset
         && presentation.rotationDegrees != 0) {
         presentation.rotationDegrees = 0;
         markChanged();
     }
-    if (policy.mirrorTransition == PageSetTransitionPolicy::MirrorTransition::Reset
+    if (policy.mirrorTransition == PresentationTargetTransitionPolicy::MirrorTransition::Reset
         && (presentation.mirrorHorizontally || presentation.mirrorVertically)) {
         presentation.mirrorHorizontally = false;
         presentation.mirrorVertically = false;
@@ -167,20 +168,20 @@ ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTr
     }
 
     if (policy.contentPositionTransition
-        == PageSetTransitionPolicy::ContentPositionTransition::ScanStart) {
+        == PresentationTargetTransitionPolicy::ContentPositionTransition::ScanStart) {
         if (applyContentPositionForGeometry(
                 presentation, acceptedGeometryState(viewport, presentation), {})) {
             markChanged();
         }
     } else if (policy.contentPositionTransition
-        == PageSetTransitionPolicy::ContentPositionTransition::ScanEnd) {
+        == PresentationTargetTransitionPolicy::ContentPositionTransition::ScanEnd) {
         const PresentationGeometry::State geometry = acceptedGeometryState(viewport, presentation);
         if (applyContentPositionForGeometry(
                 presentation, geometry, PresentationGeometry::maximumContentPosition(geometry))) {
             markChanged();
         }
     } else if (policy.contentPositionTransition
-        == PageSetTransitionPolicy::ContentPositionTransition::Clamp) {
+        == PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp) {
         if (applyContentPositionForGeometry(presentation,
                 acceptedGeometryState(viewport, presentation), previousContentPosition)) {
             markChanged();

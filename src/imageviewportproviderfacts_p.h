@@ -4,21 +4,21 @@
 
 namespace ImageViewportInternal {
 
-inline ImageViewport::TriState capabilitySupportToTriState(
+inline ImageViewport::CapabilitySupport providerCapabilitySupport(
     ImageSequenceProviderCapabilitySupport support)
 {
     switch (support) {
     case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
     case ImageSequenceProviderCapabilitySupport::KnownFalse:
-        return ImageViewport::TriState::False;
+        return ImageViewport::CapabilitySupport::False;
     case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
     case ImageSequenceProviderCapabilitySupport::KnownTrue:
-        return ImageViewport::TriState::True;
+        return ImageViewport::CapabilitySupport::True;
     case ImageSequenceProviderCapabilitySupport::Unavailable:
-        return ImageViewport::TriState::Unavailable;
+        return ImageViewport::CapabilitySupport::Unavailable;
     }
 
-    return ImageViewport::TriState::Unavailable;
+    return ImageViewport::CapabilitySupport::Unavailable;
 }
 
 inline bool providerCapabilityContradictsMetadata(

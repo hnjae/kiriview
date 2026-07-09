@@ -20,7 +20,7 @@ bool hasDisplayedSecondaryRole(const ImageViewportInternal::DisplayState& displa
 
 } // namespace
 
-bool PageSetTransitionPolicy::isValid() const
+bool PresentationTargetTransitionPolicy::isValid() const
 {
     auto displayTransitionValid = [](DisplayTransition transition) {
         switch (transition) {
@@ -313,13 +313,14 @@ QString ImageViewportPrivate::warningString() const
     return controller.requestState().warningString;
 }
 
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageSet(
-    ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
+ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget(
+    ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
 {
-    ImageSequenceSource primarySource = factorySequenceSource(pageSet.primary());
-    ImageSequenceSource secondarySourceHandle = factorySequenceSource(pageSet.secondary());
+    ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
+    ImageSequenceSource secondarySourceHandle
+        = factorySequenceSource(presentationTarget.secondary());
     ViewportSequenceAssignment assignment;
-    assignment.pageSet = pageSet;
+    assignment.pageSet = presentationTarget;
     assignment.source = std::move(primarySource);
     assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;

@@ -1057,7 +1057,8 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             ? assignment.secondarySourceHandle.sequence
             : assignment.secondarySequence;
         if (primarySequence) {
-            assignment.pageSet = ImageViewportPageSet(primarySequence, secondarySequence);
+            assignment.pageSet
+                = ImageViewportPresentationTarget(primarySequence, secondarySequence);
         }
     }
 
@@ -1093,7 +1094,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         = normalizeControllerTransitionPolicy(assignment.transitionPolicy);
     Q_ASSERT(transitionPolicy.has_value());
     const bool retainDisplay = transitionPolicy->displayTransition
-        == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+        == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
 
     if (engineAssignment.clear) {
         const ViewportCommandResult clearResult = applyAcceptedClearPageSet(engineAssignment);
@@ -1291,7 +1292,7 @@ ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
 ViewportCommandResult ViewportController::clear()
 {
     return applyAcceptedClearPageSet(
-        state.engine.assignPageSet({ ImageViewportPageSet::clear(), {} }));
+        state.engine.assignPageSet({ ImageViewportPresentationTarget::clear(), {} }));
 }
 
 ViewportCommandResult ViewportController::applyAcceptedClearPageSet(

@@ -22,7 +22,6 @@ public:
     using RequestReason = ImageViewport::RequestReason;
     using RequestStatus = ImageViewport::RequestStatus;
     using SpreadDirection = ImageViewport::SpreadDirection;
-    using TriState = ImageViewport::TriState;
     using DisplayRequestSnapshot = ImageViewportInternal::DisplayRequestSnapshot;
     using DisplayRequestOrigin = ImageViewportInternal::DisplayRequestOrigin;
     using ProviderRequestTargetKind = ImageViewportInternal::ProviderRequestTargetKind;
@@ -75,7 +74,8 @@ public:
     CommandOutcome seek(PageRole role, int frame);
     CommandOutcome seekToPosition(int milliseconds);
     CommandOutcome seekToPosition(PageRole role, int milliseconds);
-    CommandOutcome setPageSet(ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
+    CommandOutcome setPresentationTarget(ImageViewportPresentationTarget presentationTarget,
+        PresentationTargetTransitionPolicy policy);
     CommandOutcome setSpreadDirection(SpreadDirection direction);
     CommandOutcome setPageGap(double gap);
     CommandOutcome setFitMode(FitMode mode, QPointF anchor);

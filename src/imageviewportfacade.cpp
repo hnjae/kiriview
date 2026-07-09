@@ -31,7 +31,10 @@ ImageViewportCommandResult ImageViewport::stop(PageRole role)
 {
     return d->commandResult(d->stop(role));
 }
-ImageViewportCommandResult ImageViewport::seek(int frame) { return d->commandResult(d->seek(frame)); }
+ImageViewportCommandResult ImageViewport::seek(int frame)
+{
+    return d->commandResult(d->seek(frame));
+}
 ImageViewportCommandResult ImageViewport::seek(PageRole role, int frame)
 {
     return d->commandResult(d->seek(role, frame));
@@ -44,15 +47,14 @@ ImageViewportCommandResult ImageViewport::seekToPosition(PageRole role, int mill
 {
     return d->commandResult(d->seekToPosition(role, milliseconds));
 }
-ImageViewportCommandResult ImageViewport::setPageSet(
-    ImageViewportPageSet pageSet, PageSetTransitionPolicy policy)
+ImageViewportCommandResult ImageViewport::setPresentationTarget(
+    ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
 {
-    return d->commandResult(d->setPageSet(pageSet, policy));
+    return d->commandResult(d->setPresentationTarget(presentationTarget, policy));
 }
 ImageViewportCommandResult ImageViewport::resetView() { return d->commandResult(d->resetView()); }
 
-ImageViewportCommandResult ImageViewport::setPresentation(
-    ImageViewportPresentationCommand command)
+ImageViewportCommandResult ImageViewport::setPresentation(ImageViewportPresentationCommand command)
 {
     return d->commandResult(d->setPresentation(command));
 }

@@ -204,7 +204,7 @@ ViewportEngine::PageSetAssignmentResult ViewportEngine::assignPageSet(PageSetAss
     result.pageSetChanged = pageSetChanged;
     result.clear = clear;
     result.retainPreviousDisplay = input.transitionPolicy.displayTransition()
-        == PageSetTransitionPolicy::DisplayTransition::RetainPrevious;
+        == PresentationTargetTransitionPolicy::DisplayTransition::RetainPrevious;
     result.releaseDisplayedState = clear || !result.retainPreviousDisplay;
     result.resetDisplayRequests = pageSetChanged;
     result.stopPlayback = pageSetChanged;
@@ -293,11 +293,11 @@ quint64 ViewportEngine::nextPageSetGeneration()
 }
 
 ViewportEngine::PageSetState ViewportEngine::pageSetStateFor(
-    ImageViewportPageSet pageSet, quint64 generation) const
+    ImageViewportPresentationTarget pageSet, quint64 generation) const
 {
     PageSetState state;
     if (pageSet.isClear()) {
-        state.pageSet = ImageViewportPageSet::clear();
+        state.pageSet = ImageViewportPresentationTarget::clear();
         state.generation = generation;
         return state;
     }

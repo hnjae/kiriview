@@ -179,21 +179,23 @@ const ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
                                                       : display.pendingRenderPayload;
 }
 
-ImageViewport::TriState triStateFromSupport(bool supported)
+ImageViewport::CapabilitySupport capabilitySupportFromBool(bool supported)
 {
-    return supported ? ImageViewport::TriState::True : ImageViewport::TriState::False;
+    return supported ? ImageViewport::CapabilitySupport::True
+                     : ImageViewport::CapabilitySupport::False;
 }
 
 void projectFrameSeekBounds(ViewportMetadataProjection& projection)
 {
-    if (projection.frameSeekSupport == ImageViewport::TriState::True && projection.frameCount > 0) {
+    if (projection.frameSeekSupport == ImageViewport::CapabilitySupport::True
+        && projection.frameCount > 0) {
         projection.frameSeekBounds = ImageViewportRange(0, projection.frameCount - 1);
     }
 }
 
 void projectPositionSeekBounds(ViewportMetadataProjection& projection)
 {
-    if (projection.positionSeekSupport == ImageViewport::TriState::True
+    if (projection.positionSeekSupport == ImageViewport::CapabilitySupport::True
         && projection.totalDuration >= 0) {
         projection.positionSeekBounds = ImageViewportRange(0, projection.totalDuration);
     }
@@ -205,9 +207,9 @@ ViewportMetadataProjection projectTimedMetadata(int frameCount, int totalDuratio
     ViewportMetadataProjection projection;
     projection.frameCount = frameCount;
     projection.totalDuration = totalDuration;
-    projection.timedPlaybackSupport = triStateFromSupport(timedPlaybackSupport);
-    projection.frameSeekSupport = triStateFromSupport(frameSeekSupport);
-    projection.positionSeekSupport = triStateFromSupport(positionSeekSupport);
+    projection.timedPlaybackSupport = capabilitySupportFromBool(timedPlaybackSupport);
+    projection.frameSeekSupport = capabilitySupportFromBool(frameSeekSupport);
+    projection.positionSeekSupport = capabilitySupportFromBool(positionSeekSupport);
     projectFrameSeekBounds(projection);
     projectPositionSeekBounds(projection);
     return projection;
@@ -217,9 +219,9 @@ ViewportMetadataProjection projectStillMetadata(bool frameSeekSupport)
 {
     ViewportMetadataProjection projection;
     projection.frameCount = 1;
-    projection.timedPlaybackSupport = ImageViewport::TriState::False;
-    projection.frameSeekSupport = triStateFromSupport(frameSeekSupport);
-    projection.positionSeekSupport = ImageViewport::TriState::False;
+    projection.timedPlaybackSupport = ImageViewport::CapabilitySupport::False;
+    projection.frameSeekSupport = capabilitySupportFromBool(frameSeekSupport);
+    projection.positionSeekSupport = ImageViewport::CapabilitySupport::False;
     projectFrameSeekBounds(projection);
     return projection;
 }
@@ -246,11 +248,11 @@ ViewportMetadataProjection projectProviderConstructionMetadata(
 {
     ViewportMetadataProjection projection;
     projection.timedPlaybackSupport
-        = ImageViewportInternal::capabilitySupportToTriState(timedPlaybackCapability);
+        = ImageViewportInternal::providerCapabilitySupport(timedPlaybackCapability);
     projection.frameSeekSupport
-        = ImageViewportInternal::capabilitySupportToTriState(frameSeekCapability);
+        = ImageViewportInternal::providerCapabilitySupport(frameSeekCapability);
     projection.positionSeekSupport
-        = ImageViewportInternal::capabilitySupportToTriState(positionSeekCapability);
+        = ImageViewportInternal::providerCapabilitySupport(positionSeekCapability);
 
     if (!facts.isSpecified() || facts.isLogicalSizeOnly()) {
         return projection;
@@ -288,9 +290,9 @@ ViewportMetadataProjection projectBuiltInMetadata(
     if (!timed) {
         ViewportMetadataProjection projection;
         projection.frameCount = frameCount;
-        projection.timedPlaybackSupport = ImageViewport::TriState::False;
-        projection.frameSeekSupport = ImageViewport::TriState::True;
-        projection.positionSeekSupport = ImageViewport::TriState::False;
+        projection.timedPlaybackSupport = ImageViewport::CapabilitySupport::False;
+        projection.frameSeekSupport = ImageViewport::CapabilitySupport::True;
+        projection.positionSeekSupport = ImageViewport::CapabilitySupport::False;
         projectFrameSeekBounds(projection);
         return projection;
     }
@@ -441,25 +443,27 @@ void publishRetainedOrEmptyDisplayStatus(ViewportControllerPort& viewport)
 }
 
 std::optional<ControllerTransitionPolicy> normalizeControllerTransitionPolicy(
-    const PageSetTransitionPolicy& policy)
+    const PresentationTargetTransitionPolicy& policy)
 {
     if (!policy.isValid()) {
         return std::nullopt;
     }
 
-    const PageSetTransitionPolicy* const policyAccess = &policy;
+    const PresentationTargetTransitionPolicy* const policyAccess = &policy;
     ControllerTransitionPolicy normalized { policy.displayTransition(),
         policyAccess->zoomTransition(), policy.contentPositionTransition(),
         policy.rotationTransition(), policy.mirrorTransition(), policy.replacementIntent() };
 
-    if (policy.fitModeTransition() == PageSetTransitionPolicy::FitModeTransition::SetExplicit) {
+    if (policy.fitModeTransition()
+        == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit) {
         normalized.explicitFitMode = policy.fitMode();
     }
     if (policy.spreadDirectionTransition()
-        == PageSetTransitionPolicy::SpreadDirectionTransition::SetExplicit) {
+        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit) {
         normalized.explicitSpreadDirection = policy.spreadDirection();
     }
-    if (policy.pageGapTransition() == PageSetTransitionPolicy::PageGapTransition::SetExplicit) {
+    if (policy.pageGapTransition()
+        == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit) {
         normalized.explicitPageGap = policy.pageGap();
     }
 

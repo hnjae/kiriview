@@ -31,7 +31,7 @@ class ImageViewportCoordinateInput;
 class ImageViewportCoordinateResult;
 class ImageViewportDiagnosticsSnapshot;
 class ImageViewportDisplaySnapshot;
-class ImageViewportPageSet;
+class ImageViewportPresentationTarget;
 class ImageViewportPresentationCommand;
 class ImageViewportPresentationSnapshot;
 class ImageViewportRequestSnapshot;
@@ -43,7 +43,7 @@ class ImageViewportRoleRequestSnapshot;
 class ImageViewportRoleSnapshot;
 class ImageViewportStateSnapshot;
 class RevisionToken;
-class PageSetTransitionPolicy;
+class PresentationTargetTransitionPolicy;
 class TimingIntervals;
 
 namespace ImageViewportInternal {
@@ -631,30 +631,30 @@ private:
     friend class ImageViewportInternal::RevisionTokenPrivateAccess;
 };
 
-class ImageViewportPageSetGenerationToken
+class ImageViewportPresentationTargetGenerationToken
 {
     Q_GADGET
-    QML_VALUE_TYPE(imageViewportPageSetGenerationToken)
+    QML_VALUE_TYPE(imageViewportPresentationTargetGenerationToken)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
 
 public:
-    ImageViewportPageSetGenerationToken() = default;
+    ImageViewportPresentationTargetGenerationToken() = default;
 
     bool isValid() const { return m_value != 0; }
 
-    friend bool operator==(
-        ImageViewportPageSetGenerationToken lhs, ImageViewportPageSetGenerationToken rhs)
+    friend bool operator==(ImageViewportPresentationTargetGenerationToken lhs,
+        ImageViewportPresentationTargetGenerationToken rhs)
     {
         return lhs.m_value == rhs.m_value;
     }
-    friend bool operator!=(
-        ImageViewportPageSetGenerationToken lhs, ImageViewportPageSetGenerationToken rhs)
+    friend bool operator!=(ImageViewportPresentationTargetGenerationToken lhs,
+        ImageViewportPresentationTargetGenerationToken rhs)
     {
         return !(lhs == rhs);
     }
 
 private:
-    explicit ImageViewportPageSetGenerationToken(quint64 value)
+    explicit ImageViewportPresentationTargetGenerationToken(quint64 value)
         : m_value(value)
     {
     }
@@ -734,28 +734,28 @@ private:
     bool m_secondary = false;
 };
 
-class ImageViewportPageSet
+class ImageViewportPresentationTarget
 {
     Q_GADGET
-    QML_VALUE_TYPE(imageViewportPageSet)
+    QML_VALUE_TYPE(imageViewportPresentationTarget)
     Q_PROPERTY(ImageSequence* primary READ primary WRITE setPrimary)
     Q_PROPERTY(ImageSequence* secondary READ secondary WRITE setSecondary)
     Q_PROPERTY(bool clear READ isClear CONSTANT)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
 
 public:
-    ImageViewportPageSet() = default;
-    explicit ImageViewportPageSet(ImageSequence* primary)
+    ImageViewportPresentationTarget() = default;
+    explicit ImageViewportPresentationTarget(ImageSequence* primary)
         : m_primary(primary)
     {
     }
-    ImageViewportPageSet(ImageSequence* primary, ImageSequence* secondary)
+    ImageViewportPresentationTarget(ImageSequence* primary, ImageSequence* secondary)
         : m_primary(primary)
         , m_secondary(secondary)
     {
     }
 
-    static ImageViewportPageSet clear() { return {}; }
+    static ImageViewportPresentationTarget clear() { return {}; }
 
     ImageSequence* primary() const { return m_primary; }
     void setPrimary(ImageSequence* primary) { m_primary = primary; }
@@ -764,11 +764,13 @@ public:
     bool isClear() const { return !m_primary && !m_secondary; }
     bool isValid() const { return m_primary || !m_secondary; }
 
-    friend bool operator==(const ImageViewportPageSet& lhs, const ImageViewportPageSet& rhs)
+    friend bool operator==(
+        const ImageViewportPresentationTarget& lhs, const ImageViewportPresentationTarget& rhs)
     {
         return lhs.m_primary == rhs.m_primary && lhs.m_secondary == rhs.m_secondary;
     }
-    friend bool operator!=(const ImageViewportPageSet& lhs, const ImageViewportPageSet& rhs)
+    friend bool operator!=(
+        const ImageViewportPresentationTarget& lhs, const ImageViewportPresentationTarget& rhs)
     {
         return !(lhs == rhs);
     }
@@ -856,7 +858,7 @@ public:
     enum class DisplayPhase {
         NoPresentation,
         PreviousActive,
-        Placeholder,
+        TransitioningPlaceholder,
         CommittedActive,
     };
     Q_ENUM(DisplayPhase)
@@ -868,13 +870,6 @@ public:
         Paused,
     };
     Q_ENUM(PlaybackPhase)
-
-    enum class TriState {
-        Unavailable,
-        False,
-        True,
-    };
-    Q_ENUM(TriState)
 
     enum class CapabilitySupport {
         Unavailable,
@@ -954,8 +949,9 @@ public:
     Q_INVOKABLE ImageViewportCommandResult seekToPosition(int milliseconds);
     Q_INVOKABLE ImageViewportCommandResult seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
-    Q_INVOKABLE ImageViewportCommandResult setPageSet(
-        ImageViewportPageSet pageSet, PageSetTransitionPolicy policy);
+    Q_INVOKABLE ImageViewportCommandResult setPresentationTarget(
+        ImageViewportPresentationTarget presentationTarget,
+        PresentationTargetTransitionPolicy policy);
     Q_INVOKABLE ImageViewportCommandResult resetView();
     Q_INVOKABLE ImageViewportCommandResult setPresentation(
         ImageViewportPresentationCommand command);
@@ -1351,8 +1347,8 @@ class ImageSequenceProviderDisplayDemand
     Q_PROPERTY(qint64 maximumTextureSize READ maximumTextureSize WRITE setMaximumTextureSize)
     Q_PROPERTY(qint64 maximumPayloadBytes READ maximumPayloadBytes WRITE setMaximumPayloadBytes)
     Q_PROPERTY(qint64 displayByteBudget READ displayByteBudget WRITE setDisplayByteBudget)
-    Q_PROPERTY(ImageViewportPageSetGenerationToken allocationGeneration READ allocationGeneration
-            WRITE setAllocationGeneration)
+    Q_PROPERTY(ImageViewportPresentationTargetGenerationToken allocationGeneration READ
+            allocationGeneration WRITE setAllocationGeneration)
     Q_PROPERTY(ImageViewport::PayloadQuality currentPayloadQuality READ currentPayloadQuality WRITE
             setCurrentPayloadQuality)
     Q_PROPERTY(ImageViewport::PayloadExactness currentPayloadExactness READ currentPayloadExactness
@@ -1413,11 +1409,11 @@ public:
     void setMaximumPayloadBytes(qint64 bytes) { m_maximumPayloadBytes = bytes; }
     qint64 displayByteBudget() const { return m_displayByteBudget; }
     void setDisplayByteBudget(qint64 bytes) { m_displayByteBudget = bytes; }
-    ImageViewportPageSetGenerationToken allocationGeneration() const
+    ImageViewportPresentationTargetGenerationToken allocationGeneration() const
     {
         return m_allocationGeneration;
     }
-    void setAllocationGeneration(ImageViewportPageSetGenerationToken generation)
+    void setAllocationGeneration(ImageViewportPresentationTargetGenerationToken generation)
     {
         m_allocationGeneration = generation;
     }
@@ -1460,7 +1456,7 @@ private:
     qint64 m_maximumTextureSize = -1;
     qint64 m_maximumPayloadBytes = -1;
     qint64 m_displayByteBudget = -1;
-    ImageViewportPageSetGenerationToken m_allocationGeneration;
+    ImageViewportPresentationTargetGenerationToken m_allocationGeneration;
     ImageViewport::PayloadQuality m_currentPayloadQuality = ImageViewport::PayloadQuality::Unknown;
     ImageViewport::PayloadExactness m_currentPayloadExactness
         = ImageViewport::PayloadExactness::Unknown;
@@ -1647,10 +1643,10 @@ private:
         = ImageSequenceProviderThreadingContract::AffinityBound;
 };
 
-class PageSetTransitionPolicy
+class PresentationTargetTransitionPolicy
 {
     Q_GADGET
-    QML_VALUE_TYPE(pageSetTransitionPolicy)
+    QML_VALUE_TYPE(presentationTargetTransitionPolicy)
     QML_STRUCTURED_VALUE
     Q_PROPERTY(
         DisplayTransition displayTransition READ displayTransition WRITE setDisplayTransition)
@@ -1731,7 +1727,7 @@ public:
     };
     Q_ENUM(ReplacementIntent)
 
-    PageSetTransitionPolicy() = default;
+    PresentationTargetTransitionPolicy() = default;
 
     DisplayTransition displayTransition() const { return m_displayTransition; }
     void setDisplayTransition(DisplayTransition transition) { m_displayTransition = transition; }
@@ -1787,7 +1783,8 @@ public:
     bool hasExplicitPageGap() const { return m_pageGapSet; }
     bool isValid() const;
 
-    friend bool operator==(PageSetTransitionPolicy lhs, PageSetTransitionPolicy rhs)
+    friend bool operator==(
+        PresentationTargetTransitionPolicy lhs, PresentationTargetTransitionPolicy rhs)
     {
         return lhs.m_displayTransition == rhs.m_displayTransition
             && lhs.m_zoomTransition == rhs.m_zoomTransition
@@ -1803,7 +1800,8 @@ public:
             && lhs.m_pageGapSet == rhs.m_pageGapSet
             && lhs.m_replacementIntent == rhs.m_replacementIntent;
     }
-    friend bool operator!=(PageSetTransitionPolicy lhs, PageSetTransitionPolicy rhs)
+    friend bool operator!=(
+        PresentationTargetTransitionPolicy lhs, PresentationTargetTransitionPolicy rhs)
     {
         return !(lhs == rhs);
     }
@@ -1833,8 +1831,8 @@ class ImageViewportRequestSnapshot
     Q_PROPERTY(ImageViewport::RequestStatus status READ status CONSTANT)
     Q_PROPERTY(ImageViewport::RequestReason reason READ reason CONSTANT)
     Q_PROPERTY(ImageViewport::PlaybackPhase playbackPhase READ playbackPhase CONSTANT)
-    Q_PROPERTY(ImageViewportPageSetGenerationToken acceptedPageSetGeneration READ
-            acceptedPageSetGeneration CONSTANT)
+    Q_PROPERTY(ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration
+            READ acceptedPresentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet acceptedRoleSet READ acceptedRoleSet CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet targetRoleSet READ targetRoleSet CONSTANT)
     Q_PROPERTY(QVariant activeRole READ activeRole CONSTANT)
@@ -1844,13 +1842,13 @@ public:
     ImageViewportRequestSnapshot() = default;
     ImageViewportRequestSnapshot(ImageViewport::RequestStatus status,
         ImageViewport::RequestReason reason, ImageViewport::PlaybackPhase playbackPhase,
-        ImageViewportPageSetGenerationToken acceptedPageSetGeneration,
+        ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration,
         ImageViewportRoleSet acceptedRoleSet, ImageViewportRoleSet targetRoleSet,
         QVariant activeRole, QVariant playbackRole)
         : m_status(status)
         , m_reason(reason)
         , m_playbackPhase(playbackPhase)
-        , m_acceptedPageSetGeneration(acceptedPageSetGeneration)
+        , m_acceptedPresentationTargetGeneration(acceptedPresentationTargetGeneration)
         , m_acceptedRoleSet(acceptedRoleSet)
         , m_targetRoleSet(targetRoleSet)
         , m_activeRole(std::move(activeRole))
@@ -1861,9 +1859,9 @@ public:
     ImageViewport::RequestStatus status() const { return m_status; }
     ImageViewport::RequestReason reason() const { return m_reason; }
     ImageViewport::PlaybackPhase playbackPhase() const { return m_playbackPhase; }
-    ImageViewportPageSetGenerationToken acceptedPageSetGeneration() const
+    ImageViewportPresentationTargetGenerationToken acceptedPresentationTargetGeneration() const
     {
-        return m_acceptedPageSetGeneration;
+        return m_acceptedPresentationTargetGeneration;
     }
     ImageViewportRoleSet acceptedRoleSet() const { return m_acceptedRoleSet; }
     ImageViewportRoleSet targetRoleSet() const { return m_targetRoleSet; }
@@ -1875,7 +1873,8 @@ public:
     {
         return lhs.m_status == rhs.m_status && lhs.m_reason == rhs.m_reason
             && lhs.m_playbackPhase == rhs.m_playbackPhase
-            && lhs.m_acceptedPageSetGeneration == rhs.m_acceptedPageSetGeneration
+            && lhs.m_acceptedPresentationTargetGeneration
+            == rhs.m_acceptedPresentationTargetGeneration
             && lhs.m_acceptedRoleSet == rhs.m_acceptedRoleSet
             && lhs.m_targetRoleSet == rhs.m_targetRoleSet && lhs.m_activeRole == rhs.m_activeRole
             && lhs.m_playbackRole == rhs.m_playbackRole;
@@ -1890,7 +1889,7 @@ private:
     ImageViewport::RequestStatus m_status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason m_reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::PlaybackPhase m_playbackPhase = ImageViewport::PlaybackPhase::Stopped;
-    ImageViewportPageSetGenerationToken m_acceptedPageSetGeneration;
+    ImageViewportPresentationTargetGenerationToken m_acceptedPresentationTargetGeneration;
     ImageViewportRoleSet m_acceptedRoleSet;
     ImageViewportRoleSet m_targetRoleSet;
     QVariant m_activeRole;
@@ -1903,11 +1902,12 @@ class ImageViewportDisplaySnapshot
     QML_VALUE_TYPE(imageViewportDisplaySnapshot)
     Q_PROPERTY(ImageViewport::DisplayStatus status READ status CONSTANT)
     Q_PROPERTY(ImageViewport::DisplayPhase phase READ phase CONSTANT)
-    Q_PROPERTY(ImageViewportPageSetGenerationToken displayedPageSetGeneration READ
-            displayedPageSetGeneration CONSTANT)
+    Q_PROPERTY(ImageViewportPresentationTargetGenerationToken displayedPresentationTargetGeneration
+            READ displayedPresentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet displayedRoleSet READ displayedRoleSet CONSTANT)
     Q_PROPERTY(ImageViewportRoleSet targetRoleSet READ targetRoleSet CONSTANT)
-    Q_PROPERTY(bool belongsToAcceptedPageSet READ belongsToAcceptedPageSet CONSTANT)
+    Q_PROPERTY(
+        bool belongsToAcceptedPresentationTarget READ belongsToAcceptedPresentationTarget CONSTANT)
     Q_PROPERTY(bool retained READ retained CONSTANT)
     Q_PROPERTY(ImageViewportRevisionToken displayedPresentationRevision READ
             displayedPresentationRevision CONSTANT)
@@ -1926,9 +1926,9 @@ public:
     ImageViewportDisplaySnapshot() = default;
     ImageViewportDisplaySnapshot(ImageViewport::DisplayStatus status,
         ImageViewport::DisplayPhase phase,
-        ImageViewportPageSetGenerationToken displayedPageSetGeneration,
+        ImageViewportPresentationTargetGenerationToken displayedPresentationTargetGeneration,
         ImageViewportRoleSet displayedRoleSet, ImageViewportRoleSet targetRoleSet,
-        bool belongsToAcceptedPageSet, bool retained,
+        bool belongsToAcceptedPresentationTarget, bool retained,
         ImageViewportRevisionToken displayedPresentationRevision,
         ImageViewportRevisionToken targetPresentationRevision, QSizeF spreadSize,
         QRectF contentRect, QSizeF contentSize, QPointF contentPosition,
@@ -1936,10 +1936,10 @@ public:
         bool verticalPannable)
         : m_status(status)
         , m_phase(phase)
-        , m_displayedPageSetGeneration(displayedPageSetGeneration)
+        , m_displayedPresentationTargetGeneration(displayedPresentationTargetGeneration)
         , m_displayedRoleSet(displayedRoleSet)
         , m_targetRoleSet(targetRoleSet)
-        , m_belongsToAcceptedPageSet(belongsToAcceptedPageSet)
+        , m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_retained(retained)
         , m_displayedPresentationRevision(displayedPresentationRevision)
         , m_targetPresentationRevision(targetPresentationRevision)
@@ -1956,13 +1956,16 @@ public:
 
     ImageViewport::DisplayStatus status() const { return m_status; }
     ImageViewport::DisplayPhase phase() const { return m_phase; }
-    ImageViewportPageSetGenerationToken displayedPageSetGeneration() const
+    ImageViewportPresentationTargetGenerationToken displayedPresentationTargetGeneration() const
     {
-        return m_displayedPageSetGeneration;
+        return m_displayedPresentationTargetGeneration;
     }
     ImageViewportRoleSet displayedRoleSet() const { return m_displayedRoleSet; }
     ImageViewportRoleSet targetRoleSet() const { return m_targetRoleSet; }
-    bool belongsToAcceptedPageSet() const { return m_belongsToAcceptedPageSet; }
+    bool belongsToAcceptedPresentationTarget() const
+    {
+        return m_belongsToAcceptedPresentationTarget;
+    }
     bool retained() const { return m_retained; }
     ImageViewportRevisionToken displayedPresentationRevision() const
     {
@@ -1985,10 +1988,12 @@ public:
         const ImageViewportDisplaySnapshot& lhs, const ImageViewportDisplaySnapshot& rhs)
     {
         return lhs.m_status == rhs.m_status && lhs.m_phase == rhs.m_phase
-            && lhs.m_displayedPageSetGeneration == rhs.m_displayedPageSetGeneration
+            && lhs.m_displayedPresentationTargetGeneration
+            == rhs.m_displayedPresentationTargetGeneration
             && lhs.m_displayedRoleSet == rhs.m_displayedRoleSet
             && lhs.m_targetRoleSet == rhs.m_targetRoleSet
-            && lhs.m_belongsToAcceptedPageSet == rhs.m_belongsToAcceptedPageSet
+            && lhs.m_belongsToAcceptedPresentationTarget
+            == rhs.m_belongsToAcceptedPresentationTarget
             && lhs.m_retained == rhs.m_retained
             && lhs.m_displayedPresentationRevision == rhs.m_displayedPresentationRevision
             && lhs.m_targetPresentationRevision == rhs.m_targetPresentationRevision
@@ -2009,10 +2014,10 @@ public:
 private:
     ImageViewport::DisplayStatus m_status = ImageViewport::DisplayStatus::Empty;
     ImageViewport::DisplayPhase m_phase = ImageViewport::DisplayPhase::NoPresentation;
-    ImageViewportPageSetGenerationToken m_displayedPageSetGeneration;
+    ImageViewportPresentationTargetGenerationToken m_displayedPresentationTargetGeneration;
     ImageViewportRoleSet m_displayedRoleSet;
     ImageViewportRoleSet m_targetRoleSet;
-    bool m_belongsToAcceptedPageSet = false;
+    bool m_belongsToAcceptedPresentationTarget = false;
     bool m_retained = false;
     ImageViewportRevisionToken m_displayedPresentationRevision;
     ImageViewportRevisionToken m_targetPresentationRevision;
@@ -2145,9 +2150,10 @@ class ImageViewportRoleRequestSnapshot
 {
     Q_GADGET
     QML_VALUE_TYPE(imageViewportRoleRequestSnapshot)
-    Q_PROPERTY(bool belongsToAcceptedPageSet READ belongsToAcceptedPageSet CONSTANT)
     Q_PROPERTY(
-        ImageViewportPageSetGenerationToken pageSetGeneration READ pageSetGeneration CONSTANT)
+        bool belongsToAcceptedPresentationTarget READ belongsToAcceptedPresentationTarget CONSTANT)
+    Q_PROPERTY(ImageViewportPresentationTargetGenerationToken presentationTargetGeneration READ
+            presentationTargetGeneration CONSTANT)
     Q_PROPERTY(ImageViewport::PageRole role READ role CONSTANT)
     Q_PROPERTY(int frame READ frame CONSTANT)
     Q_PROPERTY(int position READ position CONSTANT)
@@ -2156,12 +2162,12 @@ class ImageViewportRoleRequestSnapshot
 
 public:
     ImageViewportRoleRequestSnapshot() = default;
-    ImageViewportRoleRequestSnapshot(bool belongsToAcceptedPageSet,
-        ImageViewportPageSetGenerationToken pageSetGeneration, ImageViewport::PageRole role,
-        int frame, int position, QSizeF sourceLogicalSize,
+    ImageViewportRoleRequestSnapshot(bool belongsToAcceptedPresentationTarget,
+        ImageViewportPresentationTargetGenerationToken presentationTargetGeneration,
+        ImageViewport::PageRole role, int frame, int position, QSizeF sourceLogicalSize,
         ImageViewportDemandRevisionToken demandRevision)
-        : m_belongsToAcceptedPageSet(belongsToAcceptedPageSet)
-        , m_pageSetGeneration(pageSetGeneration)
+        : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
+        , m_presentationTargetGeneration(presentationTargetGeneration)
         , m_role(role)
         , m_frame(frame)
         , m_position(position)
@@ -2170,8 +2176,14 @@ public:
     {
     }
 
-    bool belongsToAcceptedPageSet() const { return m_belongsToAcceptedPageSet; }
-    ImageViewportPageSetGenerationToken pageSetGeneration() const { return m_pageSetGeneration; }
+    bool belongsToAcceptedPresentationTarget() const
+    {
+        return m_belongsToAcceptedPresentationTarget;
+    }
+    ImageViewportPresentationTargetGenerationToken presentationTargetGeneration() const
+    {
+        return m_presentationTargetGeneration;
+    }
     ImageViewport::PageRole role() const { return m_role; }
     int frame() const { return m_frame; }
     int position() const { return m_position; }
@@ -2181,9 +2193,11 @@ public:
     friend bool operator==(
         const ImageViewportRoleRequestSnapshot& lhs, const ImageViewportRoleRequestSnapshot& rhs)
     {
-        return lhs.m_belongsToAcceptedPageSet == rhs.m_belongsToAcceptedPageSet
-            && lhs.m_pageSetGeneration == rhs.m_pageSetGeneration && lhs.m_role == rhs.m_role
-            && lhs.m_frame == rhs.m_frame && lhs.m_position == rhs.m_position
+        return lhs.m_belongsToAcceptedPresentationTarget
+            == rhs.m_belongsToAcceptedPresentationTarget
+            && lhs.m_presentationTargetGeneration == rhs.m_presentationTargetGeneration
+            && lhs.m_role == rhs.m_role && lhs.m_frame == rhs.m_frame
+            && lhs.m_position == rhs.m_position
             && lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
             && lhs.m_demandRevision == rhs.m_demandRevision;
     }
@@ -2194,8 +2208,8 @@ public:
     }
 
 private:
-    bool m_belongsToAcceptedPageSet = false;
-    ImageViewportPageSetGenerationToken m_pageSetGeneration;
+    bool m_belongsToAcceptedPresentationTarget = false;
+    ImageViewportPresentationTargetGenerationToken m_presentationTargetGeneration;
     ImageViewport::PageRole m_role = ImageViewport::PageRole::Primary;
     int m_frame = -1;
     int m_position = -1;
@@ -2207,7 +2221,8 @@ class ImageViewportRoleDisplaySnapshot
 {
     Q_GADGET
     QML_VALUE_TYPE(imageViewportRoleDisplaySnapshot)
-    Q_PROPERTY(bool belongsToAcceptedPageSet READ belongsToAcceptedPageSet CONSTANT)
+    Q_PROPERTY(
+        bool belongsToAcceptedPresentationTarget READ belongsToAcceptedPresentationTarget CONSTANT)
     Q_PROPERTY(bool retained READ retained CONSTANT)
     Q_PROPERTY(int frame READ frame CONSTANT)
     Q_PROPERTY(int position READ position CONSTANT)
@@ -2221,12 +2236,12 @@ class ImageViewportRoleDisplaySnapshot
 
 public:
     ImageViewportRoleDisplaySnapshot() = default;
-    ImageViewportRoleDisplaySnapshot(bool belongsToAcceptedPageSet, bool retained, int frame,
-        int position, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
+    ImageViewportRoleDisplaySnapshot(bool belongsToAcceptedPresentationTarget, bool retained,
+        int frame, int position, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
         QSizeF sourceToPayloadScale, ImageViewport::PayloadQuality quality,
         ImageViewport::PayloadExactness exactness, bool currentForDemand,
         ImageViewportDemandRevisionToken demandRevision)
-        : m_belongsToAcceptedPageSet(belongsToAcceptedPageSet)
+        : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_retained(retained)
         , m_frame(frame)
         , m_position(position)
@@ -2240,7 +2255,10 @@ public:
     {
     }
 
-    bool belongsToAcceptedPageSet() const { return m_belongsToAcceptedPageSet; }
+    bool belongsToAcceptedPresentationTarget() const
+    {
+        return m_belongsToAcceptedPresentationTarget;
+    }
     bool retained() const { return m_retained; }
     int frame() const { return m_frame; }
     int position() const { return m_position; }
@@ -2255,7 +2273,8 @@ public:
     friend bool operator==(
         const ImageViewportRoleDisplaySnapshot& lhs, const ImageViewportRoleDisplaySnapshot& rhs)
     {
-        return lhs.m_belongsToAcceptedPageSet == rhs.m_belongsToAcceptedPageSet
+        return lhs.m_belongsToAcceptedPresentationTarget
+            == rhs.m_belongsToAcceptedPresentationTarget
             && lhs.m_retained == rhs.m_retained && lhs.m_frame == rhs.m_frame
             && lhs.m_position == rhs.m_position
             && lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
@@ -2272,7 +2291,7 @@ public:
     }
 
 private:
-    bool m_belongsToAcceptedPageSet = false;
+    bool m_belongsToAcceptedPresentationTarget = false;
     bool m_retained = false;
     int m_frame = -1;
     int m_position = -1;
@@ -2812,10 +2831,10 @@ Q_DECLARE_METATYPE(ImageSequenceProviderDescriptor)
 Q_DECLARE_METATYPE(ImageViewportRange)
 Q_DECLARE_METATYPE(RevisionToken)
 Q_DECLARE_METATYPE(ImageViewportRevisionToken)
-Q_DECLARE_METATYPE(ImageViewportPageSetGenerationToken)
+Q_DECLARE_METATYPE(ImageViewportPresentationTargetGenerationToken)
 Q_DECLARE_METATYPE(ImageViewportDemandRevisionToken)
 Q_DECLARE_METATYPE(ImageViewportRoleSet)
-Q_DECLARE_METATYPE(ImageViewportPageSet)
+Q_DECLARE_METATYPE(ImageViewportPresentationTarget)
 Q_DECLARE_METATYPE(ImageViewportPresentationCommand)
 Q_DECLARE_METATYPE(ImageViewportRequestSnapshot)
 Q_DECLARE_METATYPE(ImageViewportDisplaySnapshot)
@@ -2831,4 +2850,4 @@ Q_DECLARE_METATYPE(ImageViewportStateSnapshot)
 Q_DECLARE_METATYPE(ImageViewportCommandResult)
 Q_DECLARE_METATYPE(ImageViewportCoordinateInput)
 Q_DECLARE_METATYPE(ImageViewportCoordinateResult)
-Q_DECLARE_METATYPE(PageSetTransitionPolicy)
+Q_DECLARE_METATYPE(PresentationTargetTransitionPolicy)

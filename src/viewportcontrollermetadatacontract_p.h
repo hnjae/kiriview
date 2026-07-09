@@ -8,7 +8,10 @@ struct ViewportMetadataProjection
     int totalDuration = -1;
     ImageViewportRange frameSeekBounds;
     ImageViewportRange positionSeekBounds;
-    ImageViewport::TriState timedPlaybackSupport = ImageViewport::TriState::Unavailable;
-    ImageViewport::TriState frameSeekSupport = ImageViewport::TriState::Unavailable;
-    ImageViewport::TriState positionSeekSupport = ImageViewport::TriState::Unavailable;
+    ImageViewport::CapabilitySupport timedPlaybackSupport
+        = ImageViewport::CapabilitySupport::Unavailable;
+    ImageViewport::CapabilitySupport frameSeekSupport
+        = ImageViewport::CapabilitySupport::Unavailable;
+    ImageViewport::CapabilitySupport positionSeekSupport
+        = ImageViewport::CapabilitySupport::Unavailable;
 };

@@ -12,12 +12,12 @@ public:
     }
 
 private slots:
-    void secondaryProviderPageSetOpensRoleLocalSessionAndWaits();
+    void secondaryProviderPresentationTargetOpensRoleLocalSessionAndWaits();
     void secondaryProviderMetadataUpdatesRoleObservations();
 };
 
 void ImageViewportPublicApiProviderRolesTest::
-    secondaryProviderPageSetOpensRoleLocalSessionAndWaits()
+    secondaryProviderPresentationTargetOpensRoleLocalSessionAndWaits()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -39,7 +39,7 @@ void ImageViewportPublicApiProviderRolesTest::
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    const auto outcome = item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {});
+    const auto outcome = item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {});
 
     QCOMPARE(outcome.outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(viewportPrimarySequence(item), primaryResult->sequence());
@@ -76,7 +76,7 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
 
     ImageViewport item;
     item.setSize(QSizeF(100.0, 100.0));
-    QCOMPARE(item.setPageSet(ImageViewportPageSet(primaryResult->sequence(), secondaryResult->sequence()), PageSetTransitionPolicy {}).outcome(),
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(primaryResult->sequence(), secondaryResult->sequence()), PresentationTargetTransitionPolicy {}).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     QVERIFY(sessionFactory->lastSession());
 

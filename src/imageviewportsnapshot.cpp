@@ -8,19 +8,6 @@ bool positiveSize(QSizeF size)
     return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
 }
 
-ImageViewport::CapabilitySupport capabilitySupport(ImageViewport::TriState support)
-{
-    switch (support) {
-    case ImageViewport::TriState::False:
-        return ImageViewport::CapabilitySupport::False;
-    case ImageViewport::TriState::True:
-        return ImageViewport::CapabilitySupport::True;
-    case ImageViewport::TriState::Unavailable:
-        break;
-    }
-    return ImageViewport::CapabilitySupport::Unavailable;
-}
-
 QVariant roleVariant(ImageViewport::PageRole role) { return QVariant::fromValue(role); }
 
 ImageViewport::DisplayPhase displayPhase(
@@ -37,7 +24,7 @@ ImageViewport::DisplayPhase displayPhase(
 
     return requestStatus == ImageViewport::RequestStatus::NoRequest
         ? ImageViewport::DisplayPhase::NoPresentation
-        : ImageViewport::DisplayPhase::Placeholder;
+        : ImageViewport::DisplayPhase::TransitioningPlaceholder;
 }
 
 quint64 mixRevision(quint64 seed, quint64 value)
@@ -74,16 +61,16 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
     const ImageViewportRoleSet acceptedRoleSet(primaryPresent, secondaryPresent);
     const ImageViewportRoleSet targetRoleSet(primaryPresent && pageSetState.targetRoleSet.primary(),
         secondaryPresent && pageSetState.targetRoleSet.secondary());
-    const ImageViewportPageSetGenerationToken acceptedGeneration(
+    const ImageViewportPresentationTargetGenerationToken acceptedGeneration(
         primaryPresent ? pageSetState.generation : 0);
     const bool primaryDisplayed
         = positiveSize(display.displayedImageSize) && display.status != DisplayStatus::Empty;
     const bool secondaryDisplayed = positiveSize(display.secondaryDisplayedImageSize)
         && display.status != DisplayStatus::Empty;
     const ImageViewportRoleSet displayedRoleSet(primaryDisplayed, secondaryDisplayed);
-    const ImageViewportPageSetGenerationToken displayedGeneration(
+    const ImageViewportPresentationTargetGenerationToken displayedGeneration(
         primaryDisplayed ? display.displayedRequest.generation : 0);
-    const bool displayedBelongsToAcceptedPageSet
+    const bool displayedBelongsToAcceptedPresentationTarget
         = primaryDisplayed && display.displayedRequest.generation == pageSetState.generation;
     const ImageViewportRevisionToken requestRevision(request.requestRevision);
     const ImageViewportRevisionToken displayRevision(display.revision);
@@ -106,7 +93,8 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
         playbackRole);
     const ImageViewportDisplaySnapshot displaySnapshot(display.status,
         displayPhase(display.status, request.status), displayedGeneration, displayedRoleSet,
-        targetRoleSet, displayedBelongsToAcceptedPageSet, display.status == DisplayStatus::Retained,
+        targetRoleSet, displayedBelongsToAcceptedPresentationTarget,
+        display.status == DisplayStatus::Retained,
         primaryDisplayed ? displayRevision : ImageViewportRevisionToken {}, presentationRevision,
         displayedSpreadSize(), contentRect(), contentSize(), contentPosition(),
         maximumContentPosition(), visibleSpreadRect(), horizontalPannable(), verticalPannable());
@@ -146,12 +134,9 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
         const ImageSequenceAuthoredAnimationFacts animationFacts = primary
             ? sequenceAuthoredAnimationFacts()
             : secondarySequenceAuthoredAnimationFacts();
-        const ImageViewport::CapabilitySupport frameSeekSupport
-            = capabilitySupport(metadata.frameSeekSupport);
-        const ImageViewport::CapabilitySupport positionSeekSupport
-            = capabilitySupport(metadata.positionSeekSupport);
-        const ImageViewport::CapabilitySupport timedPlaybackSupport
-            = capabilitySupport(metadata.timedPlaybackSupport);
+        const ImageViewport::CapabilitySupport frameSeekSupport = metadata.frameSeekSupport;
+        const ImageViewport::CapabilitySupport positionSeekSupport = metadata.positionSeekSupport;
+        const ImageViewport::CapabilitySupport timedPlaybackSupport = metadata.timedPlaybackSupport;
         const bool metadataAvailable
             = present && metadata.frameCount >= 0 && positiveSize(requestLogicalSize);
         const int loopCount
@@ -176,8 +161,8 @@ ImageViewportStateSnapshot ImageViewportPrivate::state() const
 
         return ImageViewportRoleSnapshot(present, sequence,
             ImageViewportRoleRequestSnapshot(present,
-                present ? acceptedGeneration : ImageViewportPageSetGenerationToken {}, role,
-                requestedFrame, requestedPosition, requestLogicalSize,
+                present ? acceptedGeneration : ImageViewportPresentationTargetGenerationToken {},
+                role, requestedFrame, requestedPosition, requestLogicalSize,
                 ImageViewportDemandRevisionToken {}),
             ImageViewportRoleDisplaySnapshot(roleDisplayBelongsToAccepted,
                 roleDisplayed && display.status == DisplayStatus::Retained, displayedFrame,
