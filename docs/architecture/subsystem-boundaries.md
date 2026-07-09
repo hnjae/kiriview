@@ -19,9 +19,9 @@ flowchart LR
 
 ## Caller Policy Boundary
 
-The consuming application owns document and application policy: source discovery, navigation scope, page pairing, fallback policy, source identity, route-transition meaning, action availability, decoder backend choice, cache backend choice, display-store lifetime, predecode policy, refinement policy, credentials, sandbox policy, and gesture interpretation before it becomes a viewport command. The viewport accepts only `ImageSequence` handles through typed page-set values.
+The consuming application owns document and application policy: source discovery, navigation scope, page pairing, fallback policy, source identity, route-transition meaning, action availability, decoder backend choice, cache backend choice, display-store lifetime, predecode policy, refinement policy, credentials, sandbox policy, and gesture interpretation before it becomes a viewport command. The viewport accepts only `ImageSequence` handles through typed presentation-target values.
 
-The caller may express transition intent through `PageSetTransitionPolicy`, but it does not compute canonical viewport geometry. Fit, zoom, pan, content position, scan position, rotation, mirroring, spread direction, page gap, visible rectangles, coordinate conversion, display status, playback phase, request status, and revision tokens have one canonical owner inside the viewport engine.
+The caller may express transition intent through `PresentationTargetTransitionPolicy`, but it does not compute canonical viewport geometry. Fit, zoom, pan, content position, scan position, rotation, mirroring, spread direction, page gap, visible rectangles, coordinate conversion, display status, playback phase, request status, and revision tokens have one canonical owner inside the viewport engine.
 
 ## Item Boundary
 
@@ -33,17 +33,17 @@ The item applies engine effects by scheduling render updates, synchronizing play
 
 ## Engine Boundary
 
-The viewport engine is the state-transition core. It owns accepted page-set identity, role generation identity, request ordering, provider token identity, prepared payload identity, render acknowledgement identity, status projection, diagnostics, playback phase, retained display state, presentation state, and revision allocation.
+The viewport engine is the state-transition core. It owns accepted presentation-target identity, role generation identity, request ordering, provider token identity, prepared payload identity, render acknowledgement identity, status projection, diagnostics, playback phase, retained display state, presentation state, and revision allocation.
 
-Engine entry points are typed inputs: page-set commands, presentation commands, playback commands, provider events, render acknowledgements, render failures, item geometry changes, and scheduler ticks. Engine outputs are typed effects plus a snapshot delta. The engine does not emit QML signals, invoke provider sessions, call Qt Quick update functions, start timers, or access scene graph objects.
+Engine entry points are typed inputs: presentation-target commands, presentation commands, playback commands, provider events, render acknowledgements, render failures, item geometry changes, and scheduler ticks. Engine outputs are typed effects plus a snapshot delta. The engine does not emit QML signals, invoke provider sessions, call Qt Quick update functions, start timers, or access scene graph objects.
 
 Engine state is role-indexed. Primary and secondary storage live behind role views keyed by page role instead of exposing independent mutable primary and secondary fields. Aggregate spread logic may intentionally compare required roles for atomic readiness, terminal projection, retained display, playback ownership, and geometry.
 
 Engine operation units are split by domain: assignment, presentation, provider, render, playback, metadata, diagnostics, and snapshot projection. Shared contracts are acyclic value definitions. Implementation-only helpers stay behind owner-specific boundaries and must not become public engine facades.
 
-Command handling is transactional. The engine validates public value shape before capability, failure-scope, or generation-state checks; a malformed page set, transition policy, presentation command, seek target, role, coordinate input, or numeric value is rejected before any request, display, presentation, provider, render, playback, or retained-display state mutates. Accepted commands allocate the required identities and revisions before effects leave the engine. Rejected commands may update command diagnostics and command revision only.
+Command handling is transactional. The engine validates public value shape before capability, failure-scope, or generation-state checks; a malformed presentation target, transition policy, presentation command, seek target, role, coordinate input, or numeric value is rejected before any request, display, presentation, provider, render, playback, or retained-display state mutates. Accepted commands allocate the required identities and revisions before effects leave the engine. Rejected commands may update command diagnostics and command revision only.
 
-Accepted page-set and spread transitions are target-spread transactions. A target that includes both roles reaches ready display ownership only after every required role payload is validated and render-committed for the active target identities. Terminal projection is engine-owned: loading remains loading while required roles are pending, terminal error takes precedence over unsupported, primary role diagnostics win tied terminal status, and stale or non-required role results cannot publish partial spread state.
+Accepted presentation-target and spread transitions are target-spread transactions. A target that includes both roles reaches ready display ownership only after every required role payload is validated and render-committed for the active target identities. Terminal projection is engine-owned: loading remains loading while required roles are pending, terminal error takes precedence over unsupported, primary role diagnostics win tied terminal status, and stale or non-required role results cannot publish partial spread state.
 
 Broad mutable controller ports are not part of the architecture. External facts needed by a transition are captured into typed input snapshots before entering the engine.
 

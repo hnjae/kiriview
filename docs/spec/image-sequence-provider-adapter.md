@@ -2,7 +2,7 @@
 
 The provider adapter is the public extension point for application-owned image sources. It lets applications expose custom decoding, storage, cache, predecode, refinement, or streaming services as an `ImageSequence` without giving `ImageViewport` direct access to files, URLs, provider URLs, image-provider ids, archives, arbitrary JavaScript objects, display-store entries, or application navigation policy.
 
-Provider-backed sequences are individual page sources from the viewport's perspective. The provider receives viewport requests and supplies provider events, diagnostics, declared facts, and complete-frame payloads for viewport demand; it does not own caller navigation policy, spread pairing, page-role selection, source identity comparison by the viewport, page-set transition intent, viewport presentation state, scene graph resources, or QML image load acknowledgement.
+Provider-backed sequences are individual page sources from the viewport's perspective. The provider receives viewport requests and supplies provider events, diagnostics, declared facts, and complete-frame payloads for viewport demand; it does not own caller navigation policy, spread pairing, page-role selection, source identity comparison by the viewport, presentation-target transition intent, viewport presentation state, scene graph resources, or QML image load acknowledgement.
 
 ## Construction Contract
 
