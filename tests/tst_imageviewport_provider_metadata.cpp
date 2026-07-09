@@ -66,7 +66,7 @@ private slots:
     void providerRuntimeMetadataContradictsKnownFrameCountFacts();
     void secondaryProviderRuntimeMetadataContradictsKnownLogicalSizeFacts();
     void secondaryProviderDeclaredCapabilityContradictionRejectsMetadata();
-    void secondaryProviderMetadataDoesNotReviveSupersededInitialTarget();
+    void secondaryProviderMetadataDoesNotReviveStaleInitialTarget();
     void providerCompleteDurationFactsSelectInitialFrameWithoutMetadata();
     void providerCompleteKnownFactsSelectInitialFrameRequest();
     void providerMetadataLoadingPauseStopPreserveInitialRequest();
@@ -807,8 +807,7 @@ void ImageViewportProviderMetadataTest::
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("capabilities")));
 }
 
-void ImageViewportProviderMetadataTest::
-    secondaryProviderMetadataDoesNotReviveSupersededInitialTarget()
+void ImageViewportProviderMetadataTest::secondaryProviderMetadataDoesNotReviveStaleInitialTarget()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);

@@ -51,8 +51,8 @@ public:
         ImageSequenceProviderDescriptor descriptor;
         descriptor.setSessionFactory(m_factory);
         descriptor.setKnownMetadata(m_knownMetadata);
-        descriptor.setKnownFacts(m_knownFacts.isSpecified() ? m_knownFacts
-                                                            : knownFactsForMetadata(m_knownMetadata));
+        descriptor.setKnownFacts(
+            m_knownFacts.isSpecified() ? m_knownFacts : knownFactsForMetadata(m_knownMetadata));
         return descriptor;
     }
 
@@ -185,7 +185,7 @@ private slots:
     void metadataDispatchFailureRejectsStaleTokenAndClosesActiveGeneration();
     void frameDispatchFailureRejectsStaleTokenAndClosesActiveGeneration();
     void metadataDispatchFailureReportsNullSessionAfterAcceptance();
-    void sessionSerialRejectsSupersededSessionResults();
+    void sessionSerialRejectsStaleSessionResults();
     void metadataAndFrameEventsRejectStaleTokens();
     void metadataReadyEventAppliesAdmissionAndTargetPolicy();
     void secondaryMetadataReadyEventUsesSameShape();
@@ -202,7 +202,7 @@ private slots:
     void failureScopeTableClassifiesTerminalInputs_data();
     void failureScopeTableClassifiesTerminalInputs();
     void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
-    void secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest();
+    void secondaryMetadataTargetPolicyIgnoresStaleInitialRequest();
 };
 
 void ViewportControllerProviderTest::
@@ -327,7 +327,7 @@ void ViewportControllerProviderTest::metadataDispatchFailureReportsNullSessionAf
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("missing session")));
 }
 
-void ViewportControllerProviderTest::sessionSerialRejectsSupersededSessionResults()
+void ViewportControllerProviderTest::sessionSerialRejectsStaleSessionResults()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;
@@ -1056,7 +1056,7 @@ void ViewportControllerProviderTest::
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("construction-time")));
 }
 
-void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresSupersededInitialRequest()
+void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleInitialRequest()
 {
     ImageSequenceFactory factory;
     ProviderControllerContext context;

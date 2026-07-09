@@ -32,9 +32,9 @@ Session entry points are called according to the descriptor threading contract. 
 
 The session reports one signal: `providerEvent(const ImageSequenceProviderEvent&)`. Event values, event kinds, unsupported causes, token echo rules, and diagnostic fields follow the canonical schema in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md).
 
-Terminal events include optional public diagnostics. Waiting and progress are advisory; the viewport may coalesce or drop superseded progress events.
+Terminal events include optional public diagnostics. Waiting and progress are advisory; the viewport may coalesce or drop stale progress events.
 
-Frame-ready events transfer ownership with `ImageSequenceProviderFrameHandle` plus `ImageSequenceProviderFrameEnvelope`. Borrowed raw `ImageFrame*` result signals are not supported. Handle release is the provider-visible lifetime boundary for accepted, retained, rejected, superseded, failed, cleared, replaced, memory-pressure-released, or item-destruction-released payloads. Release callback affinity, non-reentrancy, and session-destruction ordering follow the canonical handle contract in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md#provider-demand-and-payload-values).
+Frame-ready events transfer ownership with `ImageSequenceProviderFrameHandle` plus `ImageSequenceProviderFrameEnvelope`. Borrowed raw `ImageFrame*` result signals are not supported. Handle release is the provider-visible lifetime boundary for accepted, retained, rejected, stale, failed, cleared, replaced, memory-pressure-released, or item-destruction-released payloads. Release callback affinity, non-reentrancy, and session-destruction ordering follow the canonical handle contract in [ImageSequence Provider Protocol](image-sequence-provider-protocol.md#provider-demand-and-payload-values).
 
 Primary and secondary page-role sessions use the same request and event channel. Role selection changes viewport aggregation and page placement; it does not restrict which provider event kinds are valid.
 

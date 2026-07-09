@@ -16,7 +16,7 @@ private slots:
     void providerRequestTokensAreUniqueWithinSession();
     void providerFrameSeekUsesFrameRequest();
     void providerFrameSeekBeforeMetadataResolvesAfterMetadata();
-    void providerSupersededPreMetadataSeekIgnoresStaleRejection();
+    void providerStalePreMetadataSeekIgnoresStaleRejection();
     void providerStillMetadataRevisesAcceptedSeekObservations();
     void providerInvalidPreMetadataSeekCanStartPlaybackAfterMetadata();
     void providerPositionSeekBeforeMetadataResolvesAfterMetadata();
@@ -28,13 +28,13 @@ private slots:
     void providerPlaybackBeforeStillMetadataKeepsGenerationSeekable();
     void providerFrameSeekQueuesBehindActiveFrameRequest();
     void waitProjectionRevisionChangesOnlyWhenPublicReasonChanges();
-    void providerTimedSameFrameSeekSupersedesActiveRequest();
+    void providerTimedSameFrameSeekRetiresActiveRequest();
     void providerQueuedFrameRequestSchedulerFailureReportsProviderFailure();
     void secondaryProviderQueuedFrameRequestSchedulerFailureReportsProviderFailure();
     void providerTimedFrameSeekRequestsSelectedFrame();
     void providerTimedFrameSeekWithoutDiagnosticsDoesNotNotify();
     void providerTimedFrameCommitPreservesGeometryObservations();
-    void providerTimedFrameSeekCancelsSupersededRequest();
+    void providerTimedFrameSeekCancelsStaleRequest();
     void providerTimedPositionSeekRequestsResolvedFrame();
     void secondaryProviderFrameSeekBeforeMetadataResolvesAfterMetadata();
     void secondaryProviderPositionSeekBeforeMetadataResolvesAfterMetadata();
@@ -43,7 +43,7 @@ private slots:
     void secondaryProviderFrameSeekRetainsDisplayedSpreadUntilCommit();
     void secondaryProviderPositionSeekRetainsDisplayedSpreadUntilCommit();
     void secondaryProviderInvalidAndUnsupportedSeekCommandsPreserveRequest();
-    void secondaryProviderFrameSeekIgnoresSupersededFrameResult();
+    void secondaryProviderFrameSeekIgnoresStaleFrameResult();
 };
 
 void ImageViewportProviderRequestsTest::providerRequestTokensAreUniqueWithinSession()
@@ -184,7 +184,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
     QCOMPARE(stateSpy.count(), 1);
 }
 
-void ImageViewportProviderRequestsTest::providerSupersededPreMetadataSeekIgnoresStaleRejection()
+void ImageViewportProviderRequestsTest::providerStalePreMetadataSeekIgnoresStaleRejection()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -880,7 +880,7 @@ void ImageViewportProviderRequestsTest::waitProjectionRevisionChangesOnlyWhenPub
     verifyRevisionChanged(item, "requestRevision", secondaryProviderWaitingRevision);
 }
 
-void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekSupersedesActiveRequest()
+void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekRetiresActiveRequest()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1270,7 +1270,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameCommitPreservesGeometr
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 }
 
-void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededRequest()
+void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsStaleRequest()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1325,7 +1325,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
 
     emitProviderUnsupported(sessionFactory->lastSession(), firstSeekToken,
         ImageSequenceProviderUnsupportedCause::PayloadRejection,
-        QStringLiteral("superseded request unsupported late"));
+        QStringLiteral("stale request unsupported late"));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1335,7 +1335,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
     QCOMPARE(viewportErrorString(item), QString());
 
     emitProviderCancelled(sessionFactory->lastSession(), firstSeekToken,
-        QStringLiteral("superseded request cleanup complete"));
+        QStringLiteral("stale request cleanup complete"));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1344,8 +1344,8 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsSupersededR
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(viewportErrorString(item), QString());
 
-    emitProviderFailed(sessionFactory->lastSession(), firstSeekToken,
-        QStringLiteral("superseded request failed late"));
+    emitProviderFailed(
+        sessionFactory->lastSession(), firstSeekToken, QStringLiteral("stale request failed late"));
     drainQueuedProviderResults();
 
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1883,7 +1883,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(secondaryRequestedPosition(item), -1);
 }
 
-void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresSupersededFrameResult()
+void ImageViewportProviderRequestsTest::secondaryProviderFrameSeekIgnoresStaleFrameResult()
 {
     ImageSequenceFactory factory;
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);

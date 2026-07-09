@@ -23,9 +23,9 @@ private slots:
     void providerTimedStopWhileWaitingForMetadataRestoresExplicitSeek();
     void providerTimedStopWhileWaitingForMetadataRestoresExplicitPositionSeek();
     void providerTimedStopAfterMetadataPlaybackCreatesNonPlaybackRequest();
-    void providerTimedStopAfterMetadataPlaybackRestoresSupersededExplicitSeek();
+    void providerTimedStopAfterMetadataPlaybackRestoresStaleExplicitSeek();
     void providerTimedStopCancelsPlaybackRequest();
-    void providerTimedStopSupersedesPlaybackRequest();
+    void providerTimedStopRetiresPlaybackRequest();
     void providerTimedSeekWhilePlayingWaitsForFrame();
     void providerTimedPlaybackEndOfSequenceDoesNotPromoteRetainedPreviousGeneration();
     void providerTimedPlaybackEndOfSequenceFinalUsesPlaybackEntryPoint();
@@ -34,7 +34,7 @@ private slots:
     void providerTimedLoopingPlaybackWrapsToFirstFrame();
     void providerTimedPlaybackAdvancementUsesPlaybackEntryPoint();
     void providerTimedPlaybackWaitsForMetadata();
-    void providerTimedPlaybackBeforeMetadataSupersedesExplicitSeek();
+    void providerTimedPlaybackBeforeMetadataRetiresExplicitSeek();
     void providerTimedPlaybackAfterMetadataUsesPlaybackEntryPoint();
     void providerTimedPausedPlaybackAfterMetadataUsesPlaybackEntryPoint();
     void secondaryProviderTimedPlaybackWaitsForMetadata();
@@ -698,7 +698,7 @@ void ImageViewportProviderPlaybackTest::
 }
 
 void ImageViewportProviderPlaybackTest::
-    providerTimedStopAfterMetadataPlaybackRestoresSupersededExplicitSeek()
+    providerTimedStopAfterMetadataPlaybackRestoresStaleExplicitSeek()
 {
     ImageSequenceFactory factory;
 
@@ -830,7 +830,7 @@ void ImageViewportProviderPlaybackTest::providerTimedStopCancelsPlaybackRequest(
     QVERIFY(sessionFactory->lastSession()->lastCancelledToken() == playbackToken);
 }
 
-void ImageViewportProviderPlaybackTest::providerTimedStopSupersedesPlaybackRequest()
+void ImageViewportProviderPlaybackTest::providerTimedStopRetiresPlaybackRequest()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -1449,7 +1449,7 @@ void ImageViewportProviderPlaybackTest::providerTimedPlaybackWaitsForMetadata()
     QCOMPARE(primaryDisplayedPosition(item), 0);
 }
 
-void ImageViewportProviderPlaybackTest::providerTimedPlaybackBeforeMetadataSupersedesExplicitSeek()
+void ImageViewportProviderPlaybackTest::providerTimedPlaybackBeforeMetadataRetiresExplicitSeek()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);

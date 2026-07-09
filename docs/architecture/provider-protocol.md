@@ -16,7 +16,7 @@ Provider sessions receive the canonical request values defined by the public pro
 
 Frame requests target a resolved frame. Position requests preserve the public requested position and carry the resolved frame identity needed for payload validation. Playback requests carry playback-origin token identity and may produce frame readiness or end-of-sequence events. Unknown-target initial assignment requests metadata first and sends no frame, position, or playback request until metadata selects a valid target.
 
-Display demand is a value snapshot, not provider-owned viewport state. Its public fields are defined by `ImageSequenceProviderDisplayDemand` in [ImageSequence Provider Protocol](../spec/image-sequence-provider-protocol.md#provider-demand-and-payload-values). Demand lets providers choose complete-frame preview, exact, bounded-detail, cached, or refinement payloads without receiving scene graph resources or QML image-provider state. Exactness preference is an admission constraint: `RequireExact` rejects inexact payloads even when the demand revision matches. Demand revision is part of stale-result admission; a payload for a superseded demand revision is released and ignored. Retained visible detail comes only from payloads previously admitted for the then-active demand, and cached payload reuse must be re-emitted under the current token and demand revision.
+Display demand is a value snapshot, not provider-owned viewport state. Its public fields are defined by `ImageSequenceProviderDisplayDemand` in [ImageSequence Provider Protocol](../spec/image-sequence-provider-protocol.md#provider-demand-and-payload-values). Demand lets providers choose complete-frame preview, exact, bounded-detail, cached, or refinement payloads without receiving scene graph resources or QML image-provider state. Exactness preference is an admission constraint: `RequireExact` rejects inexact payloads even when the demand revision matches. Demand revision is part of stale-result admission; a payload for a stale demand revision is released and ignored. Retained visible detail comes only from payloads previously admitted for the then-active demand, and cached payload reuse must be re-emitted under the current token and demand revision.
 
 Each session has one serialized command stream from the engine. Providers may complete work on arbitrary worker facilities, but event delivery into the viewport is normalized by the provider host before engine state changes are evaluated.
 
@@ -24,7 +24,7 @@ Each session has one serialized command stream from the engine. Providers may co
 
 Provider sessions report the canonical event values defined by the public provider protocol. Events for metadata, frame, position, and playback work echo the token of the original request they answer. `Cancelled` events echo the original token being cancelled; `Close` has no event contract.
 
-The engine validates session identity, generation identity, token scope, page role, and active request identity before an event can mutate state. Late events for stale, superseded, cancelled, or closed work are released and ignored without changing public state, display content, playback phase, diagnostics, or revisions.
+The engine validates session identity, generation identity, token scope, page role, and active request identity before an event can mutate state. Late events for stale, cancelled, or closed work are released and ignored without changing public state, display content, playback phase, diagnostics, or revisions.
 
 Unsupported events carry an explicit cause: `UnsupportedRequest` or `PayloadRejection`.
 
@@ -36,7 +36,7 @@ Metadata readiness is generation-scoped. Runtime metadata supplies frame count, 
 
 Complete construction-time metadata may select initial frame `0` during assignment. Unknown or partial construction-time metadata leaves the initial target unknown until validated runtime metadata creates a metadata-bound display request for the still-active initial request.
 
-Metadata may update generation facts after the active display request has changed when session and generation identities still match and the generation has not closed. It may not revive superseded initial, seek, playback, clear, or replacement requests.
+Metadata may update generation facts after the active display request has changed when session and generation identities still match and the generation has not closed. It may not revive stale initial, seek, playback, clear, or replacement requests.
 
 Malformed metadata, contradiction of construction-time facts, non-contiguous timing, non-positive durations, invalid dimensions, provider protocol violation, and public-limit violation are generation-terminal payload-rejection errors. Accurate metadata proving unsupported sequence content is generation-terminal unsupported state. Unsupported operations for otherwise valid content are scoped to the active operation that required them.
 
@@ -46,7 +46,7 @@ Frame-ready events transfer a frame handle and `ImageSequenceProviderFrameEnvelo
 
 The frame envelope source logical image size must match validated sequence metadata for that role. The payload raster may differ from source logical size, but it must be finite, positive, complete-frame, and aspect-compatible after orientation normalization. Timed frame index and frame-start position must match the accepted display request's resolved frame identity. `seekToPosition(totalDuration)` resolves to the final frame index and final frame start position and is not answered with end of sequence.
 
-Rejected, stale, superseded, retained-then-released, render-failed-and-unretained, memory-pressure-released, clear-released, replacement-released, and destruction-released frame handles are released exactly once without requiring scene graph access or provider knowledge of render-side objects. Providers may use handle release for application cache leases or backpressure, but cancellation acknowledgement is never required before the viewport can proceed. Release callbacks are normalized through the provider host according to the provider threading contract and are not invoked from the Qt Quick render thread.
+Rejected, stale, retained-then-released, render-failed-and-unretained, memory-pressure-released, clear-released, replacement-released, and destruction-released frame handles are released exactly once without requiring scene graph access or provider knowledge of render-side objects. Providers may use handle release for application cache leases or backpressure, but cancellation acknowledgement is never required before the viewport can proceed. Release callbacks are normalized through the provider host according to the provider threading contract and are not invoked from the Qt Quick render thread.
 
 Same-target refinement uses the same identity and stale-result rules as ordinary frame requests. The viewport trusts the caller's application-owned source identity intent and validates public presentation-target shape, metadata consistency, logical-size equality, active request identity, demand revision, and payload envelope. A refinement payload may replace display detail for the same source logical identity, source logical size, and role only when those public checks still match. Refinement never changes source logical coordinates. Presentation, geometry, device-pixel-ratio, cap, budget, allocation, or current-payload changes that can alter payload choice allocate a new demand revision and may cause a new provider request for the active role.
 
@@ -56,7 +56,7 @@ Provider playback uses playback-token identity in addition to display-request id
 
 In play-once mode, end of sequence selects or promotes the final displayable frame and stops only after that frame is committed for the accepted request or already visible same-generation final-frame pixels are promoted to the accepted display identity. In looping mode, end of sequence wraps to the first frame without exposing an out-of-range requested position.
 
-Stop, seek, loop, clear, replacement, unsupported, and terminal failures supersede older playback tokens. Late playback events for superseded tokens are stale.
+Stop, seek, loop, clear, replacement, unsupported, and terminal failures retire older playback tokens. Late playback events for retired tokens are stale.
 
 ## Shutdown
 

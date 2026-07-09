@@ -28,8 +28,8 @@ private slots:
     void providerTimedFramePaintFailureRetainsPreviousDisplay();
     void providerTimedPlaybackPaintFailureStopsPlayback();
     void providerTimedPlayAfterPaintFailureRestartsPlaybackRequest();
-    void providerSupersededRenderWaitingClearsPendingRenderCommit();
-    void providerSupersededRenderFailureIsIgnored();
+    void providerStaleRenderWaitingClearsPendingRenderCommit();
+    void providerStaleRenderFailureIsIgnored();
     void providerRenderCommitAcknowledgementPromotesPendingFrameWithoutSceneGraph();
     void secondaryProviderSpreadRenderFailureRetainsPreviousDisplay();
     void twoPageSinglePayloadCommitAcknowledgementIsIncomplete();
@@ -776,7 +776,7 @@ void ImageViewportRenderCommitTest::providerTimedPlayAfterPaintFailureRestartsPl
     QCOMPARE(viewportErrorString(item), QString());
 }
 
-void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPendingRenderCommit()
+void ImageViewportRenderCommitTest::providerStaleRenderWaitingClearsPendingRenderCommit()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);
@@ -829,7 +829,7 @@ void ImageViewportRenderCommitTest::providerSupersededRenderWaitingClearsPending
     QVERIFY(!hasPendingRenderCommitForTest(item));
 }
 
-void ImageViewportRenderCommitTest::providerSupersededRenderFailureIsIgnored()
+void ImageViewportRenderCommitTest::providerStaleRenderFailureIsIgnored()
 {
     ImageSequenceFactory factory;
     const auto sessionCount = std::make_shared<int>(0);

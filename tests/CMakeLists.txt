@@ -27,8 +27,8 @@ target_compile_definitions(
 # imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek. -
 # request/display revision behavior:
 # imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision. - provider stale results:
-# imageviewport_provider_requests/providerTimedFrameSeekCancelsSupersededRequest. - render
-# acknowledgement identity: imageviewport_render_commit/providerSupersededRenderFailureIsIgnored. -
+# imageviewport_provider_requests/providerTimedFrameSeekCancelsStaleRequest. - render
+# acknowledgement identity: imageviewport_render_commit/providerStaleRenderFailureIsIgnored. -
 # stop restoration: imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay.
 # - metadata-bound target selection:
 # imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest. - playback
