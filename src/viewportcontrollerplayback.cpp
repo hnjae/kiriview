@@ -782,7 +782,7 @@ ViewportCommandResult ViewportController::playPrimary()
     return result;
 }
 
-ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::playImpl(ImageViewport::PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
         return rejectInvalidCommand();
@@ -804,7 +804,7 @@ ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
     return playBuiltInRole(*this, viewport, state, role, generationTerminalFailure);
 }
 
-ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::pauseImpl(ImageViewport::PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
         return rejectInvalidCommand();
@@ -835,7 +835,7 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
     return result;
 }
 
-ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::stopImpl(ImageViewport::PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
         return rejectInvalidCommand();
@@ -1014,7 +1014,7 @@ ViewportCommandResult ViewportController::seekPrimary(int frame)
     return result;
 }
 
-ViewportCommandResult ViewportController::seek(ImageViewport::PageRole role, int frame)
+ViewportCommandResult ViewportController::seekImpl(ImageViewport::PageRole role, int frame)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
         return rejectInvalidCommand();
@@ -1291,7 +1291,7 @@ ViewportCommandResult ViewportController::seekPrimaryToPosition(int milliseconds
     return result;
 }
 
-ViewportCommandResult ViewportController::seekToPosition(
+ViewportCommandResult ViewportController::seekToPositionImpl(
     ImageViewport::PageRole role, int milliseconds)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
@@ -1449,42 +1449,63 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
     return result;
 }
 
-int ViewportController::playbackTimerInterval() const
+ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
 {
-    if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Playing
-        || viewportRequestState(viewport).status != ImageViewport::RequestStatus::Ready) {
-        return -1;
+    ViewportCommandResult result;
+    switch (command.kind) {
+    case ViewportPlaybackCommand::Kind::Play:
+        result = playImpl(command.role);
+        break;
+    case ViewportPlaybackCommand::Kind::Pause:
+        result = pauseImpl(command.role);
+        break;
+    case ViewportPlaybackCommand::Kind::Stop:
+        result = stopImpl(command.role);
+        break;
+    case ViewportPlaybackCommand::Kind::SeekFrame:
+        result = seekImpl(command.role, command.value);
+        break;
+    case ViewportPlaybackCommand::Kind::SeekPosition:
+        result = seekToPositionImpl(command.role, command.value);
+        break;
     }
-
-    const ImageViewport::PageRole role = viewportRequestState(viewport).playbackRole;
-    const ViewportPlaybackRoleTiming timing = playbackTimingForRole(viewport, state, role);
-    if (!timing.valid) {
-        return -1;
-    }
-    const int currentFrame
-        = activeRequestForRole(viewportRequestState(viewport), role).target.frame;
-    if (currentFrame < 0 || currentFrame >= timing.frameCount) {
-        return -1;
-    }
-
-    const int frameStart = timing.frameStartPosition(currentFrame);
-    const int nextFrameStart = currentFrame + 1 < timing.frameCount
-        ? timing.frameStartPosition(currentFrame + 1)
-        : timing.totalDuration;
-    const int frameDuration = nextFrameStart - frameStart;
-
-    if (frameStart < 0 || frameDuration <= 0) {
-        return -1;
-    }
-
-    const int playbackPosition = viewportRequestState(viewport).playbackPosition >= 0
-        ? viewportRequestState(viewport).playbackPosition
-        : frameStart;
-    const int remaining = frameStart + frameDuration - playbackPosition;
-    return std::max(1, remaining);
+    result.playbackSchedule = state.engine.playbackScheduleEffect();
+    return result;
 }
 
-ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMilliseconds)
+ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
+{
+    return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Play, role });
+}
+
+ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
+{
+    return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Pause, role });
+}
+
+ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
+{
+    return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Stop, role });
+}
+
+ViewportCommandResult ViewportController::seek(ImageViewport::PageRole role, int frame)
+{
+    return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::SeekFrame, role, frame });
+}
+
+ViewportCommandResult ViewportController::seekToPosition(
+    ImageViewport::PageRole role, int milliseconds)
+{
+    return applyPlaybackCommand(
+        { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
+}
+
+ViewportPlaybackScheduleEffect ViewportController::playbackScheduleEffect() const
+{
+    return state.engine.playbackScheduleEffect();
+}
+
+ViewportPlaybackAdvanceResult ViewportController::advancePlaybackImpl(int elapsedMilliseconds)
 {
     ViewportPlaybackAdvanceResult result;
     if (viewportRequestState(viewport).playbackPhase != ImageViewport::PlaybackPhase::Playing
@@ -1573,5 +1594,12 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
     result.changes.geometryState
         = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
     markScheduleUpdate(result.changes);
+    return result;
+}
+
+ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMilliseconds)
+{
+    ViewportPlaybackAdvanceResult result = advancePlaybackImpl(elapsedMilliseconds);
+    result.schedule = state.engine.playbackScheduleEffect();
     return result;
 }

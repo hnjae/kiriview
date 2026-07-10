@@ -14,6 +14,7 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
+    playbackScheduler.apply(result.schedule);
 }
 
 void ImageViewportPrivate::incrementDisplayRevision() { controller.incrementDisplayRevision(); }
@@ -156,7 +157,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(controller.playbackScheduleEffect());
     return result.outcome;
 }
 
@@ -174,7 +175,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(result.playbackSchedule);
     return result.outcome;
 }
 
@@ -192,7 +193,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(result.playbackSchedule);
     return result.outcome;
 }
 
@@ -210,7 +211,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(result.playbackSchedule);
     return result.outcome;
 }
 
@@ -228,7 +229,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(result.playbackSchedule);
     return result.outcome;
 }
 
@@ -246,7 +247,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     applyControllerChanges(result.changes);
-    playbackScheduler.sync();
+    playbackScheduler.apply(result.playbackSchedule);
     return result.outcome;
 }
 
@@ -262,7 +263,7 @@ ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 {
     advancePlayback(elapsedMilliseconds);
-    playbackScheduler.sync();
+    playbackScheduler.apply(controller.playbackScheduleEffect());
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
@@ -361,7 +362,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
         { { generation, requestId, preparedPayloadId } }, true, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        playbackScheduler.sync();
+        playbackScheduler.apply(controller.playbackScheduleEffect());
     }
 }
 
@@ -390,7 +391,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         true, synchronization);
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        playbackScheduler.sync();
+        playbackScheduler.apply(controller.playbackScheduleEffect());
     }
 }
 
@@ -420,7 +421,7 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
         { failedPayload, { { failedRole, failedPayload } }, failedRole, cause });
     applyControllerChanges(changes);
     if (changes.playbackPhase) {
-        playbackScheduler.sync();
+        playbackScheduler.apply(controller.playbackScheduleEffect());
     }
 }
 #endif

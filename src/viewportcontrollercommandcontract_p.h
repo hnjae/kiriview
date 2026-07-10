@@ -3,6 +3,7 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 
 struct ViewportCommandResult
 {
@@ -10,6 +11,7 @@ struct ViewportCommandResult
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
+    ViewportPlaybackScheduleEffect playbackSchedule;
 };
 
 struct ViewportPresentationCommandInput

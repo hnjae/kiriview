@@ -336,13 +336,13 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
     if (result.openProviderSession && !providerHost.openSession()) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             QStringLiteral("provider session creation failed")));
-        playbackScheduler.sync();
+        playbackScheduler.apply(controller.playbackScheduleEffect());
         return result.outcome;
     }
     if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
         applyControllerChanges(controller.handleProviderSessionOpenFailure(
             PageRole::Secondary, QStringLiteral("provider session creation failed")));
     }
-    playbackScheduler.sync();
+    playbackScheduler.apply(controller.playbackScheduleEffect());
     return result.outcome;
 }

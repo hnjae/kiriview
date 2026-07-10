@@ -13,16 +13,19 @@ ImageViewportPlaybackScheduler::ImageViewportPlaybackScheduler(ImageViewportPriv
     QObject::connect(&timer, &QTimer::timeout, viewport.q, [this]() { handleTimeout(); });
 }
 
-void ImageViewportPlaybackScheduler::sync()
+void ImageViewportPlaybackScheduler::apply(ViewportPlaybackScheduleEffect effect)
 {
-    const int interval = viewport.controller.playbackTimerInterval();
-    if (interval <= 0) {
+    using Action = ViewportPlaybackScheduleEffect::Action;
+    if (effect.action == Action::NoChange) {
+        return;
+    }
+    if (effect.action == Action::Stop || effect.delayMilliseconds <= 0) {
         stop();
         return;
     }
 
     clock.restart(timebase.elapsed());
-    timer.start(interval);
+    timer.start(effect.delayMilliseconds);
 }
 
 void ImageViewportPlaybackScheduler::stop()
@@ -50,5 +53,4 @@ int ImageViewportPlaybackScheduler::takeElapsed()
 void ImageViewportPlaybackScheduler::handleTimeout()
 {
     viewport.advancePlayback(takeElapsed());
-    sync();
 }

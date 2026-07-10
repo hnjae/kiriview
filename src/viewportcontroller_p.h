@@ -15,6 +15,7 @@ struct ControllerTransitionPolicy;
 struct ViewportCommandResult;
 struct ViewportMetadataProjection;
 struct ViewportPlaybackAdvanceResult;
+struct ViewportPlaybackScheduleEffect;
 struct ViewportPresentationCommandInput;
 struct ViewportProviderAcceptedMetadataFacts;
 struct ViewportProviderDispatchFailureEvent;
@@ -279,6 +280,7 @@ public:
     ViewportCommandResult stop(ImageViewport::PageRole role);
     ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
     ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
+    ViewportCommandResult applyPlaybackCommand(ViewportPlaybackCommand command);
     ViewportCommandResult setPresentation(const ViewportPresentationCommandInput& input);
     ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
     ViewportCommandResult setPageGap(double gap);
@@ -372,7 +374,7 @@ public:
         const ViewportRenderSynchronization& synchronization);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
         const ViewportRenderAcknowledgement& acknowledgement);
-    int playbackTimerInterval() const;
+    ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
     ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
@@ -407,6 +409,13 @@ private:
     ViewportCommandResult rejectUnsupportedCommand();
     ViewportCommandResult rejectIgnoredNoRequestCommand();
     ViewportCommandResult playPrimary();
+    ViewportCommandResult playImpl(ImageViewport::PageRole role);
+    ViewportCommandResult pauseImpl(ImageViewport::PageRole role);
+    ViewportCommandResult stopImpl(ImageViewport::PageRole role);
+    ViewportCommandResult seekImpl(ImageViewport::PageRole role, int frame);
+    ViewportCommandResult seekToPositionImpl(
+        ImageViewport::PageRole role, int milliseconds);
+    ViewportPlaybackAdvanceResult advancePlaybackImpl(int elapsedMilliseconds);
     ViewportCommandResult seekPrimary(int frame);
     ViewportCommandResult seekPrimaryToPosition(int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,

@@ -1,4 +1,5 @@
 #include "imageviewport_testhooks_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 #include "viewportengine_p.h"
 
 #include <QtCore/QScopedPointer>
@@ -96,6 +97,9 @@ private slots:
     void displayStateOwnsRenderPayloadAndRetainedIdentity();
     void defaultRequestStateMatchesPublicDefaults();
     void requestStateOwnsPlaybackDriverAndRequestIdentity();
+    void playbackScheduleStopsOutsideReadyPlayingState();
+    void playbackScheduleUsesBuiltInFrameRemainder();
+    void playbackScheduleUsesProviderFrameRemainderByRole();
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
     void providerFrameQueueStoresCurrentRequestIdentity();
@@ -326,6 +330,60 @@ void ViewportEngineTest::requestStateOwnsPlaybackDriverAndRequestIdentity()
         observed.secondaryActiveRequest.identity.origin, observed.activeRequest.identity.origin);
     QCOMPARE(observed.secondaryActiveRequest.target.frame, 4);
     QCOMPARE(observed.secondaryLatestNonPlaybackRequest.target.frame, 1);
+}
+
+void ViewportEngineTest::playbackScheduleStopsOutsideReadyPlayingState()
+{
+    ViewportEngine engine;
+
+    const auto stopped = engine.playbackScheduleEffect();
+
+    QCOMPARE(stopped.action, ViewportPlaybackScheduleEffect::Action::Stop);
+    QCOMPARE(stopped.delayMilliseconds, -1);
+}
+
+void ViewportEngineTest::playbackScheduleUsesBuiltInFrameRemainder()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.timed = true;
+    request.sequenceSource.facts.frameCount = 2;
+    request.sequenceSource.facts.totalDuration = 350;
+    request.sequenceSource.facts.timingIntervals
+        = TimingIntervals::fromFrameDurations({ 100, 250 });
+    request.activeRequest.target.frame = 1;
+    request.playbackRole = ImageViewport::PageRole::Primary;
+    request.playbackPosition = 125;
+    request.playbackPhase = ImageViewport::PlaybackPhase::Playing;
+    request.status = ImageViewport::RequestStatus::Ready;
+
+    const auto effect = engine.playbackScheduleEffect();
+
+    QCOMPARE(effect.action, ViewportPlaybackScheduleEffect::Action::ArmAfter);
+    QCOMPARE(effect.delayMilliseconds, 225);
+}
+
+void ViewportEngineTest::playbackScheduleUsesProviderFrameRemainderByRole()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.secondarySequenceSource.facts.present = true;
+    request.secondarySequenceSource.facts.provider = true;
+    request.secondaryActiveRequest.target.frame = 0;
+    request.playbackRole = ImageViewport::PageRole::Secondary;
+    request.playbackPosition = 40;
+    request.playbackPhase = ImageViewport::PlaybackPhase::Playing;
+    request.status = ImageViewport::RequestStatus::Ready;
+    auto& provider = engine.secondaryProviderState();
+    provider.metadataReady = true;
+    provider.timedMetadata = true;
+    provider.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
+
+    const auto effect = engine.playbackScheduleEffect();
+
+    QCOMPARE(effect.action, ViewportPlaybackScheduleEffect::Action::ArmAfter);
+    QCOMPARE(effect.delayMilliseconds, 60);
 }
 
 void ViewportEngineTest::defaultProviderStateMatchesEmptyGeneration()

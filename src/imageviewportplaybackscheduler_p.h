@@ -1,6 +1,7 @@
 #pragma once
 
 #include "playbackclock_p.h"
+#include "viewportcontrollerplaybackcontract_p.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
@@ -12,7 +13,7 @@ class ImageViewportPlaybackScheduler
 public:
     explicit ImageViewportPlaybackScheduler(ImageViewportPrivate& viewport);
 
-    void sync();
+    void apply(ViewportPlaybackScheduleEffect effect);
     void stop();
     void flushElapsed();
 

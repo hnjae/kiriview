@@ -5,9 +5,11 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportrendercontract_p.h"
+#include "viewportplaybackcontract_p.h"
 
 #include <array>
 #include <optional>
+
 
 class ViewportEngine
 {
@@ -208,6 +210,7 @@ public:
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
     ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
+    ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
 
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
