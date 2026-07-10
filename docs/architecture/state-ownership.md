@@ -36,7 +36,7 @@ Rust may compute navigation, thumbnail, predecode, or deletion policy from candi
 
 ## Thumbnail Demand Window Boundary
 
-The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail runtime.
+The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail work coordinator. The document-session thumbnail runtime only composes that coordinator with the active-navigation thumbnail row store.
 
 QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation. QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
 

@@ -4,7 +4,7 @@ Active navigation thumbnails use source adapters to keep thumbnail scheduling an
 
 ## Contract
 
-The C++ document-session thumbnail runtime owns demand, async job lifetime, stale-completion rejection, foreground and background priority, accepted demand bucket, and the image-provider store. The demand-window owner contract is defined in [State Ownership](state-ownership.md#thumbnail-demand-window-boundary).
+The C++ document-session thumbnail runtime is a composition and delegation shell around separate row-resource and async-work owners. The demand-window owner contract is defined in [State Ownership](state-ownership.md#thumbnail-demand-window-boundary).
 
 The document session composes the active-navigation thumbnail strip through one strip dependency port. The strip lookup provider, generation provider, source adapter, image store, and worker scheduler cross the session boundary as one active-navigation thumbnail dependency value rather than unrelated raw providers.
 
@@ -13,6 +13,20 @@ Adapters consume the active thumbnail source key and demand bucket defined by [E
 Thumbnail cache lookup, generation requests, cache original identity, source-kind classification, and bucket sizing are neutral thumbnail infrastructure. Active-navigation row kinds are mapped into thumbnail source kinds before crossing the generation provider boundary, and decoding code imports thumbnail cache contracts from the thumbnail boundary rather than from `session/`.
 
 The thumbnail generation core resolves source bytes or video frame extraction, bucket scaling, image decode/render, opened-collection cache identity, and cache lookup/install through injectable thumbnail dependencies before it publishes a generated thumbnail. Production dependencies may use local files, media-entry source metadata, media-entry source bytes, KiriView image decoding, Qt Multimedia video frame extraction, rendering refinement sources, and the XDG thumbnail cache. Tests and independent callers must be able to replace source loading, scaling policy, decoding, frame extraction, and cache repository behavior without constructing session runtimes, mutating global opened-collection state, borrowing playback state, or writing to the user's thumbnail cache.
+
+## Runtime Owner Boundary
+
+`ActiveNavigationThumbnailRowStore` owns row identity, thumbnail navigation generation, current-row projection, source-key indexes, model publication, result projection, and the acquisition, replacement, reprioritization, and release of `ThumbnailImageStore` entries.
+
+`ActiveNavigationThumbnailWorkCoordinator` owns the source adapter, demand deduplication and demand-window epoch, accepted foreground demand and background bucket state, cache-lookup and generation jobs, job ids, cancellation, stale-completion rejection, foreground and background coordination, and failure diagnostics.
+
+The work coordinator reaches row-owned state only through `ActiveNavigationThumbnailRowPort`. The port groups row lookup, pending, unsupported, and failed result application, ready-image installation, usable-ready-image checks, and retention-priority updates. It does not expose mutable row storage, model publication, image-store ids, or image-store operations.
+
+A current-row-only change preserves thumbnail navigation generation, accepted results, and provider entries. When row identity changes, the runtime first invalidates coordinator work and demand identity, then lets the row store release provider entries, advance thumbnail navigation generation, replace rows, rebuild source-key indexes, and publish the new model snapshot.
+
+Every async completion is accepted by the coordinator only after matching active job id, source key including thumbnail navigation generation, demand bucket, and work kind. Only an accepted completion may cross the row port. A background completion does not replace an existing usable foreground-ready image, and a failed larger foreground request preserves an existing usable ready image.
+
+Runtime shutdown invalidates demand identity and cancels coordinator jobs before row-store destruction releases image entries. The document-session dependency value, QML model roles, session command APIs, and image-provider boundary remain outside this internal owner split.
 
 ## Provider Publication
 
