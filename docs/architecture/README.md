@@ -22,6 +22,7 @@ Architecture documents define ownership boundaries, dependency direction, data o
 - [Extension Contracts](extension-contracts.md)
 - [FFI Design](ffi-design.md)
 - [Workflow Shape](workflow-shape.md)
+- [Runtime Graph Composition](runtime-graph-composition.md)
 - [Async Lifecycle](async-lifecycle.md)
 - [Policy Boundary Contracts](target-direction.md)
 - [Testing Strategy](testing-strategy.md)
