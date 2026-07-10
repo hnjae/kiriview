@@ -4,7 +4,6 @@
 #ifndef KIRIVIEW_IMAGEPAGESURFACECONTROLLER_H
 #define KIRIVIEW_IMAGEPAGESURFACECONTROLLER_H
 
-#include "async/imageasyncticket.h"
 #include "async/imageworkerscheduler.h"
 #include "cache/imagecachepolicy.h"
 #include "document/imagedocumenttypes.h"
@@ -12,54 +11,22 @@
 #include "presentation/imagepresentationruntime.h"
 #include "rendering/displayimagestore.h"
 #include "rendering/imagerendercontext.h"
-#include "rendering/rasterdisplaybucketpolicy.h"
 #include "rendering/staticimage.h"
 
 #include <QImage>
-#include <QImageIOHandler>
 #include <QSize>
 #include <QString>
 #include <QUrl>
-#include <atomic>
 #include <functional>
 #include <memory>
 #include <optional>
-#include <vector>
 
 class QObject;
 
 namespace kiriview {
 class ImageAnimationPlayer;
-
-struct RasterDisplayRefinementCacheKey
-{
-    QString displayScopeIdentity;
-    QString sourceIdentity;
-    QImageIOHandler::Transformations imageReaderTransformations
-        = QImageIOHandler::TransformationNone;
-    QSize originalSize;
-    DisplayedPageRole pageRole = DisplayedPageRole::Primary;
-    bool resolutionIndependent = false;
-    DisplayImageQuality quality = DisplayImageQuality::Exact;
-    RasterDisplayBucketKey bucketKey;
-
-    friend bool operator==(
-        const RasterDisplayRefinementCacheKey& left, const RasterDisplayRefinementCacheKey& right)
-    {
-        return left.displayScopeIdentity == right.displayScopeIdentity
-            && left.sourceIdentity == right.sourceIdentity
-            && left.imageReaderTransformations == right.imageReaderTransformations
-            && left.originalSize == right.originalSize && left.pageRole == right.pageRole
-            && left.resolutionIndependent == right.resolutionIndependent
-            && left.quality == right.quality && left.bucketKey == right.bucketKey;
-    }
-
-    friend bool operator!=(
-        const RasterDisplayRefinementCacheKey& left, const RasterDisplayRefinementCacheKey& right)
-    {
-        return !(left == right);
-    }
-};
+class ImageDisplayEntryLeaseController;
+class RasterDisplayRefinementCoordinator;
 
 class ImagePageSurfaceController final
 {
@@ -108,100 +75,26 @@ public:
         const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
 private:
-    struct BufferedStaticDisplayEntry
-    {
-        DisplayImageReuseKey reuseKey;
-        QString entryId;
-    };
-
-    struct CachedRasterDisplayRefinement
-    {
-        RasterDisplayRefinementCacheKey cacheKey;
-        StaticDisplayImagePayload displayImage;
-    };
-
-    struct InFlightRasterDisplayRefinement
-    {
-        RasterDisplayRefinementCacheKey cacheKey;
-        RasterDisplayRefinementDemandKey demandKey;
-        quint64 ticket = 0;
-        std::shared_ptr<std::atomic_bool> startCanceled;
-    };
-
     void acceptImageState(QSize imageSize, bool predecodeCacheable,
         std::optional<StaticDisplayImagePayload> displayImage);
-    DisplayImageReuseKey staticDisplayReuseKey(const StaticDisplayImagePayload& displayImage) const;
     void publishDisplaySource(const StaticDisplayImagePayload& displayImage);
     void publishAnimationFrameDisplaySource(const QImage& image, const QString& sourceIdentity);
     void clearDisplaySource();
-    void releaseBufferedStaticDisplayEntriesForSource(const DisplayImageReuseKey& reuseKey);
-    void retainBufferedStaticDisplayEntry(
-        const DisplayImageReuseKey& reuseKey, const QString& entryId);
-    void trimBufferedStaticDisplayEntries();
-    void releaseBufferedStaticDisplayEntries();
-    void releaseCurrentDisplayEntry();
-    void releaseShadowDisplayEntry();
-    void releaseRetainedStillImageEntry();
-    void retainCurrentAnimationFrameEntryForLoad();
-    void releaseRetainedAnimationFrameEntry();
-    void clearStillImageLoadContract();
-    void clearAnimationFrameLoadContract();
-    void updateDisplaySourceVisibility(bool visible);
-    void cancelRasterDisplayRefinement();
-    RasterDisplayRefinementCacheKey rasterDisplayRefinementCacheKey(
-        const StaticDisplayImagePayload& displayImage,
-        const ImagePresentationRenderProjection& projection, const StaticImageDisplaySource& source,
-        const RasterDisplayBucketDecision& decision) const;
-    bool promoteCachedRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
-        const ImageDocumentRenderContext& renderContext);
-    void retainCachedRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
-        const StaticDisplayImagePayload& displayImage);
-    std::optional<RasterDisplayRefinementDemandKey> attachInFlightRasterDisplayRefinement(
-        const RasterDisplayRefinementCacheKey& cacheKey,
-        RasterDisplayRefinementDemandKey demandKey);
-    void retainInFlightRasterDisplayRefinement(const RasterDisplayRefinementCacheKey& cacheKey,
-        const RasterDisplayRefinementDemandKey& demandKey, quint64 ticket,
-        std::shared_ptr<std::atomic_bool> startCanceled);
-    std::optional<RasterDisplayRefinementDemandKey> takeInFlightRasterDisplayRefinement(
-        const RasterDisplayRefinementCacheKey& cacheKey, quint64 ticket);
-    void scheduleRasterDisplayRefinement(const ImagePresentationRenderProjection& projection);
     void notify(ImageDocumentChange change);
 
     Callbacks m_callbacks;
-    QObject* m_context = nullptr;
     qsizetype m_predecodeCacheByteBudget = 0;
-    qsizetype m_displayImageByteBudget = 0;
-    std::shared_ptr<DisplayImageStore> m_displayImageStore;
     DisplayedPageRole m_pageRole = DisplayedPageRole::Primary;
-    ImageWorkerScheduler m_workerScheduler;
     QSize m_imageSize;
     quint64 m_imageRevision = 0;
     bool m_hasImage = false;
     bool m_predecodeCacheable = false;
     std::optional<StaticDisplayImagePayload> m_displayImage;
-    QString m_displayEntryId;
-    QString m_shadowDisplayEntryId;
-    QString m_pendingStillImageEntryId;
-    QString m_retainedStillImageEntryId;
-    QString m_retainedAnimationFrameEntryId;
     QString m_animationFrameSourceIdentity;
-    QUrl m_pendingStillImageProviderUrl;
-    quint64 m_pendingStillImageRevision = 0;
-    QString m_pendingStillImageSourceIdentity;
-    QUrl m_pendingAnimationFrameProviderUrl;
-    quint64 m_pendingAnimationFrameRevision = 0;
-    QString m_pendingAnimationFrameSourceIdentity;
-    bool m_displayEntryVisiblePinned = false;
-    bool m_currentDisplayEntryIsAnimationFrame = false;
-    bool m_stillImageDisplayLoadPending = false;
-    bool m_animationFrameDisplayLoadPending = false;
     ImageDisplaySourceSlot m_displaySource;
     quint64 m_displaySourceRevision = 0;
-    std::vector<BufferedStaticDisplayEntry> m_bufferedStaticDisplayEntries;
-    std::optional<RasterDisplayRefinementDemandKey> m_rasterDisplayRefinementDemand;
-    std::vector<CachedRasterDisplayRefinement> m_cachedRasterDisplayRefinements;
-    std::vector<InFlightRasterDisplayRefinement> m_inFlightRasterDisplayRefinements;
-    ImageAsyncTicket m_rasterDisplayRefinementTicket;
+    std::unique_ptr<ImageDisplayEntryLeaseController> m_displayEntryLeases;
+    std::unique_ptr<RasterDisplayRefinementCoordinator> m_refinementCoordinator;
     std::unique_ptr<ImageAnimationPlayer> m_animationPlayer;
 };
 }

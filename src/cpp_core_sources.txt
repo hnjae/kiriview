@@ -160,6 +160,8 @@ src/predecode/mediapredecodeeligibility.cpp
 src/predecode/mediapredecodescheduleplan.cpp
 src/predecode/mediapredecodewindowplan.cpp
 src/presentation/imagepagesurfacecontroller.cpp
+src/presentation/imagedisplayentryleasecontroller.cpp
+src/presentation/rasterdisplayrefinementcoordinator.cpp
 src/presentation/imagepresentationruntime.cpp
 src/presentation/imagepresentationload.cpp
 src/presentation/imagerendercontextstate.cpp
