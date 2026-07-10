@@ -42,7 +42,7 @@ void appendCommandChanges(const ViewportEngine::CommandResult& command,
 }
 
 bool effectiveLooping(const ImageViewportInternal::RequestState& request,
-    const ImageSequenceAuthoredAnimationFacts& facts)
+    ImageSequenceAuthoredAnimationFacts facts)
 {
     if (request.looping) {
         return true;
@@ -231,9 +231,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     } else if (input.command.kind == ViewportPlaybackCommand::Kind::Play) {
         const auto& source = requestRole(m_requestState, input.command.role).source;
         auto& provider = m_roles[roleIndex(input.command.role)].provider;
-        if (source.facts.provider && !provider.session
-            && (m_requestState.status == ImageViewport::RequestStatus::Unsupported
-                || m_requestState.status == ImageViewport::RequestStatus::Error)) {
+        if (source.facts.provider && input.generationTerminalProviderFailure) {
             result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
                 ImageViewport::CommandReason::UnsupportedRequest);
             appendCommandChanges(result.command, result.changes);
@@ -374,6 +372,24 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             restore.target.providerTargetKind
                 = ImageViewportInternal::ProviderRequestTargetKind::Frame;
         }
+        if (providerSource && restore.identity.id != 0 && restore.target.frame < 0
+            && stopProvider.metadataReady && stopProvider.timedMetadata) {
+            restore.target.frame = 0;
+            restore.target.position = stopProvider.timingIntervals.frameStartPosition(0);
+            restore.target.providerTargetKind
+                = ImageViewportInternal::ProviderRequestTargetKind::Frame;
+            restore.resolvedFrame = { 0, stopProvider.timingIntervals.frameStartPosition(0) };
+        }
+        if (providerSource && restore.target.frame >= 0 && !restore.resolvedFrame.isValid()
+            && stopProvider.metadataReady && stopProvider.timedMetadata) {
+            const int position
+                = stopProvider.timingIntervals.frameStartPosition(restore.target.frame);
+            restore.resolvedFrame = { restore.target.frame, position };
+            if (restore.target.providerTargetKind
+                != ImageViewportInternal::ProviderRequestTargetKind::Position) {
+                restore.target.position = position;
+            }
+        }
         if (m_requestState.playbackPhase != ImageViewport::PlaybackPhase::Stopped
             && restore.identity.id != 0
             && (roleState.activeRequest.identity.origin
@@ -387,8 +403,14 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             const auto& displayed = input.command.role == ImageViewport::PageRole::Primary
                 ? m_displayState.displayedRequest
                 : m_displayState.secondaryDisplayedRequest;
+            const QSizeF displayedSize = input.command.role == ImageViewport::PageRole::Primary
+                ? m_displayState.displayedImageSize
+                : m_displayState.secondaryDisplayedImageSize;
             if (displayed.generation == m_requestState.sequenceGeneration
-                && displayed.request.target.frame == restore.target.frame) {
+                && displayed.request.resolvedFrame.frame == restore.resolvedFrame.frame
+                && displayed.request.resolvedFrame.position == restore.resolvedFrame.position
+                && displayedSize.isValid()
+                && (!providerSource || restore.resolvedFrame.isValid())) {
                 m_requestState.status = ImageViewport::RequestStatus::Ready;
                 m_requestState.reason = ImageViewport::RequestReason::Ready;
                 m_displayState.status = ImageViewport::DisplayStatus::Ready;
@@ -490,9 +512,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
                 return result;
             }
-            if (!provider.session
-                && (m_requestState.status == ImageViewport::RequestStatus::Unsupported
-                    || m_requestState.status == ImageViewport::RequestStatus::Error)) {
+            if (input.generationTerminalProviderFailure) {
                 result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
                     ImageViewport::CommandReason::UnsupportedRequest);
                 appendCommandChanges(result.command, result.changes);
@@ -574,6 +594,63 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     }
     result.schedule = playbackScheduleEffect();
     return result;
+}
+
+void ViewportEngine::setPlaybackPhase(ImageViewport::PlaybackPhase phase,
+    ImageViewportInternal::ViewportChangeSet& changes)
+{
+    if (m_requestState.playbackPhase == phase) {
+        return;
+    }
+    m_requestState.playbackPhase = phase;
+    changes.playbackPhase = true;
+}
+
+void ViewportEngine::armAuthoredAutoplayIfEligible()
+{
+    const auto& source = m_requestState.sequenceSource;
+    const auto& provider = m_roles[0].provider;
+    const auto facts
+        = source.facts.provider ? provider.authoredAnimationFacts : source.facts.authoredAnimationFacts;
+    if (!facts.autoplay()) {
+        return;
+    }
+    if (source.facts.provider) {
+        if (ImageViewportInternal::providerCapabilityKnownFalse(
+                source.facts.providerTimedPlaybackCapability)) {
+            return;
+        }
+        m_requestState.playbackRole = ImageViewport::PageRole::Primary;
+        m_requestState.stopPlaybackWhenRequestReady = false;
+        m_requestState.playbackLoopIterationsCompleted = 0;
+        if (!provider.metadataReady) {
+            m_requestState.providerPlaybackStartPending = true;
+            m_requestState.activeRequest.target = { -1, -1,
+                ImageViewportInternal::ProviderRequestTargetKind::Playback };
+            m_requestState.activeRequest.resolvedFrame = { -1, -1 };
+            m_requestState.playbackPosition = -1;
+            m_requestState.playbackPhase = ImageViewport::PlaybackPhase::Waiting;
+        } else if (provider.timedMetadata && provider.timedPlaybackSupport) {
+            const int frame = m_requestState.activeRequest.target.frame;
+            m_requestState.playbackPosition = provider.timingIntervals.frameStartPosition(frame);
+            m_requestState.playbackPhase
+                = m_requestState.status == ImageViewport::RequestStatus::Loading
+                ? ImageViewport::PlaybackPhase::Waiting
+                : ImageViewport::PlaybackPhase::Playing;
+        }
+        return;
+    }
+    if (!source.facts.timed || !source.facts.timingIntervals.isValid()) {
+        return;
+    }
+    m_requestState.playbackRole = ImageViewport::PageRole::Primary;
+    m_requestState.stopPlaybackWhenRequestReady = false;
+    m_requestState.playbackLoopIterationsCompleted = 0;
+    m_requestState.playbackPosition
+        = source.facts.timingIntervals.frameStartPosition(m_requestState.activeRequest.target.frame);
+    m_requestState.playbackPhase = m_requestState.status == ImageViewport::RequestStatus::Loading
+        ? ImageViewport::PlaybackPhase::Waiting
+        : ImageViewport::PlaybackPhase::Playing;
 }
 
 ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(

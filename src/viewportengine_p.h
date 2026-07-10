@@ -181,6 +181,7 @@ public:
     {
         ViewportPlaybackCommand command;
         GeometryInput geometry;
+        bool generationTerminalProviderFailure = false;
     };
     struct PlaybackTickInput
     {
@@ -240,6 +241,9 @@ public:
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
+    void setPlaybackPhase(ImageViewport::PlaybackPhase phase,
+        ImageViewportInternal::ViewportChangeSet& changes);
+    void armAuthoredAutoplayIfEligible();
     ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
 
     PresentationTargetAssignmentResult assignPresentationTarget(

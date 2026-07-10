@@ -408,20 +408,6 @@ private:
     void publishStagedBuiltInPrimarySpreadReadyState();
     ViewportCommandResult rejectUnsupportedCommand();
     ViewportCommandResult rejectIgnoredNoRequestCommand();
-    ViewportCommandResult playPrimary();
-    ViewportCommandResult playImpl(ImageViewport::PageRole role);
-    ViewportCommandResult pauseImpl(ImageViewport::PageRole role);
-    ViewportCommandResult stopImpl(ImageViewport::PageRole role);
-    ViewportCommandResult seekImpl(ImageViewport::PageRole role, int frame);
-    ViewportCommandResult seekToPositionImpl(
-        ImageViewport::PageRole role, int milliseconds);
-    ViewportPlaybackAdvanceResult advancePlaybackImpl(int elapsedMilliseconds);
-    ViewportCommandResult seekPrimary(int frame);
-    ViewportCommandResult seekPrimaryToPosition(int milliseconds);
-    ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
-    ViewportCommandResult seekSecondaryProvider(int frame);
-    ViewportCommandResult seekSecondaryProviderToPosition(int milliseconds);
     bool targetSpreadTerminalSealedForActiveRequest();
     bool hasGenerationTerminalProviderFailure();
     void recordTargetSpreadTerminal(ImageViewport::PageRole role,
