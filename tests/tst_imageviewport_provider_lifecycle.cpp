@@ -88,7 +88,7 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 100.0));
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(100.0, 100.0));
     acknowledgePendingPrimaryRenderFailureForTest(item);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
@@ -327,7 +327,7 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     setNextProviderRequestTokenForTest(item, std::numeric_limits<quint64>::max());
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
@@ -1087,7 +1087,7 @@ void ImageViewportProviderLifecycleTest::providerCancelDeliveryFailurePreservesQ
         emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*frameRequestCount, 2);
         QCOMPARE(*cancelRequestCount, 0);
         const ImageSequenceProviderRequestToken cancelToken
@@ -1096,7 +1096,7 @@ void ImageViewportProviderLifecycleTest::providerCancelDeliveryFailurePreservesQ
         if (failCancelDelivery) {
             failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
         }
-        QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
         snapshot.requestStatus = requestStatusValue(item);
         snapshot.requestReason = requestReasonValue(item);

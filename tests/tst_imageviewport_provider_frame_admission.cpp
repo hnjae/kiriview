@@ -366,7 +366,7 @@ void ImageViewportProviderFrameAdmissionTest::
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RequestQueued"));
@@ -453,7 +453,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QVERIFY(viewportErrorString(item).contains(
         QStringLiteral("provider frame resolved frame mismatch")));
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
@@ -680,7 +680,7 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     QVERIFY(viewportErrorString(item).contains(
         QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
@@ -820,7 +820,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
     const ImageSequenceProviderRequestToken staleToken
         = sessionFactory->lastSession()->lastFrameToken();
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QVERIFY(staleToken != sessionFactory->lastSession()->lastFrameToken());

@@ -428,7 +428,8 @@ ImageViewport {
 
     ImageViewportPresentationCommand zoomCommand;
     zoomCommand.setManualZoomPercent(200.0);
-    QCOMPARE(viewport->setPresentation(zoomCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        viewport->setPresentation(zoomCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCoreApplication::processEvents();
 
     QVERIFY(recorder.count() > refreshCountBefore);
@@ -606,15 +607,15 @@ ImageViewport {
     property int resetViewOutcome: -1
 
     Component.onCompleted: {
-        const playResult = play()
+        const playResult = play(ImageViewport.PageRole.Primary)
         playOutcome = playResult.outcome
         playReason = playResult.reason
         playCommandRevisionValid = playResult.commandRevision.valid
         playSnapshotRevisionCurrent = playResult.snapshotRevision === state.revisions.snapshot
-        pauseOutcome = pause().outcome
-        stopOutcome = stop().outcome
-        seekOutcome = seek(0).outcome
-        positionSeekOutcome = seekToPosition(0).outcome
+        pauseOutcome = pause(ImageViewport.PageRole.Primary).outcome
+        stopOutcome = stop(ImageViewport.PageRole.Primary).outcome
+        seekOutcome = seek(ImageViewport.PageRole.Primary, 0).outcome
+        positionSeekOutcome = seekToPosition(ImageViewport.PageRole.Primary, 0).outcome
         clearOutcome = clear().outcome
         resetViewOutcome = resetView().outcome
     }

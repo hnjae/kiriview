@@ -98,7 +98,7 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setManualZoomPercentCommand(item, 200.0), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     const ImageViewportRevisionToken displayRevisionBeforeReset
@@ -127,7 +127,7 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     ImageViewport item;
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(-1).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
@@ -343,7 +343,7 @@ void ImageViewportStillTest::nullSequenceAssignmentClearsCommandDiagnostic()
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(-1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken commandRevision
         = revisionTokenProperty(item, "commandRevision");
@@ -376,7 +376,7 @@ void ImageViewportStillTest::clearActiveRequestClearsCommandDiagnostic()
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(-1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken commandRevision
         = revisionTokenProperty(item, "commandRevision");
@@ -599,15 +599,15 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
         = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken readyDisplayRevision
         = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     verifyRevisionChanged(item, "requestRevision", readyRequestRevision);
     verifyRevisionChanged(item, "displayRevision", readyDisplayRevision);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
@@ -619,7 +619,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
 
     const ImageViewportRevisionToken afterAcceptedSeekRequestRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
@@ -627,7 +627,7 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
-    QCOMPARE(item.seek(2).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 2).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
@@ -635,14 +635,14 @@ void ImageViewportStillTest::stillImageCommandsPreserveOrReplaceDocumentedState(
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), afterAcceptedSeekRequestRevision);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
 
-    QCOMPARE(item.seekToPosition(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
@@ -914,7 +914,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     QCOMPARE(setLoopingCommand(item, true), ImageViewport::CommandOutcome::Accepted);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 350);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -923,7 +923,7 @@ void ImageViewportStillTest::timedFrameListLoopingPlaybackWrapsToFirstFrame()
     QCOMPARE(primaryRequestedPosition(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
 
-    QCOMPARE(item.seek(-1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(primaryRequestedFrame(item), 0);
@@ -983,7 +983,7 @@ void ImageViewportStillTest::replacementRetainsPreviousDisplayWhileWaitingForGeo
 
     const ImageViewportRevisionToken retainedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     verifyRevisionChanged(item, "requestRevision", retainedRequestRevision);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));

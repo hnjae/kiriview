@@ -207,7 +207,7 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -257,7 +257,7 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -309,7 +309,7 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
         = revisionTokenProperty(item, "requestRevision");
@@ -1251,7 +1251,7 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(-1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken invalidSeekCommandRevision
         = revisionTokenProperty(item, "commandRevision");

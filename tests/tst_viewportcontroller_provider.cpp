@@ -508,7 +508,7 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
     QCOMPARE(metadataReady.providerFrameTransport.sendCommand, true);
     QVERIFY(metadataReady.providerFrameTransport.command.token.isValid());
 
-    const ViewportCommandResult seek = controller.seek(1);
+    const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 1);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(seek.providerFrameTransport.deferredControllerEvent,
         ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest);
@@ -948,7 +948,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
                 } else if (scopeCase == TerminalScopeCase::ContradictoryMetadata) {
                     metadata = ImageSequenceProviderMetadata::still(QSizeF(8.0, 16.0));
                 } else if (scopeCase == TerminalScopeCase::MetadataTargetUnsupported) {
-                    const ViewportCommandResult play = controller.play();
+                    const ViewportCommandResult play = controller.play(ImageViewport::PageRole::Primary);
                     QCOMPARE(play.outcome, ImageViewport::CommandOutcome::Accepted);
                     metadata.setTimedPlaybackSupport(false);
                     metadata.setPositionSeekSupport(false);
@@ -1007,7 +1007,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
         QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RenderFailure);
     }
 
-    const ViewportCommandResult seek = controller.seek(0);
+    const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 0);
     QCOMPARE(seek.outcome,
         generationTerminal ? ImageViewport::CommandOutcome::Unsupported
                            : ImageViewport::CommandOutcome::Accepted);
@@ -1080,7 +1080,7 @@ void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleIn
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
 
-    const ViewportCommandResult seek = controller.seek(0);
+    const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 0);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.requestState().activeRequest.identity.origin,
         ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek);

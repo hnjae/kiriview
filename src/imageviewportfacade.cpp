@@ -16,32 +16,21 @@ ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
 ImageViewportCommandResult ImageViewport::clear() { return d->commandResult(d->clear()); }
-ImageViewportCommandResult ImageViewport::play() { return d->commandResult(d->play()); }
 ImageViewportCommandResult ImageViewport::play(PageRole role)
 {
     return d->commandResult(d->play(role));
 }
-ImageViewportCommandResult ImageViewport::pause() { return d->commandResult(d->pause()); }
 ImageViewportCommandResult ImageViewport::pause(PageRole role)
 {
     return d->commandResult(d->pause(role));
 }
-ImageViewportCommandResult ImageViewport::stop() { return d->commandResult(d->stop()); }
 ImageViewportCommandResult ImageViewport::stop(PageRole role)
 {
     return d->commandResult(d->stop(role));
 }
-ImageViewportCommandResult ImageViewport::seek(int frame)
-{
-    return d->commandResult(d->seek(frame));
-}
 ImageViewportCommandResult ImageViewport::seek(PageRole role, int frame)
 {
     return d->commandResult(d->seek(role, frame));
-}
-ImageViewportCommandResult ImageViewport::seekToPosition(int milliseconds)
-{
-    return d->commandResult(d->seekToPosition(milliseconds));
 }
 ImageViewportCommandResult ImageViewport::seekToPosition(PageRole role, int milliseconds)
 {

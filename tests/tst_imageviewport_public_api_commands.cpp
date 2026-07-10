@@ -152,7 +152,7 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentPreservesCo
     item.setSize(QSizeF(100.0, 100.0));
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
@@ -195,7 +195,7 @@ void ImageViewportPublicApiCommandsTest::commandResultsExposeSnapshotRevisionsAn
         QCOMPARE(commandResult.snapshotRevision(), snapshot.revisions().snapshot());
     };
 
-    const ImageViewportCommandResult ignoredResult = item.play();
+    const ImageViewportCommandResult ignoredResult = item.play(ImageViewport::PageRole::Primary);
     verifyResult(ignoredResult, ImageViewport::CommandOutcome::IgnoredNoRequest,
         ImageViewport::CommandReason::IgnoredNoRequest);
     QVERIFY(ignoredResult.commandRevision().isValid());

@@ -938,15 +938,10 @@ public:
     ImageViewportStateSnapshot state() const;
 
     Q_INVOKABLE ImageViewportCommandResult clear();
-    Q_INVOKABLE ImageViewportCommandResult play();
     Q_INVOKABLE ImageViewportCommandResult play(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult pause();
     Q_INVOKABLE ImageViewportCommandResult pause(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult stop();
     Q_INVOKABLE ImageViewportCommandResult stop(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult seek(int frame);
     Q_INVOKABLE ImageViewportCommandResult seek(ImageViewport::PageRole role, int frame);
-    Q_INVOKABLE ImageViewportCommandResult seekToPosition(int milliseconds);
     Q_INVOKABLE ImageViewportCommandResult seekToPosition(
         ImageViewport::PageRole role, int milliseconds);
     Q_INVOKABLE ImageViewportCommandResult setPresentationTarget(

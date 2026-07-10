@@ -265,7 +265,7 @@ void ImageViewportTimedTest::timedFrameListSeekCommandsSelectDocumentedTargets()
 
     const ImageViewportRevisionToken initialRequestRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     verifyRevisionChanged(item, "requestRevision", initialRequestRevision);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
@@ -276,20 +276,20 @@ void ImageViewportTimedTest::timedFrameListSeekCommandsSelectDocumentedTargets()
 
     const ImageViewportRevisionToken acceptedFrameSeekRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seek(2).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 2).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), acceptedFrameSeekRevision);
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 1);
 
-    QCOMPARE(item.seekToPosition(349).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 349).outcome(), ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 349);
     QCOMPARE(primaryDisplayedPosition(item), 100);
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 1);
@@ -298,7 +298,7 @@ void ImageViewportTimedTest::timedFrameListSeekCommandsSelectDocumentedTargets()
 
     const ImageViewportRevisionToken acceptedPositionSeekRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seekToPosition(351).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 351).outcome(), ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), acceptedPositionSeekRevision);
     QCOMPARE(primaryRequestedPosition(item), 350);
     QCOMPARE(primaryDisplayedPosition(item), 100);
@@ -462,10 +462,10 @@ void ImageViewportTimedTest::timedFrameListSeekWhilePlayingWaitsForRenderCommit(
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(0.0, 100.0));
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
@@ -509,12 +509,12 @@ void ImageViewportTimedTest::timedFrameListSeekPreservesGeometryObservations()
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
     acknowledgePendingRenderCommitForTest(item);
 
-    QCOMPARE(item.seekToPosition(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
     acknowledgePendingRenderCommitForTest(item);
@@ -542,19 +542,19 @@ void ImageViewportTimedTest::timedFrameListPlaybackCommandsUpdatePhase()
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
 
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Paused"));
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
 
-    QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
@@ -800,7 +800,7 @@ void ImageViewportTimedTest::timedFrameListAuthoredInfiniteLoopControlsDefaultPl
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 200);
     acknowledgePendingRenderCommitForTest(item);
 
@@ -834,7 +834,7 @@ void ImageViewportTimedTest::timedFrameListAuthoredFiniteLoopStopsAfterFinalIter
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 200);
     acknowledgePendingRenderCommitForTest(item);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -881,7 +881,7 @@ void ImageViewportTimedTest::timedFrameListPauseWhileStoppedAndRenderWaitingPres
         = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision
         = revisionTokenProperty(item, "displayRevision");
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
@@ -916,9 +916,9 @@ void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
     acknowledgePendingRenderCommitForTest(playingItem);
     const QMetaObject* metaObject = playingItem.metaObject();
 
-    QCOMPARE(playingItem.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(playingItem.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(playingItem, 80);
-    QCOMPARE(playingItem.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(playingItem.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(playingItem, 20);
     acknowledgePendingRenderCommitForTest(playingItem);
     QCOMPARE(playbackPhaseValue(playingItem), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -933,10 +933,10 @@ void ImageViewportTimedTest::timedFrameListPlayCommandPreservesElapsedPosition()
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(pausedItem);
 
-    QCOMPARE(pausedItem.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(pausedItem.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(pausedItem, 80);
-    QCOMPARE(pausedItem.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(pausedItem.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(pausedItem.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(pausedItem.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(pausedItem, 20);
     acknowledgePendingRenderCommitForTest(pausedItem);
     QCOMPARE(playbackPhaseValue(pausedItem), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -967,7 +967,7 @@ void ImageViewportTimedTest::timedFrameListBackgroundOnlyChangesPreserveRequestA
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
 
     const int requestStatus = requestStatusValue(item);
@@ -1029,7 +1029,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesDeterministically()
     const quint64 initialRequestId = activeRequestIdForTest(item);
     QVERIFY(initialRequestId > 0);
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     advancePlaybackForTest(item, 99);
     QCOMPARE(activeRequestIdForTest(item), initialRequestId);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
@@ -1099,7 +1099,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackAdvancesFromRuntimeTimer()
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Playing"));
 
     QTRY_VERIFY(hasPendingRenderCommitForTest(item));
@@ -1135,7 +1135,7 @@ void ImageViewportTimedTest::timedFrameListPlaybackPreservesGeometryObservations
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
@@ -1168,7 +1168,7 @@ void ImageViewportTimedTest::timedFrameListStopWhileRenderWaitingRestoresPreviou
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     item.setSize(QSizeF(0.0, 100.0));
     advancePlaybackForTest(item, 100);
@@ -1179,7 +1179,7 @@ void ImageViewportTimedTest::timedFrameListStopWhileRenderWaitingRestoresPreviou
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));
@@ -1218,7 +1218,7 @@ void ImageViewportTimedTest::timedFrameListPausedRenderWaitingCommitStaysPaused(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     item.setSize(QSizeF(0.0, 100.0));
     advancePlaybackForTest(item, 100);
@@ -1231,7 +1231,7 @@ void ImageViewportTimedTest::timedFrameListPausedRenderWaitingCommitStaysPaused(
     QCOMPARE(primaryDisplayedFrame(item), 0);
     QCOMPARE(primaryDisplayedPosition(item), 0);
 
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Paused"));
 
     item.setSize(QSizeF(100.0, 100.0));
@@ -1271,7 +1271,7 @@ void ImageViewportTimedTest::timedFrameListPlayWhilePausedAndRenderWaitingResume
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     item.setSize(QSizeF(0.0, 100.0));
     advancePlaybackForTest(item, 100);
@@ -1280,12 +1280,12 @@ void ImageViewportTimedTest::timedFrameListPlayWhilePausedAndRenderWaitingResume
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
 
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Paused"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -1330,12 +1330,12 @@ void ImageViewportTimedTest::timedFrameListStopAfterPauseWhileRenderWaitingResto
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     item.setSize(QSizeF(0.0, 100.0));
     advancePlaybackForTest(item, 100);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Waiting"));
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Paused"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RenderWaiting"));
@@ -1343,7 +1343,7 @@ void ImageViewportTimedTest::timedFrameListStopAfterPauseWhileRenderWaitingResto
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Ready"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "Ready"));

@@ -639,12 +639,12 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, &workerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
-        QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, &workerThread);
     }
 
@@ -702,12 +702,12 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         drainQueuedProviderResults();
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         QCOMPARE(*playbackRequestThread, controllerThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
-        QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*cancelRequestThread, controllerThread);
     }
 
@@ -902,7 +902,7 @@ void ImageViewportProviderContractTest::providerSessionOpenFailureKeepsReplaceme
 
     const ImageViewportRevisionToken failedRequestRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));

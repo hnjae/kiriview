@@ -82,7 +82,7 @@ void ImageViewportProviderRequestsTest::providerRequestTokensAreUniqueWithinSess
     QVERIFY(initialFrameToken != metadataToken);
     QCOMPARE(*frameRequestCount, 1);
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken seekFrameToken
         = sessionFactory->lastSession()->lastFrameToken();
@@ -121,7 +121,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekUsesFrameRequest()
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*positionRequestCount, 0);
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 2);
@@ -152,7 +152,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekBeforeMetadataResolvesA
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -203,8 +203,8 @@ void ImageViewportProviderRequestsTest::providerStalePreMetadataSeekIgnoresStale
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(3).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 3).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -248,7 +248,7 @@ void ImageViewportProviderRequestsTest::providerStillMetadataRevisesAcceptedSeek
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -314,7 +314,7 @@ void ImageViewportProviderRequestsTest::
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(3).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 3).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(primaryRequestedFrame(item), 3);
 
     QVERIFY(sessionFactory->lastSession());
@@ -328,7 +328,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Stopped"));
     QCOMPARE(*frameRequestCount, 0);
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*playbackRequestCount, 1);
     QCOMPARE(*lastPlaybackFrame, 0);
@@ -367,7 +367,7 @@ void ImageViewportProviderRequestsTest::providerPositionSeekBeforeMetadataResolv
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seekToPosition(349).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 349).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -426,7 +426,7 @@ void ImageViewportProviderRequestsTest::providerPositionSeekUsesPositionRequest(
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*positionRequestCount, 0);
-    QCOMPARE(item.seekToPosition(125).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 125).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
@@ -463,7 +463,7 @@ void ImageViewportProviderRequestsTest::providerTotalDurationPositionSeekUsesPos
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
@@ -498,7 +498,7 @@ void ImageViewportProviderRequestsTest::providerPreMetadataPositionSeekResolvesT
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
 
-    QCOMPARE(item.seekToPosition(125).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 125).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(*positionRequestCount, 0);
 
@@ -542,7 +542,7 @@ void ImageViewportProviderRequestsTest::providerTotalDurationSeekBeforeMetadataR
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -610,7 +610,7 @@ void ImageViewportProviderRequestsTest::
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seekToPosition(10).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 10).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -636,7 +636,7 @@ void ImageViewportProviderRequestsTest::
     QCOMPARE(primaryTotalDuration(item), -1);
     QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -666,7 +666,7 @@ void ImageViewportProviderRequestsTest::providerPlaybackBeforeStillMetadataKeeps
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(playbackPhaseValue(item), enumValue(metaObject, "PlaybackPhase", "Waiting"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -695,7 +695,7 @@ void ImageViewportProviderRequestsTest::providerPlaybackBeforeStillMetadataKeeps
     QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
     QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -761,7 +761,7 @@ void ImageViewportProviderRequestsTest::providerFrameSeekQueuesBehindActiveFrame
     const ImageViewportRevisionToken providerWaitingRevision
         = revisionTokenProperty(item, "requestRevision");
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledToken, initialFrameToken);
@@ -922,7 +922,7 @@ void ImageViewportProviderRequestsTest::providerTimedSameFrameSeekRetiresActiveR
     const ImageViewportRevisionToken providerWaitingRevision
         = revisionTokenProperty(item, "requestRevision");
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledToken, initialFrameToken);
@@ -1036,7 +1036,7 @@ void ImageViewportProviderRequestsTest::
         = revisionTokenProperty(item, "requestRevision");
     failNextProviderQueueFlushSchedulingForTest(item, ImageViewport::PageRole::Primary);
 
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*cancelRequestCount, 1);
     QCOMPARE(*lastCancelledToken, initialFrameToken);
@@ -1170,7 +1170,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekRequestsSelectedFr
     const ImageViewportRevisionToken readyDisplayRevision
         = revisionTokenProperty(item, "displayRevision");
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
@@ -1218,7 +1218,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekWithoutDiagnostics
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(viewportWarningString(item), QString());
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(viewportWarningString(item), QString());
@@ -1257,7 +1257,7 @@ void ImageViewportProviderRequestsTest::providerTimedFrameCommitPreservesGeometr
     QCOMPARE(contentRect(item), QRectF(0.0, 25.0, 100.0, 50.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 16.0, 8.0));
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QImage secondImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     secondImage.fill(Qt::black);
@@ -1304,11 +1304,11 @@ void ImageViewportProviderRequestsTest::providerTimedFrameSeekCancelsStaleReques
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
     const ImageSequenceProviderRequestToken firstSeekToken
         = sessionFactory->lastSession()->lastFrameToken();
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
 
     QCOMPARE(*cancelRequestCount, 1);
@@ -1394,7 +1394,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
     acknowledgePendingPrimaryRenderCommitForTest(item);
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
-    QCOMPARE(item.seekToPosition(349).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 349).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
@@ -1414,7 +1414,7 @@ void ImageViewportProviderRequestsTest::providerTimedPositionSeekRequestsResolve
         sessionFactory->lastSession()->lastPositionToken(), &frame, 1, 100);
     acknowledgePendingPrimaryRenderCommitForTest(item);
 
-    QCOMPARE(item.seekToPosition(350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);

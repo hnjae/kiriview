@@ -271,15 +271,10 @@ public:
     ViewportCommandResult rejectInvalidCommand();
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     ViewportCommandResult clear();
-    ViewportCommandResult play();
     ViewportCommandResult play(ImageViewport::PageRole role);
-    ViewportCommandResult pause();
     ViewportCommandResult pause(ImageViewport::PageRole role);
-    ViewportCommandResult stop();
     ViewportCommandResult stop(ImageViewport::PageRole role);
-    ViewportCommandResult seek(int frame);
     ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
-    ViewportCommandResult seekToPosition(int milliseconds);
     ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
     ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
     ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
@@ -417,6 +412,9 @@ private:
     void publishStagedBuiltInPrimarySpreadReadyState();
     ViewportCommandResult rejectUnsupportedCommand();
     ViewportCommandResult rejectIgnoredNoRequestCommand();
+    ViewportCommandResult playPrimary();
+    ViewportCommandResult seekPrimary(int frame);
+    ViewportCommandResult seekPrimaryToPosition(int milliseconds);
     ViewportCommandResult seekSecondaryBuiltIn(ImageViewportInternal::DisplayRequestTarget target,
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
     ViewportCommandResult seekSecondaryProvider(int frame);

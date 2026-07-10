@@ -16,15 +16,9 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     applyControllerChanges(result.changes);
 }
 
-void ImageViewportPrivate::incrementDisplayRevision()
-{
-    controller.incrementDisplayRevision();
-}
+void ImageViewportPrivate::incrementDisplayRevision() { controller.incrementDisplayRevision(); }
 
-void ImageViewportPrivate::incrementRequestRevision()
-{
-    controller.incrementRequestRevision();
-}
+void ImageViewportPrivate::incrementRequestRevision() { controller.incrementRequestRevision(); }
 
 bool ImageViewportPrivate::hasActiveRequest() const
 {
@@ -170,16 +164,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::clear()
     return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::play()
-{
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.play();
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    applyControllerChanges(result.changes);
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
 ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
@@ -193,16 +177,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
-    applyControllerChanges(result.changes);
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
-ImageViewport::CommandOutcome ImageViewportPrivate::pause()
-{
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.pause();
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;
@@ -226,16 +200,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
     return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::stop()
-{
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.stop();
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    applyControllerChanges(result.changes);
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
 ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
@@ -254,16 +218,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
     return result.outcome;
 }
 
-ImageViewport::CommandOutcome ImageViewportPrivate::seek(int frame)
-{
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.seek(frame);
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    applyControllerChanges(result.changes);
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
 {
     if (!ImageViewportInternal::isValidPageRole(role)) {
@@ -277,16 +231,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int fram
     providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
-    applyControllerChanges(result.changes);
-    playbackScheduler.sync();
-    return result.outcome;
-}
-
-ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(int milliseconds)
-{
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.seekToPosition(milliseconds);
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
     applyControllerChanges(result.changes);
     playbackScheduler.sync();
     return result.outcome;

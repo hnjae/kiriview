@@ -64,15 +64,10 @@ public:
     QString warningString() const;
 
     CommandOutcome clear();
-    CommandOutcome play();
     CommandOutcome play(PageRole role);
-    CommandOutcome pause();
     CommandOutcome pause(PageRole role);
-    CommandOutcome stop();
     CommandOutcome stop(PageRole role);
-    CommandOutcome seek(int frame);
     CommandOutcome seek(PageRole role, int frame);
-    CommandOutcome seekToPosition(int milliseconds);
     CommandOutcome seekToPosition(PageRole role, int milliseconds);
     CommandOutcome setPresentationTarget(ImageViewportPresentationTarget presentationTarget,
         PresentationTargetTransitionPolicy policy);

@@ -471,11 +471,11 @@ ImageViewport {
     }
 
     Component.onCompleted: {
-        const playOutcome = play().outcome
-        const pauseOutcome = pause().outcome
-        const stopOutcome = stop().outcome
-        const seekOutcome = seek(0).outcome
-        const positionSeekOutcome = seekToPosition(0).outcome
+        const playOutcome = play(ImageViewport.PageRole.Primary).outcome
+        const pauseOutcome = pause(ImageViewport.PageRole.Primary).outcome
+        const stopOutcome = stop(ImageViewport.PageRole.Primary).outcome
+        const seekOutcome = seek(ImageViewport.PageRole.Primary, 0).outcome
+        const positionSeekOutcome = seekToPosition(ImageViewport.PageRole.Primary, 0).outcome
         zoomCommand.manualZoomPercent = 200
         const zoomOutcome = setPresentation(zoomCommand).outcome
         zoomStepCommand.zoomStepDelta = 1

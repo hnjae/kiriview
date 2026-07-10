@@ -865,7 +865,7 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
@@ -1138,7 +1138,7 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 20.0));
-    QCOMPARE(item.seek(1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*lastRequestedFrame, 1);
 
     QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);

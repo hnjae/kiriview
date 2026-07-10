@@ -470,7 +470,7 @@ void ImageViewportProviderTerminalProjectionTest::clearAndReplacementEscapeSeale
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderFailure"));
-    QCOMPARE(item.seek(0).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(item.clear().outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
@@ -749,7 +749,7 @@ void ImageViewportProviderTerminalProjectionTest::invalidUnsupportedCauseIsProto
         ImageFrame frame(image);
         emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
         acknowledgePendingRenderCommitForTest(item);
-        QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
         terminalToken = sessionFactory->lastSession()->lastFrameToken();
         QCOMPARE(*playbackRequestCount, 1);

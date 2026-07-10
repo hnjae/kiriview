@@ -647,7 +647,7 @@ void ViewportController::armAuthoredAutoplayIfEligible()
     viewportRequestState(viewport).playbackPhase = playbackPhaseForCurrentRequest(viewport);
 }
 
-ViewportCommandResult ViewportController::play()
+ViewportCommandResult ViewportController::playPrimary()
 {
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
@@ -788,7 +788,7 @@ ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
         return rejectInvalidCommand();
     }
     if (role == primaryRole) {
-        return play();
+        return playPrimary();
     }
     if (!hasSecondaryRole(viewport)) {
         return rejectIgnoredNoRequestCommand();
@@ -802,11 +802,6 @@ ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
         return rejectUnsupportedCommand();
     }
     return playBuiltInRole(*this, viewport, state, role, generationTerminalFailure);
-}
-
-ViewportCommandResult ViewportController::pause()
-{
-    return pause(ImageViewport::PageRole::Primary);
 }
 
 ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
@@ -839,8 +834,6 @@ ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
     }
     return result;
 }
-
-ViewportCommandResult ViewportController::stop() { return stop(ImageViewport::PageRole::Primary); }
 
 ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
 {
@@ -920,7 +913,7 @@ ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
     return result;
 }
 
-ViewportCommandResult ViewportController::seek(int frame)
+ViewportCommandResult ViewportController::seekPrimary(int frame)
 {
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
@@ -1027,7 +1020,7 @@ ViewportCommandResult ViewportController::seek(ImageViewport::PageRole role, int
         return rejectInvalidCommand();
     }
     if (role == primaryRole) {
-        return seek(frame);
+        return seekPrimary(frame);
     }
     if (!hasSecondaryRole(viewport)) {
         return rejectIgnoredNoRequestCommand();
@@ -1208,7 +1201,7 @@ ViewportCommandResult ViewportController::seekSecondaryProvider(int frame)
     return result;
 }
 
-ViewportCommandResult ViewportController::seekToPosition(int milliseconds)
+ViewportCommandResult ViewportController::seekPrimaryToPosition(int milliseconds)
 {
     if (!viewport.hasActiveRequest()) {
         ViewportCommandResult result;
@@ -1305,7 +1298,7 @@ ViewportCommandResult ViewportController::seekToPosition(
         return rejectInvalidCommand();
     }
     if (role == primaryRole) {
-        return seekToPosition(milliseconds);
+        return seekPrimaryToPosition(milliseconds);
     }
     if (!hasSecondaryRole(viewport)) {
         return rejectIgnoredNoRequestCommand();

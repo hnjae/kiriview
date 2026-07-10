@@ -280,7 +280,7 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.play().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
@@ -288,13 +288,13 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.pause().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Paused);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
         ImageViewport::PageRole::Primary);
 
-    QCOMPARE(item.stop().outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
     QVERIFY(!snapshot.request().playbackRole().isValid());
