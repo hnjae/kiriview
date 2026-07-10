@@ -1,5 +1,7 @@
 # Resvg SVG Rendering
 
+Status: Partially superseded by [ADR 0006: Provider-Backed Whole-Image Rendering](0006-provider-backed-whole-image-rendering.md).
+
 ## Context
 
 KiriView displays SVG files through the same static-image presentation and tiled rendering paths as bitmap images. The previous path used QtSvg's `QSvgRenderer` directly inside `SvgTileSource`, which made SVG rasterization a Qt runtime concern and inherited renderer gaps such as incorrect handling for some clipped content.
@@ -8,7 +10,7 @@ SVG rasterization is a rendering algorithm over source bytes, target size, and a
 
 ## Decision
 
-Rust owns Qt-independent static SVG parsing and rasterization through `usvg`, `resvg`, and `tiny-skia`. The Rust bridge exposes plain byte-oriented functions for intrinsic size, full-image rasterization, and tile rasterization.
+Rust owns Qt-independent static SVG parsing and rasterization through `usvg`, `resvg`, and `tiny-skia`. The Rust bridge exposes plain byte-oriented functions for intrinsic size and whole-image rasterization. The decision to keep Rust ownership of static SVG parsing and rasterization remains current; the tile and scene-graph decisions below are superseded by ADR 0006.
 
 C++ continues to own `ImageTileSource`, `QImage` construction, image lifetime, tile scheduling, and integration with the existing rendering pipeline. `SvgTileSource` calls the Rust bridge and converts successful premultiplied RGBA byte buffers into `QImage` instances.
 
