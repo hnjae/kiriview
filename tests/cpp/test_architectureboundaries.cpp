@@ -1035,7 +1035,7 @@ void TestArchitectureBoundaries::cppNamespaceIsLowercaseKiriview()
 void TestArchitectureBoundaries::documentSessionUsesThumbnailStripDependencyPort()
 {
     const QString documentSessionHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
 
     const QList<QRegularExpression> rawThumbnailProviderFields {
         QRegularExpression(QStringLiteral(R"(\bactiveNavigationThumbnailLookupProvider\b)")),
@@ -1058,7 +1058,7 @@ void TestArchitectureBoundaries::documentSessionUsesThumbnailStripDependencyPort
 void TestArchitectureBoundaries::documentSessionUsesOpenWithRuntime()
 {
     const QString documentSessionHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
 
     const QList<QRegularExpression> rawOpenWithFields {
         QRegularExpression(QStringLiteral(R"(\bm_mediaOpenWithProvider\b)")),
@@ -1079,9 +1079,9 @@ void TestArchitectureBoundaries::documentSessionUsesOpenWithRuntime()
 void TestArchitectureBoundaries::documentSessionOpenWithUsesNamedPlanPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("currentMediaOpenWithPlan")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("currentMediaOpenWithPlan()")));
@@ -1236,9 +1236,9 @@ void TestArchitectureBoundaries::mediaEntrySourceStoreDoesNotDependOnDocumentPla
 void TestArchitectureBoundaries::documentSessionDirectMediaScopeUsesNamedPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaNavigationLoadScope")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("activeDirectMediaCursorUrl")));
@@ -1251,55 +1251,57 @@ void TestArchitectureBoundaries::documentSessionDirectMediaScopeUsesNamedPort()
 void TestArchitectureBoundaries::documentSessionDirectMediaActivityUsesNamedPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaNavigationActive")));
     QVERIFY(
         !runtimeHeader.contains(QStringLiteral("directImageLoadMayUseImageDocumentSourceScope")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::directMediaNavigationActive")));
-    QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::directImageLoadMayUseImageDocumentSourceScope")));
+        QStringLiteral("DocumentSessionRuntimeGraph::directMediaNavigationActive")));
+    QVERIFY(!runtimeSource.contains(QStringLiteral(
+        "DocumentSessionRuntimeGraph::directImageLoadMayUseImageDocumentSourceScope")));
 }
 
 void TestArchitectureBoundaries::documentSessionMediaPredecodeInputUsesNamedPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("mediaPredecodeInput()")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("activeImageUsesImageDocumentSourceScope")));
-    QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::mediaPredecodeInput")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::activeImageUsesImageDocumentSourceScope")));
+        QStringLiteral("DocumentSessionRuntimeGraph::mediaPredecodeInput")));
+    QVERIFY(!runtimeSource.contains(
+        QStringLiteral("DocumentSessionRuntimeGraph::activeImageUsesImageDocumentSourceScope")));
 }
 
 void TestArchitectureBoundaries::documentSessionDirectMediaNavigationInputUsesNamedPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("directMediaActiveNavigationInput")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::directMediaActiveNavigationInput")));
+        QStringLiteral("DocumentSessionRuntimeGraph::directMediaActiveNavigationInput")));
 }
 
 void TestArchitectureBoundaries::documentSessionPublicSnapshotInputUsesNamedPort()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("publicSnapshotInput(")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("m_publicSnapshotInputRevision")));
-    QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::publicSnapshotInput")));
+    QVERIFY(!runtimeSource.contains(
+        QStringLiteral("DocumentSessionRuntimeGraph::publicSnapshotInput")));
 }
 
 void TestArchitectureBoundaries::documentSessionRouteRuntimePortsAreGrouped()
@@ -1321,32 +1323,32 @@ void TestArchitectureBoundaries::documentSessionRouteRuntimePortsAreGrouped()
 void TestArchitectureBoundaries::documentSessionDirectMediaNavigationUsesCoordinator()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("DocumentSessionDirectMediaNavigationRuntime")));
     QVERIFY(!runtimeHeader.contains(
         QStringLiteral("DocumentSessionDirectMediaNavigationApplicationRuntime")));
-    QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::openMedia(")));
+    QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionRuntimeGraph::openMedia(")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::refreshDirectMediaNavigation")));
+        QStringLiteral("DocumentSessionRuntimeGraph::refreshDirectMediaNavigation")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::finishDirectMediaNavigation")));
+        QStringLiteral("DocumentSessionRuntimeGraph::finishDirectMediaNavigation")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::updateDirectMediaNavigationBoundaryState")));
+        QStringLiteral("DocumentSessionRuntimeGraph::updateDirectMediaNavigationBoundaryState")));
 }
 
 void TestArchitectureBoundaries::documentSessionVideoDocumentSyncUsesRuntime()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessionvideodocumentsync.h")));
-    QVERIFY(
-        !runtimeSource.contains(QStringLiteral("DocumentSessionRuntime::syncFromVideoDocument")));
+    QVERIFY(!runtimeSource.contains(
+        QStringLiteral("DocumentSessionRuntimeGraph::syncFromVideoDocument")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("documentSessionVideoDocumentSyncPlan")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("DocumentSessionVideoDocumentSyncOperation")));
 }
@@ -1354,14 +1356,14 @@ void TestArchitectureBoundaries::documentSessionVideoDocumentSyncUsesRuntime()
 void TestArchitectureBoundaries::documentSessionImageDocumentSyncUsesRuntime()
 {
     const QString runtimeHeader
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.h"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.h"));
     const QString runtimeSource
-        = readProjectFile(QStringLiteral("src/session/documentsessionruntime.cpp"));
+        = readProjectFile(QStringLiteral("src/session/documentsessionruntimegraph.cpp"));
 
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessionimagedocumentsync.h")));
     QVERIFY(!runtimeHeader.contains(QStringLiteral("documentsessiondirectimagecursorsync.h")));
     QVERIFY(!runtimeSource.contains(
-        QStringLiteral("DocumentSessionRuntime::syncDirectImageCursorFromDocument")));
+        QStringLiteral("DocumentSessionRuntimeGraph::syncDirectImageCursorFromDocument")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("documentSessionImageDocumentSyncPlan")));
     QVERIFY(!runtimeSource.contains(QStringLiteral("documentSessionDirectImageCursorSyncPlan")));
     QVERIFY(!runtimeSource.contains(

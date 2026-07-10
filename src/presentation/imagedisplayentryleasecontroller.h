@@ -47,6 +47,8 @@ public:
     bool currentDisplayIsAnimationFrame() const;
     void releaseRetainedAnimationFrame();
 
+    Q_DISABLE_COPY_MOVE(ImageDisplayEntryLeaseController)
+
 private:
     struct BufferedStaticDisplayEntry
     {

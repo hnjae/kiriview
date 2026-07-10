@@ -61,6 +61,8 @@ public:
         const ImagePresentationRenderProjection& projection, quint64 displaySourceRevision);
     void cancel();
 
+    Q_DISABLE_COPY_MOVE(RasterDisplayRefinementCoordinator)
+
 private:
     struct CachedRefinement
     {
