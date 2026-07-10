@@ -23,6 +23,7 @@ Provider-backed construction, request values, event values, display demand, fram
 `ImageViewportCommandResult` contains `outcome`, `reason`, `commandRevision`, and `snapshotRevision`. `commandRevision` identifies the command observation domain after the command is handled; `snapshotRevision` identifies the resulting snapshot. Rejected commands do not mutate request, display, or presentation state except for command diagnostics.
 
 `clear()`, `play(role)`, `pause(role)`, `stop(role)`, `seek(role, frame)`, `seekToPosition(role, milliseconds)`, `setPresentationTarget(target, policy)`, `setPresentation(command)`, and `resetView()` return `ImageViewportCommandResult`. Coordinate helpers return coordinate results or booleans and do not allocate command revisions.
+Commands that address source content require an explicit `ImageViewportPageRole`; the API has no primary-default `play`, `pause`, `stop`, `seek`, or `seekToPosition` aliases.
 
 `ImageViewportCommandOutcome` values are `Accepted`, `Invalid`, `Unsupported`, and `IgnoredNoRequest`.
 

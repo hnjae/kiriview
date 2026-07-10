@@ -55,6 +55,7 @@ Coordinate helpers are deterministic snapshot reads. They return invalid coordin
 ## Requests, Commands, And Playback
 
 Command admission is deterministic. Malformed enum values, invalid public value objects, non-finite numbers, missing required fields in command value types, invalid transition policies, invalid presentation commands, and invalid coordinate inputs are rejected before capability or failure-scope checks. Role-scoped commands addressed to absent roles return ignored-no-request. Intrinsic seek-domain errors are invalid before unsupported-capability or generation-terminal checks.
+Role-scoped source commands must name the addressed role. `clear()` stays roleless because it clears the accepted target rather than addressing primary or secondary source content.
 
 Terminal failures have explicit scope. Session-open failure, metadata production failure, malformed or contradictory metadata, provider protocol violation, metadata public-limit violation, and accurate metadata proving unsupported sequence content are generation-terminal. Invalid accepted targets resolved after metadata, unsupported operations for otherwise valid content, frame payload admission rejection, provider frame failure, and render commit failure are display-request-terminal when generation metadata remains valid.
 
