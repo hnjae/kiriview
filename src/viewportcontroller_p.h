@@ -15,6 +15,7 @@ struct ControllerTransitionPolicy;
 struct ViewportCommandResult;
 struct ViewportMetadataProjection;
 struct ViewportPlaybackAdvanceResult;
+struct ViewportPresentationCommandInput;
 struct ViewportProviderAcceptedMetadataFacts;
 struct ViewportProviderDispatchFailureEvent;
 struct ViewportProviderEndOfSequenceEvent;
@@ -276,6 +277,7 @@ public:
     ViewportCommandResult stop(ImageViewport::PageRole role);
     ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
     ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
+    ViewportCommandResult setPresentation(const ViewportPresentationCommandInput& input);
     ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
     ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
     ImageViewportInternal::ViewportChangeSet setMirrorHorizontally(bool enabled);

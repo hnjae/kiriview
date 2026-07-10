@@ -5,7 +5,6 @@
 
 #include <QtQuick/QQuickWindow>
 
-#include <cmath>
 #include <optional>
 
 using namespace ImageViewportInternal;
@@ -330,136 +329,10 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorVertically(
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    const bool resetConflicts = command.resetView()
-        && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
-            || command.hasContentPosition() || command.hasPanDelta() || command.hasScanDirection()
-            || command.hasRotationDegrees() || command.hasMirrorHorizontally()
-            || command.hasMirrorVertically());
-    const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
-        + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
-        + (command.hasPanDelta() ? 1 : 0) + (command.hasScanDirection() ? 1 : 0);
-    const auto validRotation = [](int degrees) {
-        return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
-    };
-    const bool invalid = resetConflicts || geometryPositioningOperations > 1
-        || (command.hasFitMode() && !ImageViewportInternal::isValidFitMode(command.fitMode()))
-        || (command.hasManualZoomPercent()
-            && (!ImageViewportInternal::isFinitePositive(command.manualZoomPercent())
-                || command.manualZoomPercent()
-                    > controller.maximumManualZoomPercent(effectiveDevicePixelRatio(*this))))
-        || (command.hasContentPosition()
-            && !ImageViewportInternal::isFinitePoint(command.contentPosition()))
-        || (command.hasPanDelta() && !ImageViewportInternal::isFinitePoint(command.panDelta()))
-        || (command.hasScanDirection()
-            && !ImageViewportInternal::isValidScanDirection(command.scanDirection()))
-        || (command.hasRotationDegrees() && !validRotation(command.rotationDegrees()))
-        || (command.hasSpreadDirection()
-            && !ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
-        || (command.hasPageGap() && (!std::isfinite(command.pageGap()) || command.pageGap() < 0.0))
-        || (command.hasBackgroundMode()
-            && !ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()))
-        || (command.hasQualityPreference()
-            && !ImageViewportInternal::isValidQualityPreference(command.qualityPreference()))
-        || (command.hasExactnessPreference()
-            && !ImageViewportInternal::isValidExactnessPreference(command.exactnessPreference()));
-
-    if (invalid) {
-        const ViewportCommandResult result = controller.rejectInvalidCommand();
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    const QPointF anchor = itemCenter(*this);
-    auto accepted = [](CommandOutcome outcome) { return outcome == CommandOutcome::Accepted; };
-
-    if (command.resetView() && !accepted(resetView())) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasFitMode() && !accepted(setFitMode(command.fitMode(), anchor))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasManualZoomPercent()
-        && !accepted(setZoomPercent(command.manualZoomPercent(), anchor))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasZoomStepDelta() && !accepted(zoomByStep(command.zoomStepDelta(), anchor))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasContentPosition()
-        && !accepted(panBy(command.contentPosition() - contentPosition()))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasPanDelta() && !accepted(panBy(command.panDelta()))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasScanDirection()) {
-        switch (command.scanDirection()) {
-        case ImageViewport::ScanDirection::Start:
-            if (!accepted(panToStart())) {
-                return CommandOutcome::Invalid;
-            }
-            break;
-        case ImageViewport::ScanDirection::Previous:
-            if (!accepted(scanPrevious())) {
-                return CommandOutcome::Invalid;
-            }
-            break;
-        case ImageViewport::ScanDirection::Next:
-            if (!accepted(scanNext())) {
-                return CommandOutcome::Invalid;
-            }
-            break;
-        case ImageViewport::ScanDirection::End:
-            if (!accepted(panToEnd())) {
-                return CommandOutcome::Invalid;
-            }
-            break;
-        }
-    }
-    if (command.hasRotationDegrees()) {
-        const auto normalize = [](int degrees) { return ((degrees % 360) + 360) % 360; };
-        while (normalize(rotationDegrees()) != command.rotationDegrees()) {
-            if (!accepted(rotateClockwise(anchor))) {
-                return CommandOutcome::Invalid;
-            }
-        }
-    }
-    if (command.hasMirrorHorizontally()
-        && !accepted(setMirrorHorizontally(command.mirrorHorizontally(), anchor))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasMirrorVertically()
-        && !accepted(setMirrorVertically(command.mirrorVertically(), anchor))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasSpreadDirection() && !accepted(setSpreadDirection(command.spreadDirection()))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasPageGap() && !accepted(setPageGap(command.pageGap()))) {
-        return CommandOutcome::Invalid;
-    }
-    if (command.hasBackgroundMode()) {
-        setBackgroundMode(command.backgroundMode());
-    }
-    if (command.hasBackgroundColor()) {
-        setBackgroundColor(command.backgroundColor());
-    }
-    if (command.hasSmoothing()) {
-        setSmoothing(command.smoothing());
-    }
-    if (command.hasMipmap()) {
-        setMipmap(command.mipmap());
-    }
-    if (command.hasLooping()) {
-        setLooping(command.looping());
-    }
-    if (command.hasQualityPreference()) {
-        applyControllerChanges(controller.setQualityPreference(command.qualityPreference()));
-    }
-    if (command.hasExactnessPreference()) {
-        applyControllerChanges(controller.setExactnessPreference(command.exactnessPreference()));
-    }
-    return CommandOutcome::Accepted;
+    const ViewportCommandResult result = controller.setPresentation(
+        { command, itemCenter(*this), effectiveDevicePixelRatio(*this) });
+    applyControllerChanges(result.changes);
+    return result.outcome;
 }
 
 namespace {

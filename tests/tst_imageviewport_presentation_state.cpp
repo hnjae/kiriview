@@ -178,7 +178,7 @@ void ImageViewportPresentationStateTest::presentationChangesWithoutDisplayKeepEm
     QCOMPARE(contentRect(item), QRectF());
     QCOMPARE(visibleImageRect(item), QRectF());
     verifyRevisionChanged(item, "displayRevision", initialDisplayRevision);
-    QCOMPARE(stateSpy.count(), 8);
+    QCOMPARE(stateSpy.count(), 6);
 
     item.setSize(QSizeF(100.0, 100.0));
 
@@ -233,7 +233,7 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
     verifyRevisionChanged(item, "displayRevision", displayRevision);
     QCOMPARE(contentRect(item), preservedContentRect);
     QCOMPARE(visibleImageRect(item), preservedVisibleImageRect);
-    QCOMPARE(stateSpy.count(), 2);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequestGeometryOrPlayback()
@@ -285,7 +285,7 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
     QCOMPARE(visibleImageRect(item), preservedVisibleImageRect);
     QCOMPARE(viewportErrorString(item), QString());
     QCOMPARE(viewportWarningString(item), QString());
-    QCOMPARE(stateSpy.count(), 2);
+    QCOMPARE(stateSpy.count(), 1);
 }
 
 void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeometry()

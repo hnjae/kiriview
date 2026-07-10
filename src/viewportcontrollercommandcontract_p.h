@@ -11,3 +11,10 @@ struct ViewportCommandResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
 };
+
+struct ViewportPresentationCommandInput
+{
+    ImageViewportPresentationCommand command;
+    QPointF anchor;
+    double devicePixelRatio = 1.0;
+};

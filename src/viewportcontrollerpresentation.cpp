@@ -114,6 +114,58 @@ ViewportCommandResult preservedPresentationCommand(ImageViewport::CommandOutcome
     result.outcome = outcome;
     return result;
 }
+
+bool presentationCommandHasOperation(const ImageViewportPresentationCommand& command)
+{
+    return command.resetView() || command.hasFitMode() || command.hasManualZoomPercent()
+        || command.hasZoomStepDelta() || command.hasContentPosition() || command.hasPanDelta()
+        || command.hasScanDirection() || command.hasRotationDegrees()
+        || command.hasMirrorHorizontally() || command.hasMirrorVertically()
+        || command.hasSpreadDirection() || command.hasPageGap() || command.hasBackgroundMode()
+        || command.hasBackgroundColor() || command.hasSmoothing() || command.hasMipmap()
+        || command.hasLooping() || command.hasQualityPreference()
+        || command.hasExactnessPreference();
+}
+
+bool presentationCommandValid(const ViewportPresentationCommandInput& input, double maximumZoom)
+{
+    const ImageViewportPresentationCommand& command = input.command;
+    const bool resetConflicts = command.resetView()
+        && (command.hasFitMode() || command.hasManualZoomPercent() || command.hasZoomStepDelta()
+            || command.hasContentPosition() || command.hasPanDelta() || command.hasScanDirection()
+            || command.hasRotationDegrees() || command.hasMirrorHorizontally()
+            || command.hasMirrorVertically());
+    const int geometryPositioningOperations = (command.hasManualZoomPercent() ? 1 : 0)
+        + (command.hasZoomStepDelta() ? 1 : 0) + (command.hasContentPosition() ? 1 : 0)
+        + (command.hasPanDelta() ? 1 : 0) + (command.hasScanDirection() ? 1 : 0);
+    const auto validRotation = [](int degrees) {
+        return degrees == 0 || degrees == 90 || degrees == 180 || degrees == 270;
+    };
+
+    return presentationCommandHasOperation(command) && !resetConflicts
+        && geometryPositioningOperations <= 1
+        && ImageViewportInternal::isFinitePoint(input.anchor)
+        && std::isfinite(input.devicePixelRatio) && input.devicePixelRatio > 0.0
+        && (!command.hasFitMode() || ImageViewportInternal::isValidFitMode(command.fitMode()))
+        && (!command.hasManualZoomPercent()
+            || (ImageViewportInternal::isFinitePositive(command.manualZoomPercent())
+                && command.manualZoomPercent() <= maximumZoom))
+        && (!command.hasContentPosition()
+            || ImageViewportInternal::isFinitePoint(command.contentPosition()))
+        && (!command.hasPanDelta() || ImageViewportInternal::isFinitePoint(command.panDelta()))
+        && (!command.hasScanDirection()
+            || ImageViewportInternal::isValidScanDirection(command.scanDirection()))
+        && (!command.hasRotationDegrees() || validRotation(command.rotationDegrees()))
+        && (!command.hasSpreadDirection()
+            || ImageViewportInternal::isValidSpreadDirection(command.spreadDirection()))
+        && (!command.hasPageGap() || (std::isfinite(command.pageGap()) && command.pageGap() >= 0.0))
+        && (!command.hasBackgroundMode()
+            || ImageViewportInternal::isValidBackgroundMode(command.backgroundMode()))
+        && (!command.hasQualityPreference()
+            || ImageViewportInternal::isValidQualityPreference(command.qualityPreference()))
+        && (!command.hasExactnessPreference()
+            || ImageViewportInternal::isValidExactnessPreference(command.exactnessPreference()));
+}
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTransition(
@@ -275,6 +327,126 @@ ImageViewportInternal::ViewportChangeSet ViewportController::setExactnessPrefere
 
     state.engine.presentationState().exactnessPreference = preference;
     return presentationChanges(viewport, false);
+}
+
+ViewportCommandResult ViewportController::setPresentation(
+    const ViewportPresentationCommandInput& input)
+{
+    if (!presentationCommandValid(input, maximumManualZoomPercent(input.devicePixelRatio))) {
+        return rejectInvalidCommand();
+    }
+
+    const ImageViewportInternal::PresentationState previousPresentation
+        = state.engine.presentationState();
+    const bool previousLooping = state.engine.requestState().looping;
+    const ImageViewport::CommandReason previousCommandReason
+        = state.engine.requestState().commandReason;
+    ViewportCommandResult result;
+    const auto mergeCommand = [&](ViewportCommandResult operation) {
+        if (operation.outcome != ImageViewport::CommandOutcome::Accepted) {
+            return false;
+        }
+        mergeChanges(result.changes, operation.changes);
+        return true;
+    };
+    const auto rollbackAndReject = [&]() {
+        state.engine.presentationState() = previousPresentation;
+        state.engine.requestState().looping = previousLooping;
+        state.engine.requestState().commandReason = previousCommandReason;
+        return rejectInvalidCommand();
+    };
+    const ImageViewportPresentationCommand& command = input.command;
+
+    if (command.resetView() && !mergeCommand(resetView())) {
+        return rollbackAndReject();
+    }
+    if (command.hasFitMode() && !mergeCommand(setFitMode(command.fitMode(), input.anchor))) {
+        return rollbackAndReject();
+    }
+    if (command.hasManualZoomPercent()
+        && !mergeCommand(
+            setZoomPercent(command.manualZoomPercent(), input.anchor, input.devicePixelRatio))) {
+        return rollbackAndReject();
+    }
+    if (command.hasZoomStepDelta()
+        && !mergeCommand(
+            zoomByStep(command.zoomStepDelta(), input.anchor, input.devicePixelRatio))) {
+        return rollbackAndReject();
+    }
+    if (command.hasContentPosition()
+        && !mergeCommand(panBy(command.contentPosition()
+            - controllerContentPosition(viewport, state.engine.presentationState())))) {
+        return rollbackAndReject();
+    }
+    if (command.hasPanDelta() && !mergeCommand(panBy(command.panDelta()))) {
+        return rollbackAndReject();
+    }
+    if (command.hasScanDirection()) {
+        ViewportCommandResult scanResult;
+        switch (command.scanDirection()) {
+        case ImageViewport::ScanDirection::Start:
+            scanResult = panToStart();
+            break;
+        case ImageViewport::ScanDirection::Previous:
+            scanResult = scanPrevious();
+            break;
+        case ImageViewport::ScanDirection::Next:
+            scanResult = scanNext();
+            break;
+        case ImageViewport::ScanDirection::End:
+            scanResult = panToEnd();
+            break;
+        }
+        if (!mergeCommand(scanResult)) {
+            return rollbackAndReject();
+        }
+    }
+    if (command.hasRotationDegrees()) {
+        const auto normalize = [](int degrees) { return ((degrees % 360) + 360) % 360; };
+        while (normalize(state.engine.presentationState().rotationDegrees)
+            != command.rotationDegrees()) {
+            if (!mergeCommand(rotateClockwise(input.anchor))) {
+                return rollbackAndReject();
+            }
+        }
+    }
+    if (command.hasMirrorHorizontally()
+        && !mergeCommand(setMirrorHorizontally(command.mirrorHorizontally(), input.anchor))) {
+        return rollbackAndReject();
+    }
+    if (command.hasMirrorVertically()
+        && !mergeCommand(setMirrorVertically(command.mirrorVertically(), input.anchor))) {
+        return rollbackAndReject();
+    }
+    if (command.hasSpreadDirection()
+        && !mergeCommand(setSpreadDirection(command.spreadDirection()))) {
+        return rollbackAndReject();
+    }
+    if (command.hasPageGap() && !mergeCommand(setPageGap(command.pageGap()))) {
+        return rollbackAndReject();
+    }
+    if (command.hasBackgroundMode()) {
+        mergeChanges(result.changes, setBackgroundMode(command.backgroundMode()));
+    }
+    if (command.hasBackgroundColor()) {
+        mergeChanges(result.changes, setBackgroundColor(command.backgroundColor()));
+    }
+    if (command.hasSmoothing()) {
+        mergeChanges(result.changes, setSmoothing(command.smoothing()));
+    }
+    if (command.hasMipmap()) {
+        mergeChanges(result.changes, setMipmap(command.mipmap()));
+    }
+    if (command.hasLooping()) {
+        mergeChanges(result.changes, setLooping(command.looping()));
+    }
+    if (command.hasQualityPreference()) {
+        mergeChanges(result.changes, setQualityPreference(command.qualityPreference()));
+    }
+    if (command.hasExactnessPreference()) {
+        mergeChanges(result.changes, setExactnessPreference(command.exactnessPreference()));
+    }
+    return result;
 }
 
 ViewportCommandResult ViewportController::setSpreadDirection(

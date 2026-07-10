@@ -1018,6 +1018,16 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
 
+    const ImageViewportStateSnapshot beforeEmptyCommand = item.state();
+    QSignalSpy emptyCommandStateSpy(&item, &ImageViewport::stateChanged);
+    const ImageViewportCommandResult emptyCommandResult
+        = item.setPresentation(ImageViewportPresentationCommand {});
+    QCOMPARE(emptyCommandResult.outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), beforeEmptyCommand.presentation());
+    QCOMPARE(item.state().request(), beforeEmptyCommand.request());
+    QCOMPARE(item.state().display(), beforeEmptyCommand.display());
+    QCOMPARE(emptyCommandStateSpy.count(), 1);
+
     ImageViewportPresentationCommand command;
     command.setManualZoomPercent(150.0);
     command.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
@@ -1030,7 +1040,17 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     command.setQualityPreference(ImageViewport::QualityPreference::ExactDetail);
     command.setExactnessPreference(ImageViewport::ExactnessPreference::RequireExact);
 
+    QSignalSpy acceptedCommandStateSpy(&item, &ImageViewport::stateChanged);
+    QList<ImageViewportStateSnapshot> observedAcceptedSnapshots;
+    const QMetaObject::Connection acceptedStateConnection
+        = connect(&item, &ImageViewport::stateChanged, &item,
+            [&] { observedAcceptedSnapshots.append(item.state()); });
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewport::CommandOutcome::Accepted);
+    disconnect(acceptedStateConnection);
+    QCOMPARE(acceptedCommandStateSpy.count(), 1);
+    QCOMPARE(observedAcceptedSnapshots.size(), 1);
+    QCOMPARE(observedAcceptedSnapshots.constFirst(), item.state());
+    QCOMPARE(item.state().diagnostics().commandReason(), ImageViewport::CommandReason::NoCommand);
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(item.state().presentation().zoomPercent(), 150.0);
     QCOMPARE(item.state().presentation().spreadDirection(),
@@ -1083,7 +1103,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     const auto invalidDirection = static_cast<ImageViewport::SpreadDirection>(
         999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
     invalidDirectionCommand.setSpreadDirection(invalidDirection);
+    invalidDirectionCommand.setBackgroundColor(Qt::magenta);
     QCOMPARE(item.setPresentation(invalidDirectionCommand).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.state().presentation(), preservedPresentation);
     QCOMPARE(item.state().presentation().zoomPercent(), preservedPresentation.zoomPercent());
     QCOMPARE(item.state().presentation().pageGap(), preservedPresentation.pageGap());
     QCOMPARE(item.state().presentation().spreadDirection(), preservedPresentation.spreadDirection());
