@@ -5,6 +5,12 @@ class ImageViewportStateSnapshotTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ImageViewportStateSnapshotTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void defaultSnapshotValuesAndCopySemantics();
     void readyStillSnapshotMatchesFlatProperties();
@@ -73,7 +79,8 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QVERIFY(!snapshot.revisions().command().isValid());
     QVERIFY(!snapshot.revisions().snapshot().isValid());
 
-    const ImageViewportStateSnapshot copy = snapshot;
+    const ImageViewportStateSnapshot copy // NOLINT(performance-unnecessary-copy-initialization)
+        = snapshot;
     QVERIFY(copy == snapshot);
     QVERIFY(!(copy != snapshot));
 }

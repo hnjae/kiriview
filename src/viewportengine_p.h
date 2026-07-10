@@ -127,7 +127,7 @@ public:
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 
     PresentationTargetAssignmentResult assignPresentationTarget(
-        PresentationTargetAssignmentInput input);
+        const PresentationTargetAssignmentInput& input);
     CommandResult rejectInvalidCommand();
     CommandResult rejectMalformedEnumCommand();
     CommandResult clearFromEmpty();
@@ -145,7 +145,7 @@ private:
     RevisionToken nextCommandRevision();
     quint64 nextPresentationTargetGeneration();
     PresentationTargetState presentationTargetStateFor(
-        ImageViewportPresentationTarget presentationTarget, quint64 generation) const;
+        const ImageViewportPresentationTarget& presentationTarget, quint64 generation) const;
 
     quint64 m_nextRevision = 0;
     quint64 m_nextPresentationTargetGeneration = 0;

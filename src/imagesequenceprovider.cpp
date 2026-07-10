@@ -369,7 +369,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::frame(
     request.m_frame = frame;
     request.m_resolvedFrame = frame;
     request.m_requestedPosition = -1;
-    request.m_demand = std::move(demand);
+    request.m_demand = demand;
     return request;
 }
 
@@ -384,7 +384,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::position(
     request.m_frame = resolvedFrame;
     request.m_resolvedFrame = resolvedFrame;
     request.m_requestedPosition = requestedPosition;
-    request.m_demand = std::move(demand);
+    request.m_demand = demand;
     return request;
 }
 
@@ -399,7 +399,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::playback(
     request.m_frame = frame;
     request.m_resolvedFrame = frame;
     request.m_requestedPosition = position;
-    request.m_demand = std::move(demand);
+    request.m_demand = demand;
     return request;
 }
 

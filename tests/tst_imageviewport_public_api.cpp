@@ -372,7 +372,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
 void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
 {
     ImageViewport item;
-    const QMetaObject* metaObject = item.metaObject();
 
     const QMetaObject& roleMetadataMetaObject = ImageViewportRoleMetadataSnapshot::staticMetaObject;
     const QList<QByteArray> rangeProperties = {

@@ -39,7 +39,7 @@ ImageViewportCommandResult ImageViewport::seekToPosition(PageRole role, int mill
 ImageViewportCommandResult ImageViewport::setPresentationTarget(
     ImageViewportPresentationTarget presentationTarget, PresentationTargetTransitionPolicy policy)
 {
-    return d->commandResult(d->setPresentationTarget(presentationTarget, policy));
+    return d->commandResult(d->setPresentationTarget(std::move(presentationTarget), policy));
 }
 ImageViewportCommandResult ImageViewport::resetView() { return d->commandResult(d->resetView()); }
 
@@ -48,20 +48,23 @@ ImageViewportCommandResult ImageViewport::setPresentation(ImageViewportPresentat
     return d->commandResult(d->setPresentation(command));
 }
 
-ImageViewportCoordinateResult ImageViewport::mapPoint(ImageViewportCoordinateInput input) const
+ImageViewportCoordinateResult
+ImageViewport::mapPoint(
+    ImageViewportCoordinateInput input) const // NOLINT(performance-unnecessary-value-param)
 {
-    return d->mapPoint(std::move(input));
+    return d->mapPoint(input);
 }
 
-bool ImageViewport::containsPoint(ImageViewportCoordinateInput input) const
+bool ImageViewport::containsPoint(
+    ImageViewportCoordinateInput input) const // NOLINT(performance-unnecessary-value-param)
 {
-    return d->containsPoint(std::move(input));
+    return d->containsPoint(input);
 }
 
 ImageViewportCoordinateResult ImageViewport::nearestVisiblePoint(
-    ImageViewportCoordinateInput input) const
+    ImageViewportCoordinateInput input) const // NOLINT(performance-unnecessary-value-param)
 {
-    return d->nearestVisiblePoint(std::move(input));
+    return d->nearestVisiblePoint(input);
 }
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)

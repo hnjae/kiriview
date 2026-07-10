@@ -460,7 +460,7 @@ ViewportEngine::ProviderFrameQueueFlushResult ViewportEngine::flushQueuedProvide
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
-    PresentationTargetAssignmentInput input)
+    const PresentationTargetAssignmentInput& input)
 {
     if (!input.presentationTarget.isValid() || !input.transitionPolicy.isValid()) {
         return { rejectInvalidCommand(), m_presentationTargetState };
@@ -565,7 +565,7 @@ quint64 ViewportEngine::nextPresentationTargetGeneration()
 }
 
 ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetStateFor(
-    ImageViewportPresentationTarget presentationTarget, quint64 generation) const
+    const ImageViewportPresentationTarget& presentationTarget, quint64 generation) const
 {
     PresentationTargetState state;
     if (presentationTarget.isClear()) {

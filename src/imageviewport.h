@@ -956,7 +956,7 @@ public:
         ImageViewportCoordinateInput input) const;
 
 signals:
-    void stateChanged();
+    void stateChanged(); // clazy:exclude=overloaded-signal
 
 protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data) override;
@@ -1475,8 +1475,9 @@ class ImageSequenceProviderRequest
 public:
     ImageSequenceProviderRequest() = default;
     static ImageSequenceProviderRequest metadata(ImageSequenceProviderRequestToken token);
-    static ImageSequenceProviderRequest frame(ImageSequenceProviderRequestToken token,
-        ImageViewport::PageRole role, int frame, ImageSequenceProviderDisplayDemand demand);
+    static ImageSequenceProviderRequest frame( // clazy:exclude=qproperty-type-mismatch
+        ImageSequenceProviderRequestToken token, ImageViewport::PageRole role, int frame,
+        ImageSequenceProviderDisplayDemand demand);
     static ImageSequenceProviderRequest position(ImageSequenceProviderRequestToken token,
         ImageViewport::PageRole role, int requestedPosition, int resolvedFrame,
         ImageSequenceProviderDisplayDemand demand);
@@ -1530,7 +1531,7 @@ public:
         ImageSequenceProviderFrameHandle* frameHandle,
         ImageSequenceProviderFrameEnvelope frameEnvelope);
     static ImageSequenceProviderEvent waiting(ImageSequenceProviderRequestToken token);
-    static ImageSequenceProviderEvent progress(
+    static ImageSequenceProviderEvent progress( // clazy:exclude=qproperty-type-mismatch
         ImageSequenceProviderRequestToken token, double progress);
     static ImageSequenceProviderEvent endOfSequence(ImageSequenceProviderRequestToken token);
     static ImageSequenceProviderEvent unsupported(ImageSequenceProviderRequestToken token,

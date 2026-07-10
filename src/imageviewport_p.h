@@ -87,9 +87,10 @@ public:
     CommandOutcome setMirrorVertically(bool enabled, QPointF anchor);
     CommandOutcome resetView();
     CommandOutcome setPresentation(ImageViewportPresentationCommand command);
-    ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
-    bool containsPoint(ImageViewportCoordinateInput input) const;
-    ImageViewportCoordinateResult nearestVisiblePoint(ImageViewportCoordinateInput input) const;
+    ImageViewportCoordinateResult mapPoint(const ImageViewportCoordinateInput& input) const;
+    bool containsPoint(const ImageViewportCoordinateInput& input) const;
+    ImageViewportCoordinateResult nearestVisiblePoint(
+        const ImageViewportCoordinateInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);

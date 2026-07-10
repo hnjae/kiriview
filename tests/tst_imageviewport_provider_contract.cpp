@@ -21,7 +21,7 @@ ImageSequenceProviderFrameEnvelope exactTestEnvelope(QSizeF logicalSize, QSize p
     return envelope;
 }
 
-class TypedProviderSession final : public ImageSequenceProviderSession
+class TypedProviderSession final : public ImageSequenceProviderSession // clazy:exclude=missing-qobject-macro
 {
 public:
     explicit TypedProviderSession(QObject* parent = nullptr)
@@ -64,7 +64,7 @@ public:
     QPointer<TypedProviderSession> lastSession;
 };
 
-class TypedDescriptorProviderAdapter final : public ImageSequenceProviderAdapter
+class TypedDescriptorProviderAdapter final : public ImageSequenceProviderAdapter // clazy:exclude=missing-qobject-macro
 {
 public:
     explicit TypedDescriptorProviderAdapter(

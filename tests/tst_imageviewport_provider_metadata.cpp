@@ -631,7 +631,6 @@ void ImageViewportProviderMetadataTest::providerTimedFrameCountFactsProjectFrame
     ImageViewport item;
     item.setPresentationTarget(
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
-    const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);

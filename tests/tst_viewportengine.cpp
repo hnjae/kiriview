@@ -83,6 +83,12 @@ class ViewportEngineTest : public QObject
 {
     Q_OBJECT
 
+public:
+    explicit ViewportEngineTest(QObject* parent = nullptr)
+        : QObject(parent)
+    {
+    }
+
 private slots:
     void defaultSnapshotMatchesPublicDefaultProjection();
     void defaultDisplayStateMatchesEmptyRenderState();

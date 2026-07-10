@@ -348,13 +348,13 @@ bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
     return false;
 }
 
-bool coordinateUsesPage(ImageViewportCoordinateInput input)
+bool coordinateUsesPage(const ImageViewportCoordinateInput& input)
 {
     return input.sourceSpace() == ImageViewport::CoordinateSpace::Page
         || input.targetSpace() == ImageViewport::CoordinateSpace::Page;
 }
 
-std::optional<ImageViewport::PageRole> coordinatePageRole(ImageViewportCoordinateInput input)
+std::optional<ImageViewport::PageRole> coordinatePageRole(const ImageViewportCoordinateInput& input)
 {
     if (!coordinateUsesPage(input)) {
         return ImageViewport::PageRole::Primary;
@@ -367,13 +367,13 @@ std::optional<ImageViewport::PageRole> coordinatePageRole(ImageViewportCoordinat
 }
 
 ImageViewportCoordinateResult coordinateResultFor(
-    ImageViewportCoordinateInput input, CoordinateResult result)
+    const ImageViewportCoordinateInput& input, CoordinateResult result)
 {
     return ImageViewportCoordinateResult(result.isValid(), QPointF(result.x(), result.y()),
         input.sourceSpace(), input.targetSpace(), input.pageRole());
 }
 
-ImageViewportCoordinateResult invalidCoordinateResultFor(ImageViewportCoordinateInput input)
+ImageViewportCoordinateResult invalidCoordinateResultFor(const ImageViewportCoordinateInput& input)
 {
     return ImageViewportCoordinateResult(
         false, QPointF(), input.sourceSpace(), input.targetSpace(), input.pageRole());
@@ -382,7 +382,7 @@ ImageViewportCoordinateResult invalidCoordinateResultFor(ImageViewportCoordinate
 } // namespace
 
 ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
-    ImageViewportCoordinateInput input) const
+    const ImageViewportCoordinateInput& input) const
 {
     if (!coordinateSpaceValid(input.sourceSpace()) || !coordinateSpaceValid(input.targetSpace())
         || !ImageViewportInternal::isFinitePoint(input.point())) {
@@ -426,7 +426,7 @@ ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
     return coordinateResultFor(input, result);
 }
 
-bool ImageViewportPrivate::containsPoint(ImageViewportCoordinateInput input) const
+bool ImageViewportPrivate::containsPoint(const ImageViewportCoordinateInput& input) const
 {
     if (!coordinateSpaceValid(input.sourceSpace())
         || !ImageViewportInternal::isFinitePoint(input.point())) {
@@ -449,7 +449,7 @@ bool ImageViewportPrivate::containsPoint(ImageViewportCoordinateInput input) con
 }
 
 ImageViewportCoordinateResult ImageViewportPrivate::nearestVisiblePoint(
-    ImageViewportCoordinateInput input) const
+    const ImageViewportCoordinateInput& input) const
 {
     if (!coordinateSpaceValid(input.sourceSpace()) || !coordinateSpaceValid(input.targetSpace())
         || !ImageViewportInternal::isFinitePoint(input.point())) {
