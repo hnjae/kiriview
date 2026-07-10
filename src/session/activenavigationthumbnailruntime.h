@@ -50,13 +50,6 @@ public:
     void finishDemandWindow(quint64 navigationGeneration);
     bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
-    bool applyCompletion(const ActiveNavigationThumbnailCompletion& completion);
-
-    ThumbnailSourceKey sourceKeyAt(std::size_t row) const;
-    ActiveNavigationThumbnailResult resultAt(std::size_t row) const;
-    const std::vector<ActiveNavigationThumbnailFailureDiagnostic>& failureDiagnostics() const;
-    qsizetype activeJobCount() const;
-    qsizetype canceledJobCount() const;
 
 private:
     std::unique_ptr<ActiveNavigationThumbnailRowStore> m_rowStore;

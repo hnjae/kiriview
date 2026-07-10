@@ -26,35 +26,11 @@ constexpr std::array<Bucket, 4> backgroundFillBuckets()
     return { Bucket::Normal, Bucket::Large, Bucket::XLarge, Bucket::XXLarge };
 }
 
-kiriview::ThumbnailSourceKind thumbnailSourceKind(const QString& sourceKind)
-{
-    if (sourceKind
-        == kiriview::activeNavigationThumbnailSourceKindIdentity(
-            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage)) {
-        return kiriview::ThumbnailSourceKind::DirectImage;
-    }
-    if (sourceKind
-        == kiriview::activeNavigationThumbnailSourceKindIdentity(
-            kiriview::ActiveNavigationThumbnailSourceKind::DirectVideo)) {
-        return kiriview::ThumbnailSourceKind::DirectVideo;
-    }
-    if (sourceKind
-        == kiriview::activeNavigationThumbnailSourceKindIdentity(
-            kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageImage)) {
-        return kiriview::ThumbnailSourceKind::ImageDocumentPageImage;
-    }
-    if (sourceKind
-        == kiriview::activeNavigationThumbnailSourceKindIdentity(
-            kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageVideo)) {
-        return kiriview::ThumbnailSourceKind::ImageDocumentPageVideo;
-    }
-
-    return kiriview::ThumbnailSourceKind::DirectImage;
-}
-
 QString fallbackThumbnailFailureError(kiriview::ActiveNavigationThumbnailFailureKind failureKind)
 {
     switch (failureKind) {
+    case kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupProviderUnavailable:
+        return QStringLiteral("Thumbnail cache lookup provider is unavailable.");
     case kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupInvalid:
         return QStringLiteral("Thumbnail cache lookup returned an invalid cache entry.");
     case kiriview::ActiveNavigationThumbnailFailureKind::CacheLookupFailed:
@@ -96,10 +72,11 @@ ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
 ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinator(QObject* owner,
     ActiveNavigationThumbnailRowPort& rowPort, ThumbnailCacheLookupProvider lookupProvider,
     ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter)
-    : m_owner(owner)
-    , m_rowPort(rowPort)
-    , m_lookupProvider(std::move(lookupProvider))
-    , m_generationProvider(std::move(generationProvider))
+    : m_rowPort(rowPort)
+    , m_executor(owner, std::move(lookupProvider), std::move(generationProvider),
+          [this](ActiveNavigationThumbnailWorkCompletion completion) {
+              finishWork(std::move(completion));
+          })
     , m_sourceAdapter(std::move(sourceAdapter))
 {
 }
@@ -119,7 +96,7 @@ void ActiveNavigationThumbnailWorkCoordinator::resetRows(
 
 void ActiveNavigationThumbnailWorkCoordinator::invalidateRows()
 {
-    cancelAllActiveJobs();
+    cancelAllActiveWork();
     m_demandTracker.reset();
     m_backgroundArmed = false;
     m_demandWindowOpen = false;
@@ -144,7 +121,7 @@ bool ActiveNavigationThumbnailWorkCoordinator::beginDemandWindow(quint64 navigat
     m_previousDemandWindowRows = std::move(m_demandWindowRows);
     m_demandWindowRows.clear();
     m_demandTracker.reset();
-    cancelActiveBackgroundJob();
+    cancelActiveBackgroundWork();
     return true;
 }
 
@@ -209,7 +186,7 @@ bool ActiveNavigationThumbnailWorkCoordinator::reportDemand(int number, const QU
     }
 
     m_backgroundArmed = true;
-    cancelActiveBackgroundJob();
+    cancelActiveBackgroundWork();
 
     if (state.acceptedDemand.has_value()
         && sameFreshThumbnailSourceKey(state.acceptedDemand->sourceKey, demand.sourceKey)
@@ -217,8 +194,8 @@ bool ActiveNavigationThumbnailWorkCoordinator::reportDemand(int number, const QU
         && state.acceptedDemand->priority != demand.priority) {
         state.acceptedDemand = demand;
         m_rowPort.updateRetentionPriority(sourceKey, imageRetentionPriority(demand.priority));
-        if (state.activeJob.has_value()) {
-            state.activeJob->demand = demand;
+        if (state.activeWork.has_value()) {
+            state.activeWork->demand = demand;
         }
         if (!m_demandWindowOpen) {
             maybeScheduleBackgroundWork();
@@ -226,24 +203,19 @@ bool ActiveNavigationThumbnailWorkCoordinator::reportDemand(int number, const QU
         return true;
     }
 
-    cancelActiveJob(*rowIndex, state);
+    cancelActiveWork(*rowIndex, state);
     state.acceptedDemand = demand;
     if (supportsGeneratedThumbnail(sourcePlan)) {
         m_rowPort.applyPending(sourceKey);
-        state.activeJob = ActiveJobSlot {
-            m_nextJobId++,
-            ThumbnailWorkKind::Foreground,
+        state.activeWork = ActiveWorkClaim {
+            { m_nextWorkId++ },
+            ActiveNavigationThumbnailWorkKind::Foreground,
             demand,
-            {},
         };
-        if (usesCacheLookup(sourcePlan)) {
-            startLookupJob(state, demand, ThumbnailWorkKind::Foreground);
-        } else {
-            startGenerationJob(state, demand, ThumbnailWorkKind::Foreground);
-        }
+        startWork(state, demand, ActiveNavigationThumbnailWorkKind::Foreground);
     } else {
         m_rowPort.applyUnsupported(sourceKey);
-        state.activeJob.reset();
+        state.activeWork.reset();
         qCDebug(kiriviewThumbnailLog) << "Thumbnail demand unsupported" << number << url;
     }
     if (!m_demandWindowOpen) {
@@ -252,49 +224,10 @@ bool ActiveNavigationThumbnailWorkCoordinator::reportDemand(int number, const QU
     return true;
 }
 
-bool ActiveNavigationThumbnailWorkCoordinator::acceptCompletion(
-    const ActiveNavigationThumbnailCompletion& completion)
-{
-    const std::optional<std::size_t> rowIndex
-        = m_rowPort.rowIndexForSourceKey(completion.sourceKey);
-    if (!rowIndex.has_value() || *rowIndex >= m_rows.size()) {
-        return false;
-    }
-
-    WorkState& state = m_rows.at(*rowIndex);
-    if (!state.acceptedDemand.has_value()
-        || !sameFreshThumbnailSourceKey(state.acceptedDemand->sourceKey, completion.sourceKey)
-        || state.acceptedDemand->bucket != completion.bucket) {
-        return false;
-    }
-
-    if (state.activeJob.has_value() && state.activeJob->kind == ThumbnailWorkKind::Background) {
-        m_activeBackgroundRowIndex.reset();
-    }
-    state.activeJob.reset();
-    return true;
-}
-
 const std::vector<ActiveNavigationThumbnailFailureDiagnostic>&
 ActiveNavigationThumbnailWorkCoordinator::failureDiagnostics() const
 {
     return m_failureDiagnostics;
-}
-
-qsizetype ActiveNavigationThumbnailWorkCoordinator::activeJobCount() const
-{
-    qsizetype count = 0;
-    for (const WorkState& state : m_rows) {
-        if (state.activeJob.has_value()) {
-            ++count;
-        }
-    }
-    return count;
-}
-
-qsizetype ActiveNavigationThumbnailWorkCoordinator::canceledJobCount() const
-{
-    return static_cast<qsizetype>(m_canceledJobIds.size());
 }
 
 bool ActiveNavigationThumbnailWorkCoordinator::sameFreshThumbnailSourceKey(
@@ -336,22 +269,6 @@ bool ActiveNavigationThumbnailWorkCoordinator::supportsGeneratedThumbnail(
             && !plan.openedCollectionScope.isEmpty());
 }
 
-bool ActiveNavigationThumbnailWorkCoordinator::usesCacheLookup(
-    const ThumbnailSourceAdapterPlan& plan)
-{
-    return plan.kind == ThumbnailSourceAdapterPlanKind::CacheableLocalFile
-        && !plan.localPathBytes.isEmpty();
-}
-
-bool ActiveNavigationThumbnailWorkCoordinator::enablesCacheInstall(
-    const ThumbnailSourceAdapterPlan& plan)
-{
-    return (plan.kind == ThumbnailSourceAdapterPlanKind::CacheableLocalFile
-               && !plan.localPathBytes.isEmpty())
-        || (plan.kind == ThumbnailSourceAdapterPlanKind::CacheableOpenedCollectionEntry
-            && !plan.openedCollectionScope.isEmpty());
-}
-
 ThumbnailImageRetentionPriority ActiveNavigationThumbnailWorkCoordinator::imageRetentionPriority(
     ActiveNavigationThumbnailDemandPriority priority)
 {
@@ -366,9 +283,9 @@ ThumbnailImageRetentionPriority ActiveNavigationThumbnailWorkCoordinator::imageR
 }
 
 ThumbnailImageRetentionPriority ActiveNavigationThumbnailWorkCoordinator::imageRetentionPriority(
-    ThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority)
+    ActiveNavigationThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority)
 {
-    if (kind == ThumbnailWorkKind::Background) {
+    if (kind == ActiveNavigationThumbnailWorkKind::Background) {
         return ThumbnailImageRetentionPriority::Background;
     }
 
@@ -402,8 +319,8 @@ void ActiveNavigationThumbnailWorkCoordinator::expireDemandOutsideCurrentWindow(
             continue;
         }
 
-        if (state.activeJob.has_value()) {
-            cancelActiveJob(rowIndex, state);
+        if (state.activeWork.has_value()) {
+            cancelActiveWork(rowIndex, state);
         }
         state.acceptedDemand.reset();
         m_rowPort.updateRetentionPriority(
@@ -413,25 +330,24 @@ void ActiveNavigationThumbnailWorkCoordinator::expireDemandOutsideCurrentWindow(
     m_previousDemandWindowRows.clear();
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::cancelActiveJob(std::size_t row, WorkState& state)
+void ActiveNavigationThumbnailWorkCoordinator::cancelActiveWork(std::size_t row, WorkState& state)
 {
-    if (!state.activeJob.has_value()) {
+    if (!state.activeWork.has_value()) {
         return;
     }
 
-    qCDebug(kiriviewThumbnailLog) << "Canceling thumbnail job" << state.activeJob->id << "kind"
-                                  << static_cast<int>(state.activeJob->kind) << "number"
+    qCDebug(kiriviewThumbnailLog) << "Canceling thumbnail job" << state.activeWork->id.value
+                                  << "kind" << static_cast<int>(state.activeWork->kind) << "number"
                                   << m_rowPort.sourceKeyAt(row).rowNumber << "bucket"
-                                  << static_cast<int>(state.activeJob->demand.bucket);
-    m_canceledJobIds.push_back(state.activeJob->id);
-    if (state.activeJob->kind == ThumbnailWorkKind::Background) {
+                                  << static_cast<int>(state.activeWork->demand.bucket);
+    if (state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Background) {
         m_activeBackgroundRowIndex.reset();
     }
-    state.activeJob->job.cancel();
-    state.activeJob.reset();
+    m_executor.cancel(state.activeWork->id);
+    state.activeWork.reset();
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::cancelActiveBackgroundJob()
+void ActiveNavigationThumbnailWorkCoordinator::cancelActiveBackgroundWork()
 {
     if (!m_activeBackgroundRowIndex.has_value() || *m_activeBackgroundRowIndex >= m_rows.size()) {
         m_activeBackgroundRowIndex.reset();
@@ -439,135 +355,73 @@ void ActiveNavigationThumbnailWorkCoordinator::cancelActiveBackgroundJob()
     }
 
     WorkState& state = m_rows.at(*m_activeBackgroundRowIndex);
-    if (state.activeJob.has_value() && state.activeJob->kind == ThumbnailWorkKind::Background) {
-        cancelActiveJob(*m_activeBackgroundRowIndex, state);
+    if (state.activeWork.has_value()
+        && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Background) {
+        cancelActiveWork(*m_activeBackgroundRowIndex, state);
         return;
     }
 
     m_activeBackgroundRowIndex.reset();
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::cancelAllActiveJobs()
+void ActiveNavigationThumbnailWorkCoordinator::cancelAllActiveWork()
 {
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        cancelActiveJob(row, m_rows.at(row));
+        cancelActiveWork(row, m_rows.at(row));
     }
 }
 
-bool ActiveNavigationThumbnailWorkCoordinator::hasActiveForegroundJob() const
+bool ActiveNavigationThumbnailWorkCoordinator::hasActiveForegroundWork() const
 {
     return std::any_of(m_rows.cbegin(), m_rows.cend(), [](const WorkState& state) {
-        return state.activeJob.has_value()
-            && state.activeJob->kind == ThumbnailWorkKind::Foreground;
+        return state.activeWork.has_value()
+            && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground;
     });
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::startLookupJob(
-    WorkState& state, const AcceptedDemand& demand, ThumbnailWorkKind kind)
+void ActiveNavigationThumbnailWorkCoordinator::startWork(
+    WorkState& state, const AcceptedDemand& demand, ActiveNavigationThumbnailWorkKind kind)
 {
-    if (state.activeJob == std::nullopt || !m_lookupProvider) {
+    if (!state.activeWork.has_value()) {
         return;
     }
-
-    ThumbnailCacheLookupRequest request;
-    request.localPathBytes = demand.sourcePlan.localPathBytes;
-    request.originalIdentity = demand.sourcePlan.originalIdentity;
-    request.requestedBucket = demand.bucket;
-
-    const quint64 jobId = state.activeJob->id;
-    qCDebug(kiriviewThumbnailLog) << "Starting thumbnail lookup job" << jobId << "kind"
-                                  << static_cast<int>(kind) << "number"
-                                  << demand.sourceKey.rowNumber << "bucket"
-                                  << static_cast<int>(demand.bucket);
-    ImageIoJob job = m_lookupProvider(m_owner, std::move(request),
-        [this, jobId, sourceKey = demand.sourceKey, bucket = demand.bucket, kind](
-            ThumbnailCacheLookupResult result) mutable {
-            finishLookup(jobId, sourceKey, bucket, kind, std::move(result));
-        });
-    const std::optional<std::size_t> rowIndex = m_rowPort.rowIndexForSourceKey(demand.sourceKey);
-    if (!rowIndex.has_value() || *rowIndex >= m_rows.size()
-        || !activeJobMatches(m_rows.at(*rowIndex), jobId, demand, kind)) {
-        job.cancel();
-        return;
-    }
-    m_rows.at(*rowIndex).activeJob->job = std::move(job);
+    m_executor.start(ActiveNavigationThumbnailWorkRequest {
+        state.activeWork->id,
+        demand.sourceKey,
+        demand.bucket,
+        kind,
+        demand.sourcePlan,
+    });
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::startGenerationJob(
-    WorkState& state, const AcceptedDemand& demand, ThumbnailWorkKind kind)
-{
-    if (state.activeJob == std::nullopt || !m_generationProvider) {
-        const quint64 jobId = state.activeJob.has_value() ? state.activeJob->id : 0;
-        recordFailureDiagnostic(jobId, demand.sourceKey, kind, demand.bucket,
-            ActiveNavigationThumbnailFailureKind::GenerationProviderUnavailable, {});
-        state.activeJob.reset();
-        if (kind == ThumbnailWorkKind::Background) {
-            m_activeBackgroundRowIndex.reset();
-            markBackgroundBucketCompleted(state, demand.bucket);
-            maybeScheduleBackgroundWork();
-        } else {
-            m_rowPort.applyFailed(demand.sourceKey);
-        }
-        return;
-    }
-
-    ThumbnailGenerationRequest request;
-    request.localPathBytes = demand.sourcePlan.localPathBytes;
-    request.originalIdentity = demand.sourcePlan.originalIdentity;
-    request.openedCollectionScope = demand.sourcePlan.openedCollectionScope;
-    request.sourceUrl = demand.sourceKey.url;
-    request.sourceLabel = demand.sourceKey.label;
-    request.sourceKind = thumbnailSourceKind(demand.sourceKey.sourceKind);
-    request.requestedBucket = demand.bucket;
-    request.cacheInstallEnabled = enablesCacheInstall(demand.sourcePlan);
-
-    const quint64 jobId = state.activeJob->id;
-    qCDebug(kiriviewThumbnailLog) << "Starting thumbnail generation job" << jobId << "kind"
-                                  << static_cast<int>(kind) << "number"
-                                  << demand.sourceKey.rowNumber << "bucket"
-                                  << static_cast<int>(demand.bucket);
-    ImageIoJob job = m_generationProvider(m_owner, std::move(request),
-        [this, jobId, sourceKey = demand.sourceKey, bucket = demand.bucket, kind](
-            ThumbnailGenerationResult result) mutable {
-            finishGeneration(jobId, sourceKey, bucket, kind, std::move(result));
-        });
-    const std::optional<std::size_t> rowIndex = m_rowPort.rowIndexForSourceKey(demand.sourceKey);
-    if (!rowIndex.has_value() || *rowIndex >= m_rows.size()
-        || !activeJobMatches(m_rows.at(*rowIndex), jobId, demand, kind)) {
-        job.cancel();
-        return;
-    }
-    m_rows.at(*rowIndex).activeJob->job = std::move(job);
-}
-
-void ActiveNavigationThumbnailWorkCoordinator::recordFailureDiagnostic(quint64 jobId,
-    const ThumbnailSourceKey& sourceKey, ThumbnailWorkKind workKind,
-    ActiveNavigationThumbnailDemandBucket bucket, ActiveNavigationThumbnailFailureKind failureKind,
-    const QString& errorString)
+void ActiveNavigationThumbnailWorkCoordinator::recordFailureDiagnostic(
+    ActiveNavigationThumbnailWorkId workId, const ThumbnailSourceKey& sourceKey,
+    ActiveNavigationThumbnailWorkKind workKind, ActiveNavigationThumbnailDemandBucket bucket,
+    ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString)
 {
     const QString resolvedErrorString
         = errorString.isEmpty() ? fallbackThumbnailFailureError(failureKind) : errorString;
     m_failureDiagnostics.push_back(ActiveNavigationThumbnailFailureDiagnostic {
-        jobId,
+        workId,
         sourceKey,
-        workKind == ThumbnailWorkKind::Foreground ? ActiveNavigationThumbnailWorkKind::Foreground
-                                                  : ActiveNavigationThumbnailWorkKind::Background,
+        workKind,
         bucket,
         failureKind,
         resolvedErrorString,
     });
-    qCDebug(kiriviewThumbnailLog) << "Thumbnail failure diagnostic" << jobId << "kind"
+    qCDebug(kiriviewThumbnailLog) << "Thumbnail failure diagnostic" << workId.value << "kind"
                                   << static_cast<int>(workKind) << "number" << sourceKey.rowNumber
                                   << "url" << sourceKey.url << "bucket" << static_cast<int>(bucket)
                                   << "failure" << static_cast<int>(failureKind) << "error"
                                   << resolvedErrorString;
 }
 
-bool ActiveNavigationThumbnailWorkCoordinator::activeJobMatches(const WorkState& state,
-    quint64 jobId, const AcceptedDemand& demand, ThumbnailWorkKind kind) const
+bool ActiveNavigationThumbnailWorkCoordinator::activeWorkMatches(const WorkState& state,
+    ActiveNavigationThumbnailWorkId workId, const AcceptedDemand& demand,
+    ActiveNavigationThumbnailWorkKind kind) const
 {
-    return state.activeJob.has_value() && state.activeJob->id == jobId
-        && state.activeJob->kind == kind && sameAcceptedDemand(state.activeJob->demand, demand);
+    return state.activeWork.has_value() && state.activeWork->id == workId
+        && state.activeWork->kind == kind && sameAcceptedDemand(state.activeWork->demand, demand);
 }
 
 bool ActiveNavigationThumbnailWorkCoordinator::backgroundBucketCompleted(
@@ -595,7 +449,7 @@ void ActiveNavigationThumbnailWorkCoordinator::markBackgroundBucketCompleted(
 
 void ActiveNavigationThumbnailWorkCoordinator::maybeScheduleBackgroundWork()
 {
-    if (!m_backgroundArmed || hasActiveForegroundJob()) {
+    if (!m_backgroundArmed || hasActiveForegroundWork()) {
         return;
     }
 
@@ -610,7 +464,7 @@ void ActiveNavigationThumbnailWorkCoordinator::maybeScheduleBackgroundWork()
             }
 
             WorkState& state = m_rows.at(rowIndex);
-            if (state.demandWindowEpoch != m_demandWindowEpoch || state.activeJob.has_value()) {
+            if (state.demandWindowEpoch != m_demandWindowEpoch || state.activeWork.has_value()) {
                 continue;
             }
 
@@ -661,180 +515,68 @@ void ActiveNavigationThumbnailWorkCoordinator::startBackgroundWork(std::size_t r
         ActiveNavigationThumbnailDemandPriority::Nearby,
         std::move(sourcePlan),
     };
-    state.activeJob = ActiveJobSlot {
-        m_nextJobId++,
-        ThumbnailWorkKind::Background,
+    state.activeWork = ActiveWorkClaim {
+        { m_nextWorkId++ },
+        ActiveNavigationThumbnailWorkKind::Background,
         demand,
-        {},
     };
     m_activeBackgroundRowIndex = row;
-    if (usesCacheLookup(demand.sourcePlan)) {
-        startLookupJob(state, demand, ThumbnailWorkKind::Background);
-    } else {
-        startGenerationJob(state, demand, ThumbnailWorkKind::Background);
-    }
+    startWork(state, demand, ActiveNavigationThumbnailWorkKind::Background);
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::finishLookup(quint64 jobId,
-    const ThumbnailSourceKey& sourceKey, ActiveNavigationThumbnailDemandBucket bucket,
-    ThumbnailWorkKind workKind, ThumbnailCacheLookupResult lookupResult)
+void ActiveNavigationThumbnailWorkCoordinator::finishWork(
+    ActiveNavigationThumbnailWorkCompletion completion)
 {
-    const std::optional<std::size_t> rowIndex = m_rowPort.rowIndexForSourceKey(sourceKey);
+    const std::optional<std::size_t> rowIndex
+        = m_rowPort.rowIndexForSourceKey(completion.sourceKey);
     if (!rowIndex.has_value() || *rowIndex >= m_rows.size()) {
-        qCDebug(kiriviewThumbnailLog) << "Rejecting stale thumbnail lookup for missing source"
-                                      << sourceKey.rowNumber << sourceKey.url;
         return;
     }
 
     WorkState& state = m_rows.at(*rowIndex);
-    if (!state.activeJob.has_value() || state.activeJob->id != jobId
-        || !sameFreshThumbnailSourceKey(state.activeJob->demand.sourceKey, sourceKey)
-        || state.activeJob->demand.bucket != bucket || state.activeJob->kind != workKind) {
-        qCDebug(kiriviewThumbnailLog)
-            << "Rejecting stale thumbnail lookup completion" << jobId << sourceKey.rowNumber
-            << sourceKey.url << "bucket" << static_cast<int>(bucket);
+    if (!state.activeWork.has_value() || state.activeWork->id != completion.workId
+        || !sameFreshThumbnailSourceKey(state.activeWork->demand.sourceKey, completion.sourceKey)
+        || state.activeWork->demand.bucket != completion.bucket
+        || state.activeWork->kind != completion.workKind) {
         return;
     }
 
-    const ThumbnailWorkKind kind = state.activeJob->kind;
-    const AcceptedDemand demand = state.activeJob->demand;
-    qCDebug(kiriviewThumbnailLog) << "Thumbnail lookup finished" << jobId << "kind"
-                                  << static_cast<int>(kind) << "number" << sourceKey.rowNumber
-                                  << "bucket" << static_cast<int>(bucket) << "status"
-                                  << static_cast<int>(lookupResult.status);
-
-    switch (lookupResult.status) {
-    case ThumbnailCacheLookupStatus::Ready: {
-        state.activeJob.reset();
-        if (kind == ThumbnailWorkKind::Background) {
-            m_activeBackgroundRowIndex.reset();
-        }
-        if (kind == ThumbnailWorkKind::Background && m_rowPort.hasUsableReadyImage(sourceKey)) {
-            markBackgroundBucketCompleted(state, bucket);
-            maybeScheduleBackgroundWork();
-            break;
-        }
-
-        if (!m_rowPort.installReadyImage(sourceKey, lookupResult.image,
-                imageRetentionPriority(kind, demand.priority),
-                kind == ThumbnailWorkKind::Background)) {
-            recordFailureDiagnostic(jobId, sourceKey, kind, bucket,
-                ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed, {});
-            if (kind == ThumbnailWorkKind::Background) {
-                markBackgroundBucketCompleted(state, bucket);
-                maybeScheduleBackgroundWork();
-            } else if (!m_rowPort.hasUsableReadyImage(sourceKey)) {
-                markBackgroundBucketCompleted(state, bucket);
-                m_rowPort.applyFailed(sourceKey);
-            } else {
-                markBackgroundBucketCompleted(state, bucket);
-            }
-            break;
-        }
-        qCDebug(kiriviewThumbnailLog)
-            << "Installed thumbnail lookup result in image store, kind" << static_cast<int>(kind);
-        markBackgroundBucketCompleted(state, bucket);
-        break;
-    }
-    case ThumbnailCacheLookupStatus::Missing:
-        if (kind == ThumbnailWorkKind::Foreground) {
-            m_rowPort.applyPending(sourceKey);
-        }
-        state.activeJob = ActiveJobSlot {
-            m_nextJobId++,
-            kind,
-            demand,
-            {},
-        };
-        startGenerationJob(state, demand, kind);
-        break;
-    case ThumbnailCacheLookupStatus::Invalid:
-    case ThumbnailCacheLookupStatus::Failed:
-        recordFailureDiagnostic(jobId, sourceKey, kind, bucket,
-            lookupResult.status == ThumbnailCacheLookupStatus::Invalid
-                ? ActiveNavigationThumbnailFailureKind::CacheLookupInvalid
-                : ActiveNavigationThumbnailFailureKind::CacheLookupFailed,
-            lookupResult.errorString);
-        state.activeJob.reset();
-        if (kind == ThumbnailWorkKind::Background) {
-            m_activeBackgroundRowIndex.reset();
-        }
-        if (kind == ThumbnailWorkKind::Background) {
-            markBackgroundBucketCompleted(state, bucket);
-            maybeScheduleBackgroundWork();
-        } else {
-            markBackgroundBucketCompleted(state, bucket);
-            m_rowPort.applyFailed(sourceKey);
-        }
-        break;
-    }
-    maybeScheduleBackgroundWork();
-}
-
-void ActiveNavigationThumbnailWorkCoordinator::finishGeneration(quint64 jobId,
-    const ThumbnailSourceKey& sourceKey, ActiveNavigationThumbnailDemandBucket bucket,
-    ThumbnailWorkKind workKind, ThumbnailGenerationResult generationResult)
-{
-    const std::optional<std::size_t> rowIndex = m_rowPort.rowIndexForSourceKey(sourceKey);
-    if (!rowIndex.has_value() || *rowIndex >= m_rows.size()) {
-        qCDebug(kiriviewThumbnailLog) << "Rejecting stale thumbnail generation for missing source"
-                                      << sourceKey.rowNumber << sourceKey.url;
-        return;
-    }
-
-    WorkState& state = m_rows.at(*rowIndex);
-    if (!state.activeJob.has_value() || state.activeJob->id != jobId
-        || !sameFreshThumbnailSourceKey(state.activeJob->demand.sourceKey, sourceKey)
-        || state.activeJob->demand.bucket != bucket || state.activeJob->kind != workKind) {
-        qCDebug(kiriviewThumbnailLog)
-            << "Rejecting stale thumbnail generation completion" << jobId << sourceKey.rowNumber
-            << sourceKey.url << "bucket" << static_cast<int>(bucket);
-        return;
-    }
-
-    const ThumbnailWorkKind kind = state.activeJob->kind;
-    const AcceptedDemand demand = state.activeJob->demand;
-    state.activeJob.reset();
-    if (kind == ThumbnailWorkKind::Background) {
+    const ActiveNavigationThumbnailWorkKind kind = state.activeWork->kind;
+    const AcceptedDemand demand = state.activeWork->demand;
+    state.activeWork.reset();
+    if (kind == ActiveNavigationThumbnailWorkKind::Background) {
         m_activeBackgroundRowIndex.reset();
     }
-    qCDebug(kiriviewThumbnailLog) << "Thumbnail generation finished" << jobId << "kind"
-                                  << static_cast<int>(kind) << "number" << sourceKey.rowNumber
-                                  << "bucket" << static_cast<int>(bucket) << "status"
-                                  << static_cast<int>(generationResult.status);
-    switch (generationResult.status) {
-    case ThumbnailGenerationStatus::Ready: {
-        if (kind == ThumbnailWorkKind::Background && m_rowPort.hasUsableReadyImage(sourceKey)) {
-            markBackgroundBucketCompleted(state, bucket);
-            break;
+    if (completion.result.kind == ActiveNavigationThumbnailWorkResultKind::Ready) {
+        if (kind == ActiveNavigationThumbnailWorkKind::Background
+            && m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
+            markBackgroundBucketCompleted(state, completion.bucket);
+            maybeScheduleBackgroundWork();
+            return;
         }
-
-        if (!m_rowPort.installReadyImage(sourceKey, generationResult.image,
+        if (!m_rowPort.installReadyImage(completion.sourceKey, completion.result.image,
                 imageRetentionPriority(kind, demand.priority),
-                kind == ThumbnailWorkKind::Background)) {
-            recordFailureDiagnostic(jobId, sourceKey, kind, bucket,
-                ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed, {});
-            markBackgroundBucketCompleted(state, bucket);
-            if (kind != ThumbnailWorkKind::Background) {
-                m_rowPort.applyFailed(sourceKey);
+                kind == ActiveNavigationThumbnailWorkKind::Background)) {
+            recordFailureDiagnostic(completion.workId, completion.sourceKey, kind,
+                completion.bucket, ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed,
+                {});
+            markBackgroundBucketCompleted(state, completion.bucket);
+            if (kind != ActiveNavigationThumbnailWorkKind::Background
+                && !m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
+                m_rowPort.applyFailed(completion.sourceKey);
             }
-            break;
-        }
-        qCDebug(kiriviewThumbnailLog)
-            << "Installed generated thumbnail in image store, kind" << static_cast<int>(kind);
-        markBackgroundBucketCompleted(state, bucket);
-        break;
-    }
-    case ThumbnailGenerationStatus::Failed:
-        recordFailureDiagnostic(jobId, sourceKey, kind, bucket,
-            ActiveNavigationThumbnailFailureKind::GenerationFailed, generationResult.errorString);
-        if (kind == ThumbnailWorkKind::Background) {
-            markBackgroundBucketCompleted(state, bucket);
         } else {
-            markBackgroundBucketCompleted(state, bucket);
-            m_rowPort.applyFailed(sourceKey);
+            markBackgroundBucketCompleted(state, completion.bucket);
         }
-        break;
+    } else {
+        recordFailureDiagnostic(completion.workId, completion.sourceKey, kind, completion.bucket,
+            completion.result.failureKind, completion.result.errorString);
+        markBackgroundBucketCompleted(state, completion.bucket);
+        if (kind == ActiveNavigationThumbnailWorkKind::Background) {
+            maybeScheduleBackgroundWork();
+        } else if (!m_rowPort.hasUsableReadyImage(completion.sourceKey)) {
+            m_rowPort.applyFailed(completion.sourceKey);
+        }
     }
     maybeScheduleBackgroundWork();
 }

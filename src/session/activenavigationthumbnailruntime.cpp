@@ -75,39 +75,4 @@ bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
     return m_workCoordinator->reportDemand(number, url, bucket, priority, navigationGeneration);
 }
 
-bool ActiveNavigationThumbnailRuntime::applyCompletion(
-    const ActiveNavigationThumbnailCompletion& completion)
-{
-    if (!m_workCoordinator->acceptCompletion(completion)) {
-        return false;
-    }
-    m_rowStore->applyResult(completion.sourceKey, completion.result);
-    return true;
-}
-
-ThumbnailSourceKey ActiveNavigationThumbnailRuntime::sourceKeyAt(std::size_t row) const
-{
-    return m_rowStore->sourceKeyAt(row);
-}
-
-ActiveNavigationThumbnailResult ActiveNavigationThumbnailRuntime::resultAt(std::size_t row) const
-{
-    return m_rowStore->resultAt(row);
-}
-
-const std::vector<ActiveNavigationThumbnailFailureDiagnostic>&
-ActiveNavigationThumbnailRuntime::failureDiagnostics() const
-{
-    return m_workCoordinator->failureDiagnostics();
-}
-
-qsizetype ActiveNavigationThumbnailRuntime::activeJobCount() const
-{
-    return m_workCoordinator->activeJobCount();
-}
-
-qsizetype ActiveNavigationThumbnailRuntime::canceledJobCount() const
-{
-    return m_workCoordinator->canceledJobCount();
-}
 }

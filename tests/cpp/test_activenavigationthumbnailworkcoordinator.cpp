@@ -167,7 +167,6 @@ void TestActiveNavigationThumbnailWorkCoordinator::
         1, url, Bucket::Normal, Priority::Visible, rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, url, Bucket::Large, Priority::Visible, rows.navigationGeneration()));
-    QCOMPARE(coordinator.canceledJobCount(), qsizetype(1));
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::red));

@@ -5,12 +5,9 @@
 #define KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILWORKCOORDINATOR_H
 
 #include "session/activenavigationthumbnaildemand.h"
+#include "session/activenavigationthumbnailjobexecutor.h"
 #include "session/activenavigationthumbnailrowstore.h"
-#include "thumbnail/thumbnailcachelookup.h"
-#include "thumbnail/thumbnailgeneration.h"
-#include "thumbnail/thumbnailoriginalidentity.h"
 
-#include <QByteArray>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
@@ -22,22 +19,9 @@
 class QObject;
 
 namespace kiriview {
-enum class ActiveNavigationThumbnailWorkKind {
-    Foreground,
-    Background,
-};
-
-enum class ActiveNavigationThumbnailFailureKind {
-    CacheLookupInvalid,
-    CacheLookupFailed,
-    GenerationFailed,
-    ImageStoreInsertFailed,
-    GenerationProviderUnavailable,
-};
-
 struct ActiveNavigationThumbnailFailureDiagnostic
 {
-    quint64 jobId = 0;
+    ActiveNavigationThumbnailWorkId workId;
     ThumbnailSourceKey sourceKey;
     ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
@@ -45,42 +29,6 @@ struct ActiveNavigationThumbnailFailureDiagnostic
         = ActiveNavigationThumbnailFailureKind::CacheLookupFailed;
     QString errorString;
 };
-
-struct ActiveNavigationThumbnailCompletion
-{
-    ThumbnailSourceKey sourceKey;
-    ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
-    ActiveNavigationThumbnailResult result;
-};
-
-enum class ThumbnailSourceAdapterPlanKind {
-    Unsupported,
-    CacheableLocalFile,
-    CacheableOpenedCollectionEntry,
-    InMemoryOnly,
-};
-
-struct ThumbnailSourceAdapterRequest
-{
-    ThumbnailSourceKey sourceKey;
-    ActiveNavigationThumbnailDemandBucket requestedBucket
-        = ActiveNavigationThumbnailDemandBucket::None;
-    ActiveNavigationThumbnailDemandPriority priority
-        = ActiveNavigationThumbnailDemandPriority::Nearby;
-};
-
-struct ThumbnailSourceAdapterPlan
-{
-    ThumbnailSourceAdapterPlanKind kind = ThumbnailSourceAdapterPlanKind::Unsupported;
-    QByteArray localPathBytes;
-    ThumbnailOriginalIdentity originalIdentity;
-    OpenedCollectionScopeLocation openedCollectionScope;
-};
-
-using ThumbnailSourceAdapter
-    = std::function<ThumbnailSourceAdapterPlan(ThumbnailSourceAdapterRequest)>;
-
-ThumbnailSourceAdapter defaultThumbnailSourceAdapter();
 
 class ActiveNavigationThumbnailWorkCoordinator final
 {
@@ -102,18 +50,9 @@ public:
     void finishDemandWindow(quint64 navigationGeneration);
     bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
-    bool acceptCompletion(const ActiveNavigationThumbnailCompletion& completion);
-
     const std::vector<ActiveNavigationThumbnailFailureDiagnostic>& failureDiagnostics() const;
-    qsizetype activeJobCount() const;
-    qsizetype canceledJobCount() const;
 
 private:
-    enum class ThumbnailWorkKind {
-        Foreground,
-        Background,
-    };
-
     struct AcceptedDemand
     {
         ThumbnailSourceKey sourceKey;
@@ -123,18 +62,17 @@ private:
         ThumbnailSourceAdapterPlan sourcePlan;
     };
 
-    struct ActiveJobSlot
+    struct ActiveWorkClaim
     {
-        quint64 id = 0;
-        ThumbnailWorkKind kind = ThumbnailWorkKind::Foreground;
+        ActiveNavigationThumbnailWorkId id;
+        ActiveNavigationThumbnailWorkKind kind = ActiveNavigationThumbnailWorkKind::Foreground;
         AcceptedDemand demand;
-        ImageIoJob job;
     };
 
     struct WorkState
     {
         std::optional<AcceptedDemand> acceptedDemand;
-        std::optional<ActiveJobSlot> activeJob;
+        std::optional<ActiveWorkClaim> activeWork;
         std::vector<ActiveNavigationThumbnailDemandBucket> completedBackgroundBuckets;
         quint64 demandWindowEpoch = 0;
     };
@@ -145,26 +83,25 @@ private:
         const ThumbnailSourceAdapterPlan& left, const ThumbnailSourceAdapterPlan& right);
     static bool sameAcceptedDemand(const AcceptedDemand& left, const AcceptedDemand& right);
     static bool supportsGeneratedThumbnail(const ThumbnailSourceAdapterPlan& plan);
-    static bool usesCacheLookup(const ThumbnailSourceAdapterPlan& plan);
-    static bool enablesCacheInstall(const ThumbnailSourceAdapterPlan& plan);
     static ThumbnailImageRetentionPriority imageRetentionPriority(
         ActiveNavigationThumbnailDemandPriority priority);
     static ThumbnailImageRetentionPriority imageRetentionPriority(
-        ThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority);
+        ActiveNavigationThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority);
 
     void markDemandWindowRow(std::size_t row, WorkState& state);
     void expireDemandOutsideCurrentWindow();
-    void cancelActiveJob(std::size_t row, WorkState& state);
-    void cancelActiveBackgroundJob();
-    void cancelAllActiveJobs();
-    bool hasActiveForegroundJob() const;
-    void startLookupJob(WorkState& state, const AcceptedDemand& demand, ThumbnailWorkKind kind);
-    void startGenerationJob(WorkState& state, const AcceptedDemand& demand, ThumbnailWorkKind kind);
-    void recordFailureDiagnostic(quint64 jobId, const ThumbnailSourceKey& sourceKey,
-        ThumbnailWorkKind workKind, ActiveNavigationThumbnailDemandBucket bucket,
+    void cancelActiveWork(std::size_t row, WorkState& state);
+    void cancelActiveBackgroundWork();
+    void cancelAllActiveWork();
+    bool hasActiveForegroundWork() const;
+    void startWork(
+        WorkState& state, const AcceptedDemand& demand, ActiveNavigationThumbnailWorkKind kind);
+    void recordFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
+        const ThumbnailSourceKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
+        ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString);
-    bool activeJobMatches(const WorkState& state, quint64 jobId, const AcceptedDemand& demand,
-        ThumbnailWorkKind kind) const;
+    bool activeWorkMatches(const WorkState& state, ActiveNavigationThumbnailWorkId workId,
+        const AcceptedDemand& demand, ActiveNavigationThumbnailWorkKind kind) const;
     bool backgroundBucketCompleted(
         const WorkState& state, ActiveNavigationThumbnailDemandBucket bucket) const;
     void markBackgroundBucketCompleted(
@@ -175,23 +112,15 @@ private:
         ActiveNavigationThumbnailDemandPriority priority) const;
     void startBackgroundWork(std::size_t row, WorkState& state,
         ActiveNavigationThumbnailDemandBucket bucket, ThumbnailSourceAdapterPlan sourcePlan);
-    void finishLookup(quint64 jobId, const ThumbnailSourceKey& sourceKey,
-        ActiveNavigationThumbnailDemandBucket bucket, ThumbnailWorkKind workKind,
-        ThumbnailCacheLookupResult lookupResult);
-    void finishGeneration(quint64 jobId, const ThumbnailSourceKey& sourceKey,
-        ActiveNavigationThumbnailDemandBucket bucket, ThumbnailWorkKind workKind,
-        ThumbnailGenerationResult generationResult);
+    void finishWork(ActiveNavigationThumbnailWorkCompletion completion);
 
-    QObject* m_owner = nullptr;
     ActiveNavigationThumbnailRowPort& m_rowPort;
-    ThumbnailCacheLookupProvider m_lookupProvider;
-    ThumbnailGenerationProvider m_generationProvider;
+    ActiveNavigationThumbnailJobExecutor m_executor;
     ThumbnailSourceAdapter m_sourceAdapter;
     ActiveNavigationThumbnailDemandTracker m_demandTracker;
     std::vector<WorkState> m_rows;
     quint64 m_navigationGeneration = 0;
-    quint64 m_nextJobId = 1;
-    std::vector<quint64> m_canceledJobIds;
+    quint64 m_nextWorkId = 1;
     std::vector<ActiveNavigationThumbnailFailureDiagnostic> m_failureDiagnostics;
     bool m_backgroundArmed = false;
     bool m_demandWindowOpen = false;
