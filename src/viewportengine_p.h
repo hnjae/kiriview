@@ -6,6 +6,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportrendercontract_p.h"
 #include "viewportplaybackcontract_p.h"
+#include "viewportcontrollerprovidercontract_p.h"
 
 #include <array>
 #include <optional>
@@ -176,6 +177,33 @@ public:
         QRectF oldVisibleImageRect;
         PresentationGeometry::State geometryState;
     };
+    struct PlaybackCommandInput
+    {
+        ViewportPlaybackCommand command;
+        GeometryInput geometry;
+    };
+    struct PlaybackTickInput
+    {
+        int elapsedMilliseconds = 0;
+        GeometryInput geometry;
+    };
+    struct PlaybackProviderEffects
+    {
+        std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
+    };
+    struct PlaybackCommandResult
+    {
+        CommandResult command;
+        ImageViewportInternal::ViewportChangeSet changes;
+        PlaybackProviderEffects effects;
+        ViewportPlaybackScheduleEffect schedule;
+    };
+    struct PlaybackTickResult
+    {
+        ImageViewportInternal::ViewportChangeSet changes;
+        PlaybackProviderEffects effects;
+        ViewportPlaybackScheduleEffect schedule;
+    };
     ImageViewportStateSnapshot snapshot() const;
     ImageViewportStateSnapshot snapshot(const GeometryInput& input) const;
     ImageViewportStateSnapshot snapshot(const SnapshotInput& input) const;
@@ -210,6 +238,8 @@ public:
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
     ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
+    PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
+    PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
     ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
 
     PresentationTargetAssignmentResult assignPresentationTarget(

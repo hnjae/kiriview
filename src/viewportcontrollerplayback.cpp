@@ -1,6 +1,7 @@
 #include "imageviewportvalidation_p.h"
 #include "viewportcommandoutcome_p.h"
 #include "viewportcontrollerplaybackhelpers_p.h"
+#include "viewportcontrollergeometryhelpers_p.h"
 
 namespace {
 constexpr ImageViewport::PageRole primaryRole = ImageViewport::PageRole::Primary;
@@ -1451,24 +1452,23 @@ ViewportCommandResult ViewportController::seekSecondaryProviderToPosition(int mi
 
 ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
 {
-    ViewportCommandResult result;
-    switch (command.kind) {
-    case ViewportPlaybackCommand::Kind::Play:
-        result = playImpl(command.role);
-        break;
-    case ViewportPlaybackCommand::Kind::Pause:
-        result = pauseImpl(command.role);
-        break;
-    case ViewportPlaybackCommand::Kind::Stop:
-        result = stopImpl(command.role);
-        break;
-    case ViewportPlaybackCommand::Kind::SeekFrame:
-        result = seekImpl(command.role, command.value);
-        break;
-    case ViewportPlaybackCommand::Kind::SeekPosition:
-        result = seekToPositionImpl(command.role, command.value);
-        break;
+    const bool providerCommand = ImageViewportInternal::isValidPageRole(command.role)
+        && sequenceSourceForRole(state.engine.requestState(), command.role).facts.provider;
+    if (command.kind != ViewportPlaybackCommand::Kind::Stop || !providerCommand) {
+        const ViewportEngine::PlaybackCommandResult engineResult
+            = state.engine.applyPlaybackCommand(
+                { command, acceptedGeometryInput(viewport) });
+        ViewportCommandResult result;
+        result.outcome = engineResult.command.outcome;
+        result.changes = engineResult.changes;
+        result.providerFrameTransport = engineResult.effects.providerFrameTransport[0];
+        result.secondaryProviderFrameTransport
+            = engineResult.effects.providerFrameTransport[1];
+        result.playbackSchedule = engineResult.schedule;
+        return result;
     }
+
+    ViewportCommandResult result = stopImpl(command.role);
     result.playbackSchedule = state.engine.playbackScheduleEffect();
     return result;
 }
@@ -1599,7 +1599,8 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlaybackImpl(int elapse
 
 ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMilliseconds)
 {
-    ViewportPlaybackAdvanceResult result = advancePlaybackImpl(elapsedMilliseconds);
-    result.schedule = state.engine.playbackScheduleEffect();
-    return result;
+    const ViewportEngine::PlaybackTickResult engineResult
+        = state.engine.advancePlayback({ elapsedMilliseconds, acceptedGeometryInput(viewport) });
+    return { engineResult.changes, engineResult.effects.providerFrameTransport[0],
+        engineResult.effects.providerFrameTransport[1], engineResult.schedule };
 }
