@@ -23,8 +23,7 @@ ImageSequenceSource makeImageSequenceSource(
     if (source.facts.provider) {
         source.facts.hasCompleteProviderKnownMetadata
             = ImageSequencePrivateAccess::hasCompleteProviderKnownMetadata(sequence);
-        source.facts.providerKnownFacts
-            = ImageSequencePrivateAccess::providerKnownFacts(sequence);
+        source.facts.providerKnownFacts = ImageSequencePrivateAccess::providerKnownFacts(sequence);
         source.facts.providerKnownLogicalSize
             = ImageSequencePrivateAccess::providerKnownLogicalSize(sequence);
         source.facts.providerKnownTimingIntervals
@@ -44,9 +43,8 @@ ImageSequenceSource makeImageSequenceSource(
 
     source.facts.frameCount = ImageSequencePrivateAccess::frameCount(sequence);
     source.facts.totalDuration = ImageSequencePrivateAccess::totalDuration(sequence);
-    source.facts.firstFramePosition = source.facts.timed
-        ? ImageSequencePrivateAccess::frameStartPosition(sequence, 0)
-        : -1;
+    source.facts.firstFramePosition
+        = source.facts.timed ? ImageSequencePrivateAccess::frameStartPosition(sequence, 0) : -1;
     source.facts.timingIntervals = source.facts.timed
         ? ImageSequencePrivateAccess::timingIntervals(sequence)
         : TimingIntervals {};
@@ -96,6 +94,11 @@ QSizeF sourceLogicalSize(const ImageSequenceSource& source)
 QImage sourceFrameImage(const ImageSequenceSource& source, int frame)
 {
     return ImageSequencePrivateAccess::frameImage(source.sequence, frame);
+}
+
+FramePayloadFacts sourceFramePayloadFacts(const ImageSequenceSource& source, int frame)
+{
+    return ImageSequencePrivateAccess::framePayloadFacts(source.sequence, frame);
 }
 
 }

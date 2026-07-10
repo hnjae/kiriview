@@ -9,6 +9,7 @@
 #include <QtCore/QVector>
 #include <QtGui/QImage>
 
+#include <array>
 #include <memory>
 
 namespace ImageViewportInternal {
@@ -33,6 +34,7 @@ struct ViewportChangeSet
     bool displayRevision = false;
     bool requestRevision = false;
     bool commandRevision = false;
+    bool presentationRevision = false;
     quint64 commandRevisionValue = 0;
     bool scheduleUpdate = false;
     RenderFailureDiagnostic renderFailureDiagnostic;
@@ -211,6 +213,12 @@ struct PreparedPayload
     quint64 requestId = 0;
     quint64 payloadId = 0;
     QImage image;
+    QSizeF sourceLogicalSize;
+    QSizeF payloadRasterSize;
+    QSizeF sourceToPayloadScale;
+    ImageViewport::PayloadQuality quality = ImageViewport::PayloadQuality::Unknown;
+    ImageViewport::PayloadExactness exactness = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportDemandRevisionToken demandRevision;
 
     PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
 };
@@ -236,6 +244,21 @@ struct PresentationState
 
 struct DisplayState
 {
+    struct RoleState
+    {
+        DisplayRequestSnapshot displayedRequest;
+        QSizeF displayedImageSize;
+        QImage displayedImage;
+        PreparedPayload displayedPayload;
+        PreparedPayload pendingRenderPayload;
+    };
+
+    DisplayState() = default;
+    DisplayState(const DisplayState&) = delete;
+    DisplayState& operator=(const DisplayState&) = delete;
+    DisplayState(DisplayState&&) = delete;
+    DisplayState& operator=(DisplayState&&) = delete;
+
     DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
         const DisplayRequest& activeRequest, int displayedPosition) const
     {
@@ -269,6 +292,8 @@ struct DisplayState
         displayedImage = {};
         secondaryDisplayedImageSize = {};
         secondaryDisplayedImage = {};
+        displayedPayload = {};
+        secondaryDisplayedPayload = {};
     }
 
     void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
@@ -336,24 +361,44 @@ struct DisplayState
     }
 
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
-    DisplayRequestSnapshot displayedRequest;
-    DisplayRequestSnapshot secondaryDisplayedRequest;
-    QSizeF displayedImageSize;
-    QImage displayedImage;
-    QSizeF secondaryDisplayedImageSize;
-    QImage secondaryDisplayedImage;
+    std::array<RoleState, 2> roles;
+    DisplayRequestSnapshot& displayedRequest = roles[0].displayedRequest;
+    DisplayRequestSnapshot& secondaryDisplayedRequest = roles[1].displayedRequest;
+    QSizeF& displayedImageSize = roles[0].displayedImageSize;
+    QSizeF& secondaryDisplayedImageSize = roles[1].displayedImageSize;
+    QImage& displayedImage = roles[0].displayedImage;
+    QImage& secondaryDisplayedImage = roles[1].displayedImage;
+    PreparedPayload& displayedPayload = roles[0].displayedPayload;
+    PreparedPayload& secondaryDisplayedPayload = roles[1].displayedPayload;
     quint64 nextPreparedPayloadId = 0;
-    PreparedPayload pendingRenderPayload;
-    PreparedPayload secondaryPendingRenderPayload;
+    PreparedPayload& pendingRenderPayload = roles[0].pendingRenderPayload;
+    PreparedPayload& secondaryPendingRenderPayload = roles[1].pendingRenderPayload;
     DisplayRequestSnapshot renderFailureRetainedRequest;
     bool renderFailureRetainedDisplayValid = false;
     QSizeF renderFailureRetainedImageSize;
     QImage renderFailureRetainedImage;
+    PresentationState displayedPresentation;
+    quint64 displayedPresentationRevision = 0;
     quint64 revision = 0;
 };
 
 struct RequestState
 {
+    struct RoleState
+    {
+        ImageSequenceSource source;
+        QPointer<ImageSequence> sequence;
+        bool provider = false;
+        DisplayRequest activeRequest;
+        DisplayRequest latestNonPlaybackRequest;
+    };
+
+    RequestState() = default;
+    RequestState(const RequestState&) = delete;
+    RequestState& operator=(const RequestState&) = delete;
+    RequestState(RequestState&&) = delete;
+    RequestState& operator=(RequestState&&) = delete;
+
     void clearDisplayRequests()
     {
         nextRequestId = 0;
@@ -435,11 +480,12 @@ struct RequestState
             && identity.payloadId == activeRequest.preparedPayloadId;
     }
 
-    ImageSequenceSource sequenceSource;
-    QPointer<ImageSequence> sequence;
-    ImageSequenceSource secondarySequenceSource;
-    QPointer<ImageSequence> secondarySequence;
-    bool secondarySequenceIsProvider = false;
+    std::array<RoleState, 2> roles;
+    ImageSequenceSource& sequenceSource = roles[0].source;
+    ImageSequenceSource& secondarySequenceSource = roles[1].source;
+    QPointer<ImageSequence>& sequence = roles[0].sequence;
+    QPointer<ImageSequence>& secondarySequence = roles[1].sequence;
+    bool& secondarySequenceIsProvider = roles[1].provider;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;
@@ -447,12 +493,12 @@ struct RequestState
     bool looping = false;
     bool stopPlaybackWhenRequestReady = false;
     bool providerPlaybackStartPending = false;
-    DisplayRequest activeRequest;
-    DisplayRequest secondaryActiveRequest;
+    DisplayRequest& activeRequest = roles[0].activeRequest;
+    DisplayRequest& secondaryActiveRequest = roles[1].activeRequest;
     int playbackPosition = -1;
     ImageViewport::PageRole playbackRole = ImageViewport::PageRole::Primary;
-    DisplayRequest latestNonPlaybackRequest;
-    DisplayRequest secondaryLatestNonPlaybackRequest;
+    DisplayRequest& latestNonPlaybackRequest = roles[0].latestNonPlaybackRequest;
+    DisplayRequest& secondaryLatestNonPlaybackRequest = roles[1].latestNonPlaybackRequest;
     int playbackLoopIterationsCompleted = 0;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;

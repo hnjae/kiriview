@@ -19,6 +19,18 @@ class RevisionTokenPrivateAccess
 {
 public:
     static RevisionToken fromValue(quint64 value) { return RevisionToken(value); }
+    static ImageViewportRevisionToken publicRevisionFromValue(quint64 value)
+    {
+        return ImageViewportRevisionToken(value);
+    }
+    static ImageViewportPresentationTargetGenerationToken generationFromValue(quint64 value)
+    {
+        return ImageViewportPresentationTargetGenerationToken(value);
+    }
+    static ImageViewportDemandRevisionToken demandFromValue(quint64 value)
+    {
+        return ImageViewportDemandRevisionToken(value);
+    }
 
     static quint64 value(RevisionToken token) { return token.m_value; }
     static quint64 value(ImageViewportRevisionToken token) { return token.m_value; }

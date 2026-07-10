@@ -1,9 +1,9 @@
 #include "framepreparation_p.h"
 
-#include "imageviewportdiagnostics_p.h"
-#include "imageviewportlimits_p.h"
 #include "imagesequence_p.h"
 #include "imagesequencesource_p.h"
+#include "imageviewportdiagnostics_p.h"
+#include "imageviewportlimits_p.h"
 #include "timingintervals_p.h"
 
 #include <utility>
@@ -291,14 +291,20 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
             return providerFrameError(
                 Cause::FrameDurationMismatch, QStringLiteral("provider frame duration mismatch"));
         }
+        ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
+        admitted.image = ImageFramePrivateAccess::image(*frame);
+        admitted.sourceLogicalSize = frame->logicalSize();
+        admitted.payloadRasterSize = frame->payloadRasterSize();
+        admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
+        admitted.quality = frame->envelope().quality();
+        admitted.exactness = frame->envelope().exactness();
+        admitted.demandRevision = frame->envelope().demandRevision();
         return {
             Cause::Accepted,
             ImageViewport::RequestStatus::Ready,
             ImageViewport::RequestReason::Ready,
             {},
-            { state.preparedPayload.commitPending, state.preparedPayload.generation,
-                state.preparedPayload.requestId, state.preparedPayload.payloadId,
-                ImageFramePrivateAccess::image(*frame) },
+            admitted,
         };
     }
 
@@ -310,14 +316,20 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::ResolvedFrameMismatch, QStringLiteral("provider frame resolved frame mismatch"));
     }
+    ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
+    admitted.image = ImageFramePrivateAccess::image(*frame);
+    admitted.sourceLogicalSize = frame->logicalSize();
+    admitted.payloadRasterSize = frame->payloadRasterSize();
+    admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
+    admitted.quality = frame->envelope().quality();
+    admitted.exactness = frame->envelope().exactness();
+    admitted.demandRevision = frame->envelope().demandRevision();
     return {
         Cause::Accepted,
         ImageViewport::RequestStatus::Ready,
         ImageViewport::RequestReason::Ready,
         {},
-        { state.preparedPayload.commitPending, state.preparedPayload.generation,
-            state.preparedPayload.requestId, state.preparedPayload.payloadId,
-            ImageFramePrivateAccess::image(*frame) },
+        admitted,
     };
 }
 
@@ -335,6 +347,13 @@ FramePreparation::BuiltInFrameAdmissionResult FramePreparation::admitBuiltInFram
 
     ImageViewportInternal::PreparedPayload admittedPayload = preparedPayload;
     admittedPayload.image = std::move(image);
+    const FramePayloadFacts facts = sourceFramePayloadFacts(source, frame);
+    admittedPayload.sourceLogicalSize = facts.sourceLogicalSize;
+    admittedPayload.payloadRasterSize = facts.payloadRasterSize;
+    admittedPayload.sourceToPayloadScale = facts.sourceToPayloadScale;
+    admittedPayload.quality = facts.quality;
+    admittedPayload.exactness = facts.exactness;
+    admittedPayload.demandRevision = facts.demandRevision;
     return {
         Cause::Accepted,
         ImageViewport::RequestStatus::Ready,

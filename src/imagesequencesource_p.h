@@ -1,5 +1,6 @@
 #pragma once
 
+#include "imagesequence_p.h"
 #include "imageviewport.h"
 #include "timingintervals_p.h"
 
@@ -50,5 +51,6 @@ int sourceFrameStartPosition(const ImageSequenceSource& source, int frame);
 int sourceFrameIndexForPosition(const ImageSequenceSource& source, int position);
 QSizeF sourceLogicalSize(const ImageSequenceSource& source);
 QImage sourceFrameImage(const ImageSequenceSource& source, int frame);
+FramePayloadFacts sourceFramePayloadFacts(const ImageSequenceSource& source, int frame);
 
 }

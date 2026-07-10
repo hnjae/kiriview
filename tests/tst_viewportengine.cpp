@@ -91,6 +91,7 @@ public:
 
 private slots:
     void defaultSnapshotMatchesPublicDefaultProjection();
+    void snapshotProjectsCanonicalEngineState();
     void defaultDisplayStateMatchesEmptyRenderState();
     void displayStateOwnsRenderPayloadAndRetainedIdentity();
     void defaultRequestStateMatchesPublicDefaults();
@@ -142,6 +143,42 @@ void ViewportEngineTest::defaultSnapshotMatchesPublicDefaultProjection()
     QCOMPARE(engineSnapshot.revisions(), itemSnapshot.revisions());
     QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::NoCommand);
     QCOMPARE(engine.commandDiagnostics().revision.isValid(), false);
+}
+
+void ViewportEngineTest::snapshotProjectsCanonicalEngineState()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    auto& display = engine.displayState();
+
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.logicalSize = QSizeF(16.0, 8.0);
+    request.sequenceSource.facts.frameCount = 1;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, true);
+    request.status = ImageViewport::RequestStatus::Ready;
+    request.reason = ImageViewport::RequestReason::Ready;
+    request.requestRevision = 11;
+    request.commandRevision = 13;
+
+    display.status = ImageViewport::DisplayStatus::Ready;
+    display.displayedRequest
+        = display.activeRequestSnapshot(request.sequenceGeneration, request.activeRequest, -1);
+    display.displayedImageSize = QSizeF(16.0, 8.0);
+    display.displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    display.revision = 12;
+
+    const ImageViewportStateSnapshot snapshot = engine.snapshot();
+    QCOMPARE(snapshot.request().status(), ImageViewport::RequestStatus::Ready);
+    QCOMPARE(snapshot.request().reason(), ImageViewport::RequestReason::Ready);
+    QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Ready);
+    QCOMPARE(snapshot.primary().present(), true);
+    QCOMPARE(snapshot.primary().request().frame(), 0);
+    QCOMPARE(snapshot.primary().display().frame(), 0);
+    QCOMPARE(snapshot.revisions().request().isValid(), true);
+    QCOMPARE(snapshot.revisions().display().isValid(), true);
+    QCOMPARE(snapshot.revisions().command().isValid(), true);
 }
 
 void ViewportEngineTest::defaultDisplayStateMatchesEmptyRenderState()
@@ -466,7 +503,14 @@ void ViewportEngineTest::invalidCommandUpdatesOnlyCommandDiagnostics()
     QVERIFY(result.commandRevision.isValid());
     QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::InvalidRequest);
     QCOMPARE(engine.commandDiagnostics().revision, result.commandRevision);
-    QCOMPARE(engine.snapshot(), snapshot);
+    const ImageViewportStateSnapshot rejectedSnapshot = engine.snapshot();
+    QCOMPARE(rejectedSnapshot.request(), snapshot.request());
+    QCOMPARE(rejectedSnapshot.display(), snapshot.display());
+    QCOMPARE(rejectedSnapshot.presentation(), snapshot.presentation());
+    QCOMPARE(rejectedSnapshot.diagnostics().commandReason(),
+        ImageViewport::CommandReason::InvalidRequest);
+    QVERIFY(rejectedSnapshot.revisions().command().isValid());
+    QVERIFY(rejectedSnapshot.revisions().snapshot().isValid());
 }
 
 void ViewportEngineTest::malformedEnumRejectionMatchesInvalidCommand()
@@ -545,12 +589,12 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     command.setManualZoomPercent(200.0);
     command.setRotationDegrees(90);
     command.setMirrorHorizontally(true);
-    QCOMPARE(engine
-                 .applyPresentationCommand({ command,
-                     { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0),
-                         QSizeF(8.0, 10.0), 2.0 },
-                     {}, true })
-                 .command.outcome,
+    QCOMPARE(
+        engine
+            .applyPresentationCommand({ command,
+                { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 },
+                {}, true })
+            .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 
     const PresentationGeometry::State geometry = engine.geometryState(
@@ -583,11 +627,11 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     command.setMipmap(true);
     command.setMirrorHorizontally(true);
     command.setMirrorVertically(true);
-    QCOMPARE(engine
-                 .applyPresentationCommand({ command,
-                     { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 },
-                     {}, true })
-                 .command.outcome,
+    QCOMPARE(
+        engine
+            .applyPresentationCommand({ command,
+                { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 }, {}, true })
+            .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 
     auto& request = engine.requestState();

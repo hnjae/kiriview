@@ -126,12 +126,14 @@ bool ImageSequenceAuthoredAnimationFacts::setFiniteLoopCount(int loopCount)
     return true;
 }
 
-std::unique_ptr<ImageSequenceData> ImageSequenceData::still(QSizeF logicalSize, QImage stillImage)
+std::unique_ptr<ImageSequenceData> ImageSequenceData::still(
+    QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
 {
     auto data = std::make_unique<ImageSequenceData>();
     data->kind = Kind::Still;
     data->logicalSize = logicalSize;
     data->stillImage = std::move(stillImage);
+    data->stillPayloadFacts = payloadFacts;
     return data;
 }
 
@@ -187,10 +189,10 @@ ImageSequence::ImageSequence(std::unique_ptr<ImageSequenceData> data, QObject* p
 ImageSequence::~ImageSequence() = default;
 
 std::shared_ptr<ImageSequence> ImageSequencePrivateAccess::createStill(
-    QSizeF logicalSize, QImage stillImage)
+    QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts)
 {
-    std::shared_ptr<ImageSequence> sequence(
-        new ImageSequence(ImageSequenceData::still(logicalSize, std::move(stillImage))));
+    std::shared_ptr<ImageSequence> sequence(new ImageSequence(
+        ImageSequenceData::still(logicalSize, std::move(stillImage), payloadFacts)));
     sequence->d->owner = sequence;
     return sequence;
 }
@@ -308,6 +310,27 @@ QImage ImageSequencePrivateAccess::frameImage(const ImageSequence* sequence, int
         return sequence->d->frameImages.at(frame);
     }
     return {};
+}
+
+FramePayloadFacts ImageSequencePrivateAccess::framePayloadFacts(
+    const ImageSequence* sequence, int frame)
+{
+    if (!sequence || !sequence->d || frame < 0) {
+        return {};
+    }
+    if (isStill(sequence) && frame == 0) {
+        return sequence->d->stillPayloadFacts;
+    }
+    const QImage image = frameImage(sequence, frame);
+    if (image.isNull()) {
+        return {};
+    }
+    const QSizeF logicalSize = sequence->d->logicalSize;
+    const QSizeF rasterSize(image.size());
+    return { logicalSize, rasterSize,
+        QSizeF(
+            rasterSize.width() / logicalSize.width(), rasterSize.height() / logicalSize.height()),
+        ImageViewport::PayloadQuality::Exact, ImageViewport::PayloadExactness::ExactForSource, {} };
 }
 
 TimingIntervals ImageSequencePrivateAccess::timingIntervals(const ImageSequence* sequence)

@@ -6,6 +6,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportrendercontract_p.h"
 
+#include <array>
 #include <optional>
 
 class ViewportEngine
@@ -18,6 +19,11 @@ public:
         QSizeF primarySize;
         QSizeF secondarySize;
         double devicePixelRatio = 1.0;
+    };
+    struct SnapshotInput
+    {
+        GeometryInput acceptedGeometry;
+        GeometryInput displayedGeometry;
     };
 
     struct PresentationTargetState
@@ -169,6 +175,10 @@ public:
         PresentationGeometry::State geometryState;
     };
     ImageViewportStateSnapshot snapshot() const;
+    ImageViewportStateSnapshot snapshot(const GeometryInput& input) const;
+    ImageViewportStateSnapshot snapshot(const SnapshotInput& input) const;
+    ImageViewportInternal::ViewportChangeSet publishChanges(
+        ImageViewportInternal::ViewportChangeSet changes);
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
     ImageViewportInternal::DisplayState& displayState();
@@ -212,6 +222,15 @@ public:
     void setNextRevisionValueForTest(quint64 token);
 
 private:
+    struct RoleState
+    {
+        ImageViewportInternal::ProviderGenerationState provider;
+    };
+
+    static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
+    {
+        return role == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    }
     FramePreparation::ProviderFrameState providerFramePreparationState(
         ImageViewport::PageRole role) const;
     CommandResult rejected(
@@ -226,12 +245,13 @@ private:
     quint64 m_nextRevision = 0;
     quint64 m_nextPresentationTargetGeneration = 0;
     quint64 m_nextRenderSynchronizationAttempt = 0;
+    quint64 m_presentationRevision = 0;
+    quint64 m_snapshotRevision = 0;
     ViewportRenderSynchronization m_lastRenderSynchronization;
     RevisionToken m_commandRevision;
     PresentationTargetState m_presentationTargetState;
     ImageViewportInternal::DisplayState m_displayState;
     ImageViewportInternal::RequestState m_requestState;
-    ImageViewportInternal::ProviderGenerationState m_providerState;
-    ImageViewportInternal::ProviderGenerationState m_secondaryProviderState;
+    std::array<RoleState, 2> m_roles;
     ImageViewportInternal::PresentationState m_presentationState;
 };

@@ -72,8 +72,8 @@ bool completeAcknowledgementMatches(const DisplayState& display, const RequestSt
 {
     return primaryAcknowledgementMatches(display, request, acknowledgement)
         && (!hasSecondary(request)
-            || payloadMatches(acknowledgedPayload(
-                                  acknowledgement, ImageViewport::PageRole::Secondary),
+            || payloadMatches(
+                acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Secondary),
                 expectedPayload(display, request, ImageViewport::PageRole::Secondary)));
 }
 
@@ -103,6 +103,7 @@ void publishSecondaryDisplay(ViewportEngine& engine)
         display.secondaryDisplayedRequest = {};
         display.secondaryDisplayedImageSize = {};
         display.secondaryDisplayedImage = {};
+        display.secondaryDisplayedPayload = {};
         return;
     }
     display.secondaryDisplayedRequest.generation = request.sequenceGeneration;
@@ -116,6 +117,7 @@ void publishSecondaryDisplay(ViewportEngine& engine)
     if (!request.secondarySequenceIsProvider
         && !display.secondaryPendingRenderPayload.image.isNull()) {
         display.secondaryDisplayedImage = display.secondaryPendingRenderPayload.image;
+        display.secondaryDisplayedPayload = display.secondaryPendingRenderPayload;
     }
 }
 
@@ -135,12 +137,13 @@ void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
         : request.sequenceSource.facts.provider
         ? engine.providerState().timingIntervals.frameStartPosition(frame)
         : sourceFrameStartPosition(request.sequenceSource, frame);
-    display.displayedRequest
-        = display.activeRequestSnapshot(request.sequenceGeneration, request.activeRequest, position);
+    display.displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.activeRequest, position);
     display.displayedImageSize = request.sequenceSource.facts.provider
         ? engine.providerState().logicalSize
         : sourceLogicalSize(request.sequenceSource);
     display.displayedImage = payload.image;
+    display.displayedPayload = payload;
     publishSecondaryDisplay(engine);
 }
 
@@ -153,7 +156,8 @@ void stageBuiltIn(ViewportEngine& engine)
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
     if (request.activeRequest.target.frame >= 0) {
         display.pendingRenderPayload = FramePreparation::admitBuiltInFrame(request.sequenceSource,
-            request.activeRequest.target.frame, display.pendingRenderPayload).preparedPayload;
+            request.activeRequest.target.frame, display.pendingRenderPayload)
+                                           .preparedPayload;
     }
     if (hasSecondary(request) && !request.secondarySequenceIsProvider) {
         auto& secondary = display.secondaryPendingRenderPayload;
@@ -162,13 +166,14 @@ void stageBuiltIn(ViewportEngine& engine)
         secondary.requestId = request.activeRequest.identity.id;
         secondary.payloadId = ++display.nextPreparedPayloadId;
         request.secondaryActiveRequest.preparedPayloadId = secondary.payloadId;
-        secondary = FramePreparation::admitBuiltInFrame(request.secondarySequenceSource,
-            request.secondaryActiveRequest.target.frame, secondary).preparedPayload;
+        secondary = FramePreparation::admitBuiltInFrame(
+            request.secondarySequenceSource, request.secondaryActiveRequest.target.frame, secondary)
+                        .preparedPayload;
     }
 }
 
-void markPlayback(ViewportChangeSet& changes, RequestState& request,
-    ImageViewport::PlaybackPhase phase)
+void markPlayback(
+    ViewportChangeSet& changes, RequestState& request, ImageViewport::PlaybackPhase phase)
 {
     if (request.playbackPhase != phase) {
         request.playbackPhase = phase;
@@ -189,8 +194,8 @@ ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
     result.oldDisplayStatus = m_displayState.status;
     result.pendingTargetCommit = !terminalSealed(m_requestState) && waitingForRender(m_requestState)
         && pendingSpreadReady(m_displayState, m_requestState) && !input.itemBounds.isEmpty();
-    result.pendingSecondaryProviderCommit = result.pendingTargetCommit && hasSecondary(m_requestState)
-        && m_requestState.secondarySequenceIsProvider
+    result.pendingSecondaryProviderCommit = result.pendingTargetCommit
+        && hasSecondary(m_requestState) && m_requestState.secondarySequenceIsProvider
         && !m_displayState.secondaryPendingRenderPayload.image.isNull();
     if (result.pendingTargetCommit) {
         result.preparedPayload = m_displayState.pendingRenderPayload;
@@ -199,8 +204,8 @@ ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
         result.preparedPayload = m_displayState.pendingRenderPayload;
         result.preparedPayload.image = m_displayState.displayedImage;
     }
-    result.geometryState = geometryState(
-        result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry);
+    result.geometryState
+        = geometryState(result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry);
     result.renderSnapshot = renderSnapshot({ input.itemSize, result.pendingTargetCommit,
         result.preparedPayload, result.geometryState });
     m_lastRenderSynchronization = result;
@@ -215,8 +220,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
         || (input.acknowledgement.synchronizationAttempt != 0
             && (input.acknowledgement.synchronizationAttempt != input.synchronizationAttempt
                 || input.synchronizationAttempt != m_nextRenderSynchronizationAttempt))
-        || !completeAcknowledgementMatches(
-            m_displayState, m_requestState, input.acknowledgement)) {
+        || !completeAcknowledgementMatches(m_displayState, m_requestState, input.acknowledgement)) {
         return changes;
     }
     const auto oldStatus = m_displayState.status;
@@ -224,9 +228,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
         publishReady(*this, input.preparedPayload);
     }
     if (input.pendingSecondaryProviderCommit) {
-        m_displayState.secondaryDisplayedImage
-            = m_displayState.secondaryPendingRenderPayload.image;
-        m_displayState.secondaryDisplayedImageSize = m_secondaryProviderState.logicalSize;
+        m_displayState.secondaryDisplayedImage = m_displayState.secondaryPendingRenderPayload.image;
+        m_displayState.secondaryDisplayedPayload = m_displayState.secondaryPendingRenderPayload;
+        m_displayState.secondaryDisplayedImageSize = secondaryProviderState().logicalSize;
     }
     const bool resume = m_requestState.playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && m_requestState.status == ImageViewport::RequestStatus::Ready;
@@ -235,9 +239,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
     m_displayState.clearPendingRenderPayload();
     m_displayState.clearRenderFailureRetainedDisplay();
     if (resume) {
-        markPlayback(changes, m_requestState, m_requestState.stopPlaybackWhenRequestReady
-                ? ImageViewport::PlaybackPhase::Stopped
-                : ImageViewport::PlaybackPhase::Playing);
+        markPlayback(changes, m_requestState,
+            m_requestState.stopPlaybackWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
+                                                        : ImageViewport::PlaybackPhase::Playing);
         m_requestState.stopPlaybackWhenRequestReady = false;
     }
     if (input.pendingTargetCommit) {
@@ -245,9 +249,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
         changes.requestRevision = true;
         changes.displayRevision = true;
         changes.displayState = m_displayState.status != oldStatus;
-        changes.geometryState = rectsDifferExactly(
-                                    PresentationGeometry::contentRect(input.geometryState),
-                                    input.oldContentRect)
+        changes.geometryState
+            = rectsDifferExactly(
+                  PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
             || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
                 input.oldVisibleImageRect);
     }
@@ -258,22 +262,20 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     const RenderAcknowledgementInput& input)
 {
     ViewportChangeSet changes;
-    const bool pending = waitingForRender(m_requestState)
-        && pendingSpreadReady(m_displayState, m_requestState);
+    const bool pending
+        = waitingForRender(m_requestState) && pendingSpreadReady(m_displayState, m_requestState);
     if (terminalSealed(m_requestState)
         || (input.acknowledgement.synchronizationAttempt != 0
-            && input.acknowledgement.synchronizationAttempt
-                != m_nextRenderSynchronizationAttempt)
+            && input.acknowledgement.synchronizationAttempt != m_nextRenderSynchronizationAttempt)
         || !failureAcknowledgementMatches(m_displayState, m_requestState, input.acknowledgement)
         || (m_displayState.status != ImageViewport::DisplayStatus::Ready && !pending)) {
         return changes;
     }
     const auto oldStatus = m_displayState.status;
-    const auto failed = acknowledgedPayload(
-        input.acknowledgement, input.acknowledgement.failedRole);
+    const auto failed
+        = acknowledgedPayload(input.acknowledgement, input.acknowledgement.failedRole);
     const RenderFailureDiagnostic diagnostic { true, input.acknowledgement.failedRole,
-        failed.generation, failed.requestId, failed.payloadId,
-        input.acknowledgement.failureCause };
+        failed.generation, failed.requestId, failed.payloadId, input.acknowledgement.failureCause };
     m_requestState.lastAcceptedRenderFailure = diagnostic;
     changes.renderFailureDiagnostic = diagnostic;
     m_displayState.clearPendingRenderPayload();
@@ -293,7 +295,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     terminal.generation = m_requestState.sequenceGeneration;
     terminal.requestId = m_requestState.activeRequest.identity.id;
     auto& role = input.acknowledgement.failedRole == ImageViewport::PageRole::Primary
-        ? terminal.primary : terminal.secondary;
+        ? terminal.primary
+        : terminal.secondary;
     role.terminal = true;
     role.status = ImageViewport::RequestStatus::Error;
     role.reason = ImageViewport::RequestReason::RenderFailure;
@@ -309,12 +312,11 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     changes.diagnostics = diagnosticChanged;
     changes.displayRevision = true;
     changes.displayState = m_displayState.status != oldStatus;
-    changes.geometryState = rectsDifferExactly(
-                                PresentationGeometry::contentRect(
-                                    m_lastRenderSynchronization.geometryState),
+    changes.geometryState = rectsDifferExactly(PresentationGeometry::contentRect(
+                                                   m_lastRenderSynchronization.geometryState),
                                 m_lastRenderSynchronization.oldContentRect)
-        || rectsDifferExactly(PresentationGeometry::visibleImageRect(
-                                  m_lastRenderSynchronization.geometryState),
+        || rectsDifferExactly(
+            PresentationGeometry::visibleImageRect(m_lastRenderSynchronization.geometryState),
             m_lastRenderSynchronization.oldVisibleImageRect);
     return changes;
 }
@@ -334,7 +336,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::handleGeometryChanged(
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::UploadPending;
             m_displayState.status = m_displayState.hasReadyDisplay(hasDisplayable(m_requestState))
-                ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
+                ? ImageViewport::DisplayStatus::Retained
+                : ImageViewport::DisplayStatus::Empty;
             changes.requestState = true;
             changes.requestRevision = true;
             changes.displayState = true;
@@ -353,11 +356,11 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::handleGeometryChanged(
     } else {
         changes.displayRevision = true;
     }
-    changes.geometryState = rectsDifferExactly(
-                                PresentationGeometry::contentRect(input.geometryState),
-                                input.oldContentRect)
-        || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
-            input.oldVisibleImageRect);
+    changes.geometryState
+        = rectsDifferExactly(
+              PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
+        || rectsDifferExactly(
+            PresentationGeometry::visibleImageRect(input.geometryState), input.oldVisibleImageRect);
     changes.scheduleUpdate = true;
     return changes;
 }

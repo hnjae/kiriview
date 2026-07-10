@@ -18,6 +18,8 @@ private slots:
     void terminalProviderFailureProjectsDiagnostics();
     void timedPlaybackSnapshotTracksRequestState();
     void presentationOnlyChangesUpdateSnapshot();
+    void retainedDisplayKeepsCommittedPresentationIdentity();
+    void displayedPayloadFactsComeFromCommittedFrame();
     void presentationCommandUpdatesSnapshotGeometry();
     void qmlReadsNestedSnapshotFields();
 };
@@ -223,6 +225,77 @@ void ImageViewportStateSnapshotTest::loadingReplacementRetainsPreviousDisplaySep
     QCOMPARE(snapshot.primary().display().sourceLogicalSize(), QSizeF(16.0, 8.0));
 }
 
+void ImageViewportStateSnapshotTest::retainedDisplayKeepsCommittedPresentationIdentity()
+{
+    ImageSequenceFactory factory;
+    QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    firstImage.fill(Qt::red);
+    ImageFrame firstFrame(firstImage);
+    QScopedPointer<ImageSequenceFactoryResult> first(factory.fromFrame(&firstFrame));
+    QImage secondImage(8, 8, QImage::Format_ARGB32_Premultiplied);
+    secondImage.fill(Qt::blue);
+    ImageFrame secondFrame(secondImage);
+    QScopedPointer<ImageSequenceFactoryResult> second(factory.fromFrame(&secondFrame));
+    QVERIFY(first->sequence());
+    QVERIFY(second->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(first->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    ImageViewportPresentationCommand rotation;
+    rotation.setRotationDegrees(90);
+    QCOMPARE(item.setPresentation(rotation).outcome(), ImageViewport::CommandOutcome::Accepted);
+    const ImageViewportStateSnapshot committed = item.state();
+
+    PresentationTargetTransitionPolicy policy;
+    policy.setRotationTransition(PresentationTargetTransitionPolicy::RotationTransition::Reset);
+    item.setPresentationTarget(ImageViewportPresentationTarget(second->sequence()), policy);
+    const ImageViewportStateSnapshot retained = item.state();
+
+    QCOMPARE(retained.display().status(), ImageViewport::DisplayStatus::Retained);
+    QVERIFY(
+        retained.display().displayedPresentationRevision() != retained.revisions().presentation());
+    QCOMPARE(retained.primary().geometry().displayedItemRect(),
+        committed.primary().geometry().displayedItemRect());
+    QVERIFY(retained.primary().geometry().acceptedItemRect()
+        != retained.primary().geometry().displayedItemRect());
+}
+
+void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame()
+{
+    QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
+    payload.fill(Qt::transparent);
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.setSourceLogicalSize(QSizeF(16.0, 8.0));
+    envelope.setPayloadRasterSize(QSizeF(8.0, 4.0));
+    envelope.setSourceToPayloadScale(QSizeF(0.5, 0.5));
+    envelope.setPayloadByteSize(payload.sizeInBytes());
+    envelope.setQuality(ImageViewport::PayloadQuality::Preview);
+    envelope.setExactness(ImageViewport::PayloadExactness::NotExact);
+    envelope.setFrame(0);
+    envelope.setFrameStartPosition(-1);
+    envelope.setFrameDuration(-1);
+    envelope.setHasAlpha(true);
+    ImageFrame frame(payload, envelope);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
+    QVERIFY(result->sequence());
+
+    ImageViewport item;
+    item.setSize(QSizeF(100.0, 100.0));
+    item.setPresentationTarget(
+        ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
+    acknowledgePendingRenderCommitForTest(item);
+    const ImageViewportRoleDisplaySnapshot display = item.state().primary().display();
+    QCOMPARE(display.sourceLogicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(display.payloadRasterSize(), QSizeF(8.0, 4.0));
+    QCOMPARE(display.sourceToPayloadScale(), QSizeF(0.5, 0.5));
+    QCOMPARE(display.quality(), ImageViewport::PayloadQuality::Preview);
+    QCOMPARE(display.exactness(), ImageViewport::PayloadExactness::NotExact);
+}
+
 void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics()
 {
     ImageSequenceFactory factory;
@@ -287,7 +360,8 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
@@ -295,13 +369,15 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Paused);
     QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
         ImageViewport::PageRole::Primary);
 
-    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
     QVERIFY(!snapshot.request().playbackRole().isValid());

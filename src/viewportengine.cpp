@@ -168,8 +168,6 @@ void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::Page
 }
 }
 
-ImageViewportStateSnapshot ViewportEngine::snapshot() const { return {}; }
-
 ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 {
     return { m_requestState.commandReason, m_commandRevision };
@@ -196,27 +194,58 @@ const ImageViewportInternal::RequestState& ViewportEngine::requestState() const
 
 ImageViewportInternal::ProviderGenerationState& ViewportEngine::providerState()
 {
-    return m_providerState;
+    return m_roles[roleIndex(ImageViewport::PageRole::Primary)].provider;
 }
 
 const ImageViewportInternal::ProviderGenerationState& ViewportEngine::providerState() const
 {
-    return m_providerState;
+    return m_roles[roleIndex(ImageViewport::PageRole::Primary)].provider;
 }
 
 ImageViewportInternal::ProviderGenerationState& ViewportEngine::secondaryProviderState()
 {
-    return m_secondaryProviderState;
+    return m_roles[roleIndex(ImageViewport::PageRole::Secondary)].provider;
 }
 
 const ImageViewportInternal::ProviderGenerationState& ViewportEngine::secondaryProviderState() const
 {
-    return m_secondaryProviderState;
+    return m_roles[roleIndex(ImageViewport::PageRole::Secondary)].provider;
 }
 
 const ImageViewportInternal::PresentationState& ViewportEngine::presentationState() const
 {
     return m_presentationState;
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
+    ImageViewportInternal::ViewportChangeSet changes)
+{
+    if (changes.requestRevision) {
+        m_requestState.requestRevision = allocateRevisionValue();
+    }
+    if (changes.displayRevision) {
+        m_displayState.revision = allocateRevisionValue();
+        if (m_displayState.status == ImageViewport::DisplayStatus::Ready) {
+            m_displayState.displayedPresentation = m_presentationState;
+            m_displayState.displayedPresentationRevision = m_displayState.revision;
+        }
+    }
+    if (changes.presentationRevision) {
+        m_presentationRevision = allocateRevisionValue();
+    }
+    if (changes.commandRevision) {
+        m_requestState.commandRevision = changes.commandRevisionValue != 0
+            ? changes.commandRevisionValue
+            : allocateRevisionValue();
+        m_commandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(
+            m_requestState.commandRevision);
+    }
+    if (changes.requestRevision || changes.displayRevision || changes.presentationRevision
+        || changes.commandRevision || changes.requestState || changes.displayState
+        || changes.geometryState || changes.playbackPhase || changes.diagnostics) {
+        m_snapshotRevision = allocateRevisionValue();
+    }
+    return changes;
 }
 
 PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const

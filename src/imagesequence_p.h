@@ -7,6 +7,16 @@
 
 namespace ImageViewportInternal {
 
+struct FramePayloadFacts
+{
+    QSizeF sourceLogicalSize;
+    QSizeF payloadRasterSize;
+    QSizeF sourceToPayloadScale;
+    ImageViewport::PayloadQuality quality = ImageViewport::PayloadQuality::Unknown;
+    ImageViewport::PayloadExactness exactness = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportDemandRevisionToken demandRevision;
+};
+
 class ImageSequenceData
 {
 public:
@@ -17,7 +27,8 @@ public:
         Provider,
     };
 
-    static std::unique_ptr<ImageSequenceData> still(QSizeF logicalSize, QImage stillImage);
+    static std::unique_ptr<ImageSequenceData> still(
+        QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts = {});
     static std::unique_ptr<ImageSequenceData> timedList(QSizeF logicalSize,
         const QVector<int>& frameDurations, QVector<QImage> frameImages,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
@@ -33,6 +44,7 @@ public:
     Kind kind = Kind::None;
     QSizeF logicalSize;
     QImage stillImage;
+    FramePayloadFacts stillPayloadFacts;
     std::shared_ptr<const TimingIntervals> timingIntervals;
     QVector<QImage> frameImages;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
@@ -55,7 +67,8 @@ public:
 class ImageSequencePrivateAccess
 {
 public:
-    static std::shared_ptr<ImageSequence> createStill(QSizeF logicalSize, QImage stillImage);
+    static std::shared_ptr<ImageSequence> createStill(
+        QSizeF logicalSize, QImage stillImage, FramePayloadFacts payloadFacts = {});
     static std::shared_ptr<ImageSequence> createTimedList(QSizeF logicalSize,
         const QVector<int>& frameDurations, QVector<QImage> frameImages,
         ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
@@ -78,6 +91,7 @@ public:
     static int frameStartPosition(const ImageSequence* sequence, int frame);
     static int frameIndexForPosition(const ImageSequence* sequence, int position);
     static QImage frameImage(const ImageSequence* sequence, int frame);
+    static FramePayloadFacts framePayloadFacts(const ImageSequence* sequence, int frame);
     static TimingIntervals timingIntervals(const ImageSequence* sequence);
     static ImageSequenceAuthoredAnimationFacts authoredAnimationFacts(
         const ImageSequence* sequence);

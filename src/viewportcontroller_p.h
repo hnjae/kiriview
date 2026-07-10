@@ -210,6 +210,9 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
+    ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
+    ImageViewportInternal::ViewportChangeSet publishChanges(
+        ImageViewportInternal::ViewportChangeSet changes);
     ViewportEngine::PresentationTargetState presentationTargetState() const;
     bool hasProviderSession() const;
     bool hasProviderSession(ImageViewport::PageRole role) const;

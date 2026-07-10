@@ -48,8 +48,7 @@ ImageViewportCommandResult ImageViewport::setPresentation(ImageViewportPresentat
     return d->commandResult(d->setPresentation(command));
 }
 
-ImageViewportCoordinateResult
-ImageViewport::mapPoint(
+ImageViewportCoordinateResult ImageViewport::mapPoint(
     ImageViewportCoordinateInput input) const // NOLINT(performance-unnecessary-value-param)
 {
     return d->mapPoint(input);
@@ -81,6 +80,14 @@ void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldG
     const QRectF oldVisibleImageRect = d->visibleImageRectForItemBounds(oldItemBounds);
     QQuickItem::geometryChange(newGeometry, oldGeometry);
     d->renderHost.geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
+}
+
+void ImageViewport::itemChange(ItemChange change, const ItemChangeData& data)
+{
+    QQuickItem::itemChange(change, data);
+    if (change == ItemDevicePixelRatioHasChanged) {
+        d->devicePixelRatioChanged();
+    }
 }
 
 namespace ImageViewportTestHooks {

@@ -147,6 +147,7 @@ void publishControllerSecondaryDisplayedRequest(ViewportControllerPort& viewport
         viewportDisplayState(viewport).secondaryDisplayedRequest = {};
         viewportDisplayState(viewport).secondaryDisplayedImageSize = {};
         viewportDisplayState(viewport).secondaryDisplayedImage = {};
+        viewportDisplayState(viewport).secondaryDisplayedPayload = {};
         return;
     }
 
@@ -166,6 +167,8 @@ void publishControllerSecondaryDisplayedRequest(ViewportControllerPort& viewport
         && !viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
         viewportDisplayState(viewport).secondaryDisplayedImage
             = viewportDisplayState(viewport).secondaryPendingRenderPayload.image;
+        viewportDisplayState(viewport).secondaryDisplayedPayload
+            = viewportDisplayState(viewport).secondaryPendingRenderPayload;
     }
 }
 
@@ -607,6 +610,19 @@ ViewportController::ViewportController(const ViewportControllerContext& context)
 {
 }
 
+ImageViewportStateSnapshot ViewportController::stateSnapshot(double devicePixelRatio) const
+{
+    return state.engine.snapshot({ acceptedGeometryInput(viewport, devicePixelRatio),
+        controllerGeometryInput(
+            viewport, devicePixelRatio, std::nullopt, GeometryProjectionTarget::CurrentDisplay) });
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportController::publishChanges(
+    ImageViewportInternal::ViewportChangeSet changes)
+{
+    return state.engine.publishChanges(changes);
+}
+
 bool ViewportController::targetSpreadTerminalSealedForActiveRequest()
 {
     return controllerTargetSpreadTerminalMatchesActiveRequest(viewport);
@@ -768,6 +784,8 @@ void ViewportController::publishSequenceReadyState()
         viewportDisplayState(viewport).displayedImage
             = viewportDisplayState(viewport).pendingRenderPayload.image;
     }
+    viewportDisplayState(viewport).displayedPayload
+        = viewportDisplayState(viewport).pendingRenderPayload;
     viewportDisplayState(viewport).pendingRenderPayload.image = {};
     publishControllerSecondaryDisplayedRequest(viewport);
 }
@@ -788,6 +806,8 @@ void ViewportController::publishStagedBuiltInPrimarySpreadReadyState()
     viewportDisplayState(viewport).displayedImageSize = viewport.sequenceLogicalSize();
     viewportDisplayState(viewport).displayedImage
         = viewportDisplayState(viewport).pendingRenderPayload.image;
+    viewportDisplayState(viewport).displayedPayload
+        = viewportDisplayState(viewport).pendingRenderPayload;
     publishControllerSecondaryDisplayedRequest(viewport);
 }
 
@@ -822,6 +842,7 @@ void ViewportController::publishSequenceReadyState(
                 : viewport.providerFrameStartPosition(currentFrame));
     viewportDisplayState(viewport).displayedImageSize = viewportProviderState(viewport).logicalSize;
     viewportDisplayState(viewport).displayedImage = providerPayload.image;
+    viewportDisplayState(viewport).displayedPayload = providerPayload;
     viewportDisplayState(viewport).pendingRenderPayload.image = {};
     publishControllerSecondaryDisplayedRequest(viewport);
 }

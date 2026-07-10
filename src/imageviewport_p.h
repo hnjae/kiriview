@@ -147,6 +147,7 @@ public:
     bool containsVisiblePagePoint(PageRole role, double x, double y) const;
     static CoordinateResult invalidCoordinateResult();
     void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
+    void devicePixelRatioChanged();
     void refreshStateSnapshot();
     QRectF currentContentRect() const;
     QRectF itemBounds() const override;

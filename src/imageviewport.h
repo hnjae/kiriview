@@ -665,6 +665,7 @@ private:
     friend class ImageViewportRequestSnapshot;
     friend class ImageViewportDisplaySnapshot;
     friend class ImageViewportRoleRequestSnapshot;
+    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
 };
 
 class ImageViewportDemandRevisionToken
@@ -700,6 +701,7 @@ private:
     friend ImageViewportPrivate;
     friend class ImageViewportRoleRequestSnapshot;
     friend class ImageViewportRoleDisplaySnapshot;
+    friend class ImageViewportInternal::RevisionTokenPrivateAccess;
 };
 
 class ImageViewportRoleSet
@@ -961,6 +963,7 @@ signals:
 protected:
     QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* data) override;
     void geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) override;
+    void itemChange(ItemChange change, const ItemChangeData& data) override;
 
 private:
     friend ImageViewportPrivate;

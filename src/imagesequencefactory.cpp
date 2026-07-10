@@ -89,8 +89,11 @@ ImageSequenceFactoryResult* ImageSequenceFactory::fromFrame(ImageFrame* frame)
             nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid, limitViolation);
     }
 
+    const ImageSequenceProviderFrameEnvelope envelope = frame->envelope();
     std::shared_ptr<ImageSequence> sequence
-        = ImageSequencePrivateAccess::createStill(frame->logicalSize(), frame->imagePayload());
+        = ImageSequencePrivateAccess::createStill(frame->logicalSize(), frame->imagePayload(),
+            { frame->logicalSize(), frame->payloadRasterSize(), frame->sourceToPayloadScale(),
+                envelope.quality(), envelope.exactness(), envelope.demandRevision() });
     return new ImageSequenceFactoryResult(
         std::move(sequence), ImageSequenceFactoryResult::FactoryOutcome::Created, {}, {});
 }

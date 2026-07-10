@@ -156,6 +156,7 @@ ViewportChangeSet presentationChanges(
         return changes;
     }
     changes.displayRevision = true;
+    changes.presentationRevision = presentationChanged;
     changes.geometryState = affectsGeometry && readyDisplay && !itemBounds.isEmpty();
     changes.scheduleUpdate = true;
     return changes;

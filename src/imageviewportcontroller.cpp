@@ -130,26 +130,22 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
 
 void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes)
 {
+    changes = controller.publishChanges(changes);
     internalDiagnostics.recordRenderFailure(changes.renderFailureDiagnostic);
-
-    if (changes.displayRevision) {
-        incrementDisplayRevision();
-    }
-    if (changes.requestRevision) {
-        incrementRequestRevision();
-    }
-    if (changes.commandRevision) {
-        if (changes.commandRevisionValue != 0) {
-            controller.setCommandRevision(changes.commandRevisionValue);
-        } else {
-            controller.incrementCommandRevision();
-        }
-    }
 
     if (changes.scheduleUpdate) {
         update();
     }
     refreshStateSnapshot();
+}
+
+void ImageViewportPrivate::devicePixelRatioChanged()
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    changes.displayRevision = true;
+    changes.geometryState = true;
+    changes.scheduleUpdate = true;
+    applyControllerChanges(changes);
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
