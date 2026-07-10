@@ -6,7 +6,7 @@
 #include "async/imagecallback.h"
 #include "imagedocumentdeletioncontroller.h"
 #include "imagedocumentnavigationcontroller.h"
-#include "imagedocumentruntimecontrollers.h"
+#include "imagedocumentruntimegraph.h"
 #include "imagedocumentsourceloadrequest.h"
 #include "imageopenworkflow.h"
 #include "presentation/imagepagesurfacecontroller.h"
@@ -55,9 +55,9 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
     , changeCallback(std::move(changeCallback))
     , renderContextProvider(std::move(renderContextProvider))
 {
-    controllers = std::make_unique<ImageDocumentRuntimeControllers>(documentObject, state,
+    runtimeGraph = std::make_unique<ImageDocumentRuntimeGraph>(documentObject, state,
         std::move(dependencies),
-        ImageDocumentRuntimeControllerCallbacks {
+        ImageDocumentRuntimeGraphCallbacks {
             [this]() { return renderContext(); },
             [this](ImageDocumentChange change) { notify(change); },
             [this](const ImageDocumentSourceLoadRequest& request) { loadSource(request); },
@@ -87,17 +87,17 @@ MediaEntrySourceVideoPlaybackDeviceResult
 ImageDocumentRuntime::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const
 {
-    return controllers->loadOpenedCollectionVideoPlaybackDevice(openedCollectionScope, videoUrl);
+    return runtimeGraph->loadOpenedCollectionVideoPlaybackDevice(openedCollectionScope, videoUrl);
 }
 
 ImageDocumentStatus ImageDocumentRuntime::status() const
 {
-    return controllers->spreadController().status(state.status());
+    return runtimeGraph->spreadController().status(state.status());
 }
 
 bool ImageDocumentRuntime::loading() const
 {
-    return controllers->spreadController().loading(state.loading());
+    return runtimeGraph->spreadController().loading(state.loading());
 }
 
 QString ImageDocumentRuntime::errorString() const { return state.errorString(); }
@@ -115,8 +115,8 @@ QUrl ImageDocumentRuntime::displayedUrl() const
     if (documentStatus == ImageDocumentStatus::Ready) {
         return state.displayedUrl();
     }
-    if (sameScopeCommittedPresentationPending(documentStatus, controllers->spreadController())) {
-        return controllers->spreadController().committedPrimaryDisplayedImageLocation().imageUrl();
+    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
+        return runtimeGraph->spreadController().committedPrimaryDisplayedImageLocation().imageUrl();
     }
 
     return {};
@@ -131,10 +131,10 @@ QSize ImageDocumentRuntime::imageSize() const
 {
     const ImageDocumentStatus documentStatus = status();
     if (documentStatus == ImageDocumentStatus::Ready) {
-        return controllers->spreadController().imageSize();
+        return runtimeGraph->spreadController().imageSize();
     }
-    if (sameScopeCommittedPresentationPending(documentStatus, controllers->spreadController())) {
-        return controllers->spreadController().committedImageSize();
+    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
+        return runtimeGraph->spreadController().committedImageSize();
     }
 
     return {};
@@ -144,10 +144,10 @@ QSize ImageDocumentRuntime::primaryImageSize() const
 {
     const ImageDocumentStatus documentStatus = status();
     if (documentStatus == ImageDocumentStatus::Ready) {
-        return controllers->spreadController().primaryImageSize();
+        return runtimeGraph->spreadController().primaryImageSize();
     }
-    if (sameScopeCommittedPresentationPending(documentStatus, controllers->spreadController())) {
-        return controllers->spreadController().committedPrimaryImageSize();
+    if (sameScopeCommittedPresentationPending(documentStatus, runtimeGraph->spreadController())) {
+        return runtimeGraph->spreadController().committedPrimaryImageSize();
     }
 
     return {};
@@ -159,17 +159,17 @@ QSize ImageDocumentRuntime::secondaryImageSize() const
         return {};
     }
 
-    return controllers->spreadController().secondaryImageSize();
+    return runtimeGraph->spreadController().secondaryImageSize();
 }
 
 QSizeF ImageDocumentRuntime::viewportSize() const
 {
-    return controllers->presentationRuntime().viewportSize();
+    return runtimeGraph->presentationRuntime().viewportSize();
 }
 
 void ImageDocumentRuntime::setViewportSize(QSizeF viewportSize)
 {
-    controllers->spreadController().setViewportSize(viewportSize);
+    runtimeGraph->spreadController().setViewportSize(viewportSize);
 }
 
 QPointF ImageDocumentRuntime::viewportContentPosition() const
@@ -178,7 +178,7 @@ QPointF ImageDocumentRuntime::viewportContentPosition() const
         return {};
     }
 
-    return controllers->spreadController().viewportContentPosition();
+    return runtimeGraph->spreadController().viewportContentPosition();
 }
 
 quint64 ImageDocumentRuntime::requestViewportContentPosition(QPointF viewportContentPosition)
@@ -187,7 +187,7 @@ quint64 ImageDocumentRuntime::requestViewportContentPosition(QPointF viewportCon
         return 0;
     }
 
-    return controllers->spreadController()
+    return runtimeGraph->spreadController()
         .requestViewportContentPosition(viewportContentPosition)
         .revision;
 }
@@ -265,52 +265,52 @@ quint64 ImageDocumentRuntime::requestDisplayedImageInitialContentPosition()
 
 bool ImageDocumentRuntime::beginViewportCommandApplication(quint64 commandRevision)
 {
-    return controllers->spreadController().beginViewportCommandApplication(commandRevision);
+    return runtimeGraph->spreadController().beginViewportCommandApplication(commandRevision);
 }
 
 bool ImageDocumentRuntime::completeViewportCommandApplication(
     quint64 commandRevision, QPointF actualContentPosition)
 {
-    return controllers->spreadController().completeViewportCommandApplication(
+    return runtimeGraph->spreadController().completeViewportCommandApplication(
         commandRevision, actualContentPosition);
 }
 
 bool ImageDocumentRuntime::acknowledgeViewportCommand(
     quint64 commandRevision, QPointF actualContentPosition)
 {
-    return controllers->spreadController().acknowledgeViewportCommand(
+    return runtimeGraph->spreadController().acknowledgeViewportCommand(
         commandRevision, actualContentPosition);
 }
 
 bool ImageDocumentRuntime::observeViewportContentPosition(
     QPointF contentPosition, ImageViewportObservationOrigin origin)
 {
-    return controllers->spreadController().observeViewportContentPosition(contentPosition, origin);
+    return runtimeGraph->spreadController().observeViewportContentPosition(contentPosition, origin);
 }
 
 quint64 ImageDocumentRuntime::viewportCommandRevision() const
 {
-    return controllers->spreadController().viewportCommandRevision();
+    return runtimeGraph->spreadController().viewportCommandRevision();
 }
 
 quint64 ImageDocumentRuntime::viewportAppliedCommandRevision() const
 {
-    return controllers->spreadController().viewportAppliedCommandRevision();
+    return runtimeGraph->spreadController().viewportAppliedCommandRevision();
 }
 
 quint64 ImageDocumentRuntime::viewportObservationRevision() const
 {
-    return controllers->spreadController().viewportObservationRevision();
+    return runtimeGraph->spreadController().viewportObservationRevision();
 }
 
 ImageViewportCommandStatus ImageDocumentRuntime::viewportCommandStatus() const
 {
-    return controllers->spreadController().viewportCommandStatus();
+    return runtimeGraph->spreadController().viewportCommandStatus();
 }
 
 ImageViewportObservationOrigin ImageDocumentRuntime::viewportObservationOrigin() const
 {
-    return controllers->spreadController().viewportObservationOrigin();
+    return runtimeGraph->spreadController().viewportObservationOrigin();
 }
 
 QSizeF ImageDocumentRuntime::viewportContentSize() const
@@ -319,7 +319,7 @@ QSizeF ImageDocumentRuntime::viewportContentSize() const
         return {};
     }
 
-    return controllers->spreadController().viewportContentSize();
+    return runtimeGraph->spreadController().viewportContentSize();
 }
 
 QRectF ImageDocumentRuntime::viewportImageRect() const
@@ -328,7 +328,7 @@ QRectF ImageDocumentRuntime::viewportImageRect() const
         return {};
     }
 
-    return controllers->spreadController().viewportImageRect();
+    return runtimeGraph->spreadController().viewportImageRect();
 }
 
 bool ImageDocumentRuntime::viewportHorizontallyPannable() const
@@ -337,7 +337,7 @@ bool ImageDocumentRuntime::viewportHorizontallyPannable() const
         return false;
     }
 
-    return controllers->spreadController().viewportHorizontallyPannable();
+    return runtimeGraph->spreadController().viewportHorizontallyPannable();
 }
 
 bool ImageDocumentRuntime::viewportVerticallyPannable() const
@@ -346,7 +346,7 @@ bool ImageDocumentRuntime::viewportVerticallyPannable() const
         return false;
     }
 
-    return controllers->spreadController().viewportVerticallyPannable();
+    return runtimeGraph->spreadController().viewportVerticallyPannable();
 }
 
 bool ImageDocumentRuntime::viewportPannable() const
@@ -355,7 +355,7 @@ bool ImageDocumentRuntime::viewportPannable() const
         return false;
     }
 
-    return controllers->spreadController().viewportPannable();
+    return runtimeGraph->spreadController().viewportPannable();
 }
 
 QRectF ImageDocumentRuntime::visibleItemRect() const
@@ -364,7 +364,7 @@ QRectF ImageDocumentRuntime::visibleItemRect() const
         return {};
     }
 
-    return controllers->spreadController().visibleItemRect();
+    return runtimeGraph->spreadController().visibleItemRect();
 }
 
 QSizeF ImageDocumentRuntime::displaySize() const
@@ -373,7 +373,7 @@ QSizeF ImageDocumentRuntime::displaySize() const
         return {};
     }
 
-    return controllers->spreadController().displaySize();
+    return runtimeGraph->spreadController().displaySize();
 }
 
 QSizeF ImageDocumentRuntime::primaryDisplaySize() const
@@ -382,7 +382,7 @@ QSizeF ImageDocumentRuntime::primaryDisplaySize() const
         return {};
     }
 
-    return controllers->spreadController().primaryDisplaySize();
+    return runtimeGraph->spreadController().primaryDisplaySize();
 }
 
 QSizeF ImageDocumentRuntime::secondaryDisplaySize() const
@@ -391,7 +391,7 @@ QSizeF ImageDocumentRuntime::secondaryDisplaySize() const
         return {};
     }
 
-    return controllers->spreadController().secondaryDisplaySize();
+    return runtimeGraph->spreadController().secondaryDisplaySize();
 }
 
 bool ImageDocumentRuntime::zoomPercentKnown() const
@@ -402,12 +402,12 @@ bool ImageDocumentRuntime::zoomPercentKnown() const
 
 qreal ImageDocumentRuntime::zoomPercent() const
 {
-    return controllers->spreadController().zoomPercent();
+    return runtimeGraph->spreadController().zoomPercent();
 }
 
 void ImageDocumentRuntime::requestManualZoomPercent(qreal zoomPercent)
 {
-    controllers->spreadController().requestManualZoomPercent(zoomPercent);
+    runtimeGraph->spreadController().requestManualZoomPercent(zoomPercent);
 }
 
 bool ImageDocumentRuntime::requestManualZoomPercentAtCenter(qreal zoomPercent)
@@ -473,63 +473,63 @@ bool ImageDocumentRuntime::requestToggleFitOrActualSize(QPointF viewportPoint)
 
 ImageZoomMode ImageDocumentRuntime::zoomMode() const
 {
-    return controllers->spreadController().zoomMode();
+    return runtimeGraph->spreadController().zoomMode();
 }
 
 ImageZoomMode ImageDocumentRuntime::fitModeSelection() const
 {
-    return controllers->spreadController().fitModeSelection();
+    return runtimeGraph->spreadController().fitModeSelection();
 }
 
 qreal ImageDocumentRuntime::maximumManualZoomPercent() const
 {
-    return controllers->spreadController().maximumManualZoomPercent();
+    return runtimeGraph->spreadController().maximumManualZoomPercent();
 }
 
 qreal ImageDocumentRuntime::clampedManualZoomPercent(qreal zoomPercent) const
 {
-    return controllers->spreadController().clampedManualZoomPercent(zoomPercent);
+    return runtimeGraph->spreadController().clampedManualZoomPercent(zoomPercent);
 }
 
 qreal ImageDocumentRuntime::steppedManualZoomPercent(qreal stepCount) const
 {
-    return controllers->spreadController().steppedManualZoomPercent(stepCount);
+    return runtimeGraph->spreadController().steppedManualZoomPercent(stepCount);
 }
 
 int ImageDocumentRuntime::rotationDegrees() const
 {
-    return controllers->spreadController().rotationDegrees();
+    return runtimeGraph->spreadController().rotationDegrees();
 }
 
 int ImageDocumentRuntime::currentPageNumber() const
 {
-    return controllers->navigationController().currentPageNumber();
+    return runtimeGraph->navigationController().currentPageNumber();
 }
 
 int ImageDocumentRuntime::currentLastPageNumber() const
 {
-    return controllers->spreadController().currentLastPageNumber();
+    return runtimeGraph->spreadController().currentLastPageNumber();
 }
 
 int ImageDocumentRuntime::pageCount() const
 {
-    return controllers->navigationController().pageCount();
+    return runtimeGraph->navigationController().pageCount();
 }
 
 ImageDocumentPageNavigationSnapshot ImageDocumentRuntime::pageNavigationSnapshot() const
 {
-    return controllers->navigationController().pageNavigationSnapshot();
+    return runtimeGraph->navigationController().pageNavigationSnapshot();
 }
 
 const ImageDocumentPageCandidateListSnapshot&
 ImageDocumentRuntime::confirmedPageCandidateSnapshot() const
 {
-    return controllers->navigationController().confirmedPageCandidateSnapshot();
+    return runtimeGraph->navigationController().confirmedPageCandidateSnapshot();
 }
 
 ImageDocumentPageActiveNavigationSnapshot ImageDocumentRuntime::activeNavigationSnapshot() const
 {
-    return controllers->spreadController().activeNavigationSnapshot();
+    return runtimeGraph->spreadController().activeNavigationSnapshot();
 }
 
 bool ImageDocumentRuntime::containerNavigationAvailable() const
@@ -549,47 +549,47 @@ bool ImageDocumentRuntime::openedCollectionScopeActive() const
 
 bool ImageDocumentRuntime::fileDeletionInProgress() const
 {
-    return controllers->deletionController().inProgress();
+    return runtimeGraph->deletionController().inProgress();
 }
 
 bool ImageDocumentRuntime::twoPageModeEnabled() const
 {
-    return controllers->spreadController().twoPageModeEnabled();
+    return runtimeGraph->spreadController().twoPageModeEnabled();
 }
 
 void ImageDocumentRuntime::setTwoPageModeEnabled(bool enabled)
 {
-    controllers->spreadController().setTwoPageModeEnabled(enabled);
+    runtimeGraph->spreadController().setTwoPageModeEnabled(enabled);
 }
 
 bool ImageDocumentRuntime::twoPageModeAvailable() const
 {
-    return controllers->spreadController().twoPageModeAvailable();
+    return runtimeGraph->spreadController().twoPageModeAvailable();
 }
 
 bool ImageDocumentRuntime::rightToLeftReadingEnabled() const
 {
-    return controllers->spreadController().rightToLeftReadingEnabled();
+    return runtimeGraph->spreadController().rightToLeftReadingEnabled();
 }
 
 void ImageDocumentRuntime::setRightToLeftReadingEnabled(bool enabled)
 {
-    controllers->spreadController().setRightToLeftReadingEnabled(enabled);
+    runtimeGraph->spreadController().setRightToLeftReadingEnabled(enabled);
 }
 
 bool ImageDocumentRuntime::rightToLeftReadingAvailable() const
 {
-    return controllers->spreadController().rightToLeftReadingAvailable();
+    return runtimeGraph->spreadController().rightToLeftReadingAvailable();
 }
 
 bool ImageDocumentRuntime::secondaryPageVisible() const
 {
-    return controllers->spreadController().secondaryPageVisible();
+    return runtimeGraph->spreadController().secondaryPageVisible();
 }
 
 ImagePresentationTransitionState ImageDocumentRuntime::presentationTransitionState() const
 {
-    return controllers->spreadController().presentationTransitionState();
+    return runtimeGraph->spreadController().presentationTransitionState();
 }
 
 bool ImageDocumentRuntime::viewportPointInsideImage(QPointF viewportPoint) const
@@ -612,15 +612,15 @@ bool ImageDocumentRuntime::unsupportedOpenedCollectionVideo() const
 std::optional<DisplayedPredecodeImage> ImageDocumentRuntime::primaryDisplayedPredecodeImage() const
 {
     std::optional<StaticDisplayImagePayload> displayImage
-        = controllers->pageSurfaceController().displayImage();
-    if (!controllers->pageSurfaceController().hasImage() || state.displayedUrl().isEmpty()
+        = runtimeGraph->pageSurfaceController().displayImage();
+    if (!runtimeGraph->pageSurfaceController().hasImage() || state.displayedUrl().isEmpty()
         || !displayImage.has_value()) {
         return std::nullopt;
     }
 
     return DisplayedPredecodeImage {
         state.displayedImageLocation(),
-        controllers->pageSurfaceController().isPredecodeCacheable(),
+        runtimeGraph->pageSurfaceController().isPredecodeCacheable(),
         std::move(displayImage),
         state.embeddedMetadata(),
     };
@@ -628,7 +628,7 @@ std::optional<DisplayedPredecodeImage> ImageDocumentRuntime::primaryDisplayedPre
 
 ImageFirstDisplayDecodeContext ImageDocumentRuntime::firstDisplayDecodeContext() const
 {
-    return controllers->presentationRuntime().firstDisplayDecodeContext();
+    return runtimeGraph->presentationRuntime().firstDisplayDecodeContext();
 }
 
 const EmbeddedMetadata& ImageDocumentRuntime::embeddedMetadata() const
@@ -641,7 +641,7 @@ ImageDisplaySourceProjection ImageDocumentRuntime::displaySourceProjection(
 {
     if (displayedUrl().isEmpty()) {
         ImageDisplaySourceProjection retainedProjection
-            = controllers->spreadController().displaySourceProjection(role);
+            = runtimeGraph->spreadController().displaySourceProjection(role);
         if (status() == ImageDocumentStatus::Loading
             && (retainedProjection.retentionStatus
                     == ImageDisplaySourceRetentionStatus::StaleRetained
@@ -656,14 +656,14 @@ ImageDisplaySourceProjection ImageDocumentRuntime::displaySourceProjection(
         return projection;
     }
 
-    return controllers->spreadController().displaySourceProjection(role);
+    return runtimeGraph->spreadController().displaySourceProjection(role);
 }
 
 void ImageDocumentRuntime::acknowledgeStillImageDisplayLoad(DisplayedPageRole role,
     const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
     ImageDisplayLoadOutcome outcome)
 {
-    controllers->spreadController().acknowledgeStillImageDisplayLoad(
+    runtimeGraph->spreadController().acknowledgeStillImageDisplayLoad(
         role, providerUrl, revision, sourceIdentity, outcome);
 }
 
@@ -671,7 +671,7 @@ void ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
     const QUrl& providerUrl, quint64 revision, const QString& sourceIdentity,
     ImageDisplayLoadOutcome outcome)
 {
-    controllers->spreadController().acknowledgeDisplayImageLoad(
+    runtimeGraph->spreadController().acknowledgeDisplayImageLoad(
         role, providerUrl, revision, sourceIdentity, outcome);
 }
 
@@ -763,77 +763,77 @@ void ImageDocumentRuntime::updateViewportInteractionForPublishedChanges(
 
 void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& request)
 {
-    controllers->dispatchPlan(ImageOpenWorkflow::sourceLoadPlan(
-        sourceLoadSnapshot(state, controllers->spreadController()), request));
+    runtimeGraph->dispatchPlan(ImageOpenWorkflow::sourceLoadPlan(
+        sourceLoadSnapshot(state, runtimeGraph->spreadController()), request));
 }
 
 void ImageDocumentRuntime::publishChanges(const std::vector<ImageDocumentChange>& changes)
 {
     for (ImageDocumentChange change : changes) {
-        controllers->spreadController().handleDocumentChange(change);
+        runtimeGraph->spreadController().handleDocumentChange(change);
     }
     updateViewportInteractionForPublishedChanges(changes);
     invokeIfSet(changeCallback, changes);
 }
 
-void ImageDocumentRuntime::shutdown() { controllers->shutdownRuntime(); }
+void ImageDocumentRuntime::shutdown() { runtimeGraph->shutdownRuntime(); }
 
 void ImageDocumentRuntime::openPreviousPage()
 {
-    controllers->navigationController().openAdjacentPage(NavigationDirection::Previous);
+    runtimeGraph->navigationController().openAdjacentPage(NavigationDirection::Previous);
 }
 
 void ImageDocumentRuntime::openNextPage()
 {
-    controllers->navigationController().openAdjacentPage(NavigationDirection::Next);
+    runtimeGraph->navigationController().openAdjacentPage(NavigationDirection::Next);
 }
 
 void ImageDocumentRuntime::openPreviousSinglePage()
 {
-    controllers->navigationController().openImageAtRelativePageOffset(-1);
+    runtimeGraph->navigationController().openImageAtRelativePageOffset(-1);
 }
 
 void ImageDocumentRuntime::openNextSinglePage()
 {
-    controllers->navigationController().openImageAtRelativePageOffset(1);
+    runtimeGraph->navigationController().openImageAtRelativePageOffset(1);
 }
 
 void ImageDocumentRuntime::openPreviousContainer()
 {
-    controllers->navigationController().openAdjacentContainer(NavigationDirection::Previous);
+    runtimeGraph->navigationController().openAdjacentContainer(NavigationDirection::Previous);
 }
 
 void ImageDocumentRuntime::openNextContainer()
 {
-    controllers->navigationController().openAdjacentContainer(NavigationDirection::Next);
+    runtimeGraph->navigationController().openAdjacentContainer(NavigationDirection::Next);
 }
 
 void ImageDocumentRuntime::deleteDisplayedFile(FileDeletionMode mode)
 {
-    controllers->deletionController().deleteDisplayedFile(mode);
+    runtimeGraph->deletionController().deleteDisplayedFile(mode);
 }
 
-void ImageDocumentRuntime::resetZoom() { controllers->spreadController().resetZoom(); }
+void ImageDocumentRuntime::resetZoom() { runtimeGraph->spreadController().resetZoom(); }
 
 void ImageDocumentRuntime::setFitMode(ImageZoomMode zoomMode)
 {
-    controllers->spreadController().setFitMode(zoomMode);
+    runtimeGraph->spreadController().setFitMode(zoomMode);
 }
 
-void ImageDocumentRuntime::rotateClockwise() { controllers->spreadController().rotateClockwise(); }
+void ImageDocumentRuntime::rotateClockwise() { runtimeGraph->spreadController().rotateClockwise(); }
 
 void ImageDocumentRuntime::rotateCounterclockwise()
 {
-    controllers->spreadController().rotateCounterclockwise();
+    runtimeGraph->spreadController().rotateCounterclockwise();
 }
 
 void ImageDocumentRuntime::updateRenderContext()
 {
-    controllers->spreadController().updateRenderContext();
+    runtimeGraph->spreadController().updateRenderContext();
 }
 
 void ImageDocumentRuntime::openImageAtPage(int pageNumber)
 {
-    controllers->navigationController().openImageAtPage(pageNumber);
+    runtimeGraph->navigationController().openImageAtPage(pageNumber);
 }
 }

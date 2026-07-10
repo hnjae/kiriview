@@ -1429,7 +1429,7 @@ void TestArchitectureBoundaries::imageDocumentSpreadPlanDispatchHasNamedExecutor
 void TestArchitectureBoundaries::imageDocumentPredecodedImageLookupUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_predecodeController->findPredecodedImage")));
@@ -1438,7 +1438,7 @@ void TestArchitectureBoundaries::imageDocumentPredecodedImageLookupUsesNamedPort
 void TestArchitectureBoundaries::imageDocumentPrimaryPageSlotUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_spreadController->commitPrimaryPageSlot")));
@@ -1449,7 +1449,7 @@ void TestArchitectureBoundaries::imageDocumentPrimaryPageSlotUsesNamedPort()
 void TestArchitectureBoundaries::imageDocumentNavigationSnapshotUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(!controllersSource.contains(
         QStringLiteral("m_navigationController->pageNavigationSnapshot")));
@@ -1458,7 +1458,7 @@ void TestArchitectureBoundaries::imageDocumentNavigationSnapshotUsesNamedPort()
 void TestArchitectureBoundaries::imageDocumentPageCandidateSnapshotUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(
         !controllersSource.contains(QStringLiteral("m_navigationService->pageCandidateSnapshot")));
@@ -1467,7 +1467,7 @@ void TestArchitectureBoundaries::imageDocumentPageCandidateSnapshotUsesNamedPort
 void TestArchitectureBoundaries::imageDocumentAdjacentPredecodeSchedulingUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(!controllersSource.contains(QStringLiteral("ScheduleAdjacentImagePredecodeOperation")));
 }
@@ -1475,7 +1475,7 @@ void TestArchitectureBoundaries::imageDocumentAdjacentPredecodeSchedulingUsesNam
 void TestArchitectureBoundaries::imageDocumentDeletionProgressUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(!controllersSource.contains(QStringLiteral("m_deletionController->inProgress")));
 }
@@ -1483,7 +1483,7 @@ void TestArchitectureBoundaries::imageDocumentDeletionProgressUsesNamedPort()
 void TestArchitectureBoundaries::imageDocumentCurrentPageNumberUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(!controllersSource.contains(QStringLiteral("m_navigationService->currentPageNumber")));
 }
@@ -1491,7 +1491,7 @@ void TestArchitectureBoundaries::imageDocumentCurrentPageNumberUsesNamedPort()
 void TestArchitectureBoundaries::imageDocumentAnimationLoadErrorUsesNamedPort()
 {
     const QString controllersSource
-        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimecontrollers.cpp"));
+        = readProjectFile(QStringLiteral("src/document/imagedocumentruntimegraph.cpp"));
 
     QVERIFY(!controllersSource.contains(
         QStringLiteral("m_openController->finishAnimationLoadWithError")));

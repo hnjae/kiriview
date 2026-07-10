@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#ifndef KIRIVIEW_IMAGEDOCUMENTRUNTIMECONTROLLERS_H
-#define KIRIVIEW_IMAGEDOCUMENTRUNTIMECONTROLLERS_H
+#ifndef KIRIVIEW_IMAGEDOCUMENTRUNTIMEGRAPH_H
+#define KIRIVIEW_IMAGEDOCUMENTRUNTIMEGRAPH_H
 
 #include "archive/mediaentrysourcebackend.h"
 #include "imagedocumentruntimedependencies.h"
@@ -38,7 +38,7 @@ class ImagePageSurfaceController;
 class ImagePresentationRuntime;
 class ImageSpreadPresentationController;
 
-struct ImageDocumentRuntimeControllerCallbacks
+struct ImageDocumentRuntimeGraphCallbacks
 {
     std::function<ImageDocumentRenderContext()> renderContext;
     std::function<void(ImageDocumentChange)> notify;
@@ -48,13 +48,13 @@ struct ImageDocumentRuntimeControllerCallbacks
     std::function<void(const QString&)> containerNavigationBoundaryReached;
 };
 
-class ImageDocumentRuntimeControllers final
+class ImageDocumentRuntimeGraph final
 {
 public:
-    ImageDocumentRuntimeControllers(QObject* documentObject, ImageDocumentState& state,
+    ImageDocumentRuntimeGraph(QObject* documentObject, ImageDocumentState& state,
         ImageDocumentRuntimeDependencyOverrides dependencies,
-        ImageDocumentRuntimeControllerCallbacks callbacks);
-    ~ImageDocumentRuntimeControllers();
+        ImageDocumentRuntimeGraphCallbacks callbacks);
+    ~ImageDocumentRuntimeGraph();
 
     ImageDocumentDeletionController& deletionController() const;
     ImagePageSurfaceController& pageSurfaceController() const;
@@ -68,7 +68,16 @@ public:
     void shutdownRuntime();
 
 private:
-    ImageDocumentRuntimeControllerCallbacks m_callbacks;
+    void composeSurfaceAndPresentation(
+        QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies);
+    void composeNavigationAndCandidatePorts(
+        QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies);
+    void composeWorkflowOwners(QObject* documentObject, ImageDocumentState& state,
+        ImageDocumentRuntimeDependencies& dependencies,
+        ExternalPredecodedImageFinder externalPredecodedImageFinder);
+    void composeWorkflowDispatch(ImageDocumentState& state);
+
+    ImageDocumentRuntimeGraphCallbacks m_callbacks;
     std::unique_ptr<MediaEntrySourceStore> m_mediaEntrySourceStore;
     std::unique_ptr<ImageDocumentAnimationLoadErrorPort> m_animationLoadErrorPort;
     std::unique_ptr<ImageDocumentDeletionController> m_deletionController;

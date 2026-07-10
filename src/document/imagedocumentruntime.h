@@ -34,7 +34,7 @@
 class QObject;
 
 namespace kiriview {
-class ImageDocumentRuntimeControllers;
+class ImageDocumentRuntimeGraph;
 struct ImageDocumentSourceLoadRequest;
 
 class ImageDocumentRuntime final
@@ -177,7 +177,7 @@ private:
     ImageDocumentState state;
     ChangeCallback changeCallback;
     RenderContextProvider renderContextProvider;
-    std::unique_ptr<ImageDocumentRuntimeControllers> controllers;
+    std::unique_ptr<ImageDocumentRuntimeGraph> runtimeGraph;
     ImageViewportInteraction viewportInteraction;
 };
 }

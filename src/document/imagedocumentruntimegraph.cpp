@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 KIM Hyunjae
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#include "imagedocumentruntimecontrollers.h"
+#include "imagedocumentruntimegraph.h"
 
 #include "archive/mediaentrysourcestore.h"
 #include "async/imagecallback.h"
@@ -40,19 +40,30 @@ namespace {
     {
         return renderContext ? renderContext() : ImageDocumentRenderContext {};
     }
-
 }
 
-ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* documentObject,
+ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     ImageDocumentState& state, ImageDocumentRuntimeDependencyOverrides dependencies,
-    ImageDocumentRuntimeControllerCallbacks callbacks)
+    ImageDocumentRuntimeGraphCallbacks callbacks)
     : m_callbacks(std::move(callbacks))
 {
     ImageDocumentRuntimeDependencies runtimeDependencies
         = resolveImageDocumentRuntimeDependencies(std::move(dependencies), documentObject);
     ExternalPredecodedImageFinder externalPredecodedImageFinder
         = std::move(runtimeDependencies.externalPredecodedImageFinder);
-    m_mediaEntrySourceStore = std::move(runtimeDependencies.mediaEntrySourceStore);
+
+    composeSurfaceAndPresentation(documentObject, runtimeDependencies);
+    composeNavigationAndCandidatePorts(documentObject, runtimeDependencies);
+    composeWorkflowOwners(
+        documentObject, state, runtimeDependencies, std::move(externalPredecodedImageFinder));
+    composeWorkflowDispatch(state);
+}
+
+ImageDocumentRuntimeGraph::~ImageDocumentRuntimeGraph() = default;
+
+void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
+    QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies)
+{
     m_animationLoadErrorPort = std::make_unique<ImageDocumentAnimationLoadErrorPort>();
     m_pageSurfaceController = std::make_unique<ImagePageSurfaceController>(documentObject,
         ImagePageSurfaceController::Callbacks {
@@ -61,29 +72,24 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
                 m_animationLoadErrorPort->finishAnimationLoadWithError(errorString);
             },
         },
-        runtimeDependencies.cacheBudgets);
+        dependencies.cacheBudgets);
     m_presentationRuntime = std::make_unique<ImagePresentationRuntime>(
         [this]() { return renderContextOrDefault(m_callbacks.renderContext); });
-    m_deletionController = std::make_unique<ImageDocumentDeletionController>(documentObject, state,
-        *m_pageSurfaceController, runtimeDependencies.candidateProvider,
-        std::move(runtimeDependencies.fileDeletionProvider),
-        ImageDocumentDeletionController::Callbacks {
-            [this]() {
-                invokeIfSet(m_callbacks.notify, ImageDocumentChange::FileDeletionInProgress);
-            },
-            [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); },
-            std::move(m_callbacks.fileDeletionFailed),
-        });
-    m_deletionProgressPort
-        = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
+}
+
+void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
+    QObject* documentObject, ImageDocumentRuntimeDependencies& dependencies)
+{
     m_navigationService = std::make_unique<ImageDocumentPageNavigationService>(documentObject,
-        runtimeDependencies.candidateProvider,
+        dependencies.candidateProvider,
         ImageDocumentPageNavigationService::Callbacks {
             [this](ImageDocumentPageNavigationPlan plan) {
                 dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(plan));
             },
             [this]() { invokeIfSet(m_callbacks.notify, ImageDocumentChange::PageNavigation); },
-            [this]() { return m_deletionProgressPort->inProgress(); },
+            [this]() {
+                return m_deletionProgressPort != nullptr && m_deletionProgressPort->inProgress();
+            },
         });
     m_navigationSnapshotPort
         = std::make_unique<ImageDocumentNavigationSnapshotPort>(m_navigationService.get());
@@ -94,16 +100,34 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
     m_adjacentPredecodeSchedulerPort
         = std::make_unique<ImageDocumentAdjacentPredecodeSchedulerPort>(
             [this](const ImageDocumentRuntimePlan& plan) { dispatchPlan(plan); });
+}
+
+void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
+    ImageDocumentState& state, ImageDocumentRuntimeDependencies& dependencies,
+    ExternalPredecodedImageFinder externalPredecodedImageFinder)
+{
+    m_mediaEntrySourceStore = std::move(dependencies.mediaEntrySourceStore);
+    m_deletionController = std::make_unique<ImageDocumentDeletionController>(documentObject, state,
+        *m_pageSurfaceController, dependencies.candidateProvider,
+        std::move(dependencies.fileDeletionProvider),
+        ImageDocumentDeletionController::Callbacks {
+            [this]() {
+                invokeIfSet(m_callbacks.notify, ImageDocumentChange::FileDeletionInProgress);
+            },
+            [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); },
+            std::move(m_callbacks.fileDeletionFailed),
+        });
+    m_deletionProgressPort
+        = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(
         documentObject, state, *m_pageSurfaceController, *m_presentationRuntime,
-        runtimeDependencies.candidateProvider, runtimeDependencies.imageDecode,
-        runtimeDependencies.cacheBudgets.predecodeCacheByteBudget,
+        dependencies.candidateProvider, dependencies.imageDecode,
+        dependencies.cacheBudgets.predecodeCacheByteBudget,
         [this]() { return m_currentPageNumberPort->currentPageNumber(); },
         [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
-        std::move(runtimeDependencies.powerSaver),
-        runtimeDependencies.ordinaryDirectMediaPredecodeEnabled,
-        std::move(runtimeDependencies.predecodeTimerScheduler),
-        std::move(runtimeDependencies.predecodeThreadCountProvider));
+        std::move(dependencies.powerSaver), dependencies.ordinaryDirectMediaPredecodeEnabled,
+        std::move(dependencies.predecodeTimerScheduler),
+        std::move(dependencies.predecodeThreadCountProvider));
     m_predecodedImageLookup = std::make_unique<ImageDocumentPredecodedImageLookup>(
         std::move(externalPredecodedImageFinder), m_predecodeController.get());
     m_spreadController = std::make_unique<ImageSpreadPresentationController>(
@@ -115,8 +139,7 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },
         },
-        runtimeDependencies.candidateProvider, runtimeDependencies.imageDecode,
-        runtimeDependencies.cacheBudgets);
+        dependencies.candidateProvider, dependencies.imageDecode, dependencies.cacheBudgets);
     m_primaryPageSlotPort
         = std::make_unique<ImageDocumentPrimaryPageSlotPort>(m_spreadController.get());
     m_openController = std::make_unique<ImageOpenController>(documentObject, state,
@@ -143,11 +166,15 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
             [this]() { m_primaryPageSlotPort->clear(); },
             [this]() { return m_pageCandidateSnapshotPort->confirmedSnapshot(); },
         },
-        runtimeDependencies.candidateProvider, runtimeDependencies.imageDecode);
+        dependencies.candidateProvider, dependencies.imageDecode);
     m_animationLoadErrorPort->setOpenController(m_openController.get());
     m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
         *m_pageSurfaceController, *m_navigationService, *m_spreadController,
         [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); });
+}
+
+void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& state)
+{
     m_runtimeWorkflow
         = std::make_unique<ImageDocumentRuntimeWorkflow>(ImageDocumentRuntimeWorkflowPorts {
             &state,
@@ -163,35 +190,33 @@ ImageDocumentRuntimeControllers::ImageDocumentRuntimeControllers(QObject* docume
         });
 }
 
-ImageDocumentRuntimeControllers::~ImageDocumentRuntimeControllers() = default;
-
-ImageDocumentDeletionController& ImageDocumentRuntimeControllers::deletionController() const
+ImageDocumentDeletionController& ImageDocumentRuntimeGraph::deletionController() const
 {
     return *m_deletionController;
 }
 
-ImagePageSurfaceController& ImageDocumentRuntimeControllers::pageSurfaceController() const
+ImagePageSurfaceController& ImageDocumentRuntimeGraph::pageSurfaceController() const
 {
     return *m_pageSurfaceController;
 }
 
-ImagePresentationRuntime& ImageDocumentRuntimeControllers::presentationRuntime() const
+ImagePresentationRuntime& ImageDocumentRuntimeGraph::presentationRuntime() const
 {
     return *m_presentationRuntime;
 }
 
-ImageDocumentNavigationController& ImageDocumentRuntimeControllers::navigationController() const
+ImageDocumentNavigationController& ImageDocumentRuntimeGraph::navigationController() const
 {
     return *m_navigationController;
 }
 
-ImageSpreadPresentationController& ImageDocumentRuntimeControllers::spreadController() const
+ImageSpreadPresentationController& ImageDocumentRuntimeGraph::spreadController() const
 {
     return *m_spreadController;
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult
-ImageDocumentRuntimeControllers::loadOpenedCollectionVideoPlaybackDevice(
+ImageDocumentRuntimeGraph::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const
 {
     if (m_mediaEntrySourceStore == nullptr) {
@@ -209,14 +234,14 @@ ImageDocumentRuntimeControllers::loadOpenedCollectionVideoPlaybackDevice(
         openedCollectionScope, videoUrl);
 }
 
-void ImageDocumentRuntimeControllers::dispatchPlan(const ImageDocumentRuntimePlan& plan)
+void ImageDocumentRuntimeGraph::dispatchPlan(const ImageDocumentRuntimePlan& plan)
 {
     if (m_runtimeWorkflow != nullptr) {
         m_runtimeWorkflow->dispatchPlan(plan);
     }
 }
 
-void ImageDocumentRuntimeControllers::shutdownRuntime()
+void ImageDocumentRuntimeGraph::shutdownRuntime()
 {
     if (m_runtimeWorkflow != nullptr) {
         m_runtimeWorkflow->shutdownRuntime();

@@ -101,7 +101,7 @@ src/document/imagedocumentpredecodecontroller.cpp
 src/document/imagedocumentprimarypageslotport.cpp
 src/facade/imagedocumentpublicsignals.cpp
 src/document/imagedocumentruntime.cpp
-src/document/imagedocumentruntimecontrollers.cpp
+src/document/imagedocumentruntimegraph.cpp
 src/document/imagedocumentruntimedependencies.cpp
 src/document/imagedocumentruntimeplan.cpp
 src/document/imagedocumentruntimeplanexecutor.cpp
