@@ -217,6 +217,7 @@ src/session/activenavigationthumbnailmodel.cpp
 src/session/activenavigationthumbnailprojection.cpp
 src/session/activenavigationthumbnailrowstore.cpp
 src/session/activenavigationthumbnailruntime.cpp
+src/session/activenavigationthumbnailworkcoordinator.cpp
 src/session/thumbnaillogging.cpp
 src/thumbnail/thumbnailcachelookup.cpp
 src/thumbnail/videothumbnailextractor.cpp

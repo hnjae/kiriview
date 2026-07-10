@@ -33,6 +33,9 @@ class ActiveNavigationThumbnailRowPort
 public:
     virtual ~ActiveNavigationThumbnailRowPort() = default;
 
+    ActiveNavigationThumbnailRowPort(const ActiveNavigationThumbnailRowPort&) = delete;
+    ActiveNavigationThumbnailRowPort& operator=(const ActiveNavigationThumbnailRowPort&) = delete;
+
     virtual std::optional<std::size_t> rowIndexForIdentity(
         int number, const QUrl& url, quint64 navigationGeneration) const
         = 0;
@@ -44,15 +47,15 @@ public:
     virtual void applyPending(const ThumbnailSourceKey& sourceKey) = 0;
     virtual void applyUnsupported(const ThumbnailSourceKey& sourceKey) = 0;
     virtual void applyFailed(const ThumbnailSourceKey& sourceKey) = 0;
-    virtual void applyResult(
-        const ThumbnailSourceKey& sourceKey, const ActiveNavigationThumbnailResult& result)
-        = 0;
     virtual bool installReadyImage(const ThumbnailSourceKey& sourceKey, const QImage& image,
         ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage)
         = 0;
     virtual void updateRetentionPriority(
         const ThumbnailSourceKey& sourceKey, ThumbnailImageRetentionPriority priority)
         = 0;
+
+protected:
+    ActiveNavigationThumbnailRowPort() = default;
 };
 
 class ActiveNavigationThumbnailRowStore final : public ActiveNavigationThumbnailRowPort
@@ -82,8 +85,8 @@ public:
     void applyPending(const ThumbnailSourceKey& sourceKey) override;
     void applyUnsupported(const ThumbnailSourceKey& sourceKey) override;
     void applyFailed(const ThumbnailSourceKey& sourceKey) override;
-    void applyResult(const ThumbnailSourceKey& sourceKey,
-        const ActiveNavigationThumbnailResult& result) override;
+    void applyResult(
+        const ThumbnailSourceKey& sourceKey, const ActiveNavigationThumbnailResult& result);
     bool installReadyImage(const ThumbnailSourceKey& sourceKey, const QImage& image,
         ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage) override;
     void updateRetentionPriority(
