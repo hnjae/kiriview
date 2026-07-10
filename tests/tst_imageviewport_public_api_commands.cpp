@@ -1312,6 +1312,30 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
 
     QCOMPARE(stateSpy.count(), 0);
 
+    const ImageViewportStateSnapshot beforeCompositeNoop = item.state();
+    ImageViewportPresentationCommand compositeNoop;
+    compositeNoop.setFitMode(beforeCompositeNoop.presentation().fitMode());
+    compositeNoop.setRotationDegrees(beforeCompositeNoop.presentation().rotationDegrees());
+    compositeNoop.setMirrorHorizontally(
+        beforeCompositeNoop.presentation().mirrorHorizontally());
+    compositeNoop.setMirrorVertically(beforeCompositeNoop.presentation().mirrorVertically());
+    compositeNoop.setBackgroundMode(beforeCompositeNoop.presentation().backgroundMode());
+    compositeNoop.setBackgroundColor(beforeCompositeNoop.presentation().backgroundColor());
+    compositeNoop.setSmoothing(beforeCompositeNoop.presentation().smoothing());
+    compositeNoop.setMipmap(beforeCompositeNoop.presentation().mipmap());
+    compositeNoop.setLooping(beforeCompositeNoop.presentation().looping());
+    compositeNoop.setQualityPreference(
+        beforeCompositeNoop.presentation().qualityPreference());
+    compositeNoop.setExactnessPreference(
+        beforeCompositeNoop.presentation().exactnessPreference());
+
+    const ImageViewportCommandResult compositeNoopResult = item.setPresentation(compositeNoop);
+    QCOMPARE(compositeNoopResult.outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.state(), beforeCompositeNoop);
+    QCOMPARE(compositeNoopResult.snapshotRevision(),
+        beforeCompositeNoop.revisions().snapshot());
+    QCOMPARE(stateSpy.count(), 0);
+
     QCOMPARE(setSpreadDirectionCommand(item, ImageViewport::SpreadDirection::RightToLeft),
         ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.state().presentation().spreadDirection(),

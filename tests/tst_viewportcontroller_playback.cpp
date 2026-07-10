@@ -559,7 +559,10 @@ void ViewportControllerPlaybackTest::loopingPlaybackWrapsToStart()
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
-    controller.setLooping(true);
+    ImageViewportPresentationCommand loopingCommand;
+    loopingCommand.setLooping(true);
+    QCOMPARE(controller.setPresentation({ loopingCommand, {}, 1.0 }).outcome,
+        ImageViewport::CommandOutcome::Accepted);
     controller.play(ImageViewport::PageRole::Primary);
 
     controller.advancePlayback(350);

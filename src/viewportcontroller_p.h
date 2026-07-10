@@ -243,7 +243,6 @@ public:
     double manualZoomStepFactor() const;
     double clampedManualZoomPercent(double percent, double devicePixelRatio = 1.0) const;
     double steppedManualZoomPercent(int stepCount, double devicePixelRatio = 1.0) const;
-    ImageViewportInternal::ViewportChangeSet setLooping(bool looping);
     void incrementDisplayRevision();
     void incrementRequestRevision();
     void incrementCommandRevision();
@@ -278,16 +277,6 @@ public:
     ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
     ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
     ViewportCommandResult setPresentation(const ViewportPresentationCommandInput& input);
-    ImageViewportInternal::ViewportChangeSet setSmoothing(bool smoothing);
-    ImageViewportInternal::ViewportChangeSet setMipmap(bool mipmap);
-    ImageViewportInternal::ViewportChangeSet setMirrorHorizontally(bool enabled);
-    ImageViewportInternal::ViewportChangeSet setMirrorVertically(bool enabled);
-    ImageViewportInternal::ViewportChangeSet setBackgroundMode(ImageViewport::BackgroundMode mode);
-    ImageViewportInternal::ViewportChangeSet setBackgroundColor(const QColor& color);
-    ImageViewportInternal::ViewportChangeSet setQualityPreference(
-        ImageViewport::QualityPreference preference);
-    ImageViewportInternal::ViewportChangeSet setExactnessPreference(
-        ImageViewport::ExactnessPreference preference);
     ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
     ViewportCommandResult setPageGap(double gap);
     ViewportCommandResult setFitMode(ImageViewport::FitMode mode, QPointF anchor);

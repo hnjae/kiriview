@@ -1014,16 +1014,6 @@ int ViewportController::providerFrameIndexForPosition(int position) const
 
 bool ViewportController::looping() const { return state.engine.requestState().looping; }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::setLooping(bool looping)
-{
-    if (state.engine.requestState().looping == looping) {
-        return {};
-    }
-
-    state.engine.requestState().looping = looping;
-    return {};
-}
-
 quint64 ViewportController::allocateRevisionToken() { return state.engine.allocateRevisionValue(); }
 
 void ViewportController::incrementDisplayRevision()

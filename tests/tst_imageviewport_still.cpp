@@ -12,7 +12,7 @@ public:
 
 private slots:
     void resetViewWithoutRequestClearsTransformAndCommandDiagnostic();
-    void resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic();
+    void resetViewWithoutTransformChangePreservesCommandDiagnostic();
     void resetViewResetsTransformsAndPreservesNonTransformPresentationState();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
@@ -129,7 +129,7 @@ void ImageViewportStillTest::resetViewWithoutRequestClearsTransformAndCommandDia
     QCOMPARE(stateSpy.count(), 1);
 }
 
-void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic()
+void ImageViewportStillTest::resetViewWithoutTransformChangePreservesCommandDiagnostic()
 {
     ImageViewport item;
     const QMetaObject* metaObject = item.metaObject();
@@ -137,6 +137,8 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
+    const ImageViewportRevisionToken commandRevision
+        = revisionTokenProperty(item, "commandRevision");
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
 
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
@@ -146,13 +148,14 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
     QCOMPARE(item.state().presentation().zoomPercent(), 100.0);
     QCOMPARE(contentPosition(item), QPointF());
-    QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
-    QVERIFY(revisionTokenProperty(item, "commandRevision").isValid());
+    QCOMPARE(
+        commandReasonValue(item), enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
+    QCOMPARE(revisionTokenProperty(item, "commandRevision"), commandRevision);
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "NoRequest"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
-    QCOMPARE(stateSpy.count(), 1);
+    QCOMPARE(stateSpy.count(), 0);
 }
 
 void ImageViewportStillTest::resetViewResetsTransformsAndPreservesNonTransformPresentationState()

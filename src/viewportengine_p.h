@@ -6,6 +6,8 @@
 #include "presentationgeometry_p.h"
 #include "viewportrendercontract_p.h"
 
+#include <optional>
+
 class ViewportEngine
 {
 public:
@@ -50,6 +52,39 @@ public:
         ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
         RevisionToken commandRevision;
         bool commandRevisionChanged = false;
+    };
+
+    struct PresentationCommandInput
+    {
+        ImageViewportPresentationCommand command;
+        GeometryInput geometry;
+        QPointF anchor;
+        bool readyDisplay = false;
+    };
+
+    struct PresentationCommandResult
+    {
+        CommandResult command;
+        ImageViewportInternal::ViewportChangeSet changes;
+    };
+
+    struct PresentationTargetTransitionInput
+    {
+        PresentationTargetTransitionPolicy::ZoomTransition zoomTransition
+            = PresentationTargetTransitionPolicy::ZoomTransition::Preserve;
+        PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
+            = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
+        PresentationTargetTransitionPolicy::RotationTransition rotationTransition
+            = PresentationTargetTransitionPolicy::RotationTransition::Preserve;
+        PresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
+            = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
+        std::optional<ImageViewport::FitMode> explicitFitMode;
+        std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
+        std::optional<double> explicitPageGap;
+        GeometryInput acceptedGeometry;
+        QPointF previousContentPosition;
+        double previousZoomPercent = 100.0;
+        bool readyDisplay = false;
     };
 
     struct PresentationTargetAssignmentResult
@@ -114,7 +149,6 @@ public:
     ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
     const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
     const ImageViewportInternal::PresentationState& presentationState() const;
-    ImageViewportInternal::PresentationState& presentationState();
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
@@ -128,6 +162,9 @@ public:
 
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
+    PresentationCommandResult applyPresentationCommand(const PresentationCommandInput& input);
+    ImageViewportInternal::ViewportChangeSet applyPresentationTargetTransition(
+        const PresentationTargetTransitionInput& input);
     CommandResult rejectInvalidCommand();
     CommandResult rejectMalformedEnumCommand();
     CommandResult clearFromEmpty();
@@ -149,7 +186,6 @@ private:
 
     quint64 m_nextRevision = 0;
     quint64 m_nextPresentationTargetGeneration = 0;
-    ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     RevisionToken m_commandRevision;
     PresentationTargetState m_presentationTargetState;
     ImageViewportInternal::DisplayState m_displayState;

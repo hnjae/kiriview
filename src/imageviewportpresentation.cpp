@@ -160,26 +160,11 @@ int ImageViewportPrivate::rotationDegrees() const
 
 bool ImageViewportPrivate::smoothing() const { return controller.presentationState().smoothing; }
 
-void ImageViewportPrivate::setSmoothing(bool smoothing)
-{
-    applyControllerChanges(controller.setSmoothing(smoothing));
-}
-
 bool ImageViewportPrivate::mipmap() const { return controller.presentationState().mipmap; }
-
-void ImageViewportPrivate::setMipmap(bool mipmap)
-{
-    applyControllerChanges(controller.setMipmap(mipmap));
-}
 
 bool ImageViewportPrivate::mirrorHorizontally() const
 {
     return controller.presentationState().mirrorHorizontally;
-}
-
-void ImageViewportPrivate::setMirrorHorizontally(bool mirror)
-{
-    setMirrorHorizontally(mirror, itemCenter(*this));
 }
 
 bool ImageViewportPrivate::mirrorVertically() const
@@ -187,19 +172,9 @@ bool ImageViewportPrivate::mirrorVertically() const
     return controller.presentationState().mirrorVertically;
 }
 
-void ImageViewportPrivate::setMirrorVertically(bool mirror)
-{
-    setMirrorVertically(mirror, itemCenter(*this));
-}
-
 ImageViewportPrivate::BackgroundMode ImageViewportPrivate::backgroundMode() const
 {
     return controller.presentationState().backgroundMode;
-}
-
-void ImageViewportPrivate::setBackgroundMode(BackgroundMode mode)
-{
-    applyControllerChanges(controller.setBackgroundMode(mode));
 }
 
 QColor ImageViewportPrivate::backgroundColor() const
@@ -207,124 +182,7 @@ QColor ImageViewportPrivate::backgroundColor() const
     return controller.presentationState().backgroundColor;
 }
 
-void ImageViewportPrivate::setBackgroundColor(const QColor& color)
-{
-    applyControllerChanges(controller.setBackgroundColor(color));
-}
-
 bool ImageViewportPrivate::looping() const { return controller.looping(); }
-
-void ImageViewportPrivate::setLooping(bool looping)
-{
-    applyControllerChanges(controller.setLooping(looping));
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setSpreadDirection(
-    SpreadDirection direction)
-{
-    const ViewportCommandResult result = controller.setSpreadDirection(direction);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPageGap(double gap)
-{
-    const ViewportCommandResult result = controller.setPageGap(gap);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setFitMode(FitMode mode, QPointF anchor)
-{
-    const ViewportCommandResult result = controller.setFitMode(mode, anchor);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setZoomPercent(
-    double percent, QPointF anchor)
-{
-    const ViewportCommandResult result
-        = controller.setZoomPercent(percent, anchor, effectiveDevicePixelRatio(*this));
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::zoomByStep(int stepCount, QPointF anchor)
-{
-    const ViewportCommandResult result
-        = controller.zoomByStep(stepCount, anchor, effectiveDevicePixelRatio(*this));
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panBy(QPointF delta)
-{
-    auto* const controllerAccess = &controller;
-    const ViewportCommandResult result = controllerAccess->panBy(delta);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToStart()
-{
-    auto* const controllerAccess = &controller;
-    const ViewportCommandResult result = controllerAccess->panToStart();
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::panToEnd()
-{
-    auto* const controllerAccess = &controller;
-    const ViewportCommandResult result = controllerAccess->panToEnd();
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanNext()
-{
-    const ViewportCommandResult result = controller.scanNext();
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::scanPrevious()
-{
-    const ViewportCommandResult result = controller.scanPrevious();
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::rotateClockwise(QPointF anchor)
-{
-    const ViewportCommandResult result = controller.rotateClockwise(anchor);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::rotateCounterClockwise(QPointF anchor)
-{
-    const ViewportCommandResult result = controller.rotateCounterClockwise(anchor);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorHorizontally(
-    bool enabled, QPointF anchor)
-{
-    const ViewportCommandResult result = controller.setMirrorHorizontally(enabled, anchor);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
-
-ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setMirrorVertically(
-    bool enabled, QPointF anchor)
-{
-    const ViewportCommandResult result = controller.setMirrorVertically(enabled, anchor);
-    applyControllerChanges(result.changes);
-    return result.outcome;
-}
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)

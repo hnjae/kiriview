@@ -122,9 +122,8 @@ QSizeF acceptedSecondaryGeometrySize(ViewportControllerPort viewport)
     return isPositiveGeometrySize(sequenceSize) ? sequenceSize : QSizeF {};
 }
 
-PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewport,
-    const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
-    std::optional<QRectF> itemBounds = std::nullopt,
+ViewportEngine::GeometryInput controllerGeometryInput(ViewportControllerPort viewport,
+    double devicePixelRatio = 1.0, std::optional<QRectF> itemBounds = std::nullopt,
     GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay)
 {
     const QRectF bounds = itemBounds ? *itemBounds : viewport.itemBounds();
@@ -135,34 +134,36 @@ PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewp
         secondarySize = pendingSecondaryGeometrySize(viewport);
     }
 
+    return { isPositiveGeometrySize(primarySize), bounds, primarySize, secondarySize,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+}
+
+ViewportEngine::GeometryInput acceptedGeometryInput(ViewportControllerPort viewport,
+    double devicePixelRatio = 1.0, std::optional<QRectF> itemBounds = std::nullopt)
+{
+    const QRectF bounds = itemBounds ? *itemBounds : viewport.itemBounds();
+    const QSizeF primarySize = acceptedPrimaryGeometrySize(viewport);
+    const QSizeF secondarySize = acceptedSecondaryGeometrySize(viewport);
+
+    return { isPositiveGeometrySize(primarySize), bounds, primarySize, secondarySize,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+}
+
+PresentationGeometry::State controllerGeometryState(ViewportControllerPort viewport,
+    const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
+    std::optional<QRectF> itemBounds = std::nullopt,
+    GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay)
+{
     return viewport.engine().geometryState(
-        {
-            isPositiveGeometrySize(primarySize),
-            bounds,
-            primarySize,
-            secondarySize,
-            devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        },
-        presentation);
+        controllerGeometryInput(viewport, devicePixelRatio, itemBounds, target), presentation);
 }
 
 PresentationGeometry::State acceptedGeometryState(ViewportControllerPort viewport,
     const ImageViewportInternal::PresentationState& presentation, double devicePixelRatio = 1.0,
     std::optional<QRectF> itemBounds = std::nullopt)
 {
-    const QRectF bounds = itemBounds ? *itemBounds : viewport.itemBounds();
-    const QSizeF primarySize = acceptedPrimaryGeometrySize(viewport);
-    const QSizeF secondarySize = acceptedSecondaryGeometrySize(viewport);
-
     return viewport.engine().geometryState(
-        {
-            isPositiveGeometrySize(primarySize),
-            bounds,
-            primarySize,
-            secondarySize,
-            devicePixelRatio > 0.0 ? devicePixelRatio : 1.0,
-        },
-        presentation);
+        acceptedGeometryInput(viewport, devicePixelRatio, itemBounds), presentation);
 }
 
 QPointF controllerContentPosition(

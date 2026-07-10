@@ -539,14 +539,19 @@ void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
 void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
 {
     ViewportEngine engine;
-    auto& presentation = engine.presentationState();
-    presentation.pageGap = 4.0;
-    presentation.spreadDirection = ImageViewport::SpreadDirection::RightToLeft;
-    presentation.fitMode = ImageViewport::FitMode::Manual;
-    presentation.rotationDegrees = 90;
-    presentation.mirrorHorizontally = true;
-    presentation.manualZoom = 2.0;
-    presentation.contentPosition = QPointF(3.0, 5.0);
+    ImageViewportPresentationCommand command;
+    command.setPageGap(4.0);
+    command.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
+    command.setManualZoomPercent(200.0);
+    command.setRotationDegrees(90);
+    command.setMirrorHorizontally(true);
+    QCOMPARE(engine
+                 .applyPresentationCommand({ command,
+                     { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0),
+                         QSizeF(8.0, 10.0), 2.0 },
+                     {}, true })
+                 .command.outcome,
+        ImageViewport::CommandOutcome::Accepted);
 
     const PresentationGeometry::State geometry = engine.geometryState(
         { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
@@ -563,21 +568,27 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     QCOMPARE(geometry.mirrorVertically, false);
     QCOMPARE(geometry.manualZoom, 2.0);
     QCOMPARE(geometry.devicePixelRatio, 2.0);
-    QCOMPARE(geometry.contentPosition, QPointF(3.0, 5.0));
+    QCOMPARE(geometry.contentPosition, QPointF());
     QCOMPARE(PresentationGeometry::spreadSize(geometry), QSizeF(32.0, 10.0));
 }
 
 void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
 {
     ViewportEngine engine;
-    auto& presentation = engine.presentationState();
-    presentation.backgroundMode = ImageViewport::BackgroundMode::SolidColor;
-    presentation.backgroundColor = QColor(0x10, 0x20, 0x30);
-    presentation.rotationDegrees = 90;
-    presentation.smoothing = false;
-    presentation.mipmap = true;
-    presentation.mirrorHorizontally = true;
-    presentation.mirrorVertically = true;
+    ImageViewportPresentationCommand command;
+    command.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
+    command.setBackgroundColor(QColor(0x10, 0x20, 0x30));
+    command.setRotationDegrees(90);
+    command.setSmoothing(false);
+    command.setMipmap(true);
+    command.setMirrorHorizontally(true);
+    command.setMirrorVertically(true);
+    QCOMPARE(engine
+                 .applyPresentationCommand({ command,
+                     { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 },
+                     {}, true })
+                 .command.outcome,
+        ImageViewport::CommandOutcome::Accepted);
 
     auto& request = engine.requestState();
     request.sequenceGeneration = 7;

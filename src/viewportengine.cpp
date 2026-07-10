@@ -172,7 +172,7 @@ ImageViewportStateSnapshot ViewportEngine::snapshot() const { return {}; }
 
 ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 {
-    return { m_commandReason, m_commandRevision };
+    return { m_requestState.commandReason, m_commandRevision };
 }
 
 ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetState() const
@@ -215,11 +215,6 @@ const ImageViewportInternal::ProviderGenerationState& ViewportEngine::secondaryP
 }
 
 const ImageViewportInternal::PresentationState& ViewportEngine::presentationState() const
-{
-    return m_presentationState;
-}
-
-ImageViewportInternal::PresentationState& ViewportEngine::presentationState()
 {
     return m_presentationState;
 }
@@ -515,26 +510,29 @@ ViewportEngine::CommandResult ViewportEngine::validatePresentationNoop(ImageView
 ViewportEngine::CommandResult ViewportEngine::rejected(
     ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason)
 {
-    m_commandReason = reason;
+    m_requestState.commandReason = reason;
     m_commandRevision = nextCommandRevision();
     return { outcome, reason, m_commandRevision, true };
 }
 
 ViewportEngine::CommandResult ViewportEngine::accepted()
 {
-    const bool hadDiagnostic = m_commandReason != ImageViewport::CommandReason::NoCommand;
-    m_commandReason = ImageViewport::CommandReason::NoCommand;
+    const bool hadDiagnostic
+        = m_requestState.commandReason != ImageViewport::CommandReason::NoCommand;
+    m_requestState.commandReason = ImageViewport::CommandReason::NoCommand;
     if (hadDiagnostic) {
         m_commandRevision = nextCommandRevision();
-        return { ImageViewport::CommandOutcome::Accepted, m_commandReason, m_commandRevision,
-            true };
+        return { ImageViewport::CommandOutcome::Accepted, m_requestState.commandReason,
+            m_commandRevision, true };
     }
-    return { ImageViewport::CommandOutcome::Accepted, m_commandReason, m_commandRevision, false };
+    return { ImageViewport::CommandOutcome::Accepted, m_requestState.commandReason,
+        m_commandRevision, false };
 }
 
 ViewportEngine::CommandResult ViewportEngine::acceptedPreservingCommandDiagnostics() const
 {
-    return { ImageViewport::CommandOutcome::Accepted, m_commandReason, m_commandRevision, false };
+    return { ImageViewport::CommandOutcome::Accepted, m_requestState.commandReason,
+        m_commandRevision, false };
 }
 
 RevisionToken ViewportEngine::nextCommandRevision()

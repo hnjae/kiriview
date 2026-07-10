@@ -295,7 +295,8 @@ void ViewportControllerPresentationTest::
     QCOMPARE(invalidDirection.outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(controller.requestState().commandReason, ImageViewport::CommandReason::InvalidRequest);
     QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
-    QCOMPARE(invalidDirection.changes.commandRevision, false);
+    QCOMPARE(invalidDirection.changes.commandRevision, true);
+    QVERIFY(invalidDirection.changes.commandRevisionValue != 0);
 
     const ViewportCommandResult sameDirection
         = controller.setSpreadDirection(controller.presentationState().spreadDirection);
@@ -309,7 +310,8 @@ void ViewportControllerPresentationTest::
     QCOMPARE(invalidGap.outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(controller.requestState().commandReason, ImageViewport::CommandReason::InvalidRequest);
     QCOMPARE(controller.requestState().commandRevision, unchangedRevision);
-    QCOMPARE(invalidGap.changes.commandRevision, false);
+    QCOMPARE(invalidGap.changes.commandRevision, true);
+    QVERIFY(invalidGap.changes.commandRevisionValue != 0);
 
     const ViewportCommandResult sameGap
         = controller.setPageGap(controller.presentationState().pageGap);
