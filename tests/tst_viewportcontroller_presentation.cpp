@@ -180,11 +180,21 @@ void ViewportControllerPresentationTest::
     QCOMPARE(pan.changes.geometryState, true);
     QVERIFY(controller.presentationState().contentPosition.x() != 0.0);
 
+    QCOMPARE(controller.rotateClockwise(QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setMirrorHorizontally(true, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(controller.setMirrorVertically(true, QPointF(50.0, 50.0)).outcome,
+        ImageViewport::CommandOutcome::Accepted);
+
     const ViewportCommandResult reset = controller.resetView();
     QCOMPARE(reset.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.presentationState().fitMode, ImageViewport::FitMode::Contain);
     QCOMPARE(controller.presentationState().manualZoom, 1.0);
     QCOMPARE(controller.presentationState().contentPosition, QPointF());
+    QCOMPARE(controller.presentationState().rotationDegrees, 0);
+    QCOMPARE(controller.presentationState().mirrorHorizontally, false);
+    QCOMPARE(controller.presentationState().mirrorVertically, false);
     QCOMPARE(reset.changes.geometryState, true);
 }
 

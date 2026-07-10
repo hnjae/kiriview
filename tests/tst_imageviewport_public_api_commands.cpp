@@ -1116,12 +1116,22 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QVERIFY(viewportCommandRevision(item) != previousInvalidCommandRevision);
     QCOMPARE(viewportCommandReason(item), ImageViewport::CommandReason::InvalidRequest);
 
+    ImageViewportPresentationCommand transformCommand;
+    transformCommand.setRotationDegrees(90);
+    transformCommand.setMirrorHorizontally(true);
+    transformCommand.setMirrorVertically(true);
+    QCOMPARE(
+        item.setPresentation(transformCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
+
     ImageViewportPresentationCommand resetCommand
         = ImageViewportPresentationCommand::resetViewCommand();
     resetCommand.setBackgroundMode(ImageViewport::BackgroundMode::Checkerboard);
 
     QCOMPARE(item.setPresentation(resetCommand).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(item.state().presentation().fitMode(), ImageViewport::FitMode::Contain);
+    QCOMPARE(item.state().presentation().rotationDegrees(), 0);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(item.state().presentation().mirrorVertically(), false);
     QCOMPARE(
         item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::Checkerboard);
 

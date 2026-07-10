@@ -13,7 +13,7 @@ public:
 private slots:
     void resetViewWithoutRequestClearsTransformAndCommandDiagnostic();
     void resetViewWithoutTransformChangeOnlyClearsCommandDiagnostic();
-    void resetViewPreservesNonTransformPresentationState();
+    void resetViewResetsTransformsAndPreservesNonTransformPresentationState();
     void stillImageSequenceAssignmentPublishesReadyState();
     void nullSequenceAssignmentClearsDisplayObservations();
     void nullSequenceAssignmentClearsCommandDiagnostic();
@@ -73,6 +73,13 @@ static ImageViewport::CommandOutcome setMirrorCommand(
     ImageViewportPresentationCommand command;
     command.setMirrorHorizontally(mirrorHorizontally);
     command.setMirrorVertically(mirrorVertically);
+    return item.setPresentation(command).outcome();
+}
+
+static ImageViewport::CommandOutcome setRotationCommand(ImageViewport& item, int degrees)
+{
+    ImageViewportPresentationCommand command;
+    command.setRotationDegrees(degrees);
     return item.setPresentation(command).outcome();
 }
 
@@ -148,7 +155,7 @@ void ImageViewportStillTest::resetViewWithoutTransformChangeOnlyClearsCommandDia
     QCOMPARE(stateSpy.count(), 1);
 }
 
-void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
+void ImageViewportStillTest::resetViewResetsTransformsAndPreservesNonTransformPresentationState()
 {
     ImageSequenceFactory factory;
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
@@ -165,6 +172,7 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     const QMetaObject* metaObject = item.metaObject();
 
     QCOMPARE(setQualityTogglesCommand(item, false, true), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(setRotationCommand(item, 90), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setMirrorCommand(item, true, true), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(setBackgroundCommand(
                  item, ImageViewport::BackgroundMode::SolidColor, QColor(20, 40, 60, 255)),
@@ -185,8 +193,9 @@ void ImageViewportStillTest::resetViewPreservesNonTransformPresentationState()
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(item.state().presentation().smoothing(), false);
     QCOMPARE(item.state().presentation().mipmap(), true);
-    QCOMPARE(item.state().presentation().mirrorHorizontally(), true);
-    QCOMPARE(item.state().presentation().mirrorVertically(), true);
+    QCOMPARE(item.state().presentation().rotationDegrees(), 0);
+    QCOMPARE(item.state().presentation().mirrorHorizontally(), false);
+    QCOMPARE(item.state().presentation().mirrorVertically(), false);
     QCOMPARE(
         item.state().presentation().backgroundMode(), ImageViewport::BackgroundMode::SolidColor);
     QCOMPARE(item.state().presentation().backgroundColor(), QColor(20, 40, 60, 255));

@@ -480,13 +480,17 @@ ViewportCommandResult ViewportController::setMirrorVertically(bool enabled, QPoi
 
 ViewportCommandResult ViewportController::resetView()
 {
-    const bool changed = state.engine.presentationState().fitMode != ImageViewport::FitMode::Contain
-        || state.engine.presentationState().manualZoom != 1.0
-        || state.engine.presentationState().contentPosition.x() != 0.0
-        || state.engine.presentationState().contentPosition.y() != 0.0;
-    state.engine.presentationState().fitMode = ImageViewport::FitMode::Contain;
-    state.engine.presentationState().manualZoom = 1.0;
-    state.engine.presentationState().contentPosition = {};
+    auto& presentation = state.engine.presentationState();
+    const bool changed = presentation.fitMode != ImageViewport::FitMode::Contain
+        || presentation.manualZoom != 1.0 || !presentation.contentPosition.isNull()
+        || presentation.rotationDegrees != 0 || presentation.mirrorHorizontally
+        || presentation.mirrorVertically;
+    presentation.fitMode = ImageViewport::FitMode::Contain;
+    presentation.manualZoom = 1.0;
+    presentation.contentPosition = {};
+    presentation.rotationDegrees = 0;
+    presentation.mirrorHorizontally = false;
+    presentation.mirrorVertically = false;
 
     return acceptedPresentationCommand(viewport,
         changed ? presentationChanges(viewport, true)
