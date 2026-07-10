@@ -6,20 +6,6 @@ namespace {
 constexpr ImageViewport::PageRole primaryRole = ImageViewport::PageRole::Primary;
 constexpr ImageViewport::PageRole secondaryRole = ImageViewport::PageRole::Secondary;
 
-void clearQueuedProviderFrameRequest(ViewportControllerState& state, ImageViewport::PageRole role)
-{
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    provider.queuedFrameRequest = false;
-    provider.queuedFrameGeneration = 0;
-    provider.queuedFrameRequestId = 0;
-    provider.queuedFrame = -1;
-    provider.queuedPosition = -1;
-    provider.queuedResolvedFrame = {};
-    provider.queuedFrameFromPlayback = false;
-    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-}
-
 DisplayRequestTarget providerLatestNonPlaybackTarget(
     ViewportControllerPort& viewport, ImageViewport::PageRole role)
 {
@@ -234,7 +220,7 @@ bool applyStopRestorePlan(ViewportController& controller, ViewportControllerPort
         completeStopRestoreRequest(controller, viewport, result);
         return true;
     case StopRestorePlanKind::ProviderQueuedPlayback: {
-        clearQueuedProviderFrameRequest(state, primaryRole);
+        state.engine.clearQueuedProviderFrameRequest(primaryRole);
 
         const StopRestorePublication publication = publishStopRestoreTarget(controller, viewport,
             plan.target, plan.resolvedFrame, StopRestoreWaitingState::ProviderLoading);

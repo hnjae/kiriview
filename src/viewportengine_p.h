@@ -81,6 +81,27 @@ public:
         bool accepted = false;
     };
 
+    struct ProviderFrameQueueInput
+    {
+        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+        int frame = -1;
+        ImageViewportInternal::ProviderRequestTargetKind targetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    };
+
+    struct ProviderFrameQueueResult
+    {
+        ImageSequenceProviderRequestToken cancelToken;
+        bool deferredFlush = false;
+    };
+
+    struct ProviderFrameQueueFlushResult
+    {
+        bool startRequest = false;
+        int frame = -1;
+        ImageViewportInternal::ProviderRequestTargetKind targetKind
+            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    };
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
@@ -100,6 +121,10 @@ public:
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
+    void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
+    bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
+    ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
+    ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 
     PresentationTargetAssignmentResult assignPresentationTarget(
         PresentationTargetAssignmentInput input);

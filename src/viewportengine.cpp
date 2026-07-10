@@ -84,6 +84,15 @@ bool hasProviderSequenceForRole(
         : (request.secondarySequence && request.secondarySequenceIsProvider);
 }
 
+ImageViewport::DisplayStatus retainedOrEmptyDisplayStatus(
+    const ImageViewportInternal::DisplayState& display)
+{
+    const bool canRetain = (display.status == ImageViewport::DisplayStatus::Ready
+                               || display.status == ImageViewport::DisplayStatus::Retained)
+        && display.displayedImageSize.isValid();
+    return canRetain ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
+}
+
 bool activeProviderFrameTokenMatchesActiveRequest(const ViewportEngine& engine,
     const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role,
     ImageSequenceProviderRequestToken token)
@@ -346,6 +355,108 @@ ViewportEngine::ProviderMetadataEventAdmission ViewportEngine::admitProviderMeta
 
     provider.activeMetadataToken = {};
     return { true };
+}
+
+void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole role)
+{
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, role);
+    provider.queuedFrameRequest = false;
+    provider.queuedFrameGeneration = 0;
+    provider.queuedFrameRequestId = 0;
+    provider.queuedFrame = -1;
+    provider.queuedPosition = -1;
+    provider.queuedResolvedFrame = {};
+    provider.queuedFrameFromPlayback = false;
+    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+}
+
+bool ViewportEngine::hasActiveProviderFrameToken(ImageViewport::PageRole role) const
+{
+    return providerGenerationStateForRole(*this, role).activeFrameToken.isValid();
+}
+
+ViewportEngine::ProviderFrameQueueResult ViewportEngine::queueProviderFrameRequest(
+    ProviderFrameQueueInput input)
+{
+    ProviderFrameQueueResult result;
+
+    ImageViewportInternal::TargetSpreadWaitState waitState;
+    if (input.role == ImageViewport::PageRole::Secondary) {
+        waitState.requiresSecondary = true;
+        waitState.secondary.requestQueued = true;
+    } else {
+        waitState.primary.requestQueued = true;
+    }
+    m_requestState.status = ImageViewport::RequestStatus::Loading;
+    m_requestState.reason = ImageViewportInternal::projectWaitReason(waitState);
+    m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+    m_displayState.clearPendingRenderPayload();
+    m_displayState.clearRenderFailureRetainedDisplay();
+
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, input.role);
+    ImageViewportInternal::DisplayRequest& activeRequest
+        = activeRequestForRole(m_requestState, input.role);
+    if (provider.session && provider.activeFrameToken.isValid()) {
+        result.cancelToken = provider.activeFrameToken;
+    }
+    provider.activeFrameToken = {};
+    activeRequest.providerFrameToken = {};
+
+    provider.queuedFrameRequest = true;
+    provider.queuedFrameGeneration = m_requestState.sequenceGeneration;
+    provider.queuedFrameRequestId = activeRequest.identity.id;
+    provider.queuedFrame = input.frame;
+    provider.queuedPosition = activeRequest.target.position;
+    provider.queuedResolvedFrame = activeRequest.resolvedFrame;
+    provider.queuedFrameFromPlayback
+        = input.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
+    provider.queuedFrameTargetKind = input.targetKind;
+    result.deferredFlush = true;
+    return result;
+}
+
+ViewportEngine::ProviderFrameQueueFlushResult ViewportEngine::flushQueuedProviderFrameRequest(
+    ImageViewport::PageRole role)
+{
+    ProviderFrameQueueFlushResult result;
+    ImageViewportInternal::ProviderGenerationState& provider
+        = providerGenerationStateForRole(*this, role);
+    if (!provider.queuedFrameRequest || !hasProviderSequenceForRole(m_requestState, role)
+        || !provider.session) {
+        clearQueuedProviderFrameRequest(role);
+        return result;
+    }
+
+    const quint64 queuedGeneration = provider.queuedFrameGeneration;
+    const int queuedFrame = provider.queuedFrame;
+    const int queuedPosition = provider.queuedPosition;
+    const ImageViewportInternal::ResolvedFrameIdentity queuedResolvedFrame
+        = provider.queuedResolvedFrame;
+    const quint64 queuedRequestId = provider.queuedFrameRequestId;
+    const ImageViewportInternal::ProviderRequestTargetKind queuedTargetKind
+        = provider.queuedFrameTargetKind;
+    const ImageViewportInternal::DisplayRequest& activeRequest
+        = activeRequestForRole(m_requestState, role);
+    const bool stillCurrent = queuedGeneration == m_requestState.sequenceGeneration
+        && queuedRequestId == activeRequest.identity.id
+        && m_requestState.status == ImageViewport::RequestStatus::Loading
+        && m_requestState.reason == ImageViewport::RequestReason::RequestQueued
+        && activeRequest.target.frame == queuedFrame
+        && activeRequest.target.position == queuedPosition
+        && activeRequest.resolvedFrame.frame == queuedResolvedFrame.frame
+        && activeRequest.resolvedFrame.position == queuedResolvedFrame.position
+        && activeRequest.target.providerTargetKind == queuedTargetKind;
+    clearQueuedProviderFrameRequest(role);
+    if (!stillCurrent) {
+        return result;
+    }
+
+    result.startRequest = true;
+    result.frame = queuedFrame;
+    result.targetKind = queuedTargetKind;
+    return result;
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
