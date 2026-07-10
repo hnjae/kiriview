@@ -22,6 +22,7 @@ struct ViewportRenderAcknowledgement
     QVector<ViewportRenderRolePayload> rolePayloads;
     ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;
+    quint64 synchronizationAttempt = 0;
 };
 
 struct ViewportRenderLayer
@@ -61,6 +62,7 @@ struct ViewportRenderSnapshotInput
 
 struct ViewportRenderSynchronization
 {
+    quint64 attempt = 0;
     bool pendingTargetCommit = false;
     bool pendingSecondaryProviderCommit = false;
     ImageViewportInternal::PreparedPayload preparedPayload;

@@ -137,6 +137,37 @@ public:
         ImageViewportInternal::ProviderRequestTargetKind targetKind
             = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     };
+    struct RenderSynchronizationInput
+    {
+        QSizeF itemSize;
+        QRectF itemBounds;
+        QRectF oldContentRect;
+        QRectF oldVisibleImageRect;
+        GeometryInput currentGeometry;
+        GeometryInput pendingGeometry;
+    };
+
+    struct RenderAcknowledgementInput
+    {
+        ViewportRenderAcknowledgement acknowledgement;
+        bool renderedImagePresent = false;
+        quint64 synchronizationAttempt = 0;
+        bool pendingTargetCommit = false;
+        bool pendingSecondaryProviderCommit = false;
+        ImageViewportInternal::PreparedPayload preparedPayload;
+        ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
+        QRectF oldContentRect;
+        QRectF oldVisibleImageRect;
+        PresentationGeometry::State geometryState;
+    };
+
+    struct GeometryChangeInput
+    {
+        QRectF itemBounds;
+        QRectF oldContentRect;
+        QRectF oldVisibleImageRect;
+        PresentationGeometry::State geometryState;
+    };
     ImageViewportStateSnapshot snapshot() const;
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
@@ -153,6 +184,14 @@ public:
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
+    ViewportRenderSynchronization beginRenderSynchronization(
+        const RenderSynchronizationInput& input);
+    ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
+        const RenderAcknowledgementInput& input);
+    ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
+        const RenderAcknowledgementInput& input);
+    ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
+        const GeometryChangeInput& input);
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
@@ -186,6 +225,8 @@ private:
 
     quint64 m_nextRevision = 0;
     quint64 m_nextPresentationTargetGeneration = 0;
+    quint64 m_nextRenderSynchronizationAttempt = 0;
+    ViewportRenderSynchronization m_lastRenderSynchronization;
     RevisionToken m_commandRevision;
     PresentationTargetState m_presentationTargetState;
     ImageViewportInternal::DisplayState m_displayState;

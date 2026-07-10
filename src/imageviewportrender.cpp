@@ -57,7 +57,8 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         const auto changes = viewport.controller.acknowledgeRenderFailure(
-            { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause });
+            { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause,
+                synchronization.attempt });
         viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
             viewport.playbackScheduler.sync();
@@ -76,7 +77,9 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         const auto changes = viewport.controller.acknowledgeRenderCommit(
-            { render.preparedPayload, rolePayloads }, imagePresent, synchronization);
+            { render.preparedPayload, rolePayloads, ImageViewport::PageRole::Primary,
+                RenderFailureCause::None, synchronization.attempt },
+            imagePresent, synchronization);
         viewport.applyControllerChanges(changes);
         if (changes.playbackPhase) {
             viewport.playbackScheduler.sync();
