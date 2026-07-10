@@ -4,60 +4,26 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONRUNTIME_H
 
-#include "navigation/directmedianavigationcandidateprovider.h"
-#include "navigation/directmedianavigationmodel.h"
 #include "session/activenavigationprojection.h"
-#include "session/documentsessionactivenavigationruntime.h"
-#include "session/documentsessiondirectmediaactivityport.h"
-#include "session/documentsessiondirectmedianavigationcoordinator.h"
-#include "session/documentsessiondirectmedianavigationinputport.h"
-#include "session/documentsessiondirectmediascopeport.h"
 #include "session/documentsessiondocumentports.h"
-#include "session/documentsessionimagedocumentcommandruntime.h"
-#include "session/documentsessionimagedocumentsyncruntime.h"
-#include "session/documentsessionmediadeletioncompletionruntime.h"
-#include "session/documentsessionmediadeletionruntime.h"
-#include "session/documentsessionmediaopenwithplanport.h"
-#include "session/documentsessionmediaopenwithruntime.h"
-#include "session/documentsessionmediapredecodeinputport.h"
-#include "session/documentsessionmediapredecoderuntime.h"
-#include "session/documentsessionprojectionruntime.h"
-#include "session/documentsessionpublicleafsnapshotbuilder.h"
 #include "session/documentsessionpublicprojection.h"
-#include "session/documentsessionpublicsnapshotinputport.h"
-#include "session/documentsessionrouteruntime.h"
+#include "session/documentsessionruntimedependencies.h"
 #include "session/documentsessionstate.h"
-#include "session/documentsessionthumbnailruntime.h"
-#include "session/documentsessionvideodocumentcommandruntime.h"
-#include "session/documentsessionvideodocumentsyncruntime.h"
-#include "session/documentsessionvideooutputruntime.h"
 #include "system/filedeletion.h"
 
-#include <QMetaObject>
 #include <QRectF>
-#include <QSize>
 #include <QString>
 #include <QUrl>
 #include <QtGlobal>
 #include <functional>
 #include <memory>
 #include <optional>
-#include <vector>
 
 class QAbstractListModel;
 class QObject;
-class QString;
 
 namespace kiriview {
-enum class DocumentSessionDirectMediaNavigationRevealAction;
-struct DocumentSessionRuntimeDependencies
-{
-    DirectMediaNavigationCandidateProvider directMediaNavigationCandidateProvider;
-    FileDeletionProvider fileDeletionProvider;
-    MediaOpenWithProvider mediaOpenWithProvider;
-    ActiveNavigationThumbnailRuntimeDependencies activeNavigationThumbnails;
-    MediaPredecodeDependencyOverrides directMediaPredecodeDependencies;
-};
+class DocumentSessionRuntimeGraph;
 
 class DocumentSessionRuntime final
 {
@@ -132,72 +98,14 @@ public:
     void openCurrentMediaWith(MediaOpenWithCallback callback);
 
 private:
-    void applyDirectMediaNavigationRevealAction(
-        DocumentSessionDirectMediaNavigationRevealAction action);
-    ActiveNavigationDispatchOutcome executeActiveNavigationDispatchRequest(
-        ActiveNavigationDispatchRequest request, ActiveNavigationRevealContext context);
-    void setPendingActiveNavigationRevealContext(ActiveNavigationRevealContext context);
-    ActiveNavigationRevealContext takePendingActiveNavigationRevealContext(
-        ActiveNavigationRevealIntent fallbackIntent);
-    void setActiveNavigationRevealContext(ActiveNavigationRevealContext context);
-    void applyActiveNavigationRevealContext(ActiveNavigationRevealContext context);
-    void clearActiveNavigationRevealContextIfUnavailable();
-    void connectDocuments();
-    void handleImageDocumentSnapshotChanged();
-    void handleVideoDocumentSnapshotChanged();
-    bool tryEnterOpenedCollectionVideoFromImageSnapshot();
-    bool tryReturnToImageDocumentFromOpenedCollectionVideo();
-    bool tryClearOpenedCollectionVideoAfterImageDocumentCleared();
-    void enterOpenedCollectionVideoDocument(
-        const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
-    void refreshImagePublicSnapshot();
-    void refreshVideoPublicSnapshot();
-    void refreshLeafPublicSnapshots();
-    void syncImageDocumentFileDeletionProgress();
-    void setDocumentKind(DocumentSessionKind kind);
-    void recomputeActiveZoomReadout();
-    void recomputeActiveZoomReadoutForKind(DocumentSessionKind kind);
-    void publishActiveNavigationForImagePages();
-    void recomputePublicProjection();
-    void routeSourceUrl(const QUrl& sourceUrl);
-    void openMediaUrl(const QUrl& url);
-    void executeRoutePlan(const DocumentSessionRoutePlan& plan);
-    void leaveVideoMode();
-    void syncMediaPredecodeScope();
-    void cacheDisplayedMediaPredecodeImages();
-    void cancelMediaDeletion();
-    void cancelMediaOpenWith();
-    DocumentSessionVideoOutputAttachmentPort videoOutputAttachmentPort();
-    void finishMediaDeletion(DocumentSessionMediaDeletionCompletion completion);
-    ActiveZoomSnapshot activeZoomSnapshotForKind(DocumentSessionKind kind) const;
-    QObject* m_owner = nullptr;
     DocumentSessionImageDocumentSnapshotPort m_imageDocument;
-    DocumentSessionImageDocumentCommandRuntime m_imageDocumentCommandRuntime;
-    DocumentSessionImageDocumentSyncRuntime m_imageDocumentSyncRuntime;
+    DocumentSessionImageDocumentCommandPort m_imageCommands;
     DocumentSessionVideoDocumentSnapshotPort m_videoDocument;
-    DocumentSessionVideoDocumentCommandRuntime m_videoDocumentCommandRuntime;
+    DocumentSessionVideoDocumentCommandPort m_videoCommands;
     DocumentSessionState m_state;
-    DocumentSessionVideoDocumentSyncRuntime m_videoDocumentSyncRuntime;
-    DocumentSessionDirectMediaScopePort m_directMediaScopePort;
-    DocumentSessionDirectMediaActivityPort m_directMediaActivityPort;
-    DocumentSessionDirectMediaNavigationInputPort m_directMediaNavigationInputPort;
-    DocumentSessionProjectionRuntime m_projectionRuntime;
-    DocumentSessionRouteRuntime m_routeRuntime;
-    DocumentSessionActiveNavigationRuntime m_activeNavigationRuntime;
-    DocumentSessionThumbnailRuntime m_activeNavigationThumbnailRuntime;
-    DocumentSessionDirectMediaNavigationCoordinator m_directMediaNavigationCoordinator;
-    DocumentSessionMediaDeletionRuntime m_mediaDeletionRuntime;
-    DocumentSessionMediaDeletionCompletionRuntime m_mediaDeletionCompletionRuntime;
-    DocumentSessionMediaOpenWithRuntime m_mediaOpenWithRuntime;
-    DocumentSessionMediaPredecodeRuntime m_mediaPredecodeRuntime;
-    std::vector<QMetaObject::Connection> m_documentConnections;
     DocumentSessionPublicImageLeafSnapshot m_imagePublicSnapshot;
     DocumentSessionPublicVideoLeafSnapshot m_videoPublicSnapshot;
-    DocumentSessionPublicSnapshotInputPort m_publicSnapshotInputPort;
-    DocumentSessionMediaPredecodeInputPort m_mediaPredecodeInputPort;
-    DocumentSessionMediaOpenWithPlanPort m_mediaOpenWithPlanPort;
-    DocumentSessionVideoOutputRuntime m_videoOutputRuntime;
-    bool m_routingSource = false;
+    std::unique_ptr<DocumentSessionRuntimeGraph> m_runtimeGraph;
 };
 }
 

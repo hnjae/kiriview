@@ -251,6 +251,7 @@ src/session/mediainformationprojection.cpp
 src/session/documentsessionpublicprojection.cpp
 src/session/documentsessionrouteplan.cpp
 src/session/documentsessionruntime.cpp
+src/session/documentsessionruntimegraph.cpp
 src/session/mediaopenwithplan.cpp
 src/facade/documentsessionpublicsignals.cpp
 src/facade/mediaopendialogfilters.cpp
