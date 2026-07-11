@@ -267,69 +267,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-
-    const auto generationTerminalResult
-        = [this, role](ImageViewportInternal::ViewportChangeSet changes) {
-              ViewportProviderMetadataAdmissionResult result;
-              result.changes = changes;
-              result.providerFrameTransport.closeSession
-                  = providerGenerationStateForRole(state, role).sessionActive;
-              result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
-              return result;
-          };
-
-    const auto admission = FramePreparation::admitProviderMetadata(metadata);
-    if (!admission.accepted()) {
-        return generationTerminalResult(
-            handleProviderMetadataAdmissionRejection(role, { admission.diagnostic }));
-    }
-
-    const bool secondary = role == ImageViewport::PageRole::Secondary;
-    const ImageSequenceProviderCapabilitySupport timedPlaybackCapability = secondary
-        ? viewport.secondaryProviderTimedPlaybackCapability()
-        : viewport.providerTimedPlaybackCapability();
-    const ImageSequenceProviderCapabilitySupport frameSeekCapability = secondary
-        ? viewport.secondaryProviderFrameSeekCapability()
-        : viewport.providerFrameSeekCapability();
-    const ImageSequenceProviderCapabilitySupport positionSeekCapability = secondary
-        ? viewport.secondaryProviderPositionSeekCapability()
-        : viewport.providerPositionSeekCapability();
-    if (ImageViewportInternal::providerCapabilityContradictsMetadata(
-            timedPlaybackCapability, metadata.timedPlaybackSupport())
-        || ImageViewportInternal::providerCapabilityContradictsMetadata(
-            frameSeekCapability, metadata.frameSeekSupport())
-        || ImageViewportInternal::providerCapabilityContradictsMetadata(
-            positionSeekCapability, metadata.positionSeekSupport())) {
-        return generationTerminalResult(handleProviderMetadataContradiction(role,
-            { QStringLiteral("provider metadata contradicts construction-time capabilities") }));
-    }
-
-    const ImageSequenceProviderKnownFacts knownFacts
-        = secondary ? viewport.secondaryProviderKnownFacts() : viewport.providerKnownFacts();
-    if (ImageViewportInternal::providerFactsContradictMetadata(knownFacts, metadata)) {
-        return generationTerminalResult(handleProviderMetadataContradiction(
-            role, { QStringLiteral("provider metadata contradicts construction-time facts") }));
-    }
-
-    const ImageSequenceAuthoredAnimationFacts fallbackAuthoredFacts = secondary
-        ? viewport.secondarySequenceAuthoredAnimationFacts()
-        : viewport.providerAuthoredAnimationFacts();
-    ViewportProviderMetadataAdmissionResult result;
-    result.accepted = true;
-    result.facts = {
-        admission.timedMetadata,
-        metadata.timedPlaybackSupport(),
-        metadata.frameSeekSupport(),
-        metadata.positionSeekSupport(),
-        admission.logicalSize,
-        admission.timingIntervals,
-        metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
-                                             : fallbackAuthoredFacts,
-    };
-    return result;
+    return state.engine.reduceProviderMetadataAdmission(role, metadata);
 }
 
 ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataReadyEvent(

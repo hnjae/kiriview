@@ -234,6 +234,8 @@ public:
         const GeometryChangeInput& input);
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
+    ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
+        ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
     quint64 activateProviderSession(ImageViewport::PageRole role);
     void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(
@@ -251,13 +253,13 @@ public:
     ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
         ImageViewport::PageRole role);
     ViewportProviderFrameRequestStartResult startProviderFrameRequest(ImageViewport::PageRole role,
-        const ImageViewportInternal::DisplayRequestTarget& target, const GeometryInput& geometry);
+        ImageViewportInternal::DisplayRequestTarget target, const GeometryInput& geometry);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
     ImageViewportInternal::ViewportChangeSet reduceProviderWaitingEvent(
         ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
     ViewportProviderEndOfSequenceResult reduceProviderEndOfSequenceProtocolViolation(
-        ImageViewport::PageRole role, const ViewportProviderEndOfSequenceProtocolViolation& input);
+        ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation input);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;

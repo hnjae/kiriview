@@ -1,6 +1,7 @@
 #include "viewportengine_p.h"
 
 #include "viewportcontrollerprovidercontract_p.h"
+#include "imageviewportproviderfacts_p.h"
 
 #include <cmath>
 
@@ -191,7 +192,7 @@ ViewportProviderMetadataRequestStartResult ViewportEngine::startProviderMetadata
 }
 
 ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameRequest(
-    ImageViewport::PageRole role, const DisplayRequestTarget& target, const GeometryInput& geometry)
+    ImageViewport::PageRole role, DisplayRequestTarget target, const GeometryInput& geometry)
 {
     ViewportProviderFrameRequestStartResult result;
     clearQueuedProviderFrameRequest(role);
@@ -269,6 +270,58 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
     result.providerMetadataTransport.sessionClose = start.sessionClose;
     result.providerMetadataTransport.sendCommand = start.sendCommand;
     result.providerMetadataTransport.token = start.token;
+    return result;
+}
+
+ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAdmission(
+    ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
+{
+    ViewportProviderMetadataAdmissionResult result;
+    const auto& terminal = m_requestState.targetSpreadTerminal;
+    if (terminal.sealed && terminal.generation == m_requestState.sequenceGeneration
+        && terminal.requestId == m_requestState.activeRequest.identity.id) {
+        return result;
+    }
+
+    const auto reject = [this, role, &result](const QString& diagnostic) {
+        m_requestState.providerPlaybackStartPending = false;
+        recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
+            ImageViewport::RequestReason::PayloadRejection, FailureScope::Generation,
+            diagnostic, result.changes);
+        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        result.providerFrameTransport = closeProviderSession(role);
+    };
+
+    const auto admission = FramePreparation::admitProviderMetadata(metadata);
+    if (!admission.accepted()) {
+        reject(admission.diagnostic);
+        return result;
+    }
+
+    const auto& source = role == ImageViewport::PageRole::Secondary
+        ? m_requestState.secondarySequenceSource
+        : m_requestState.sequenceSource;
+    const auto& facts = source.facts;
+    if (providerCapabilityContradictsMetadata(
+            facts.providerTimedPlaybackCapability, metadata.timedPlaybackSupport())
+        || providerCapabilityContradictsMetadata(
+            facts.providerFrameSeekCapability, metadata.frameSeekSupport())
+        || providerCapabilityContradictsMetadata(
+            facts.providerPositionSeekCapability, metadata.positionSeekSupport())) {
+        reject(QStringLiteral("provider metadata contradicts construction-time capabilities"));
+        return result;
+    }
+    if (providerFactsContradictMetadata(facts.providerKnownFacts, metadata)) {
+        reject(QStringLiteral("provider metadata contradicts construction-time facts"));
+        return result;
+    }
+
+    result.accepted = true;
+    result.facts = { admission.timedMetadata, metadata.timedPlaybackSupport(),
+        metadata.frameSeekSupport(), metadata.positionSeekSupport(), admission.logicalSize,
+        admission.timingIntervals,
+        metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
+                                             : facts.authoredAnimationFacts };
     return result;
 }
 
@@ -426,7 +479,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderWaitingEv
 }
 
 ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceProtocolViolation(
-    ImageViewport::PageRole role, const ViewportProviderEndOfSequenceProtocolViolation& input)
+    ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation input)
 {
     ViewportProviderEndOfSequenceResult result;
     clearQueuedProviderFrameRequest(role);
