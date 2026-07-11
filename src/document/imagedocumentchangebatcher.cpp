@@ -57,6 +57,20 @@ void ImageDocumentChangeBatcher::notify(ImageDocumentChange change)
 
 void ImageDocumentChangeBatcher::notifyAll(const std::vector<ImageDocumentChange>& changes)
 {
+    if (m_batchDepth == 0) {
+        std::vector<ImageDocumentChange> uniqueChanges;
+        for (ImageDocumentChange change : changes) {
+            const bool alreadyIncluded
+                = std::find(uniqueChanges.cbegin(), uniqueChanges.cend(), change)
+                != uniqueChanges.cend();
+            if (!alreadyIncluded) {
+                uniqueChanges.push_back(change);
+            }
+        }
+        emitChanges(uniqueChanges);
+        return;
+    }
+
     for (ImageDocumentChange change : changes) {
         notify(change);
     }

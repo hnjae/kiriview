@@ -59,7 +59,7 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
         std::move(dependencies),
         ImageDocumentRuntimeGraphCallbacks {
             [this]() { return renderContext(); },
-            [this](ImageDocumentChange change) { notify(change); },
+            [this](const std::vector<ImageDocumentChange>& changes) { notify(changes); },
             [this](const ImageDocumentSourceLoadRequest& request) { loadSource(request); },
             std::move(fileDeletionFailedCallback),
             std::move(unsupportedOpenedCollectionVideoEnteredCallback),
@@ -675,7 +675,10 @@ void ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
         role, providerUrl, revision, sourceIdentity, outcome);
 }
 
-void ImageDocumentRuntime::notify(ImageDocumentChange change) { changeBatcher.notify(change); }
+void ImageDocumentRuntime::notify(const std::vector<ImageDocumentChange>& changes)
+{
+    changeBatcher.notifyAll(changes);
+}
 
 void ImageDocumentRuntime::setRenderContextProvider(RenderContextProvider provider)
 {

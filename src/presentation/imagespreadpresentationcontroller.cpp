@@ -874,13 +874,11 @@ const ImageViewportFrame& ImageSpreadPresentationController::viewportFrame() con
 void ImageSpreadPresentationController::notifyChanges(
     const std::vector<ImageDocumentChange>& changes)
 {
-    for (ImageDocumentChange change : changes) {
-        notify(change);
-    }
+    invokeIfSet(m_callbacks.changes, changes);
 }
 
 void ImageSpreadPresentationController::notify(ImageDocumentChange change)
 {
-    invokeIfSet(m_callbacks.change, change);
+    notifyChanges({ change });
 }
 }

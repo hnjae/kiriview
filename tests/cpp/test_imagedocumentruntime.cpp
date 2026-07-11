@@ -715,6 +715,7 @@ void TestImageDocumentRuntime::rotationChangesLogicalSizeAndPreservesManualZoom(
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
     std::vector<kiriview::ImageDocumentChange> changes;
+    std::vector<std::vector<kiriview::ImageDocumentChange>> publishedBatches;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/portrait.png"));
     candidateProvider.setDirectoryImages(localUrl(QStringLiteral("/images/")),
         {
@@ -729,7 +730,9 @@ void TestImageDocumentRuntime::rotationChangesLogicalSizeAndPreservesManualZoom(
                 kiriview::fallbackTextureSizeMax,
             };
         },
-        [&changes](const std::vector<kiriview::ImageDocumentChange>& publishedChanges) {
+        [&changes, &publishedBatches](
+            const std::vector<kiriview::ImageDocumentChange>& publishedChanges) {
+            publishedBatches.push_back(publishedChanges);
             changes.insert(changes.end(), publishedChanges.begin(), publishedChanges.end());
         },
         imageDocumentRuntimeDependencyOverridesFor(candidateProvider, dataLoader,
@@ -743,6 +746,7 @@ void TestImageDocumentRuntime::rotationChangesLogicalSizeAndPreservesManualZoom(
     QTRY_COMPARE(runtime->status(), kiriview::ImageDocumentStatus::Ready);
     runtime->requestManualZoomPercent(100.0);
     changes.clear();
+    publishedBatches.clear();
 
     runtime->rotateClockwise();
 
@@ -756,6 +760,13 @@ void TestImageDocumentRuntime::rotationChangesLogicalSizeAndPreservesManualZoom(
     QVERIFY(containsChange(changes, kiriview::ImageDocumentChange::ImageSize));
     QVERIFY(containsChange(changes, kiriview::ImageDocumentChange::DisplaySize));
     QVERIFY(containsChange(changes, kiriview::ImageDocumentChange::DisplaySource));
+    const auto rotationBatch = std::find_if(publishedBatches.cbegin(), publishedBatches.cend(),
+        [](const std::vector<kiriview::ImageDocumentChange>& batch) {
+            return containsChange(batch, kiriview::ImageDocumentChange::Rotation);
+        });
+    QVERIFY(rotationBatch != publishedBatches.cend());
+    QVERIFY(containsChange(*rotationBatch, kiriview::ImageDocumentChange::ImageSize));
+    QVERIFY(containsChange(*rotationBatch, kiriview::ImageDocumentChange::DisplaySource));
 
     runtime->rotateCounterclockwise();
 

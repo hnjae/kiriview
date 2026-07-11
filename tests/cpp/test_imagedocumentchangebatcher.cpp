@@ -15,6 +15,7 @@ class TestImageDocumentChangeBatcher : public QObject
 
 private Q_SLOTS:
     void immediateNotificationsForwardInOrder();
+    void notifyAllPublishesOneUniqueOrderedBatch();
     void batchCallbacksReceiveWholeOrderedBatches();
     void emptyBatchesDoNotPublish();
     void batchesPublishUniqueChangesWhenOutermostBatchEnds();
@@ -35,6 +36,24 @@ void TestImageDocumentChangeBatcher::immediateNotificationsForwardInOrder()
     QCOMPARE(changes.at(0), kiriview::ImageDocumentChange::Loading);
     QCOMPARE(changes.at(1), kiriview::ImageDocumentChange::Status);
     QCOMPARE(changes.at(2), kiriview::ImageDocumentChange::DisplaySource);
+}
+
+void TestImageDocumentChangeBatcher::notifyAllPublishesOneUniqueOrderedBatch()
+{
+    std::vector<std::vector<kiriview::ImageDocumentChange>> publishedBatches;
+    kiriview::ImageDocumentChangeBatcher batcher(
+        kiriview::ImageDocumentChangeBatcher::ChangeBatchCallback(
+            [&publishedBatches](const std::vector<kiriview::ImageDocumentChange>& changes) {
+                publishedBatches.push_back(changes);
+            }));
+
+    batcher.notifyAll({ kiriview::ImageDocumentChange::Status,
+        kiriview::ImageDocumentChange::DisplaySource, kiriview::ImageDocumentChange::Status });
+
+    QCOMPARE(publishedBatches.size(), std::size_t(1));
+    QCOMPARE(publishedBatches.at(0).size(), std::size_t(2));
+    QCOMPARE(publishedBatches.at(0).at(0), kiriview::ImageDocumentChange::Status);
+    QCOMPARE(publishedBatches.at(0).at(1), kiriview::ImageDocumentChange::DisplaySource);
 }
 
 void TestImageDocumentChangeBatcher::batchCallbacksReceiveWholeOrderedBatches()

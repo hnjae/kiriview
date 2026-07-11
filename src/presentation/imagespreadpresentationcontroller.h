@@ -42,14 +42,14 @@ class ImageSpreadPresentationController final
 {
 public:
     using RenderContextProvider = std::function<ImageDocumentRenderContext()>;
-    using ChangeCallback = std::function<void(ImageDocumentChange)>;
+    using ChangeBatchCallback = std::function<void(const std::vector<ImageDocumentChange>&)>;
     using FindPredecodedImageCallback = std::function<std::optional<PredecodedImage>(const QUrl&)>;
     using PageNavigationSnapshotProvider = std::function<ImageDocumentPageNavigationSnapshot()>;
     using ScheduleAdjacentPredecodeCallback = std::function<void()>;
 
     struct Callbacks
     {
-        ChangeCallback change;
+        ChangeBatchCallback changes;
         FindPredecodedImageCallback findPredecodedImage;
         PageNavigationSnapshotProvider pageNavigationSnapshot;
         ScheduleAdjacentPredecodeCallback scheduleAdjacentPredecode;

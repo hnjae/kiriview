@@ -67,7 +67,9 @@ void ImageDocumentRuntimeGraph::composeSurfaceAndPresentation(
     m_animationLoadErrorPort = std::make_unique<ImageDocumentAnimationLoadErrorPort>();
     m_pageSurfaceController = std::make_unique<ImagePageSurfaceController>(documentObject,
         ImagePageSurfaceController::Callbacks {
-            [this](ImageDocumentChange change) { invokeIfSet(m_callbacks.notify, change); },
+            [this](ImageDocumentChange change) {
+                invokeIfSet(m_callbacks.notify, std::vector<ImageDocumentChange> { change });
+            },
             [this](const QString& errorString) {
                 m_animationLoadErrorPort->finishAnimationLoadWithError(errorString);
             },
@@ -86,7 +88,10 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
             [this](ImageDocumentPageNavigationPlan plan) {
                 dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(plan));
             },
-            [this]() { invokeIfSet(m_callbacks.notify, ImageDocumentChange::PageNavigation); },
+            [this]() {
+                invokeIfSet(m_callbacks.notify,
+                    std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation });
+            },
             [this]() {
                 return m_deletionProgressPort != nullptr && m_deletionProgressPort->inProgress();
             },
@@ -112,7 +117,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         std::move(dependencies.fileDeletionProvider),
         ImageDocumentDeletionController::Callbacks {
             [this]() {
-                invokeIfSet(m_callbacks.notify, ImageDocumentChange::FileDeletionInProgress);
+                invokeIfSet(m_callbacks.notify,
+                    std::vector<ImageDocumentChange> {
+                        ImageDocumentChange::FileDeletionInProgress });
             },
             [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); },
             std::move(m_callbacks.fileDeletionFailed),
@@ -134,7 +141,9 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
         documentObject, [this]() { return renderContextOrDefault(m_callbacks.renderContext); },
         state, *m_pageSurfaceController, *m_presentationRuntime,
         ImageSpreadPresentationController::Callbacks {
-            [this](ImageDocumentChange change) { invokeIfSet(m_callbacks.notify, change); },
+            [this](const std::vector<ImageDocumentChange>& changes) {
+                invokeIfSet(m_callbacks.notify, changes);
+            },
             [this](const QUrl& url) { return m_predecodedImageLookup->find(url); },
             [this]() { return m_navigationSnapshotPort->snapshot(); },
             [this]() { m_adjacentPredecodeSchedulerPort->scheduleAdjacentImagePredecode(); },

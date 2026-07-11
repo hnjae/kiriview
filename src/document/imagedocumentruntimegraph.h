@@ -13,6 +13,7 @@
 #include <QString>
 #include <functional>
 #include <memory>
+#include <vector>
 
 class QObject;
 
@@ -41,7 +42,7 @@ class ImageSpreadPresentationController;
 struct ImageDocumentRuntimeGraphCallbacks
 {
     std::function<ImageDocumentRenderContext()> renderContext;
-    std::function<void(ImageDocumentChange)> notify;
+    std::function<void(const std::vector<ImageDocumentChange>&)> notify;
     std::function<void(const ImageDocumentSourceLoadRequest&)> loadSource;
     std::function<void(const QString&)> fileDeletionFailed;
     std::function<void(const QString&)> unsupportedOpenedCollectionVideoEntered;

@@ -146,7 +146,7 @@ public:
     void acknowledgeStillImageDisplayLoad(DisplayedPageRole role, const QUrl& providerUrl,
         quint64 revision, const QString& sourceIdentity, ImageDisplayLoadOutcome outcome);
 
-    void notify(ImageDocumentChange change);
+    void notify(const std::vector<ImageDocumentChange>& changes);
     void setRenderContextProvider(RenderContextProvider provider);
     void shutdown();
     void openPreviousPage();
