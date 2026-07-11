@@ -256,6 +256,8 @@ public:
         ImageViewport::PageRole role, const QString& diagnostic);
     ImageViewportInternal::ViewportChangeSet reduceProviderWaitingEvent(
         ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
+    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequenceProtocolViolation(
+        ImageViewport::PageRole role, const ViewportProviderEndOfSequenceProtocolViolation& input);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;

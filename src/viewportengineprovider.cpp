@@ -424,3 +424,26 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderWaitingEv
     changes.requestRevision = true;
     return changes;
 }
+
+ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceProtocolViolation(
+    ImageViewport::PageRole role, const ViewportProviderEndOfSequenceProtocolViolation& input)
+{
+    ViewportProviderEndOfSequenceResult result;
+    clearQueuedProviderFrameRequest(role);
+    auto& provider = providerForRole(*this, role);
+    if (input.activeMetadataToken) {
+        provider.activeMetadataToken = {};
+    }
+    if (input.activeFrameToken) {
+        provider.activeFrameToken = {};
+    }
+    m_requestState.providerPlaybackStartPending = false;
+    m_requestState.stopPlaybackWhenRequestReady = false;
+    recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
+        ImageViewport::RequestReason::PayloadRejection,
+        input.activeMetadataToken ? FailureScope::Generation : FailureScope::DisplayRequest,
+        QStringLiteral("provider protocol violation"), result.changes);
+    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+    result.providerFrameTransport = closeProviderSession(role);
+    return result;
+}

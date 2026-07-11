@@ -838,12 +838,8 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
 
     if (activeMetadataToken || !provider.metadataReady || !provider.timedMetadata
         || !activeProviderFrameRequestIsPlayback(state, viewport, role)) {
-        ViewportProviderEndOfSequenceResult result;
-        result.changes = handleProviderEndOfSequenceProtocolViolation(
+        return state.engine.reduceProviderEndOfSequenceProtocolViolation(
             role, { activeMetadataToken, activeFrameToken });
-        result.providerFrameTransport.closeSession = provider.sessionActive;
-        result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
-        return result;
     }
 
     return handleProviderPlaybackEndOfSequence(role);
@@ -861,25 +857,7 @@ ImageViewportInternal::ViewportChangeSet
 ViewportController::handleProviderEndOfSequenceProtocolViolation(
     ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation violation)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
-    state.engine.clearQueuedProviderFrameRequest(role);
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (violation.activeMetadataToken) {
-        provider.activeMetadataToken = {};
-    }
-    if (violation.activeFrameToken) {
-        provider.activeFrameToken = {};
-    }
-    viewportRequestState(viewport).providerPlaybackStartPending = false;
-    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::PayloadRejection,
-        violation.activeMetadataToken ? ImageViewportInternal::FailureScope::Generation
-                                      : ImageViewportInternal::FailureScope::DisplayRequest,
-        QStringLiteral("provider protocol violation"), changes);
-    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
-    return changes;
+    return state.engine.reduceProviderEndOfSequenceProtocolViolation(role, violation).changes;
 }
 
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEndOfSequence()
