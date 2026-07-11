@@ -1,4 +1,5 @@
 #include "viewportcontroller_p.h"
+#include "viewportenginetestaccess_p.h"
 
 #include "viewportcommandoutcome_p.h"
 #include "viewportcontrollercommandcontract_p.h"

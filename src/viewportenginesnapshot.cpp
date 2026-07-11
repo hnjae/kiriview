@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportenginestate_p.h"
 
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"
@@ -184,9 +185,9 @@ double effectiveZoomPercent(const PresentationGeometry::State& geometry)
 ImageViewportStateSnapshot ViewportEngine::snapshot() const
 {
     GeometryInput input;
-    input.primaryPresent = positive(m_displayState.roles[0].displayedImageSize);
-    input.primarySize = m_displayState.roles[0].displayedImageSize;
-    input.secondarySize = m_displayState.roles[1].displayedImageSize;
+    input.primaryPresent = positive(snapshotAccess().display.roles[0].displayedImageSize);
+    input.primarySize = snapshotAccess().display.roles[0].displayedImageSize;
+    input.secondarySize = snapshotAccess().display.roles[1].displayedImageSize;
     return snapshot(input);
 }
 
@@ -197,37 +198,37 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const GeometryInput& input) 
 
 ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) const
 {
-    const bool primaryPresent = m_requestState.roles[0].source.facts.present;
-    const bool secondaryPresent = m_requestState.roles[1].source.facts.present;
+    const bool primaryPresent = snapshotAccess().request.roles[0].source.facts.present;
+    const bool secondaryPresent = snapshotAccess().request.roles[1].source.facts.present;
     const ImageViewportRoleSet acceptedRoles(primaryPresent, secondaryPresent);
     const ImageViewportRoleSet targetRoles(primaryPresent,
-        secondaryPresent && m_requestState.roles[1].activeRequest.target.frame >= 0);
-    const quint64 acceptedGenerationValue = m_presentationTargetState.generation != 0
-        ? m_presentationTargetState.generation
-        : m_requestState.sequenceGeneration;
+        secondaryPresent && snapshotAccess().request.roles[1].activeRequest.target.frame >= 0);
+    const quint64 acceptedGenerationValue = snapshotAccess().presentationTarget.generation != 0
+        ? snapshotAccess().presentationTarget.generation
+        : snapshotAccess().request.sequenceGeneration;
     const auto acceptedGeneration = generation(primaryPresent ? acceptedGenerationValue : 0);
-    const bool primaryDisplayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
-        && positive(m_displayState.roles[0].displayedImageSize);
-    const bool secondaryDisplayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
-        && positive(m_displayState.roles[1].displayedImageSize);
+    const bool primaryDisplayed = snapshotAccess().display.status != ImageViewport::DisplayStatus::Empty
+        && positive(snapshotAccess().display.roles[0].displayedImageSize);
+    const bool secondaryDisplayed = snapshotAccess().display.status != ImageViewport::DisplayStatus::Empty
+        && positive(snapshotAccess().display.roles[1].displayedImageSize);
     const ImageViewportRoleSet displayedRoles(primaryDisplayed, secondaryDisplayed);
     const quint64 displayedGenerationValue
-        = primaryDisplayed ? m_displayState.roles[0].displayedRequest.generation : 0;
+        = primaryDisplayed ? snapshotAccess().display.roles[0].displayedRequest.generation : 0;
     const bool displayAccepted
         = primaryDisplayed && displayedGenerationValue == acceptedGenerationValue;
     const PresentationGeometry::State acceptedGeometry = geometryState(input.acceptedGeometry);
     const PresentationGeometry::State displayedGeometry = geometryState(input.displayedGeometry,
-        m_displayState.status == ImageViewport::DisplayStatus::Retained
-            ? m_displayState.displayedPresentation
-            : m_presentationState);
+        snapshotAccess().display.status == ImageViewport::DisplayStatus::Retained
+            ? snapshotAccess().display.displayedPresentation
+            : snapshotAccess().presentation);
     const quint64 presentationRevisionValue
-        = m_presentationRevision != 0 ? m_presentationRevision : m_displayState.revision;
-    const quint64 commandRevisionValue = m_requestState.commandRevision != 0
-        ? m_requestState.commandRevision
-        : RevisionTokenPrivateAccess::value(m_commandRevision);
-    const quint64 snapshotRevisionValue = m_snapshotRevision != 0
-        ? m_snapshotRevision
-        : snapshotRevision(m_requestState, m_displayState, presentationRevisionValue,
+        = snapshotAccess().presentationRevision != 0 ? snapshotAccess().presentationRevision : snapshotAccess().display.revision;
+    const quint64 commandRevisionValue = snapshotAccess().request.commandRevision != 0
+        ? snapshotAccess().request.commandRevision
+        : RevisionTokenPrivateAccess::value(snapshotAccess().commandRevision);
+    const quint64 snapshotRevisionValue = snapshotAccess().snapshotRevision != 0
+        ? snapshotAccess().snapshotRevision
+        : snapshotRevision(snapshotAccess().request, snapshotAccess().display, presentationRevisionValue,
               commandRevisionValue, acceptedGenerationValue);
 
     QVariant activeRole;
@@ -235,21 +236,21 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
         activeRole = QVariant::fromValue(ImageViewport::PageRole::Primary);
     }
     QVariant playbackRole;
-    if (m_requestState.playbackPhase != ImageViewport::PlaybackPhase::Stopped && primaryPresent) {
-        playbackRole = QVariant::fromValue(m_requestState.playbackRole);
+    if (snapshotAccess().request.playbackPhase != ImageViewport::PlaybackPhase::Stopped && primaryPresent) {
+        playbackRole = QVariant::fromValue(snapshotAccess().request.playbackRole);
     }
 
-    const ImageViewportRequestSnapshot requestSnapshot(m_requestState.status, m_requestState.reason,
-        m_requestState.playbackPhase, acceptedGeneration, acceptedRoles, targetRoles, activeRole,
+    const ImageViewportRequestSnapshot requestSnapshot(snapshotAccess().request.status, snapshotAccess().request.reason,
+        snapshotAccess().request.playbackPhase, acceptedGeneration, acceptedRoles, targetRoles, activeRole,
         playbackRole);
     const QSizeF displayedSpreadSize = PresentationGeometry::spreadSize(displayedGeometry);
-    const ImageViewportDisplaySnapshot displaySnapshot(m_displayState.status,
-        displayPhase(m_displayState.status, m_requestState.status),
+    const ImageViewportDisplaySnapshot displaySnapshot(snapshotAccess().display.status,
+        displayPhase(snapshotAccess().display.status, snapshotAccess().request.status),
         generation(displayedGenerationValue), displayedRoles, targetRoles, displayAccepted,
-        m_displayState.status == ImageViewport::DisplayStatus::Retained,
-        revision(primaryDisplayed ? (m_displayState.displayedPresentationRevision != 0
-                                            ? m_displayState.displayedPresentationRevision
-                                            : m_displayState.revision)
+        snapshotAccess().display.status == ImageViewport::DisplayStatus::Retained,
+        revision(primaryDisplayed ? (snapshotAccess().display.displayedPresentationRevision != 0
+                                            ? snapshotAccess().display.displayedPresentationRevision
+                                            : snapshotAccess().display.revision)
                                   : 0),
         revision(presentationRevisionValue),
         positive(displayedSpreadSize) ? displayedSpreadSize : QSizeF(0.0, 0.0),
@@ -260,33 +261,33 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
         PresentationGeometry::visibleSpreadRect(displayedGeometry),
         PresentationGeometry::horizontalPannable(displayedGeometry),
         PresentationGeometry::verticalPannable(displayedGeometry));
-    const ImageViewportPresentationSnapshot presentationSnapshot(m_presentationState.fitMode,
+    const ImageViewportPresentationSnapshot presentationSnapshot(snapshotAccess().presentation.fitMode,
         effectiveZoomPercent(acceptedGeometry), std::numeric_limits<double>::denorm_min(),
         ImageViewportDisplayLimits::maximumManualZoomPercent(), 1.25,
-        m_presentationState.rotationDegrees, m_presentationState.mirrorHorizontally,
-        m_presentationState.mirrorVertically, m_presentationState.spreadDirection,
-        m_presentationState.pageGap, m_presentationState.backgroundMode,
-        m_presentationState.backgroundColor, m_presentationState.smoothing,
-        m_presentationState.mipmap, m_requestState.looping, m_presentationState.qualityPreference,
-        m_presentationState.exactnessPreference);
+        snapshotAccess().presentation.rotationDegrees, snapshotAccess().presentation.mirrorHorizontally,
+        snapshotAccess().presentation.mirrorVertically, snapshotAccess().presentation.spreadDirection,
+        snapshotAccess().presentation.pageGap, snapshotAccess().presentation.backgroundMode,
+        snapshotAccess().presentation.backgroundColor, snapshotAccess().presentation.smoothing,
+        snapshotAccess().presentation.mipmap, snapshotAccess().request.looping, snapshotAccess().presentation.qualityPreference,
+        snapshotAccess().presentation.exactnessPreference);
 
     const auto roleSnapshot = [&](ImageViewport::PageRole role) {
-        const auto& source = sourceForRole(m_requestState, role);
-        const auto& active = requestForRole(m_requestState, role);
-        const auto& displayedRequest = displayedRequestForRole(m_displayState, role);
-        const QSizeF displayedSize = displayedSizeForRole(m_displayState, role);
+        const auto& source = sourceForRole(snapshotAccess().request, role);
+        const auto& active = requestForRole(snapshotAccess().request, role);
+        const auto& displayedRequest = displayedRequestForRole(snapshotAccess().display, role);
+        const QSizeF displayedSize = displayedSizeForRole(snapshotAccess().display, role);
         const bool present = source.facts.present;
-        const bool displayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
+        const bool displayed = snapshotAccess().display.status != ImageViewport::DisplayStatus::Empty
             && positive(displayedSize);
         const bool belongs = displayed && displayedRequest.generation == acceptedGenerationValue;
-        const Metadata metadata = metadataFor(m_requestState,
+        const Metadata metadata = metadataFor(snapshotAccess().request,
             providerState(ImageViewport::PageRole::Primary),
             providerState(ImageViewport::PageRole::Secondary), role);
         const QSizeF logicalSize = source.facts.provider
             ? (providerState(role).metadataReady ? providerState(role).logicalSize
                                                           : source.facts.providerKnownLogicalSize)
             : sourceLogicalSize(source);
-        const auto& payload = displayedPayloadForRole(m_displayState, role);
+        const auto& payload = displayedPayloadForRole(snapshotAccess().display, role);
         const QSizeF payloadRaster
             = positive(payload.payloadRasterSize) ? payload.payloadRasterSize : displayedSize;
         const QSizeF sourceScale = positive(payload.sourceToPayloadScale)
@@ -322,7 +323,7 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
                 role, active.target.frame, active.target.position, logicalSize,
                 active.demandRevision),
             ImageViewportRoleDisplaySnapshot(belongs,
-                displayed && m_displayState.status == ImageViewport::DisplayStatus::Retained,
+                displayed && snapshotAccess().display.status == ImageViewport::DisplayStatus::Retained,
                 displayed ? displayedRequest.request.resolvedFrame.frame : -1,
                 displayed ? displayedRequest.request.resolvedFrame.position : -1,
                 displayed ? displayedSize : QSizeF(), displayed ? payloadRaster : QSizeF(),
@@ -355,8 +356,8 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
         roleSnapshot(ImageViewport::PageRole::Primary),
         roleSnapshot(ImageViewport::PageRole::Secondary),
         ImageViewportDiagnosticsSnapshot(
-            m_requestState.errorString, m_requestState.warningString, m_requestState.commandReason),
-        ImageViewportRevisionsSnapshot(revision(m_requestState.requestRevision),
-            revision(m_displayState.revision), revision(presentationRevisionValue),
+            snapshotAccess().request.errorString, snapshotAccess().request.warningString, snapshotAccess().request.commandReason),
+        ImageViewportRevisionsSnapshot(revision(snapshotAccess().request.requestRevision),
+            revision(snapshotAccess().display.revision), revision(presentationRevisionValue),
             revision(commandRevisionValue), revision(snapshotRevisionValue)));
 }

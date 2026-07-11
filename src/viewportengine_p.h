@@ -9,15 +9,26 @@
 #include "viewportrendercontract_p.h"
 
 #include <array>
+#include <memory>
 #include <optional>
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
 #endif
+struct ViewportEngineCanonicalState;
+struct ViewportEnginePlaybackStateAccess;
+struct ViewportEnginePresentationStateAccess;
+struct ViewportEngineProviderStateAccess;
+struct ViewportEngineRenderStateAccess;
+struct ViewportEngineSnapshotStateAccess;
 
 class ViewportEngine
 {
 public:
+    ViewportEngine();
+    ~ViewportEngine();
+    ViewportEngine(const ViewportEngine&) = delete;
+    ViewportEngine& operator=(const ViewportEngine&) = delete;
     struct GeometryInput
     {
         bool primaryPresent = false;
@@ -349,10 +360,11 @@ private:
     ImageViewportInternal::ProviderGenerationState& providerState(ImageViewport::PageRole role);
     const ImageViewportInternal::ProviderGenerationState& providerState(
         ImageViewport::PageRole role) const;
-    struct RoleState
-    {
-        ImageViewportInternal::ProviderGenerationState provider;
-    };
+    ViewportEngineProviderStateAccess providerAccess();
+    ViewportEnginePlaybackStateAccess playbackAccess();
+    ViewportEngineRenderStateAccess renderAccess();
+    ViewportEnginePresentationStateAccess presentationAccess();
+    ViewportEngineSnapshotStateAccess snapshotAccess() const;
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
     {
@@ -372,49 +384,5 @@ private:
     PresentationTargetState presentationTargetStateFor(
         const ImageViewportPresentationTarget& presentationTarget, quint64 generation) const;
 
-    quint64 m_nextRevision = 0;
-    quint64 m_nextPresentationTargetGeneration = 0;
-    quint64 m_nextRenderSynchronizationAttempt = 0;
-    quint64 m_presentationRevision = 0;
-    quint64 m_snapshotRevision = 0;
-    ViewportRenderSynchronization m_lastRenderSynchronization;
-    RevisionToken m_commandRevision;
-    PresentationTargetState m_presentationTargetState;
-    ImageViewportInternal::DisplayState m_displayState;
-    ImageViewportInternal::RequestState m_requestState;
-    std::array<RoleState, 2> m_roles;
-    ImageViewportInternal::PresentationState m_presentationState;
+    std::unique_ptr<ViewportEngineCanonicalState> m_state;
 };
-
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-class ViewportEngineTestAccess
-{
-public:
-    static ImageViewportInternal::DisplayState& display(ViewportEngine& engine)
-    {
-        return engine.displayState();
-    }
-    static const ImageViewportInternal::DisplayState& display(const ViewportEngine& engine)
-    {
-        return engine.displayState();
-    }
-    static ImageViewportInternal::RequestState& request(ViewportEngine& engine)
-    {
-        return engine.requestState();
-    }
-    static const ImageViewportInternal::RequestState& request(const ViewportEngine& engine)
-    {
-        return engine.requestState();
-    }
-    static ImageViewportInternal::ProviderGenerationState& provider(
-        ViewportEngine& engine, ImageViewport::PageRole role)
-    {
-        return engine.providerState(role);
-    }
-    static const ImageViewportInternal::ProviderGenerationState& provider(
-        const ViewportEngine& engine, ImageViewport::PageRole role)
-    {
-        return engine.providerState(role);
-    }
-};
-#endif

@@ -53,6 +53,8 @@ qt_add_qml_module(
     viewportengineplayback.cpp
     viewportengineprovider.cpp
     viewportengine_p.h
+    viewportenginestate_p.h
+    viewportenginetestaccess_p.h
     viewportcontroller.cpp
     viewportcontrollerassignmentcontract_p.h
     viewportcontrollercommandcontract_p.h

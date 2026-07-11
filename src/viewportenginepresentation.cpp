@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportenginestate_p.h"
 
 #include "imageviewportvalidation_p.h"
 
@@ -177,8 +178,8 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
         return result;
     }
 
-    const PresentationState previousPresentation = m_presentationState;
-    const bool previousLooping = m_requestState.looping;
+    const PresentationState previousPresentation = presentationAccess().presentation;
+    const bool previousLooping = presentationAccess().request.looping;
     PresentationState next = previousPresentation;
     bool nextLooping = previousLooping;
     bool affectsGeometry = false;
@@ -311,12 +312,12 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
         result.command = acceptedPreservingCommandDiagnostics();
         return result;
     }
-    m_presentationState = next;
-    m_requestState.looping = nextLooping;
+    presentationAccess().presentation = next;
+    presentationAccess().request.looping = nextLooping;
     result.command = accepted();
     result.changes = presentationChanges(
         presentationChanged, affectsGeometry,
-        m_displayState.hasReadyDisplay(m_requestState.roles[0].source.facts.present),
+        presentationAccess().display.hasReadyDisplay(presentationAccess().request.roles[0].source.facts.present),
         input.geometry.itemBounds);
     const bool demandChanged = affectsGeometry
         || previousPresentation.qualityPreference != next.qualityPreference
@@ -339,7 +340,7 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
 ImageViewportInternal::ViewportChangeSet ViewportEngine::applyPresentationTargetTransition(
     const PresentationTargetTransitionInput& input)
 {
-    const PresentationState previousPresentation = m_presentationState;
+    const PresentationState previousPresentation = presentationAccess().presentation;
     PresentationState next = previousPresentation;
     if (input.zoomTransition
         == PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
@@ -389,6 +390,6 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::applyPresentationTarget
     if (!changed) {
         return {};
     }
-    m_presentationState = next;
+    presentationAccess().presentation = next;
     return presentationChanges(true, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
 }
