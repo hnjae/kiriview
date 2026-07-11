@@ -52,8 +52,8 @@ void logDirectMediaScope(const char* message, const kiriview::DirectMediaScope& 
 }
 
 void appendConnection(std::vector<QMetaObject::Connection>& connections,
-    const kiriview::DocumentSessionDocumentSignalConnector& connector, QObject* owner,
-    kiriview::DocumentSessionDocumentChangeHandler handler)
+    const kiriview::DocumentSessionSnapshotConnector& connector, QObject* owner,
+    kiriview::DocumentSessionSnapshotChangeHandler handler)
 {
     if (connector) {
         std::vector<QMetaObject::Connection> nextConnections = connector(owner, std::move(handler));

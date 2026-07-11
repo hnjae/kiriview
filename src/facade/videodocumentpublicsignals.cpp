@@ -13,6 +13,33 @@ template <typename Operation> void run(const Operation& operation)
         operation();
     }
 }
+
+bool affectsSessionSnapshot(kiriview::VideoDocumentPublicSignal signal)
+{
+    using Signal = kiriview::VideoDocumentPublicSignal;
+    switch (signal) {
+    case Signal::SourceUrl:
+    case Signal::Status:
+    case Signal::ErrorString:
+    case Signal::WindowTitleFileName:
+    case Signal::HasVideo:
+    case Signal::VideoSize:
+    case Signal::ZoomPercentKnown:
+    case Signal::ZoomPercent:
+    case Signal::EmbeddedMetadata:
+        return true;
+    case Signal::Duration:
+    case Signal::Position:
+    case Signal::Playing:
+    case Signal::Seekable:
+    case Signal::HasAudio:
+    case Signal::Muted:
+    case Signal::VideoOutput:
+        return false;
+    }
+
+    return false;
+}
 }
 
 namespace kiriview {
@@ -25,7 +52,12 @@ VideoDocumentPublicSignalEmitter::VideoDocumentPublicSignalEmitter(
 void VideoDocumentPublicSignalEmitter::emitChanges(
     const std::vector<VideoDocumentChange>& changes) const
 {
-    for (VideoDocumentPublicSignal signal : videoDocumentPublicSignalsForChanges(changes)) {
+    const std::vector<VideoDocumentPublicSignal> signals
+        = videoDocumentPublicSignalsForChanges(changes);
+    if (std::any_of(signals.cbegin(), signals.cend(), affectsSessionSnapshot)) {
+        run(m_operations.sessionSnapshotChanged);
+    }
+    for (VideoDocumentPublicSignal signal : signals) {
         emitSignal(signal);
     }
 }

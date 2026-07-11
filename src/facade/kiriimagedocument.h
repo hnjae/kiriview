@@ -332,6 +332,8 @@ Q_SIGNALS:
 private:
     friend class KiriDocumentSession;
 
+    Q_SIGNAL void documentSessionSnapshotChanged();
+
     void setSourceUrl(const QUrl& sourceUrl);
     void setSameScopeImageNavigationSourceUrl(const QUrl& sourceUrl);
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(

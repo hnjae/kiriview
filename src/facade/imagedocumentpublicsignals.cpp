@@ -13,6 +13,43 @@ template <typename Operation> void run(const Operation& operation)
         operation();
     }
 }
+
+bool affectsSessionSnapshot(kiriview::ImageDocumentPublicSignal signal)
+{
+    using Signal = kiriview::ImageDocumentPublicSignal;
+    switch (signal) {
+    case Signal::SourceUrl:
+    case Signal::Status:
+    case Signal::ErrorString:
+    case Signal::WindowTitleFileName:
+    case Signal::ImageSize:
+    case Signal::ZoomPercentKnown:
+    case Signal::ZoomPercent:
+    case Signal::ZoomMode:
+    case Signal::PageNavigation:
+    case Signal::ContainerNavigation:
+    case Signal::FileDeletionInProgress:
+    case Signal::TwoPageMode:
+    case Signal::RightToLeftReading:
+    case Signal::ImageDocumentSourceScope:
+    case Signal::UnsupportedOpenedCollectionVideo:
+    case Signal::EmbeddedMetadata:
+        return true;
+    case Signal::Loading:
+    case Signal::DisplayedUrl:
+    case Signal::ViewportSize:
+    case Signal::ViewportFrame:
+    case Signal::VisibleItemRect:
+    case Signal::DisplaySize:
+    case Signal::MaximumManualZoomPercent:
+    case Signal::PresentationTransitionState:
+    case Signal::RotationDegrees:
+    case Signal::DisplaySource:
+        return false;
+    }
+
+    return false;
+}
 }
 
 namespace kiriview {
@@ -30,7 +67,12 @@ void ImageDocumentPublicSignalEmitter::emitChange(ImageDocumentChange change) co
 void ImageDocumentPublicSignalEmitter::emitChanges(
     const std::vector<ImageDocumentChange>& changes) const
 {
-    for (ImageDocumentPublicSignal signal : imageDocumentPublicSignalsForChanges(changes)) {
+    const std::vector<ImageDocumentPublicSignal> signals
+        = imageDocumentPublicSignalsForChanges(changes);
+    if (std::any_of(signals.cbegin(), signals.cend(), affectsSessionSnapshot)) {
+        run(m_operations.sessionSnapshotChanged);
+    }
+    for (ImageDocumentPublicSignal signal : signals) {
         emitSignal(signal);
     }
 }

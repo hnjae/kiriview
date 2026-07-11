@@ -105,6 +105,8 @@ Q_SIGNALS:
 private:
     friend class KiriDocumentSession;
 
+    Q_SIGNAL void documentSessionSnapshotChanged();
+
     void setSourceUrl(const QUrl& sourceUrl);
     void setSourceDevice(const QUrl& sourceUrl, kiriview::VideoPlaybackSourceDevice sourceDevice);
     void setVideoOutput(QObject* videoOutput);

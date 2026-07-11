@@ -775,7 +775,9 @@ bool KiriImageDocument::acknowledgeDisplayImageLoad(int pageRole, const QUrl& pr
 void KiriImageDocument::handleDocumentChanges(const std::vector<ImageDocumentChange>& changes)
 {
     refreshDisplaySources();
-    kiriview::ImageDocumentPublicSignalEmitter(publicSignalOperations(*this)).emitChanges(changes);
+    kiriview::ImageDocumentPublicSignalOperations operations = publicSignalOperations(*this);
+    operations.sessionSnapshotChanged = [this]() { Q_EMIT documentSessionSnapshotChanged(); };
+    kiriview::ImageDocumentPublicSignalEmitter(std::move(operations)).emitChanges(changes);
 }
 
 void KiriImageDocument::refreshDisplaySources()

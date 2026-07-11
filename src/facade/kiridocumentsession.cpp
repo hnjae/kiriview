@@ -236,20 +236,17 @@ std::optional<kiriview::ActiveNavigationThumbnailDemandSnapshot> thumbnailDemand
 }
 
 template <typename Document>
-kiriview::DocumentSessionDocumentSignalConnector documentSignalConnector(
-    Document& document, std::vector<void (Document::*)()> signalMethods)
+kiriview::DocumentSessionSnapshotConnector documentSnapshotConnector(
+    Document& document, void (Document::*signal)())
 {
-    return [&document, signalMethods = std::move(signalMethods)](
-               QObject* context, kiriview::DocumentSessionDocumentChangeHandler handler) {
+    return [&document, signal](
+               QObject* context, kiriview::DocumentSessionSnapshotChangeHandler handler) {
         std::vector<QMetaObject::Connection> connections;
-        connections.reserve(signalMethods.size());
-        for (void (Document::*signal)() : signalMethods) {
-            connections.push_back(QObject::connect(&document, signal, context, [handler]() {
-                if (handler) {
-                    handler();
-                }
-            }));
-        }
+        connections.push_back(QObject::connect(&document, signal, context, [handler]() {
+            if (handler) {
+                handler();
+            }
+        }));
         return connections;
     };
 }
@@ -355,19 +352,7 @@ kiriview::DocumentSessionImageDocumentSnapshotPort KiriDocumentSession::imageDoc
 {
     return kiriview::DocumentSessionImageDocumentSnapshotPort {
         [&document]() { return imageDocumentSessionSnapshot(document); },
-        documentSignalConnector(document,
-            { &KiriImageDocument::sourceUrlChanged, &KiriImageDocument::statusChanged,
-                &KiriImageDocument::windowTitleFileNameChanged,
-                &KiriImageDocument::imageSizeChanged, &KiriImageDocument::errorStringChanged,
-                &KiriImageDocument::imageDocumentSourceScopeChanged,
-                &KiriImageDocument::unsupportedOpenedCollectionVideoChanged,
-                &KiriImageDocument::fileDeletionInProgressChanged,
-                &KiriImageDocument::zoomPercentKnownChanged, &KiriImageDocument::zoomPercentChanged,
-                &KiriImageDocument::zoomModeChanged, &KiriImageDocument::pageNavigationChanged,
-                &KiriImageDocument::containerNavigationChanged,
-                &KiriImageDocument::twoPageModeChanged,
-                &KiriImageDocument::rightToLeftReadingChanged,
-                &KiriImageDocument::embeddedMetadataChanged }),
+        documentSnapshotConnector(document, &KiriImageDocument::documentSessionSnapshotChanged),
     };
 }
 
@@ -396,12 +381,7 @@ kiriview::DocumentSessionVideoDocumentSnapshotPort KiriDocumentSession::videoDoc
 {
     return kiriview::DocumentSessionVideoDocumentSnapshotPort {
         [&document]() { return videoDocumentSessionSnapshot(document); },
-        documentSignalConnector(document,
-            { &KiriVideoDocument::sourceUrlChanged, &KiriVideoDocument::statusChanged,
-                &KiriVideoDocument::hasVideoChanged, &KiriVideoDocument::windowTitleFileNameChanged,
-                &KiriVideoDocument::videoSizeChanged, &KiriVideoDocument::errorStringChanged,
-                &KiriVideoDocument::zoomPercentKnownChanged, &KiriVideoDocument::zoomPercentChanged,
-                &KiriVideoDocument::embeddedMetadataChanged }),
+        documentSnapshotConnector(document, &KiriVideoDocument::documentSessionSnapshotChanged),
     };
 }
 

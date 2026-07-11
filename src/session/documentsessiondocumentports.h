@@ -28,9 +28,9 @@
 class QObject;
 
 namespace kiriview {
-using DocumentSessionDocumentChangeHandler = std::function<void()>;
-using DocumentSessionDocumentSignalConnector = std::function<std::vector<QMetaObject::Connection>(
-    QObject*, DocumentSessionDocumentChangeHandler)>;
+using DocumentSessionSnapshotChangeHandler = std::function<void()>;
+using DocumentSessionSnapshotConnector = std::function<std::vector<QMetaObject::Connection>(
+    QObject*, DocumentSessionSnapshotChangeHandler)>;
 
 struct DocumentSessionImageDocumentSnapshot
 {
@@ -68,7 +68,7 @@ struct DocumentSessionImageDocumentSnapshot
 struct DocumentSessionImageDocumentSnapshotPort
 {
     std::function<DocumentSessionImageDocumentSnapshot()> snapshot;
-    DocumentSessionDocumentSignalConnector snapshotChanged;
+    DocumentSessionSnapshotConnector snapshotChanged;
 };
 
 struct DocumentSessionImageDocumentSourceCommandPort
@@ -116,7 +116,7 @@ struct DocumentSessionVideoDocumentSnapshot
 struct DocumentSessionVideoDocumentSnapshotPort
 {
     std::function<DocumentSessionVideoDocumentSnapshot()> snapshot;
-    DocumentSessionDocumentSignalConnector snapshotChanged;
+    DocumentSessionSnapshotConnector snapshotChanged;
 };
 
 struct DocumentSessionVideoDocumentSourceCommandPort

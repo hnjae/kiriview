@@ -31,6 +31,7 @@ enum class VideoDocumentPublicSignal {
 
 struct VideoDocumentPublicSignalOperations
 {
+    std::function<void()> sessionSnapshotChanged;
     std::function<void()> sourceUrlChanged;
     std::function<void()> statusChanged;
     std::function<void()> errorStringChanged;

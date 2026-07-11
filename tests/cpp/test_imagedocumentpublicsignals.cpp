@@ -16,6 +16,7 @@ private Q_SLOTS:
     void publicSignalPlansReturnSignalsInEmissionOrder();
     void publicSignalBatchPlansDeduplicateDerivedSignalsInEmissionOrder();
     void emitterDispatchesChangeSignalsInProjectionOrder();
+    void emitterSkipsSessionSnapshotForUnrelatedChanges();
 };
 
 namespace {
@@ -31,6 +32,8 @@ void comparePublicSignals(const std::vector<kiriview::ImageDocumentPublicSignal>
 kiriview::ImageDocumentPublicSignalOperations recordingOperations(QStringList& events)
 {
     kiriview::ImageDocumentPublicSignalOperations operations;
+    operations.sessionSnapshotChanged
+        = [&events]() { events.append(QStringLiteral("sessionSnapshot")); };
     operations.sourceUrlChanged = [&events]() { events.append(QStringLiteral("sourceUrl")); };
     operations.statusChanged = [&events]() { events.append(QStringLiteral("status")); };
     operations.loadingChanged = [&events]() { events.append(QStringLiteral("loading")); };
@@ -152,6 +155,7 @@ void TestImageDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
 
     QCOMPARE(events,
         QStringList({
+            QStringLiteral("sessionSnapshot"),
             QStringLiteral("twoPageMode"),
             QStringLiteral("pageNavigation"),
             QStringLiteral("displaySource"),
@@ -160,6 +164,22 @@ void TestImageDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
     events.clear();
     emitter.emitChange(kiriview::ImageDocumentChange::DisplaySource);
     QCOMPARE(events, QStringList({ QStringLiteral("displaySource") }));
+}
+
+void TestImageDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChanges()
+{
+    QStringList events;
+    const kiriview::ImageDocumentPublicSignalEmitter emitter(recordingOperations(events));
+
+    emitter.emitChanges({ kiriview::ImageDocumentChange::ViewportFrame,
+        kiriview::ImageDocumentChange::DisplaySource, kiriview::ImageDocumentChange::Rotation });
+
+    QCOMPARE(events,
+        QStringList({
+            QStringLiteral("viewportFrame"),
+            QStringLiteral("displaySource"),
+            QStringLiteral("rotationDegrees"),
+        }));
 }
 
 QTEST_GUILESS_MAIN(TestImageDocumentPublicSignals)

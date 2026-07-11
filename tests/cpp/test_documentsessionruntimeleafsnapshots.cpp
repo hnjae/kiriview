@@ -32,10 +32,10 @@ Q_SIGNALS:
     void imageSnapshotChanged();
 };
 
-kiriview::DocumentSessionDocumentSignalConnector imageSnapshotChangedConnector(
+kiriview::DocumentSessionSnapshotConnector imageSnapshotChangedConnector(
     SnapshotChangeEmitter& emitter)
 {
-    return [&emitter](QObject* context, kiriview::DocumentSessionDocumentChangeHandler handler) {
+    return [&emitter](QObject* context, kiriview::DocumentSessionSnapshotChangeHandler handler) {
         std::vector<QMetaObject::Connection> connections;
         connections.push_back(
             QObject::connect(&emitter, &SnapshotChangeEmitter::imageSnapshotChanged, context,

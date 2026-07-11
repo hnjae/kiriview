@@ -41,6 +41,7 @@ enum class ImageDocumentPublicSignal {
 
 struct ImageDocumentPublicSignalOperations
 {
+    std::function<void()> sessionSnapshotChanged;
     std::function<void()> sourceUrlChanged;
     std::function<void()> statusChanged;
     std::function<void()> loadingChanged;

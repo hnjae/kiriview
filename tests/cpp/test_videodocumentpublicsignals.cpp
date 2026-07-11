@@ -16,6 +16,7 @@ private Q_SLOTS:
     void publicSignalPlansReturnSignalsInEmissionOrder();
     void publicSignalBatchPlansDeduplicateSignalsInEmissionOrder();
     void emitterDispatchesChangeSignalsInProjectionOrder();
+    void emitterSkipsSessionSnapshotForUnrelatedChanges();
 };
 
 namespace {
@@ -31,6 +32,8 @@ void comparePublicSignals(const std::vector<kiriview::VideoDocumentPublicSignal>
 kiriview::VideoDocumentPublicSignalOperations recordingOperations(QStringList& events)
 {
     kiriview::VideoDocumentPublicSignalOperations operations;
+    operations.sessionSnapshotChanged
+        = [&events]() { events.append(QStringLiteral("sessionSnapshot")); };
     operations.sourceUrlChanged = [&events]() { events.append(QStringLiteral("sourceUrl")); };
     operations.statusChanged = [&events]() { events.append(QStringLiteral("status")); };
     operations.errorStringChanged = [&events]() { events.append(QStringLiteral("errorString")); };
@@ -109,9 +112,32 @@ void TestVideoDocumentPublicSignals::emitterDispatchesChangeSignalsInProjectionO
 
     QCOMPARE(events,
         QStringList({
+            QStringLiteral("sessionSnapshot"),
             QStringLiteral("position"),
             QStringLiteral("hasVideo"),
             QStringLiteral("zoomPercent"),
+            QStringLiteral("muted"),
+            QStringLiteral("videoOutput"),
+        }));
+}
+
+void TestVideoDocumentPublicSignals::emitterSkipsSessionSnapshotForUnrelatedChanges()
+{
+    QStringList events;
+    const kiriview::VideoDocumentPublicSignalEmitter emitter(recordingOperations(events));
+
+    emitter.emitChanges({ kiriview::VideoDocumentChange::Duration,
+        kiriview::VideoDocumentChange::Position, kiriview::VideoDocumentChange::Playing,
+        kiriview::VideoDocumentChange::Seekable, kiriview::VideoDocumentChange::HasAudio,
+        kiriview::VideoDocumentChange::Muted, kiriview::VideoDocumentChange::VideoOutput });
+
+    QCOMPARE(events,
+        QStringList({
+            QStringLiteral("duration"),
+            QStringLiteral("position"),
+            QStringLiteral("playing"),
+            QStringLiteral("seekable"),
+            QStringLiteral("hasAudio"),
             QStringLiteral("muted"),
             QStringLiteral("videoOutput"),
         }));

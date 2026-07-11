@@ -138,5 +138,7 @@ void KiriVideoDocument::setVideoOutputGeometry(const QRectF& contentRect, const 
 void KiriVideoDocument::handleDocumentChanges(
     const std::vector<kiriview::VideoDocumentChange>& changes)
 {
-    kiriview::VideoDocumentPublicSignalEmitter(publicSignalOperations(*this)).emitChanges(changes);
+    kiriview::VideoDocumentPublicSignalOperations operations = publicSignalOperations(*this);
+    operations.sessionSnapshotChanged = [this]() { Q_EMIT documentSessionSnapshotChanged(); };
+    kiriview::VideoDocumentPublicSignalEmitter(std::move(operations)).emitChanges(changes);
 }
