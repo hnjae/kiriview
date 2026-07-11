@@ -11,7 +11,7 @@
 
 namespace {
 
-class PresentationControllerContext final : public QObject
+class PresentationControllerContext final
 {
 public:
     ImageSequence* sequence = nullptr;

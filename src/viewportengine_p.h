@@ -12,7 +12,6 @@
 #include <optional>
 
 
-class ViewportEngineStateAccess;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
 #endif
@@ -80,7 +79,7 @@ public:
         ImageViewportPresentationCommand command;
         GeometryInput geometry;
         QPointF anchor;
-        bool readyDisplay = false;
+        int quarterTurnDelta = 0;
     };
 
     struct PresentationCommandResult
@@ -243,7 +242,9 @@ public:
         ImageViewportInternal::ViewportChangeSet changes);
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     const ImageViewportInternal::PresentationState& presentationState() const;
+#endif
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
@@ -343,7 +344,6 @@ public:
     void setNextRevisionValueForTest(quint64 token);
 
 private:
-    friend class ViewportEngineStateAccess;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
 #endif
@@ -351,10 +351,9 @@ private:
     const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
     const ImageViewportInternal::RequestState& requestState() const;
-    ImageViewportInternal::ProviderGenerationState& providerState();
-    const ImageViewportInternal::ProviderGenerationState& providerState() const;
-    ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
-    const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
+    ImageViewportInternal::ProviderGenerationState& providerState(ImageViewport::PageRole role);
+    const ImageViewportInternal::ProviderGenerationState& providerState(
+        ImageViewport::PageRole role) const;
     struct RoleState
     {
         ImageViewportInternal::ProviderGenerationState provider;
@@ -393,7 +392,8 @@ private:
     ImageViewportInternal::PresentationState m_presentationState;
 };
 
-class ViewportEngineStateAccess
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
+class ViewportEngineTestAccess
 {
 public:
     static ImageViewportInternal::DisplayState& display(ViewportEngine& engine)
@@ -415,17 +415,12 @@ public:
     static ImageViewportInternal::ProviderGenerationState& provider(
         ViewportEngine& engine, ImageViewport::PageRole role)
     {
-        return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState() : engine.providerState();
+        return engine.providerState(role);
     }
     static const ImageViewportInternal::ProviderGenerationState& provider(
         const ViewportEngine& engine, ImageViewport::PageRole role)
     {
-        return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState() : engine.providerState();
+        return engine.providerState(role);
     }
-};
-
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-class ViewportEngineTestAccess : public ViewportEngineStateAccess
-{
 };
 #endif

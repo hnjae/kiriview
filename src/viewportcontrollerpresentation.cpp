@@ -9,9 +9,7 @@ ViewportCommandResult ViewportController::setPresentation(
     const ViewportEngine::PresentationCommandResult engineResult
         = engine.applyPresentationCommand(
             { input.command,
-                engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor,
-                ViewportEngineStateAccess::display(engine).hasReadyDisplay(
-                    ViewportEngineStateAccess::request(engine).roles[0].source.facts.present) });
+                engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
@@ -96,15 +94,28 @@ ViewportCommandResult ViewportController::scanPrevious()
 ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
 {
     ImageViewportPresentationCommand command;
-    command.setRotationDegrees((engine.presentationState().rotationDegrees + 90) % 360);
-    return setPresentation({ command, anchor, 1.0 });
+    ViewportPresentationCommandInput input { command, anchor, 1.0 };
+    const auto engineResult = engine.applyPresentationCommand(
+        { input.command, engine.projectedGeometryInput(itemBounds()), input.anchor, 1 });
+    ViewportCommandResult result
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
+    mergeChanges(result.changes, engineResult.changes);
+    result.providerFrameTransport = engineResult.providerEffects[0];
+    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
+    return result;
 }
 
 ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
 {
     ImageViewportPresentationCommand command;
-    command.setRotationDegrees((engine.presentationState().rotationDegrees + 270) % 360);
-    return setPresentation({ command, anchor, 1.0 });
+    const auto engineResult = engine.applyPresentationCommand(
+        { command, engine.projectedGeometryInput(itemBounds()), anchor, -1 });
+    ViewportCommandResult result
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
+    mergeChanges(result.changes, engineResult.changes);
+    result.providerFrameTransport = engineResult.providerEffects[0];
+    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
+    return result;
 }
 
 ViewportCommandResult ViewportController::setMirrorHorizontally(bool enabled, QPointF anchor)

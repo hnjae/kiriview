@@ -871,7 +871,7 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
         engine
             .applyPresentationCommand({ command,
                 { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 },
-                {}, true })
+                {}, 0 })
             .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 
@@ -908,7 +908,7 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     QCOMPARE(
         engine
             .applyPresentationCommand({ command,
-                { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 }, {}, true })
+                { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 }, {}, 0 })
             .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 

@@ -9,12 +9,6 @@
 namespace {
 using namespace ImageViewportInternal;
 
-ProviderGenerationState& providerForRole(ViewportEngine& engine, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary)
-                                                      : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary);
-}
-
 const DisplayRequest& requestForRole(
     const RequestState& request, ImageViewport::PageRole role)
 {
@@ -231,7 +225,7 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
     ImageViewport::PageRole role)
 {
     ViewportProviderFrameTransportEffect effect;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     effect.closeSession = provider.sessionActive;
     clearQueuedProviderFrameRequest(role);
     if (!provider.sessionActive) {
@@ -250,7 +244,7 @@ ViewportProviderMetadataRequestStartResult ViewportEngine::startProviderMetadata
     ImageViewport::PageRole role)
 {
     ViewportProviderMetadataRequestStartResult result;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const auto allocation = allocateProviderRequestToken(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
@@ -278,7 +272,7 @@ ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameReques
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
 
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const auto allocation = allocateProviderRequestToken(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
@@ -322,7 +316,7 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
         && terminal.requestId == m_requestState.roles[0].activeRequest.identity.id) {
         return result;
     }
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     if (provider.metadataReady) {
         m_displayState.clearPendingRenderPayload();
         m_displayState.clearRenderFailureRetainedDisplay();
@@ -377,7 +371,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
     std::array<ViewportProviderFrameTransportEffect, 2> effects;
     for (const auto role : { ImageViewport::PageRole::Primary,
              ImageViewport::PageRole::Secondary }) {
-        auto& provider = providerForRole(*this, role);
+        auto& provider = providerState(role);
         auto& request = requestForRole(m_requestState, role);
         const bool present = role == ImageViewport::PageRole::Primary
             ? m_requestState.roles[0].source.facts.provider
@@ -565,7 +559,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
     const GeometryInput& geometry)
 {
     ViewportChangeSet changes;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     if (!admission.accepted()) {
         clearQueuedProviderFrameRequest(role);
         provider.activeFrameToken = {};
@@ -679,7 +673,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acceptProviderMetadataF
         return changes;
     }
 
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     provider.metadataReady = true;
     provider.timedMetadata = facts.timedMetadata;
     provider.timedPlaybackSupport = facts.timedPlaybackSupport;
@@ -729,7 +723,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
         && terminal.requestId == m_requestState.roles[0].activeRequest.identity.id) {
         return result;
     }
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const int frameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
     DisplayRequestTarget target;
 
@@ -853,7 +847,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOp
 {
     ViewportChangeSet changes;
     clearQueuedProviderFrameRequest(role);
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     provider.activeMetadataToken = {};
     provider.activeFrameToken = {};
     recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
@@ -867,7 +861,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
     ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event)
 {
     ViewportProviderTerminalEventResult result;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const bool providerPresent = role == ImageViewport::PageRole::Primary
         ? m_requestState.roles[0].source.facts.provider
         : m_requestState.roles[1].provider;
@@ -919,7 +913,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
         event.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
                                    : event.diagnostic,
         false };
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const bool sessionWasActive = provider.sessionActive;
     provider.sessionActive = true;
     ViewportProviderTerminalEventResult result = reduceProviderTerminalEvent(role, terminal);
@@ -938,7 +932,7 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
     ImageViewport::PageRole role, const QString& diagnostic)
 {
     ViewportProviderSchedulerFailureResult result;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const DisplayRequest& request = requestForRole(m_requestState, role);
     const bool queued = provider.queuedFrameRequest;
     result.diagnostic = { queued, role, provider.queuedFrameGeneration, request.identity.id,
@@ -975,7 +969,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderWaitingEv
         && terminal.requestId == m_requestState.roles[0].activeRequest.identity.id) {
         return changes;
     }
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const bool providerPresent = role == ImageViewport::PageRole::Primary
         ? m_requestState.roles[0].source.facts.provider
         : m_requestState.roles[1].provider;
@@ -1006,7 +1000,7 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceP
 {
     ViewportProviderEndOfSequenceResult result;
     clearQueuedProviderFrameRequest(role);
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     if (input.activeMetadataToken) {
         provider.activeMetadataToken = {};
     }
@@ -1029,7 +1023,7 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
     const GeometryInput& geometry)
 {
     ViewportProviderEndOfSequenceResult result;
-    auto& provider = providerForRole(*this, role);
+    auto& provider = providerState(role);
     const bool present = role == ImageViewport::PageRole::Primary
         ? m_requestState.roles[0].source.facts.provider
         : m_requestState.roles[1].sequence && m_requestState.roles[1].provider;

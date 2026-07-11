@@ -95,10 +95,9 @@ bool pendingSpreadReady(const DisplayState& display, const RequestState& request
         && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
 }
 
-void publishSecondaryDisplay(ViewportEngine& engine)
+void publishSecondaryDisplay(RequestState& request, DisplayState& display,
+    const ProviderGenerationState& secondaryProvider)
 {
-    auto& request = ViewportEngineStateAccess::request(engine);
-    auto& display = ViewportEngineStateAccess::display(engine);
     if (!hasSecondary(request)) {
         display.roles[1].displayedRequest = {};
         display.roles[1].displayedImageSize = {};
@@ -112,7 +111,7 @@ void publishSecondaryDisplay(ViewportEngine& engine)
     display.roles[1].displayedRequest.request.target.position = position;
     display.roles[1].displayedRequest.request.resolvedFrame.position = position;
     display.roles[1].displayedImageSize = request.roles[1].provider
-        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary).logicalSize
+        ? secondaryProvider.logicalSize
         : sourceLogicalSize(request.roles[1].source);
     if (!request.roles[1].provider
         && !display.roles[1].pendingRenderPayload.image.isNull()) {
@@ -121,10 +120,10 @@ void publishSecondaryDisplay(ViewportEngine& engine)
     }
 }
 
-void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
+void publishReady(RequestState& request, DisplayState& display,
+    const ProviderGenerationState& primaryProvider,
+    const ProviderGenerationState& secondaryProvider, const PreparedPayload& payload)
 {
-    auto& request = ViewportEngineStateAccess::request(engine);
-    auto& display = ViewportEngineStateAccess::display(engine);
     request.status = ImageViewport::RequestStatus::Ready;
     request.reason = ImageViewport::RequestReason::Ready;
     display.status = ImageViewport::DisplayStatus::Ready;
@@ -135,22 +134,20 @@ void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
     const int position = request.roles[0].activeRequest.resolvedFrame.position >= 0
         ? request.roles[0].activeRequest.resolvedFrame.position
         : request.roles[0].source.facts.provider
-        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).timingIntervals.frameStartPosition(frame)
+        ? primaryProvider.timingIntervals.frameStartPosition(frame)
         : sourceFrameStartPosition(request.roles[0].source, frame);
     display.roles[0].displayedRequest = display.activeRequestSnapshot(
         request.sequenceGeneration, request.roles[0].activeRequest, position);
     display.roles[0].displayedImageSize = request.roles[0].source.facts.provider
-        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).logicalSize
+        ? primaryProvider.logicalSize
         : sourceLogicalSize(request.roles[0].source);
     display.roles[0].displayedImage = payload.image;
     display.roles[0].displayedPayload = payload;
-    publishSecondaryDisplay(engine);
+    publishSecondaryDisplay(request, display, secondaryProvider);
 }
 
-void stageBuiltIn(ViewportEngine& engine)
+void stageBuiltIn(RequestState& request, DisplayState& display)
 {
-    auto& request = ViewportEngineStateAccess::request(engine);
-    auto& display = ViewportEngineStateAccess::display(engine);
     display.captureRenderFailureRetainedDisplay(hasDisplayable(request));
     display.roles[0].pendingRenderPayload.commitPending = true;
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);
@@ -225,12 +222,15 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
     }
     const auto oldStatus = m_displayState.status;
     if (input.pendingTargetCommit) {
-        publishReady(*this, input.preparedPayload);
+        publishReady(m_requestState, m_displayState,
+            providerState(ImageViewport::PageRole::Primary),
+            providerState(ImageViewport::PageRole::Secondary), input.preparedPayload);
     }
     if (input.pendingSecondaryProviderCommit) {
         m_displayState.roles[1].displayedImage = m_displayState.roles[1].pendingRenderPayload.image;
         m_displayState.roles[1].displayedPayload = m_displayState.roles[1].pendingRenderPayload;
-        m_displayState.roles[1].displayedImageSize = secondaryProviderState().logicalSize;
+        m_displayState.roles[1].displayedImageSize
+            = providerState(ImageViewport::PageRole::Secondary).logicalSize;
     }
     const bool resume = m_requestState.playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && m_requestState.status == ImageViewport::RequestStatus::Ready;
@@ -346,7 +346,7 @@ ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
             return result;
         }
         if (!m_requestState.roles[0].source.facts.provider) {
-            stageBuiltIn(*this);
+            stageBuiltIn(m_requestState, m_displayState);
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::UploadPending;
             m_displayState.status = m_displayState.hasReadyDisplay(hasDisplayable(m_requestState))

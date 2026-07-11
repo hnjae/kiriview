@@ -32,6 +32,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::publishChanges(
     return engine.publishChanges(changes);
 }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 const ImageViewportInternal::PresentationState& ViewportController::presentationState() const
 {
     return engine.presentationState();
@@ -39,29 +40,30 @@ const ImageViewportInternal::PresentationState& ViewportController::presentation
 
 const ImageViewportInternal::DisplayState& ViewportController::displayState() const
 {
-    return ViewportEngineStateAccess::display(engine);
+    return ViewportEngineTestAccess::display(engine);
 }
 
 const ImageViewportInternal::RequestState& ViewportController::requestState() const
 {
-    return ViewportEngineStateAccess::request(engine);
+    return ViewportEngineTestAccess::request(engine);
 }
 
 bool ViewportController::hasProviderSession() const
 {
-    return ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).sessionActive;
+    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).sessionActive;
 }
 
 
 bool ViewportController::providerMetadataReady() const
 {
-    return ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).metadataReady;
+    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).metadataReady;
 }
 
 bool ViewportController::secondaryProviderMetadataReady() const
 {
-    return ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary).metadataReady;
+    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary).metadataReady;
 }
+#endif
 
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
@@ -127,14 +129,14 @@ ViewportCommandResult ViewportController::clear()
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
-    ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).nextRequestToken = token;
+    ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).nextRequestToken = token;
 }
 
 void ViewportController::setNextProviderRequestTokenForTest(
     ImageViewport::PageRole role, quint64 token)
 {
     if (role == ImageViewport::PageRole::Secondary) {
-        ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary).nextRequestToken = token;
+        ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary).nextRequestToken = token;
         return;
     }
 
@@ -144,44 +146,44 @@ void ViewportController::setNextProviderRequestTokenForTest(
 void ViewportController::setNextRevisionTokenForTest(quint64 token)
 {
     engine.setNextRevisionValueForTest(token);
-    ViewportEngineStateAccess::display(engine).revision = 0;
-    ViewportEngineStateAccess::request(engine).requestRevision = 0;
-    ViewportEngineStateAccess::request(engine).commandRevision = 0;
+    ViewportEngineTestAccess::display(engine).revision = 0;
+    ViewportEngineTestAccess::request(engine).requestRevision = 0;
+    ViewportEngineTestAccess::request(engine).commandRevision = 0;
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const
 {
-    return ViewportEngineStateAccess::display(engine).roles[0].pendingRenderPayload.commitPending;
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.commitPending;
 }
 
 quint64 ViewportController::activeRequestIdForTest() const
 {
-    return ViewportEngineStateAccess::request(engine).roles[0].activeRequest.identity.id;
+    return ViewportEngineTestAccess::request(engine).roles[0].activeRequest.identity.id;
 }
 
 quint64 ViewportController::displayedRequestIdForTest() const
 {
-    return ViewportEngineStateAccess::display(engine).roles[0].displayedRequest.request.identity.id;
+    return ViewportEngineTestAccess::display(engine).roles[0].displayedRequest.request.identity.id;
 }
 
 quint64 ViewportController::pendingRenderGenerationForTest() const
 {
-    return ViewportEngineStateAccess::display(engine).roles[0].pendingRenderPayload.generation;
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.generation;
 }
 
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
-    return ViewportEngineStateAccess::display(engine).roles[0].pendingRenderPayload.payloadId;
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.payloadId;
 }
 
 quint64 ViewportController::secondaryPendingRenderPayloadIdForTest() const
 {
-    return ViewportEngineStateAccess::display(engine).roles[1].pendingRenderPayload.payloadId;
+    return ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.payloadId;
 }
 
 ImageViewportInternal::RenderFailureDiagnostic
 ViewportController::lastAcceptedRenderFailureDiagnosticForTest() const
 {
-    return ViewportEngineStateAccess::request(engine).lastAcceptedRenderFailure;
+    return ViewportEngineTestAccess::request(engine).lastAcceptedRenderFailure;
 }
 #endif

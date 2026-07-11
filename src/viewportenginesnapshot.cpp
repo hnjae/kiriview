@@ -88,13 +88,6 @@ const PreparedPayload& displayedPayloadForRole(
                                                     : display.roles[1].displayedPayload;
 }
 
-const ProviderGenerationState& providerForRole(
-    const ViewportEngine& engine, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Primary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary)
-                                                    : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary);
-}
-
 struct Metadata
 {
     int frameCount = -1;
@@ -111,9 +104,10 @@ ImageViewport::CapabilitySupport support(bool value)
     return value ? ImageViewport::CapabilitySupport::True : ImageViewport::CapabilitySupport::False;
 }
 
-Metadata metadataFor(const ViewportEngine& engine, ImageViewport::PageRole role)
+Metadata metadataFor(const RequestState& request, const ProviderGenerationState& primaryProvider,
+    const ProviderGenerationState& secondaryProvider, ImageViewport::PageRole role)
 {
-    const auto& source = sourceForRole(ViewportEngineStateAccess::request(engine), role);
+    const auto& source = sourceForRole(request, role);
     if (!source.facts.present) {
         return {};
     }
@@ -131,7 +125,8 @@ Metadata metadataFor(const ViewportEngine& engine, ImageViewport::PageRole role)
         result.playback = support(source.facts.timed);
         return result;
     }
-    const auto& provider = providerForRole(engine, role);
+    const auto& provider
+        = role == ImageViewport::PageRole::Primary ? primaryProvider : secondaryProvider;
     Metadata result;
     if (provider.metadataReady) {
         result.frameCount = provider.timedMetadata ? provider.timingIntervals.frameCount() : 1;
@@ -284,9 +279,11 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
         const bool displayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
             && positive(displayedSize);
         const bool belongs = displayed && displayedRequest.generation == acceptedGenerationValue;
-        const Metadata metadata = metadataFor(*this, role);
+        const Metadata metadata = metadataFor(m_requestState,
+            providerState(ImageViewport::PageRole::Primary),
+            providerState(ImageViewport::PageRole::Secondary), role);
         const QSizeF logicalSize = source.facts.provider
-            ? (providerForRole(*this, role).metadataReady ? providerForRole(*this, role).logicalSize
+            ? (providerState(role).metadataReady ? providerState(role).logicalSize
                                                           : source.facts.providerKnownLogicalSize)
             : sourceLogicalSize(source);
         const auto& payload = displayedPayloadForRole(m_displayState, role);
@@ -312,8 +309,8 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
             = !input.acceptedGeometry.itemBounds.isEmpty() && !acceptedPageRect.isEmpty();
         const bool displayedGeometryAvailable
             = !input.displayedGeometry.itemBounds.isEmpty() && !displayedPageRect.isEmpty();
-        const auto animation = source.facts.provider && providerForRole(*this, role).metadataReady
-            ? providerForRole(*this, role).authoredAnimationFacts
+        const auto animation = source.facts.provider && providerState(role).metadataReady
+            ? providerState(role).authoredAnimationFacts
             : source.facts.authoredAnimationFacts;
         const int loopCount
             = animation.loopMode() == ImageSequenceAuthoredAnimationFacts::LoopMode::Finite

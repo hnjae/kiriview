@@ -124,7 +124,12 @@ bool commandValid(const ViewportEngine::PresentationCommandInput& input)
     };
     const double maximumZoom = ImageViewportDisplayLimits::maximumManualZoomPercent();
 
-    return commandHasOperation(command) && !resetConflicts && geometryPositioningOperations <= 1
+    const bool relativeRotation = input.quarterTurnDelta != 0;
+    return (commandHasOperation(command) || relativeRotation) && !resetConflicts
+        && geometryPositioningOperations <= 1
+        && (input.quarterTurnDelta == 0 || input.quarterTurnDelta == 1
+            || input.quarterTurnDelta == -1)
+        && !(relativeRotation && command.hasRotationDegrees())
         && ImageViewportInternal::isFinitePoint(input.anchor)
         && std::isfinite(input.geometry.devicePixelRatio) && input.geometry.devicePixelRatio > 0.0
         && (!command.hasFitMode() || ImageViewportInternal::isValidFitMode(command.fitMode()))
@@ -255,6 +260,12 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     if (command.hasRotationDegrees() && next.rotationDegrees != command.rotationDegrees()) {
         applyAnchored([&] { next.rotationDegrees = command.rotationDegrees(); });
     }
+    if (input.quarterTurnDelta != 0) {
+        applyAnchored([&] {
+            next.rotationDegrees
+                = (next.rotationDegrees + input.quarterTurnDelta * 90 + 360) % 360;
+        });
+    }
     if (command.hasMirrorHorizontally()
         && next.mirrorHorizontally != command.mirrorHorizontally()) {
         applyAnchored([&] { next.mirrorHorizontally = command.mirrorHorizontally(); });
@@ -304,7 +315,9 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     m_requestState.looping = nextLooping;
     result.command = accepted();
     result.changes = presentationChanges(
-        presentationChanged, affectsGeometry, input.readyDisplay, input.geometry.itemBounds);
+        presentationChanged, affectsGeometry,
+        m_displayState.hasReadyDisplay(m_requestState.roles[0].source.facts.present),
+        input.geometry.itemBounds);
     const bool demandChanged = affectsGeometry
         || previousPresentation.qualityPreference != next.qualityPreference
         || previousPresentation.exactnessPreference != next.exactnessPreference;

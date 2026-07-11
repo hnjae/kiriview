@@ -92,7 +92,7 @@ enum class TerminalScopeCase {
     RenderFailure,
 };
 
-class ProviderControllerContext final : public QObject
+class ProviderControllerContext final
 {
 public:
     ImageSequence* sequence = nullptr;

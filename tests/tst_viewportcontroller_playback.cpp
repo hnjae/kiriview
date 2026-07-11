@@ -66,7 +66,7 @@ enum class RoleCommandKind {
     SeekPosition,
 };
 
-class PlaybackControllerContext final : public QObject
+class PlaybackControllerContext final
 {
 public:
     ImageSequence* sequence = nullptr;

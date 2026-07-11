@@ -65,12 +65,14 @@ class ViewportController
 public:
     explicit ViewportController(std::function<QRectF()> captureItemBounds);
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
     bool hasProviderSession() const;
     bool providerMetadataReady() const;
     bool secondaryProviderMetadataReady() const;
+#endif
     ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
     ImageViewportInternal::ViewportChangeSet publishChanges(
         ImageViewportInternal::ViewportChangeSet changes);
