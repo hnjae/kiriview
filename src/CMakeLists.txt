@@ -27,7 +27,6 @@ qt_add_qml_module(
     imageviewportplaybackscheduler.cpp
     imageviewportplaybackscheduler_p.h
     imageviewportpresentation.cpp
-    imageviewportprovider.cpp
     imageviewportproviderhost.cpp
     imageviewportproviderhost_p.h
     imageviewportrender.cpp
@@ -57,12 +56,9 @@ qt_add_qml_module(
     viewportcontroller.cpp
     viewportcontrollerassignmentcontract_p.h
     viewportcontrollercommandcontract_p.h
-    viewportcontrollercorehelpers_p.h
     viewportcontrollergeometry.cpp
     viewportcontrollergeometryhelpers_p.h
     viewportcontrollerhelpers_p.h
-    viewportcontrollermetadatacontract_p.h
-    viewportcontrollerplaybackhelpers_p.h
     viewportcontrollerplaybackcontract_p.h
     viewportplaybackcontract_p.h
     viewportcontrollerprovidercontract_p.h
@@ -70,7 +66,6 @@ qt_add_qml_module(
     viewportrendercontract_p.h
     viewportcommandoutcome.cpp
     viewportcommandoutcome_p.h
-    viewportcontrollermetadata.cpp
     viewportcontrollerplayback.cpp
     viewportcontrollerpresentation.cpp
     viewportcontrollerprovider.cpp

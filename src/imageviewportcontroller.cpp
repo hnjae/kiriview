@@ -19,10 +19,6 @@ void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
     playbackScheduler.apply(result.schedule);
 }
 
-void ImageViewportPrivate::incrementDisplayRevision() { controller.incrementDisplayRevision(); }
-
-void ImageViewportPrivate::incrementRequestRevision() { controller.incrementRequestRevision(); }
-
 bool ImageViewportPrivate::hasActiveRequest() const
 {
     return lastStateSnapshot.request().status() != RequestStatus::NoRequest;
@@ -36,87 +32,6 @@ bool ImageViewportPrivate::hasReadyDisplay() const
 bool ImageViewportPrivate::hasDisplayableSequence() const
 {
     return lastStateSnapshot.primary().metadata().available();
-}
-
-bool ImageViewportPrivate::hasStillSequence() const
-{
-    return sourceIsStill(controller.requestState().sequenceSource);
-}
-
-bool ImageViewportPrivate::hasTimedSequence() const
-{
-    return lastStateSnapshot.primary().metadata().totalDuration() >= 0;
-}
-
-bool ImageViewportPrivate::hasProviderSequence() const
-{
-    return controller.requestState().sequenceSource.facts.provider;
-}
-
-bool ImageViewportPrivate::providerTimedPlaybackCapabilityKnownFalse() const
-{
-    return providerCapabilityKnownFalse(
-        controller.requestState().sequenceSource.facts.providerTimedPlaybackCapability);
-}
-
-bool ImageViewportPrivate::providerFrameSeekCapabilityKnownFalse() const
-{
-    return providerCapabilityKnownFalse(
-        controller.requestState().sequenceSource.facts.providerFrameSeekCapability);
-}
-
-bool ImageViewportPrivate::providerFrameSeekCapabilityKnownTrue() const
-{
-    return providerCapabilityKnownTrue(
-        controller.requestState().sequenceSource.facts.providerFrameSeekCapability);
-}
-
-bool ImageViewportPrivate::providerPositionSeekCapabilityKnownFalse() const
-{
-    return providerCapabilityKnownFalse(
-        controller.requestState().sequenceSource.facts.providerPositionSeekCapability);
-}
-
-bool ImageViewportPrivate::providerKnownFactsTimedFrameCount() const
-{
-    return controller.requestState().sequenceSource.facts.providerKnownFacts.isTimedFrameCount();
-}
-
-int ImageViewportPrivate::providerKnownFactsFrameCount() const
-{
-    return providerKnownFactsTimedFrameCount()
-        ? controller.requestState().sequenceSource.facts.providerKnownFacts.frameCount()
-        : 0;
-}
-
-int ImageViewportPrivate::sequenceFrameCount() const
-{
-    return lastStateSnapshot.primary().metadata().frameCount();
-}
-
-int ImageViewportPrivate::sequenceTotalDuration() const
-{
-    return lastStateSnapshot.primary().metadata().totalDuration();
-}
-
-int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
-{
-    return sourceFrameIndexForPosition(controller.requestState().sequenceSource, position);
-}
-
-int ImageViewportPrivate::sequenceFrameStartPosition(int frame) const
-{
-    return sourceFrameStartPosition(controller.requestState().sequenceSource, frame);
-}
-
-QSizeF ImageViewportPrivate::sequenceLogicalSize() const
-{
-    return lastStateSnapshot.primary().request().sourceLogicalSize();
-}
-
-QSizeF ImageViewportPrivate::secondarySequenceLogicalSize() const
-{
-    return lastStateSnapshot.secondary().request().sourceLogicalSize();
 }
 
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)

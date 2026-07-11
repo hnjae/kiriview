@@ -2,7 +2,6 @@
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollercommandcontract_p.h"
-#include "viewportcontrollermetadatacontract_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -192,8 +191,9 @@ int ImageViewportPrivate::primaryRequestedFrame() const { return requestedFrame(
 
 int ImageViewportPrivate::secondaryDisplayedFrame() const
 {
-    if (hasReadyDisplay() && hasDisplayedSecondaryRole(controller.displayState())) {
-        return controller.displayState().secondaryDisplayedRequest.request.target.frame;
+    if (hasReadyDisplay()
+        && lastStateSnapshot.secondary().display().sourceLogicalSize().isValid()) {
+        return lastStateSnapshot.secondary().display().frame();
     }
 
     return -1;
@@ -201,8 +201,8 @@ int ImageViewportPrivate::secondaryDisplayedFrame() const
 
 int ImageViewportPrivate::secondaryRequestedFrame() const
 {
-    if (controller.requestState().secondarySequence) {
-        return controller.requestState().secondaryActiveRequest.target.frame;
+    if (lastStateSnapshot.secondary().metadata().available()) {
+        return lastStateSnapshot.secondary().request().frame();
     }
 
     return -1;
@@ -211,7 +211,7 @@ int ImageViewportPrivate::secondaryRequestedFrame() const
 int ImageViewportPrivate::displayedPosition() const
 {
     if (hasReadyDisplay()) {
-        return controller.displayState().displayedRequest.request.target.position;
+        return lastStateSnapshot.primary().display().position();
     }
 
     return -1;
@@ -219,13 +219,10 @@ int ImageViewportPrivate::displayedPosition() const
 
 int ImageViewportPrivate::requestedPosition() const
 {
-    if (hasProviderSequence()
-        && (controller.providerTimedMetadata()
-            || controller.requestState().activeRequest.target.position >= 0)) {
-        return controller.requestState().activeRequest.target.position;
-    }
-    if (hasTimedSequence()) {
-        return controller.requestState().activeRequest.target.position;
+    if (lastStateSnapshot.primary().metadata().available()
+        && (lastStateSnapshot.primary().metadata().totalDuration() >= 0
+            || lastStateSnapshot.primary().request().position() >= 0)) {
+        return lastStateSnapshot.primary().request().position();
     }
 
     return -1;
@@ -237,8 +234,9 @@ int ImageViewportPrivate::primaryRequestedPosition() const { return requestedPos
 
 int ImageViewportPrivate::secondaryDisplayedPosition() const
 {
-    if (hasReadyDisplay() && hasDisplayedSecondaryRole(controller.displayState())) {
-        return controller.displayState().secondaryDisplayedRequest.request.target.position;
+    if (hasReadyDisplay()
+        && lastStateSnapshot.secondary().display().sourceLogicalSize().isValid()) {
+        return lastStateSnapshot.secondary().display().position();
     }
 
     return -1;
@@ -246,58 +244,15 @@ int ImageViewportPrivate::secondaryDisplayedPosition() const
 
 int ImageViewportPrivate::secondaryRequestedPosition() const
 {
-    if (!controller.requestState().secondarySequence) {
+    if (!lastStateSnapshot.secondary().metadata().available()) {
         return -1;
     }
-    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
-    if (source.facts.provider
-        && (controller.secondaryProviderTimedMetadata()
-            || controller.requestState().secondaryActiveRequest.target.position >= 0)) {
-        return controller.requestState().secondaryActiveRequest.target.position;
-    }
-    if (source.facts.timed) {
-        return controller.requestState().secondaryActiveRequest.target.position;
+    if (lastStateSnapshot.secondary().metadata().totalDuration() >= 0
+        || lastStateSnapshot.secondary().request().position() >= 0) {
+        return lastStateSnapshot.secondary().request().position();
     }
 
     return -1;
-}
-
-bool ImageViewportPrivate::hasSecondaryTimedSequence() const
-{
-    return controller.requestState().secondarySequenceSource.facts.timed;
-}
-
-int ImageViewportPrivate::secondarySequenceFrameCount() const
-{
-    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
-    return source.facts.present && !source.facts.provider ? source.facts.frameCount : -1;
-}
-
-int ImageViewportPrivate::secondarySequenceTotalDuration() const
-{
-    const ImageSequenceSource& source = controller.requestState().secondarySequenceSource;
-    return source.facts.present && !source.facts.provider ? source.facts.totalDuration : -1;
-}
-
-int ImageViewportPrivate::secondarySequenceFrameIndexForPosition(int position) const
-{
-    return sourceFrameIndexForPosition(controller.requestState().secondarySequenceSource, position);
-}
-
-int ImageViewportPrivate::secondarySequenceFrameStartPosition(int frame) const
-{
-    return sourceFrameStartPosition(controller.requestState().secondarySequenceSource, frame);
-}
-
-ImageSequenceAuthoredAnimationFacts ImageViewportPrivate::sequenceAuthoredAnimationFacts() const
-{
-    return controller.requestState().sequenceSource.facts.authoredAnimationFacts;
-}
-
-ImageSequenceAuthoredAnimationFacts
-ImageViewportPrivate::secondarySequenceAuthoredAnimationFacts() const
-{
-    return controller.requestState().secondarySequenceSource.facts.authoredAnimationFacts;
 }
 
 QSizeF ImageViewportPrivate::displayedSpreadSize() const

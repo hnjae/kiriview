@@ -6,6 +6,16 @@
 #include <limits>
 
 namespace {
+bool isPositiveGeometrySize(QSizeF size)
+{
+    return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
+}
+
+QSizeF imageLogicalSize(const QImage& image)
+{
+    return image.isNull() ? QSizeF() : image.deviceIndependentSize();
+}
+
 bool fitModeValid(ImageViewport::FitMode mode)
 {
     switch (mode) {
@@ -354,6 +364,74 @@ PresentationGeometry::State ViewportEngine::geometryState(
     };
 }
 
+ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(const QRectF& itemBounds,
+    double devicePixelRatio, GeometryProjectionTarget target) const
+{
+    const bool sequencePresent = m_requestState.sequenceSource.facts.present;
+    const bool displayReady = m_displayState.hasReadyDisplay(sequencePresent);
+    QSizeF primarySize = displayReady ? m_displayState.displayedImageSize : QSizeF {};
+    QSizeF secondarySize = displayReady ? m_displayState.secondaryDisplayedImageSize : QSizeF {};
+
+    if (target == GeometryProjectionTarget::PendingRender) {
+        if (m_requestState.sequenceSource.facts.provider
+            && isPositiveGeometrySize(providerState().logicalSize)) {
+            primarySize = providerState().logicalSize;
+        } else {
+            const QSizeF pending = imageLogicalSize(m_displayState.pendingRenderPayload.image);
+            if (isPositiveGeometrySize(pending)) {
+                primarySize = pending;
+            }
+        }
+
+        if (!m_requestState.secondarySequence
+            || m_requestState.secondaryActiveRequest.target.frame < 0) {
+            secondarySize = {};
+        } else if (m_requestState.secondarySequenceIsProvider
+            && isPositiveGeometrySize(secondaryProviderState().logicalSize)) {
+            secondarySize = secondaryProviderState().logicalSize;
+        } else {
+            const QSizeF pending
+                = imageLogicalSize(m_displayState.secondaryPendingRenderPayload.image);
+            if (isPositiveGeometrySize(pending)) {
+                secondarySize = pending;
+            }
+        }
+    }
+
+    return { isPositiveGeometrySize(primarySize), itemBounds, primarySize, secondarySize,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+}
+
+ViewportEngine::GeometryInput ViewportEngine::acceptedGeometryInput(
+    const QRectF& itemBounds, double devicePixelRatio) const
+{
+    QSizeF primarySize;
+    if (m_requestState.sequenceSource.facts.provider) {
+        primarySize = providerState().logicalSize;
+    } else {
+        primarySize = ImageViewportInternal::sourceLogicalSize(m_requestState.sequenceSource);
+    }
+    if (!isPositiveGeometrySize(primarySize)) {
+        primarySize = {};
+    }
+
+    QSizeF secondarySize;
+    if (m_requestState.secondarySequence) {
+        if (m_requestState.secondarySequenceIsProvider) {
+            secondarySize = secondaryProviderState().logicalSize;
+        } else if (m_requestState.secondaryActiveRequest.target.frame >= 0) {
+            secondarySize
+                = ImageViewportInternal::sourceLogicalSize(m_requestState.secondarySequenceSource);
+        }
+    }
+    if (!isPositiveGeometrySize(secondarySize)) {
+        secondarySize = {};
+    }
+
+    return { isPositiveGeometrySize(primarySize), itemBounds, primarySize, secondarySize,
+        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+}
+
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
     const ViewportRenderSnapshotInput& input) const
 {
@@ -484,6 +562,20 @@ bool ViewportEngine::acceptsProviderSessionEvent(
         = providerGenerationStateForRole(*this, role);
     return generation != 0 && generation == m_requestState.sequenceGeneration
         && provider.sessionActive && provider.sessionSerial == sessionSerial;
+}
+
+ViewportEngine::ProviderSessionBinding ViewportEngine::providerSessionBinding(
+    ImageViewport::PageRole role) const
+{
+    const auto& source = role == ImageViewport::PageRole::Secondary
+        ? m_requestState.secondarySequenceSource
+        : m_requestState.sequenceSource;
+    const auto& provider = providerGenerationStateForRole(*this, role);
+    const quint64 generation = role == ImageViewport::PageRole::Secondary
+        ? m_presentationTargetState.secondaryRoleGeneration
+        : m_presentationTargetState.primaryRoleGeneration;
+    return { source.providerSessionFactory, source.facts.providerThreadingContract, generation,
+        provider.sessionSerial, provider.sessionActive };
 }
 
 ViewportProviderRequestTokenAllocation ViewportEngine::allocateProviderRequestToken(

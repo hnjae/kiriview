@@ -1,5 +1,5 @@
 #pragma once
 
-#include "viewportcontrollergeometryhelpers_p.h"
+#include "viewportcontroller_p.h"
 
 #include "viewportcontrollerrendercontract_p.h"

@@ -1,5 +1,5 @@
-#include "viewportcontrollerplaybackhelpers_p.h"
-#include "viewportcontrollergeometryhelpers_p.h"
+#include "viewportcontrollerhelpers_p.h"
+#include "viewportcontroller_p.h"
 
 namespace {
 void appendProviderFrameQueueResult(
@@ -9,14 +9,23 @@ void appendProviderFrameQueueResult(
     effect.deferredControllerEvent = queue.deferredControllerEvent;
 }
 
+void appendProviderFrameStartResult(ViewportProviderFrameTransportEffect& effect,
+    const ViewportProviderFrameRequestStartResult& start)
+{
+    effect.closeSession = start.closeSession;
+    effect.sessionClose = start.sessionClose;
+    effect.sendCommand = start.sendCommand;
+    effect.command = start.command;
+}
+
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
     ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    return state.engine.reduceProviderFrameEvent(
-        role, event, frame, metadata, acceptedGeometryInput(viewport));
+    return engine.reduceProviderFrameEvent(
+        role, event, frame, metadata, engine.acceptedGeometryInput(itemBounds()));
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
@@ -36,7 +45,7 @@ ViewportProviderMetadataEventAcceptance ViewportController::acceptProviderMetada
     ImageViewport::PageRole role, ViewportProviderMetadataEvent event)
 {
     const ViewportEngine::ProviderMetadataEventAdmission admission
-        = state.engine.admitProviderMetadataEvent({ role, event.token });
+        = engine.admitProviderMetadataEvent({ role, event.token });
     return { admission.accepted };
 }
 
@@ -49,7 +58,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessi
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
-    return state.engine.reduceProviderSessionOpenFailure(role, diagnostic);
+    return engine.reduceProviderSessionOpenFailure(role, diagnostic);
 }
 
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened()
@@ -60,7 +69,7 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened(
     ImageViewport::PageRole role)
 {
-    return state.engine.reduceProviderSessionOpened(role, acceptedGeometryInput(viewport));
+    return engine.reduceProviderSessionOpened(role, engine.acceptedGeometryInput(itemBounds()));
 }
 
 quint64 ViewportController::activateProviderSession()
@@ -70,7 +79,7 @@ quint64 ViewportController::activateProviderSession()
 
 quint64 ViewportController::activateProviderSession(ImageViewport::PageRole role)
 {
-    return state.engine.activateProviderSession(role);
+    return engine.activateProviderSession(role);
 }
 
 void ViewportController::retireProviderSession()
@@ -80,7 +89,7 @@ void ViewportController::retireProviderSession()
 
 void ViewportController::retireProviderSession(ImageViewport::PageRole role)
 {
-    state.engine.retireProviderSession(role);
+    engine.retireProviderSession(role);
 }
 
 quint64 ViewportController::currentProviderGeneration() const
@@ -90,27 +99,19 @@ quint64 ViewportController::currentProviderGeneration() const
 
 quint64 ViewportController::currentProviderGeneration(ImageViewport::PageRole) const
 {
-    return state.engine.currentProviderGeneration();
+    return engine.currentProviderGeneration();
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory> ViewportController::providerSessionFactory(
     ImageViewport::PageRole role) const
 {
-    const ImageViewportInternal::ImageSequenceSource& source
-        = role == ImageViewport::PageRole::Secondary
-        ? state.engine.requestState().secondarySequenceSource
-        : state.engine.requestState().sequenceSource;
-    return source.providerSessionFactory;
+    return engine.providerSessionBinding(role).factory;
 }
 
 ImageSequenceProviderThreadingContract ViewportController::providerThreadingContract(
     ImageViewport::PageRole role) const
 {
-    const ImageViewportInternal::ImageSequenceSource& source
-        = role == ImageViewport::PageRole::Secondary
-        ? state.engine.requestState().secondarySequenceSource
-        : state.engine.requestState().sequenceSource;
-    return source.facts.providerThreadingContract;
+    return engine.providerSessionBinding(role).threadingContract;
 }
 
 bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) const
@@ -121,29 +122,27 @@ bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) con
 bool ViewportController::acceptsProviderSessionResult(
     ImageViewport::PageRole role, quint64 sessionSerial) const
 {
-    const auto& provider = role == ImageViewport::PageRole::Secondary
-        ? state.engine.secondaryProviderState()
-        : state.engine.providerState();
-    return provider.sessionActive && provider.sessionSerial == sessionSerial;
+    const auto binding = engine.providerSessionBinding(role);
+    return binding.sessionActive && binding.sessionSerial == sessionSerial;
 }
 
 bool ViewportController::acceptsProviderSessionResult(
     ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
 {
-    return state.engine.acceptsProviderSessionEvent(role, sessionSerial, generation);
+    return engine.acceptsProviderSessionEvent(role, sessionSerial, generation);
 }
 
 ViewportProviderEventResult ViewportController::handleProviderEvent(
     const ViewportProviderEvent& event)
 {
-    return state.engine.reduceProviderEvent(event, acceptedGeometryInput(viewport));
+    return engine.reduceProviderEvent(event, engine.acceptedGeometryInput(itemBounds()));
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportController::restageProviderDemands(
     double devicePixelRatio)
 {
-    return state.engine.restageProviderDemands(
-        acceptedGeometryInput(viewport, devicePixelRatio));
+    return engine.restageProviderDemands(
+        engine.acceptedGeometryInput(itemBounds(), devicePixelRatio));
 }
 
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
@@ -155,7 +154,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
 {
-    return state.engine.reduceProviderMetadataAdmission(role, metadata);
+    return engine.reduceProviderMetadataAdmission(role, metadata);
 }
 
 ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataReadyEvent(
@@ -193,20 +192,20 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
 ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
     ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event)
 {
-    return state.engine.reduceProviderTerminalEvent(role, event);
+    return engine.reduceProviderTerminalEvent(role, event);
 }
 
 ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFailure(
     ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event)
 {
-    return state.engine.reduceProviderDispatchFailure(role, event);
+    return engine.reduceProviderDispatchFailure(role, event);
 }
 
 ViewportProviderSchedulerFailureResult
 ViewportController::handleProviderQueueFlushSchedulingFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
-    return state.engine.reduceProviderQueueSchedulingFailure(role, diagnostic);
+    return engine.reduceProviderQueueSchedulingFailure(role, diagnostic);
 }
 
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
@@ -218,8 +217,8 @@ ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMet
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(
     ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    return state.engine.applyProviderMetadataTargetPolicy(
-        role, facts, acceptedGeometryInput(viewport));
+    return engine.applyProviderMetadataTargetPolicy(
+        role, facts, engine.acceptedGeometryInput(itemBounds()));
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
@@ -231,7 +230,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAccep
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
     ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    return state.engine.acceptProviderMetadataFacts(role, facts);
+    return engine.acceptProviderMetadataFacts(role, facts);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
@@ -243,7 +242,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
     ImageViewport::PageRole role, ViewportProviderWaitingEvent event)
 {
-    return state.engine.reduceProviderWaitingEvent(role, event);
+    return engine.reduceProviderWaitingEvent(role, event);
 }
 
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
@@ -255,19 +254,19 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
     ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event)
 {
-    return state.engine.reduceProviderEndOfSequence(
-        role, event, acceptedGeometryInput(viewport));
+    return engine.reduceProviderEndOfSequence(
+        role, event, engine.acceptedGeometryInput(itemBounds()));
 }
 
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 {
-    return state.engine.closeProviderSession(ImageViewport::PageRole::Primary);
+    return engine.closeProviderSession(ImageViewport::PageRole::Primary);
 }
 
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession(
     ImageViewport::PageRole role)
 {
-    return state.engine.closeProviderSession(role);
+    return engine.closeProviderSession(role);
 }
 
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
@@ -278,7 +277,7 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
     ImageViewport::PageRole role)
 {
-    return state.engine.closeProviderSession(role).sessionClose;
+    return engine.closeProviderSession(role).sessionClose;
 }
 
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken()
@@ -289,7 +288,7 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken(
     ImageViewport::PageRole role)
 {
-    return state.engine.allocateProviderRequestToken(role);
+    return engine.allocateProviderRequestToken(role);
 }
 
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest()
@@ -300,14 +299,14 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest(
     ImageViewport::PageRole role)
 {
-    return state.engine.startProviderMetadataRequest(role);
+    return engine.startProviderMetadataRequest(role);
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(
     ImageViewport::PageRole role, ViewportProviderFrameRequestStart request)
 {
-    return state.engine.startProviderFrameRequest(
-        role, request.target, acceptedGeometryInput(viewport));
+    return engine.startProviderFrameRequest(
+        role, request.target, engine.acceptedGeometryInput(itemBounds()));
 }
 
 ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
@@ -321,7 +320,7 @@ ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
 {
     ViewportProviderFrameQueueResult result;
     const ViewportEngine::ProviderFrameQueueResult queue
-        = state.engine.queueProviderFrameRequest({ role, request.frame, request.targetKind });
+        = engine.queueProviderFrameRequest({ role, request.frame, request.targetKind });
     result.cancelToken = queue.cancelToken;
     if (queue.deferredFlush) {
         result.deferredControllerEvent
@@ -340,7 +339,7 @@ ViewportProviderFrameQueueFlush ViewportController::flushQueuedProviderFrameRequ
 {
     ViewportProviderFrameQueueFlush flush;
     const ViewportEngine::ProviderFrameQueueFlushResult engineFlush
-        = state.engine.flushQueuedProviderFrameRequest(role);
+        = engine.flushQueuedProviderFrameRequest(role);
     flush.startRequest = engineFlush.startRequest;
     flush.frame = engineFlush.frame;
     flush.targetKind = engineFlush.targetKind;
@@ -355,8 +354,8 @@ ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFra
 ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFrameRequestEvent(
     ImageViewport::PageRole role)
 {
-    return state.engine.reduceQueuedProviderFrameRequest(
-        role, acceptedGeometryInput(viewport));
+    return engine.reduceQueuedProviderFrameRequest(
+        role, engine.acceptedGeometryInput(itemBounds()));
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(
@@ -375,7 +374,7 @@ ViewportProviderFrameDispatchResult ViewportController::dispatchProviderFrameReq
     ImageViewport::PageRole role, ViewportProviderFrameRequestStart request)
 {
     ViewportProviderFrameDispatchResult result;
-    if (state.engine.hasActiveProviderFrameToken(role)) {
+    if (engine.hasActiveProviderFrameToken(role)) {
         result.accepted = true;
         appendProviderFrameQueueResult(result.transport,
             queueProviderFrameRequest(

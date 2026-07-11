@@ -15,7 +15,6 @@
 
 struct ControllerTransitionPolicy;
 struct ViewportCommandResult;
-struct ViewportMetadataProjection;
 struct ViewportPlaybackAdvanceResult;
 struct ViewportPlaybackScheduleEffect;
 struct ViewportPresentationCommandInput;
@@ -61,79 +60,6 @@ struct ViewportRenderSynchronization;
 struct ViewportSequenceAssignment;
 struct ViewportSequenceAssignmentResult;
 
-struct ViewportControllerState
-{
-    ViewportEngine engine;
-};
-
-class ViewportControllerPort
-{
-public:
-    ViewportControllerPort(std::function<QRectF()> captureItemBounds,
-        ViewportControllerState& state);
-
-    ImageViewportInternal::DisplayState& displayState();
-    const ImageViewportInternal::DisplayState& displayState() const;
-    ImageViewportInternal::RequestState& requestState();
-    const ImageViewportInternal::RequestState& requestState() const;
-    ImageViewportInternal::ProviderGenerationState& providerState();
-    const ImageViewportInternal::ProviderGenerationState& providerState() const;
-    ImageViewportInternal::ProviderGenerationState& secondaryProviderState();
-    const ImageViewportInternal::ProviderGenerationState& secondaryProviderState() const;
-    ViewportEngine& engine();
-    const ViewportEngine& engine() const;
-
-    QRectF contentRect() const;
-    QRectF visibleImageRect() const;
-    QRectF itemBounds() const;
-    bool hasActiveRequest() const;
-    bool hasReadyDisplay() const;
-    bool hasDisplayableSequence() const;
-    bool hasTimedSequence() const;
-    bool hasProviderSequence() const;
-    bool providerHasCompleteKnownMetadata() const;
-    ImageSequenceProviderKnownFacts providerKnownFacts() const;
-    QSizeF providerKnownLogicalSize() const;
-    TimingIntervals providerKnownTimingIntervals() const;
-    ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
-    ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
-    ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
-    bool providerTimedPlaybackCapabilityKnownFalse() const;
-    bool providerFrameSeekCapabilityKnownFalse() const;
-    bool providerFrameSeekCapabilityKnownTrue() const;
-    bool providerPositionSeekCapabilityKnownFalse() const;
-    bool providerKnownFactsTimedFrameCount() const;
-    int providerKnownFactsFrameCount() const;
-    int providerFrameStartPosition(int frame) const;
-    int providerFrameIndexForPosition(int position) const;
-    ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
-    int sequenceFrameCount() const;
-    int sequenceTotalDuration() const;
-    int sequenceFrameIndexForPosition(int position) const;
-    int sequenceFrameStartPosition(int frame) const;
-    ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
-    bool hasSecondaryTimedSequence() const;
-    int secondarySequenceFrameCount() const;
-    int secondarySequenceTotalDuration() const;
-    int secondarySequenceFrameIndexForPosition(int position) const;
-    int secondarySequenceFrameStartPosition(int frame) const;
-    ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
-    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
-    QSizeF secondaryProviderKnownLogicalSize() const;
-    TimingIntervals secondaryProviderKnownTimingIntervals() const;
-    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const;
-    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
-    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
-    QSizeF sequenceLogicalSize() const;
-    QSizeF secondarySequenceLogicalSize() const;
-    double width() const;
-    double height() const;
-
-private:
-    std::function<QRectF()> captureItemBounds;
-    ViewportControllerState& state;
-};
-
 class ViewportController
 {
 public:
@@ -142,34 +68,12 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
+    bool hasProviderSession() const;
+    bool providerMetadataReady() const;
+    bool secondaryProviderMetadataReady() const;
     ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
     ImageViewportInternal::ViewportChangeSet publishChanges(
         ImageViewportInternal::ViewportChangeSet changes);
-    ViewportEngine::PresentationTargetState presentationTargetState() const;
-    bool hasProviderSession() const;
-    bool hasProviderSession(ImageViewport::PageRole role) const;
-    bool providerMetadataReady() const;
-    bool secondaryProviderMetadataReady() const;
-    bool secondaryProviderTimedMetadata() const;
-    bool secondaryProviderTimedPlaybackSupported() const;
-    bool secondaryProviderFrameSeekSupported() const;
-    bool secondaryProviderPositionSeekSupported() const;
-    QSizeF secondaryProviderLogicalSize() const;
-    int secondaryProviderFrameCount() const;
-    int secondaryProviderTotalDuration() const;
-    ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
-    bool providerTimedMetadata() const;
-    bool providerTimedPlaybackSupported() const;
-    bool providerFrameSeekSupported() const;
-    bool providerPositionSeekSupported() const;
-    QSizeF providerLogicalSize() const;
-    int providerFrameCount() const;
-    int providerTotalDuration() const;
-    int providerFrameDuration(int frame) const;
-    int providerFrameStartPosition(int frame) const;
-    int providerFrameIndexForPosition(int position) const;
-    ViewportMetadataProjection metadataProjection(ImageViewport::PageRole role) const;
-    bool looping() const;
     PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;
     PresentationGeometry::State geometryStateForItemBounds(
         const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
@@ -178,13 +82,6 @@ public:
     double manualZoomStepFactor() const;
     double clampedManualZoomPercent(double percent, double devicePixelRatio = 1.0) const;
     double steppedManualZoomPercent(int stepCount, double devicePixelRatio = 1.0) const;
-    void incrementDisplayRevision();
-    void incrementRequestRevision();
-    void incrementCommandRevision();
-    void setCommandRevision(quint64 revision);
-    void setPlaybackPhase(ViewportCommandResult& result, ImageViewport::PlaybackPhase phase);
-    void setPlaybackPhase(
-        ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase);
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
@@ -308,8 +205,7 @@ public:
 #endif
 
 private:
-    quint64 allocateRevisionToken();
-    void armAuthoredAutoplayIfEligible();
+    QRectF itemBounds() const;
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
@@ -329,6 +225,6 @@ private:
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
     ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 
-    ViewportControllerState state;
-    ViewportControllerPort viewport;
+    std::function<QRectF()> captureItemBounds;
+    ViewportEngine engine;
 };

@@ -23,6 +23,10 @@ public:
         QSizeF secondarySize;
         double devicePixelRatio = 1.0;
     };
+    enum class GeometryProjectionTarget {
+        CurrentDisplay,
+        PendingRender,
+    };
     struct SnapshotInput
     {
         GeometryInput acceptedGeometry;
@@ -126,6 +130,15 @@ public:
     {
         ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
         ImageSequenceProviderRequestToken token;
+    };
+    struct ProviderSessionBinding
+    {
+        std::shared_ptr<ImageSequenceProviderSessionFactory> factory;
+        ImageSequenceProviderThreadingContract threadingContract
+            = ImageSequenceProviderThreadingContract::AffinityBound;
+        quint64 generation = 0;
+        quint64 sessionSerial = 0;
+        bool sessionActive = false;
     };
 
     struct ProviderFrameEventAdmission
@@ -237,6 +250,11 @@ public:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
+    GeometryInput projectedGeometryInput(const QRectF& itemBounds,
+        double devicePixelRatio = 1.0,
+        GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay) const;
+    GeometryInput acceptedGeometryInput(
+        const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
     ViewportRenderSynchronization beginRenderSynchronization(
         const RenderSynchronizationInput& input);
@@ -274,6 +292,7 @@ public:
     void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
+    ProviderSessionBinding providerSessionBinding(ImageViewport::PageRole role) const;
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
         ImageViewport::PageRole role);
     ViewportProviderTerminalEventResult reduceProviderTerminalEvent(

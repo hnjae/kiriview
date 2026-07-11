@@ -3,26 +3,28 @@
 ViewportEngine::GeometryChangeResult ViewportController::handleGeometryChanged(
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
-    return state.engine.handleGeometryChanged({ viewport.itemBounds(), oldContentRect,
-        oldVisibleImageRect, controllerGeometryState(viewport, state.engine.presentationState()) });
+    return engine.handleGeometryChanged({ itemBounds(), oldContentRect, oldVisibleImageRect,
+        engine.geometryState(engine.projectedGeometryInput(itemBounds())) });
 }
 
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
     double devicePixelRatio)
 {
-    return state.engine.beginRenderSynchronization({ QSizeF(viewport.width(), viewport.height()),
-        viewport.itemBounds(), viewport.contentRect(), viewport.visibleImageRect(),
-        controllerGeometryInput(viewport, devicePixelRatio, std::nullopt,
-            GeometryProjectionTarget::CurrentDisplay),
-        controllerGeometryInput(viewport, devicePixelRatio, std::nullopt,
-            GeometryProjectionTarget::PendingRender) });
+    const QRectF bounds = itemBounds();
+    const auto current = engine.projectedGeometryInput(bounds, devicePixelRatio);
+    const auto pending = engine.projectedGeometryInput(bounds, devicePixelRatio,
+        ViewportEngine::GeometryProjectionTarget::PendingRender);
+    const auto currentState = engine.geometryState(current);
+    return engine.beginRenderSynchronization({ bounds.size(), bounds,
+        PresentationGeometry::contentRect(currentState),
+        PresentationGeometry::visibleImageRect(currentState), current, pending });
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCommit(
     const ViewportRenderAcknowledgement& acknowledgement, bool renderedImagePresent,
     const ViewportRenderSynchronization& synchronization)
 {
-    return state.engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
+    return engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
         synchronization.attempt, synchronization.pendingTargetCommit,
         synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
         synchronization.oldDisplayStatus, synchronization.oldContentRect,
@@ -32,5 +34,5 @@ ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCo
 ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFailure(
     const ViewportRenderAcknowledgement& acknowledgement)
 {
-    return state.engine.acknowledgeRenderFailure({ acknowledgement });
+    return engine.acknowledgeRenderFailure({ acknowledgement });
 }

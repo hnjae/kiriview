@@ -1,14 +1,17 @@
 #include "viewportcommandoutcome_p.h"
+#include "viewportcontroller_p.h"
 #include "viewportcontrollercommandcontract_p.h"
-#include "viewportcontrollergeometryhelpers_p.h"
+#include "viewportcontrollerhelpers_p.h"
 
 ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {
     const ViewportEngine::PresentationCommandResult engineResult
-        = state.engine.applyPresentationCommand(
-            { input.command, controllerGeometryInput(viewport, input.devicePixelRatio),
-                input.anchor, viewport.hasReadyDisplay() });
+        = engine.applyPresentationCommand(
+            { input.command,
+                engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor,
+                engine.displayState().hasReadyDisplay(
+                    engine.requestState().sequenceSource.facts.present) });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
@@ -93,14 +96,14 @@ ViewportCommandResult ViewportController::scanPrevious()
 ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
 {
     ImageViewportPresentationCommand command;
-    command.setRotationDegrees((state.engine.presentationState().rotationDegrees + 90) % 360);
+    command.setRotationDegrees((engine.presentationState().rotationDegrees + 90) % 360);
     return setPresentation({ command, anchor, 1.0 });
 }
 
 ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
 {
     ImageViewportPresentationCommand command;
-    command.setRotationDegrees((state.engine.presentationState().rotationDegrees + 270) % 360);
+    command.setRotationDegrees((engine.presentationState().rotationDegrees + 270) % 360);
     return setPresentation({ command, anchor, 1.0 });
 }
 
