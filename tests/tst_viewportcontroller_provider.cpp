@@ -169,6 +169,17 @@ std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(ImageSequenceFa
     return result;
 }
 
+const ViewportProviderTransportCommand* findTransport(const ViewportProviderTransportBatch& batch,
+    ViewportProviderTransportCommand::Kind kind, ImageViewport::PageRole role)
+{
+    for (const auto& effect : batch) {
+        if (effect.kind == kind && effect.role == role) {
+            return &effect;
+        }
+    }
+    return nullptr;
+}
+
 } // namespace
 
 class ViewportControllerProviderTest : public QObject
@@ -215,7 +226,9 @@ void ViewportControllerProviderTest::sessionOpenAcknowledgementProducesOrderedMe
     ViewportController controller([&context] { return context.itemBounds(); });
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
-    QCOMPARE(controller.assignSequence(assignment).openProviderSession, true);
+    QVERIFY(findTransport(controller.assignSequence(assignment).afterChanges,
+        ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Primary));
 
     const auto result = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, ImageViewport::PageRole::Primary });
@@ -240,7 +253,8 @@ void ViewportControllerProviderTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
-    QCOMPARE(assigned.openProviderSession, true);
+    QVERIFY(findTransport(assigned.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Primary));
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
 
     StubProviderSession session;
@@ -292,7 +306,8 @@ void ViewportControllerProviderTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
-    QCOMPARE(assigned.openProviderSession, true);
+    QVERIFY(findTransport(assigned.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Primary));
     QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
 
     StubProviderSession session;
@@ -533,7 +548,11 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
 
     const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 1);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(seek.providerFrameTransport.deferredControllerEvent,
+    const auto* deferred = findTransport(seek.beforeChanges,
+        ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent,
+        ImageViewport::PageRole::Primary);
+    QVERIFY(deferred);
+    QCOMPARE(deferred->deferredEvent,
         ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RequestQueued);
 
@@ -587,8 +606,16 @@ void ViewportControllerProviderTest::secondaryProviderCloseClearsQueuedFrameRequ
 
     const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Secondary, 1);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(seek.secondaryProviderFrameTransport.cancelToken, activeFrameToken);
-    QCOMPARE(seek.secondaryProviderFrameTransport.deferredControllerEvent,
+    const auto* cancel = findTransport(seek.beforeChanges,
+        ViewportProviderTransportCommand::Kind::SendRequest,
+        ImageViewport::PageRole::Secondary);
+    QVERIFY(cancel);
+    QCOMPARE(cancel->request.tokens().first(), activeFrameToken);
+    const auto* deferred = findTransport(seek.beforeChanges,
+        ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent,
+        ImageViewport::PageRole::Secondary);
+    QVERIFY(deferred);
+    QCOMPARE(deferred->deferredEvent,
         ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RequestQueued);
 
@@ -741,7 +768,8 @@ void ViewportControllerProviderTest::
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
-    QCOMPARE(assigned.openProviderSession, true);
+    QVERIFY(findTransport(assigned.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Primary));
 
     StubProviderSession session;
     QVERIFY(controller.activateProviderSession() != 0);
@@ -917,7 +945,8 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
-    QCOMPARE(assigned.openProviderSession, true);
+    QVERIFY(findTransport(assigned.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Primary));
 
     if (scopeCase == TerminalScopeCase::SessionOpenFailure) {
         const ImageViewportInternal::ViewportChangeSet changes
@@ -1056,7 +1085,8 @@ void ViewportControllerProviderTest::
     assignment.secondarySource.present = true;
     assignment.secondarySource.provider = true;
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
-    QCOMPARE(assigned.openSecondaryProviderSession, true);
+    QVERIFY(findTransport(assigned.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession,
+        ImageViewport::PageRole::Secondary));
 
     StubProviderSession session;
     QVERIFY(controller.activateProviderSession(ImageViewport::PageRole::Secondary) != 0);
