@@ -117,7 +117,7 @@ ViewportProviderHostEvent hostProviderEvent(const ViewportProviderEvent& event)
 
 } // namespace
 
-class ViewportControllerProviderTest : public QObject
+class ViewportControllerProviderTest : public QObject // clazy:exclude=ctor-missing-parent-argument
 {
     Q_OBJECT
 
