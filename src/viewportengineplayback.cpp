@@ -80,7 +80,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     const auto& terminal = m_requestState.targetSpreadTerminal;
     const auto generationTerminal = terminal.sealed
         && terminal.generation == m_requestState.sequenceGeneration
-        && terminal.requestId == m_requestState.activeRequest.identity.id
+        && terminal.requestId == m_requestState.roles[0].activeRequest.identity.id
         && ((terminal.primary.terminal
                 && terminal.primary.failureScope
                     == ImageViewportInternal::FailureScope::Generation)
@@ -114,51 +114,51 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             m_requestState.beginDisplayRequest(origin, target, resolved, remember);
             return;
         }
-        const auto primaryRequest = m_requestState.activeRequest;
+        const auto primaryRequest = m_requestState.roles[0].activeRequest;
         m_requestState.beginDisplayRequest(
             origin, primaryRequest.target, primaryRequest.resolvedFrame, false);
-        auto& secondary = m_requestState.secondaryActiveRequest;
-        secondary.identity = m_requestState.activeRequest.identity;
+        auto& secondary = m_requestState.roles[1].activeRequest;
+        secondary.identity = m_requestState.roles[0].activeRequest.identity;
         secondary.target = target;
         secondary.resolvedFrame = resolved;
         secondary.providerFrameToken = {};
         secondary.preparedPayloadId = 0;
         if (remember) {
-            m_requestState.secondaryLatestNonPlaybackRequest = secondary;
+            m_requestState.roles[1].latestNonPlaybackRequest = secondary;
         }
     };
     auto stageBuiltIn = [this, &input]() {
         m_requestState.targetSpreadTerminal.clear();
         m_requestState.lastAcceptedRenderFailure = {};
         m_displayState.captureRenderFailureRetainedDisplay(true);
-        m_displayState.pendingRenderPayload.commitPending = true;
+        m_displayState.roles[0].pendingRenderPayload.commitPending = true;
         m_displayState.beginPreparedPayloadIdentity(
-            m_requestState.sequenceGeneration, m_requestState.activeRequest);
-        m_displayState.pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(m_requestState.sequenceSource,
-                  m_requestState.activeRequest.target.frame,
-                  m_displayState.pendingRenderPayload)
+            m_requestState.sequenceGeneration, m_requestState.roles[0].activeRequest);
+        m_displayState.roles[0].pendingRenderPayload
+            = FramePreparation::admitBuiltInFrame(m_requestState.roles[0].source,
+                  m_requestState.roles[0].activeRequest.target.frame,
+                  m_displayState.roles[0].pendingRenderPayload)
                   .preparedPayload;
-        if (m_requestState.secondarySequenceSource.facts.present
-            && !m_requestState.secondarySequenceSource.facts.provider
-            && m_requestState.secondaryActiveRequest.target.frame >= 0) {
+        if (m_requestState.roles[1].source.facts.present
+            && !m_requestState.roles[1].source.facts.provider
+            && m_requestState.roles[1].activeRequest.target.frame >= 0) {
             ImageViewportInternal::PreparedPayload payload;
             payload.commitPending = true;
             payload.generation = m_requestState.sequenceGeneration;
-            payload.requestId = m_requestState.activeRequest.identity.id;
+            payload.requestId = m_requestState.roles[0].activeRequest.identity.id;
             payload.payloadId = ++m_displayState.nextPreparedPayloadId;
-            m_requestState.secondaryActiveRequest.preparedPayloadId = payload.payloadId;
-            m_displayState.secondaryPendingRenderPayload
+            m_requestState.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
+            m_displayState.roles[1].pendingRenderPayload
                 = FramePreparation::admitBuiltInFrame(
-                      m_requestState.secondarySequenceSource,
-                      m_requestState.secondaryActiveRequest.target.frame, payload)
+                      m_requestState.roles[1].source,
+                      m_requestState.roles[1].activeRequest.target.frame, payload)
                       .preparedPayload;
         }
         m_requestState.status = ImageViewport::RequestStatus::Loading;
         m_requestState.reason = input.geometry.itemBounds.isEmpty()
             ? ImageViewport::RequestReason::RenderWaiting
             : ImageViewport::RequestReason::UploadPending;
-        m_displayState.status = m_displayState.displayedImageSize.isValid()
+        m_displayState.status = m_displayState.roles[0].displayedImageSize.isValid()
             ? ImageViewport::DisplayStatus::Retained
             : ImageViewport::DisplayStatus::Empty;
     };
@@ -215,7 +215,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         effect.command.demand = providerDisplayDemand(role, input.geometry);
         m_requestState.status = ImageViewport::RequestStatus::Loading;
         m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
-        m_displayState.status = m_displayState.displayedImageSize.isValid()
+        m_displayState.status = m_displayState.roles[0].displayedImageSize.isValid()
             ? ImageViewport::DisplayStatus::Retained
             : ImageViewport::DisplayStatus::Empty;
         m_displayState.clearPendingRenderPayload();
@@ -265,7 +265,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                     { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Playback },
                     { -1, -1 }, false);
             } else {
-                auto& secondary = m_requestState.secondaryActiveRequest;
+                auto& secondary = m_requestState.roles[1].activeRequest;
                 secondary.target = { -1, -1,
                     ImageViewportInternal::ProviderRequestTargetKind::Playback };
                 secondary.resolvedFrame = { -1, -1 };
@@ -313,8 +313,8 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         m_requestState.playbackRole = input.command.role;
         m_requestState.stopPlaybackWhenRequestReady = false;
         if (!preservePosition) {
-            const int frame = requestRole(m_requestState, input.command.role)
-                                  .activeRequest.target.frame;
+            const int frame
+                = requestRole(m_requestState, input.command.role).activeRequest.target.frame;
             const auto& intervals
                 = source.facts.provider ? provider.timingIntervals : source.facts.timingIntervals;
             m_requestState.playbackPosition = intervals.frameStartPosition(frame);
@@ -401,11 +401,11 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 restore.resolvedFrame, true);
             m_requestState.playbackPosition = restore.target.position;
             const auto& displayed = input.command.role == ImageViewport::PageRole::Primary
-                ? m_displayState.displayedRequest
-                : m_displayState.secondaryDisplayedRequest;
+                ? m_displayState.roles[0].displayedRequest
+                : m_displayState.roles[1].displayedRequest;
             const QSizeF displayedSize = input.command.role == ImageViewport::PageRole::Primary
-                ? m_displayState.displayedImageSize
-                : m_displayState.secondaryDisplayedImageSize;
+                ? m_displayState.roles[0].displayedImageSize
+                : m_displayState.roles[1].displayedImageSize;
             if (displayed.generation == m_requestState.sequenceGeneration
                 && displayed.request.resolvedFrame.frame == restore.resolvedFrame.frame
                 && displayed.request.resolvedFrame.position == restore.resolvedFrame.position
@@ -425,7 +425,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 } else if (providerSource) {
                     m_requestState.status = ImageViewport::RequestStatus::Loading;
                     m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
-                    m_displayState.status = m_displayState.displayedImageSize.isValid()
+                    m_displayState.status = m_displayState.roles[0].displayedImageSize.isValid()
                         ? ImageViewport::DisplayStatus::Retained
                         : ImageViewport::DisplayStatus::Empty;
                 } else {
@@ -601,7 +601,7 @@ void ViewportEngine::setPlaybackPhase(ImageViewport::PlaybackPhase phase,
 
 void ViewportEngine::armAuthoredAutoplayIfEligible()
 {
-    const auto& source = m_requestState.sequenceSource;
+    const auto& source = m_requestState.roles[0].source;
     const auto& provider = m_roles[0].provider;
     const auto facts
         = source.facts.provider ? provider.authoredAnimationFacts : source.facts.authoredAnimationFacts;
@@ -618,13 +618,13 @@ void ViewportEngine::armAuthoredAutoplayIfEligible()
         m_requestState.playbackLoopIterationsCompleted = 0;
         if (!provider.metadataReady) {
             m_requestState.providerPlaybackStartPending = true;
-            m_requestState.activeRequest.target = { -1, -1,
+            m_requestState.roles[0].activeRequest.target = { -1, -1,
                 ImageViewportInternal::ProviderRequestTargetKind::Playback };
-            m_requestState.activeRequest.resolvedFrame = { -1, -1 };
+            m_requestState.roles[0].activeRequest.resolvedFrame = { -1, -1 };
             m_requestState.playbackPosition = -1;
             m_requestState.playbackPhase = ImageViewport::PlaybackPhase::Waiting;
         } else if (provider.timedMetadata && provider.timedPlaybackSupport) {
-            const int frame = m_requestState.activeRequest.target.frame;
+            const int frame = m_requestState.roles[0].activeRequest.target.frame;
             m_requestState.playbackPosition = provider.timingIntervals.frameStartPosition(frame);
             m_requestState.playbackPhase
                 = m_requestState.status == ImageViewport::RequestStatus::Loading
@@ -640,7 +640,7 @@ void ViewportEngine::armAuthoredAutoplayIfEligible()
     m_requestState.stopPlaybackWhenRequestReady = false;
     m_requestState.playbackLoopIterationsCompleted = 0;
     m_requestState.playbackPosition
-        = source.facts.timingIntervals.frameStartPosition(m_requestState.activeRequest.target.frame);
+        = source.facts.timingIntervals.frameStartPosition(m_requestState.roles[0].activeRequest.target.frame);
     m_requestState.playbackPhase = m_requestState.status == ImageViewport::RequestStatus::Loading
         ? ImageViewport::PlaybackPhase::Waiting
         : ImageViewport::PlaybackPhase::Playing;
@@ -717,15 +717,15 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(
             displayTarget,
             { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) }, false);
     } else {
-        const auto primaryRequest = m_requestState.activeRequest;
+        const auto primaryRequest = m_requestState.roles[0].activeRequest;
         m_requestState.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback,
             primaryRequest.target, primaryRequest.resolvedFrame, false);
-        m_requestState.secondaryActiveRequest.identity = m_requestState.activeRequest.identity;
-        m_requestState.secondaryActiveRequest.target = displayTarget;
-        m_requestState.secondaryActiveRequest.resolvedFrame
+        m_requestState.roles[1].activeRequest.identity = m_requestState.roles[0].activeRequest.identity;
+        m_requestState.roles[1].activeRequest.target = displayTarget;
+        m_requestState.roles[1].activeRequest.resolvedFrame
             = { displayTarget.frame, intervals.frameStartPosition(displayTarget.frame) };
-        m_requestState.secondaryActiveRequest.providerFrameToken = {};
-        m_requestState.secondaryActiveRequest.preparedPayloadId = 0;
+        m_requestState.roles[1].activeRequest.providerFrameToken = {};
+        m_requestState.roles[1].activeRequest.preparedPayloadId = 0;
     }
     if (target.looped && !m_requestState.looping) {
         ++m_requestState.playbackLoopIterationsCompleted;
@@ -769,7 +769,7 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(
             effect.command.demand = providerDisplayDemand(role, input.geometry);
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
-            m_displayState.status = m_displayState.displayedImageSize.isValid()
+            m_displayState.status = m_displayState.roles[0].displayedImageSize.isValid()
                 ? ImageViewport::DisplayStatus::Retained
                 : ImageViewport::DisplayStatus::Empty;
             m_displayState.clearPendingRenderPayload();
@@ -790,32 +790,32 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(
     }
 
     m_displayState.captureRenderFailureRetainedDisplay(true);
-    m_displayState.pendingRenderPayload.commitPending = true;
+    m_displayState.roles[0].pendingRenderPayload.commitPending = true;
     m_displayState.beginPreparedPayloadIdentity(
-        m_requestState.sequenceGeneration, m_requestState.activeRequest);
+        m_requestState.sequenceGeneration, m_requestState.roles[0].activeRequest);
     const auto primaryAdmission = FramePreparation::admitBuiltInFrame(
-        m_requestState.sequenceSource, m_requestState.activeRequest.target.frame,
-        m_displayState.pendingRenderPayload);
-    m_displayState.pendingRenderPayload = primaryAdmission.preparedPayload;
-    if (m_requestState.secondarySequenceSource.facts.present
-        && !m_requestState.secondarySequenceSource.facts.provider
-        && m_requestState.secondaryActiveRequest.target.frame >= 0) {
+        m_requestState.roles[0].source, m_requestState.roles[0].activeRequest.target.frame,
+        m_displayState.roles[0].pendingRenderPayload);
+    m_displayState.roles[0].pendingRenderPayload = primaryAdmission.preparedPayload;
+    if (m_requestState.roles[1].source.facts.present
+        && !m_requestState.roles[1].source.facts.provider
+        && m_requestState.roles[1].activeRequest.target.frame >= 0) {
         ImageViewportInternal::PreparedPayload secondaryPayload;
         secondaryPayload.commitPending = true;
         secondaryPayload.generation = m_requestState.sequenceGeneration;
-        secondaryPayload.requestId = m_requestState.activeRequest.identity.id;
+        secondaryPayload.requestId = m_requestState.roles[0].activeRequest.identity.id;
         secondaryPayload.payloadId = ++m_displayState.nextPreparedPayloadId;
-        m_requestState.secondaryActiveRequest.preparedPayloadId = secondaryPayload.payloadId;
+        m_requestState.roles[1].activeRequest.preparedPayloadId = secondaryPayload.payloadId;
         const auto secondaryAdmission = FramePreparation::admitBuiltInFrame(
-            m_requestState.secondarySequenceSource,
-            m_requestState.secondaryActiveRequest.target.frame, secondaryPayload);
-        m_displayState.secondaryPendingRenderPayload = secondaryAdmission.preparedPayload;
+            m_requestState.roles[1].source,
+            m_requestState.roles[1].activeRequest.target.frame, secondaryPayload);
+        m_displayState.roles[1].pendingRenderPayload = secondaryAdmission.preparedPayload;
     }
     m_requestState.status = ImageViewport::RequestStatus::Loading;
     m_requestState.reason = input.geometry.itemBounds.isEmpty()
         ? ImageViewport::RequestReason::RenderWaiting
         : ImageViewport::RequestReason::UploadPending;
-    m_displayState.status = m_displayState.displayedImageSize.isValid()
+    m_displayState.status = m_displayState.roles[0].displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
     m_requestState.stopPlaybackWhenRequestReady = target.reachedEnd;

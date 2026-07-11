@@ -151,32 +151,32 @@ void ViewportController::setNextRevisionTokenForTest(quint64 token)
 
 bool ViewportController::hasPendingRenderCommitForTest() const
 {
-    return engine.displayState().pendingRenderPayload.commitPending;
+    return engine.displayState().roles[0].pendingRenderPayload.commitPending;
 }
 
 quint64 ViewportController::activeRequestIdForTest() const
 {
-    return engine.requestState().activeRequest.identity.id;
+    return engine.requestState().roles[0].activeRequest.identity.id;
 }
 
 quint64 ViewportController::displayedRequestIdForTest() const
 {
-    return engine.displayState().displayedRequest.request.identity.id;
+    return engine.displayState().roles[0].displayedRequest.request.identity.id;
 }
 
 quint64 ViewportController::pendingRenderGenerationForTest() const
 {
-    return engine.displayState().pendingRenderPayload.generation;
+    return engine.displayState().roles[0].pendingRenderPayload.generation;
 }
 
 quint64 ViewportController::pendingRenderPayloadIdForTest() const
 {
-    return engine.displayState().pendingRenderPayload.payloadId;
+    return engine.displayState().roles[0].pendingRenderPayload.payloadId;
 }
 
 quint64 ViewportController::secondaryPendingRenderPayloadIdForTest() const
 {
-    return engine.displayState().secondaryPendingRenderPayload.payloadId;
+    return engine.displayState().roles[1].pendingRenderPayload.payloadId;
 }
 
 ImageViewportInternal::RenderFailureDiagnostic

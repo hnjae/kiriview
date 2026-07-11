@@ -8,16 +8,16 @@ using namespace ImageViewportInternal;
 
 bool hasSecondary(const RequestState& request)
 {
-    return request.secondarySequence && request.secondaryActiveRequest.target.frame >= 0;
+    return request.roles[1].sequence && request.roles[1].activeRequest.target.frame >= 0;
 }
 
-bool hasDisplayable(const RequestState& request) { return request.sequenceSource.facts.present; }
+bool hasDisplayable(const RequestState& request) { return request.roles[0].source.facts.present; }
 
 bool terminalSealed(const RequestState& request)
 {
     return request.targetSpreadTerminal.sealed
         && request.targetSpreadTerminal.generation == request.sequenceGeneration
-        && request.targetSpreadTerminal.requestId == request.activeRequest.identity.id;
+        && request.targetSpreadTerminal.requestId == request.roles[0].activeRequest.identity.id;
 }
 
 bool waitingForRender(const RequestState& request)
@@ -49,21 +49,21 @@ PreparedPayloadIdentity expectedPayload(
     const DisplayState& display, const RequestState& request, ImageViewport::PageRole role)
 {
     if (role == ImageViewport::PageRole::Primary) {
-        return display.pendingRenderPayload.identity();
+        return display.roles[0].pendingRenderPayload.identity();
     }
     if (!hasSecondary(request)) {
         return {};
     }
-    const auto secondary = display.secondaryPendingRenderPayload.identity();
-    return secondary.isValid() ? secondary : display.pendingRenderPayload.identity();
+    const auto secondary = display.roles[1].pendingRenderPayload.identity();
+    return secondary.isValid() ? secondary : display.roles[0].pendingRenderPayload.identity();
 }
 
 bool primaryAcknowledgementMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
     const auto actual = acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Primary);
-    return display.pendingRenderPayload.commitPending
-        && payloadMatches(actual, display.pendingRenderPayload.identity())
+    return display.roles[0].pendingRenderPayload.commitPending
+        && payloadMatches(actual, display.roles[0].pendingRenderPayload.identity())
         && request.activeRequestOwnsPreparedPayload(actual);
 }
 
@@ -90,9 +90,9 @@ bool failureAcknowledgementMatches(const DisplayState& display, const RequestSta
 
 bool pendingSpreadReady(const DisplayState& display, const RequestState& request)
 {
-    return display.pendingRenderPayload.commitPending
-        && !display.pendingRenderPayload.image.isNull()
-        && (!hasSecondary(request) || !display.secondaryPendingRenderPayload.image.isNull());
+    return display.roles[0].pendingRenderPayload.commitPending
+        && !display.roles[0].pendingRenderPayload.image.isNull()
+        && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
 }
 
 void publishSecondaryDisplay(ViewportEngine& engine)
@@ -100,24 +100,24 @@ void publishSecondaryDisplay(ViewportEngine& engine)
     auto& request = engine.requestState();
     auto& display = engine.displayState();
     if (!hasSecondary(request)) {
-        display.secondaryDisplayedRequest = {};
-        display.secondaryDisplayedImageSize = {};
-        display.secondaryDisplayedImage = {};
-        display.secondaryDisplayedPayload = {};
+        display.roles[1].displayedRequest = {};
+        display.roles[1].displayedImageSize = {};
+        display.roles[1].displayedImage = {};
+        display.roles[1].displayedPayload = {};
         return;
     }
-    display.secondaryDisplayedRequest.generation = request.sequenceGeneration;
-    display.secondaryDisplayedRequest.request = request.secondaryActiveRequest;
-    const int position = request.secondaryActiveRequest.resolvedFrame.position;
-    display.secondaryDisplayedRequest.request.target.position = position;
-    display.secondaryDisplayedRequest.request.resolvedFrame.position = position;
-    display.secondaryDisplayedImageSize = request.secondarySequenceIsProvider
+    display.roles[1].displayedRequest.generation = request.sequenceGeneration;
+    display.roles[1].displayedRequest.request = request.roles[1].activeRequest;
+    const int position = request.roles[1].activeRequest.resolvedFrame.position;
+    display.roles[1].displayedRequest.request.target.position = position;
+    display.roles[1].displayedRequest.request.resolvedFrame.position = position;
+    display.roles[1].displayedImageSize = request.roles[1].provider
         ? engine.secondaryProviderState().logicalSize
-        : sourceLogicalSize(request.secondarySequenceSource);
-    if (!request.secondarySequenceIsProvider
-        && !display.secondaryPendingRenderPayload.image.isNull()) {
-        display.secondaryDisplayedImage = display.secondaryPendingRenderPayload.image;
-        display.secondaryDisplayedPayload = display.secondaryPendingRenderPayload;
+        : sourceLogicalSize(request.roles[1].source);
+    if (!request.roles[1].provider
+        && !display.roles[1].pendingRenderPayload.image.isNull()) {
+        display.roles[1].displayedImage = display.roles[1].pendingRenderPayload.image;
+        display.roles[1].displayedPayload = display.roles[1].pendingRenderPayload;
     }
 }
 
@@ -128,22 +128,22 @@ void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
     request.status = ImageViewport::RequestStatus::Ready;
     request.reason = ImageViewport::RequestReason::Ready;
     display.status = ImageViewport::DisplayStatus::Ready;
-    if (request.sequenceSource.facts.provider) {
-        display.commitPreparedPayloadIdentity(request.activeRequest, payload);
+    if (request.roles[0].source.facts.provider) {
+        display.commitPreparedPayloadIdentity(request.roles[0].activeRequest, payload);
     }
-    const int frame = request.activeRequest.resolvedFrame.frame;
-    const int position = request.activeRequest.resolvedFrame.position >= 0
-        ? request.activeRequest.resolvedFrame.position
-        : request.sequenceSource.facts.provider
+    const int frame = request.roles[0].activeRequest.resolvedFrame.frame;
+    const int position = request.roles[0].activeRequest.resolvedFrame.position >= 0
+        ? request.roles[0].activeRequest.resolvedFrame.position
+        : request.roles[0].source.facts.provider
         ? engine.providerState().timingIntervals.frameStartPosition(frame)
-        : sourceFrameStartPosition(request.sequenceSource, frame);
-    display.displayedRequest = display.activeRequestSnapshot(
-        request.sequenceGeneration, request.activeRequest, position);
-    display.displayedImageSize = request.sequenceSource.facts.provider
+        : sourceFrameStartPosition(request.roles[0].source, frame);
+    display.roles[0].displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.roles[0].activeRequest, position);
+    display.roles[0].displayedImageSize = request.roles[0].source.facts.provider
         ? engine.providerState().logicalSize
-        : sourceLogicalSize(request.sequenceSource);
-    display.displayedImage = payload.image;
-    display.displayedPayload = payload;
+        : sourceLogicalSize(request.roles[0].source);
+    display.roles[0].displayedImage = payload.image;
+    display.roles[0].displayedPayload = payload;
     publishSecondaryDisplay(engine);
 }
 
@@ -152,22 +152,22 @@ void stageBuiltIn(ViewportEngine& engine)
     auto& request = engine.requestState();
     auto& display = engine.displayState();
     display.captureRenderFailureRetainedDisplay(hasDisplayable(request));
-    display.pendingRenderPayload.commitPending = true;
-    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
-    if (request.activeRequest.target.frame >= 0) {
-        display.pendingRenderPayload = FramePreparation::admitBuiltInFrame(request.sequenceSource,
-            request.activeRequest.target.frame, display.pendingRenderPayload)
+    display.roles[0].pendingRenderPayload.commitPending = true;
+    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);
+    if (request.roles[0].activeRequest.target.frame >= 0) {
+        display.roles[0].pendingRenderPayload = FramePreparation::admitBuiltInFrame(request.roles[0].source,
+            request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
                                            .preparedPayload;
     }
-    if (hasSecondary(request) && !request.secondarySequenceIsProvider) {
-        auto& secondary = display.secondaryPendingRenderPayload;
+    if (hasSecondary(request) && !request.roles[1].provider) {
+        auto& secondary = display.roles[1].pendingRenderPayload;
         secondary.commitPending = true;
         secondary.generation = request.sequenceGeneration;
-        secondary.requestId = request.activeRequest.identity.id;
+        secondary.requestId = request.roles[0].activeRequest.identity.id;
         secondary.payloadId = ++display.nextPreparedPayloadId;
-        request.secondaryActiveRequest.preparedPayloadId = secondary.payloadId;
+        request.roles[1].activeRequest.preparedPayloadId = secondary.payloadId;
         secondary = FramePreparation::admitBuiltInFrame(
-            request.secondarySequenceSource, request.secondaryActiveRequest.target.frame, secondary)
+            request.roles[1].source, request.roles[1].activeRequest.target.frame, secondary)
                         .preparedPayload;
     }
 }
@@ -195,14 +195,14 @@ ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
     result.pendingTargetCommit = !terminalSealed(m_requestState) && waitingForRender(m_requestState)
         && pendingSpreadReady(m_displayState, m_requestState) && !input.itemBounds.isEmpty();
     result.pendingSecondaryProviderCommit = result.pendingTargetCommit
-        && hasSecondary(m_requestState) && m_requestState.secondarySequenceIsProvider
-        && !m_displayState.secondaryPendingRenderPayload.image.isNull();
+        && hasSecondary(m_requestState) && m_requestState.roles[1].provider
+        && !m_displayState.roles[1].pendingRenderPayload.image.isNull();
     if (result.pendingTargetCommit) {
-        result.preparedPayload = m_displayState.pendingRenderPayload;
-    } else if (m_displayState.pendingRenderPayload.commitPending
+        result.preparedPayload = m_displayState.roles[0].pendingRenderPayload;
+    } else if (m_displayState.roles[0].pendingRenderPayload.commitPending
         && m_displayState.hasReadyDisplay(hasDisplayable(m_requestState))) {
-        result.preparedPayload = m_displayState.pendingRenderPayload;
-        result.preparedPayload.image = m_displayState.displayedImage;
+        result.preparedPayload = m_displayState.roles[0].pendingRenderPayload;
+        result.preparedPayload.image = m_displayState.roles[0].displayedImage;
     }
     result.geometryState
         = geometryState(result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry);
@@ -228,14 +228,14 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit
         publishReady(*this, input.preparedPayload);
     }
     if (input.pendingSecondaryProviderCommit) {
-        m_displayState.secondaryDisplayedImage = m_displayState.secondaryPendingRenderPayload.image;
-        m_displayState.secondaryDisplayedPayload = m_displayState.secondaryPendingRenderPayload;
-        m_displayState.secondaryDisplayedImageSize = secondaryProviderState().logicalSize;
+        m_displayState.roles[1].displayedImage = m_displayState.roles[1].pendingRenderPayload.image;
+        m_displayState.roles[1].displayedPayload = m_displayState.roles[1].pendingRenderPayload;
+        m_displayState.roles[1].displayedImageSize = secondaryProviderState().logicalSize;
     }
     const bool resume = m_requestState.playbackPhase == ImageViewport::PlaybackPhase::Waiting
         && m_requestState.status == ImageViewport::RequestStatus::Ready;
     m_displayState.commitDisplayedRequestSnapshot(m_requestState.sequenceGeneration,
-        m_requestState.activeRequest, m_displayState.pendingRenderPayload.payloadId);
+        m_requestState.roles[0].activeRequest, m_displayState.roles[0].pendingRenderPayload.payloadId);
     m_displayState.clearPendingRenderPayload();
     m_displayState.clearRenderFailureRetainedDisplay();
     if (resume) {
@@ -279,11 +279,20 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     m_requestState.lastAcceptedRenderFailure = diagnostic;
     changes.renderFailureDiagnostic = diagnostic;
     m_displayState.clearPendingRenderPayload();
-    if (m_displayState.renderFailureRetainedDisplayValid) {
+    if (m_displayState.roles[0].retainedDisplayValid) {
         m_displayState.status = ImageViewport::DisplayStatus::Retained;
-        m_displayState.displayedRequest = m_displayState.renderFailureRetainedRequest;
-        m_displayState.displayedImageSize = m_displayState.renderFailureRetainedImageSize;
-        m_displayState.displayedImage = m_displayState.renderFailureRetainedImage;
+        for (auto& role : m_displayState.roles) {
+            if (role.retainedDisplayValid) {
+                role.displayedRequest = role.retainedRequest;
+                role.displayedImageSize = role.retainedImageSize;
+                role.displayedImage = role.retainedImage;
+            } else {
+                role.displayedRequest = {};
+                role.displayedImageSize = {};
+                role.displayedImage = {};
+                role.displayedPayload = {};
+            }
+        }
     } else {
         m_displayState.status = ImageViewport::DisplayStatus::Empty;
         m_displayState.clearDisplayedDisplay();
@@ -293,7 +302,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     terminal.clear();
     terminal.sealed = true;
     terminal.generation = m_requestState.sequenceGeneration;
-    terminal.requestId = m_requestState.activeRequest.identity.id;
+    terminal.requestId = m_requestState.roles[0].activeRequest.identity.id;
     auto& role = input.acknowledgement.failedRole == ImageViewport::PageRole::Primary
         ? terminal.primary
         : terminal.secondary;
@@ -336,7 +345,7 @@ ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
             result.providerEffects = restageProviderDemands(demandGeometry);
             return result;
         }
-        if (!m_requestState.sequenceSource.facts.provider) {
+        if (!m_requestState.roles[0].source.facts.provider) {
             stageBuiltIn(*this);
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::UploadPending;
@@ -351,10 +360,10 @@ ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
             result.providerEffects = restageProviderDemands(demandGeometry);
             return result;
         }
-    } else if (m_requestState.sequenceSource.facts.provider
+    } else if (m_requestState.roles[0].source.facts.provider
         && m_requestState.status == ImageViewport::RequestStatus::Loading
         && m_requestState.reason == ImageViewport::RequestReason::UploadPending
-        && input.itemBounds.isEmpty() && !m_displayState.pendingRenderPayload.image.isNull()) {
+        && input.itemBounds.isEmpty() && !m_displayState.roles[0].pendingRenderPayload.image.isNull()) {
         m_requestState.reason = ImageViewport::RequestReason::RenderWaiting;
         changes.requestState = true;
         changes.requestRevision = true;

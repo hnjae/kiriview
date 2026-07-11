@@ -90,16 +90,16 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
         return;
     }
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
-        = controller.displayState().pendingRenderPayload.identity().isValid()
-        ? controller.displayState().pendingRenderPayload.identity()
+        = controller.displayState().roles[0].pendingRenderPayload.identity().isValid()
+        ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
     QVector<ViewportRenderRolePayload> rolePayloads { { ImageViewport::PageRole::Primary,
         primaryPayload } };
-    if (controller.requestState().secondarySequence
-        && controller.requestState().secondaryActiveRequest.target.frame >= 0) {
+    if (controller.requestState().roles[1].sequence
+        && controller.requestState().roles[1].activeRequest.target.frame >= 0) {
         const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload
-            = controller.displayState().secondaryPendingRenderPayload.identity().isValid()
-            ? controller.displayState().secondaryPendingRenderPayload.identity()
+            = controller.displayState().roles[1].pendingRenderPayload.identity().isValid()
+            ? controller.displayState().roles[1].pendingRenderPayload.identity()
             : primaryPayload;
         rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
     }
@@ -273,7 +273,7 @@ void ViewportControllerPresentationTest::assignmentDerivesDisplayTransitionFromP
 
     QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Empty);
-    QCOMPARE(controller.displayState().displayedImageSize, QSizeF());
+    QCOMPARE(controller.displayState().roles[0].displayedImageSize, QSizeF());
     QCOMPARE(result.changes.displayRevision, true);
 }
 

@@ -58,34 +58,34 @@ quint64 snapshotRevision(const RequestState& request, const DisplayState& displa
 
 const ImageSequenceSource& sourceForRole(const RequestState& request, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.sequenceSource
-                                                    : request.secondarySequenceSource;
+    return role == ImageViewport::PageRole::Primary ? request.roles[0].source
+                                                    : request.roles[1].source;
 }
 
 const DisplayRequest& requestForRole(const RequestState& request, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.activeRequest
-                                                    : request.secondaryActiveRequest;
+    return role == ImageViewport::PageRole::Primary ? request.roles[0].activeRequest
+                                                    : request.roles[1].activeRequest;
 }
 
 const DisplayRequestSnapshot& displayedRequestForRole(
     const DisplayState& display, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.displayedRequest
-                                                    : display.secondaryDisplayedRequest;
+    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedRequest
+                                                    : display.roles[1].displayedRequest;
 }
 
 QSizeF displayedSizeForRole(const DisplayState& display, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.displayedImageSize
-                                                    : display.secondaryDisplayedImageSize;
+    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedImageSize
+                                                    : display.roles[1].displayedImageSize;
 }
 
 const PreparedPayload& displayedPayloadForRole(
     const DisplayState& display, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.displayedPayload
-                                                    : display.secondaryDisplayedPayload;
+    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedPayload
+                                                    : display.roles[1].displayedPayload;
 }
 
 const ProviderGenerationState& providerForRole(
@@ -189,9 +189,9 @@ double effectiveZoomPercent(const PresentationGeometry::State& geometry)
 ImageViewportStateSnapshot ViewportEngine::snapshot() const
 {
     GeometryInput input;
-    input.primaryPresent = positive(m_displayState.displayedImageSize);
-    input.primarySize = m_displayState.displayedImageSize;
-    input.secondarySize = m_displayState.secondaryDisplayedImageSize;
+    input.primaryPresent = positive(m_displayState.roles[0].displayedImageSize);
+    input.primarySize = m_displayState.roles[0].displayedImageSize;
+    input.secondarySize = m_displayState.roles[1].displayedImageSize;
     return snapshot(input);
 }
 
@@ -202,22 +202,22 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const GeometryInput& input) 
 
 ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) const
 {
-    const bool primaryPresent = m_requestState.sequenceSource.facts.present;
-    const bool secondaryPresent = m_requestState.secondarySequenceSource.facts.present;
+    const bool primaryPresent = m_requestState.roles[0].source.facts.present;
+    const bool secondaryPresent = m_requestState.roles[1].source.facts.present;
     const ImageViewportRoleSet acceptedRoles(primaryPresent, secondaryPresent);
     const ImageViewportRoleSet targetRoles(primaryPresent,
-        secondaryPresent && m_requestState.secondaryActiveRequest.target.frame >= 0);
+        secondaryPresent && m_requestState.roles[1].activeRequest.target.frame >= 0);
     const quint64 acceptedGenerationValue = m_presentationTargetState.generation != 0
         ? m_presentationTargetState.generation
         : m_requestState.sequenceGeneration;
     const auto acceptedGeneration = generation(primaryPresent ? acceptedGenerationValue : 0);
     const bool primaryDisplayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
-        && positive(m_displayState.displayedImageSize);
+        && positive(m_displayState.roles[0].displayedImageSize);
     const bool secondaryDisplayed = m_displayState.status != ImageViewport::DisplayStatus::Empty
-        && positive(m_displayState.secondaryDisplayedImageSize);
+        && positive(m_displayState.roles[1].displayedImageSize);
     const ImageViewportRoleSet displayedRoles(primaryDisplayed, secondaryDisplayed);
     const quint64 displayedGenerationValue
-        = primaryDisplayed ? m_displayState.displayedRequest.generation : 0;
+        = primaryDisplayed ? m_displayState.roles[0].displayedRequest.generation : 0;
     const bool displayAccepted
         = primaryDisplayed && displayedGenerationValue == acceptedGenerationValue;
     const PresentationGeometry::State acceptedGeometry = geometryState(input.acceptedGeometry);

@@ -270,7 +270,7 @@ void ViewportControllerProviderTest::
     assignment.sequence = sequence->sequence();
     const ViewportSequenceAssignmentResult assigned = controller.assignSequence(assignment);
     QCOMPARE(assigned.openProviderSession, true);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
 
     StubProviderSession session;
     QVERIFY(controller.activateProviderSession() != 0);
@@ -444,7 +444,7 @@ void ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTarget
     QCOMPARE(ready.providerFrameTransport.sendCommand, true);
     QCOMPARE(ready.providerFrameTransport.command.frame, 0);
     QCOMPARE(controller.providerMetadataReady(), true);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderWaiting);
 }
 
@@ -480,7 +480,7 @@ void ViewportControllerProviderTest::secondaryMetadataReadyEventUsesSameShape()
     QCOMPARE(ready.providerFrameTransport.sendCommand, true);
     QCOMPARE(ready.providerFrameTransport.command.frame, 0);
     QCOMPARE(controller.secondaryProviderMetadataReady(), true);
-    QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[1].activeRequest.target.frame, 0);
 }
 
 void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTransport()
@@ -737,10 +737,10 @@ void ViewportControllerProviderTest::
     QCOMPARE(frameChanges.requestState, true);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::UploadPending);
-    QVERIFY(controller.displayState().pendingRenderPayload.commitPending);
+    QVERIFY(controller.displayState().roles[0].pendingRenderPayload.commitPending);
 
     const ImageViewportInternal::PreparedPayloadIdentity payload
-        = controller.displayState().pendingRenderPayload.identity();
+        = controller.displayState().roles[0].pendingRenderPayload.identity();
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
     const ImageViewportInternal::ViewportChangeSet commitChanges
         = controller.acknowledgeRenderCommit({ payload }, true, synchronization);
@@ -751,8 +751,8 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::Ready);
     QCOMPARE(controller.displayState().status, ImageViewport::DisplayStatus::Ready);
     QCOMPARE(
-        controller.displayState().displayedRequest.request.preparedPayloadId, payload.payloadId);
-    QCOMPARE(controller.displayState().pendingRenderPayload.commitPending, false);
+        controller.displayState().roles[0].displayedRequest.request.preparedPayloadId, payload.payloadId);
+    QCOMPARE(controller.displayState().roles[0].pendingRenderPayload.commitPending, false);
 }
 
 void ViewportControllerProviderTest::cancellationTerminalEventClosesActiveMetadataGeneration()
@@ -916,9 +916,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
                 = controller.handleProviderFrameEvent(
                     { frameToken }, &frame, ImageSequenceProviderFrameMetadata::stillFrame());
             QCOMPARE(frameChanges.requestState, true);
-            QVERIFY(controller.displayState().pendingRenderPayload.commitPending);
+            QVERIFY(controller.displayState().roles[0].pendingRenderPayload.commitPending);
             const ImageViewportInternal::PreparedPayloadIdentity payload
-                = controller.displayState().pendingRenderPayload.identity();
+                = controller.displayState().roles[0].pendingRenderPayload.identity();
             const ImageViewportInternal::ViewportChangeSet renderFailure
                 = controller.acknowledgeRenderFailure({ payload, {},
                     ImageViewport::PageRole::Primary, RenderFailureCause::TextureCreationFailure });
@@ -1083,9 +1083,9 @@ void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleIn
 
     const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 0);
     QCOMPARE(seek.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(controller.requestState().activeRequest.identity.origin,
+    QCOMPARE(controller.requestState().roles[0].activeRequest.identity.origin,
         ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek);
-    QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
+    QCOMPARE(controller.requestState().roles[1].activeRequest.target.frame, -1);
 
     QCOMPARE(controller
                  .acceptProviderMetadataEvent(ImageViewport::PageRole::Secondary, { metadataToken })
@@ -1102,7 +1102,7 @@ void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleIn
             ImageViewport::PageRole::Secondary, admission.facts);
     QCOMPARE(targetPolicy.providerFrameTransport.sendCommand, false);
     QCOMPARE(controller.secondaryProviderMetadataReady(), true);
-    QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, -1);
+    QCOMPARE(controller.requestState().roles[1].activeRequest.target.frame, -1);
 }
 
 QTEST_MAIN(ViewportControllerProviderTest)

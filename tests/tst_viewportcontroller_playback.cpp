@@ -261,17 +261,17 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
         return;
     }
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
-        = controller.displayState().pendingRenderPayload.identity().isValid()
-        ? controller.displayState().pendingRenderPayload.identity()
+        = controller.displayState().roles[0].pendingRenderPayload.identity().isValid()
+        ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
     QVector<ViewportRenderRolePayload> rolePayloads {
         { ImageViewport::PageRole::Primary, primaryPayload }
     };
-    if (controller.requestState().secondarySequence
-        && controller.requestState().secondaryActiveRequest.target.frame >= 0) {
+    if (controller.requestState().roles[1].sequence
+        && controller.requestState().roles[1].activeRequest.target.frame >= 0) {
         const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload
-            = controller.displayState().secondaryPendingRenderPayload.identity().isValid()
-            ? controller.displayState().secondaryPendingRenderPayload.identity()
+            = controller.displayState().roles[1].pendingRenderPayload.identity().isValid()
+            ? controller.displayState().roles[1].pendingRenderPayload.identity()
             : primaryPayload;
         rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
     }
@@ -284,8 +284,8 @@ void failPendingRenderCommit(ViewportController& controller)
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
     QVERIFY(synchronization.pendingTargetCommit);
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload
-        = controller.displayState().pendingRenderPayload.identity().isValid()
-        ? controller.displayState().pendingRenderPayload.identity()
+        = controller.displayState().roles[0].pendingRenderPayload.identity().isValid()
+        ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
     QVERIFY(primaryPayload.isValid());
     controller.acknowledgeRenderFailure(
@@ -427,8 +427,8 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
         assignment.sequence = primarySequence->sequence();
         assignment.secondarySequence = secondarySequence->sequence();
         controller.assignSequence(assignment);
-        QCOMPARE(controller.requestState().secondaryActiveRequest.target.frame, 0);
-        QCOMPARE(controller.requestState().secondaryActiveRequest.target.position, 0);
+        QCOMPARE(controller.requestState().roles[1].activeRequest.target.frame, 0);
+        QCOMPARE(controller.requestState().roles[1].activeRequest.target.position, 0);
         break;
     }
     case RoleCommandAdmissionCase::AbsentSecondaryRole:
@@ -460,7 +460,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
     QCOMPARE(controller.requestState().playbackPosition, 0);
 
     const ViewportCommandResult play = controller.play(ImageViewport::PageRole::Primary);
@@ -468,7 +468,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
 
     controller.advancePlayback(99);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
     QCOMPARE(controller.requestState().playbackPosition, 99);
 
     context.size = QSizeF(0.0, 100.0);
@@ -476,11 +476,11 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Waiting);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RenderWaiting);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 1);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 1);
     QCOMPARE(controller.requestState().playbackPosition, 100);
 
     controller.advancePlayback(1000);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 1);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 1);
     QCOMPARE(controller.requestState().playbackPosition, 100);
 
     context.size = QSizeF(100.0, 100.0);
@@ -488,7 +488,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
-    QCOMPARE(controller.displayState().displayedRequest.request.target.frame, 1);
+    QCOMPARE(controller.displayState().roles[0].displayedRequest.request.target.frame, 1);
 
     controller.advancePlayback(249);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
@@ -496,7 +496,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     controller.advancePlayback(1);
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Stopped);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 1);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 1);
     QCOMPARE(controller.requestState().playbackPosition, 350);
 }
 
@@ -524,7 +524,7 @@ void ViewportControllerPlaybackTest::pauseWhileRenderWaitingCommitsWithoutResumi
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Paused);
-    QCOMPARE(controller.displayState().displayedRequest.request.target.frame, 1);
+    QCOMPARE(controller.displayState().roles[0].displayedRequest.request.target.frame, 1);
 }
 
 void ViewportControllerPlaybackTest::explicitSeekWhilePlayingWaitsForRenderCommit()
@@ -545,8 +545,8 @@ void ViewportControllerPlaybackTest::explicitSeekWhilePlayingWaitsForRenderCommi
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Waiting);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::RenderWaiting);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 1);
-    QCOMPARE(controller.requestState().activeRequest.target.position, 100);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 1);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.position, 100);
 }
 
 void ViewportControllerPlaybackTest::loopingPlaybackWrapsToStart()
@@ -569,8 +569,8 @@ void ViewportControllerPlaybackTest::loopingPlaybackWrapsToStart()
     acknowledgePendingRenderCommit(controller);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Ready);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
-    QCOMPARE(controller.requestState().activeRequest.target.position, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.position, 0);
     QCOMPARE(controller.requestState().playbackPosition, 0);
 }
 
@@ -607,7 +607,7 @@ void ViewportControllerPlaybackTest::invalidSeekWhilePlayingPreservesPlaybackPha
     const ViewportCommandResult invalidSeek = controller.seek(ImageViewport::PageRole::Primary, -1);
     QCOMPARE(invalidSeek.outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(controller.requestState().playbackPhase, ImageViewport::PlaybackPhase::Playing);
-    QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(controller.requestState().roles[0].activeRequest.target.frame, 0);
     QCOMPARE(controller.requestState().playbackPosition, 0);
 }
 

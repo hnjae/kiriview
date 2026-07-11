@@ -252,6 +252,10 @@ struct DisplayState
         QImage displayedImage;
         PreparedPayload displayedPayload;
         PreparedPayload pendingRenderPayload;
+        bool retainedDisplayValid = false;
+        DisplayRequestSnapshot retainedRequest;
+        QSizeF retainedImageSize;
+        QImage retainedImage;
     };
 
     DisplayState() = default;
@@ -263,7 +267,7 @@ struct DisplayState
     DisplayRequestSnapshot activeRequestSnapshot(quint64 sequenceGeneration,
         const DisplayRequest& activeRequest, int displayedPosition) const
     {
-        DisplayRequestSnapshot snapshot = displayedRequest;
+        DisplayRequestSnapshot snapshot = roles[0].displayedRequest;
         snapshot.generation = sequenceGeneration;
         snapshot.request.target = activeRequest.target;
         snapshot.request.target.frame = activeRequest.target.frame;
@@ -276,6 +280,7 @@ struct DisplayState
     void commitDisplayedRequestSnapshot(
         quint64 sequenceGeneration, const DisplayRequest& activeRequest, quint64 preparedPayloadId)
     {
+        auto& displayedRequest = roles[0].displayedRequest;
         const auto displayedTarget = displayedRequest.request.target;
         const auto displayedResolvedFrame = displayedRequest.request.resolvedFrame;
         displayedRequest.generation = sequenceGeneration;
@@ -287,29 +292,24 @@ struct DisplayState
 
     void clearDisplayedDisplay()
     {
-        displayedRequest = {};
-        secondaryDisplayedRequest = {};
-        displayedImageSize = {};
-        displayedImage = {};
-        secondaryDisplayedImageSize = {};
-        secondaryDisplayedImage = {};
-        displayedPayload = {};
-        secondaryDisplayedPayload = {};
+        roles[0] = {};
+        roles[1] = {};
     }
 
     void beginPreparedPayloadIdentity(quint64 sequenceGeneration, DisplayRequest& activeRequest)
     {
-        pendingRenderPayload.generation = sequenceGeneration;
-        pendingRenderPayload.requestId = activeRequest.identity.id;
-        pendingRenderPayload.payloadId
+        auto& pending = roles[0].pendingRenderPayload;
+        pending.generation = sequenceGeneration;
+        pending.requestId = activeRequest.identity.id;
+        pending.payloadId
             = activeRequest.identity.id == 0 ? 0 : ++nextPreparedPayloadId;
-        activeRequest.preparedPayloadId = pendingRenderPayload.payloadId;
+        activeRequest.preparedPayloadId = pending.payloadId;
     }
 
     void commitPreparedPayloadIdentity(
         DisplayRequest& activeRequest, const PreparedPayload& preparedPayload)
     {
-        pendingRenderPayload = preparedPayload;
+        roles[0].pendingRenderPayload = preparedPayload;
         activeRequest.preparedPayloadId = preparedPayload.payloadId;
         if (preparedPayload.payloadId > nextPreparedPayloadId) {
             nextPreparedPayloadId = preparedPayload.payloadId;
@@ -318,14 +318,15 @@ struct DisplayState
 
     void clearPendingRenderPayload()
     {
-        pendingRenderPayload = {};
-        secondaryPendingRenderPayload = {};
+        roles[0].pendingRenderPayload = {};
+        roles[1].pendingRenderPayload = {};
     }
 
     bool pendingRenderPayloadMatches(const PreparedPayloadIdentity& identity) const
     {
-        const PreparedPayloadIdentity pendingIdentity = pendingRenderPayload.identity();
-        return pendingRenderPayload.commitPending && identity.isValid()
+        const auto& pending = roles[0].pendingRenderPayload;
+        const PreparedPayloadIdentity pendingIdentity = pending.identity();
+        return pending.commitPending && identity.isValid()
             && identity.generation == pendingIdentity.generation
             && identity.requestId == pendingIdentity.requestId
             && identity.payloadId == pendingIdentity.payloadId;
@@ -336,8 +337,9 @@ struct DisplayState
         return hasDisplayableSequence
             && (status == ImageViewport::DisplayStatus::Ready
                 || status == ImageViewport::DisplayStatus::Retained)
-            && displayedImageSize.isValid() && displayedImageSize.width() > 0.0
-            && displayedImageSize.height() > 0.0;
+            && roles[0].displayedImageSize.isValid()
+            && roles[0].displayedImageSize.width() > 0.0
+            && roles[0].displayedImageSize.height() > 0.0;
     }
 
     void captureRenderFailureRetainedDisplay(bool hasDisplayableSequence)
@@ -347,37 +349,29 @@ struct DisplayState
             return;
         }
 
-        renderFailureRetainedDisplayValid = true;
-        renderFailureRetainedRequest = displayedRequest;
-        renderFailureRetainedImageSize = displayedImageSize;
-        renderFailureRetainedImage = displayedImage;
+        for (auto& role : roles) {
+            const bool displayed = role.displayedImageSize.isValid()
+                && role.displayedImageSize.width() > 0.0 && role.displayedImageSize.height() > 0.0;
+            role.retainedDisplayValid = displayed;
+            role.retainedRequest = displayed ? role.displayedRequest : DisplayRequestSnapshot {};
+            role.retainedImageSize = displayed ? role.displayedImageSize : QSizeF {};
+            role.retainedImage = displayed ? role.displayedImage : QImage {};
+        }
     }
 
     void clearRenderFailureRetainedDisplay()
     {
-        renderFailureRetainedDisplayValid = false;
-        renderFailureRetainedRequest = {};
-        renderFailureRetainedImageSize = {};
-        renderFailureRetainedImage = {};
+        for (auto& role : roles) {
+            role.retainedDisplayValid = false;
+            role.retainedRequest = {};
+            role.retainedImageSize = {};
+            role.retainedImage = {};
+        }
     }
 
     ImageViewport::DisplayStatus status = ImageViewport::DisplayStatus::Empty;
     std::array<RoleState, 2> roles;
-    DisplayRequestSnapshot& displayedRequest = roles[0].displayedRequest;
-    DisplayRequestSnapshot& secondaryDisplayedRequest = roles[1].displayedRequest;
-    QSizeF& displayedImageSize = roles[0].displayedImageSize;
-    QSizeF& secondaryDisplayedImageSize = roles[1].displayedImageSize;
-    QImage& displayedImage = roles[0].displayedImage;
-    QImage& secondaryDisplayedImage = roles[1].displayedImage;
-    PreparedPayload& displayedPayload = roles[0].displayedPayload;
-    PreparedPayload& secondaryDisplayedPayload = roles[1].displayedPayload;
     quint64 nextPreparedPayloadId = 0;
-    PreparedPayload& pendingRenderPayload = roles[0].pendingRenderPayload;
-    PreparedPayload& secondaryPendingRenderPayload = roles[1].pendingRenderPayload;
-    DisplayRequestSnapshot renderFailureRetainedRequest;
-    bool renderFailureRetainedDisplayValid = false;
-    QSizeF renderFailureRetainedImageSize;
-    QImage renderFailureRetainedImage;
     PresentationState displayedPresentation;
     quint64 displayedPresentationRevision = 0;
     quint64 revision = 0;
@@ -403,10 +397,10 @@ struct RequestState
     void clearDisplayRequests()
     {
         nextRequestId = 0;
-        activeRequest = {};
-        secondaryActiveRequest = {};
-        latestNonPlaybackRequest = {};
-        secondaryLatestNonPlaybackRequest = {};
+        roles[0].activeRequest = {};
+        roles[1].activeRequest = {};
+        roles[0].latestNonPlaybackRequest = {};
+        roles[1].latestNonPlaybackRequest = {};
         playbackPosition = -1;
         playbackRole = ImageViewport::PageRole::Primary;
         playbackLoopIterationsCompleted = 0;
@@ -418,13 +412,14 @@ struct RequestState
     {
         targetSpreadTerminal.clear();
         lastAcceptedRenderFailure = {};
+        auto& activeRequest = roles[0].activeRequest;
         activeRequest.identity.id = ++nextRequestId;
         activeRequest.identity.origin = origin;
         activeRequest.providerFrameToken = {};
         activeRequest.demandRevision = {};
         activeRequest.preparedPayloadId = 0;
         if (rememberAsLatestNonPlayback) {
-            latestNonPlaybackRequest.identity = activeRequest.identity;
+            roles[0].latestNonPlaybackRequest.identity = activeRequest.identity;
         }
     }
 
@@ -439,11 +434,11 @@ struct RequestState
         ResolvedFrameIdentity resolvedFrame, bool rememberAsLatestNonPlayback)
     {
         beginDisplayRequest(origin, rememberAsLatestNonPlayback);
-        activeRequest.target = target;
-        activeRequest.resolvedFrame = resolvedFrame;
+        roles[0].activeRequest.target = target;
+        roles[0].activeRequest.resolvedFrame = resolvedFrame;
         if (rememberAsLatestNonPlayback) {
-            latestNonPlaybackRequest.target = target;
-            latestNonPlaybackRequest.resolvedFrame = resolvedFrame;
+            roles[0].latestNonPlaybackRequest.target = target;
+            roles[0].latestNonPlaybackRequest.resolvedFrame = resolvedFrame;
         }
     }
 
@@ -472,22 +467,17 @@ struct RequestState
 
     bool activeRequestMatchesProviderFrameToken(ImageSequenceProviderRequestToken token) const
     {
-        return token.isValid() && token == activeRequest.providerFrameToken;
+        return token.isValid() && token == roles[0].activeRequest.providerFrameToken;
     }
 
     bool activeRequestOwnsPreparedPayload(const PreparedPayloadIdentity& identity) const
     {
         return identity.isValid() && identity.generation == sequenceGeneration
-            && identity.requestId == activeRequest.identity.id
-            && identity.payloadId == activeRequest.preparedPayloadId;
+            && identity.requestId == roles[0].activeRequest.identity.id
+            && identity.payloadId == roles[0].activeRequest.preparedPayloadId;
     }
 
     std::array<RoleState, 2> roles;
-    ImageSequenceSource& sequenceSource = roles[0].source;
-    ImageSequenceSource& secondarySequenceSource = roles[1].source;
-    QPointer<ImageSequence>& sequence = roles[0].sequence;
-    QPointer<ImageSequence>& secondarySequence = roles[1].sequence;
-    bool& secondarySequenceIsProvider = roles[1].provider;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
     ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;
@@ -495,12 +485,8 @@ struct RequestState
     bool looping = false;
     bool stopPlaybackWhenRequestReady = false;
     bool providerPlaybackStartPending = false;
-    DisplayRequest& activeRequest = roles[0].activeRequest;
-    DisplayRequest& secondaryActiveRequest = roles[1].activeRequest;
     int playbackPosition = -1;
     ImageViewport::PageRole playbackRole = ImageViewport::PageRole::Primary;
-    DisplayRequest& latestNonPlaybackRequest = roles[0].latestNonPlaybackRequest;
-    DisplayRequest& secondaryLatestNonPlaybackRequest = roles[1].latestNonPlaybackRequest;
     int playbackLoopIterationsCompleted = 0;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;

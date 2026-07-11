@@ -13,7 +13,7 @@ namespace {
 
 bool hasDisplayedSecondaryRole(const ImageViewportInternal::DisplayState& display)
 {
-    const QSizeF size = display.secondaryDisplayedImageSize;
+    const QSizeF size = display.roles[1].displayedImageSize;
     return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
 }
 

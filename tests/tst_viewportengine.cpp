@@ -30,7 +30,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     ViewportEngine& engine, ImageSequenceProviderSession&)
 {
     auto& request = engine.requestState();
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Playback,
         ImageViewportInternal::DisplayRequestTarget {
@@ -40,7 +40,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     auto& provider = engine.providerState();
     provider.sessionActive = true;
     provider.activeFrameToken = providerRequestTokenForTest(4);
-    request.activeRequest.providerFrameToken = provider.activeFrameToken;
+    request.roles[0].activeRequest.providerFrameToken = provider.activeFrameToken;
 
     QImage primaryImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     primaryImage.fill(Qt::red);
@@ -48,21 +48,21 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     secondaryImage.fill(Qt::blue);
 
     auto& display = engine.displayState();
-    display.pendingRenderPayload
-        = { true, request.sequenceGeneration, request.activeRequest.identity.id, 3, primaryImage };
-    display.secondaryPendingRenderPayload = { true, request.sequenceGeneration,
-        request.activeRequest.identity.id, 4, secondaryImage };
+    display.roles[0].pendingRenderPayload
+        = { true, request.sequenceGeneration, request.roles[0].activeRequest.identity.id, 3, primaryImage };
+    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration,
+        request.roles[0].activeRequest.identity.id, 4, secondaryImage };
     display.status = ImageViewport::DisplayStatus::Ready;
-    display.displayedRequest = display.activeRequestSnapshot(
-        request.sequenceGeneration, request.activeRequest, request.activeRequest.target.position);
-    display.displayedImageSize = QSizeF(16.0, 8.0);
-    display.displayedImage = primaryImage;
-    display.renderFailureRetainedDisplayValid = true;
-    display.renderFailureRetainedRequest = display.displayedRequest;
-    display.renderFailureRetainedImageSize = display.displayedImageSize;
-    display.renderFailureRetainedImage = display.displayedImage;
+    display.roles[0].displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.roles[0].activeRequest, request.roles[0].activeRequest.target.position);
+    display.roles[0].displayedImageSize = QSizeF(16.0, 8.0);
+    display.roles[0].displayedImage = primaryImage;
+    display.roles[0].retainedDisplayValid = true;
+    display.roles[0].retainedRequest = display.roles[0].displayedRequest;
+    display.roles[0].retainedImageSize = display.roles[0].displayedImageSize;
+    display.roles[0].retainedImage = display.roles[0].displayedImage;
 
-    return { provider.activeFrameToken, request.activeRequest.identity.id };
+    return { provider.activeFrameToken, request.roles[0].activeRequest.identity.id };
 }
 
 void verifyProviderFrameQueueCleared(const ImageViewportInternal::ProviderGenerationState& provider)
@@ -162,9 +162,9 @@ void ViewportEngineTest::snapshotProjectsCanonicalEngineState()
     auto& request = engine.requestState();
     auto& display = engine.displayState();
 
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.logicalSize = QSizeF(16.0, 8.0);
-    request.sequenceSource.facts.frameCount = 1;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.logicalSize = QSizeF(16.0, 8.0);
+    request.roles[0].source.facts.frameCount = 1;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, true);
@@ -174,10 +174,10 @@ void ViewportEngineTest::snapshotProjectsCanonicalEngineState()
     request.commandRevision = 13;
 
     display.status = ImageViewport::DisplayStatus::Ready;
-    display.displayedRequest
-        = display.activeRequestSnapshot(request.sequenceGeneration, request.activeRequest, -1);
-    display.displayedImageSize = QSizeF(16.0, 8.0);
-    display.displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    display.roles[0].displayedRequest
+        = display.activeRequestSnapshot(request.sequenceGeneration, request.roles[0].activeRequest, -1);
+    display.roles[0].displayedImageSize = QSizeF(16.0, 8.0);
+    display.roles[0].displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     display.revision = 12;
 
     const ImageViewportStateSnapshot snapshot = engine.snapshot();
@@ -198,21 +198,21 @@ void ViewportEngineTest::defaultDisplayStateMatchesEmptyRenderState()
     const auto& display = engine.displayState();
 
     QCOMPARE(display.status, ImageViewport::DisplayStatus::Empty);
-    QCOMPARE(display.displayedRequest.generation, 0);
-    QCOMPARE(display.displayedRequest.request.identity.id, 0);
-    QCOMPARE(display.secondaryDisplayedRequest.generation, 0);
-    QCOMPARE(display.displayedImageSize, QSizeF());
-    QCOMPARE(display.displayedImage.isNull(), true);
-    QCOMPARE(display.secondaryDisplayedImageSize, QSizeF());
-    QCOMPARE(display.secondaryDisplayedImage.isNull(), true);
+    QCOMPARE(display.roles[0].displayedRequest.generation, 0);
+    QCOMPARE(display.roles[0].displayedRequest.request.identity.id, 0);
+    QCOMPARE(display.roles[1].displayedRequest.generation, 0);
+    QCOMPARE(display.roles[0].displayedImageSize, QSizeF());
+    QCOMPARE(display.roles[0].displayedImage.isNull(), true);
+    QCOMPARE(display.roles[1].displayedImageSize, QSizeF());
+    QCOMPARE(display.roles[1].displayedImage.isNull(), true);
     QCOMPARE(display.nextPreparedPayloadId, 0);
-    QCOMPARE(display.pendingRenderPayload.commitPending, false);
-    QCOMPARE(display.pendingRenderPayload.identity().isValid(), false);
-    QCOMPARE(display.secondaryPendingRenderPayload.commitPending, false);
-    QCOMPARE(display.renderFailureRetainedDisplayValid, false);
-    QCOMPARE(display.renderFailureRetainedRequest.generation, 0);
-    QCOMPARE(display.renderFailureRetainedImageSize, QSizeF());
-    QCOMPARE(display.renderFailureRetainedImage.isNull(), true);
+    QCOMPARE(display.roles[0].pendingRenderPayload.commitPending, false);
+    QCOMPARE(display.roles[0].pendingRenderPayload.identity().isValid(), false);
+    QCOMPARE(display.roles[1].pendingRenderPayload.commitPending, false);
+    QCOMPARE(display.roles[0].retainedDisplayValid, false);
+    QCOMPARE(display.roles[0].retainedRequest.generation, 0);
+    QCOMPARE(display.roles[0].retainedImageSize, QSizeF());
+    QCOMPARE(display.roles[0].retainedImage.isNull(), true);
     QCOMPARE(display.revision, 0);
 }
 
@@ -229,39 +229,39 @@ void ViewportEngineTest::displayStateOwnsRenderPayloadAndRetainedIdentity()
         ImageViewportInternal::ResolvedFrameIdentity { 2, 100 }, true);
 
     display.status = ImageViewport::DisplayStatus::Ready;
-    display.displayedRequest = display.activeRequestSnapshot(
-        request.sequenceGeneration, request.activeRequest, request.activeRequest.target.position);
-    display.displayedImageSize = QSizeF(16.0, 8.0);
-    display.displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
-    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
-    display.pendingRenderPayload.commitPending = true;
-    display.pendingRenderPayload.image = display.displayedImage;
-    display.secondaryPendingRenderPayload = { true, 12, request.activeRequest.identity.id, 9, {} };
+    display.roles[0].displayedRequest = display.activeRequestSnapshot(
+        request.sequenceGeneration, request.roles[0].activeRequest, request.roles[0].activeRequest.target.position);
+    display.roles[0].displayedImageSize = QSizeF(16.0, 8.0);
+    display.roles[0].displayedImage = QImage(16, 8, QImage::Format_ARGB32_Premultiplied);
+    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);
+    display.roles[0].pendingRenderPayload.commitPending = true;
+    display.roles[0].pendingRenderPayload.image = display.roles[0].displayedImage;
+    display.roles[1].pendingRenderPayload = { true, 12, request.roles[0].activeRequest.identity.id, 9, {} };
     display.revision = 42;
 
     const auto& observed = engine.displayState();
     QCOMPARE(observed.status, ImageViewport::DisplayStatus::Ready);
-    QCOMPARE(observed.displayedRequest.generation, 12);
-    QCOMPARE(observed.displayedRequest.request.target.frame, 2);
-    QCOMPARE(observed.displayedRequest.request.target.position, 100);
-    QCOMPARE(observed.displayedImageSize, QSizeF(16.0, 8.0));
-    QCOMPARE(observed.pendingRenderPayload.commitPending, true);
-    QCOMPARE(observed.pendingRenderPayload.generation, 12);
-    QCOMPARE(observed.pendingRenderPayload.requestId, request.activeRequest.identity.id);
-    QCOMPARE(observed.pendingRenderPayload.payloadId, 1);
-    QCOMPARE(request.activeRequest.preparedPayloadId, 1);
-    QCOMPARE(observed.secondaryPendingRenderPayload.payloadId, 9);
+    QCOMPARE(observed.roles[0].displayedRequest.generation, 12);
+    QCOMPARE(observed.roles[0].displayedRequest.request.target.frame, 2);
+    QCOMPARE(observed.roles[0].displayedRequest.request.target.position, 100);
+    QCOMPARE(observed.roles[0].displayedImageSize, QSizeF(16.0, 8.0));
+    QCOMPARE(observed.roles[0].pendingRenderPayload.commitPending, true);
+    QCOMPARE(observed.roles[0].pendingRenderPayload.generation, 12);
+    QCOMPARE(observed.roles[0].pendingRenderPayload.requestId, request.roles[0].activeRequest.identity.id);
+    QCOMPARE(observed.roles[0].pendingRenderPayload.payloadId, 1);
+    QCOMPARE(request.roles[0].activeRequest.preparedPayloadId, 1);
+    QCOMPARE(observed.roles[1].pendingRenderPayload.payloadId, 9);
     QCOMPARE(observed.revision, 42);
 
     display.captureRenderFailureRetainedDisplay(true);
-    QCOMPARE(engine.displayState().renderFailureRetainedDisplayValid, true);
-    QCOMPARE(engine.displayState().renderFailureRetainedRequest.generation, 12);
-    QCOMPARE(engine.displayState().renderFailureRetainedImageSize, QSizeF(16.0, 8.0));
-    QCOMPARE(engine.displayState().renderFailureRetainedImage.isNull(), false);
+    QCOMPARE(engine.displayState().roles[0].retainedDisplayValid, true);
+    QCOMPARE(engine.displayState().roles[0].retainedRequest.generation, 12);
+    QCOMPARE(engine.displayState().roles[0].retainedImageSize, QSizeF(16.0, 8.0));
+    QCOMPARE(engine.displayState().roles[0].retainedImage.isNull(), false);
 
     display.clearPendingRenderPayload();
-    QCOMPARE(engine.displayState().pendingRenderPayload.commitPending, false);
-    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.commitPending, false);
+    QCOMPARE(engine.displayState().roles[0].pendingRenderPayload.commitPending, false);
+    QCOMPARE(engine.displayState().roles[1].pendingRenderPayload.commitPending, false);
 }
 
 void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
@@ -277,10 +277,10 @@ void ViewportEngineTest::defaultRequestStateMatchesPublicDefaults()
     QCOMPARE(request.looping, item.state().presentation().looping());
     QCOMPARE(request.stopPlaybackWhenRequestReady, false);
     QCOMPARE(request.providerPlaybackStartPending, false);
-    QCOMPARE(request.activeRequest.identity.id, 0);
-    QCOMPARE(request.secondaryActiveRequest.identity.id, 0);
-    QCOMPARE(request.latestNonPlaybackRequest.identity.id, 0);
-    QCOMPARE(request.secondaryLatestNonPlaybackRequest.identity.id, 0);
+    QCOMPARE(request.roles[0].activeRequest.identity.id, 0);
+    QCOMPARE(request.roles[1].activeRequest.identity.id, 0);
+    QCOMPARE(request.roles[0].latestNonPlaybackRequest.identity.id, 0);
+    QCOMPARE(request.roles[1].latestNonPlaybackRequest.identity.id, 0);
     QCOMPARE(request.playbackPosition, -1);
     QCOMPARE(request.playbackRole, ImageViewport::PageRole::Primary);
     QCOMPARE(request.playbackLoopIterationsCompleted, 0);
@@ -309,11 +309,11 @@ void ViewportEngineTest::requestStateOwnsPlaybackDriverAndRequestIdentity()
         ImageViewportInternal::DisplayRequestTarget {
             3, 120, ImageViewportInternal::ProviderRequestTargetKind::Playback },
         false);
-    request.secondaryActiveRequest.identity = request.activeRequest.identity;
-    request.secondaryActiveRequest.target
+    request.roles[1].activeRequest.identity = request.roles[0].activeRequest.identity;
+    request.roles[1].activeRequest.target
         = { 4, 160, ImageViewportInternal::ProviderRequestTargetKind::Playback };
-    request.secondaryLatestNonPlaybackRequest.identity = request.secondaryActiveRequest.identity;
-    request.secondaryLatestNonPlaybackRequest.target
+    request.roles[1].latestNonPlaybackRequest.identity = request.roles[1].activeRequest.identity;
+    request.roles[1].latestNonPlaybackRequest.target
         = { 1, 40, ImageViewportInternal::ProviderRequestTargetKind::Frame };
 
     const auto& observed = engine.requestState();
@@ -327,16 +327,16 @@ void ViewportEngineTest::requestStateOwnsPlaybackDriverAndRequestIdentity()
     QCOMPARE(observed.playbackRole, ImageViewport::PageRole::Secondary);
     QCOMPARE(observed.playbackPosition, 125);
     QCOMPARE(observed.playbackLoopIterationsCompleted, 2);
-    QVERIFY(observed.activeRequest.identity.id != 0);
-    QCOMPARE(observed.activeRequest.identity.origin,
+    QVERIFY(observed.roles[0].activeRequest.identity.id != 0);
+    QCOMPARE(observed.roles[0].activeRequest.identity.origin,
         ImageViewportInternal::DisplayRequestOrigin::Playback);
-    QCOMPARE(observed.activeRequest.target.frame, 3);
-    QCOMPARE(observed.activeRequest.target.position, 120);
-    QCOMPARE(observed.secondaryActiveRequest.identity.id, observed.activeRequest.identity.id);
+    QCOMPARE(observed.roles[0].activeRequest.target.frame, 3);
+    QCOMPARE(observed.roles[0].activeRequest.target.position, 120);
+    QCOMPARE(observed.roles[1].activeRequest.identity.id, observed.roles[0].activeRequest.identity.id);
     QCOMPARE(
-        observed.secondaryActiveRequest.identity.origin, observed.activeRequest.identity.origin);
-    QCOMPARE(observed.secondaryActiveRequest.target.frame, 4);
-    QCOMPARE(observed.secondaryLatestNonPlaybackRequest.target.frame, 1);
+        observed.roles[1].activeRequest.identity.origin, observed.roles[0].activeRequest.identity.origin);
+    QCOMPARE(observed.roles[1].activeRequest.target.frame, 4);
+    QCOMPARE(observed.roles[1].latestNonPlaybackRequest.target.frame, 1);
 }
 
 void ViewportEngineTest::playbackScheduleStopsOutsideReadyPlayingState()
@@ -353,13 +353,13 @@ void ViewportEngineTest::playbackScheduleUsesBuiltInFrameRemainder()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.timed = true;
-    request.sequenceSource.facts.frameCount = 2;
-    request.sequenceSource.facts.totalDuration = 350;
-    request.sequenceSource.facts.timingIntervals
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.timed = true;
+    request.roles[0].source.facts.frameCount = 2;
+    request.roles[0].source.facts.totalDuration = 350;
+    request.roles[0].source.facts.timingIntervals
         = TimingIntervals::fromFrameDurations({ 100, 250 });
-    request.activeRequest.target.frame = 1;
+    request.roles[0].activeRequest.target.frame = 1;
     request.playbackRole = ImageViewport::PageRole::Primary;
     request.playbackPosition = 125;
     request.playbackPhase = ImageViewport::PlaybackPhase::Playing;
@@ -375,9 +375,9 @@ void ViewportEngineTest::playbackScheduleUsesProviderFrameRemainderByRole()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.secondarySequenceSource.facts.present = true;
-    request.secondarySequenceSource.facts.provider = true;
-    request.secondaryActiveRequest.target.frame = 0;
+    request.roles[1].source.facts.present = true;
+    request.roles[1].source.facts.provider = true;
+    request.roles[1].activeRequest.target.frame = 0;
     request.playbackRole = ImageViewport::PageRole::Secondary;
     request.playbackPosition = 40;
     request.playbackPhase = ImageViewport::PlaybackPhase::Playing;
@@ -397,7 +397,7 @@ void ViewportEngineTest::playbackPauseCommandMutatesEngineAtomically()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
+    request.roles[0].source.facts.present = true;
     request.playbackRole = ImageViewport::PageRole::Primary;
     request.playbackPhase = ImageViewport::PlaybackPhase::Playing;
 
@@ -415,12 +415,12 @@ void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()
     ViewportEngine engine;
     auto& request = engine.requestState();
     request.sequenceGeneration = 7;
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.timed = true;
-    request.sequenceSource.facts.frameCount = 2;
-    request.sequenceSource.facts.totalDuration = 350;
-    request.sequenceSource.facts.logicalSize = QSizeF(16.0, 8.0);
-    request.sequenceSource.facts.timingIntervals
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.timed = true;
+    request.roles[0].source.facts.frameCount = 2;
+    request.roles[0].source.facts.totalDuration = 350;
+    request.roles[0].source.facts.logicalSize = QSizeF(16.0, 8.0);
+    request.roles[0].source.facts.timingIntervals
         = TimingIntervals::fromFrameDurations({ 100, 250 });
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, 0, ImageViewportInternal::ProviderRequestTargetKind::Unknown },
@@ -434,9 +434,9 @@ void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()
     const auto result = engine.advancePlayback(
         { 100, { true, QRectF(0.0, 0.0, 100.0, 100.0), QSizeF(16.0, 8.0), {}, 1.0 } });
 
-    QCOMPARE(engine.requestState().activeRequest.target.frame, 1);
-    QCOMPARE(engine.requestState().activeRequest.target.position, 100);
-    QCOMPARE(engine.requestState().activeRequest.identity.origin,
+    QCOMPARE(engine.requestState().roles[0].activeRequest.target.frame, 1);
+    QCOMPARE(engine.requestState().roles[0].activeRequest.target.position, 100);
+    QCOMPARE(engine.requestState().roles[0].activeRequest.identity.origin,
         ImageViewportInternal::DisplayRequestOrigin::Playback);
     QCOMPARE(engine.requestState().playbackPhase, ImageViewport::PlaybackPhase::Waiting);
     QCOMPARE(result.changes.requestState, true);
@@ -555,7 +555,7 @@ void ViewportEngineTest::providerFrameQueueStoresCurrentRequestIdentity()
     QCOMPARE(result.deferredFlush, true);
     QCOMPARE(result.cancelToken, setup.activeToken);
     QVERIFY(!engine.providerState().activeFrameToken.isValid());
-    QVERIFY(!engine.requestState().activeRequest.providerFrameToken.isValid());
+    QVERIFY(!engine.requestState().roles[0].activeRequest.providerFrameToken.isValid());
     QCOMPARE(engine.providerState().queuedFrameGeneration, 7);
     QCOMPARE(engine.providerState().queuedFrameRequestId, setup.activeRequestId);
     QCOMPARE(engine.providerState().queuedFrame, 4);
@@ -567,31 +567,31 @@ void ViewportEngineTest::providerFrameQueueStoresCurrentRequestIdentity()
         ImageViewportInternal::ProviderRequestTargetKind::Playback);
     QCOMPARE(engine.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(engine.requestState().reason, ImageViewport::RequestReason::RequestQueued);
-    QCOMPARE(engine.displayState().pendingRenderPayload.commitPending, false);
-    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.commitPending, false);
-    QCOMPARE(engine.displayState().renderFailureRetainedDisplayValid, false);
-    QCOMPARE(engine.displayState().renderFailureRetainedRequest.generation, 0);
-    QCOMPARE(engine.displayState().renderFailureRetainedImageSize, QSizeF());
-    QCOMPARE(engine.displayState().renderFailureRetainedImage.isNull(), true);
+    QCOMPARE(engine.displayState().roles[0].pendingRenderPayload.commitPending, false);
+    QCOMPARE(engine.displayState().roles[1].pendingRenderPayload.commitPending, false);
+    QCOMPARE(engine.displayState().roles[0].retainedDisplayValid, false);
+    QCOMPARE(engine.displayState().roles[0].retainedRequest.generation, 0);
+    QCOMPARE(engine.displayState().roles[0].retainedImageSize, QSizeF());
+    QCOMPARE(engine.displayState().roles[0].retainedImage.isNull(), true);
 }
 
 void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.requestRevision = 11;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
         { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position },
         { 2, 100 }, false);
     engine.providerState().logicalSize = QSizeF(16.0, 8.0);
-    engine.displayState().displayedPayload.quality = ImageViewport::PayloadQuality::Preview;
-    engine.displayState().displayedPayload.exactness
+    engine.displayState().roles[0].displayedPayload.quality = ImageViewport::PayloadQuality::Preview;
+    engine.displayState().roles[0].displayedPayload.exactness
         = ImageViewport::PayloadExactness::NotExact;
-    engine.displayState().displayedPayload.payloadRasterSize = QSizeF(8.0, 4.0);
-    engine.displayState().displayedPayload.sourceToPayloadScale = QSizeF(0.5, 0.5);
+    engine.displayState().roles[0].displayedPayload.payloadRasterSize = QSizeF(8.0, 4.0);
+    engine.displayState().roles[0].displayedPayload.sourceToPayloadScale = QSizeF(0.5, 0.5);
 
     ViewportEngine::GeometryInput geometry;
     geometry.primaryPresent = true;
@@ -602,7 +602,7 @@ void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
         = engine.providerDisplayDemand(ImageViewport::PageRole::Primary, geometry);
 
     QVERIFY(demand.demandRevision().isValid());
-    QCOMPARE(engine.requestState().activeRequest.demandRevision, demand.demandRevision());
+    QCOMPARE(engine.requestState().roles[0].activeRequest.demandRevision, demand.demandRevision());
     QVERIFY(demand.requestRevision().isValid());
     QCOMPARE(demand.role(), ImageViewport::PageRole::Primary);
     QCOMPARE(demand.resolvedFrame(), 2);
@@ -624,8 +624,8 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
         { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position }, { 2, 100 }, false);
@@ -635,7 +635,7 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     provider.logicalSize = QSizeF(16.0, 8.0);
     provider.activeFrameToken = providerRequestTokenForTest(4);
     provider.nextRequestToken = 4;
-    request.activeRequest.providerFrameToken = provider.activeFrameToken;
+    request.roles[0].activeRequest.providerFrameToken = provider.activeFrameToken;
 
     ViewportEngine::GeometryInput geometry { true, QRectF(0.0, 0.0, 100.0, 50.0),
         QSizeF(16.0, 8.0), {}, 1.0 };
@@ -653,23 +653,23 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     QCOMPARE(effects[0].command.demand.targetDisplaySizePixels(), QSizeF(400.0, 200.0));
     QCOMPARE(effects[0].command.demand.effectiveDevicePixelRatio(), 2.0);
     QVERIFY(effects[0].command.demand.demandRevision() != oldDemand);
-    QCOMPARE(request.activeRequest.demandRevision,
+    QCOMPARE(request.roles[0].activeRequest.demandRevision,
         effects[0].command.demand.demandRevision());
-    QCOMPARE(request.activeRequest.providerFrameToken, effects[0].command.token);
+    QCOMPARE(request.roles[0].activeRequest.providerFrameToken, effects[0].command.token);
 }
 
 void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
     engine.activateProviderSession(ImageViewport::PageRole::Primary);
     engine.providerState().activeFrameToken = providerRequestTokenForTest(3);
-    request.activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
+    request.roles[0].activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
 
     const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
         { providerRequestTokenForTest(4), ViewportProviderTerminalEvent::Kind::Failure,
@@ -685,15 +685,15 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
     request.playbackPhase = ImageViewport::PlaybackPhase::Waiting;
     engine.activateProviderSession(ImageViewport::PageRole::Primary);
     engine.providerState().activeFrameToken = providerRequestTokenForTest(3);
-    request.activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
+    request.roles[0].activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
 
     const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
         { providerRequestTokenForTest(3), ViewportProviderTerminalEvent::Kind::Failure,
@@ -715,8 +715,8 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
 {
     ViewportEngine engine;
     auto& request = engine.requestState();
-    request.sequenceSource.facts.present = true;
-    request.sequenceSource.facts.provider = true;
+    request.roles[0].source.facts.present = true;
+    request.roles[0].source.facts.provider = true;
     request.sequenceGeneration = 9;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, false);
@@ -760,7 +760,7 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
     setUpCurrentProviderFrameQueueRequest(engine, session);
     engine.queueProviderFrameRequest({ ImageViewport::PageRole::Primary, 4,
         ImageViewportInternal::ProviderRequestTargetKind::Playback });
-    engine.requestState().activeRequest.target.frame = 5;
+    engine.requestState().roles[0].activeRequest.target.frame = 5;
 
     const auto result = engine.flushQueuedProviderFrameRequest(ImageViewport::PageRole::Primary);
 
@@ -925,15 +925,15 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     secondaryImage.fill(Qt::blue);
 
     auto& display = engine.displayState();
-    display.pendingRenderPayload
-        = { true, request.sequenceGeneration, request.activeRequest.identity.id, 3, primaryImage };
-    display.secondaryPendingRenderPayload = { true, request.sequenceGeneration,
-        request.activeRequest.identity.id, 4, secondaryImage };
+    display.roles[0].pendingRenderPayload
+        = { true, request.sequenceGeneration, request.roles[0].activeRequest.identity.id, 3, primaryImage };
+    display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration,
+        request.roles[0].activeRequest.identity.id, 4, secondaryImage };
 
     ViewportRenderSnapshotInput input;
     input.itemSize = QSizeF(100.0, 80.0);
     input.pendingTargetCommit = true;
-    input.preparedPayload = display.pendingRenderPayload;
+    input.preparedPayload = display.roles[0].pendingRenderPayload;
     input.geometryState = engine.geometryState(
         { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
 
@@ -999,14 +999,14 @@ void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAnd
     QCOMPARE(result.presentationTargetState.activeRole, ImageViewport::PageRole::Primary);
     QCOMPARE(
         engine.presentationTargetState().generation, result.presentationTargetState.generation);
-    QCOMPARE(engine.requestState().sequence, sequence->sequence());
+    QCOMPARE(engine.requestState().roles[0].sequence, sequence->sequence());
     QCOMPARE(engine.requestState().sequenceGeneration, 1);
-    QCOMPARE(engine.requestState().activeRequest.identity.id, 1);
-    QCOMPARE(engine.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(engine.requestState().roles[0].activeRequest.identity.id, 1);
+    QCOMPARE(engine.requestState().roles[0].activeRequest.target.frame, 0);
     QCOMPARE(engine.requestState().status, ImageViewport::RequestStatus::Loading);
     QCOMPARE(engine.requestState().reason, ImageViewport::RequestReason::RenderWaiting);
-    QCOMPARE(engine.displayState().pendingRenderPayload.commitPending, true);
-    QCOMPARE(engine.displayState().pendingRenderPayload.image.isNull(), false);
+    QCOMPARE(engine.displayState().roles[0].pendingRenderPayload.commitPending, true);
+    QCOMPARE(engine.displayState().roles[0].pendingRenderPayload.image.isNull(), false);
 }
 
 void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
@@ -1037,13 +1037,13 @@ void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
         result.presentationTargetState.generation);
     QCOMPARE(result.presentationTargetState.secondaryRoleGeneration,
         result.presentationTargetState.generation);
-    QCOMPARE(engine.requestState().secondarySequence, secondary->sequence());
-    QCOMPARE(engine.requestState().secondaryActiveRequest.identity.id,
-        engine.requestState().activeRequest.identity.id);
-    QCOMPARE(engine.requestState().secondaryActiveRequest.identity.origin,
-        engine.requestState().activeRequest.identity.origin);
-    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.commitPending, true);
-    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.image.isNull(), false);
+    QCOMPARE(engine.requestState().roles[1].sequence, secondary->sequence());
+    QCOMPARE(engine.requestState().roles[1].activeRequest.identity.id,
+        engine.requestState().roles[0].activeRequest.identity.id);
+    QCOMPARE(engine.requestState().roles[1].activeRequest.identity.origin,
+        engine.requestState().roles[0].activeRequest.identity.origin);
+    QCOMPARE(engine.displayState().roles[1].pendingRenderPayload.commitPending, true);
+    QCOMPARE(engine.displayState().roles[1].pendingRenderPayload.image.isNull(), false);
 }
 
 void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics()
@@ -1144,8 +1144,8 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
     QCOMPARE(clearResult.closeProviderSessions, true);
     QCOMPARE(engine.requestState().status, ImageViewport::RequestStatus::NoRequest);
     QCOMPARE(engine.displayState().status, ImageViewport::DisplayStatus::Empty);
-    QCOMPARE(engine.requestState().sequence, nullptr);
-    QCOMPARE(engine.displayState().displayedImageSize, QSizeF());
+    QCOMPARE(engine.requestState().roles[0].sequence, nullptr);
+    QCOMPARE(engine.displayState().roles[0].displayedImageSize, QSizeF());
 
     const ViewportEngine::PresentationTargetAssignmentResult noopClear
         = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });
