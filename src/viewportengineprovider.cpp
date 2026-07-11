@@ -4,6 +4,7 @@
 #include "imageviewportproviderfacts_p.h"
 
 #include <cmath>
+#include <memory>
 
 namespace {
 using namespace ImageViewportInternal;
@@ -175,6 +176,21 @@ ViewportProviderMetadataTerminalResult metadataTerminal(const ViewportProviderTe
         event.kind == ViewportProviderTerminalEvent::Kind::Cancellation
             ? QStringLiteral("provider cancelled request")
             : QStringLiteral("provider failure") };
+}
+
+ViewportProviderTerminalEvent terminalEvent(const ViewportProviderEvent& event)
+{
+    ViewportProviderTerminalEvent result;
+    result.token = event.token;
+    result.unsupportedCause = event.unsupportedCause;
+    result.diagnostic = event.diagnostic;
+    result.unsupportedCauseExplicit = event.unsupportedCauseExplicit;
+    result.kind = event.kind == ViewportProviderEvent::Kind::Unsupported
+        ? ViewportProviderTerminalEvent::Kind::Unsupported
+        : event.kind == ViewportProviderEvent::Kind::Cancellation
+        ? ViewportProviderTerminalEvent::Kind::Cancellation
+        : ViewportProviderTerminalEvent::Kind::Failure;
+    return result;
 }
 }
 
@@ -375,6 +391,113 @@ ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAd
         admission.timingIntervals,
         metadata.hasAuthoredAnimationFacts() ? metadata.authoredAnimationFacts()
                                              : facts.authoredAnimationFacts };
+    return result;
+}
+
+ViewportProviderMetadataReadyResult ViewportEngine::reduceProviderMetadataReady(
+    ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event,
+    const GeometryInput& geometry)
+{
+    ViewportProviderMetadataReadyResult result;
+    if (!admitProviderMetadataEvent({ role, event.token }).accepted) {
+        return result;
+    }
+    const auto admission = reduceProviderMetadataAdmission(role, event.metadata);
+    if (!admission.accepted) {
+        result.changes = admission.changes;
+        result.providerFrameTransport = admission.providerFrameTransport;
+        return result;
+    }
+    const auto factsChanges = acceptProviderMetadataFacts(role, admission.facts);
+    result.changes.requestState
+        = result.changes.requestState || factsChanges.requestState;
+    result.changes.requestRevision
+        = result.changes.requestRevision || factsChanges.requestRevision;
+    GeometryInput acceptedGeometry = geometry;
+    if (role == ImageViewport::PageRole::Primary) {
+        acceptedGeometry.primaryPresent = true;
+        acceptedGeometry.primarySize = admission.facts.logicalSize;
+    } else {
+        acceptedGeometry.secondarySize = admission.facts.logicalSize;
+    }
+    const auto target
+        = applyProviderMetadataTargetPolicy(role, admission.facts, acceptedGeometry);
+    result.changes.requestState = result.changes.requestState || target.changes.requestState;
+    result.changes.requestRevision
+        = result.changes.requestRevision || target.changes.requestRevision;
+    result.changes.displayState = result.changes.displayState || target.changes.displayState;
+    result.changes.displayRevision
+        = result.changes.displayRevision || target.changes.displayRevision;
+    result.changes.diagnostics = result.changes.diagnostics || target.changes.diagnostics;
+    result.changes.playbackPhase
+        = result.changes.playbackPhase || target.changes.playbackPhase;
+    result.changes.scheduleUpdate
+        = result.changes.scheduleUpdate || target.changes.scheduleUpdate;
+    result.providerFrameTransport = target.providerFrameTransport;
+    return result;
+}
+
+ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
+    const ViewportProviderEvent& event, const GeometryInput& geometry)
+{
+    if (!acceptsProviderSessionEvent(event.role, event.sessionSerial, event.generation)) {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> stale(event.frameHandle);
+        return {};
+    }
+    ViewportProviderEventResult result;
+    switch (event.kind) {
+    case ViewportProviderEvent::Kind::MetadataReady: {
+        const auto metadata
+            = reduceProviderMetadataReady(event.role, { event.token, event.metadata }, geometry);
+        result.changes = metadata.changes;
+        result.providerFrameTransport = metadata.providerFrameTransport;
+        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
+        break;
+    }
+    case ViewportProviderEvent::Kind::ImageFrameReady:
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
+        result.changes = reduceProviderFrameEvent(event.role, { event.token }, event.imageFrame,
+            event.kind == ViewportProviderEvent::Kind::ImageFrameReady
+                ? ImageSequenceProviderFrameMetadata::stillFrame()
+                : event.frameMetadata,
+            geometry);
+        break;
+    case ViewportProviderEvent::Kind::FrameHandleReady:
+    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
+        std::unique_ptr<ImageSequenceProviderFrameHandle> owned(event.frameHandle);
+        result.changes = reduceProviderFrameEvent(event.role, { event.token },
+            owned ? owned->frame() : nullptr,
+            event.kind == ViewportProviderEvent::Kind::FrameHandleReady
+                ? ImageSequenceProviderFrameMetadata::stillFrame()
+                : event.frameMetadata,
+            geometry);
+        break;
+    }
+    case ViewportProviderEvent::Kind::Waiting:
+    case ViewportProviderEvent::Kind::Progress:
+        result.changes = reduceProviderWaitingEvent(event.role,
+            { event.token, event.kind == ViewportProviderEvent::Kind::Progress, event.progress });
+        break;
+    case ViewportProviderEvent::Kind::EndOfSequence: {
+        const auto eos = reduceProviderEndOfSequence(event.role, { event.token }, geometry);
+        result.changes = eos.changes;
+        result.providerFrameTransport = eos.providerFrameTransport;
+        result.providerFrameTransportPhase = eos.providerFrameTransport.closeSession
+            ? ViewportProviderEventTransportPhase::AfterChanges
+            : ViewportProviderEventTransportPhase::BeforeChanges;
+        break;
+    }
+    case ViewportProviderEvent::Kind::Failure:
+    case ViewportProviderEvent::Kind::Unsupported:
+    case ViewportProviderEvent::Kind::Cancellation: {
+        const auto terminal = reduceProviderTerminalEvent(event.role, terminalEvent(event));
+        result.changes = terminal.changes;
+        result.providerFrameTransport = terminal.providerFrameTransport;
+        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
+        break;
+    }
+    }
+    result.schedule = playbackScheduleEffect();
     return result;
 }
 

@@ -1,40 +1,7 @@
 #include "viewportcontrollerplaybackhelpers_p.h"
 #include "viewportcontrollergeometryhelpers_p.h"
 
-#include <memory>
-
 namespace {
-ViewportProviderTerminalEvent terminalEventFor(const ViewportProviderEvent& event)
-{
-    ViewportProviderTerminalEvent terminalEvent;
-    terminalEvent.token = event.token;
-    terminalEvent.unsupportedCause = event.unsupportedCause;
-    terminalEvent.diagnostic = event.diagnostic;
-    terminalEvent.unsupportedCauseExplicit = event.unsupportedCauseExplicit;
-
-    switch (event.kind) {
-    case ViewportProviderEvent::Kind::Unsupported:
-        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Unsupported;
-        break;
-    case ViewportProviderEvent::Kind::Cancellation:
-        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Cancellation;
-        break;
-    case ViewportProviderEvent::Kind::MetadataReady:
-    case ViewportProviderEvent::Kind::ImageFrameReady:
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
-    case ViewportProviderEvent::Kind::FrameHandleReady:
-    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady:
-    case ViewportProviderEvent::Kind::Waiting:
-    case ViewportProviderEvent::Kind::Progress:
-    case ViewportProviderEvent::Kind::EndOfSequence:
-    case ViewportProviderEvent::Kind::Failure:
-        terminalEvent.kind = ViewportProviderTerminalEvent::Kind::Failure;
-        break;
-    }
-
-    return terminalEvent;
-}
-
 void appendProviderFrameQueueResult(
     ViewportProviderFrameTransportEffect& effect, ViewportProviderFrameQueueResult queue)
 {
@@ -169,73 +136,7 @@ bool ViewportController::acceptsProviderSessionResult(
 ViewportProviderEventResult ViewportController::handleProviderEvent(
     const ViewportProviderEvent& event)
 {
-    if (!acceptsProviderSessionResult(event.role, event.sessionSerial, event.generation)) {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> staleFrame(event.frameHandle);
-        return {};
-    }
-
-    ViewportProviderEventResult result;
-    switch (event.kind) {
-    case ViewportProviderEvent::Kind::MetadataReady: {
-        const ViewportProviderMetadataReadyResult metadataResult
-            = handleProviderMetadataReadyEvent(event.role, { event.token, event.metadata });
-        result.changes = metadataResult.changes;
-        result.providerFrameTransport = metadataResult.providerFrameTransport;
-        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::BeforeChanges;
-        break;
-    }
-    case ViewportProviderEvent::Kind::ImageFrameReady:
-        result.changes = handleProviderFrameEvent(event.role, { event.token }, event.imageFrame,
-            ImageSequenceProviderFrameMetadata::stillFrame());
-        break;
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
-        result.changes = handleProviderFrameEvent(
-            event.role, { event.token }, event.imageFrame, event.frameMetadata);
-        break;
-    case ViewportProviderEvent::Kind::FrameHandleReady: {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(event.frameHandle);
-        result.changes = handleProviderFrameEvent(event.role, { event.token },
-            ownedFrame ? ownedFrame->frame() : nullptr,
-            ImageSequenceProviderFrameMetadata::stillFrame());
-        break;
-    }
-    case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
-        std::unique_ptr<ImageSequenceProviderFrameHandle> ownedFrame(event.frameHandle);
-        result.changes = handleProviderFrameEvent(event.role, { event.token },
-            ownedFrame ? ownedFrame->frame() : nullptr, event.frameMetadata);
-        break;
-    }
-    case ViewportProviderEvent::Kind::Waiting:
-        result.changes = handleProviderWaitingEvent(event.role, { event.token, false, 0.0 });
-        break;
-    case ViewportProviderEvent::Kind::Progress:
-        result.changes
-            = handleProviderWaitingEvent(event.role, { event.token, true, event.progress });
-        break;
-    case ViewportProviderEvent::Kind::EndOfSequence: {
-        const ViewportProviderEndOfSequenceResult endOfSequence
-            = handleProviderEndOfSequenceEvent(event.role, { event.token });
-        result.changes = endOfSequence.changes;
-        result.providerFrameTransport = endOfSequence.providerFrameTransport;
-        result.providerFrameTransportPhase = endOfSequence.providerFrameTransport.closeSession
-            ? ViewportProviderEventTransportPhase::AfterChanges
-            : ViewportProviderEventTransportPhase::BeforeChanges;
-        break;
-    }
-    case ViewportProviderEvent::Kind::Failure:
-    case ViewportProviderEvent::Kind::Unsupported:
-    case ViewportProviderEvent::Kind::Cancellation: {
-        const ViewportProviderTerminalEventResult terminal
-            = handleProviderTerminalEvent(event.role, terminalEventFor(event));
-        result.changes = terminal.changes;
-        result.providerFrameTransport = terminal.providerFrameTransport;
-        result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
-        break;
-    }
-    }
-
-    result.schedule = state.engine.playbackScheduleEffect();
-    return result;
+    return state.engine.reduceProviderEvent(event, acceptedGeometryInput(viewport));
 }
 
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(

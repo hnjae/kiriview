@@ -243,6 +243,11 @@ public:
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
     ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
         ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
+    ViewportProviderMetadataReadyResult reduceProviderMetadataReady(
+        ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event,
+        const GeometryInput& geometry);
+    ViewportProviderEventResult reduceProviderEvent(
+        const ViewportProviderEvent& event, const GeometryInput& geometry);
     ImageViewportInternal::ViewportChangeSet acceptProviderMetadataFacts(
         ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet rejectProviderMetadataTarget(
