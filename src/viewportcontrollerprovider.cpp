@@ -139,6 +139,13 @@ ViewportProviderEventResult ViewportController::handleProviderEvent(
     return state.engine.reduceProviderEvent(event, acceptedGeometryInput(viewport));
 }
 
+std::array<ViewportProviderFrameTransportEffect, 2> ViewportController::restageProviderDemands(
+    double devicePixelRatio)
+{
+    return state.engine.restageProviderDemands(
+        acceptedGeometryInput(viewport, devicePixelRatio));
+}
+
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(
     const ImageSequenceProviderMetadata& metadata)
 {

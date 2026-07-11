@@ -23,6 +23,8 @@ ViewportCommandResult ViewportController::setPresentation(
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(viewport, engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
+    result.providerFrameTransport = engineResult.providerEffects[0];
+    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
     return result;
 }
 

@@ -5,6 +5,8 @@
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerplaybackcontract_p.h"
 
+#include <QtQuick/QQuickWindow>
+
 using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
@@ -140,6 +142,11 @@ void ImageViewportPrivate::devicePixelRatioChanged()
     changes.geometryState = true;
     changes.scheduleUpdate = true;
     applyControllerChanges(changes);
+    const QQuickWindow* currentWindow = window();
+    const auto effects = controller.restageProviderDemands(
+        currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0);
+    providerHost.applyFrameTransportEffect(effects[0]);
+    providerHost.applyFrameTransportEffect(effects[1], PageRole::Secondary);
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()

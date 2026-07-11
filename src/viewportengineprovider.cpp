@@ -371,6 +371,36 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     return result;
 }
 
+std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
+    const GeometryInput& geometry)
+{
+    std::array<ViewportProviderFrameTransportEffect, 2> effects;
+    for (const auto role : { ImageViewport::PageRole::Primary,
+             ImageViewport::PageRole::Secondary }) {
+        auto& provider = providerForRole(*this, role);
+        auto& request = requestForRole(m_requestState, role);
+        const bool present = role == ImageViewport::PageRole::Primary
+            ? m_requestState.sequenceSource.facts.provider
+            : m_requestState.secondarySequence && m_requestState.secondarySequenceIsProvider;
+        if (!present || !provider.sessionActive || !provider.metadataReady
+            || !provider.activeFrameToken.isValid()
+            || request.identity.id == 0 || request.resolvedFrame.frame < 0) {
+            continue;
+        }
+        const auto cancelled = provider.activeFrameToken;
+        provider.activeFrameToken = {};
+        request.providerFrameToken = {};
+        const auto start = startProviderFrameRequest(role, request.target, geometry);
+        auto& effect = effects[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
+        effect.cancelToken = cancelled;
+        effect.closeSession = start.closeSession;
+        effect.sessionClose = start.sessionClose;
+        effect.sendCommand = start.sendCommand;
+        effect.command = start.command;
+    }
+    return effects;
+}
+
 ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAdmission(
     ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
 {

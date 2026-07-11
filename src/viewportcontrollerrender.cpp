@@ -1,6 +1,6 @@
 #include "viewportcontrollerrenderhelpers_p.h"
 
-ImageViewportInternal::ViewportChangeSet ViewportController::handleGeometryChanged(
+ViewportEngine::GeometryChangeResult ViewportController::handleGeometryChanged(
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
     return state.engine.handleGeometryChanged({ viewport.itemBounds(), oldContentRect,

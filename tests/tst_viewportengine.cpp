@@ -105,6 +105,7 @@ private slots:
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
     void providerDisplayDemandProjectsCanonicalEngineFacts();
+    void providerDemandRestagingCancelsAndReissuesCurrentTarget();
     void providerTerminalReducerRejectsStaleFrameToken();
     void providerTerminalReducerCommitsFrameFailureAtomically();
     void providerTerminalReducerClosesMetadataGeneration();
@@ -617,6 +618,44 @@ void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
     QCOMPARE(demand.currentPayloadExactness(), ImageViewport::PayloadExactness::NotExact);
     QCOMPARE(demand.currentPayloadRasterSize(), QSizeF(8.0, 4.0));
     QCOMPARE(demand.currentSourceToPayloadScale(), QSizeF(0.5, 0.5));
+}
+
+void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position }, { 2, 100 }, false);
+    auto& provider = engine.providerState();
+    provider.sessionActive = true;
+    provider.metadataReady = true;
+    provider.logicalSize = QSizeF(16.0, 8.0);
+    provider.activeFrameToken = providerRequestTokenForTest(4);
+    provider.nextRequestToken = 4;
+    request.activeRequest.providerFrameToken = provider.activeFrameToken;
+
+    ViewportEngine::GeometryInput geometry { true, QRectF(0.0, 0.0, 100.0, 50.0),
+        QSizeF(16.0, 8.0), {}, 1.0 };
+    const auto oldDemand
+        = engine.providerDisplayDemand(ImageViewport::PageRole::Primary, geometry).demandRevision();
+    geometry.itemBounds = QRectF(0.0, 0.0, 200.0, 100.0);
+    geometry.devicePixelRatio = 2.0;
+
+    const auto effects = engine.restageProviderDemands(geometry);
+
+    QCOMPARE(effects[0].cancelToken, providerRequestTokenForTest(4));
+    QCOMPARE(effects[0].sendCommand, true);
+    QCOMPARE(effects[0].command.frame, 2);
+    QCOMPARE(effects[0].command.position, 120);
+    QCOMPARE(effects[0].command.demand.targetDisplaySizePixels(), QSizeF(400.0, 200.0));
+    QCOMPARE(effects[0].command.demand.effectiveDevicePixelRatio(), 2.0);
+    QVERIFY(effects[0].command.demand.demandRevision() != oldDemand);
+    QCOMPARE(request.activeRequest.demandRevision,
+        effects[0].command.demand.demandRevision());
+    QCOMPARE(request.activeRequest.providerFrameToken, effects[0].command.token);
 }
 
 void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()

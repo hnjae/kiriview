@@ -305,6 +305,21 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     result.command = accepted();
     result.changes = presentationChanges(
         presentationChanged, affectsGeometry, input.readyDisplay, input.geometry.itemBounds);
+    const bool demandChanged = affectsGeometry
+        || previousPresentation.qualityPreference != next.qualityPreference
+        || previousPresentation.exactnessPreference != next.exactnessPreference;
+    if (demandChanged) {
+        result.providerEffects = restageProviderDemands(input.geometry);
+        const bool restaged = result.providerEffects[0].sendCommand
+            || result.providerEffects[1].sendCommand;
+        if (restaged) {
+            result.changes.requestState = true;
+            result.changes.requestRevision = true;
+            result.changes.displayState = true;
+            result.changes.displayRevision = true;
+            result.changes.scheduleUpdate = true;
+        }
+    }
     return result;
 }
 

@@ -75,6 +75,12 @@ public:
     {
         CommandResult command;
         ImageViewportInternal::ViewportChangeSet changes;
+        std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
+    };
+    struct GeometryChangeResult
+    {
+        ImageViewportInternal::ViewportChangeSet changes;
+        std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
     };
 
     struct PresentationTargetTransitionInput
@@ -230,8 +236,9 @@ public:
         const RenderAcknowledgementInput& input);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
         const RenderAcknowledgementInput& input);
-    ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
-        const GeometryChangeInput& input);
+    GeometryChangeResult handleGeometryChanged(const GeometryChangeInput& input);
+    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
+        const GeometryInput& geometry);
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
     ImageViewportInternal::ViewportChangeSet reduceProviderFrameAdmission(
         ImageViewport::PageRole role,

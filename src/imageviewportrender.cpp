@@ -96,10 +96,13 @@ void ImageViewportRenderHost::geometryChanged(const QRectF& newGeometry, const Q
         return;
     }
 
-    const auto changes
+    const auto result
         = viewport.controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
-    viewport.applyControllerChanges(changes);
-    if (changes.playbackPhase) {
+    viewport.applyControllerChanges(result.changes);
+    viewport.providerHost.applyFrameTransportEffect(result.providerEffects[0]);
+    viewport.providerHost.applyFrameTransportEffect(
+        result.providerEffects[1], ImageViewport::PageRole::Secondary);
+    if (result.changes.playbackPhase) {
         viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
     }
 }

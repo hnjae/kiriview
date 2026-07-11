@@ -297,6 +297,8 @@ public:
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
     ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
+    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
+        double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(ImageViewport::PageRole role,
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata);
@@ -365,7 +367,7 @@ public:
         ViewportProviderFrameRequestStart request);
     ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
         ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
-    ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
+    ViewportEngine::GeometryChangeResult handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(

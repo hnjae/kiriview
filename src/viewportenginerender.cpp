@@ -321,15 +321,20 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailur
     return changes;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::handleGeometryChanged(
+ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
     const GeometryChangeInput& input)
 {
-    ViewportChangeSet changes;
+    GeometryChangeResult result;
+    auto& changes = result.changes;
+    const GeometryInput demandGeometry { input.geometryState.hasReadyDisplay,
+        input.geometryState.itemBounds, input.geometryState.primaryImageSize,
+        input.geometryState.secondaryImageSize, input.geometryState.devicePixelRatio };
     if (hasDisplayable(m_requestState) && waitingForRender(m_requestState)
         && !input.itemBounds.isEmpty()) {
         if (pendingSpreadReady(m_displayState, m_requestState)) {
             changes.scheduleUpdate = true;
-            return changes;
+            result.providerEffects = restageProviderDemands(demandGeometry);
+            return result;
         }
         if (!m_requestState.sequenceSource.facts.provider) {
             stageBuiltIn(*this);
@@ -343,7 +348,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::handleGeometryChanged(
             changes.displayState = true;
             changes.displayRevision = true;
             changes.scheduleUpdate = true;
-            return changes;
+            result.providerEffects = restageProviderDemands(demandGeometry);
+            return result;
         }
     } else if (m_requestState.sequenceSource.facts.provider
         && m_requestState.status == ImageViewport::RequestStatus::Loading
@@ -362,5 +368,6 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::handleGeometryChanged(
         || rectsDifferExactly(
             PresentationGeometry::visibleImageRect(input.geometryState), input.oldVisibleImageRect);
     changes.scheduleUpdate = true;
-    return changes;
+    result.providerEffects = restageProviderDemands(demandGeometry);
+    return result;
 }

@@ -190,6 +190,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     const ViewportCommandResult result = controller.setPresentation(
         { command, itemCenter(*this), effectiveDevicePixelRatio(*this) });
     applyControllerChanges(result.changes);
+    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
+    providerHost.applyFrameTransportEffect(
+        result.secondaryProviderFrameTransport, PageRole::Secondary);
     return result.outcome;
 }
 
