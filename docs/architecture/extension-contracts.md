@@ -46,7 +46,7 @@ Directory collection keys identify the directory scope root and selected entry. 
 
 ### Thumbnail And Predecode Keys
 
-Thumbnail source keys identify the projected active-navigation row, its source kind, row number, URL, label, page kind, and navigation generation. Thumbnail cache original identity is separate from row source identity and is defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md#original-identity). The row key is a public navigation identity; cache original identity is a cache-family identity and must not be used as a row identity.
+Thumbnail identity has three non-interchangeable key families. The durable thumbnail row key identifies source kind, row number, normalized URL identity, label, and page kind without navigation generation. The demand key identifies the QML-addressable row number and normalized URL identity inside one navigation generation. The source revision key combines the durable row key, original source URL payload, and navigation generation for adapter work, completion acceptance, row mutation, and stale rejection. Each family has typed construction, validity, equality, and hashing; implementations must not synthesize delimiter-separated strings for indexes. Thumbnail cache original identity is separate from all three and is defined by [Thumbnail Source Adapters](thumbnail-source-adapters.md#original-identity).
 
 Predecode candidate keys identify still-image payloads eligible for adjacent decode. Direct media predecode is still-image-only; videos may be cursor positions for window planning, but they do not produce cached video frame payloads. Opened-collection predecode candidates carry the opened collection scope so byte access stays behind the media entry source owner.
 
@@ -70,11 +70,11 @@ Failure payloads preserve backend, operation, collection URL, optional entry pat
 
 ### Thumbnail Source Adapters
 
-Thumbnail source adapters consume thumbnail source keys and demand buckets, then return unsupported fallback, cacheable local-file generation, cacheable opened-collection entry generation, or in-memory-only generation. The document-session thumbnail runtime owns scheduling, lookup, generation jobs, cache installation, image-store retention, result projection, cancellation, and stale-completion rejection.
+Thumbnail source adapters consume generation-scoped thumbnail source revision keys and demand buckets, then return unsupported fallback, cacheable local-file generation, cacheable opened-collection entry generation, or in-memory-only generation. The document-session thumbnail runtime owns scheduling, lookup, generation jobs, cache installation, image-store retention, result projection, cancellation, and stale-completion rejection.
 
-Thumbnail source keys are derived from a confirmed candidate snapshot row plus the current thumbnail navigation generation. The thumbnail adapter may classify the row and choose cache or generation capability, but it does not own candidate-list source, candidate-list revision, active row selection, demand-window state, or public active-navigation projection.
+Thumbnail row and source revision keys are derived from a confirmed candidate snapshot row, with the revision additionally carrying the current thumbnail navigation generation. The thumbnail adapter may classify the row and choose cache or generation capability, but it does not own candidate-list source, candidate-list revision, active row selection, demand-window state, or public active-navigation projection.
 
-Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source key, navigation generation, and demand bucket.
+Thumbnail image-provider publication happens only after the thumbnail runtime accepts a lookup or generation result for the current source revision key and demand bucket.
 
 ### Predecode Planners
 
