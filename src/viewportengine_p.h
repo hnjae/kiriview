@@ -233,6 +233,13 @@ public:
     ImageViewportInternal::ViewportChangeSet handleGeometryChanged(
         const GeometryChangeInput& input);
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
+    ImageViewportInternal::ViewportChangeSet reduceProviderFrameAdmission(
+        ImageViewport::PageRole role,
+        const FramePreparation::ProviderFrameAdmissionResult& admission,
+        const GeometryInput& geometry);
+    ImageViewportInternal::ViewportChangeSet reduceProviderFrameEvent(ImageViewport::PageRole role,
+        ViewportProviderFrameEvent event, ImageFrame* frame,
+        ImageSequenceProviderFrameMetadata metadata, const GeometryInput& geometry);
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
     ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
         ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);

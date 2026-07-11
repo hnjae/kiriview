@@ -44,32 +44,12 @@ void appendProviderFrameQueueResult(
 
 }
 
-ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
-    ImageViewport::PageRole role, ViewportProviderFrameEvent event)
-{
-    const ViewportEngine::ProviderFrameEventAdmission admission
-        = state.engine.admitProviderFrameEvent({ role, event.token });
-    return { admission.accepted, admission.preparationState };
-}
-
-ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
-    ViewportProviderFrameEvent event)
-{
-    return acceptProviderFrameEvent(ImageViewport::PageRole::Primary, event);
-}
-
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
     ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata)
 {
-    const ViewportProviderFrameEventAcceptance frameEvent = acceptProviderFrameEvent(role, event);
-    if (!frameEvent.accepted) {
-        return {};
-    }
-
-    const FramePreparation::ProviderFrameAdmissionResult admission
-        = FramePreparation::admitProviderFrame(frame, metadata, frameEvent.preparationState);
-    return handleProviderFrameAdmission(role, admission);
+    return state.engine.reduceProviderFrameEvent(
+        role, event, frame, metadata, acceptedGeometryInput(viewport));
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameEvent(
@@ -294,84 +274,6 @@ ViewportProviderMetadataReadyResult ViewportController::handleProviderMetadataRe
     mergeChanges(result.changes, targetPolicy.changes);
     result.providerFrameTransport = targetPolicy.providerFrameTransport;
     return result;
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
-    const FramePreparation::ProviderFrameAdmissionResult& admission)
-{
-    return handleProviderFrameAdmission(ImageViewport::PageRole::Primary, admission);
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameAdmission(
-    ImageViewport::PageRole role, const FramePreparation::ProviderFrameAdmissionResult& admission)
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!admission.accepted()) {
-        state.engine.clearQueuedProviderFrameRequest(role);
-        provider.activeFrameToken = {};
-        recordTargetSpreadTerminal(role, admission.status, admission.reason,
-            ImageViewportInternal::FailureScope::DisplayRequest, admission.diagnostic, changes);
-        setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
-        return changes;
-    }
-
-    const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-    provider.activeFrameToken = {};
-    const RequestStatusSnapshot oldRequestStatus = requestStatusSnapshot(viewport);
-    const QRectF oldContentRect = viewport.contentRect();
-    const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    if (role == ImageViewport::PageRole::Secondary) {
-        pendingPayloadForRole(viewportDisplayState(viewport), ImageViewport::PageRole::Secondary)
-            = admission.preparedPayload;
-        const bool primaryPayloadReady
-            = viewportDisplayState(viewport).pendingRenderPayload.commitPending
-            && !viewportDisplayState(viewport).pendingRenderPayload.image.isNull();
-        ImageViewportInternal::TargetSpreadWaitState waitState;
-        waitState.requiresSecondary = true;
-        if (primaryPayloadReady && viewport.itemBounds().isEmpty()) {
-            waitState.primary.renderWaiting = true;
-            waitState.secondary.renderWaiting = true;
-        } else if (primaryPayloadReady) {
-            waitState.primary.uploadPending = true;
-            waitState.secondary.uploadPending = true;
-        } else {
-            waitState.primary.providerWaiting = true;
-            waitState.secondary.uploadPending = true;
-        }
-        publishLoadingWaitState(waitState);
-    } else {
-        publishAcceptedTargetState(admission.preparedPayload);
-        if (hasSecondaryProviderSequence(viewport)
-            && viewportDisplayState(viewport).secondaryPendingRenderPayload.image.isNull()) {
-            ImageViewportInternal::TargetSpreadWaitState waitState;
-            waitState.requiresSecondary = true;
-            if (viewport.itemBounds().isEmpty()) {
-                waitState.primary.renderWaiting = true;
-            } else {
-                waitState.primary.uploadPending = true;
-            }
-            waitState.secondary.providerWaiting = true;
-            publishLoadingWaitState(waitState);
-        }
-        if (viewportRequestState(viewport).playbackPhase == ImageViewport::PlaybackPhase::Waiting
-            && viewportRequestState(viewport).status == ImageViewport::RequestStatus::Ready
-            && !viewportDisplayState(viewport).pendingRenderPayload.commitPending) {
-            setPlaybackPhase(changes,
-                viewportRequestState(viewport).stopPlaybackWhenRequestReady
-                    ? ImageViewport::PlaybackPhase::Stopped
-                    : ImageViewport::PlaybackPhase::Playing);
-            viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-        }
-    }
-    changes.requestRevision = requestStatusChanged(viewport, oldRequestStatus);
-    changes.requestState = true;
-    markDisplayMutation(changes);
-    changes.geometryState = viewportGeometryChanged(viewport, oldContentRect, oldVisibleImageRect);
-    markDiagnosticsMutation(changes, diagnosticsValueChanged);
-    markScheduleUpdate(changes);
-    return changes;
 }
 
 ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
