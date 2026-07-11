@@ -421,22 +421,6 @@ private:
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
-        ImageViewport::PageRole role, const ViewportProviderFrameTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameTerminalResult(
-        const ViewportProviderFrameTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
-        ImageViewport::PageRole role, const ViewportProviderMetadataTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTerminalResult(
-        const ViewportProviderMetadataTerminalResult& result);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
-        const ViewportProviderMetadataContradiction& contradiction);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataContradiction(
-        ImageViewport::PageRole role, const ViewportProviderMetadataContradiction& contradiction);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
-        const ViewportProviderMetadataAdmissionRejection& rejection);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataAdmissionRejection(
-        ImageViewport::PageRole role, const ViewportProviderMetadataAdmissionRejection& rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
         ViewportProviderMetadataTargetRejection rejection);
     ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
