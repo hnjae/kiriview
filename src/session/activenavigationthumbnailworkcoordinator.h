@@ -48,9 +48,15 @@ public:
 
 private:
     static ThumbnailImageRetentionPriority imageRetentionPriority(
-        ActiveNavigationThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority);
+        ActiveNavigationThumbnailRetentionClass retentionClass);
     void applyEffects(std::vector<ActiveNavigationThumbnailScheduleEffect> effects);
-    void publishCompletion(const ActiveNavigationThumbnailScheduleEffect& effect);
+    void applyEffect(ActiveNavigationThumbnailCancelWorkEffect effect);
+    void applyEffect(ActiveNavigationThumbnailStartWorkEffect effect);
+    void applyEffect(ActiveNavigationThumbnailApplyPendingEffect effect);
+    void applyEffect(ActiveNavigationThumbnailApplyUnsupportedEffect effect);
+    void applyEffect(ActiveNavigationThumbnailUpdateRetentionEffect effect);
+    void applyEffect(ActiveNavigationThumbnailAcceptCompletionEffect effect);
+    void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void recordFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
         const ThumbnailSourceKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
         ActiveNavigationThumbnailDemandBucket bucket,

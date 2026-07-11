@@ -94,13 +94,11 @@ ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         RowState& state = m_rows.at(row);
         if (state.acceptedDemand.has_value()) {
-            ActiveNavigationThumbnailScheduleEffect effect;
-            effect.kind = ActiveNavigationThumbnailScheduleEffectKind::UpdateRetention;
-            effect.sourceKey = state.sourceKey;
-            effect.retentionPriority = state.sourceKey.rowNumber == m_currentNumber
-                ? ThumbnailImageRetentionPriority::Visible
-                : retentionPriority(state.acceptedDemand->priority);
-            effects.push_back(std::move(effect));
+            const auto retention = state.sourceKey.rowNumber == m_currentNumber
+                ? ActiveNavigationThumbnailRetentionClass::Visible
+                : retentionClass(state.acceptedDemand->priority);
+            effects.emplace_back(
+                ActiveNavigationThumbnailUpdateRetentionEffect { state.sourceKey, retention });
         }
         if (state.activeWork.has_value() && state.acceptedDemand.has_value()) {
             state.activeWork->tier = tierFor(row, *state.acceptedDemand);
@@ -166,11 +164,8 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
                 cancel(row, effects);
                 state.acceptedDemand.reset();
                 state.completedDemandBucket.reset();
-                ActiveNavigationThumbnailScheduleEffect effect;
-                effect.kind = ActiveNavigationThumbnailScheduleEffectKind::UpdateRetention;
-                effect.sourceKey = state.sourceKey;
-                effect.retentionPriority = ThumbnailImageRetentionPriority::Background;
-                effects.push_back(std::move(effect));
+                effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect {
+                    state.sourceKey, ActiveNavigationThumbnailRetentionClass::Background });
             }
             continue;
         }
@@ -185,26 +180,18 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
                 state.activeWork->demand = demand;
                 state.activeWork->tier = tierFor(row, demand);
             }
-            ActiveNavigationThumbnailScheduleEffect effect;
-            effect.kind = ActiveNavigationThumbnailScheduleEffectKind::UpdateRetention;
-            effect.sourceKey = state.sourceKey;
-            effect.retentionPriority = retentionPriority(demand.priority);
-            effects.push_back(std::move(effect));
+            effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect {
+                state.sourceKey, retentionClass(demand.priority) });
             continue;
         }
         cancel(row, effects);
         state.acceptedDemand = demand;
         state.completedDemandBucket.reset();
         if (supportsGeneratedThumbnail(demand.sourcePlan)) {
-            ActiveNavigationThumbnailScheduleEffect effect;
-            effect.kind = ActiveNavigationThumbnailScheduleEffectKind::ApplyPending;
-            effect.sourceKey = state.sourceKey;
-            effects.push_back(std::move(effect));
+            effects.emplace_back(ActiveNavigationThumbnailApplyPendingEffect { state.sourceKey });
         } else {
-            ActiveNavigationThumbnailScheduleEffect effect;
-            effect.kind = ActiveNavigationThumbnailScheduleEffectKind::ApplyUnsupported;
-            effect.sourceKey = state.sourceKey;
-            effects.push_back(std::move(effect));
+            effects.emplace_back(
+                ActiveNavigationThumbnailApplyUnsupportedEffect { state.sourceKey });
             state.completedDemandBucket = demand.bucket;
         }
     }
@@ -238,14 +225,11 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
     } else {
         state.completedDemandBucket = completion.bucket;
     }
-    ActiveNavigationThumbnailScheduleEffect effect;
-    effect.kind = ActiveNavigationThumbnailScheduleEffectKind::AcceptCompletion;
-    effect.sourceKey = completion.sourceKey;
-    effect.completion = std::move(completion);
-    effect.demandPriority = claim.tier == Tier::Current
-        ? ActiveNavigationThumbnailDemandPriority::Visible
-        : claim.demand.priority;
-    effects.push_back(std::move(effect));
+    const auto retention = claim.tier == Tier::Current
+        ? ActiveNavigationThumbnailRetentionClass::Visible
+        : retentionClass(claim.demand.priority);
+    effects.emplace_back(
+        ActiveNavigationThumbnailAcceptCompletionEffect { std::move(completion), retention });
     admit(effects);
     return effects;
 }
@@ -279,12 +263,12 @@ bool ActiveNavigationThumbnailScheduler::supportsGeneratedThumbnail(
             && !plan.openedCollectionScope.isEmpty());
 }
 
-ThumbnailImageRetentionPriority ActiveNavigationThumbnailScheduler::retentionPriority(
+ActiveNavigationThumbnailRetentionClass ActiveNavigationThumbnailScheduler::retentionClass(
     ActiveNavigationThumbnailDemandPriority priority)
 {
     return priority == ActiveNavigationThumbnailDemandPriority::Visible
-        ? ThumbnailImageRetentionPriority::Visible
-        : ThumbnailImageRetentionPriority::Nearby;
+        ? ActiveNavigationThumbnailRetentionClass::Visible
+        : ActiveNavigationThumbnailRetentionClass::Nearby;
 }
 
 std::vector<ActiveNavigationThumbnailDemandBucket>
@@ -355,10 +339,7 @@ void ActiveNavigationThumbnailScheduler::cancel(
     if (!state.activeWork.has_value()) {
         return;
     }
-    ActiveNavigationThumbnailScheduleEffect effect;
-    effect.kind = ActiveNavigationThumbnailScheduleEffectKind::CancelWork;
-    effect.workId = state.activeWork->id;
-    effects.push_back(std::move(effect));
+    effects.emplace_back(ActiveNavigationThumbnailCancelWorkEffect { state.activeWork->id });
     state.activeWork.reset();
 }
 
@@ -369,11 +350,8 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
     RowState& state = m_rows.at(row);
     Claim claim { nextWorkId(), kind, demand, tier };
     state.activeWork = claim;
-    ActiveNavigationThumbnailScheduleEffect effect;
-    effect.kind = ActiveNavigationThumbnailScheduleEffectKind::StartWork;
-    effect.workId = claim.id;
-    effect.workRequest = { claim.id, demand.sourceKey, demand.bucket, kind, demand.sourcePlan };
-    effects.push_back(std::move(effect));
+    effects.emplace_back(ActiveNavigationThumbnailStartWorkEffect {
+        { claim.id, demand.sourceKey, demand.bucket, kind, demand.sourcePlan } });
 }
 
 void ActiveNavigationThumbnailScheduler::admit(

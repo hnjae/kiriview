@@ -4,35 +4,60 @@
 #ifndef KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILSCHEDULER_H
 #define KIRIVIEW_ACTIVENAVIGATIONTHUMBNAILSCHEDULER_H
 
-#include "session/activenavigationthumbnailjobexecutor.h"
-#include "session/thumbnailimagestore.h"
+#include "session/activenavigationthumbnailwork.h"
 
 #include <QHash>
 #include <optional>
+#include <variant>
 #include <vector>
 
 namespace kiriview {
-enum class ActiveNavigationThumbnailScheduleEffectKind {
-    CancelWork,
-    StartWork,
-    ApplyPending,
-    ApplyUnsupported,
-    UpdateRetention,
-    AcceptCompletion,
+enum class ActiveNavigationThumbnailRetentionClass {
+    Visible,
+    Nearby,
+    Background,
 };
 
-struct ActiveNavigationThumbnailScheduleEffect
+struct ActiveNavigationThumbnailCancelWorkEffect
 {
-    ActiveNavigationThumbnailScheduleEffectKind kind
-        = ActiveNavigationThumbnailScheduleEffectKind::ApplyPending;
     ActiveNavigationThumbnailWorkId workId;
-    ActiveNavigationThumbnailWorkRequest workRequest;
-    ThumbnailSourceKey sourceKey;
-    ThumbnailImageRetentionPriority retentionPriority = ThumbnailImageRetentionPriority::Background;
-    ActiveNavigationThumbnailWorkCompletion completion;
-    ActiveNavigationThumbnailDemandPriority demandPriority
-        = ActiveNavigationThumbnailDemandPriority::Nearby;
 };
+
+struct ActiveNavigationThumbnailStartWorkEffect
+{
+    ActiveNavigationThumbnailWorkRequest request;
+};
+
+struct ActiveNavigationThumbnailApplyPendingEffect
+{
+    ThumbnailSourceKey sourceKey;
+};
+
+struct ActiveNavigationThumbnailApplyUnsupportedEffect
+{
+    ThumbnailSourceKey sourceKey;
+};
+
+struct ActiveNavigationThumbnailUpdateRetentionEffect
+{
+    ThumbnailSourceKey sourceKey;
+    ActiveNavigationThumbnailRetentionClass retentionClass
+        = ActiveNavigationThumbnailRetentionClass::Background;
+};
+
+struct ActiveNavigationThumbnailAcceptCompletionEffect
+{
+    ActiveNavigationThumbnailWorkCompletion completion;
+    ActiveNavigationThumbnailRetentionClass retentionClass
+        = ActiveNavigationThumbnailRetentionClass::Background;
+};
+
+using ActiveNavigationThumbnailScheduleEffect
+    = std::variant<ActiveNavigationThumbnailCancelWorkEffect,
+        ActiveNavigationThumbnailStartWorkEffect, ActiveNavigationThumbnailApplyPendingEffect,
+        ActiveNavigationThumbnailApplyUnsupportedEffect,
+        ActiveNavigationThumbnailUpdateRetentionEffect,
+        ActiveNavigationThumbnailAcceptCompletionEffect>;
 
 class ActiveNavigationThumbnailScheduler final
 {
@@ -85,7 +110,7 @@ private:
     static bool sameDemand(const Demand& left, const Demand& right);
     static bool sameDemandExceptPriority(const Demand& left, const Demand& right);
     static bool supportsGeneratedThumbnail(const ThumbnailSourceAdapterPlan& plan);
-    static ThumbnailImageRetentionPriority retentionPriority(
+    static ActiveNavigationThumbnailRetentionClass retentionClass(
         ActiveNavigationThumbnailDemandPriority priority);
     static std::vector<ActiveNavigationThumbnailDemandBucket> backgroundBuckets();
     std::optional<std::size_t> rowForIdentity(

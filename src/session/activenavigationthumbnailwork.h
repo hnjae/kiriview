@@ -11,6 +11,7 @@
 #include "thumbnail/thumbnailoriginalidentity.h"
 
 #include <QByteArray>
+#include <QImage>
 #include <QString>
 #include <QtGlobal>
 #include <functional>
@@ -67,6 +68,38 @@ struct ThumbnailSourceAdapterPlan
     QByteArray localPathBytes;
     ThumbnailOriginalIdentity originalIdentity;
     OpenedCollectionScopeLocation openedCollectionScope;
+};
+
+struct ActiveNavigationThumbnailWorkRequest
+{
+    ActiveNavigationThumbnailWorkId workId;
+    ThumbnailSourceKey sourceKey;
+    ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
+    ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
+    ThumbnailSourceAdapterPlan sourcePlan;
+};
+
+enum class ActiveNavigationThumbnailWorkResultKind {
+    Ready,
+    Failed,
+};
+
+struct ActiveNavigationThumbnailWorkResult
+{
+    ActiveNavigationThumbnailWorkResultKind kind = ActiveNavigationThumbnailWorkResultKind::Failed;
+    QImage image;
+    ActiveNavigationThumbnailFailureKind failureKind
+        = ActiveNavigationThumbnailFailureKind::GenerationFailed;
+    QString errorString;
+};
+
+struct ActiveNavigationThumbnailWorkCompletion
+{
+    ActiveNavigationThumbnailWorkId workId;
+    ThumbnailSourceKey sourceKey;
+    ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
+    ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
+    ActiveNavigationThumbnailWorkResult result;
 };
 
 using ThumbnailSourceAdapter

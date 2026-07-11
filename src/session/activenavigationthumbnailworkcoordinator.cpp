@@ -44,7 +44,10 @@ ActiveNavigationThumbnailWorkCoordinator::ActiveNavigationThumbnailWorkCoordinat
 
 ActiveNavigationThumbnailWorkCoordinator::~ActiveNavigationThumbnailWorkCoordinator()
 {
-    invalidateRows();
+    try {
+        invalidateRows();
+    } catch (...) {
+    }
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::resetRows(
@@ -81,45 +84,66 @@ ActiveNavigationThumbnailWorkCoordinator::failureDiagnostics() const
 }
 
 ThumbnailImageRetentionPriority ActiveNavigationThumbnailWorkCoordinator::imageRetentionPriority(
-    ActiveNavigationThumbnailWorkKind kind, ActiveNavigationThumbnailDemandPriority priority)
+    ActiveNavigationThumbnailRetentionClass retentionClass)
 {
-    if (kind == ActiveNavigationThumbnailWorkKind::Background) {
+    switch (retentionClass) {
+    case ActiveNavigationThumbnailRetentionClass::Visible:
+        return ThumbnailImageRetentionPriority::Visible;
+    case ActiveNavigationThumbnailRetentionClass::Nearby:
+        return ThumbnailImageRetentionPriority::Nearby;
+    case ActiveNavigationThumbnailRetentionClass::Background:
         return ThumbnailImageRetentionPriority::Background;
     }
-    return priority == ActiveNavigationThumbnailDemandPriority::Visible
-        ? ThumbnailImageRetentionPriority::Visible
-        : ThumbnailImageRetentionPriority::Nearby;
+    return ThumbnailImageRetentionPriority::Background;
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::applyEffects(
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects)
 {
     for (ActiveNavigationThumbnailScheduleEffect& effect : effects) {
-        switch (effect.kind) {
-        case ActiveNavigationThumbnailScheduleEffectKind::CancelWork:
-            m_executor.cancel(effect.workId);
-            break;
-        case ActiveNavigationThumbnailScheduleEffectKind::StartWork:
-            m_executor.start(std::move(effect.workRequest));
-            break;
-        case ActiveNavigationThumbnailScheduleEffectKind::ApplyPending:
-            m_rowPort.applyPending(effect.sourceKey);
-            break;
-        case ActiveNavigationThumbnailScheduleEffectKind::ApplyUnsupported:
-            m_rowPort.applyUnsupported(effect.sourceKey);
-            break;
-        case ActiveNavigationThumbnailScheduleEffectKind::UpdateRetention:
-            m_rowPort.updateRetentionPriority(effect.sourceKey, effect.retentionPriority);
-            break;
-        case ActiveNavigationThumbnailScheduleEffectKind::AcceptCompletion:
-            publishCompletion(effect);
-            break;
-        }
+        std::visit([this](auto value) { applyEffect(std::move(value)); }, std::move(effect));
     }
 }
 
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailCancelWorkEffect effect)
+{
+    m_executor.cancel(effect.workId);
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailStartWorkEffect effect)
+{
+    m_executor.start(std::move(effect.request));
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailApplyPendingEffect effect)
+{
+    m_rowPort.applyPending(effect.sourceKey);
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailApplyUnsupportedEffect effect)
+{
+    m_rowPort.applyUnsupported(effect.sourceKey);
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailUpdateRetentionEffect effect)
+{
+    m_rowPort.updateRetentionPriority(
+        effect.sourceKey, imageRetentionPriority(effect.retentionClass));
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailAcceptCompletionEffect effect)
+{
+    publishCompletion(effect);
+}
+
 void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
-    const ActiveNavigationThumbnailScheduleEffect& effect)
+    const ActiveNavigationThumbnailAcceptCompletionEffect& effect)
 {
     const auto& completion = effect.completion;
     if (completion.result.kind == ActiveNavigationThumbnailWorkResultKind::Ready) {
@@ -128,7 +152,7 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
             return;
         }
         if (!m_rowPort.installReadyImage(completion.sourceKey, completion.result.image,
-                imageRetentionPriority(completion.workKind, effect.demandPriority),
+                imageRetentionPriority(effect.retentionClass),
                 completion.workKind == ActiveNavigationThumbnailWorkKind::Background)) {
             recordFailureDiagnostic(completion.workId, completion.sourceKey, completion.workKind,
                 completion.bucket, ActiveNavigationThumbnailFailureKind::ImageStoreInsertFailed,
