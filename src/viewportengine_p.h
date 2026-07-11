@@ -238,6 +238,8 @@ public:
         ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
     ImageViewportInternal::ViewportChangeSet acceptProviderMetadataFacts(
         ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
+    ImageViewportInternal::ViewportChangeSet rejectProviderMetadataTarget(
+        ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection);
     quint64 activateProviderSession(ImageViewport::PageRole role);
     void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(

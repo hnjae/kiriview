@@ -484,26 +484,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetad
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderMetadataTargetRejection(
     ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
-    if (rejection.updateActiveTarget) {
-        ImageViewportInternal::DisplayRequest& activeRequest
-            = activeRequestForRole(viewportRequestState(viewport), role);
-        activeRequest.target.frame = rejection.selectedFrame;
-        activeRequest.resolvedFrame = { rejection.selectedFrame, -1 };
-        if (!rejection.selectedFromPosition) {
-            activeRequest.target.position = -1;
-        }
-        viewportRequestState(viewport).playbackPosition = -1;
-    }
-    const bool diagnosticsValueChanged = viewportRequestState(viewport).clearDiagnostics();
-    if (rejection.clearPlaybackStartPending) {
-        viewportRequestState(viewport).providerPlaybackStartPending = false;
-    }
-    recordTargetSpreadTerminal(role, rejection.status, rejection.reason,
-        ImageViewportInternal::FailureScope::DisplayRequest, {}, changes);
-    setPlaybackPhase(changes, ImageViewport::PlaybackPhase::Stopped);
-    markDiagnosticsMutation(changes, diagnosticsValueChanged);
-    return changes;
+    return state.engine.rejectProviderMetadataTarget(role, rejection);
 }
 
 ViewportProviderMetadataTargetPolicyResult ViewportController::handleProviderMetadataTargetPolicy(

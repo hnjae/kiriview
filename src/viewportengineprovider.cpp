@@ -351,6 +351,30 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acceptProviderMetadataF
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportEngine::rejectProviderMetadataTarget(
+    ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection)
+{
+    ViewportChangeSet changes;
+    if (rejection.updateActiveTarget) {
+        auto& request = requestForRole(m_requestState, role);
+        request.target.frame = rejection.selectedFrame;
+        request.resolvedFrame = { rejection.selectedFrame, -1 };
+        if (!rejection.selectedFromPosition) {
+            request.target.position = -1;
+        }
+        m_requestState.playbackPosition = -1;
+    }
+    const bool diagnosticsChanged = m_requestState.clearDiagnostics();
+    if (rejection.clearPlaybackStartPending) {
+        m_requestState.providerPlaybackStartPending = false;
+    }
+    recordProviderTerminal(role, rejection.status, rejection.reason,
+        FailureScope::DisplayRequest, {}, changes);
+    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
+    changes.diagnostics = changes.diagnostics || diagnosticsChanged;
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
