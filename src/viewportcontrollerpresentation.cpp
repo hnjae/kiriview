@@ -10,8 +10,8 @@ ViewportCommandResult ViewportController::setPresentation(
         = engine.applyPresentationCommand(
             { input.command,
                 engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor,
-                engine.displayState().hasReadyDisplay(
-                    engine.requestState().roles[0].source.facts.present) });
+                ViewportEngineStateAccess::display(engine).hasReadyDisplay(
+                    ViewportEngineStateAccess::request(engine).roles[0].source.facts.present) });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);

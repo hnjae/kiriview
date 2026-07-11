@@ -97,8 +97,8 @@ bool pendingSpreadReady(const DisplayState& display, const RequestState& request
 
 void publishSecondaryDisplay(ViewportEngine& engine)
 {
-    auto& request = engine.requestState();
-    auto& display = engine.displayState();
+    auto& request = ViewportEngineStateAccess::request(engine);
+    auto& display = ViewportEngineStateAccess::display(engine);
     if (!hasSecondary(request)) {
         display.roles[1].displayedRequest = {};
         display.roles[1].displayedImageSize = {};
@@ -112,7 +112,7 @@ void publishSecondaryDisplay(ViewportEngine& engine)
     display.roles[1].displayedRequest.request.target.position = position;
     display.roles[1].displayedRequest.request.resolvedFrame.position = position;
     display.roles[1].displayedImageSize = request.roles[1].provider
-        ? engine.secondaryProviderState().logicalSize
+        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary).logicalSize
         : sourceLogicalSize(request.roles[1].source);
     if (!request.roles[1].provider
         && !display.roles[1].pendingRenderPayload.image.isNull()) {
@@ -123,8 +123,8 @@ void publishSecondaryDisplay(ViewportEngine& engine)
 
 void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
 {
-    auto& request = engine.requestState();
-    auto& display = engine.displayState();
+    auto& request = ViewportEngineStateAccess::request(engine);
+    auto& display = ViewportEngineStateAccess::display(engine);
     request.status = ImageViewport::RequestStatus::Ready;
     request.reason = ImageViewport::RequestReason::Ready;
     display.status = ImageViewport::DisplayStatus::Ready;
@@ -135,12 +135,12 @@ void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
     const int position = request.roles[0].activeRequest.resolvedFrame.position >= 0
         ? request.roles[0].activeRequest.resolvedFrame.position
         : request.roles[0].source.facts.provider
-        ? engine.providerState().timingIntervals.frameStartPosition(frame)
+        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).timingIntervals.frameStartPosition(frame)
         : sourceFrameStartPosition(request.roles[0].source, frame);
     display.roles[0].displayedRequest = display.activeRequestSnapshot(
         request.sequenceGeneration, request.roles[0].activeRequest, position);
     display.roles[0].displayedImageSize = request.roles[0].source.facts.provider
-        ? engine.providerState().logicalSize
+        ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary).logicalSize
         : sourceLogicalSize(request.roles[0].source);
     display.roles[0].displayedImage = payload.image;
     display.roles[0].displayedPayload = payload;
@@ -149,8 +149,8 @@ void publishReady(ViewportEngine& engine, const PreparedPayload& payload)
 
 void stageBuiltIn(ViewportEngine& engine)
 {
-    auto& request = engine.requestState();
-    auto& display = engine.displayState();
+    auto& request = ViewportEngineStateAccess::request(engine);
+    auto& display = ViewportEngineStateAccess::display(engine);
     display.captureRenderFailureRetainedDisplay(hasDisplayable(request));
     display.roles[0].pendingRenderPayload.commitPending = true;
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);

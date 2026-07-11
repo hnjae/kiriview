@@ -9,6 +9,8 @@ target_link_libraries(imageviewport_core_test_support INTERFACE ImageViewport Qt
 
 target_include_directories(imageviewport_core_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
                                                                      ${OPENGL_INCLUDE_DIR})
+target_compile_definitions(
+    imageviewport_core_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 
 add_library(imageviewport_test_support INTERFACE)
 

@@ -69,15 +69,15 @@ const ImageViewportInternal::DisplayRequest& activeRequestForRole(
 ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
     ViewportEngine& engine, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState()
-                                                      : engine.providerState();
+    return role == ImageViewport::PageRole::Secondary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary)
+                                                      : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary);
 }
 
 const ImageViewportInternal::ProviderGenerationState& providerGenerationStateForRole(
     const ViewportEngine& engine, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState()
-                                                      : engine.providerState();
+    return role == ImageViewport::PageRole::Secondary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary)
+                                                      : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary);
 }
 
 bool targetSpreadTerminalMatchesActiveRequest(const ImageViewportInternal::RequestState& request)
@@ -146,8 +146,8 @@ void initializeSecondaryRequest(ImageViewportInternal::RequestState& request,
 
 void stageInitialBuiltInSpread(ViewportEngine& engine)
 {
-    auto& request = engine.requestState();
-    auto& display = engine.displayState();
+    auto& request = ViewportEngineStateAccess::request(engine);
+    auto& display = ViewportEngineStateAccess::display(engine);
     display.captureRenderFailureRetainedDisplay(request.roles[0].source.facts.present);
     display.roles[0].pendingRenderPayload.commitPending = true;
     display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);

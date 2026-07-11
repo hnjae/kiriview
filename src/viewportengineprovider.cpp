@@ -11,8 +11,8 @@ using namespace ImageViewportInternal;
 
 ProviderGenerationState& providerForRole(ViewportEngine& engine, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? engine.secondaryProviderState()
-                                                      : engine.providerState();
+    return role == ImageViewport::PageRole::Secondary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary)
+                                                      : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary);
 }
 
 const DisplayRequest& requestForRole(

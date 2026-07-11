@@ -91,8 +91,8 @@ const PreparedPayload& displayedPayloadForRole(
 const ProviderGenerationState& providerForRole(
     const ViewportEngine& engine, ImageViewport::PageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? engine.providerState()
-                                                    : engine.secondaryProviderState();
+    return role == ImageViewport::PageRole::Primary ? ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Primary)
+                                                    : ViewportEngineStateAccess::provider(engine, ImageViewport::PageRole::Secondary);
 }
 
 struct Metadata
@@ -113,7 +113,7 @@ ImageViewport::CapabilitySupport support(bool value)
 
 Metadata metadataFor(const ViewportEngine& engine, ImageViewport::PageRole role)
 {
-    const auto& source = sourceForRole(engine.requestState(), role);
+    const auto& source = sourceForRole(ViewportEngineStateAccess::request(engine), role);
     if (!source.facts.present) {
         return {};
     }
