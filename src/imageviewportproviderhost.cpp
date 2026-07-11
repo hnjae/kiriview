@@ -12,21 +12,6 @@ ImageViewportProviderHost::ImageViewportProviderHost(ImageViewportPrivate& viewp
 {
 }
 
-bool ImageViewportProviderHost::openSession(PageRole role)
-{
-    const auto binding = viewport.controller.providerSessionBinding(role);
-    if (!bridgeForRole(role).openSession({ binding.factory, binding.threadingContract,
-            binding.generation, binding.sessionSerial, viewport.q,
-            [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } })) {
-        applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, role, {}, {},
-            QStringLiteral("provider session creation failed") });
-        return false;
-    }
-
-    applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, role });
-    return true;
-}
-
 void ImageViewportProviderHost::closeActiveSessions()
 {
     ViewportProviderFrameTransportEffect primary = viewport.controller.closeProviderSession();
@@ -79,6 +64,18 @@ void ImageViewportProviderHost::applyTransportEffects(
     for (const auto& effect : effects) {
         ViewportProviderBridge& bridge = bridgeForRole(effect.role);
         switch (effect.kind) {
+        case ViewportProviderTransportCommand::Kind::OpenSession:
+            if (!bridge.openSession({ effect.sessionFactory, effect.threadingContract,
+                    effect.generation, effect.sessionSerial, viewport.q,
+                    [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } })) {
+                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role,
+                    {}, {}, QStringLiteral("provider session creation failed") });
+                return;
+            } else {
+                applyHostEvent(
+                    { ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
+            }
+            break;
         case ViewportProviderTransportCommand::Kind::SendRequest: {
             const auto result = bridge.deliverRequest(effect.request);
             if (!result.delivered && effect.reportDispatchFailure) {

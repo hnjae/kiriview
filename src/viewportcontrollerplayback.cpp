@@ -2,6 +2,7 @@
 
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerplaybackcontract_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
 {
@@ -10,8 +11,10 @@ ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackC
     ViewportCommandResult result;
     result.outcome = engineResult.command.outcome;
     result.changes = engineResult.changes;
-    result.providerFrameTransport = engineResult.effects.providerFrameTransport[0];
-    result.secondaryProviderFrameTransport = engineResult.effects.providerFrameTransport[1];
+    appendProviderTransport(result.beforeChanges,
+        engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.beforeChanges,
+        engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
     result.playbackSchedule = engineResult.schedule;
     return result;
 }
@@ -52,6 +55,12 @@ ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMil
 {
     const ViewportEngine::PlaybackTickResult engineResult
         = engine.advancePlayback({ elapsedMilliseconds, engine.acceptedGeometryInput(itemBounds()) });
-    return { engineResult.changes, engineResult.effects.providerFrameTransport[0],
-        engineResult.effects.providerFrameTransport[1], engineResult.schedule };
+    ViewportPlaybackAdvanceResult result;
+    result.changes = engineResult.changes;
+    appendProviderTransport(result.beforeChanges,
+        engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.beforeChanges,
+        engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
+    result.schedule = engineResult.schedule;
+    return result;
 }

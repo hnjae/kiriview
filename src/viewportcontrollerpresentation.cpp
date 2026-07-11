@@ -2,6 +2,7 @@
 #include "viewportcontroller_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerhelpers_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
@@ -13,8 +14,10 @@ ViewportCommandResult ViewportController::setPresentation(
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
-    result.providerFrameTransport = engineResult.providerEffects[0];
-    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 
@@ -100,8 +103,10 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
-    result.providerFrameTransport = engineResult.providerEffects[0];
-    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 
@@ -113,8 +118,10 @@ ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
-    result.providerFrameTransport = engineResult.providerEffects[0];
-    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 

@@ -61,8 +61,6 @@ struct ViewportSequenceAssignmentResult
 {
     ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
-    bool openProviderSession = false;
-    bool openSecondaryProviderSession = false;
+    ViewportProviderTransportBatch beforeChanges;
+    ViewportProviderTransportBatch afterChanges;
 };

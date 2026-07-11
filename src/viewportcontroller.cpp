@@ -4,6 +4,7 @@
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerhelpers_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <limits>
 #include <optional>
@@ -107,10 +108,26 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     result.outcome = command.outcome;
     result.changes = command.changes;
     mergeChanges(result.changes, engineResult.changes);
-    result.providerFrameTransport = engineResult.providerEffects[0];
-    result.secondaryProviderFrameTransport = engineResult.providerEffects[1];
-    result.openProviderSession = engineResult.openPrimaryProviderSession;
-    result.openSecondaryProviderSession = engineResult.openSecondaryProviderSession;
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(
+        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+    const auto appendOpen = [&](ImageViewport::PageRole role, bool open) {
+        if (!open) {
+            return;
+        }
+        const auto binding = engine.providerSessionBinding(role);
+        ViewportProviderTransportCommand effect;
+        effect.kind = ViewportProviderTransportCommand::Kind::OpenSession;
+        effect.role = role;
+        effect.sessionFactory = binding.factory;
+        effect.threadingContract = binding.threadingContract;
+        effect.generation = binding.generation;
+        effect.sessionSerial = binding.sessionSerial;
+        result.afterChanges.append(std::move(effect));
+    };
+    appendOpen(ImageViewport::PageRole::Primary, engineResult.openPrimaryProviderSession);
+    appendOpen(ImageViewport::PageRole::Secondary, engineResult.openSecondaryProviderSession);
     return result;
 }
 
@@ -120,8 +137,8 @@ ViewportCommandResult ViewportController::clear()
     ViewportCommandResult result;
     result.outcome = assignment.outcome;
     result.changes = assignment.changes;
-    result.providerFrameTransport = assignment.providerFrameTransport;
-    result.secondaryProviderFrameTransport = assignment.secondaryProviderFrameTransport;
+    result.beforeChanges = assignment.beforeChanges;
+    result.afterChanges = assignment.afterChanges;
     result.playbackSchedule = engine.playbackScheduleEffect();
     return result;
 }

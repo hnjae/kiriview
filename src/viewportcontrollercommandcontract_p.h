@@ -9,8 +9,8 @@ struct ViewportCommandResult
 {
     ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
     ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
+    ViewportProviderTransportBatch beforeChanges;
+    ViewportProviderTransportBatch afterChanges;
     ViewportPlaybackScheduleEffect playbackSchedule;
 };
 

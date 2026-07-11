@@ -13,11 +13,7 @@ public:
 
     explicit ImageViewportProviderHost(ImageViewportPrivate& viewport);
 
-    bool openSession(PageRole role = PageRole::Primary);
     void closeActiveSessions();
-    void applyFrameTransportEffect(
-        const ViewportProviderFrameTransportEffect& effect,
-        PageRole role = PageRole::Primary);
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -29,6 +25,9 @@ public:
 #endif
 
 private:
+    void applyFrameTransportEffect(
+        const ViewportProviderFrameTransportEffect& effect,
+        PageRole role = PageRole::Primary);
     void handleProviderEvent(const ViewportProviderEvent& event);
     void applyHostEvent(const ViewportProviderHostEvent& event);
 

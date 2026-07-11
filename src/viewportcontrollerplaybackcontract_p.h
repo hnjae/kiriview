@@ -7,7 +7,7 @@
 struct ViewportPlaybackAdvanceResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-    ViewportProviderFrameTransportEffect secondaryProviderFrameTransport;
+    ViewportProviderTransportBatch beforeChanges;
+    ViewportProviderTransportBatch afterChanges;
     ViewportPlaybackScheduleEffect schedule;
 };

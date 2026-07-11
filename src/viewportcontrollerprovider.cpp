@@ -1,57 +1,8 @@
 #include "viewportcontrollerhelpers_p.h"
 #include "viewportcontroller_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 namespace {
-ImageSequenceProviderRequest providerRequestForCommand(
-    ImageViewport::PageRole role, const ViewportProviderFrameCommand& command)
-{
-    if (command.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback) {
-        return ImageSequenceProviderRequest::playback(command.token, role, command.frame,
-            command.position, command.demand);
-    }
-    if (command.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Position) {
-        return ImageSequenceProviderRequest::position(command.token, role, command.position,
-            command.frame, command.demand);
-    }
-    return ImageSequenceProviderRequest::frame(
-        command.token, role, command.frame, command.demand);
-}
-
-void appendTransport(ViewportProviderTransportBatch& batch,
-    const ViewportProviderMetadataTransportEffect& effect, ImageViewport::PageRole role)
-{
-    if (effect.closeSession) {
-        batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
-            effect.sessionClose });
-    }
-    if (effect.sendCommand) {
-        batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
-            ImageSequenceProviderRequest::metadata(effect.token) });
-    }
-}
-
-void appendTransport(ViewportProviderTransportBatch& batch,
-    const ViewportProviderFrameTransportEffect& effect, ImageViewport::PageRole role)
-{
-    if (effect.cancelToken.isValid()) {
-        batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
-            ImageSequenceProviderRequest::cancel({ effect.cancelToken }), {},
-            ViewportProviderDeferredControllerEvent::None, false });
-    }
-    if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
-        batch.append({ ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, role, {}, {},
-            effect.deferredControllerEvent });
-    }
-    if (effect.closeSession) {
-        batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
-            effect.sessionClose });
-    }
-    if (effect.sendCommand) {
-        batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
-            providerRequestForCommand(role, effect.command) });
-    }
-}
-
 void appendProviderFrameQueueResult(
     ViewportProviderFrameTransportEffect& effect, ViewportProviderFrameQueueResult queue)
 {
@@ -202,8 +153,8 @@ ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
     case ViewportProviderHostEvent::Kind::SessionOpened: {
         const auto opened
             = engine.reduceProviderSessionOpened(event.role, engine.acceptedGeometryInput(itemBounds()));
-        appendTransport(result.afterChanges, opened.providerMetadataTransport, event.role);
-        appendTransport(result.afterChanges, opened.providerFrameTransport, event.role);
+        appendProviderTransport(result.afterChanges, opened.providerMetadataTransport, event.role);
+        appendProviderTransport(result.afterChanges, opened.providerFrameTransport, event.role);
         return result;
     }
     case ViewportProviderHostEvent::Kind::SessionOpenFailed:
@@ -218,7 +169,7 @@ ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
                 == ViewportProviderEventTransportPhase::BeforeChanges
             ? result.beforeChanges
             : result.afterChanges;
-        appendTransport(batch, reduced.providerFrameTransport, event.role);
+        appendProviderTransport(batch, reduced.providerFrameTransport, event.role);
         result.schedule = reduced.schedule;
         return result;
     }
@@ -226,7 +177,7 @@ ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
         const auto reduced
             = engine.reduceProviderDispatchFailure(event.role, { event.token, event.diagnostic });
         result.changes = reduced.changes;
-        appendTransport(result.afterChanges, reduced.providerFrameTransport, event.role);
+        appendProviderTransport(result.afterChanges, reduced.providerFrameTransport, event.role);
         result.schedule = reduced.schedule;
         return result;
     }
@@ -234,7 +185,7 @@ ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
         const auto reduced = engine.reduceQueuedProviderFrameRequest(
             event.role, engine.acceptedGeometryInput(itemBounds()));
         result.changes = reduced.changes;
-        appendTransport(result.afterChanges, reduced.providerFrameTransport, event.role);
+        appendProviderTransport(result.afterChanges, reduced.providerFrameTransport, event.role);
         result.schedule = reduced.schedule;
         return result;
     }
@@ -250,11 +201,15 @@ ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
     return result;
 }
 
-std::array<ViewportProviderFrameTransportEffect, 2> ViewportController::restageProviderDemands(
+ViewportProviderTransportBatch ViewportController::restageProviderDemands(
     double devicePixelRatio)
 {
-    return engine.restageProviderDemands(
+    const auto effects = engine.restageProviderDemands(
         engine.acceptedGeometryInput(itemBounds(), devicePixelRatio));
+    ViewportProviderTransportBatch result;
+    appendProviderTransport(result, effects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result, effects[1], ImageViewport::PageRole::Secondary);
+    return result;
 }
 
 ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetadataAdmission(

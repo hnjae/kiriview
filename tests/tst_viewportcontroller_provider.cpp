@@ -610,7 +610,8 @@ void ViewportControllerProviderTest::secondaryProviderCloseClearsQueuedFrameRequ
         ViewportProviderTransportCommand::Kind::SendRequest,
         ImageViewport::PageRole::Secondary);
     QVERIFY(cancel);
-    QCOMPARE(cancel->request.tokens().first(), activeFrameToken);
+    const auto cancelTokens = cancel->request.tokens();
+    QCOMPARE(cancelTokens.first(), activeFrameToken);
     const auto* deferred = findTransport(seek.beforeChanges,
         ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent,
         ImageViewport::PageRole::Secondary);

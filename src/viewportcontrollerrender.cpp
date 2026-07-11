@@ -1,10 +1,18 @@
 #include "viewportcontrollerrenderhelpers_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
-ViewportEngine::GeometryChangeResult ViewportController::handleGeometryChanged(
+ViewportController::GeometryChangeResult ViewportController::handleGeometryChanged(
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
-    return engine.handleGeometryChanged({ itemBounds(), oldContentRect, oldVisibleImageRect,
+    const auto engineResult = engine.handleGeometryChanged({ itemBounds(), oldContentRect, oldVisibleImageRect,
         engine.geometryState(engine.projectedGeometryInput(itemBounds())) });
+    GeometryChangeResult result;
+    result.changes = engineResult.changes;
+    appendProviderTransport(result.afterChanges, engineResult.providerEffects[0],
+        ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.afterChanges, engineResult.providerEffects[1],
+        ImageViewport::PageRole::Secondary);
+    return result;
 }
 
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization(

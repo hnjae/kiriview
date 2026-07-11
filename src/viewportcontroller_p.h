@@ -65,6 +65,12 @@ struct ViewportSequenceAssignmentResult;
 class ViewportController
 {
 public:
+    struct GeometryChangeResult
+    {
+        ImageViewportInternal::ViewportChangeSet changes;
+        ViewportProviderTransportBatch beforeChanges;
+        ViewportProviderTransportBatch afterChanges;
+    };
     explicit ViewportController(std::function<QRectF()> captureItemBounds);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -116,7 +122,7 @@ public:
     ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
     ViewportProviderHostEventResult handleProviderHostEvent(
         const ViewportProviderHostEvent& event);
-    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
+    ViewportProviderTransportBatch restageProviderDemands(
         double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(ImageViewport::PageRole role,
         ViewportProviderFrameEvent event, ImageFrame* frame,
@@ -188,7 +194,7 @@ public:
         ViewportProviderFrameRequestStart request);
     ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
         ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
-    ViewportEngine::GeometryChangeResult handleGeometryChanged(
+    GeometryChangeResult handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(

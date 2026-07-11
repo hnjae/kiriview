@@ -287,16 +287,9 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
         applyControllerChanges(result.changes);
         return result.outcome;
     }
+    providerHost.applyTransportEffects(result.beforeChanges);
     applyControllerChanges(result.changes);
-    providerHost.applyFrameTransportEffect(result.providerFrameTransport);
-    providerHost.applyFrameTransportEffect(
-        result.secondaryProviderFrameTransport, PageRole::Secondary);
-    if (result.openProviderSession && !providerHost.openSession()) {
-        return result.outcome;
-    }
-    if (result.openSecondaryProviderSession) {
-        providerHost.openSession(PageRole::Secondary);
-    }
+    providerHost.applyTransportEffects(result.afterChanges);
     playbackScheduler.apply(controller.playbackScheduleEffect());
     return result.outcome;
 }

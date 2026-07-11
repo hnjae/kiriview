@@ -228,6 +228,7 @@ struct ViewportProviderFrameTransportEffect
 struct ViewportProviderTransportCommand
 {
     enum class Kind {
+        OpenSession,
         SendRequest,
         CloseSession,
         ScheduleDeferredEvent,
@@ -240,6 +241,11 @@ struct ViewportProviderTransportCommand
     ViewportProviderDeferredControllerEvent deferredEvent
         = ViewportProviderDeferredControllerEvent::None;
     bool reportDispatchFailure = true;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory;
+    ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
+    quint64 generation = 0;
+    quint64 sessionSerial = 0;
 };
 
 using ViewportProviderTransportBatch = QVector<ViewportProviderTransportCommand>;
