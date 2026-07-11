@@ -29,7 +29,11 @@ The caller may express transition intent through `PresentationTargetTransitionPo
 
 The item exposes `ImageViewportStateSnapshot` as the public observation surface. It must not re-create flat property projections as independent mutable state. Every public observation comes from the latest engine snapshot.
 
-The item applies engine effects by scheduling render updates, synchronizing playback scheduling, delivering provider requests, closing provider sessions, and emitting QML notifications. It does not interpret provider events, match tokens, mutate request status directly, or publish display readiness without an engine transition.
+The item applies every engine transition through one item-private transition executor. A transition contains the snapshot delta, provider transport ordered before and after publication, playback scheduling intent, and internal diagnostics. Command, provider, render, geometry, and scheduler call sites submit complete transitions and do not apply individual result fields themselves.
+
+Transition execution is ordered: before-publication provider transport, coherent state publication and notifications, internal diagnostics, after-publication provider transport, then playback scheduling. Provider transport may synchronously re-enter the engine and submit nested transitions; transport and publication remain nested in execution order, while playback scheduling is deferred until the outermost transition completes. The latest nested non-no-op scheduling effect wins and is applied once, so an older outer transition cannot overwrite scheduling derived from newer canonical state.
+
+The item schedules render updates, synchronizes playback scheduling, delivers provider requests, closes provider sessions, and emits QML notifications through this executor. It does not interpret provider events, match tokens, mutate request status directly, or publish display readiness without an engine transition.
 
 ## Engine Boundary
 
