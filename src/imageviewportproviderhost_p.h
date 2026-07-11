@@ -18,6 +18,7 @@ public:
     void applyFrameTransportEffect(
         const ViewportProviderFrameTransportEffect& effect,
         PageRole role = PageRole::Primary);
+    void applyTransportEffects(const ViewportProviderTransportBatch& effects);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void failNextCommandDeliveryForTest(PageRole role);
@@ -32,8 +33,6 @@ private:
     void applyHostEvent(const ViewportProviderHostEvent& event);
 
     ViewportProviderBridge& bridgeForRole(PageRole role);
-    void applyMetadataTransportEffect(
-        const ViewportProviderMetadataTransportEffect& effect, PageRole role);
     void recordTransportResult(const ViewportProviderTransportResult& result);
     bool scheduleDeferredControllerEvent(
         ViewportProviderDeferredControllerEvent event, PageRole role);

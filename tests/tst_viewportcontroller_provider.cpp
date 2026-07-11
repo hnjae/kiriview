@@ -182,6 +182,7 @@ public:
     }
 
 private slots:
+    void sessionOpenAcknowledgementProducesOrderedMetadataRequest();
     void metadataDispatchFailureRejectsStaleTokenAndClosesActiveGeneration();
     void frameDispatchFailureRejectsStaleTokenAndClosesActiveGeneration();
     void metadataDispatchFailureReportsNullSessionAfterAcceptance();
@@ -204,6 +205,28 @@ private slots:
     void secondaryMetadataAdmissionRejectsKnownFactContradictionAndClosesGeneration();
     void secondaryMetadataTargetPolicyIgnoresStaleInitialRequest();
 };
+
+void ViewportControllerProviderTest::sessionOpenAcknowledgementProducesOrderedMetadataRequest()
+{
+    ImageSequenceFactory factory;
+    ProviderControllerContext context;
+    const auto sequence = makeProviderSequence(factory, context);
+    QVERIFY(sequence);
+    ViewportController controller([&context] { return context.itemBounds(); });
+    ViewportSequenceAssignment assignment;
+    assignment.sequence = sequence->sequence();
+    QCOMPARE(controller.assignSequence(assignment).openProviderSession, true);
+
+    const auto result = controller.handleProviderHostEvent(
+        { ViewportProviderHostEvent::Kind::SessionOpened, ImageViewport::PageRole::Primary });
+
+    QCOMPARE(result.beforeChanges.size(), 0);
+    QCOMPARE(result.afterChanges.size(), 1);
+    QCOMPARE(result.afterChanges[0].kind, ViewportProviderTransportCommand::Kind::SendRequest);
+    QCOMPARE(result.afterChanges[0].role, ImageViewport::PageRole::Primary);
+    QCOMPARE(result.afterChanges[0].request.kind(), ImageSequenceProviderRequestKind::Metadata);
+    QVERIFY(result.afterChanges[0].request.token().isValid());
+}
 
 void ViewportControllerProviderTest::
     metadataDispatchFailureRejectsStaleTokenAndClosesActiveGeneration()

@@ -6,23 +6,6 @@
 
 using namespace ImageViewportInternal;
 
-namespace {
-ImageSequenceProviderRequest providerRequestForCommand(
-    ImageViewport::PageRole role, const ViewportProviderFrameCommand& command)
-{
-    if (command.targetKind == ProviderRequestTargetKind::Playback) {
-        return ImageSequenceProviderRequest::playback(command.token, role, command.frame,
-            command.position, command.demand);
-    }
-    if (command.targetKind == ProviderRequestTargetKind::Position) {
-        return ImageSequenceProviderRequest::position(command.token, role, command.position,
-            command.frame, command.demand);
-    }
-    return ImageSequenceProviderRequest::frame(
-        command.token, role, command.frame, command.demand);
-}
-}
-
 ImageViewportProviderHost::ImageViewportProviderHost(ImageViewportPrivate& viewport)
     : viewport(viewport)
     , secondaryProviderBridge(PageRole::Secondary)
@@ -55,49 +38,67 @@ void ImageViewportProviderHost::closeActiveSessions()
     applyFrameTransportEffect(secondary, PageRole::Secondary);
 }
 
-void ImageViewportProviderHost::applyMetadataTransportEffect(
-    const ViewportProviderMetadataTransportEffect& effect, PageRole role)
-{
-    ViewportProviderBridge& bridge = bridgeForRole(role);
-    if (effect.closeSession) {
-        recordTransportResult(
-            bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
-    }
-    if (effect.sendCommand) {
-        const ViewportProviderTransportResult result
-            = bridge.deliverRequest(ImageSequenceProviderRequest::metadata(effect.token));
-        if (!result.delivered) {
-            handleDispatchFailure(
-                role, effect.token, QStringLiteral("provider command delivery failed"));
-        }
-    }
-}
-
 void ImageViewportProviderHost::applyFrameTransportEffect(
     const ViewportProviderFrameTransportEffect& effect, PageRole role)
 {
-    ViewportProviderBridge& bridge = bridgeForRole(role);
+    ViewportProviderTransportBatch batch;
     if (effect.cancelToken.isValid()) {
-        recordTransportResult(
-            bridge.deliverRequest(ImageSequenceProviderRequest::cancel({ effect.cancelToken })));
+        batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
+            ImageSequenceProviderRequest::cancel({ effect.cancelToken }), {},
+            ViewportProviderDeferredControllerEvent::None, false });
     }
     if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
-        if (!scheduleDeferredControllerEvent(effect.deferredControllerEvent, role)) {
-            return;
-        }
+        batch.append({ ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, role, {}, {},
+            effect.deferredControllerEvent });
     }
     if (effect.closeSession) {
-        recordTransportResult(
-            bridge.closeSession(effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
+        batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
+            effect.sessionClose });
     }
-    if (!effect.sendCommand) {
-        return;
+    if (effect.sendCommand) {
+        ImageSequenceProviderRequest request;
+        if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
+            request = ImageSequenceProviderRequest::playback(effect.command.token, role,
+            effect.command.frame, effect.command.position, effect.command.demand);
+        } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
+            request = ImageSequenceProviderRequest::position(effect.command.token, role,
+                effect.command.position, effect.command.frame, effect.command.demand);
+        } else {
+            request = ImageSequenceProviderRequest::frame(
+                effect.command.token, role, effect.command.frame, effect.command.demand);
+        }
+        batch.append(
+            { ViewportProviderTransportCommand::Kind::SendRequest, role, std::move(request) });
     }
-    const ViewportProviderTransportResult result
-        = bridge.deliverRequest(providerRequestForCommand(role, effect.command));
-    if (!result.delivered) {
-        handleDispatchFailure(
-            role, effect.command.token, QStringLiteral("provider command delivery failed"));
+    applyTransportEffects(batch);
+}
+
+void ImageViewportProviderHost::applyTransportEffects(
+    const ViewportProviderTransportBatch& effects)
+{
+    for (const auto& effect : effects) {
+        ViewportProviderBridge& bridge = bridgeForRole(effect.role);
+        switch (effect.kind) {
+        case ViewportProviderTransportCommand::Kind::SendRequest: {
+            const auto result = bridge.deliverRequest(effect.request);
+            if (!result.delivered && effect.reportDispatchFailure) {
+                handleDispatchFailure(effect.role, effect.request.token(),
+                    QStringLiteral("provider command delivery failed"));
+            } else if (!result.delivered) {
+                recordTransportResult(result);
+            }
+            break;
+        }
+        case ViewportProviderTransportCommand::Kind::CloseSession:
+            recordTransportResult(bridge.closeSession(
+                effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
+            break;
+        case ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent:
+            if (!scheduleDeferredControllerEvent(effect.deferredEvent, effect.role)) {
+                return;
+            }
+            break;
+        }
     }
 }
 
@@ -113,10 +114,7 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
 void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& event)
 {
     const ViewportProviderHostEventResult result = viewport.controller.handleProviderHostEvent(event);
-    if (result.transportPhase == ViewportProviderEventTransportPhase::BeforeChanges) {
-        applyMetadataTransportEffect(result.metadataTransport, event.role);
-        applyFrameTransportEffect(result.frameTransport, event.role);
-    }
+    applyTransportEffects(result.beforeChanges);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
         viewport.playbackScheduler.apply(result.schedule);
@@ -124,10 +122,7 @@ void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& 
     if (result.schedulerDiagnostic.valid) {
         viewport.internalDiagnostics.recordProviderSchedulerFailure(result.schedulerDiagnostic);
     }
-    if (result.transportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
-        applyMetadataTransportEffect(result.metadataTransport, event.role);
-        applyFrameTransportEffect(result.frameTransport, event.role);
-    }
+    applyTransportEffects(result.afterChanges);
 }
 
 ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)

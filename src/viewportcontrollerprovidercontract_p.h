@@ -9,6 +9,7 @@
 
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
+#include <QtCore/QVector>
 
 struct ViewportProviderFrameTerminalResult
 {
@@ -224,6 +225,25 @@ struct ViewportProviderFrameTransportEffect
     ViewportProviderFrameCommand command;
 };
 
+struct ViewportProviderTransportCommand
+{
+    enum class Kind {
+        SendRequest,
+        CloseSession,
+        ScheduleDeferredEvent,
+    };
+
+    Kind kind = Kind::SendRequest;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageSequenceProviderRequest request;
+    ViewportProviderSessionClose sessionClose;
+    ViewportProviderDeferredControllerEvent deferredEvent
+        = ViewportProviderDeferredControllerEvent::None;
+    bool reportDispatchFailure = true;
+};
+
+using ViewportProviderTransportBatch = QVector<ViewportProviderTransportCommand>;
+
 enum class ViewportProviderEventTransportPhase {
     None,
     BeforeChanges,
@@ -319,10 +339,8 @@ struct ViewportProviderHostEvent
 struct ViewportProviderHostEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderMetadataTransportEffect metadataTransport;
-    ViewportProviderFrameTransportEffect frameTransport;
-    ViewportProviderEventTransportPhase transportPhase
-        = ViewportProviderEventTransportPhase::AfterChanges;
+    ViewportProviderTransportBatch beforeChanges;
+    ViewportProviderTransportBatch afterChanges;
     ImageViewportInternal::ProviderSchedulerDiagnostic schedulerDiagnostic;
     ViewportPlaybackScheduleEffect schedule;
 };
