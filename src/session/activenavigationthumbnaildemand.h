@@ -8,6 +8,7 @@
 
 #include <QUrl>
 #include <QtGlobal>
+#include <vector>
 
 namespace kiriview {
 enum class ActiveNavigationThumbnailDemandPriority {
@@ -22,7 +23,12 @@ struct ActiveNavigationThumbnailDemand
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailDemandPriority priority
         = ActiveNavigationThumbnailDemandPriority::Nearby;
+};
+
+struct ActiveNavigationThumbnailDemandSnapshot
+{
     quint64 navigationGeneration = 0;
+    std::vector<ActiveNavigationThumbnailDemand> demands;
 };
 
 ActiveNavigationThumbnailDemandBucket activeNavigationThumbnailDemandBucketForPhysicalMaxEdge(

@@ -27,6 +27,7 @@
 #include <QSizeF>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QVariantMap>
 #include <cstddef>
 #include <map>
 #include <memory>
@@ -36,6 +37,15 @@ namespace {
 QString keyForUrl(const QUrl& url) { return url.adjusted(QUrl::NormalizePathSegments).toString(); }
 
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
+
+QVariantMap thumbnailDemand(int number, const QUrl& url, int physicalMaxEdge,
+    KiriDocumentSession::ThumbnailDemandPriority priority, quint64 navigationGeneration)
+{
+    return { { QStringLiteral("number"), number }, { QStringLiteral("url"), url },
+        { QStringLiteral("physicalMaxEdge"), physicalMaxEdge },
+        { QStringLiteral("priority"), static_cast<int>(priority) },
+        { QStringLiteral("navigationGeneration"), navigationGeneration } };
+}
 
 kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QUrl& url)
 {
@@ -1295,38 +1305,27 @@ void TestKiriDocumentSession::activeNavigationThumbnailDemandSurfaceValidatesIde
     const quint64 generation = model->data(model->index(1, 0), generationRole).toULongLong();
     QVERIFY(generation > 0);
 
-    QCOMPARE(session->activeNavigationThumbnailDemandBucket(0),
-        KiriDocumentSession::ThumbnailDemandBucket::NoThumbnailDemandBucket);
-    QCOMPARE(session->activeNavigationThumbnailDemandBucket(128),
-        KiriDocumentSession::ThumbnailDemandBucket::NormalThumbnailDemandBucket);
-    QCOMPARE(session->activeNavigationThumbnailDemandBucket(129),
-        KiriDocumentSession::ThumbnailDemandBucket::LargeThumbnailDemandBucket);
-    QCOMPARE(session->activeNavigationThumbnailDemandBucket(257),
-        KiriDocumentSession::ThumbnailDemandBucket::XLargeThumbnailDemandBucket);
-    QCOMPARE(session->activeNavigationThumbnailDemandBucket(513),
-        KiriDocumentSession::ThumbnailDemandBucket::XXLargeThumbnailDemandBucket);
-
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(2, videoUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, videoUrl, 127,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(2, videoUrl, 129,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, videoUrl, 130,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, videoUrl, 130,
-        KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation));
-
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, imageUrl, 256,
-        KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(3, videoUrl, 256,
-        KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, videoUrl, 256,
-        KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation + 1));
-    QVERIFY(!session->reportActiveNavigationThumbnailDemand(2, videoUrl, 0,
-        KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(2, videoUrl, 96,
+              KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation),
+            thumbnailDemand(2, videoUrl, 129,
+                KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand,
+                generation) }));
+    QVERIFY(!session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(2, imageUrl, 256,
+            KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation) }));
+    QVERIFY(!session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(3, videoUrl, 256,
+            KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation) }));
+    QVERIFY(!session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(2, videoUrl, 256,
+            KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand,
+            generation + 1) }));
+    QVERIFY(!session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(2, videoUrl, 0,
+            KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand, generation) }));
+    QVERIFY(
+        !session->replaceActiveNavigationThumbnailDemandSnapshot(generation, { QVariantMap {} }));
 }
 
 void TestKiriDocumentSession::activeNavigationThumbnailDemandProjectsPendingAndUnsupportedResults()
@@ -1352,30 +1351,27 @@ void TestKiriDocumentSession::activeNavigationThumbnailDemandProjectsPendingAndU
                                    .toULongLong();
     QVERIFY(generation > 0);
 
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(1, imageUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(1, imageUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
     QCOMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::PendingThumbnailResult));
     QCOMPARE(
         thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailImageSource")).toUrl(),
         QUrl());
 
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(2, videoUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(2, videoUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
     QCOMPARE(thumbnailDataForRoleName(*session, 1, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::PendingThumbnailResult));
     QCOMPARE(
         thumbnailDataForRoleName(*session, 1, QByteArrayLiteral("thumbnailImageSource")).toUrl(),
         QUrl());
 
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(3, remoteVideoUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(3, remoteVideoUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
     QCOMPARE(thumbnailDataForRoleName(*session, 2, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::UnsupportedThumbnailResult));
     QCOMPARE(
@@ -1420,10 +1416,9 @@ void TestKiriDocumentSession::directImageThumbnailDemandProjectsReadyCacheHitSou
     const quint64 generation = thumbnailData(
         *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
                                    .toULongLong();
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(1, imageUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(1, imageUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
     QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
     QCOMPARE(thumbnailLookup.requests.front().localPathBytes, QFile::encodeName(imagePath));
@@ -1472,10 +1467,9 @@ void TestKiriDocumentSession::directImageThumbnailDemandProjectsReadyGeneratedSo
     const quint64 generation = thumbnailData(
         *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
                                    .toULongLong();
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(1, imageUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(1, imageUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
     QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
     QCOMPARE(thumbnailGeneration.requests.size(), std::size_t(4));
@@ -1513,10 +1507,9 @@ void TestKiriDocumentSession::directImageThumbnailDemandKeepsFallbackForFailedLo
     const quint64 generation = thumbnailData(
         *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
                                    .toULongLong();
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(1, imageUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(1, imageUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
     QCOMPARE(thumbnailDataForRoleName(*session, 0, QByteArrayLiteral("thumbnailStatus")).toInt(),
         static_cast<int>(KiriDocumentSession::ThumbnailResultStatus::FailedThumbnailResult));
@@ -1553,10 +1546,9 @@ void TestKiriDocumentSession::directImageThumbnailDemandKeepsFallbackForFailedGe
     const quint64 generation = thumbnailData(
         *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
                                    .toULongLong();
-    QVERIFY(session->beginActiveNavigationThumbnailDemandWindow(generation));
-    QVERIFY(session->reportActiveNavigationThumbnailDemand(1, imageUrl, 96,
-        KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation));
-    session->finishActiveNavigationThumbnailDemandWindow(generation);
+    QVERIFY(session->replaceActiveNavigationThumbnailDemandSnapshot(generation,
+        { thumbnailDemand(1, imageUrl, 96,
+            KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand, generation) }));
 
     QCOMPARE(thumbnailLookup.requests.size(), std::size_t(4));
     QCOMPARE(thumbnailGeneration.requests.size(), std::size_t(4));

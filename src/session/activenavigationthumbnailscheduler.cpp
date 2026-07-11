@@ -82,8 +82,6 @@ ActiveNavigationThumbnailScheduler::invalidate()
     m_rowBySourceIdentity.clear();
     m_navigationGeneration = 0;
     m_currentNumber = 0;
-    m_windowOpen = false;
-    m_windowGeneration = 0;
     m_backgroundArmed = false;
     return effects;
 }
@@ -112,66 +110,58 @@ ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
     return effects;
 }
 
-bool ActiveNavigationThumbnailScheduler::beginDemandWindow(quint64 navigationGeneration)
+std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>
+ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
+    ActiveNavigationThumbnailDemandSnapshot snapshot)
 {
-    if (navigationGeneration == 0 || navigationGeneration != m_navigationGeneration) {
-        return false;
+    if (snapshot.navigationGeneration == 0
+        || snapshot.navigationGeneration != m_navigationGeneration) {
+        return std::nullopt;
     }
-    for (RowState& state : m_rows) {
-        state.stagedDemand.reset();
+    std::vector<std::optional<ActiveNavigationThumbnailDemand>> normalized(m_rows.size());
+    for (ActiveNavigationThumbnailDemand& fact : snapshot.demands) {
+        if (fact.bucket < ActiveNavigationThumbnailDemandBucket::Normal
+            || fact.bucket > ActiveNavigationThumbnailDemandBucket::XXLarge
+            || (fact.priority != ActiveNavigationThumbnailDemandPriority::Visible
+                && fact.priority != ActiveNavigationThumbnailDemandPriority::Nearby)) {
+            return std::nullopt;
+        }
+        const auto row = rowForIdentity(fact.number, fact.url, snapshot.navigationGeneration);
+        if (!row.has_value()) {
+            return std::nullopt;
+        }
+        auto& accepted = normalized.at(*row);
+        if (!accepted.has_value()) {
+            accepted = std::move(fact);
+            continue;
+        }
+        if (static_cast<int>(fact.bucket) > static_cast<int>(accepted->bucket)) {
+            accepted->bucket = fact.bucket;
+        }
+        if (fact.priority == ActiveNavigationThumbnailDemandPriority::Visible) {
+            accepted->priority = ActiveNavigationThumbnailDemandPriority::Visible;
+        }
     }
-    m_windowOpen = true;
-    m_windowGeneration = navigationGeneration;
-    return true;
-}
 
-bool ActiveNavigationThumbnailScheduler::reportDemand(int number, const QUrl& url,
-    ActiveNavigationThumbnailDemandBucket bucket, ActiveNavigationThumbnailDemandPriority priority,
-    quint64 navigationGeneration)
-{
-    if (!m_windowOpen || navigationGeneration != m_windowGeneration
-        || bucket == ActiveNavigationThumbnailDemandBucket::None) {
-        return false;
-    }
-    const auto row = rowForIdentity(number, url, navigationGeneration);
-    if (!row.has_value()) {
-        return false;
-    }
-    RowState& state = m_rows.at(*row);
-    ThumbnailSourceAdapterPlan plan;
-    if (m_sourceAdapter) {
-        plan = m_sourceAdapter({ state.sourceKey, bucket, priority });
-    }
-    Demand demand { state.sourceKey, bucket, priority, std::move(plan) };
-    if (state.stagedDemand.has_value()) {
-        if (static_cast<int>(state.stagedDemand->bucket) > static_cast<int>(demand.bucket)) {
-            demand.bucket = state.stagedDemand->bucket;
-            demand.sourcePlan = state.stagedDemand->sourcePlan;
+    std::vector<std::optional<Demand>> demands(m_rows.size());
+    for (std::size_t row = 0; row < normalized.size(); ++row) {
+        if (!normalized.at(row).has_value()) {
+            continue;
         }
-        if (state.stagedDemand->priority == ActiveNavigationThumbnailDemandPriority::Visible) {
-            demand.priority = ActiveNavigationThumbnailDemandPriority::Visible;
+        const ActiveNavigationThumbnailDemand& fact = *normalized.at(row);
+        ThumbnailSourceAdapterPlan plan;
+        if (m_sourceAdapter) {
+            plan = m_sourceAdapter({ m_rows.at(row).sourceKey, fact.bucket, fact.priority });
         }
-        if (sameDemand(*state.stagedDemand, demand)) {
-            return false;
-        }
+        demands.at(row)
+            = Demand { m_rows.at(row).sourceKey, fact.bucket, fact.priority, std::move(plan) };
     }
-    state.stagedDemand = std::move(demand);
-    return true;
-}
 
-std::vector<ActiveNavigationThumbnailScheduleEffect>
-ActiveNavigationThumbnailScheduler::finishDemandWindow(quint64 navigationGeneration)
-{
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
-    if (!m_windowOpen || navigationGeneration != m_windowGeneration) {
-        return effects;
-    }
-    m_windowOpen = false;
-    m_windowGeneration = 0;
     m_backgroundArmed = true;
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         RowState& state = m_rows.at(row);
-        if (!state.stagedDemand.has_value()) {
+        if (!demands.at(row).has_value()) {
             if (state.sourceKey.rowNumber != m_currentNumber) {
                 cancel(row, effects);
                 state.acceptedDemand.reset();
@@ -184,8 +174,7 @@ ActiveNavigationThumbnailScheduler::finishDemandWindow(quint64 navigationGenerat
             }
             continue;
         }
-        Demand demand = std::move(*state.stagedDemand);
-        state.stagedDemand.reset();
+        Demand demand = std::move(*demands.at(row));
         if (state.acceptedDemand.has_value() && sameDemand(*state.acceptedDemand, demand)) {
             continue;
         }
@@ -220,7 +209,7 @@ ActiveNavigationThumbnailScheduler::finishDemandWindow(quint64 navigationGenerat
         }
     }
     admit(effects);
-    return effects;
+    return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>

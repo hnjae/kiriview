@@ -26,13 +26,9 @@ public:
 
     QAbstractListModel* model() const;
     quint64 navigationGeneration() const;
-    ActiveNavigationThumbnailDemandBucket demandBucket(int physicalMaxEdge) const;
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
-    bool beginDemandWindow(quint64 navigationGeneration);
-    void finishDemandWindow(quint64 navigationGeneration);
-    bool reportDemand(int number, const QUrl& url, int physicalMaxEdge,
-        ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
+    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
 
 private:
     ActiveNavigationThumbnailRuntime m_runtime;

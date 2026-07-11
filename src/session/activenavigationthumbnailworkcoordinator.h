@@ -43,10 +43,7 @@ public:
     void resetRows(std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration);
     void invalidateRows();
     void setCurrentNumber(int currentNumber);
-    bool beginDemandWindow(quint64 navigationGeneration);
-    void finishDemandWindow(quint64 navigationGeneration);
-    bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
-        ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
+    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
     const std::vector<ActiveNavigationThumbnailFailureDiagnostic>& failureDiagnostics() const;
 
 private:

@@ -111,9 +111,9 @@ void TestDocumentSessionThumbnailRuntime::
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
     const quint64 generation = runtime.navigationGeneration();
-    QVERIFY(runtime.beginDemandWindow(generation));
-    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
-    runtime.finishDemandWindow(generation);
+    QVERIFY(runtime.replaceDemandSnapshot({ generation,
+        { { 1, pageUrl, kiriview::ActiveNavigationThumbnailDemandBucket::Large,
+            Priority::Visible } } }));
 
     QCOMPARE(generationCount, 1);
     QCOMPARE(generatedRequest.openedCollectionScope, cbzScope);
@@ -156,9 +156,9 @@ void TestDocumentSessionThumbnailRuntime::directoryCollectionRowsStayPlaceholder
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
     const quint64 generation = runtime.navigationGeneration();
-    QVERIFY(runtime.beginDemandWindow(generation));
-    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
-    runtime.finishDemandWindow(generation);
+    QVERIFY(runtime.replaceDemandSnapshot({ generation,
+        { { 1, pageUrl, kiriview::ActiveNavigationThumbnailDemandBucket::Large,
+            Priority::Visible } } }));
 
     QCOMPARE(lookupCount, 0);
     QCOMPARE(generationCount, 0);
@@ -200,9 +200,9 @@ void TestDocumentSessionThumbnailRuntime::nonZipArchiveCollectionRowsStayPlaceho
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
     const quint64 generation = runtime.navigationGeneration();
-    QVERIFY(runtime.beginDemandWindow(generation));
-    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
-    runtime.finishDemandWindow(generation);
+    QVERIFY(runtime.replaceDemandSnapshot({ generation,
+        { { 1, pageUrl, kiriview::ActiveNavigationThumbnailDemandBucket::Large,
+            Priority::Visible } } }));
 
     QCOMPARE(lookupCount, 0);
     QCOMPARE(generationCount, 0);

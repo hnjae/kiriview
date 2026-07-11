@@ -43,11 +43,8 @@ public:
         std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration);
     std::vector<ActiveNavigationThumbnailScheduleEffect> invalidate();
     std::vector<ActiveNavigationThumbnailScheduleEffect> setCurrentNumber(int currentNumber);
-    bool beginDemandWindow(quint64 navigationGeneration);
-    bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
-        ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
-    std::vector<ActiveNavigationThumbnailScheduleEffect> finishDemandWindow(
-        quint64 navigationGeneration);
+    std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> replaceDemandSnapshot(
+        ActiveNavigationThumbnailDemandSnapshot snapshot);
     std::vector<ActiveNavigationThumbnailScheduleEffect> acceptCompletion(
         ActiveNavigationThumbnailWorkCompletion completion);
 
@@ -80,7 +77,6 @@ private:
     {
         ThumbnailSourceKey sourceKey;
         std::optional<Demand> acceptedDemand;
-        std::optional<Demand> stagedDemand;
         std::optional<Claim> activeWork;
         std::optional<ActiveNavigationThumbnailDemandBucket> completedDemandBucket;
         std::vector<ActiveNavigationThumbnailDemandBucket> completedBackgroundBuckets;
@@ -110,8 +106,6 @@ private:
     quint64 m_navigationGeneration = 0;
     quint64 m_nextWorkId = 1;
     int m_currentNumber = 0;
-    bool m_windowOpen = false;
-    quint64 m_windowGeneration = 0;
     bool m_backgroundArmed = false;
     QHash<QString, std::size_t> m_rowByDemandIdentity;
     QHash<QString, std::size_t> m_rowBySourceIdentity;

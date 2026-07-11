@@ -256,14 +256,22 @@ Controls.Pane {
                         break;
                     }
                 }
-                if (navigationGeneration <= 0 || !root.documentSession.beginActiveNavigationThumbnailDemandWindow(navigationGeneration)) {
+                if (navigationGeneration <= 0) {
                     return;
                 }
 
+                const demands = [];
                 for (let index = 0; index < delegates.length; ++index) {
-                    delegates[index].reportThumbnailDemand();
+                    const demand = delegates[index].thumbnailDemandFact();
+                    if (demand === null) {
+                        continue;
+                    }
+                    if (demand.navigationGeneration !== navigationGeneration) {
+                        return;
+                    }
+                    demands.push(demand);
                 }
-                root.documentSession.finishActiveNavigationThumbnailDemandWindow(navigationGeneration);
+                root.documentSession.replaceActiveNavigationThumbnailDemandSnapshot(navigationGeneration, demands);
             }
 
             function scheduleThumbnailDemandWindow() {
@@ -374,15 +382,20 @@ Controls.Pane {
                     return previewRight > viewportLeft && previewLeft < viewportRight && previewBottom > viewportTop && previewTop < viewportBottom;
                 }
 
-                function reportThumbnailDemand() {
+                function thumbnailDemandFact() {
                     const physicalMaxEdge = Math.ceil(Math.max(thumbnailPreviewBox.width, thumbnailPreviewBox.height) * thumbnailDevicePixelRatio);
-                    const bucket = root.documentSession.activeNavigationThumbnailDemandBucket(physicalMaxEdge);
-                    if (bucket === KiriDocumentSession.NoThumbnailDemandBucket) {
-                        return;
+                    if (physicalMaxEdge <= 0) {
+                        return null;
                     }
 
                     const priority = previewBoxIntersectsViewport() ? KiriDocumentSession.VisibleThumbnailDemand : KiriDocumentSession.NearbyThumbnailDemand;
-                    root.documentSession.reportActiveNavigationThumbnailDemand(number, url, physicalMaxEdge, priority, navigationGeneration);
+                    return {
+                        "navigationGeneration": navigationGeneration,
+                        "number": number,
+                        "physicalMaxEdge": physicalMaxEdge,
+                        "priority": priority,
+                        "url": url
+                    };
                 }
 
                 Component.onCompleted: thumbnailStrip.scheduleThumbnailDemandWindow()
@@ -461,19 +474,19 @@ Controls.Pane {
                     target: thumbnailStrip
 
                     function onContentXChanged() {
-                        thumbnailDelegate.reportThumbnailDemand();
+                        thumbnailStrip.scheduleThumbnailDemandWindow();
                     }
 
                     function onContentYChanged() {
-                        thumbnailDelegate.reportThumbnailDemand();
+                        thumbnailStrip.scheduleThumbnailDemandWindow();
                     }
 
                     function onHeightChanged() {
-                        thumbnailDelegate.reportThumbnailDemand();
+                        thumbnailStrip.scheduleThumbnailDemandWindow();
                     }
 
                     function onWidthChanged() {
-                        thumbnailDelegate.reportThumbnailDemand();
+                        thumbnailStrip.scheduleThumbnailDemandWindow();
                     }
                 }
             }

@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QTest>
 #include <QUrl>
+#include <initializer_list>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -117,6 +118,12 @@ kiriview::ThumbnailSourceAdapter localAdapter()
 }
 
 QString imageId(const QUrl& source) { return source.path().mid(1); }
+
+kiriview::ActiveNavigationThumbnailDemandSnapshot demandSnapshot(
+    quint64 generation, std::initializer_list<kiriview::ActiveNavigationThumbnailDemand> demands)
+{
+    return { generation, demands };
+}
 }
 
 class TestActiveNavigationThumbnailWorkCoordinator : public QObject
@@ -140,10 +147,8 @@ void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndP
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
 
-    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
-    QVERIFY(coordinator.reportDemand(
-        1, rows.sourceKeyAt(0).url, Bucket::Large, Priority::Visible, rows.navigationGeneration()));
-    coordinator.finishDemandWindow(rows.navigationGeneration());
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
+        { { 1, rows.sourceKeyAt(0).url, Bucket::Large, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
     QCOMPARE(providers.generations.size(), std::size_t(1));
@@ -166,14 +171,10 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
     const QUrl url = rows.sourceKeyAt(0).url;
 
-    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
-    QVERIFY(coordinator.reportDemand(
-        1, url, Bucket::Normal, Priority::Visible, rows.navigationGeneration()));
-    coordinator.finishDemandWindow(rows.navigationGeneration());
-    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
-    QVERIFY(coordinator.reportDemand(
-        1, url, Bucket::Large, Priority::Visible, rows.navigationGeneration()));
-    coordinator.finishDemandWindow(rows.navigationGeneration());
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
+        rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
+        rows.navigationGeneration(), { { 1, url, Bucket::Large, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::red));
@@ -198,10 +199,8 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
     const QUrl url = rows.sourceKeyAt(0).url;
 
-    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
-    QVERIFY(coordinator.reportDemand(
-        1, url, Bucket::Normal, Priority::Visible, rows.navigationGeneration()));
-    coordinator.finishDemandWindow(rows.navigationGeneration());
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
+        rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
     const QUrl foregroundSource = rows.resultAt(0).imageSource;
     QCOMPARE(providers.lookups.size(), std::size_t(2));
@@ -210,10 +209,8 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QCOMPARE(rows.resultAt(0).imageSource, foregroundSource);
     QCOMPARE(images->size(), qsizetype(1));
 
-    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
-    QVERIFY(coordinator.reportDemand(
-        1, url, Bucket::XLarge, Priority::Visible, rows.navigationGeneration()));
-    coordinator.finishDemandWindow(rows.navigationGeneration());
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
+        rows.navigationGeneration(), { { 1, url, Bucket::XLarge, Priority::Visible } })));
     const std::size_t foregroundLookup = providers.lookups.size() - 1;
     providers.finishLookup(foregroundLookup, kiriview::ThumbnailCacheLookupStatus::Failed, {},
         QStringLiteral("refinement lookup failed"));
@@ -238,14 +235,9 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
     const quint64 generation = rows.navigationGeneration();
 
-    QVERIFY(coordinator.beginDemandWindow(generation));
-    QVERIFY(coordinator.reportDemand(
-        2, rows.sourceKeyAt(1).url, Bucket::Normal, Priority::Nearby, generation));
-    QVERIFY(coordinator.reportDemand(
-        1, rows.sourceKeyAt(0).url, Bucket::Normal, Priority::Visible, generation));
-    QCOMPARE(providers.lookups.size(), std::size_t(0));
-
-    coordinator.finishDemandWindow(generation);
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
+        { { 2, rows.sourceKeyAt(1).url, Bucket::Normal, Priority::Nearby },
+            { 1, rows.sourceKeyAt(0).url, Bucket::Normal, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     QCOMPARE(providers.lookups.front().request.localPathBytes, QByteArray("/media/one.png"));
 

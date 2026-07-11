@@ -68,21 +68,10 @@ void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)
     m_workCoordinator->setCurrentNumber(currentNumber);
 }
 
-bool ActiveNavigationThumbnailRuntime::beginDemandWindow(quint64 navigationGeneration)
+bool ActiveNavigationThumbnailRuntime::replaceDemandSnapshot(
+    ActiveNavigationThumbnailDemandSnapshot snapshot)
 {
-    return m_workCoordinator->beginDemandWindow(navigationGeneration);
-}
-
-void ActiveNavigationThumbnailRuntime::finishDemandWindow(quint64 navigationGeneration)
-{
-    m_workCoordinator->finishDemandWindow(navigationGeneration);
-}
-
-bool ActiveNavigationThumbnailRuntime::reportDemand(int number, const QUrl& url,
-    ActiveNavigationThumbnailDemandBucket bucket, ActiveNavigationThumbnailDemandPriority priority,
-    quint64 navigationGeneration)
-{
-    return m_workCoordinator->reportDemand(number, url, bucket, priority, navigationGeneration);
+    return m_workCoordinator->replaceDemandSnapshot(std::move(snapshot));
 }
 
 }

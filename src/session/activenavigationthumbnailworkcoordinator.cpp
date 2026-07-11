@@ -63,21 +63,15 @@ void ActiveNavigationThumbnailWorkCoordinator::setCurrentNumber(int currentNumbe
     applyEffects(m_scheduler.setCurrentNumber(currentNumber));
 }
 
-bool ActiveNavigationThumbnailWorkCoordinator::beginDemandWindow(quint64 navigationGeneration)
+bool ActiveNavigationThumbnailWorkCoordinator::replaceDemandSnapshot(
+    ActiveNavigationThumbnailDemandSnapshot snapshot)
 {
-    return m_scheduler.beginDemandWindow(navigationGeneration);
-}
-
-void ActiveNavigationThumbnailWorkCoordinator::finishDemandWindow(quint64 navigationGeneration)
-{
-    applyEffects(m_scheduler.finishDemandWindow(navigationGeneration));
-}
-
-bool ActiveNavigationThumbnailWorkCoordinator::reportDemand(int number, const QUrl& url,
-    ActiveNavigationThumbnailDemandBucket bucket, ActiveNavigationThumbnailDemandPriority priority,
-    quint64 navigationGeneration)
-{
-    return m_scheduler.reportDemand(number, url, bucket, priority, navigationGeneration);
+    auto effects = m_scheduler.replaceDemandSnapshot(std::move(snapshot));
+    if (!effects.has_value()) {
+        return false;
+    }
+    applyEffects(std::move(*effects));
+    return true;
 }
 
 const std::vector<ActiveNavigationThumbnailFailureDiagnostic>&

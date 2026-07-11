@@ -15,6 +15,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVariantList>
 #include <QtGlobal>
 #include <QtQml/qqmlregistration.h>
 #include <memory>
@@ -142,15 +143,6 @@ public:
     };
     Q_ENUM(ActiveNavigationRevealDirection)
 
-    enum class ThumbnailDemandBucket {
-        NoThumbnailDemandBucket,
-        NormalThumbnailDemandBucket,
-        LargeThumbnailDemandBucket,
-        XLargeThumbnailDemandBucket,
-        XXLargeThumbnailDemandBucket,
-    };
-    Q_ENUM(ThumbnailDemandBucket)
-
     enum class ThumbnailDemandPriority {
         VisibleThumbnailDemand,
         NearbyThumbnailDemand,
@@ -224,13 +216,8 @@ public:
     Q_INVOKABLE KiriDocumentSession::ActiveNavigationRequestResult requestNextActiveNavigation();
     Q_INVOKABLE QString requestPreviousActiveNavigationBoundaryText();
     Q_INVOKABLE QString requestNextActiveNavigationBoundaryText();
-    Q_INVOKABLE KiriDocumentSession::ThumbnailDemandBucket activeNavigationThumbnailDemandBucket(
-        int physicalMaxEdge) const;
-    Q_INVOKABLE bool beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
-    Q_INVOKABLE void finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
-    Q_INVOKABLE bool reportActiveNavigationThumbnailDemand(int number, QUrl url,
-        int physicalMaxEdge, KiriDocumentSession::ThumbnailDemandPriority priority,
-        quint64 navigationGeneration);
+    Q_INVOKABLE bool replaceActiveNavigationThumbnailDemandSnapshot(
+        quint64 navigationGeneration, const QVariantList& demands);
     Q_INVOKABLE QString nextVideoOutputSurfaceClaimToken();
     Q_INVOKABLE bool reportVideoOutputSurfaceClaim(const QString& claimToken,
         quint64 projectionRevision, QObject* surfaceOwner, QObject* videoOutput, bool active,

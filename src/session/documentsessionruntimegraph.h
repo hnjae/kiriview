@@ -107,12 +107,8 @@ public:
     ActiveNavigationRevealIntent activeNavigationRevealIntent() const;
     ActiveNavigationRevealDirection activeNavigationRevealDirection() const;
     QAbstractListModel* activeNavigationThumbnailModel() const;
-    ActiveNavigationThumbnailDemandBucket activeNavigationThumbnailDemandBucket(
-        int physicalMaxEdge) const;
-    bool beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
-    void finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration);
-    bool reportActiveNavigationThumbnailDemand(int number, const QUrl& url, int physicalMaxEdge,
-        ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
+    bool replaceActiveNavigationThumbnailDemandSnapshot(
+        ActiveNavigationThumbnailDemandSnapshot snapshot);
     QString nextVideoOutputSurfaceClaimToken();
     bool reportVideoOutputSurfaceClaim(const QString& claimToken, quint64 projectionRevision,
         QObject* surfaceOwner, QObject* videoOutput, bool active, const QRectF& contentRect,

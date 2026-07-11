@@ -10,8 +10,10 @@
 #include "facade/mediaopendialogfilters.h"
 #include "localization/activenavigationboundarytext.h"
 #include "rendering/displayimagestore.h"
+#include "session/activenavigationthumbnaildemand.h"
 #include "session/thumbnailimagestore.h"
 
+#include <QVariantMap>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -178,25 +180,6 @@ KiriDocumentSession::ActiveNavigationRevealDirection fromRuntimeRevealDirection(
     return KiriDocumentSession::ActiveNavigationRevealDirection::None;
 }
 
-KiriDocumentSession::ThumbnailDemandBucket fromRuntimeThumbnailDemandBucket(
-    kiriview::ActiveNavigationThumbnailDemandBucket bucket)
-{
-    switch (bucket) {
-    case kiriview::ActiveNavigationThumbnailDemandBucket::None:
-        return KiriDocumentSession::ThumbnailDemandBucket::NoThumbnailDemandBucket;
-    case kiriview::ActiveNavigationThumbnailDemandBucket::Normal:
-        return KiriDocumentSession::ThumbnailDemandBucket::NormalThumbnailDemandBucket;
-    case kiriview::ActiveNavigationThumbnailDemandBucket::Large:
-        return KiriDocumentSession::ThumbnailDemandBucket::LargeThumbnailDemandBucket;
-    case kiriview::ActiveNavigationThumbnailDemandBucket::XLarge:
-        return KiriDocumentSession::ThumbnailDemandBucket::XLargeThumbnailDemandBucket;
-    case kiriview::ActiveNavigationThumbnailDemandBucket::XXLarge:
-        return KiriDocumentSession::ThumbnailDemandBucket::XXLargeThumbnailDemandBucket;
-    }
-
-    return KiriDocumentSession::ThumbnailDemandBucket::NoThumbnailDemandBucket;
-}
-
 kiriview::ActiveNavigationThumbnailDemandPriority toRuntimeThumbnailDemandPriority(
     KiriDocumentSession::ThumbnailDemandPriority priority)
 {
@@ -208,6 +191,48 @@ kiriview::ActiveNavigationThumbnailDemandPriority toRuntimeThumbnailDemandPriori
     }
 
     return kiriview::ActiveNavigationThumbnailDemandPriority::Nearby;
+}
+
+std::optional<kiriview::ActiveNavigationThumbnailDemandSnapshot> thumbnailDemandSnapshot(
+    quint64 navigationGeneration, const QVariantList& values)
+{
+    if (navigationGeneration == 0) {
+        return std::nullopt;
+    }
+    kiriview::ActiveNavigationThumbnailDemandSnapshot snapshot;
+    snapshot.navigationGeneration = navigationGeneration;
+    snapshot.demands.reserve(values.size());
+    for (const QVariant& value : values) {
+        if (!value.canConvert<QVariantMap>()) {
+            return std::nullopt;
+        }
+        const QVariantMap map = value.toMap();
+        bool numberValid = false;
+        bool edgeValid = false;
+        bool priorityValid = false;
+        bool generationValid = false;
+        const int number = map.value(QStringLiteral("number")).toInt(&numberValid);
+        const int physicalMaxEdge = map.value(QStringLiteral("physicalMaxEdge")).toInt(&edgeValid);
+        const int priorityValue = map.value(QStringLiteral("priority")).toInt(&priorityValid);
+        const quint64 entryGeneration
+            = map.value(QStringLiteral("navigationGeneration")).toULongLong(&generationValid);
+        const QUrl url = map.value(QStringLiteral("url")).toUrl();
+        const auto bucket
+            = kiriview::activeNavigationThumbnailDemandBucketForPhysicalMaxEdge(physicalMaxEdge);
+        const auto priority
+            = static_cast<KiriDocumentSession::ThumbnailDemandPriority>(priorityValue);
+        if (!numberValid || number <= 0 || !edgeValid
+            || bucket == kiriview::ActiveNavigationThumbnailDemandBucket::None || !priorityValid
+            || (priority != KiriDocumentSession::ThumbnailDemandPriority::VisibleThumbnailDemand
+                && priority != KiriDocumentSession::ThumbnailDemandPriority::NearbyThumbnailDemand)
+            || !generationValid || entryGeneration != navigationGeneration || !url.isValid()
+            || url.isEmpty()) {
+            return std::nullopt;
+        }
+        snapshot.demands.push_back(
+            { number, url, bucket, toRuntimeThumbnailDemandPriority(priority) });
+    }
+    return snapshot;
 }
 
 template <typename Document>
@@ -662,28 +687,12 @@ QString KiriDocumentSession::requestNextActiveNavigationBoundaryText()
         m_runtime->activeNavigationBoundaryScope(), m_runtime->requestNextActiveNavigation());
 }
 
-KiriDocumentSession::ThumbnailDemandBucket
-KiriDocumentSession::activeNavigationThumbnailDemandBucket(int physicalMaxEdge) const
+bool KiriDocumentSession::replaceActiveNavigationThumbnailDemandSnapshot(
+    quint64 navigationGeneration, const QVariantList& demands)
 {
-    return fromRuntimeThumbnailDemandBucket(
-        m_runtime->activeNavigationThumbnailDemandBucket(physicalMaxEdge));
-}
-
-bool KiriDocumentSession::beginActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration)
-{
-    return m_runtime->beginActiveNavigationThumbnailDemandWindow(navigationGeneration);
-}
-
-void KiriDocumentSession::finishActiveNavigationThumbnailDemandWindow(quint64 navigationGeneration)
-{
-    m_runtime->finishActiveNavigationThumbnailDemandWindow(navigationGeneration);
-}
-
-bool KiriDocumentSession::reportActiveNavigationThumbnailDemand(int number, QUrl url,
-    int physicalMaxEdge, ThumbnailDemandPriority priority, quint64 navigationGeneration)
-{
-    return m_runtime->reportActiveNavigationThumbnailDemand(number, url, physicalMaxEdge,
-        toRuntimeThumbnailDemandPriority(priority), navigationGeneration);
+    auto snapshot = thumbnailDemandSnapshot(navigationGeneration, demands);
+    return snapshot.has_value()
+        && m_runtime->replaceActiveNavigationThumbnailDemandSnapshot(std::move(*snapshot));
 }
 
 QString KiriDocumentSession::nextVideoOutputSurfaceClaimToken()

@@ -484,9 +484,8 @@ void TestMainWindowVideoIntegration::documentSessionFacadeExposesOnlySharedActiv
     QVERIFY(metaObjectHasMethod(metaObject, "openNextActiveNavigation()"));
     QVERIFY(metaObjectHasMethod(metaObject, "openActiveNavigationAtNumber(int)"));
     QVERIFY(metaObjectHasMethod(metaObject, "requestPreviousActiveNavigationBoundaryText()"));
-    QVERIFY(metaObjectHasMethod(metaObject,
-        "reportActiveNavigationThumbnailDemand(int,QUrl,int,KiriDocumentSession::"
-        "ThumbnailDemandPriority,quint64)"));
+    QVERIFY(metaObjectHasMethod(
+        metaObject, "replaceActiveNavigationThumbnailDemandSnapshot(quint64,QVariantList)"));
 
     const QList<QByteArray> rawDirectMediaNames {
         QByteArrayLiteral("directMediaNavigationActive"),

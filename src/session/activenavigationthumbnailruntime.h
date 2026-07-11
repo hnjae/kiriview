@@ -46,10 +46,7 @@ public:
 
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
-    bool beginDemandWindow(quint64 navigationGeneration);
-    void finishDemandWindow(quint64 navigationGeneration);
-    bool reportDemand(int number, const QUrl& url, ActiveNavigationThumbnailDemandBucket bucket,
-        ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration);
+    bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
 
 private:
     std::unique_ptr<ActiveNavigationThumbnailRowStore> m_rowStore;

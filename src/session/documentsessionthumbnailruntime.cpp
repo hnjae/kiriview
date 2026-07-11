@@ -76,12 +76,6 @@ quint64 DocumentSessionThumbnailRuntime::navigationGeneration() const
     return m_runtime.navigationGeneration();
 }
 
-ActiveNavigationThumbnailDemandBucket DocumentSessionThumbnailRuntime::demandBucket(
-    int physicalMaxEdge) const
-{
-    return activeNavigationThumbnailDemandBucketForPhysicalMaxEdge(physicalMaxEdge);
-}
-
 void DocumentSessionThumbnailRuntime::setRows(std::vector<ActiveNavigationThumbnailRow> rows)
 {
     m_runtime.setRows(std::move(rows));
@@ -92,24 +86,9 @@ void DocumentSessionThumbnailRuntime::setCurrentNumber(int currentNumber)
     m_runtime.setCurrentNumber(currentNumber);
 }
 
-bool DocumentSessionThumbnailRuntime::beginDemandWindow(quint64 navigationGeneration)
+bool DocumentSessionThumbnailRuntime::replaceDemandSnapshot(
+    ActiveNavigationThumbnailDemandSnapshot snapshot)
 {
-    return m_runtime.beginDemandWindow(navigationGeneration);
-}
-
-void DocumentSessionThumbnailRuntime::finishDemandWindow(quint64 navigationGeneration)
-{
-    m_runtime.finishDemandWindow(navigationGeneration);
-}
-
-bool DocumentSessionThumbnailRuntime::reportDemand(int number, const QUrl& url, int physicalMaxEdge,
-    ActiveNavigationThumbnailDemandPriority priority, quint64 navigationGeneration)
-{
-    const ActiveNavigationThumbnailDemandBucket bucket = demandBucket(physicalMaxEdge);
-    if (bucket == ActiveNavigationThumbnailDemandBucket::None) {
-        return false;
-    }
-
-    return m_runtime.reportDemand(number, url, bucket, priority, navigationGeneration);
+    return m_runtime.replaceDemandSnapshot(std::move(snapshot));
 }
 }

@@ -207,30 +207,10 @@ QAbstractListModel* DocumentSessionRuntime::activeNavigationThumbnailModel() con
     return m_runtimeGraph->activeNavigationThumbnailModel();
 }
 
-ActiveNavigationThumbnailDemandBucket DocumentSessionRuntime::activeNavigationThumbnailDemandBucket(
-    int physicalMaxEdge) const
+bool DocumentSessionRuntime::replaceActiveNavigationThumbnailDemandSnapshot(
+    ActiveNavigationThumbnailDemandSnapshot snapshot)
 {
-    return m_runtimeGraph->activeNavigationThumbnailDemandBucket(physicalMaxEdge);
-}
-
-bool DocumentSessionRuntime::beginActiveNavigationThumbnailDemandWindow(
-    quint64 navigationGeneration)
-{
-    return m_runtimeGraph->beginActiveNavigationThumbnailDemandWindow(navigationGeneration);
-}
-
-void DocumentSessionRuntime::finishActiveNavigationThumbnailDemandWindow(
-    quint64 navigationGeneration)
-{
-    m_runtimeGraph->finishActiveNavigationThumbnailDemandWindow(navigationGeneration);
-}
-
-bool DocumentSessionRuntime::reportActiveNavigationThumbnailDemand(int number, const QUrl& url,
-    int physicalMaxEdge, ActiveNavigationThumbnailDemandPriority priority,
-    quint64 navigationGeneration)
-{
-    return m_runtimeGraph->reportActiveNavigationThumbnailDemand(
-        number, url, physicalMaxEdge, priority, navigationGeneration);
+    return m_runtimeGraph->replaceActiveNavigationThumbnailDemandSnapshot(std::move(snapshot));
 }
 
 QString DocumentSessionRuntime::nextVideoOutputSurfaceClaimToken()
