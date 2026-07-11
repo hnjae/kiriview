@@ -36,11 +36,11 @@ Rust may compute navigation, thumbnail, predecode, or deletion policy from candi
 
 ## Thumbnail Demand Window Boundary
 
-The active-navigation thumbnail demand window is runtime state owned by the C++ document-session thumbnail work coordinator. The document-session thumbnail runtime only composes that coordinator with the active-navigation thumbnail row store.
+The active-navigation thumbnail demand window is value state owned by the C++ active-navigation thumbnail scheduler. The document-session thumbnail runtime composes the scheduler's coordinator interpreter with the active-navigation thumbnail row store and job executor.
 
 QML may report which projected rows are visible in the strip viewport, which instantiated rows are nearby the viewport or reveal target, each reported row's physical thumbnail size, and the active thumbnail navigation generation. QML must not accumulate demand history, expire demand, choose background-fill rows, schedule thumbnail work, or retain row readiness independently of the runtime.
 
-Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows and the current selected row are foreground demand. Nearby rows are prefetch demand around the viewport or reveal target and yield to foreground work. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
+Visible demand, nearby demand, and the current user-selected row are distinct priority inputs over the same confirmed thumbnail row set. Visible rows and the current selected row are foreground demand and may run in parallel. Nearby rows are prefetch demand around the viewport or reveal target, may run in parallel with each other, and are admitted only after foreground work is no longer pending or active. Rows outside the latest visible, nearby, and selected demand window are not foreground demand.
 
 Demand facts are scoped to active thumbnail row identity, thumbnail navigation generation, source key, demand bucket, and runtime demand epoch. A visible or nearby demand expires when a newer demand-window epoch no longer contains that row at that priority, when the row source key or thumbnail navigation generation changes, when the requested bucket is superseded, or when the thumbnail row set resets. Completion acceptance still uses the source key, navigation generation, bucket, and active job identity.
 
