@@ -153,25 +153,25 @@ bool isPositiveSize(QSizeF size)
 
 ImageViewportPrivate::SpreadDirection ImageViewportPrivate::spreadDirection() const
 {
-    return controller.presentationState().spreadDirection;
+    return lastStateSnapshot.presentation().spreadDirection();
 }
 
-double ImageViewportPrivate::pageGap() const { return controller.presentationState().pageGap; }
+double ImageViewportPrivate::pageGap() const { return lastStateSnapshot.presentation().pageGap(); }
 
 ImageViewportPrivate::CommandReason ImageViewportPrivate::commandReason() const
 {
-    return controller.requestState().commandReason;
+    return lastStateSnapshot.diagnostics().commandReason();
 }
 
 ImageViewportPrivate::DisplayStatus ImageViewportPrivate::displayStatus() const
 {
-    return controller.displayState().status;
+    return lastStateSnapshot.display().status();
 }
 
 int ImageViewportPrivate::displayedFrame() const
 {
     if (hasReadyDisplay()) {
-        return controller.displayState().displayedRequest.request.target.frame;
+        return lastStateSnapshot.primary().display().frame();
     }
 
     return -1;
@@ -180,7 +180,7 @@ int ImageViewportPrivate::displayedFrame() const
 int ImageViewportPrivate::requestedFrame() const
 {
     if (hasDisplayableSequence()) {
-        return controller.requestState().activeRequest.target.frame;
+        return lastStateSnapshot.primary().request().frame();
     }
 
     return -1;
@@ -306,11 +306,14 @@ QSizeF ImageViewportPrivate::displayedSpreadSize() const
     return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
 }
 
-QString ImageViewportPrivate::errorString() const { return controller.requestState().errorString; }
+QString ImageViewportPrivate::errorString() const
+{
+    return lastStateSnapshot.diagnostics().errorString();
+}
 
 QString ImageViewportPrivate::warningString() const
 {
-    return controller.requestState().warningString;
+    return lastStateSnapshot.diagnostics().warningString();
 }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget(

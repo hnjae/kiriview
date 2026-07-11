@@ -66,7 +66,7 @@ enum class RoleCommandKind {
     SeekPosition,
 };
 
-class PlaybackControllerContext final : public ViewportControllerContext
+class PlaybackControllerContext final : public QObject
 {
 public:
     ImageSequence* sequence = nullptr;
@@ -80,17 +80,17 @@ public:
     QVector<QImage> images;
     QVector<QImage> secondaryImages;
 
-    QRectF contentRect() const override
+    QRectF contentRect() const
     {
         return itemBounds().isEmpty() ? QRectF() : QRectF(0.0, 25.0, size.width(), 50.0);
     }
 
-    QRectF visibleImageRect() const override
+    QRectF visibleImageRect() const
     {
         return itemBounds().isEmpty() ? QRectF() : QRectF(0.0, 0.0, 16.0, 8.0);
     }
 
-    QRectF itemBounds() const override
+    QRectF itemBounds() const
     {
         if (size.width() <= 0.0 || size.height() <= 0.0) {
             return {};
@@ -98,38 +98,38 @@ public:
         return QRectF(0.0, 0.0, size.width(), size.height());
     }
 
-    bool hasActiveRequest() const override { return sequence != nullptr; }
-    bool hasDisplayableSequence() const override { return sequence != nullptr; }
-    bool hasProviderSequence() const override { return sequence != nullptr && providerSequence; }
-    bool hasTimedSequence() const override { return sequence != nullptr && timed; }
-    int sequenceFrameCount() const override { return durations.size(); }
-    QSizeF sequenceLogicalSize() const override { return logicalSize; }
-    double width() const override { return size.width(); }
-    double height() const override { return size.height(); }
-    bool hasSecondaryTimedSequence() const override { return secondarySequence != nullptr; }
-    int secondarySequenceFrameCount() const override { return secondaryDurations.size(); }
-    int secondarySequenceTotalDuration() const override
+    bool hasActiveRequest() const { return sequence != nullptr; }
+    bool hasDisplayableSequence() const { return sequence != nullptr; }
+    bool hasProviderSequence() const { return sequence != nullptr && providerSequence; }
+    bool hasTimedSequence() const { return sequence != nullptr && timed; }
+    int sequenceFrameCount() const { return durations.size(); }
+    QSizeF sequenceLogicalSize() const { return logicalSize; }
+    double width() const { return size.width(); }
+    double height() const { return size.height(); }
+    bool hasSecondaryTimedSequence() const { return secondarySequence != nullptr; }
+    int secondarySequenceFrameCount() const { return secondaryDurations.size(); }
+    int secondarySequenceTotalDuration() const
     {
         return totalDurationFor(secondaryDurations);
     }
-    QSizeF secondarySequenceLogicalSize() const override { return logicalSize; }
+    QSizeF secondarySequenceLogicalSize() const { return logicalSize; }
 
-    int sequenceFrameStartPosition(int frame) const override
+    int sequenceFrameStartPosition(int frame) const
     {
         return frameStartPositionFor(durations, frame);
     }
 
-    int sequenceFrameIndexForPosition(int position) const override
+    int sequenceFrameIndexForPosition(int position) const
     {
         return frameIndexForPositionIn(durations, position);
     }
 
-    int secondarySequenceFrameStartPosition(int frame) const override
+    int secondarySequenceFrameStartPosition(int frame) const
     {
         return frameStartPositionFor(secondaryDurations, frame);
     }
 
-    int secondarySequenceFrameIndexForPosition(int position) const override
+    int secondarySequenceFrameIndexForPosition(int position) const
     {
         return frameIndexForPositionIn(secondaryDurations, position);
     }
@@ -172,7 +172,7 @@ private:
         return position == start && !frameDurations.isEmpty() ? frameDurations.size() - 1 : -1;
     }
 
-    int sequenceTotalDuration() const override
+    int sequenceTotalDuration() const
     {
         return totalDurationFor(durations);
     }
@@ -392,7 +392,7 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
 
     ImageSequenceFactory factory;
     PlaybackControllerContext context;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     std::unique_ptr<ImageSequenceFactoryResult> primarySequence;
     std::unique_ptr<ImageSequenceFactoryResult> secondarySequence;
 
@@ -455,7 +455,7 @@ void ViewportControllerPlaybackTest::builtInPlaybackAdvanceUsesExplicitElapsedWi
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
@@ -506,7 +506,7 @@ void ViewportControllerPlaybackTest::pauseWhileRenderWaitingCommitsWithoutResumi
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
@@ -533,7 +533,7 @@ void ViewportControllerPlaybackTest::explicitSeekWhilePlayingWaitsForRenderCommi
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
@@ -555,7 +555,7 @@ void ViewportControllerPlaybackTest::loopingPlaybackWrapsToStart()
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
@@ -580,7 +580,7 @@ void ViewportControllerPlaybackTest::unsupportedPlayForUntimedSequencePreservesS
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
@@ -598,7 +598,7 @@ void ViewportControllerPlaybackTest::invalidSeekWhilePlayingPreservesPlaybackPha
     PlaybackControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeTimedSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);

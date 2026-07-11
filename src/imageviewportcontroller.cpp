@@ -25,17 +25,17 @@ void ImageViewportPrivate::incrementRequestRevision() { controller.incrementRequ
 
 bool ImageViewportPrivate::hasActiveRequest() const
 {
-    return controller.requestState().status != RequestStatus::NoRequest;
+    return lastStateSnapshot.request().status() != RequestStatus::NoRequest;
 }
 
 bool ImageViewportPrivate::hasReadyDisplay() const
 {
-    return controller.displayState().hasReadyDisplay(hasDisplayableSequence());
+    return lastStateSnapshot.display().status() == DisplayStatus::Ready;
 }
 
 bool ImageViewportPrivate::hasDisplayableSequence() const
 {
-    return controller.requestState().sequenceSource.facts.present;
+    return lastStateSnapshot.primary().metadata().available();
 }
 
 bool ImageViewportPrivate::hasStillSequence() const
@@ -45,7 +45,7 @@ bool ImageViewportPrivate::hasStillSequence() const
 
 bool ImageViewportPrivate::hasTimedSequence() const
 {
-    return controller.requestState().sequenceSource.facts.timed;
+    return lastStateSnapshot.primary().metadata().totalDuration() >= 0;
 }
 
 bool ImageViewportPrivate::hasProviderSequence() const
@@ -91,12 +91,12 @@ int ImageViewportPrivate::providerKnownFactsFrameCount() const
 
 int ImageViewportPrivate::sequenceFrameCount() const
 {
-    return controller.requestState().sequenceSource.facts.frameCount;
+    return lastStateSnapshot.primary().metadata().frameCount();
 }
 
 int ImageViewportPrivate::sequenceTotalDuration() const
 {
-    return controller.requestState().sequenceSource.facts.totalDuration;
+    return lastStateSnapshot.primary().metadata().totalDuration();
 }
 
 int ImageViewportPrivate::sequenceFrameIndexForPosition(int position) const
@@ -111,12 +111,12 @@ int ImageViewportPrivate::sequenceFrameStartPosition(int frame) const
 
 QSizeF ImageViewportPrivate::sequenceLogicalSize() const
 {
-    return sourceLogicalSize(controller.requestState().sequenceSource);
+    return lastStateSnapshot.primary().request().sourceLogicalSize();
 }
 
 QSizeF ImageViewportPrivate::secondarySequenceLogicalSize() const
 {
-    return sourceLogicalSize(controller.requestState().secondarySequenceSource);
+    return lastStateSnapshot.secondary().request().sourceLogicalSize();
 }
 
 QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const QString& fallback)

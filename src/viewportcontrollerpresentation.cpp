@@ -10,7 +10,7 @@ ViewportCommandResult ViewportController::setPresentation(
             { input.command, controllerGeometryInput(viewport, input.devicePixelRatio),
                 input.anchor, viewport.hasReadyDisplay() });
     ViewportCommandResult result
-        = ImageViewportInternal::CommandOutcome::fromEngineCommand(viewport, engineResult.command);
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.changes, engineResult.changes);
     result.providerFrameTransport = engineResult.providerEffects[0];
     result.secondaryProviderFrameTransport = engineResult.providerEffects[1];

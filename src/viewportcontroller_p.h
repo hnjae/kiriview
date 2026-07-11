@@ -11,6 +11,8 @@
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
 
+#include <functional>
+
 struct ControllerTransitionPolicy;
 struct ViewportCommandResult;
 struct ViewportMetadataProjection;
@@ -64,79 +66,11 @@ struct ViewportControllerState
     ViewportEngine engine;
 };
 
-class ViewportControllerContext
-{
-public:
-    ViewportControllerContext() = default;
-    ViewportControllerContext(const ViewportControllerContext&) = delete;
-    ViewportControllerContext& operator=(const ViewportControllerContext&) = delete;
-    ViewportControllerContext(ViewportControllerContext&&) = delete;
-    ViewportControllerContext& operator=(ViewportControllerContext&&) = delete;
-    virtual ~ViewportControllerContext() = default;
-
-    // Viewport geometry inputs.
-    virtual QRectF contentRect() const;
-    virtual QRectF visibleImageRect() const;
-    virtual QRectF itemBounds() const;
-    virtual double width() const;
-    virtual double height() const;
-
-    // Presentation-target assignment and active request facts.
-    virtual bool hasActiveRequest() const;
-    virtual bool hasReadyDisplay() const;
-    virtual bool hasDisplayableSequence() const;
-    virtual bool hasTimedSequence() const;
-    virtual bool hasProviderSequence() const;
-
-    // Primary provider construction/runtime facts.
-    virtual bool providerHasCompleteKnownMetadata() const;
-    virtual ImageSequenceProviderKnownFacts providerKnownFacts() const;
-    virtual QSizeF providerKnownLogicalSize() const;
-    virtual TimingIntervals providerKnownTimingIntervals() const;
-    virtual ImageSequenceProviderCapabilitySupport providerTimedPlaybackCapability() const;
-    virtual ImageSequenceProviderCapabilitySupport providerFrameSeekCapability() const;
-    virtual ImageSequenceProviderCapabilitySupport providerPositionSeekCapability() const;
-    virtual bool providerTimedPlaybackCapabilityKnownFalse() const;
-    virtual bool providerFrameSeekCapabilityKnownFalse() const;
-    virtual bool providerFrameSeekCapabilityKnownTrue() const;
-    virtual bool providerPositionSeekCapabilityKnownFalse() const;
-    virtual bool providerKnownFactsTimedFrameCount() const;
-    virtual int providerKnownFactsFrameCount() const;
-    virtual int providerFrameStartPosition(int frame) const;
-    virtual int providerFrameIndexForPosition(int position) const;
-    virtual ImageSequenceAuthoredAnimationFacts providerAuthoredAnimationFacts() const;
-
-    // Primary built-in sequence facts and payload data.
-    virtual int sequenceFrameCount() const;
-    virtual int sequenceTotalDuration() const;
-    virtual int sequenceFrameIndexForPosition(int position) const;
-    virtual int sequenceFrameStartPosition(int frame) const;
-    virtual ImageSequenceAuthoredAnimationFacts sequenceAuthoredAnimationFacts() const;
-    virtual QSizeF sequenceLogicalSize() const;
-
-    // Secondary built-in sequence facts and payload data.
-    virtual bool hasSecondaryTimedSequence() const;
-    virtual int secondarySequenceFrameCount() const;
-    virtual int secondarySequenceTotalDuration() const;
-    virtual int secondarySequenceFrameIndexForPosition(int position) const;
-    virtual int secondarySequenceFrameStartPosition(int frame) const;
-    virtual ImageSequenceAuthoredAnimationFacts secondarySequenceAuthoredAnimationFacts() const;
-    virtual QSizeF secondarySequenceLogicalSize() const;
-
-    // Secondary provider construction/runtime facts.
-    virtual ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const;
-    virtual QSizeF secondaryProviderKnownLogicalSize() const;
-    virtual TimingIntervals secondaryProviderKnownTimingIntervals() const;
-    virtual ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const;
-    virtual ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const;
-    virtual ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const;
-};
-
 class ViewportControllerPort
 {
 public:
-    ViewportControllerPort(
-        const ViewportControllerContext& context, ViewportControllerState& state);
+    ViewportControllerPort(std::function<QRectF()> captureItemBounds,
+        ViewportControllerState& state);
 
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;
@@ -196,14 +130,14 @@ public:
     double height() const;
 
 private:
-    const ViewportControllerContext& context;
+    std::function<QRectF()> captureItemBounds;
     ViewportControllerState& state;
 };
 
 class ViewportController
 {
 public:
-    explicit ViewportController(const ViewportControllerContext& context);
+    explicit ViewportController(std::function<QRectF()> captureItemBounds);
 
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
@@ -253,7 +187,6 @@ public:
         ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase);
 
     ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
-    ViewportCommandResult rejectInvalidCommand();
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     ViewportCommandResult clear();
     ViewportCommandResult play(ImageViewport::PageRole role);
@@ -376,8 +309,6 @@ public:
 
 private:
     quint64 allocateRevisionToken();
-    ViewportCommandResult rejectUnsupportedCommand();
-    ViewportCommandResult rejectIgnoredNoRequestCommand();
     void armAuthoredAutoplayIfEligible();
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);

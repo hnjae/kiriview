@@ -2,7 +2,7 @@
 
 ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
-    , controller(*this)
+    , controller([this] { return itemBounds(); })
     , playbackScheduler(*this)
     , providerHost(*this)
     , renderHost(*this)

@@ -11,7 +11,7 @@
 
 namespace {
 
-class PresentationControllerContext final : public ViewportControllerContext
+class PresentationControllerContext final : public QObject
 {
 public:
     ImageSequence* sequence = nullptr;
@@ -20,7 +20,7 @@ public:
     QSizeF logicalSize { 16.0, 8.0 };
     QSizeF secondaryLogicalSize { 8.0, 8.0 };
 
-    QRectF itemBounds() const override
+    QRectF itemBounds() const
     {
         if (itemSize.width() <= 0.0 || itemSize.height() <= 0.0) {
             return {};
@@ -28,13 +28,13 @@ public:
         return QRectF(0.0, 0.0, itemSize.width(), itemSize.height());
     }
 
-    bool hasActiveRequest() const override { return sequence != nullptr; }
-    bool hasReadyDisplay() const override { return readyDisplay; }
-    bool hasDisplayableSequence() const override { return sequence != nullptr; }
-    QSizeF sequenceLogicalSize() const override { return logicalSize; }
-    QSizeF secondarySequenceLogicalSize() const override { return secondaryLogicalSize; }
-    double width() const override { return itemSize.width(); }
-    double height() const override { return itemSize.height(); }
+    bool hasActiveRequest() const { return sequence != nullptr; }
+    bool hasReadyDisplay() const { return readyDisplay; }
+    bool hasDisplayableSequence() const { return sequence != nullptr; }
+    QSizeF sequenceLogicalSize() const { return logicalSize; }
+    QSizeF secondarySequenceLogicalSize() const { return secondaryLogicalSize; }
+    double width() const { return itemSize.width(); }
+    double height() const { return itemSize.height(); }
 };
 
 std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
@@ -136,7 +136,7 @@ private slots:
 void ViewportControllerPresentationTest::standalonePresentationCommandsMutateControllerState()
 {
     PresentationControllerContext context;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     const ViewportCommandResult zoom = controller.setZoomPercent(250.0, QPointF());
     QCOMPARE(zoom.outcome, ImageViewport::CommandOutcome::Accepted);
@@ -167,7 +167,7 @@ void ViewportControllerPresentationTest::
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     controller.assignSequence({ sequence->sequence() });
     acknowledgePendingRenderCommit(controller);
 
@@ -206,7 +206,7 @@ void ViewportControllerPresentationTest::
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     QCOMPARE(controller.setZoomPercent(300.0, QPointF()).outcome,
         ImageViewport::CommandOutcome::Accepted);
@@ -251,7 +251,7 @@ void ViewportControllerPresentationTest::assignmentDerivesDisplayTransitionFromP
     std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
     QVERIFY(initial);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommit(controller);
@@ -281,7 +281,7 @@ void ViewportControllerPresentationTest::
     spreadDirectionAndPageGapPreserveCommandDiagnosticsForInvalidAndNoop()
 {
     PresentationControllerContext context;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     const ViewportCommandResult invalidZoom
         = controller.setZoomPercent(std::numeric_limits<double>::infinity(), QPointF());
@@ -337,7 +337,7 @@ void ViewportControllerPresentationTest::
     std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
     QVERIFY(initial);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommit(controller);
@@ -379,7 +379,7 @@ void ViewportControllerPresentationTest::
     std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
     QVERIFY(initial);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommit(controller);
@@ -418,7 +418,7 @@ void ViewportControllerPresentationTest::presentationTargetTransitionClampUsesRe
     std::unique_ptr<ImageSequenceFactoryResult> initial = makeStillSequence(factory, context);
     QVERIFY(initial);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     QCOMPARE(controller.assignSequence({ initial->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);
     acknowledgePendingRenderCommit(controller);
@@ -462,7 +462,7 @@ void ViewportControllerPresentationTest::manualZoomUsesDevicePixelRatioForTwoPag
     QVERIFY(primary);
     QVERIFY(secondary);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
@@ -534,7 +534,7 @@ void ViewportControllerPresentationTest::manualZoomHelpersUseControllerPresentat
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     QCOMPARE(controller.maximumManualZoomPercent(2.0), displayDemandCeiling);
     QVERIFY(controller.minimumManualZoomPercent() > 0.0);
@@ -569,7 +569,7 @@ void ViewportControllerPresentationTest::zoomByStepUsesControllerStepMathAndVali
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeStillSequence(factory, context);
     QVERIFY(sequence);
     context.readyDisplay = true;
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     QCOMPARE(controller.assignSequence({ sequence->sequence() }).outcome,
         ImageViewport::CommandOutcome::Accepted);

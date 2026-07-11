@@ -123,7 +123,7 @@ bool ImageViewportPrivate::verticalPannable() const
 
 ImageViewportPrivate::FitMode ImageViewportPrivate::fitMode() const
 {
-    return controller.presentationState().fitMode;
+    return lastStateSnapshot.presentation().fitMode();
 }
 
 double ImageViewportPrivate::zoomPercent() const
@@ -132,7 +132,7 @@ double ImageViewportPrivate::zoomPercent() const
     const QSizeF spreadSize = orientedSpreadSize(state);
     const QRectF content = PresentationGeometry::contentRect(state);
     if (content.isEmpty() || !isPositiveSize(spreadSize)) {
-        return controller.presentationState().manualZoom * 100.0;
+        return lastStateSnapshot.presentation().zoomPercent();
     }
 
     return content.width() / spreadSize.width() * effectiveDevicePixelRatio(*this) * 100.0;
@@ -155,34 +155,34 @@ double ImageViewportPrivate::manualZoomStepFactor() const
 
 int ImageViewportPrivate::rotationDegrees() const
 {
-    return controller.presentationState().rotationDegrees;
+    return lastStateSnapshot.presentation().rotationDegrees();
 }
 
-bool ImageViewportPrivate::smoothing() const { return controller.presentationState().smoothing; }
+bool ImageViewportPrivate::smoothing() const { return lastStateSnapshot.presentation().smoothing(); }
 
-bool ImageViewportPrivate::mipmap() const { return controller.presentationState().mipmap; }
+bool ImageViewportPrivate::mipmap() const { return lastStateSnapshot.presentation().mipmap(); }
 
 bool ImageViewportPrivate::mirrorHorizontally() const
 {
-    return controller.presentationState().mirrorHorizontally;
+    return lastStateSnapshot.presentation().mirrorHorizontally();
 }
 
 bool ImageViewportPrivate::mirrorVertically() const
 {
-    return controller.presentationState().mirrorVertically;
+    return lastStateSnapshot.presentation().mirrorVertically();
 }
 
 ImageViewportPrivate::BackgroundMode ImageViewportPrivate::backgroundMode() const
 {
-    return controller.presentationState().backgroundMode;
+    return lastStateSnapshot.presentation().backgroundMode();
 }
 
 QColor ImageViewportPrivate::backgroundColor() const
 {
-    return controller.presentationState().backgroundColor;
+    return lastStateSnapshot.presentation().backgroundColor();
 }
 
-bool ImageViewportPrivate::looping() const { return controller.looping(); }
+bool ImageViewportPrivate::looping() const { return lastStateSnapshot.presentation().looping(); }
 
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)

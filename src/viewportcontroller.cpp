@@ -9,141 +9,9 @@
 #include <optional>
 #include <utility>
 
-QRectF ViewportControllerContext::contentRect() const { return {}; }
-
-QRectF ViewportControllerContext::visibleImageRect() const { return {}; }
-
-QRectF ViewportControllerContext::itemBounds() const { return {}; }
-
-bool ViewportControllerContext::hasActiveRequest() const { return false; }
-
-bool ViewportControllerContext::hasReadyDisplay() const { return false; }
-
-bool ViewportControllerContext::hasDisplayableSequence() const { return false; }
-
-bool ViewportControllerContext::hasTimedSequence() const { return false; }
-
-bool ViewportControllerContext::hasProviderSequence() const { return false; }
-
-bool ViewportControllerContext::providerHasCompleteKnownMetadata() const { return false; }
-
-ImageSequenceProviderKnownFacts ViewportControllerContext::providerKnownFacts() const { return {}; }
-
-QSizeF ViewportControllerContext::providerKnownLogicalSize() const { return {}; }
-
-TimingIntervals ViewportControllerContext::providerKnownTimingIntervals() const { return {}; }
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::providerTimedPlaybackCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::providerFrameSeekCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::providerPositionSeekCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-bool ViewportControllerContext::providerTimedPlaybackCapabilityKnownFalse() const { return false; }
-
-bool ViewportControllerContext::providerFrameSeekCapabilityKnownFalse() const { return false; }
-
-bool ViewportControllerContext::providerFrameSeekCapabilityKnownTrue() const { return false; }
-
-bool ViewportControllerContext::providerPositionSeekCapabilityKnownFalse() const { return false; }
-
-bool ViewportControllerContext::providerKnownFactsTimedFrameCount() const { return false; }
-
-int ViewportControllerContext::providerKnownFactsFrameCount() const { return 0; }
-
-int ViewportControllerContext::providerFrameStartPosition(int) const { return -1; }
-
-int ViewportControllerContext::providerFrameIndexForPosition(int) const { return -1; }
-
-ImageSequenceAuthoredAnimationFacts
-ViewportControllerContext::providerAuthoredAnimationFacts() const
-{
-    return {};
-}
-
-int ViewportControllerContext::sequenceFrameCount() const { return -1; }
-
-int ViewportControllerContext::sequenceTotalDuration() const { return -1; }
-
-int ViewportControllerContext::sequenceFrameIndexForPosition(int) const { return -1; }
-
-int ViewportControllerContext::sequenceFrameStartPosition(int) const { return -1; }
-
-ImageSequenceAuthoredAnimationFacts
-ViewportControllerContext::sequenceAuthoredAnimationFacts() const
-{
-    return {};
-}
-
-bool ViewportControllerContext::hasSecondaryTimedSequence() const { return false; }
-
-int ViewportControllerContext::secondarySequenceFrameCount() const { return -1; }
-
-int ViewportControllerContext::secondarySequenceTotalDuration() const { return -1; }
-
-int ViewportControllerContext::secondarySequenceFrameIndexForPosition(int) const { return -1; }
-
-int ViewportControllerContext::secondarySequenceFrameStartPosition(int) const { return -1; }
-
-ImageSequenceAuthoredAnimationFacts
-ViewportControllerContext::secondarySequenceAuthoredAnimationFacts() const
-{
-    return {};
-}
-
-ImageSequenceProviderKnownFacts ViewportControllerContext::secondaryProviderKnownFacts() const
-{
-    return {};
-}
-
-QSizeF ViewportControllerContext::secondaryProviderKnownLogicalSize() const { return {}; }
-
-TimingIntervals ViewportControllerContext::secondaryProviderKnownTimingIntervals() const
-{
-    return {};
-}
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::secondaryProviderTimedPlaybackCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::secondaryProviderFrameSeekCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-ImageSequenceProviderCapabilitySupport
-ViewportControllerContext::secondaryProviderPositionSeekCapability() const
-{
-    return ImageSequenceProviderCapabilitySupport::Unavailable;
-}
-
-QSizeF ViewportControllerContext::sequenceLogicalSize() const { return {}; }
-
-QSizeF ViewportControllerContext::secondarySequenceLogicalSize() const { return {}; }
-
-double ViewportControllerContext::width() const { return 0.0; }
-
-double ViewportControllerContext::height() const { return 0.0; }
-
 ViewportControllerPort::ViewportControllerPort(
-    const ViewportControllerContext& context, ViewportControllerState& state)
-    : context(context)
+    std::function<QRectF()> captureItemBounds, ViewportControllerState& state)
+    : captureItemBounds(std::move(captureItemBounds))
     , state(state)
 {
 }
@@ -193,11 +61,24 @@ ViewportEngine& ViewportControllerPort::engine() { return state.engine; }
 
 const ViewportEngine& ViewportControllerPort::engine() const { return state.engine; }
 
-QRectF ViewportControllerPort::contentRect() const { return context.contentRect(); }
+QRectF ViewportControllerPort::contentRect() const
+{
+    return PresentationGeometry::contentRect(state.engine.geometryState(
+        controllerGeometryInput(*this, 1.0, std::nullopt,
+            GeometryProjectionTarget::CurrentDisplay)));
+}
 
-QRectF ViewportControllerPort::visibleImageRect() const { return context.visibleImageRect(); }
+QRectF ViewportControllerPort::visibleImageRect() const
+{
+    return PresentationGeometry::visibleImageRect(state.engine.geometryState(
+        controllerGeometryInput(*this, 1.0, std::nullopt,
+            GeometryProjectionTarget::CurrentDisplay)));
+}
 
-QRectF ViewportControllerPort::itemBounds() const { return context.itemBounds(); }
+QRectF ViewportControllerPort::itemBounds() const
+{
+    return captureItemBounds ? captureItemBounds() : QRectF {};
+}
 
 bool ViewportControllerPort::hasActiveRequest() const
 {
@@ -411,12 +292,12 @@ QSizeF ViewportControllerPort::secondarySequenceLogicalSize() const
     return sourceLogicalSize(state.engine.requestState().secondarySequenceSource);
 }
 
-double ViewportControllerPort::width() const { return context.width(); }
+double ViewportControllerPort::width() const { return itemBounds().width(); }
 
-double ViewportControllerPort::height() const { return context.height(); }
+double ViewportControllerPort::height() const { return itemBounds().height(); }
 
-ViewportController::ViewportController(const ViewportControllerContext& context)
-    : viewport(context, state)
+ViewportController::ViewportController(std::function<QRectF()> captureItemBounds)
+    : viewport(std::move(captureItemBounds), state)
 {
 }
 
@@ -641,8 +522,7 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             std::move(assignment.source), std::move(assignment.secondarySourceHandle),
             controllerGeometryInput(viewport) });
     const ViewportCommandResult command
-        = ImageViewportInternal::CommandOutcome::fromEngineCommand(
-            viewport, engineResult.command);
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     ViewportSequenceAssignmentResult result;
     result.outcome = command.outcome;
     result.changes = command.changes;
@@ -652,21 +532,6 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     result.openProviderSession = engineResult.openPrimaryProviderSession;
     result.openSecondaryProviderSession = engineResult.openSecondaryProviderSession;
     return result;
-}
-
-ViewportCommandResult ViewportController::rejectInvalidCommand()
-{
-    return ImageViewportInternal::CommandOutcome::invalid(viewport);
-}
-
-ViewportCommandResult ViewportController::rejectUnsupportedCommand()
-{
-    return ImageViewportInternal::CommandOutcome::unsupported(viewport);
-}
-
-ViewportCommandResult ViewportController::rejectIgnoredNoRequestCommand()
-{
-    return ImageViewportInternal::CommandOutcome::ignoredNoRequest(viewport);
 }
 
 ViewportCommandResult ViewportController::clear()

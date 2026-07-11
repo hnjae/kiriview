@@ -92,7 +92,7 @@ enum class TerminalScopeCase {
     RenderFailure,
 };
 
-class ProviderControllerContext final : public ViewportControllerContext
+class ProviderControllerContext final : public QObject
 {
 public:
     ImageSequence* sequence = nullptr;
@@ -107,35 +107,35 @@ public:
     ImageSequenceProviderCapabilitySupport secondaryPositionSeekCapability
         = ImageSequenceProviderCapabilitySupport::Unavailable;
 
-    QRectF itemBounds() const override { return QRectF(0.0, 0.0, 100.0, 100.0); }
-    bool hasActiveRequest() const override { return sequence != nullptr; }
-    bool hasDisplayableSequence() const override { return sequence != nullptr; }
-    bool hasProviderSequence() const override { return sequence && providerSequence; }
-    bool providerHasCompleteKnownMetadata() const override { return completeKnownMetadata; }
-    ImageSequenceProviderKnownFacts providerKnownFacts() const override { return knownFacts; }
-    QSizeF providerKnownLogicalSize() const override { return knownFacts.logicalSize(); }
-    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const override
+    QRectF itemBounds() const { return QRectF(0.0, 0.0, 100.0, 100.0); }
+    bool hasActiveRequest() const { return sequence != nullptr; }
+    bool hasDisplayableSequence() const { return sequence != nullptr; }
+    bool hasProviderSequence() const { return sequence && providerSequence; }
+    bool providerHasCompleteKnownMetadata() const { return completeKnownMetadata; }
+    ImageSequenceProviderKnownFacts providerKnownFacts() const { return knownFacts; }
+    QSizeF providerKnownLogicalSize() const { return knownFacts.logicalSize(); }
+    ImageSequenceProviderKnownFacts secondaryProviderKnownFacts() const
     {
         return secondaryKnownFacts;
     }
-    QSizeF secondaryProviderKnownLogicalSize() const override
+    QSizeF secondaryProviderKnownLogicalSize() const
     {
         return secondaryKnownFacts.logicalSize();
     }
-    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const override
+    ImageSequenceProviderCapabilitySupport secondaryProviderTimedPlaybackCapability() const
     {
         return secondaryTimedPlaybackCapability;
     }
-    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const override
+    ImageSequenceProviderCapabilitySupport secondaryProviderFrameSeekCapability() const
     {
         return secondaryFrameSeekCapability;
     }
-    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const override
+    ImageSequenceProviderCapabilitySupport secondaryProviderPositionSeekCapability() const
     {
         return secondaryPositionSeekCapability;
     }
-    double width() const override { return 100.0; }
-    double height() const override { return 100.0; }
+    double width() const { return 100.0; }
+    double height() const { return 100.0; }
 };
 
 std::unique_ptr<ImageSequenceFactoryResult> makeDetachedProviderSequence(
@@ -212,7 +212,7 @@ void ViewportControllerProviderTest::
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -264,7 +264,7 @@ void ViewportControllerProviderTest::
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(
         factory, context, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -305,7 +305,7 @@ void ViewportControllerProviderTest::metadataDispatchFailureReportsNullSessionAf
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -333,7 +333,7 @@ void ViewportControllerProviderTest::sessionSerialRejectsStaleSessionResults()
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -359,7 +359,7 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -414,7 +414,7 @@ void ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTarget
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -456,7 +456,7 @@ void ViewportControllerProviderTest::secondaryMetadataReadyEventUsesSameShape()
     std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
     QVERIFY(primary);
     QVERIFY(secondary);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
@@ -489,7 +489,7 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -538,7 +538,7 @@ void ViewportControllerProviderTest::secondaryProviderCloseClearsQueuedFrameRequ
     std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
     QVERIFY(primary);
     QVERIFY(secondary);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
@@ -606,7 +606,7 @@ void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole(
         assignment.secondarySource.present = true;
         assignment.secondarySource.provider = true;
     }
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     controller.assignSequence(assignment);
 
     StubProviderSession session;
@@ -672,7 +672,7 @@ void ViewportControllerProviderTest::providerTerminalEventsCloseMetadataGenerati
         assignment.secondarySource.present = true;
         assignment.secondarySource.provider = true;
     }
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
     controller.assignSequence(assignment);
 
     StubProviderSession session;
@@ -713,7 +713,7 @@ void ViewportControllerProviderTest::
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(
         factory, context, ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)));
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -761,7 +761,7 @@ void ViewportControllerProviderTest::cancellationTerminalEventClosesActiveMetada
     ProviderControllerContext context;
     std::unique_ptr<ImageSequenceFactoryResult> sequence = makeProviderSequence(factory, context);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -889,7 +889,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
     std::unique_ptr<ImageSequenceFactoryResult> sequence
         = makeProviderSequence(factory, context, knownMetadata);
     QVERIFY(sequence);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = sequence->sequence();
@@ -1025,7 +1025,7 @@ void ViewportControllerProviderTest::
     std::unique_ptr<ImageSequenceFactoryResult> secondary
         = makeDetachedProviderSequence(factory, {}, context.secondaryKnownFacts);
     QVERIFY(secondary);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
@@ -1065,7 +1065,7 @@ void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleIn
     QVERIFY(primary);
     std::unique_ptr<ImageSequenceFactoryResult> secondary = makeDetachedProviderSequence(factory);
     QVERIFY(secondary);
-    ViewportController controller(context);
+    ViewportController controller([&context] { return context.itemBounds(); });
 
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
