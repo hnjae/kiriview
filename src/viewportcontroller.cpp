@@ -208,8 +208,6 @@ bool ViewportControllerContext::hasTimedSequence() const { return false; }
 
 bool ViewportControllerContext::hasProviderSequence() const { return false; }
 
-bool ViewportControllerContext::hasGenerationTerminalProviderFailure() const { return false; }
-
 bool ViewportControllerContext::providerHasCompleteKnownMetadata() const { return false; }
 
 ImageSequenceProviderKnownFacts ViewportControllerContext::providerKnownFacts() const { return {}; }
@@ -407,11 +405,6 @@ bool ViewportControllerPort::hasTimedSequence() const
 bool ViewportControllerPort::hasProviderSequence() const
 {
     return state.engine.requestState().sequenceSource.facts.provider;
-}
-
-bool ViewportControllerPort::hasGenerationTerminalProviderFailure() const
-{
-    return context.hasGenerationTerminalProviderFailure();
 }
 
 bool ViewportControllerPort::providerHasCompleteKnownMetadata() const
@@ -626,12 +619,6 @@ ImageViewportInternal::ViewportChangeSet ViewportController::publishChanges(
 bool ViewportController::targetSpreadTerminalSealedForActiveRequest()
 {
     return controllerTargetSpreadTerminalMatchesActiveRequest(viewport);
-}
-
-bool ViewportController::hasGenerationTerminalProviderFailure()
-{
-    return viewport.hasGenerationTerminalProviderFailure()
-        || controllerTargetSpreadTerminalHasGenerationScope(viewport);
 }
 
 void ViewportController::recordTargetSpreadTerminal(ImageViewport::PageRole role,
@@ -909,13 +896,13 @@ ViewportEngine::PresentationTargetState ViewportController::presentationTargetSt
 
 bool ViewportController::hasProviderSession() const
 {
-    return state.engine.providerState().session != nullptr;
+    return state.engine.providerState().sessionActive;
 }
 
 bool ViewportController::hasProviderSession(ImageViewport::PageRole role) const
 {
     return role == ImageViewport::PageRole::Secondary
-        ? state.engine.secondaryProviderState().session != nullptr
+        ? state.engine.secondaryProviderState().sessionActive
         : hasProviderSession();
 }
 
@@ -1326,7 +1313,7 @@ ViewportCommandResult ViewportController::applyAcceptedClearPresentationTarget(
         || !viewportRequestState(viewport).warningString.isEmpty();
     const QRectF oldContentRect = viewport.contentRect();
     const QRectF oldVisibleImageRect = viewport.visibleImageRect();
-    const bool hasProviderSession = viewportProviderState(viewport).session != nullptr;
+    const bool hasProviderSession = viewportProviderState(viewport).sessionActive;
     result.providerFrameTransport.sessionClose = handleProviderSessionClose();
     result.providerFrameTransport.closeSession = hasProviderSession;
     result.secondaryProviderFrameTransport

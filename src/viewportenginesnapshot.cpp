@@ -323,7 +323,7 @@ ImageViewportStateSnapshot ViewportEngine::snapshot(const SnapshotInput& input) 
             ImageViewportRoleRequestSnapshot(present,
                 present ? acceptedGeneration : ImageViewportPresentationTargetGenerationToken {},
                 role, active.target.frame, active.target.position, logicalSize,
-                ImageViewportDemandRevisionToken {}),
+                active.demandRevision),
             ImageViewportRoleDisplaySnapshot(belongs,
                 displayed && m_displayState.status == ImageViewport::DisplayStatus::Retained,
                 displayed ? displayedRequest.request.resolvedFrame.frame : -1,

@@ -27,7 +27,7 @@ struct ProviderFrameQueueSetup
 };
 
 ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
-    ViewportEngine& engine, ImageSequenceProviderSession& session)
+    ViewportEngine& engine, ImageSequenceProviderSession&)
 {
     auto& request = engine.requestState();
     request.sequenceSource.facts.provider = true;
@@ -38,7 +38,7 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
         ImageViewportInternal::ResolvedFrameIdentity { 4, 120 }, false);
 
     auto& provider = engine.providerState();
-    provider.session = &session;
+    provider.sessionActive = true;
     provider.activeFrameToken = providerRequestTokenForTest(4);
     request.activeRequest.providerFrameToken = provider.activeFrameToken;
 
@@ -104,6 +104,7 @@ private slots:
     void playbackTickAdvancesBuiltInTargetInEngine();
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
+    void providerDisplayDemandProjectsCanonicalEngineFacts();
     void providerFrameQueueStoresCurrentRequestIdentity();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
@@ -445,7 +446,7 @@ void ViewportEngineTest::defaultProviderStateMatchesEmptyGeneration()
     const auto& provider = engine.providerState();
     const auto& secondaryProvider = engine.secondaryProviderState();
 
-    QVERIFY(provider.session == nullptr);
+    QCOMPARE(provider.sessionActive, false);
     QCOMPARE(provider.sessionSerial, 0);
     QCOMPARE(provider.nextRequestToken, 0);
     QVERIFY(!provider.activeMetadataToken.isValid());
@@ -568,6 +569,51 @@ void ViewportEngineTest::providerFrameQueueStoresCurrentRequestIdentity()
     QCOMPARE(engine.displayState().renderFailureRetainedRequest.generation, 0);
     QCOMPARE(engine.displayState().renderFailureRetainedImageSize, QSizeF());
     QCOMPARE(engine.displayState().renderFailureRetainedImage.isNull(), true);
+}
+
+void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.requestRevision = 11;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
+        { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position },
+        { 2, 100 }, false);
+    engine.providerState().logicalSize = QSizeF(16.0, 8.0);
+    engine.displayState().displayedPayload.quality = ImageViewport::PayloadQuality::Preview;
+    engine.displayState().displayedPayload.exactness
+        = ImageViewport::PayloadExactness::NotExact;
+    engine.displayState().displayedPayload.payloadRasterSize = QSizeF(8.0, 4.0);
+    engine.displayState().displayedPayload.sourceToPayloadScale = QSizeF(0.5, 0.5);
+
+    ViewportEngine::GeometryInput geometry;
+    geometry.primaryPresent = true;
+    geometry.itemBounds = QRectF(0.0, 0.0, 100.0, 50.0);
+    geometry.primarySize = QSizeF(16.0, 8.0);
+    geometry.devicePixelRatio = 2.0;
+    const ImageSequenceProviderDisplayDemand demand
+        = engine.providerDisplayDemand(ImageViewport::PageRole::Primary, geometry);
+
+    QVERIFY(demand.demandRevision().isValid());
+    QCOMPARE(engine.requestState().activeRequest.demandRevision, demand.demandRevision());
+    QVERIFY(demand.requestRevision().isValid());
+    QCOMPARE(demand.role(), ImageViewport::PageRole::Primary);
+    QCOMPARE(demand.resolvedFrame(), 2);
+    QCOMPARE(demand.requestedPosition(), 120);
+    QCOMPARE(demand.sourceLogicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(demand.visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(demand.targetDisplaySizePixels(), QSizeF(200.0, 100.0));
+    QCOMPARE(demand.effectiveDevicePixelRatio(), 2.0);
+    QCOMPARE(demand.maximumTextureSize(), -1);
+    QCOMPARE(demand.maximumPayloadBytes(), ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    QCOMPARE(demand.displayByteBudget(), -1);
+    QCOMPARE(demand.currentPayloadQuality(), ImageViewport::PayloadQuality::Preview);
+    QCOMPARE(demand.currentPayloadExactness(), ImageViewport::PayloadExactness::NotExact);
+    QCOMPARE(demand.currentPayloadRasterSize(), QSizeF(8.0, 4.0));
+    QCOMPARE(demand.currentSourceToPayloadScale(), QSizeF(0.5, 0.5));
 }
 
 void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()

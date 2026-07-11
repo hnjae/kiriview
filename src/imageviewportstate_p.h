@@ -188,6 +188,7 @@ struct DisplayRequest
     DisplayRequestTarget target;
     ResolvedFrameIdentity resolvedFrame;
     ImageSequenceProviderRequestToken providerFrameToken;
+    ImageViewportDemandRevisionToken demandRevision;
     quint64 preparedPayloadId = 0;
 };
 
@@ -420,6 +421,7 @@ struct RequestState
         activeRequest.identity.id = ++nextRequestId;
         activeRequest.identity.origin = origin;
         activeRequest.providerFrameToken = {};
+        activeRequest.demandRevision = {};
         activeRequest.preparedPayloadId = 0;
         if (rememberAsLatestNonPlayback) {
             latestNonPlaybackRequest.identity = activeRequest.identity;
@@ -512,7 +514,7 @@ struct RequestState
 
 struct ProviderGenerationState
 {
-    QPointer<ImageSequenceProviderSession> session;
+    bool sessionActive = false;
     quint64 sessionSerial = 0;
     quint64 nextRequestToken = 0;
     ImageSequenceProviderRequestToken activeMetadataToken;

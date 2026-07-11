@@ -31,10 +31,8 @@ private:
     QObject* providerCallbackTarget() const override;
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         PageRole role) const override;
-    quint64 installProviderSession(
-        PageRole role, ImageSequenceProviderSession* session) override;
-    ImageSequenceProviderSession* takeProviderSession(PageRole role) override;
-    ImageSequenceProviderSession* currentProviderSession(PageRole role) const override;
+    quint64 activateProviderSession(PageRole role) override;
+    void retireProviderSession(PageRole role) override;
     quint64 currentProviderGeneration(PageRole role) const override;
     ImageSequenceProviderThreadingContract providerThreadingContract(PageRole role) const override;
     void handleProviderEvent(const ViewportProviderEvent& event) override;

@@ -271,6 +271,18 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
+    const ImageViewportDemandRevisionToken payloadDemand = frame->envelope().demandRevision();
+    if (state.demandRevision.isValid() && payloadDemand.isValid()
+        && payloadDemand != state.demandRevision) {
+        return providerFrameError(Cause::DemandRevisionMismatch,
+            QStringLiteral("provider frame demand revision mismatch"));
+    }
+    if (state.exactnessPreference == ImageViewport::ExactnessPreference::RequireExact
+        && frame->envelope().exactness() != ImageViewport::PayloadExactness::ExactForSource) {
+        return providerFrameRejection(Cause::ExactnessMismatch,
+            ImageViewport::RequestStatus::Unsupported,
+            QStringLiteral("provider frame does not satisfy exactness preference"));
+    }
 
     if (state.timedMetadata) {
         if (!metadata.isTimedFrame() || metadata.frame() != state.resolvedFrame.frame) {

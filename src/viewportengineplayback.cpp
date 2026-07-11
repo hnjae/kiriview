@@ -87,7 +87,13 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             || (terminal.secondary.terminal
                 && terminal.secondary.failureScope
                     == ImageViewportInternal::FailureScope::Generation));
-    if (generationTerminal
+    const auto& commandSource = requestRole(m_requestState, input.command.role).source;
+    const auto& commandProvider = m_roles[roleIndex(input.command.role)].provider;
+    const bool providerTransportUnavailableTerminal = commandSource.facts.provider
+        && !commandProvider.sessionActive
+        && (m_requestState.status == ImageViewport::RequestStatus::Unsupported
+            || m_requestState.status == ImageViewport::RequestStatus::Error);
+    if ((generationTerminal || providerTransportUnavailableTerminal)
         && (input.command.kind == ViewportPlaybackCommand::Kind::Play
             || ((input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
                     || input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition)
@@ -163,7 +169,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         result.changes.displayRevision = true;
         result.changes.scheduleUpdate = true;
     };
-    auto dispatchProvider = [this, &result, &markRequest](ImageViewport::PageRole role,
+    auto dispatchProvider = [this, &result, &markRequest, &input](ImageViewport::PageRole role,
                                 ImageViewportInternal::DisplayRequestTarget target) {
         const std::size_t index = role == ImageViewport::PageRole::Secondary ? 1U : 0U;
         auto& effect = result.effects.providerFrameTransport[index];
@@ -179,7 +185,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             return true;
         }
         if (provider.nextRequestToken == std::numeric_limits<quint64>::max()) {
-            effect.closeSession = provider.session != nullptr;
+            effect.closeSession = provider.sessionActive;
             effect.sessionClose.metadataToken = provider.activeMetadataToken;
             effect.sessionClose.frameToken = provider.activeFrameToken;
             provider.activeMetadataToken = {};
@@ -201,11 +207,12 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
                 ++provider.nextRequestToken);
         active.providerFrameToken = provider.activeFrameToken;
-        effect.sendCommand = provider.session != nullptr;
+        effect.sendCommand = provider.sessionActive;
         effect.command.token = provider.activeFrameToken;
         effect.command.frame = active.resolvedFrame.frame;
         effect.command.position = active.target.position;
         effect.command.targetKind = active.target.providerTargetKind;
+        effect.command.demand = providerDisplayDemand(role, input.geometry);
         m_requestState.status = ImageViewport::RequestStatus::Loading;
         m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
         m_displayState.status = m_displayState.displayedImageSize.isValid()
@@ -231,13 +238,6 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     } else if (input.command.kind == ViewportPlaybackCommand::Kind::Play) {
         const auto& source = requestRole(m_requestState, input.command.role).source;
         auto& provider = m_roles[roleIndex(input.command.role)].provider;
-        if (source.facts.provider && input.generationTerminalProviderFailure) {
-            result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
-                ImageViewport::CommandReason::UnsupportedRequest);
-            appendCommandChanges(result.command, result.changes);
-            result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-            return result;
-        }
         if (source.facts.provider && !provider.metadataReady) {
             if (ImageViewportInternal::providerCapabilityKnownFalse(
                     source.facts.providerTimedPlaybackCapability)) {
@@ -512,13 +512,6 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
                 return result;
             }
-            if (input.generationTerminalProviderFailure) {
-                result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
-                    ImageViewport::CommandReason::UnsupportedRequest);
-                appendCommandChanges(result.command, result.changes);
-                result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-                return result;
-            }
             result.command = accepted();
             appendCommandChanges(result.command, result.changes);
             const auto kind = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
@@ -751,7 +744,7 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(
                 ? ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest
                 : ViewportProviderDeferredControllerEvent::None;
         } else if (provider.nextRequestToken == std::numeric_limits<quint64>::max()) {
-            effect.closeSession = provider.session != nullptr;
+            effect.closeSession = provider.sessionActive;
             effect.sessionClose.metadataToken = provider.activeMetadataToken;
             effect.sessionClose.frameToken = provider.activeFrameToken;
             provider.activeMetadataToken = {};
@@ -768,11 +761,12 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(
                 = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
                     ++provider.nextRequestToken);
             active.providerFrameToken = provider.activeFrameToken;
-            effect.sendCommand = provider.session != nullptr;
+            effect.sendCommand = provider.sessionActive;
             effect.command.token = provider.activeFrameToken;
             effect.command.frame = active.resolvedFrame.frame;
             effect.command.position = active.target.position;
             effect.command.targetKind = active.target.providerTargetKind;
+            effect.command.demand = providerDisplayDemand(role, input.geometry);
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
             m_displayState.status = m_displayState.displayedImageSize.isValid()

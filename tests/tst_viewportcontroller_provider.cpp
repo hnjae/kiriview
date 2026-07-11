@@ -221,7 +221,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Loading);
 
     StubProviderSession session;
-    const quint64 sessionSerial = controller.installProviderSession(&session);
+    const quint64 sessionSerial = controller.activateProviderSession();
     QVERIFY(sessionSerial != 0);
 
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
@@ -248,7 +248,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("delivery failed")));
 
-    QCOMPARE(controller.takeProviderSession(), &session);
+    controller.retireProviderSession();
     const ViewportProviderTerminalEventResult closedFailure
         = controller.handleProviderDispatchFailure(
             ImageViewport::PageRole::Primary, { activeToken, QStringLiteral("late failure") });
@@ -273,7 +273,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().activeRequest.target.frame, 0);
 
     StubProviderSession session;
-    QVERIFY(controller.installProviderSession(&session) != 0);
+    QVERIFY(controller.activateProviderSession() != 0);
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     QCOMPARE(opened.providerFrameTransport.sendCommand, true);
     const ImageSequenceProviderRequestToken activeToken
@@ -296,7 +296,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
     QVERIFY(controller.requestState().errorString.contains(QStringLiteral("delivery failed")));
 
-    QCOMPARE(controller.takeProviderSession(), &session);
+    controller.retireProviderSession();
 }
 
 void ViewportControllerProviderTest::metadataDispatchFailureReportsNullSessionAfterAcceptance()
@@ -312,11 +312,11 @@ void ViewportControllerProviderTest::metadataDispatchFailureReportsNullSessionAf
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(&session);
+    controller.activateProviderSession();
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
-    QCOMPARE(controller.takeProviderSession(), &session);
+    controller.retireProviderSession();
 
     const ViewportProviderTerminalEventResult failure = controller.handleProviderDispatchFailure(
         ImageViewport::PageRole::Primary, { metadataToken, QStringLiteral("missing session") });
@@ -340,16 +340,16 @@ void ViewportControllerProviderTest::sessionSerialRejectsStaleSessionResults()
     controller.assignSequence(assignment);
 
     StubProviderSession firstSession;
-    const quint64 firstSerial = controller.installProviderSession(&firstSession);
+    const quint64 firstSerial = controller.activateProviderSession();
     QVERIFY(firstSerial != 0);
     QCOMPARE(controller.acceptsProviderSessionResult(firstSerial), true);
 
     StubProviderSession secondSession;
-    const quint64 secondSerial = controller.installProviderSession(&secondSession);
+    const quint64 secondSerial = controller.activateProviderSession();
     QVERIFY(secondSerial > firstSerial);
     QCOMPARE(controller.acceptsProviderSessionResult(firstSerial), false);
     QCOMPARE(controller.acceptsProviderSessionResult(secondSerial), true);
-    QCOMPARE(controller.takeProviderSession(), &secondSession);
+    controller.retireProviderSession();
     QCOMPARE(controller.acceptsProviderSessionResult(secondSerial), false);
 }
 
@@ -366,7 +366,7 @@ void ViewportControllerProviderTest::metadataAndFrameEventsRejectStaleTokens()
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(&session);
+    controller.activateProviderSession();
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
@@ -421,7 +421,7 @@ void ViewportControllerProviderTest::metadataReadyEventAppliesAdmissionAndTarget
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(&session);
+    controller.activateProviderSession();
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
@@ -466,7 +466,7 @@ void ViewportControllerProviderTest::secondaryMetadataReadyEventUsesSameShape()
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(ImageViewport::PageRole::Secondary, &session);
+    controller.activateProviderSession(ImageViewport::PageRole::Secondary);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
@@ -496,7 +496,7 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(&session);
+    controller.activateProviderSession();
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
@@ -548,7 +548,7 @@ void ViewportControllerProviderTest::secondaryProviderCloseClearsQueuedFrameRequ
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(ImageViewport::PageRole::Secondary, &session);
+    controller.activateProviderSession(ImageViewport::PageRole::Secondary);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
@@ -610,7 +610,7 @@ void ViewportControllerProviderTest::providerFrameEventsRejectStaleTokensByRole(
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(pageRole, &session);
+    controller.activateProviderSession(pageRole);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(pageRole);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
@@ -676,7 +676,7 @@ void ViewportControllerProviderTest::providerTerminalEventsCloseMetadataGenerati
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(pageRole, &session);
+    controller.activateProviderSession(pageRole);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(pageRole);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
@@ -721,7 +721,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(assigned.openProviderSession, true);
 
     StubProviderSession session;
-    QVERIFY(controller.installProviderSession(&session) != 0);
+    QVERIFY(controller.activateProviderSession() != 0);
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     QCOMPARE(opened.providerFrameTransport.sendCommand, true);
     const ImageSequenceProviderRequestToken frameToken
@@ -768,7 +768,7 @@ void ViewportControllerProviderTest::cancellationTerminalEventClosesActiveMetada
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(&session);
+    controller.activateProviderSession();
     const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
     QVERIFY(metadataToken.isValid());
@@ -902,7 +902,7 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
         QCOMPARE(changes.requestState, true);
     } else {
         StubProviderSession session;
-        QVERIFY(controller.installProviderSession(&session) != 0);
+        QVERIFY(controller.activateProviderSession() != 0);
         const ViewportProviderSessionOpenResult opened = controller.handleProviderSessionOpened();
         if (scopeCase == TerminalScopeCase::RenderFailure) {
             QCOMPARE(opened.providerFrameTransport.sendCommand, true);
@@ -1009,8 +1009,9 @@ void ViewportControllerProviderTest::failureScopeTableClassifiesTerminalInputs()
 
     const ViewportCommandResult seek = controller.seek(ImageViewport::PageRole::Primary, 0);
     QCOMPARE(seek.outcome,
-        generationTerminal ? ImageViewport::CommandOutcome::Unsupported
-                           : ImageViewport::CommandOutcome::Accepted);
+        generationTerminal || !controller.hasProviderSession()
+            ? ImageViewport::CommandOutcome::Unsupported
+            : ImageViewport::CommandOutcome::Accepted);
 }
 
 void ViewportControllerProviderTest::
@@ -1035,7 +1036,7 @@ void ViewportControllerProviderTest::
     QCOMPARE(assigned.openSecondaryProviderSession, true);
 
     StubProviderSession session;
-    QVERIFY(controller.installProviderSession(ImageViewport::PageRole::Secondary, &session) != 0);
+    QVERIFY(controller.activateProviderSession(ImageViewport::PageRole::Secondary) != 0);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;
@@ -1074,7 +1075,7 @@ void ViewportControllerProviderTest::secondaryMetadataTargetPolicyIgnoresStaleIn
     controller.assignSequence(assignment);
 
     StubProviderSession session;
-    controller.installProviderSession(ImageViewport::PageRole::Secondary, &session);
+    controller.activateProviderSession(ImageViewport::PageRole::Secondary);
     const ViewportProviderSessionOpenResult opened
         = controller.handleProviderSessionOpened(ImageViewport::PageRole::Secondary);
     const ImageSequenceProviderRequestToken metadataToken = opened.providerMetadataTransport.token;

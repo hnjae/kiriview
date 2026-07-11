@@ -24,9 +24,7 @@ void ViewportController::armAuthoredAutoplayIfEligible()
 ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
 {
     const ViewportEngine::PlaybackCommandResult engineResult
-        = state.engine.applyPlaybackCommand(
-            { command, acceptedGeometryInput(viewport),
-                viewport.hasGenerationTerminalProviderFailure() });
+        = state.engine.applyPlaybackCommand({ command, acceptedGeometryInput(viewport) });
     ViewportCommandResult result;
     result.outcome = engineResult.command.outcome;
     result.changes = engineResult.changes;

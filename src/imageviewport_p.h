@@ -174,7 +174,6 @@ public:
     bool hasStillSequence() const;
     bool hasTimedSequence() const override;
     bool hasProviderSequence() const override;
-    bool hasGenerationTerminalProviderFailure() const override;
     bool providerTimedPlaybackCapabilityKnownFalse() const override;
     bool providerFrameSeekCapabilityKnownFalse() const override;
     bool providerFrameSeekCapabilityKnownTrue() const override;

@@ -1,6 +1,5 @@
 #include "viewportcontrollerplaybackhelpers_p.h"
-
-#include "imageviewporttoken_p.h"
+#include "viewportcontrollergeometryhelpers_p.h"
 
 #include <memory>
 
@@ -151,22 +150,6 @@ void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& 
     effect.token = start.token;
 }
 
-void publishProviderTokenExhaustion(
-    ViewportControllerPort& viewport, ViewportControllerState& state, ImageViewport::PageRole role)
-{
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    state.engine.clearQueuedProviderFrameRequest(role);
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-    viewportRequestState(viewport).providerPlaybackStartPending = false;
-    viewportRequestState(viewport).stopPlaybackWhenRequestReady = false;
-    viewportRequestState(viewport).status = ImageViewport::RequestStatus::Error;
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderFailure;
-    viewportRequestState(viewport).errorString = QStringLiteral("provider request token exhausted");
-    viewportRequestState(viewport).playbackPhase = ImageViewport::PlaybackPhase::Stopped;
-    viewportDisplayState(viewport).clearRenderFailureRetainedDisplay();
-}
 }
 
 ViewportProviderFrameEventAcceptance ViewportController::acceptProviderFrameEvent(
@@ -267,47 +250,24 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
     return result;
 }
 
-quint64 ViewportController::installProviderSession(ImageSequenceProviderSession* session)
+quint64 ViewportController::activateProviderSession()
 {
-    return installProviderSession(ImageViewport::PageRole::Primary, session);
+    return activateProviderSession(ImageViewport::PageRole::Primary);
 }
 
-quint64 ViewportController::installProviderSession(
-    ImageViewport::PageRole role, ImageSequenceProviderSession* session)
+quint64 ViewportController::activateProviderSession(ImageViewport::PageRole role)
 {
-    ViewportProviderRoleState roleState = providerRoleStateFor(state, role);
-    roleState.provider.session = session;
-    if (!roleState.provider.session) {
-        return 0;
-    }
-
-    ++roleState.provider.sessionSerial;
-    return roleState.provider.sessionSerial;
+    return state.engine.activateProviderSession(role);
 }
 
-ImageSequenceProviderSession* ViewportController::takeProviderSession()
+void ViewportController::retireProviderSession()
 {
-    return takeProviderSession(ImageViewport::PageRole::Primary);
+    retireProviderSession(ImageViewport::PageRole::Primary);
 }
 
-ImageSequenceProviderSession* ViewportController::takeProviderSession(ImageViewport::PageRole role)
+void ViewportController::retireProviderSession(ImageViewport::PageRole role)
 {
-    ViewportProviderRoleState roleState = providerRoleStateFor(state, role);
-    ImageSequenceProviderSession* session = roleState.provider.session;
-    roleState.provider.session.clear();
-    return session;
-}
-
-ImageSequenceProviderSession* ViewportController::currentProviderSession() const
-{
-    return currentProviderSession(ImageViewport::PageRole::Primary);
-}
-
-ImageSequenceProviderSession* ViewportController::currentProviderSession(
-    ImageViewport::PageRole role) const
-{
-    const ConstViewportProviderRoleState roleState = providerRoleStateFor(state, role);
-    return roleState.provider.session;
+    state.engine.retireProviderSession(role);
 }
 
 quint64 ViewportController::currentProviderGeneration() const
@@ -320,6 +280,26 @@ quint64 ViewportController::currentProviderGeneration(ImageViewport::PageRole) c
     return viewportRequestState(viewport).sequenceGeneration;
 }
 
+std::shared_ptr<ImageSequenceProviderSessionFactory> ViewportController::providerSessionFactory(
+    ImageViewport::PageRole role) const
+{
+    const ImageViewportInternal::ImageSequenceSource& source
+        = role == ImageViewport::PageRole::Secondary
+        ? state.engine.requestState().secondarySequenceSource
+        : state.engine.requestState().sequenceSource;
+    return source.providerSessionFactory;
+}
+
+ImageSequenceProviderThreadingContract ViewportController::providerThreadingContract(
+    ImageViewport::PageRole role) const
+{
+    const ImageViewportInternal::ImageSequenceSource& source
+        = role == ImageViewport::PageRole::Secondary
+        ? state.engine.requestState().secondarySequenceSource
+        : state.engine.requestState().sequenceSource;
+    return source.facts.providerThreadingContract;
+}
+
 bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
     return acceptsProviderSessionResult(ImageViewport::PageRole::Primary, sessionSerial);
@@ -328,15 +308,16 @@ bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) con
 bool ViewportController::acceptsProviderSessionResult(
     ImageViewport::PageRole role, quint64 sessionSerial) const
 {
-    const ConstViewportProviderRoleState roleState = providerRoleStateFor(state, role);
-    return roleState.provider.session && roleState.provider.sessionSerial == sessionSerial;
+    const auto& provider = role == ImageViewport::PageRole::Secondary
+        ? state.engine.secondaryProviderState()
+        : state.engine.providerState();
+    return provider.sessionActive && provider.sessionSerial == sessionSerial;
 }
 
 bool ViewportController::acceptsProviderSessionResult(
     ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
 {
-    return generation != 0 && generation == currentProviderGeneration(role)
-        && acceptsProviderSessionResult(role, sessionSerial);
+    return state.engine.acceptsProviderSessionEvent(role, sessionSerial, generation);
 }
 
 ViewportProviderEventResult ViewportController::handleProviderEvent(
@@ -407,6 +388,7 @@ ViewportProviderEventResult ViewportController::handleProviderEvent(
     }
     }
 
+    result.schedule = state.engine.playbackScheduleEffect();
     return result;
 }
 
@@ -428,7 +410,7 @@ ViewportProviderMetadataAdmissionResult ViewportController::handleProviderMetada
               ViewportProviderMetadataAdmissionResult result;
               result.changes = changes;
               result.providerFrameTransport.closeSession
-                  = providerGenerationStateForRole(state, role).session != nullptr;
+                  = providerGenerationStateForRole(state, role).sessionActive;
               result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
               return result;
           };
@@ -599,7 +581,7 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
 {
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.sessionActive) {
         return {};
     }
 
@@ -640,15 +622,23 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFa
         return {};
     }
     if (activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token)) {
-        return { handleProviderFrameTerminalResult(role, frameTerminalResultFor(terminalEvent)),
-            closeProviderSession(role) };
+        ViewportProviderTerminalEventResult result;
+        result.changes
+            = handleProviderFrameTerminalResult(role, frameTerminalResultFor(terminalEvent));
+        result.providerFrameTransport = closeProviderSession(role);
+        result.schedule = state.engine.playbackScheduleEffect();
+        return result;
     }
     if (provider.metadataReady || !provider.activeMetadataToken.isValid()
         || event.token != provider.activeMetadataToken) {
         return {};
     }
-    return { handleProviderMetadataTerminalResult(role, metadataTerminalResultFor(terminalEvent)),
-        closeProviderSession(role) };
+    ViewportProviderTerminalEventResult result;
+    result.changes
+        = handleProviderMetadataTerminalResult(role, metadataTerminalResultFor(terminalEvent));
+    result.providerFrameTransport = closeProviderSession(role);
+    result.schedule = state.engine.playbackScheduleEffect();
+    return result;
 }
 
 ViewportProviderSchedulerFailureResult
@@ -686,6 +676,7 @@ ViewportController::handleProviderQueueFlushSchedulingFailure(
     if (playbackOwned) {
         setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Stopped);
     }
+    result.schedule = state.engine.playbackScheduleEffect();
     return result;
 }
 
@@ -1038,7 +1029,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
     }
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.sessionActive) {
         return {};
     }
     if (event.progress
@@ -1083,7 +1074,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
     const bool sealed = targetSpreadTerminalSealedForActiveRequest();
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.session) {
+    if (!hasProviderSequenceForRole(viewport, role) || !provider.sessionActive) {
         return {};
     }
 
@@ -1104,7 +1095,7 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSeque
         ViewportProviderEndOfSequenceResult result;
         result.changes = handleProviderEndOfSequenceProtocolViolation(
             role, { activeMetadataToken, activeFrameToken });
-        result.providerFrameTransport.closeSession = provider.session != nullptr;
+        result.providerFrameTransport.closeSession = provider.sessionActive;
         result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
         return result;
     }
@@ -1227,8 +1218,7 @@ ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 {
     ViewportProviderFrameTransportEffect effect;
     effect.closeSession
-        = providerGenerationStateForRole(state, ImageViewport::PageRole::Primary).session
-        != nullptr;
+        = providerGenerationStateForRole(state, ImageViewport::PageRole::Primary).sessionActive;
     effect.sessionClose = handleProviderSessionClose();
     return effect;
 }
@@ -1237,7 +1227,7 @@ ViewportProviderFrameTransportEffect ViewportController::closeProviderSession(
     ImageViewport::PageRole role)
 {
     ViewportProviderFrameTransportEffect effect;
-    effect.closeSession = providerGenerationStateForRole(state, role).session != nullptr;
+    effect.closeSession = providerGenerationStateForRole(state, role).sessionActive;
     effect.sessionClose = handleProviderSessionClose(role);
     return effect;
 }
@@ -1254,12 +1244,13 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
     ImageViewportInternal::ProviderGenerationState& provider
         = providerGenerationStateForRole(state, role);
     state.engine.clearQueuedProviderFrameRequest(role);
-    if (!provider.session) {
+    if (!provider.sessionActive) {
         return sessionClose;
     }
 
     sessionClose.metadataToken = provider.activeMetadataToken;
     sessionClose.frameToken = provider.activeFrameToken;
+    provider.sessionActive = false;
     provider.activeMetadataToken = {};
     provider.activeFrameToken = {};
     provider.nextRequestToken = 0;
@@ -1274,19 +1265,7 @@ ViewportProviderRequestTokenAllocation ViewportController::allocateProviderReque
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken(
     ImageViewport::PageRole role)
 {
-    ViewportProviderRequestTokenAllocation allocation;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (provider.nextRequestToken == std::numeric_limits<quint64>::max()) {
-        allocation.closeSession = provider.session != nullptr;
-        allocation.sessionClose = handleProviderSessionClose(role);
-        return allocation;
-    }
-
-    ++provider.nextRequestToken;
-    allocation.token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
-        provider.nextRequestToken);
-    return allocation;
+    return state.engine.allocateProviderRequestToken(role);
 }
 
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest()
@@ -1305,11 +1284,10 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
     result.sessionClose = allocation.sessionClose;
     provider.activeMetadataToken = allocation.token;
     if (!provider.activeMetadataToken.isValid()) {
-        publishProviderTokenExhaustion(viewport, state, role);
         return result;
     }
 
-    result.sendCommand = provider.session != nullptr;
+    result.sendCommand = provider.sessionActive;
     result.token = provider.activeMetadataToken;
     return result;
 }
@@ -1335,7 +1313,6 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
     result.sessionClose = allocation.sessionClose;
     provider.activeFrameToken = allocation.token;
     if (!provider.activeFrameToken.isValid()) {
-        publishProviderTokenExhaustion(viewport, state, role);
         return result;
     }
 
@@ -1352,11 +1329,13 @@ ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRe
         = activeRequestForRole(viewportRequestState(viewport), role);
     activeRequest.providerFrameToken = provider.activeFrameToken;
     result.accepted = true;
-    result.sendCommand = provider.session != nullptr;
+    result.sendCommand = provider.sessionActive;
     result.command.token = provider.activeFrameToken;
     result.command.frame = activeRequest.resolvedFrame.frame;
     result.command.position = activeRequest.target.position;
     result.command.targetKind = activeRequest.target.providerTargetKind;
+    result.command.demand
+        = state.engine.providerDisplayDemand(role, acceptedGeometryInput(viewport));
     return result;
 }
 
@@ -1426,6 +1405,7 @@ ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFra
         && viewportRequestState(viewport).reason == ImageViewport::RequestReason::ProviderFailure) {
         markDiagnosticsMutation(result.changes);
     }
+    result.schedule = state.engine.playbackScheduleEffect();
     return result;
 }
 

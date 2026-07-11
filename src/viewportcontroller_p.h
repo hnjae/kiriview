@@ -88,7 +88,6 @@ public:
     virtual bool hasDisplayableSequence() const;
     virtual bool hasTimedSequence() const;
     virtual bool hasProviderSequence() const;
-    virtual bool hasGenerationTerminalProviderFailure() const;
 
     // Primary provider construction/runtime facts.
     virtual bool providerHasCompleteKnownMetadata() const;
@@ -159,7 +158,6 @@ public:
     bool hasDisplayableSequence() const;
     bool hasTimedSequence() const;
     bool hasProviderSequence() const;
-    bool hasGenerationTerminalProviderFailure() const;
     bool providerHasCompleteKnownMetadata() const;
     ImageSequenceProviderKnownFacts providerKnownFacts() const;
     QSizeF providerKnownLogicalSize() const;
@@ -317,15 +315,16 @@ public:
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult handleProviderSessionOpened();
     ViewportProviderSessionOpenResult handleProviderSessionOpened(ImageViewport::PageRole role);
-    quint64 installProviderSession(ImageSequenceProviderSession* session);
-    quint64 installProviderSession(
-        ImageViewport::PageRole role, ImageSequenceProviderSession* session);
-    ImageSequenceProviderSession* takeProviderSession();
-    ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role);
-    ImageSequenceProviderSession* currentProviderSession() const;
-    ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const;
+    quint64 activateProviderSession();
+    quint64 activateProviderSession(ImageViewport::PageRole role);
+    void retireProviderSession();
+    void retireProviderSession(ImageViewport::PageRole role);
     quint64 currentProviderGeneration() const;
     quint64 currentProviderGeneration(ImageViewport::PageRole role) const;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
+        ImageViewport::PageRole role) const;
+    ImageSequenceProviderThreadingContract providerThreadingContract(
+        ImageViewport::PageRole role) const;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
     bool acceptsProviderSessionResult(
@@ -409,7 +408,6 @@ private:
     ViewportCommandResult rejectUnsupportedCommand();
     ViewportCommandResult rejectIgnoredNoRequestCommand();
     bool targetSpreadTerminalSealedForActiveRequest();
-    bool hasGenerationTerminalProviderFailure();
     void recordTargetSpreadTerminal(ImageViewport::PageRole role,
         ImageViewport::RequestStatus status, ImageViewport::RequestReason reason,
         ImageViewportInternal::FailureScope failureScope, const QString& diagnostic,

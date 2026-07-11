@@ -51,13 +51,6 @@ bool ImageViewportPrivate::hasProviderSequence() const
     return controller.requestState().sequenceSource.facts.provider;
 }
 
-bool ImageViewportPrivate::hasGenerationTerminalProviderFailure() const
-{
-    return hasProviderSequence() && !controller.hasProviderSession()
-        && (controller.requestState().status == RequestStatus::Unsupported
-            || controller.requestState().status == RequestStatus::Error);
-}
-
 bool ImageViewportPrivate::providerTimedPlaybackCapabilityKnownFalse() const
 {
     return providerCapabilityKnownFalse(

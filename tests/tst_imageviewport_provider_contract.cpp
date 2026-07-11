@@ -44,6 +44,12 @@ public:
         image.fill(Qt::transparent);
         ImageSequenceProviderFrameEnvelope envelope = exactTestEnvelope(
             QSizeF(16.0, 8.0), image.size(), image.sizeInBytes(), image.hasAlphaChannel());
+        for (auto it = requests.crbegin(); it != requests.crend(); ++it) {
+            if (it->token() == token) {
+                envelope.setDemandRevision(it->demand().demandRevision());
+                break;
+            }
+        }
         auto frame = std::make_unique<ImageFrame>(image, envelope);
         emit providerEvent(ImageSequenceProviderEvent::frameReady(
             token, new ImageSequenceProviderFrameHandle(std::move(frame), this), envelope));
@@ -428,7 +434,16 @@ void ImageViewportProviderContractTest::typedDescriptorFactoryAndSessionBridgeMa
     QCOMPARE(frameRequest.demand().role(), ImageViewport::PageRole::Primary);
     QCOMPARE(frameRequest.demand().resolvedFrame(), 0);
     QCOMPARE(frameRequest.demand().requestedPosition(), -1);
-    QCOMPARE(frameRequest.demand().demandRevision().isValid(), false);
+    QCOMPARE(frameRequest.demand().demandRevision().isValid(), true);
+    QCOMPARE(frameRequest.demand().requestRevision().isValid(), true);
+    QCOMPARE(frameRequest.demand().presentationRevision().isValid(), true);
+    QCOMPARE(frameRequest.demand().sourceLogicalSize(), QSizeF(16.0, 8.0));
+    QCOMPARE(frameRequest.demand().visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 8.0));
+    QCOMPARE(frameRequest.demand().targetDisplaySizePixels(), QSizeF(100.0, 50.0));
+    QCOMPARE(frameRequest.demand().effectiveDevicePixelRatio(), 1.0);
+    QCOMPARE(frameRequest.demand().maximumPayloadBytes(),
+        ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    QCOMPARE(frameRequest.demand().allocationGeneration().isValid(), true);
 
     sessionFactory->lastSession->emitFrameReady(frameRequest.token());
 

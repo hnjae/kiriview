@@ -63,6 +63,9 @@ public:
         TimingIntervals timingIntervals;
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
         ImageViewportInternal::PreparedPayload preparedPayload;
+        ImageViewportDemandRevisionToken demandRevision;
+        ImageViewport::ExactnessPreference exactnessPreference
+            = ImageViewport::ExactnessPreference::Default;
     };
 
     struct ProviderFrameAdmissionResult
@@ -78,6 +81,8 @@ public:
             ResolvedFrameMismatch,
             FrameStartMismatch,
             FrameDurationMismatch,
+            DemandRevisionMismatch,
+            ExactnessMismatch,
         };
 
         Cause cause = Cause::Accepted;

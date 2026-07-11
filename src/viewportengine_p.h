@@ -181,7 +181,6 @@ public:
     {
         ViewportPlaybackCommand command;
         GeometryInput geometry;
-        bool generationTerminalProviderFailure = false;
     };
     struct PlaybackTickInput
     {
@@ -235,10 +234,18 @@ public:
         const GeometryChangeInput& input);
     ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
+    quint64 activateProviderSession(ImageViewport::PageRole role);
+    void retireProviderSession(ImageViewport::PageRole role);
+    bool acceptsProviderSessionEvent(
+        ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
+    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
+        ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
     ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
+    ImageSequenceProviderDisplayDemand providerDisplayDemand(
+        ImageViewport::PageRole role, const GeometryInput& geometry);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
     void setPlaybackPhase(ImageViewport::PlaybackPhase phase,

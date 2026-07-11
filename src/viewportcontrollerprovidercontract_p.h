@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 #include "timingintervals_p.h"
 #include "viewportproviderevent_p.h"
+#include "viewportplaybackcontract_p.h"
 
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
@@ -200,6 +201,7 @@ struct ViewportProviderFrameCommand
     int position = -1;
     ImageViewportInternal::ProviderRequestTargetKind targetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    ImageSequenceProviderDisplayDemand demand;
 };
 
 struct ViewportProviderFrameRequestStartResult
@@ -234,6 +236,7 @@ struct ViewportProviderEventResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportProviderEventTransportPhase providerFrameTransportPhase
         = ViewportProviderEventTransportPhase::None;
+    ViewportPlaybackScheduleEffect schedule;
 };
 
 struct ViewportProviderFrameDispatchResult
@@ -246,12 +249,14 @@ struct ViewportProviderFrameQueueFlushResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportPlaybackScheduleEffect schedule;
 };
 
 struct ViewportProviderSchedulerFailureResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ImageViewportInternal::ProviderSchedulerDiagnostic diagnostic;
+    ViewportPlaybackScheduleEffect schedule;
 };
 
 struct ViewportProviderSessionOpenResult
@@ -264,6 +269,7 @@ struct ViewportProviderTerminalEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
+    ViewportPlaybackScheduleEffect schedule;
 };
 
 struct ViewportProviderMetadataAdmissionResult

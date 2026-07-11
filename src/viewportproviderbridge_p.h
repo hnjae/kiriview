@@ -24,12 +24,8 @@ public:
     virtual std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         ImageViewport::PageRole role) const
         = 0;
-    virtual quint64 installProviderSession(
-        ImageViewport::PageRole role, ImageSequenceProviderSession* session)
-        = 0;
-    virtual ImageSequenceProviderSession* takeProviderSession(ImageViewport::PageRole role) = 0;
-    virtual ImageSequenceProviderSession* currentProviderSession(ImageViewport::PageRole role) const
-        = 0;
+    virtual quint64 activateProviderSession(ImageViewport::PageRole role) = 0;
+    virtual void retireProviderSession(ImageViewport::PageRole role) = 0;
     virtual quint64 currentProviderGeneration(ImageViewport::PageRole role) const = 0;
     virtual ImageSequenceProviderThreadingContract providerThreadingContract(
         ImageViewport::PageRole role) const
@@ -85,6 +81,7 @@ private:
     ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
     ViewportProviderExecutor* providerExecutor = nullptr;
+    QPointer<ImageSequenceProviderSession> activeSession;
     QPointer<ImageSequenceProviderSession> pendingCleanupSession;
     ImageSequenceProviderRequestToken pendingCleanupMetadataToken;
     ImageSequenceProviderRequestToken pendingCleanupFrameToken;

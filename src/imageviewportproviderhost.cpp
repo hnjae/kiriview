@@ -7,29 +7,19 @@
 using namespace ImageViewportInternal;
 
 namespace {
-ImageSequenceProviderDisplayDemand providerDemand(
-    ImageViewport::PageRole role, int resolvedFrame, int requestedPosition)
-{
-    ImageSequenceProviderDisplayDemand demand;
-    demand.setRole(role);
-    demand.setResolvedFrame(resolvedFrame);
-    demand.setRequestedPosition(requestedPosition);
-    return demand;
-}
-
 ImageSequenceProviderRequest providerRequestForCommand(
     ImageViewport::PageRole role, const ViewportProviderFrameCommand& command)
 {
     if (command.targetKind == ProviderRequestTargetKind::Playback) {
         return ImageSequenceProviderRequest::playback(command.token, role, command.frame,
-            command.position, providerDemand(role, command.frame, command.position));
+            command.position, command.demand);
     }
     if (command.targetKind == ProviderRequestTargetKind::Position) {
         return ImageSequenceProviderRequest::position(command.token, role, command.position,
-            command.frame, providerDemand(role, command.frame, command.position));
+            command.frame, command.demand);
     }
     return ImageSequenceProviderRequest::frame(
-        command.token, role, command.frame, providerDemand(role, command.frame, -1));
+        command.token, role, command.frame, command.demand);
 }
 }
 
@@ -55,9 +45,13 @@ bool ImageViewportProviderHost::openSession(PageRole role)
 
 void ImageViewportProviderHost::closeActiveSessions()
 {
-    applyFrameTransportEffect(viewport.controller.closeProviderSession());
-    applyFrameTransportEffect(
-        viewport.controller.closeProviderSession(PageRole::Secondary), PageRole::Secondary);
+    ViewportProviderFrameTransportEffect primary = viewport.controller.closeProviderSession();
+    primary.closeSession = true;
+    applyFrameTransportEffect(primary);
+    ViewportProviderFrameTransportEffect secondary
+        = viewport.controller.closeProviderSession(PageRole::Secondary);
+    secondary.closeSession = true;
+    applyFrameTransportEffect(secondary, PageRole::Secondary);
 }
 
 void ImageViewportProviderHost::applyMetadataTransportEffect(
@@ -111,26 +105,17 @@ QObject* ImageViewportProviderHost::providerCallbackTarget() const { return view
 std::shared_ptr<ImageSequenceProviderSessionFactory>
 ImageViewportProviderHost::providerSessionFactory(PageRole role) const
 {
-    const ImageSequenceSource& source = role == PageRole::Secondary
-        ? viewport.controller.requestState().secondarySequenceSource
-        : viewport.controller.requestState().sequenceSource;
-    return source.providerSessionFactory;
+    return viewport.controller.providerSessionFactory(role);
 }
 
-quint64 ImageViewportProviderHost::installProviderSession(
-    PageRole role, ImageSequenceProviderSession* session)
+quint64 ImageViewportProviderHost::activateProviderSession(PageRole role)
 {
-    return viewport.controller.installProviderSession(role, session);
+    return viewport.controller.activateProviderSession(role);
 }
 
-ImageSequenceProviderSession* ImageViewportProviderHost::takeProviderSession(PageRole role)
+void ImageViewportProviderHost::retireProviderSession(PageRole role)
 {
-    return viewport.controller.takeProviderSession(role);
-}
-
-ImageSequenceProviderSession* ImageViewportProviderHost::currentProviderSession(PageRole role) const
-{
-    return viewport.controller.currentProviderSession(role);
+    viewport.controller.retireProviderSession(role);
 }
 
 quint64 ImageViewportProviderHost::currentProviderGeneration(PageRole role) const
@@ -141,10 +126,7 @@ quint64 ImageViewportProviderHost::currentProviderGeneration(PageRole role) cons
 ImageSequenceProviderThreadingContract ImageViewportProviderHost::providerThreadingContract(
     PageRole role) const
 {
-    const ImageSequenceSource& source = role == PageRole::Secondary
-        ? viewport.controller.requestState().secondarySequenceSource
-        : viewport.controller.requestState().sequenceSource;
-    return source.facts.providerThreadingContract;
+    return viewport.controller.providerThreadingContract(role);
 }
 
 void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent& event)
@@ -155,7 +137,7 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
     }
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
+        viewport.playbackScheduler.apply(result.schedule);
     }
     if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
         applyFrameTransportEffect(result.providerFrameTransport, event.role);
@@ -213,7 +195,7 @@ void ImageViewportProviderHost::handleQueueFlushSchedulingFailure(PageRole role)
     viewport.internalDiagnostics.recordProviderSchedulerFailure(result.diagnostic);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
+        viewport.playbackScheduler.apply(result.schedule);
     }
 }
 
@@ -224,7 +206,7 @@ void ImageViewportProviderHost::handleDispatchFailure(
         = viewport.controller.handleProviderDispatchFailure(role, { token, diagnostic });
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
+        viewport.playbackScheduler.apply(result.schedule);
     }
     applyFrameTransportEffect(result.providerFrameTransport, role);
 }
@@ -236,7 +218,7 @@ void ImageViewportProviderHost::flushQueuedFrameRequest(PageRole role)
     applyFrameTransportEffect(result.providerFrameTransport, role);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
+        viewport.playbackScheduler.apply(result.schedule);
     }
 }
 

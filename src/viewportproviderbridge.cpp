@@ -315,15 +315,16 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
         if (!result.delivered) {
             return result;
         }
-        if (client.currentProviderSession(role) == pendingSession) {
-            client.takeProviderSession(role);
+        if (activeSession == pendingSession) {
+            activeSession.clear();
+            client.retireProviderSession(role);
         }
         pendingCleanupSession.clear();
         pendingCleanupMetadataToken = {};
         pendingCleanupFrameToken = {};
     }
 
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
+    ImageSequenceProviderSession* session = activeSession;
     if (!session) {
         return result;
     }
@@ -341,7 +342,8 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
         rememberPendingCleanup(session, metadataToken, frameToken);
         return result;
     }
-    client.takeProviderSession(role);
+    activeSession.clear();
+    client.retireProviderSession(role);
     return result;
 }
 
@@ -358,8 +360,11 @@ bool ViewportProviderBridge::openSession()
     if (!session) {
         return false;
     }
-    const quint64 sessionSerial = client.installProviderSession(role, session);
+    activeSession = session;
+    const quint64 sessionSerial = client.activateProviderSession(role);
     if (sessionSerial == 0) {
+        activeSession.clear();
+        delete session;
         return false;
     }
     const quint64 generation = client.currentProviderGeneration(role);
@@ -387,7 +392,7 @@ ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(
         result.diagnostic = providerTransportDiagnostic(role, request);
         return result;
     }
-    ImageSequenceProviderSession* session = client.currentProviderSession(role);
+    ImageSequenceProviderSession* session = activeSession;
     result.delivered = executor().invokeSessionCommand(
         session, threadingContract(), [session, request]() { session->request(request); });
     if (!result.delivered) {

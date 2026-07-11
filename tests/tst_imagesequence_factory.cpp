@@ -2,6 +2,7 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_provider_test_support.h"
 #include "imageviewport_qml_test_support.h"
+#include "imageviewporttoken_p.h"
 #include "timingintervals_p.h"
 
 #include <cmath>
@@ -43,6 +44,7 @@ private slots:
     void providerKnownFactsAdmissionRejectsDurationLimits();
     void providerConstructionRejectsStillFactsWithFrameSeekDeclaredFalse();
     void providerFrameAdmissionUsesResolvedFrameIdentity();
+    void providerFrameAdmissionRejectsStaleDemandAndRequiredInexactPayload();
     void timingIntervalsResolveHalfOpenBoundaries();
     void timingIntervalsRejectInvalidDurations();
     void stillImageSequenceRetainsFactoryPayload();
@@ -457,6 +459,42 @@ void ImageSequenceFactoryTest::providerFrameAdmissionUsesResolvedFrameIdentity()
     QCOMPARE(admission.preparedPayload.image.size(), image.size());
     QCOMPARE(admission.preparedPayload.image.format(), image.format());
     QCOMPARE(admission.preparedPayload.image.pixelColor(0, 0), image.pixelColor(0, 0));
+}
+
+void ImageSequenceFactoryTest::providerFrameAdmissionRejectsStaleDemandAndRequiredInexactPayload()
+{
+    QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    ImageSequenceProviderFrameEnvelope envelope;
+    envelope.setSourceLogicalSize(QSizeF(16.0, 8.0));
+    envelope.setPayloadRasterSize(QSizeF(16.0, 8.0));
+    envelope.setSourceToPayloadScale(QSizeF(1.0, 1.0));
+    envelope.setPayloadByteSize(image.sizeInBytes());
+    envelope.setQuality(ImageViewport::PayloadQuality::Preview);
+    envelope.setExactness(ImageViewport::PayloadExactness::NotExact);
+    envelope.setDemandRevision(
+        ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(3));
+    ImageFrame frame(image, envelope);
+
+    FramePreparation::ProviderFrameState state;
+    state.metadataReady = true;
+    state.logicalSize = QSizeF(16.0, 8.0);
+    state.resolvedFrame = { 0, -1 };
+    state.demandRevision
+        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(5);
+
+    const auto stale = FramePreparation::admitProviderFrame(
+        &frame, ImageSequenceProviderFrameMetadata::stillFrame(), state);
+    QCOMPARE(stale.cause,
+        FramePreparation::ProviderFrameAdmissionResult::Cause::DemandRevisionMismatch);
+
+    state.demandRevision = envelope.demandRevision();
+    state.exactnessPreference = ImageViewport::ExactnessPreference::RequireExact;
+    const auto inexact = FramePreparation::admitProviderFrame(
+        &frame, ImageSequenceProviderFrameMetadata::stillFrame(), state);
+    QCOMPARE(inexact.cause,
+        FramePreparation::ProviderFrameAdmissionResult::Cause::ExactnessMismatch);
+    QCOMPARE(inexact.status, ImageViewport::RequestStatus::Unsupported);
 }
 
 void ImageSequenceFactoryTest::factoryResultSequenceSurvivesFactoryDestruction()
