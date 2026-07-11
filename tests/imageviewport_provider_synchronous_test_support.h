@@ -9,6 +9,8 @@
 #include <QtCore/QThread>
 #include <QtTest/QTest>
 
+#include <functional>
+
 namespace {
 
 class PlaybackFallbackSession final : public ImageSequenceProviderSession
@@ -207,6 +209,41 @@ public:
 
 private:
     std::shared_ptr<int> m_metadataRequestCount;
+};
+
+class PublicationObservingProviderSession final : public ImageSequenceProviderSession
+{
+public:
+    explicit PublicationObservingProviderSession(
+        std::function<void(const ImageSequenceProviderRequest&)> observer,
+        QObject* parent = nullptr)
+        : ImageSequenceProviderSession(parent)
+        , observer(std::move(observer))
+    {
+    }
+
+    void request(const ImageSequenceProviderRequest& request) override { observer(request); }
+
+private:
+    std::function<void(const ImageSequenceProviderRequest&)> observer;
+};
+
+class PublicationObservingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    explicit PublicationObservingProviderSessionFactory(
+        std::function<void(const ImageSequenceProviderRequest&)> observer)
+        : observer(std::move(observer))
+    {
+    }
+
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new PublicationObservingProviderSession(observer, parent);
+    }
+
+private:
+    std::function<void(const ImageSequenceProviderRequest&)> observer;
 };
 
 }

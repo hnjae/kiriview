@@ -59,9 +59,9 @@ qt_add_qml_module(
     viewportcontrollergeometry.cpp
     viewportcontrollergeometryhelpers_p.h
     viewportcontrollerhelpers_p.h
-    viewportcontrollerplaybackcontract_p.h
     viewportplaybackcontract_p.h
     viewportcontrollerprovidercontract_p.h
+    viewportcontrollertransition_p.h
     viewportcontrollerrendercontract_p.h
     viewportrendercontract_p.h
     viewportcommandoutcome.cpp

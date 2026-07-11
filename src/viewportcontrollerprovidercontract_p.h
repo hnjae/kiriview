@@ -272,12 +272,3 @@ struct ViewportProviderHostEvent
     ImageSequenceProviderRequestToken token;
     QString diagnostic;
 };
-
-struct ViewportProviderHostEventResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderTransportBatch beforeChanges;
-    ViewportProviderTransportBatch afterChanges;
-    ImageViewportInternal::ProviderSchedulerDiagnostic schedulerDiagnostic;
-    ViewportPlaybackScheduleEffect schedule;
-};

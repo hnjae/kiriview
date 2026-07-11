@@ -85,11 +85,11 @@ struct ProviderSessionIdentity
     quint64 sessionSerial = 0;
 };
 
-ProviderSessionIdentity sessionIdentity(const ViewportSequenceAssignmentResult& assignment,
+ProviderSessionIdentity sessionIdentity(const ViewportCommandResult& assignment,
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary)
 {
-    const auto* open = findTransport(
-        assignment.afterChanges, ViewportProviderTransportCommand::Kind::OpenSession, role);
+    const auto* open = findTransport(assignment.transition.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::OpenSession, role);
     return open ? ProviderSessionIdentity { role, open->generation, open->sessionSerial }
                 : ProviderSessionIdentity {};
 }
@@ -148,12 +148,14 @@ void ViewportControllerProviderTest::sessionOpenAcknowledgementProducesOrderedMe
     const auto result = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
 
-    QVERIFY(result.beforeChanges.isEmpty());
-    QCOMPARE(result.afterChanges.size(), 1);
-    QCOMPARE(result.afterChanges[0].kind, ViewportProviderTransportCommand::Kind::SendRequest);
-    QCOMPARE(result.afterChanges[0].role, identity.role);
-    QCOMPARE(result.afterChanges[0].request.kind(), ImageSequenceProviderRequestKind::Metadata);
-    QVERIFY(result.afterChanges[0].request.token().isValid());
+    QVERIFY(result.providerBeforePublication.isEmpty());
+    QCOMPARE(result.providerAfterPublication.size(), 1);
+    QCOMPARE(result.providerAfterPublication[0].kind,
+        ViewportProviderTransportCommand::Kind::SendRequest);
+    QCOMPARE(result.providerAfterPublication[0].role, identity.role);
+    QCOMPARE(result.providerAfterPublication[0].request.kind(),
+        ImageSequenceProviderRequestKind::Metadata);
+    QVERIFY(result.providerAfterPublication[0].request.token().isValid());
 }
 
 void ViewportControllerProviderTest::metadataReadyProducesFrameRequest()
@@ -167,8 +169,8 @@ void ViewportControllerProviderTest::metadataReadyProducesFrameRequest()
     const auto identity = sessionIdentity(controller.assignSequence(assignment));
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
-    const auto* metadataRequest = findTransport(
-        opened.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* metadataRequest = findTransport(opened.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(metadataRequest);
 
     auto event = providerEvent(
@@ -176,8 +178,8 @@ void ViewportControllerProviderTest::metadataReadyProducesFrameRequest()
     event.metadata = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
     const auto result = controller.handleProviderHostEvent(hostProviderEvent(event));
 
-    const auto* frameRequest = findTransport(
-        result.beforeChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* frameRequest = findTransport(result.providerBeforePublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(frameRequest);
     QCOMPARE(frameRequest->request.kind(), ImageSequenceProviderRequestKind::Frame);
     QCOMPARE(frameRequest->request.frame(), 0);
@@ -198,8 +200,8 @@ void ViewportControllerProviderTest::staleSessionEventIsIgnored()
     const auto result = controller.handleProviderHostEvent(
         hostProviderEvent(providerEvent(identity, ViewportProviderEvent::Kind::Waiting, {})));
     QCOMPARE(result.changes.requestState, false);
-    QVERIFY(result.beforeChanges.isEmpty());
-    QVERIFY(result.afterChanges.isEmpty());
+    QVERIFY(result.providerBeforePublication.isEmpty());
+    QVERIFY(result.providerAfterPublication.isEmpty());
 }
 
 void ViewportControllerProviderTest::dispatchFailureClosesActiveGeneration()
@@ -213,8 +215,8 @@ void ViewportControllerProviderTest::dispatchFailureClosesActiveGeneration()
     const auto identity = sessionIdentity(controller.assignSequence(assignment));
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
-    const auto* request = findTransport(
-        opened.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* request = findTransport(opened.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(request);
 
     ViewportProviderHostEvent failure;
@@ -225,8 +227,8 @@ void ViewportControllerProviderTest::dispatchFailureClosesActiveGeneration()
     const auto result = controller.handleProviderHostEvent(failure);
 
     QCOMPARE(result.changes.requestState, true);
-    QVERIFY(findTransport(
-        result.afterChanges, ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
+    QVERIFY(findTransport(result.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
 }
 
@@ -245,19 +247,19 @@ void ViewportControllerProviderTest::queuedProviderFlushReturnsChangesAndTranspo
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
 
     const auto seek = controller.seek(identity.role, 1);
-    QVERIFY(findTransport(seek.beforeChanges,
+    QVERIFY(findTransport(seek.transition.providerBeforePublication,
         ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, identity.role));
     const auto flush = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest, identity.role });
-    const auto* request = findTransport(
-        flush.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* request = findTransport(flush.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(request);
     QCOMPARE(request->request.frame(), 1);
     QCOMPARE(flush.changes.requestRevision, true);
 
     const auto staleFlush = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest, identity.role });
-    QVERIFY(staleFlush.afterChanges.isEmpty());
+    QVERIFY(staleFlush.providerAfterPublication.isEmpty());
 }
 
 void ViewportControllerProviderTest::secondaryMetadataReadyUsesRoleIdentity()
@@ -276,8 +278,8 @@ void ViewportControllerProviderTest::secondaryMetadataReadyUsesRoleIdentity()
     QVERIFY(identity.generation != 0);
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
-    const auto* metadataRequest = findTransport(
-        opened.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* metadataRequest = findTransport(opened.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(metadataRequest);
 
     auto event = providerEvent(
@@ -285,8 +287,8 @@ void ViewportControllerProviderTest::secondaryMetadataReadyUsesRoleIdentity()
     event.metadata = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
     const auto result = controller.handleProviderHostEvent(hostProviderEvent(event));
 
-    QVERIFY(findTransport(
-        result.beforeChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role));
+    QVERIFY(findTransport(result.providerBeforePublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role));
     QCOMPARE(controller.requestState().roles[1].activeRequest.target.frame, 0);
 }
 
@@ -302,8 +304,8 @@ void ViewportControllerProviderTest::frameReadyStagesUpload()
     const auto identity = sessionIdentity(controller.assignSequence(assignment));
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
-    const auto* frameRequest = findTransport(
-        opened.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* frameRequest = findTransport(opened.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(frameRequest);
     QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
     ImageFrame frame(image);
@@ -328,16 +330,16 @@ void ViewportControllerProviderTest::terminalEventClosesActiveGeneration()
     const auto identity = sessionIdentity(controller.assignSequence(assignment));
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
-    const auto* request = findTransport(
-        opened.afterChanges, ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
+    const auto* request = findTransport(opened.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::SendRequest, identity.role);
     QVERIFY(request);
     auto event = providerEvent(
         identity, ViewportProviderEvent::Kind::Cancellation, request->request.token());
     const auto result = controller.handleProviderHostEvent(hostProviderEvent(event));
 
     QCOMPARE(result.changes.requestState, true);
-    QVERIFY(findTransport(
-        result.afterChanges, ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
+    QVERIFY(findTransport(result.providerAfterPublication,
+        ViewportProviderTransportCommand::Kind::CloseSession, identity.role));
     QCOMPARE(controller.requestState().reason, ImageViewport::RequestReason::ProviderFailure);
 }
 

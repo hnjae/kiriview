@@ -56,11 +56,3 @@ struct ViewportSequenceAssignment
     ViewportSequenceRoleSource secondarySource;
     PresentationTargetTransitionPolicy transitionPolicy;
 };
-
-struct ViewportSequenceAssignmentResult
-{
-    ImageViewport::CommandOutcome outcome = ImageViewport::CommandOutcome::Accepted;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderTransportBatch beforeChanges;
-    ViewportProviderTransportBatch afterChanges;
-};

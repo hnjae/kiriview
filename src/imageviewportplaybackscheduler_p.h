@@ -1,7 +1,7 @@
 #pragma once
 
 #include "playbackclock_p.h"
-#include "viewportcontrollerplaybackcontract_p.h"
+#include "viewportplaybackcontract_p.h"
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>

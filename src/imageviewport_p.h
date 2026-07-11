@@ -140,7 +140,7 @@ public:
     bool containsVisibleSpreadPoint(double x, double y) const;
     bool containsVisiblePagePoint(PageRole role, double x, double y) const;
     static CoordinateResult invalidCoordinateResult();
-    void applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes);
+    void applyControllerTransition(ViewportControllerTransition transition);
     void devicePixelRatioChanged();
     void refreshStateSnapshot();
     QRectF currentContentRect() const;
@@ -149,6 +149,7 @@ public:
     QRectF visibleImageRectForItemBounds(const QRectF& bounds) const;
 
     static QString boundedDiagnostic(const QString& diagnostic, const QString& fallback);
+    CommandOutcome executePlaybackCommand(ViewportPlaybackCommand command);
     void advancePlayback(int elapsedMilliseconds);
     bool hasActiveRequest() const;
     bool hasReadyDisplay() const;
@@ -166,4 +167,6 @@ public:
     ImageViewportRenderHost renderHost;
     ImageViewportInternal::InternalDiagnostics internalDiagnostics;
     ImageViewportStateSnapshot lastStateSnapshot;
+    int transitionApplicationDepth = 0;
+    ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
 };

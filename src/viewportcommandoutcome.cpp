@@ -8,8 +8,8 @@ ViewportCommandResult fromEngineCommand(const ViewportEngine::CommandResult& com
     ViewportCommandResult result;
     result.outcome = command.outcome;
     if (command.commandRevisionChanged) {
-        result.changes.commandRevision = true;
-        result.changes.commandRevisionValue
+        result.transition.changes.commandRevision = true;
+        result.transition.changes.commandRevisionValue
             = ImageViewportInternal::RevisionTokenPrivateAccess::value(command.commandRevision);
     }
     return result;

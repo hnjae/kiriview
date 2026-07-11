@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerassignmentcontract_p.h"
+#include "viewportcontrollertransition_p.h"
 #include "viewportengine_p.h"
 
 #include <QtCore/QRectF>
@@ -15,26 +16,19 @@
 
 struct ControllerTransitionPolicy;
 struct ViewportCommandResult;
-struct ViewportPlaybackAdvanceResult;
 struct ViewportPlaybackScheduleEffect;
 struct ViewportPresentationCommandInput;
 struct ViewportProviderFrameTransportEffect;
 struct ViewportProviderHostEvent;
-struct ViewportProviderHostEventResult;
 struct ViewportRenderAcknowledgement;
 struct ViewportRenderSynchronization;
 struct ViewportSequenceAssignment;
-struct ViewportSequenceAssignmentResult;
+
+class ImageViewportPrivate;
 
 class ViewportController
 {
 public:
-    struct GeometryChangeResult
-    {
-        ImageViewportInternal::ViewportChangeSet changes;
-        ViewportProviderTransportBatch beforeChanges;
-        ViewportProviderTransportBatch afterChanges;
-    };
     explicit ViewportController(std::function<QRectF()> captureItemBounds);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -43,8 +37,6 @@ public:
     const ImageViewportInternal::RequestState& requestState() const;
 #endif
     ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
-    ImageViewportInternal::ViewportChangeSet publishChanges(
-        ImageViewportInternal::ViewportChangeSet changes);
     PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;
     PresentationGeometry::State geometryStateForItemBounds(
         const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
@@ -54,7 +46,7 @@ public:
     double clampedManualZoomPercent(double percent, double devicePixelRatio = 1.0) const;
     double steppedManualZoomPercent(int stepCount, double devicePixelRatio = 1.0) const;
 
-    ViewportSequenceAssignmentResult assignSequence(ViewportSequenceAssignment assignment);
+    ViewportCommandResult assignSequence(ViewportSequenceAssignment assignment);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     ViewportCommandResult clear();
     ViewportCommandResult play(ImageViewport::PageRole role);
@@ -80,18 +72,17 @@ public:
     ViewportCommandResult setMirrorHorizontally(bool enabled, QPointF anchor);
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
-    ViewportProviderHostEventResult handleProviderHostEvent(const ViewportProviderHostEvent& event);
-    ViewportProviderTransportBatch restageProviderDemands(double devicePixelRatio = 1.0);
-    GeometryChangeResult handleGeometryChanged(
+    ViewportControllerTransition handleProviderHostEvent(const ViewportProviderHostEvent& event);
+    ViewportControllerTransition handleDevicePixelRatioChanged(double devicePixelRatio = 1.0);
+    ViewportControllerTransition handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
-    ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
+    ViewportControllerTransition acknowledgeRenderCommit(
         const ViewportRenderAcknowledgement& acknowledgement, bool renderedImagePresent,
         const ViewportRenderSynchronization& synchronization);
-    ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
+    ViewportControllerTransition acknowledgeRenderFailure(
         const ViewportRenderAcknowledgement& acknowledgement);
-    ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
-    ViewportPlaybackAdvanceResult advancePlayback(int elapsedMilliseconds);
+    ViewportControllerTransition advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
     void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
@@ -107,6 +98,9 @@ public:
 #endif
 
 private:
+    friend class ImageViewportPrivate;
+    ImageViewportInternal::ViewportChangeSet publishChanges(
+        ImageViewportInternal::ViewportChangeSet changes);
     QRectF itemBounds() const;
 
     std::function<QRectF()> captureItemBounds;

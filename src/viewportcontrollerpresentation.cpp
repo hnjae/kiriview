@@ -8,16 +8,15 @@ ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {
     const ViewportEngine::PresentationCommandResult engineResult
-        = engine.applyPresentationCommand(
-            { input.command,
-                engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor });
+        = engine.applyPresentationCommand({ input.command,
+            engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
-    mergeChanges(result.changes, engineResult.changes);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+    mergeChanges(result.transition.changes, engineResult.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 
@@ -102,11 +101,11 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
         { input.command, engine.projectedGeometryInput(itemBounds()), input.anchor, 1 });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
-    mergeChanges(result.changes, engineResult.changes);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+    mergeChanges(result.transition.changes, engineResult.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 
@@ -117,11 +116,11 @@ ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
         { command, engine.projectedGeometryInput(itemBounds()), anchor, -1 });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
-    mergeChanges(result.changes, engineResult.changes);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+    mergeChanges(result.transition.changes, engineResult.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     return result;
 }
 

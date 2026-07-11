@@ -3,7 +3,6 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
 #include "viewportcontrollercommandcontract_p.h"
-#include "viewportcontrollerplaybackcontract_p.h"
 
 #include <QtQuick/QQuickWindow>
 
@@ -11,11 +10,7 @@ using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
-    const ViewportPlaybackAdvanceResult result = controller.advancePlayback(elapsedMilliseconds);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.schedule);
+    applyControllerTransition(controller.advancePlayback(elapsedMilliseconds));
 }
 
 bool ImageViewportPrivate::hasActiveRequest() const
@@ -38,132 +33,92 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);
 }
 
-void ImageViewportPrivate::applyControllerChanges(ImageViewportInternal::ViewportChangeSet changes)
+void ImageViewportPrivate::applyControllerTransition(ViewportControllerTransition transition)
 {
-    changes = controller.publishChanges(changes);
-    internalDiagnostics.recordRenderFailure(changes.renderFailureDiagnostic);
+    using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
+    if (transition.playbackSchedule.action != ScheduleAction::NoChange) {
+        pendingPlaybackSchedule = transition.playbackSchedule;
+    }
+    ++transitionApplicationDepth;
 
-    if (changes.scheduleUpdate) {
+    providerHost.applyTransportEffects(transition.providerBeforePublication);
+    transition.changes = controller.publishChanges(transition.changes);
+    internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
+
+    if (transition.changes.scheduleUpdate) {
         update();
     }
     refreshStateSnapshot();
+    if (transition.providerSchedulerDiagnostic.valid) {
+        internalDiagnostics.recordProviderSchedulerFailure(transition.providerSchedulerDiagnostic);
+    }
+    providerHost.applyTransportEffects(transition.providerAfterPublication);
+
+    --transitionApplicationDepth;
+    if (transitionApplicationDepth == 0
+        && pendingPlaybackSchedule.action != ScheduleAction::NoChange) {
+        const ViewportPlaybackScheduleEffect schedule = pendingPlaybackSchedule;
+        pendingPlaybackSchedule = {};
+        playbackScheduler.apply(schedule);
+    }
 }
 
 void ImageViewportPrivate::devicePixelRatioChanged()
 {
-    ImageViewportInternal::ViewportChangeSet changes;
-    changes.displayRevision = true;
-    changes.geometryState = true;
-    changes.scheduleUpdate = true;
-    applyControllerChanges(changes);
     const QQuickWindow* currentWindow = window();
-    const auto effects = controller.restageProviderDemands(
-        currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0);
-    providerHost.applyTransportEffects(effects);
+    applyControllerTransition(controller.handleDevicePixelRatioChanged(
+        currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0));
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::clear()
 {
     playbackScheduler.flushElapsed();
     const ViewportCommandResult result = controller.clear();
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(controller.playbackScheduleEffect());
+    applyControllerTransition(result.transition);
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::play(PageRole role)
 {
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.play(role);
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.play(role);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.playbackSchedule);
-    return result.outcome;
+    return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Play, role });
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::pause(PageRole role)
 {
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.pause(role);
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.pause(role);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.playbackSchedule);
-    return result.outcome;
+    return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Pause, role });
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::stop(PageRole role)
 {
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.stop(role);
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.stop(role);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.playbackSchedule);
-    return result.outcome;
+    return executePlaybackCommand({ ViewportPlaybackCommand::Kind::Stop, role });
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seek(PageRole role, int frame)
 {
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.seek(role, frame);
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
-
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.seek(role, frame);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.playbackSchedule);
-    return result.outcome;
+    return executePlaybackCommand({ ViewportPlaybackCommand::Kind::SeekFrame, role, frame });
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::seekToPosition(PageRole role, int milliseconds)
 {
-    if (!ImageViewportInternal::isValidPageRole(role)) {
-        const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
-        applyControllerChanges(result.changes);
-        return result.outcome;
-    }
+    return executePlaybackCommand(
+        { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
+}
 
-    playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.seekToPosition(role, milliseconds);
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(result.playbackSchedule);
+ImageViewport::CommandOutcome ImageViewportPrivate::executePlaybackCommand(
+    ViewportPlaybackCommand command)
+{
+    if (ImageViewportInternal::isValidPageRole(command.role)) {
+        playbackScheduler.flushElapsed();
+    }
+    const ViewportCommandResult result = controller.applyPlaybackCommand(command);
+    applyControllerTransition(result.transition);
     return result.outcome;
 }
 
 ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 {
     const ViewportCommandResult result = controller.resetView();
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
+    applyControllerTransition(result.transition);
     return result.outcome;
 }
 
@@ -171,7 +126,6 @@ ImageViewport::CommandOutcome ImageViewportPrivate::resetView()
 void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 {
     advancePlayback(elapsedMilliseconds);
-    playbackScheduler.apply(controller.playbackScheduleEffect());
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
@@ -266,12 +220,9 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
-    const auto changes = controller.acknowledgeRenderCommit(
+    auto transition = controller.acknowledgeRenderCommit(
         { { generation, requestId, preparedPayloadId } }, true, synchronization);
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        playbackScheduler.apply(controller.playbackScheduleEffect());
-    }
+    applyControllerTransition(std::move(transition));
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
@@ -288,7 +239,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         requestId,
         secondaryPreparedPayloadId,
     };
-    const auto changes = controller.acknowledgeRenderCommit(
+    auto transition = controller.acknowledgeRenderCommit(
         {
             primaryPayload,
             {
@@ -297,10 +248,7 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
             },
         },
         true, synchronization);
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        playbackScheduler.apply(controller.playbackScheduleEffect());
-    }
+    applyControllerTransition(std::move(transition));
 }
 
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
@@ -325,11 +273,8 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
         requestId,
         preparedPayloadId,
     };
-    const auto changes = controller.acknowledgeRenderFailure(
+    auto transition = controller.acknowledgeRenderFailure(
         { failedPayload, { { failedRole, failedPayload } }, failedRole, cause });
-    applyControllerChanges(changes);
-    if (changes.playbackPhase) {
-        playbackScheduler.apply(controller.playbackScheduleEffect());
-    }
+    applyControllerTransition(std::move(transition));
 }
 #endif

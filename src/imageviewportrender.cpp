@@ -56,13 +56,9 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
         for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
-        const auto changes = viewport.controller.acknowledgeRenderFailure(
-            { render.preparedPayload, rolePayloads, render.failedRole, render.failureCause,
-                synchronization.attempt });
-        viewport.applyControllerChanges(changes);
-        if (changes.playbackPhase) {
-            viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
-        }
+        auto transition = viewport.controller.acknowledgeRenderFailure({ render.preparedPayload,
+            rolePayloads, render.failedRole, render.failureCause, synchronization.attempt });
+        viewport.applyControllerTransition(std::move(transition));
         if (fallbackNode && viewport.displayStatus() != ImageViewport::DisplayStatus::Empty) {
             return fallbackNode;
         }
@@ -76,14 +72,11 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
         for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
-        const auto changes = viewport.controller.acknowledgeRenderCommit(
+        auto transition = viewport.controller.acknowledgeRenderCommit(
             { render.preparedPayload, rolePayloads, ImageViewport::PageRole::Primary,
                 RenderFailureCause::None, synchronization.attempt },
             imagePresent, synchronization);
-        viewport.applyControllerChanges(changes);
-        if (changes.playbackPhase) {
-            viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
-        }
+        viewport.applyControllerTransition(std::move(transition));
     }
     return render.node;
 }
@@ -98,10 +91,5 @@ void ImageViewportRenderHost::geometryChanged(const QRectF& newGeometry, const Q
 
     const auto result
         = viewport.controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
-    viewport.providerHost.applyTransportEffects(result.beforeChanges);
-    viewport.applyControllerChanges(result.changes);
-    viewport.providerHost.applyTransportEffects(result.afterChanges);
-    if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(viewport.controller.playbackScheduleEffect());
-    }
+    viewport.applyControllerTransition(result);
 }

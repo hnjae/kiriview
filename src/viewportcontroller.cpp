@@ -50,8 +50,7 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
 
 #endif
 
-ViewportSequenceAssignmentResult ViewportController::assignSequence(
-    ViewportSequenceAssignment assignment)
+ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignment assignment)
 {
     if (assignment.presentationTarget.isClear()) {
         ImageSequence* const primary
@@ -84,16 +83,13 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
     const auto engineResult = engine.assignPresentationTarget({ assignment.presentationTarget,
         assignment.transitionPolicy, std::move(assignment.source),
         std::move(assignment.secondarySourceHandle), engine.acceptedGeometryInput(itemBounds()) });
-    const ViewportCommandResult command
+    ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
-    ViewportSequenceAssignmentResult result;
-    result.outcome = command.outcome;
-    result.changes = command.changes;
-    mergeChanges(result.changes, engineResult.changes);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(
-        result.afterChanges, engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+    mergeChanges(result.transition.changes, engineResult.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
     const auto appendOpen = [&](ImageViewport::PageRole role, bool open) {
         if (!open) {
             return;
@@ -106,22 +102,18 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
         effect.threadingContract = binding.threadingContract;
         effect.generation = binding.generation;
         effect.sessionSerial = binding.sessionSerial;
-        result.afterChanges.append(std::move(effect));
+        result.transition.providerAfterPublication.append(std::move(effect));
     };
     appendOpen(ImageViewport::PageRole::Primary, engineResult.openPrimaryProviderSession);
     appendOpen(ImageViewport::PageRole::Secondary, engineResult.openSecondaryProviderSession);
+    result.transition.playbackSchedule = engineResult.schedule;
     return result;
 }
 
 ViewportCommandResult ViewportController::clear()
 {
-    ViewportSequenceAssignmentResult assignment = assignSequence({});
-    ViewportCommandResult result;
-    result.outcome = assignment.outcome;
-    result.changes = assignment.changes;
-    result.beforeChanges = assignment.beforeChanges;
-    result.afterChanges = assignment.afterChanges;
-    result.playbackSchedule = engine.playbackScheduleEffect();
+    ViewportCommandResult result = assignSequence({});
+    result.transition.playbackSchedule = engine.playbackScheduleEffect();
     return result;
 }
 

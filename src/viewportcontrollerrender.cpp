@@ -1,17 +1,20 @@
 #include "viewportcontrollerrenderhelpers_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
-ViewportController::GeometryChangeResult ViewportController::handleGeometryChanged(
+ViewportControllerTransition ViewportController::handleGeometryChanged(
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
-    const auto engineResult = engine.handleGeometryChanged({ itemBounds(), oldContentRect, oldVisibleImageRect,
-        engine.geometryState(engine.projectedGeometryInput(itemBounds())) });
-    GeometryChangeResult result;
+    const auto engineResult = engine.handleGeometryChanged({ itemBounds(), oldContentRect,
+        oldVisibleImageRect, engine.geometryState(engine.projectedGeometryInput(itemBounds())) });
+    ViewportControllerTransition result;
     result.changes = engineResult.changes;
-    appendProviderTransport(result.afterChanges, engineResult.providerEffects[0],
+    appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[0],
         ImageViewport::PageRole::Primary);
-    appendProviderTransport(result.afterChanges, engineResult.providerEffects[1],
+    appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[1],
         ImageViewport::PageRole::Secondary);
+    if (result.changes.playbackPhase) {
+        result.playbackSchedule = engine.playbackScheduleEffect();
+    }
     return result;
 }
 
@@ -20,27 +23,37 @@ ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
 {
     const QRectF bounds = itemBounds();
     const auto current = engine.projectedGeometryInput(bounds, devicePixelRatio);
-    const auto pending = engine.projectedGeometryInput(bounds, devicePixelRatio,
-        ViewportEngine::GeometryProjectionTarget::PendingRender);
+    const auto pending = engine.projectedGeometryInput(
+        bounds, devicePixelRatio, ViewportEngine::GeometryProjectionTarget::PendingRender);
     const auto currentState = engine.geometryState(current);
-    return engine.beginRenderSynchronization({ bounds.size(), bounds,
-        PresentationGeometry::contentRect(currentState),
-        PresentationGeometry::visibleImageRect(currentState), current, pending });
+    return engine.beginRenderSynchronization(
+        { bounds.size(), bounds, PresentationGeometry::contentRect(currentState),
+            PresentationGeometry::visibleImageRect(currentState), current, pending });
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderCommit(
+ViewportControllerTransition ViewportController::acknowledgeRenderCommit(
     const ViewportRenderAcknowledgement& acknowledgement, bool renderedImagePresent,
     const ViewportRenderSynchronization& synchronization)
 {
-    return engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
+    ViewportControllerTransition result;
+    result.changes = engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
         synchronization.attempt, synchronization.pendingTargetCommit,
         synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
         synchronization.oldDisplayStatus, synchronization.oldContentRect,
         synchronization.oldVisibleImageRect, synchronization.geometryState });
+    if (result.changes.playbackPhase) {
+        result.playbackSchedule = engine.playbackScheduleEffect();
+    }
+    return result;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportController::acknowledgeRenderFailure(
+ViewportControllerTransition ViewportController::acknowledgeRenderFailure(
     const ViewportRenderAcknowledgement& acknowledgement)
 {
-    return engine.acknowledgeRenderFailure({ acknowledgement });
+    ViewportControllerTransition result;
+    result.changes = engine.acknowledgeRenderFailure({ acknowledgement });
+    if (result.changes.playbackPhase) {
+        result.playbackSchedule = engine.playbackScheduleEffect();
+    }
+    return result;
 }

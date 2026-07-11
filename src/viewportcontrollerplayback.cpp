@@ -1,7 +1,6 @@
 #include "viewportcontroller_p.h"
 
 #include "viewportcontrollercommandcontract_p.h"
-#include "viewportcontrollerplaybackcontract_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
 ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
@@ -10,12 +9,12 @@ ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackC
         = engine.applyPlaybackCommand({ command, engine.acceptedGeometryInput(itemBounds()) });
     ViewportCommandResult result;
     result.outcome = engineResult.command.outcome;
-    result.changes = engineResult.changes;
-    appendProviderTransport(result.beforeChanges,
+    result.transition.changes = engineResult.changes;
+    appendProviderTransport(result.transition.providerBeforePublication,
         engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(result.beforeChanges,
+    appendProviderTransport(result.transition.providerBeforePublication,
         engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
-    result.playbackSchedule = engineResult.schedule;
+    result.transition.playbackSchedule = engineResult.schedule;
     return result;
 }
 
@@ -46,21 +45,16 @@ ViewportCommandResult ViewportController::seekToPosition(
         { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
 }
 
-ViewportPlaybackScheduleEffect ViewportController::playbackScheduleEffect() const
+ViewportControllerTransition ViewportController::advancePlayback(int elapsedMilliseconds)
 {
-    return engine.playbackScheduleEffect();
-}
-
-ViewportPlaybackAdvanceResult ViewportController::advancePlayback(int elapsedMilliseconds)
-{
-    const ViewportEngine::PlaybackTickResult engineResult
-        = engine.advancePlayback({ elapsedMilliseconds, engine.acceptedGeometryInput(itemBounds()) });
-    ViewportPlaybackAdvanceResult result;
+    const ViewportEngine::PlaybackTickResult engineResult = engine.advancePlayback(
+        { elapsedMilliseconds, engine.acceptedGeometryInput(itemBounds()) });
+    ViewportControllerTransition result;
     result.changes = engineResult.changes;
-    appendProviderTransport(result.beforeChanges,
+    appendProviderTransport(result.providerBeforePublication,
         engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
-    appendProviderTransport(result.beforeChanges,
+    appendProviderTransport(result.providerBeforePublication,
         engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
-    result.schedule = engineResult.schedule;
+    result.playbackSchedule = engineResult.schedule;
     return result;
 }

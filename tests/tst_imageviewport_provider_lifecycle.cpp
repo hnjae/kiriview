@@ -44,6 +44,7 @@ private slots:
     void providerClosedGenerationTokenCollisionIsIgnoredAfterClear();
     void providerClearIgnoresCancelledFrameAcknowledgement();
     void providerResultsAreQueuedFromSessionEntryPoint();
+    void afterPublicationRequestObservesCurrentSnapshot();
     void synchronousProviderEventDeliveryBypassesEventLoopForProtocolTests();
     void providerQueuedMetadataFromClosedGenerationIsIgnoredAfterReplacement();
     void providerFrameResultsAreQueuedFromSessionEntryPoint();
@@ -88,7 +89,8 @@ void ImageViewportProviderLifecycleTest::replacementClearsRetainedDisplayDiagnos
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 100.0));
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     item.setSize(QSizeF(100.0, 100.0));
     acknowledgePendingPrimaryRenderFailureForTest(item);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
@@ -327,7 +329,8 @@ void ImageViewportProviderLifecycleTest::providerTokenOverflowDuringSeekFailsAcc
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
 
     setNextProviderRequestTokenForTest(item, std::numeric_limits<quint64>::max());
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*sessionCount, 1);
     QCOMPARE(*metadataRequestCount, 1);
@@ -1087,7 +1090,8 @@ void ImageViewportProviderLifecycleTest::providerCancelDeliveryFailurePreservesQ
         emitTimedProviderFrameReady(sessionFactory->lastSession(), &firstFrame, 0, 0);
         acknowledgePendingPrimaryRenderCommitForTest(item);
 
-        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(),
+            ImageViewport::CommandOutcome::Accepted);
         QCOMPARE(*frameRequestCount, 2);
         QCOMPARE(*cancelRequestCount, 0);
         const ImageSequenceProviderRequestToken cancelToken
@@ -1096,7 +1100,8 @@ void ImageViewportProviderLifecycleTest::providerCancelDeliveryFailurePreservesQ
         if (failCancelDelivery) {
             failNextProviderCommandDeliveryForTest(item, ImageViewport::PageRole::Primary);
         }
-        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
+        QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(),
+            ImageViewport::CommandOutcome::Accepted);
 
         snapshot.requestStatus = requestStatusValue(item);
         snapshot.requestReason = requestReasonValue(item);
@@ -1633,6 +1638,38 @@ void ImageViewportProviderLifecycleTest::providerResultsAreQueuedFromSessionEntr
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), 0);
+}
+
+void ImageViewportProviderLifecycleTest::afterPublicationRequestObservesCurrentSnapshot()
+{
+    ImageViewport item;
+    int observedRequestedFrame = -1;
+    ImageViewport::RequestStatus observedStatus = ImageViewport::RequestStatus::NoRequest;
+    auto sessionFactory = std::make_shared<PublicationObservingProviderSessionFactory>(
+        [&item, &observedRequestedFrame, &observedStatus](
+            const ImageSequenceProviderRequest& request) {
+            if (request.kind() != ImageSequenceProviderRequestKind::Frame) {
+                return;
+            }
+            observedRequestedFrame = item.state().primary().request().frame();
+            observedStatus = item.state().request().status();
+        });
+    CountingProviderAdapter adapter(sessionFactory,
+        ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse,
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
+        ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse);
+    ImageSequenceFactory factory;
+    QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
+    QVERIFY(result->sequence());
+
+    QCOMPARE(item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()),
+                     PresentationTargetTransitionPolicy {})
+                 .outcome(),
+        ImageViewport::CommandOutcome::Accepted);
+
+    QCOMPARE(observedRequestedFrame, 0);
+    QCOMPARE(observedStatus, ImageViewport::RequestStatus::Loading);
 }
 
 void ImageViewportProviderLifecycleTest::

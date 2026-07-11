@@ -109,17 +109,7 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
 
 void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& event)
 {
-    const ViewportProviderHostEventResult result
-        = viewport.controller.handleProviderHostEvent(event);
-    applyTransportEffects(result.beforeChanges);
-    viewport.applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(result.schedule);
-    }
-    if (result.schedulerDiagnostic.valid) {
-        viewport.internalDiagnostics.recordProviderSchedulerFailure(result.schedulerDiagnostic);
-    }
-    applyTransportEffects(result.afterChanges);
+    viewport.applyControllerTransition(viewport.controller.handleProviderHostEvent(event));
 }
 
 ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)

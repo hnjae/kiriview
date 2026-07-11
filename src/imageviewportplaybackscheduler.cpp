@@ -1,7 +1,7 @@
 #include "imageviewportplaybackscheduler_p.h"
 
 #include "imageviewport_p.h"
-#include "viewportcontrollerplaybackcontract_p.h"
+#include "viewportplaybackcontract_p.h"
 
 #include <QtCore/QObject>
 
@@ -50,7 +50,4 @@ int ImageViewportPlaybackScheduler::takeElapsed()
     return elapsedMilliseconds;
 }
 
-void ImageViewportPlaybackScheduler::handleTimeout()
-{
-    viewport.advancePlayback(takeElapsed());
-}
+void ImageViewportPlaybackScheduler::handleTimeout() { viewport.advancePlayback(takeElapsed()); }

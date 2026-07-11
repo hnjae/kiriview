@@ -158,7 +158,10 @@ int ImageViewportPrivate::rotationDegrees() const
     return lastStateSnapshot.presentation().rotationDegrees();
 }
 
-bool ImageViewportPrivate::smoothing() const { return lastStateSnapshot.presentation().smoothing(); }
+bool ImageViewportPrivate::smoothing() const
+{
+    return lastStateSnapshot.presentation().smoothing();
+}
 
 bool ImageViewportPrivate::mipmap() const { return lastStateSnapshot.presentation().mipmap(); }
 
@@ -189,9 +192,7 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
 {
     const ViewportCommandResult result = controller.setPresentation(
         { command, itemCenter(*this), effectiveDevicePixelRatio(*this) });
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
+    applyControllerTransition(result.transition);
     return result.outcome;
 }
 

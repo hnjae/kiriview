@@ -282,14 +282,11 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
     assignment.source = std::move(primarySource);
     assignment.secondarySourceHandle = std::move(secondarySourceHandle);
     assignment.transitionPolicy = policy;
-    ViewportSequenceAssignmentResult result = controller.assignSequence(std::move(assignment));
+    ViewportCommandResult result = controller.assignSequence(std::move(assignment));
     if (result.outcome != CommandOutcome::Accepted) {
-        applyControllerChanges(result.changes);
+        applyControllerTransition(result.transition);
         return result.outcome;
     }
-    providerHost.applyTransportEffects(result.beforeChanges);
-    applyControllerChanges(result.changes);
-    providerHost.applyTransportEffects(result.afterChanges);
-    playbackScheduler.apply(controller.playbackScheduleEffect());
+    applyControllerTransition(result.transition);
     return result.outcome;
 }
