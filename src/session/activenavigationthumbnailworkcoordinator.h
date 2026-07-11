@@ -8,11 +8,10 @@
 #include "session/activenavigationthumbnailrowstore.h"
 #include "session/activenavigationthumbnailscheduler.h"
 
+#include <QObject>
 #include <QString>
 #include <QUrl>
 #include <vector>
-
-class QObject;
 
 namespace kiriview {
 struct ActiveNavigationThumbnailFailureDiagnostic
@@ -26,13 +25,13 @@ struct ActiveNavigationThumbnailFailureDiagnostic
     QString errorString;
 };
 
-class ActiveNavigationThumbnailWorkCoordinator final
+class ActiveNavigationThumbnailWorkCoordinator final : public QObject
 {
 public:
     ActiveNavigationThumbnailWorkCoordinator(QObject* owner,
         ActiveNavigationThumbnailRowPort& rowPort, ThumbnailCacheLookupProvider lookupProvider,
         ThumbnailGenerationProvider generationProvider, ThumbnailSourceAdapter sourceAdapter);
-    ~ActiveNavigationThumbnailWorkCoordinator();
+    ~ActiveNavigationThumbnailWorkCoordinator() override;
 
     ActiveNavigationThumbnailWorkCoordinator(const ActiveNavigationThumbnailWorkCoordinator&)
         = delete;
@@ -56,6 +55,7 @@ private:
     void applyEffect(ActiveNavigationThumbnailApplyUnsupportedEffect effect);
     void applyEffect(ActiveNavigationThumbnailUpdateRetentionEffect effect);
     void applyEffect(ActiveNavigationThumbnailAcceptCompletionEffect effect);
+    void applyEffect(ActiveNavigationThumbnailScheduleContinuationEffect effect);
     void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void recordFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
         const ThumbnailSourceRevisionKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,

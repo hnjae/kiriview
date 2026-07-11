@@ -80,6 +80,10 @@ private Q_SLOTS:
     void invalidSnapshotIsRejectedWithoutReplacingCommittedDemand();
     void duplicateSnapshotFactsMergeBeforeSourcePlanning();
     void emptySnapshotExpiresNonCurrentDemand();
+    void backgroundScanYieldsAndResumesWithEpoch();
+    void staleContinuationIsRejectedAfterReset();
+    void foregroundDoesNotWaitForBackgroundContinuation();
+    void movingCurrentExpiresUnreportedPinnedDemand();
 };
 
 void TestActiveNavigationThumbnailScheduler::demandWindowIsAtomicAndRejectsOutsideReports()
@@ -273,6 +277,132 @@ void TestActiveNavigationThumbnailScheduler::emptySnapshotExpiresNonCurrentDeman
         std::size_t(2));
     QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailUpdateRetentionEffect>(*empty).size(),
         std::size_t(2));
+}
+
+void TestActiveNavigationThumbnailScheduler::backgroundScanYieldsAndResumesWithEpoch()
+{
+    int adapterCalls = 0;
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(
+        [&adapterCalls](kiriview::ThumbnailSourceAdapterRequest request) {
+            ++adapterCalls;
+            if (request.sourceKey.row.rowNumber != 20) {
+                return kiriview::ThumbnailSourceAdapterPlan {};
+            }
+            const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+            return kiriview::ThumbnailSourceAdapterPlan {
+                kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+                path,
+                kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+                {},
+            };
+        });
+    std::vector<kiriview::ThumbnailSourceRevisionKey> rows;
+    for (int number = 1; number <= 20; ++number) {
+        rows.push_back(key(number));
+    }
+    scheduler.reset(std::move(rows), 1);
+
+    const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1, {}));
+    QVERIFY(accepted.has_value());
+    QVERIFY(adapterCalls < 20);
+    const auto continuations
+        = effectsOfType<kiriview::ActiveNavigationThumbnailScheduleContinuationEffect>(*accepted);
+    QCOMPARE(continuations.size(), std::size_t(1));
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted).empty());
+
+    const auto resumed = scheduler.continueAdmission(continuations.front().admissionEpoch);
+    const auto starts = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(resumed);
+    QCOMPARE(starts.size(), std::size_t(1));
+    QCOMPARE(starts.front().request.sourceKey.row.rowNumber, 20);
+    QCOMPARE(
+        starts.front().request.workKind, kiriview::ActiveNavigationThumbnailWorkKind::Background);
+}
+
+void TestActiveNavigationThumbnailScheduler::staleContinuationIsRejectedAfterReset()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(
+        [](kiriview::ThumbnailSourceAdapterRequest) {
+            return kiriview::ThumbnailSourceAdapterPlan {};
+        });
+    std::vector<kiriview::ThumbnailSourceRevisionKey> rows;
+    for (int number = 1; number <= 20; ++number) {
+        rows.push_back(key(number));
+    }
+    scheduler.reset(std::move(rows), 1);
+    const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1, {}));
+    QVERIFY(accepted.has_value());
+    const auto continuation
+        = effectsOfType<kiriview::ActiveNavigationThumbnailScheduleContinuationEffect>(*accepted)
+              .front();
+
+    scheduler.reset({ key(1, 2) }, 2);
+    QVERIFY(scheduler.continueAdmission(continuation.admissionEpoch).empty());
+}
+
+void TestActiveNavigationThumbnailScheduler::foregroundDoesNotWaitForBackgroundContinuation()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(
+        [](kiriview::ThumbnailSourceAdapterRequest request) {
+            if (request.sourceKey.row.rowNumber != 20) {
+                return kiriview::ThumbnailSourceAdapterPlan {};
+            }
+            const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+            return kiriview::ThumbnailSourceAdapterPlan {
+                kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+                path,
+                kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+                {},
+            };
+        });
+    std::vector<kiriview::ThumbnailSourceRevisionKey> rows;
+    for (int number = 1; number <= 20; ++number) {
+        rows.push_back(key(number));
+    }
+    scheduler.reset(std::move(rows), 1);
+    const auto empty = scheduler.replaceDemandSnapshot(snapshot(1, {}));
+    QVERIFY(empty.has_value());
+    const auto continuation
+        = effectsOfType<kiriview::ActiveNavigationThumbnailScheduleContinuationEffect>(*empty)
+              .front();
+
+    const auto foreground = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 20, key(20).sourceUrl, Bucket::Large, Priority::Visible } }));
+    QVERIFY(foreground.has_value());
+    const auto starts
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*foreground);
+    QCOMPARE(starts.size(), std::size_t(1));
+    QCOMPARE(
+        starts.front().request.workKind, kiriview::ActiveNavigationThumbnailWorkKind::Foreground);
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(
+        scheduler.continueAdmission(continuation.admissionEpoch))
+            .empty());
+}
+
+void TestActiveNavigationThumbnailScheduler::movingCurrentExpiresUnreportedPinnedDemand()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
+    scheduler.reset({ key(1), key(2) }, 1);
+    scheduler.setCurrentNumber(1);
+    const auto accepted = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
+    QVERIFY(accepted.has_value());
+    const auto start
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted).front();
+
+    const auto empty = scheduler.replaceDemandSnapshot(snapshot(1, {}));
+    QVERIFY(empty.has_value());
+    QVERIFY(effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(*empty).empty());
+
+    const auto moved = scheduler.setCurrentNumber(2);
+    const auto cancels = effectsOfType<kiriview::ActiveNavigationThumbnailCancelWorkEffect>(moved);
+    QCOMPARE(cancels.size(), std::size_t(1));
+    QCOMPARE(cancels.front().workId, start.request.workId);
+    const auto retention
+        = effectsOfType<kiriview::ActiveNavigationThumbnailUpdateRetentionEffect>(moved);
+    QCOMPARE(retention.size(), std::size_t(1));
+    QCOMPARE(retention.front().sourceKey.row.rowNumber, 1);
+    QCOMPARE(retention.front().retentionClass,
+        kiriview::ActiveNavigationThumbnailRetentionClass::Background);
 }
 
 QTEST_GUILESS_MAIN(TestActiveNavigationThumbnailScheduler)

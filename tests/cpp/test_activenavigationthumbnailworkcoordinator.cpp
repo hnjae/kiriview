@@ -5,6 +5,7 @@
 #include "session/activenavigationthumbnailworkcoordinator.h"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QImage>
 #include <QObject>
 #include <QTest>
@@ -135,6 +136,8 @@ private Q_SLOTS:
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
     void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
+    void queuedContinuationFindsEligibleBackgroundRow();
+    void invalidationRejectsQueuedContinuation();
 };
 
 void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndPublishesReadyImage()
@@ -244,6 +247,72 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
     QCOMPARE(providers.lookups.size(), std::size_t(2));
     QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/two.png"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligibleBackgroundRow()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    std::vector<kiriview::ActiveNavigationThumbnailRow> sourceRows;
+    for (int number = 1; number <= 20; ++number) {
+        sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));
+    }
+    rows.setRows(std::move(sourceRows));
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(),
+        [](kiriview::ThumbnailSourceAdapterRequest request) {
+            if (request.sourceKey.row.rowNumber != 20) {
+                return kiriview::ThumbnailSourceAdapterPlan {};
+            }
+            const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+            return kiriview::ThumbnailSourceAdapterPlan {
+                kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+                path,
+                kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+                {},
+            };
+        });
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(), {})));
+    QVERIFY(providers.lookups.empty());
+    QTRY_COMPARE(providers.lookups.size(), std::size_t(1));
+    QCOMPARE(providers.lookups.front().request.localPathBytes, QByteArray("/media/20.png"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::invalidationRejectsQueuedContinuation()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    std::vector<kiriview::ActiveNavigationThumbnailRow> sourceRows;
+    for (int number = 1; number <= 20; ++number) {
+        sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));
+    }
+    rows.setRows(std::move(sourceRows));
+    ManualProviders providers;
+    bool eligible = false;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
+        providers.lookupProvider(), providers.generationProvider(),
+        [&eligible](kiriview::ThumbnailSourceAdapterRequest request) {
+            if (!eligible || request.sourceKey.row.rowNumber != 20) {
+                return kiriview::ThumbnailSourceAdapterPlan {};
+            }
+            const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
+            return kiriview::ThumbnailSourceAdapterPlan {
+                kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
+                path,
+                kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path),
+                {},
+            };
+        });
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(), {})));
+
+    eligible = true;
+    coordinator.invalidateRows();
+    QCoreApplication::processEvents();
+    QVERIFY(providers.lookups.empty());
 }
 
 QTEST_GUILESS_MAIN(TestActiveNavigationThumbnailWorkCoordinator)

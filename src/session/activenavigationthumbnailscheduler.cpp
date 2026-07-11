@@ -5,6 +5,8 @@
 
 #include <QFile>
 #include <algorithm>
+#include <limits>
+#include <map>
 #include <utility>
 
 namespace kiriview {
@@ -46,6 +48,7 @@ std::vector<ActiveNavigationThumbnailScheduleEffect> ActiveNavigationThumbnailSc
                 state.sourceKey.navigationGeneration),
             row);
         m_rowBySourceIdentity.insert(state.sourceKey, row);
+        m_rowByNumber.insert(state.sourceKey.row.rowNumber, row);
         m_rows.push_back(std::move(state));
     }
     m_navigationGeneration = navigationGeneration;
@@ -62,29 +65,48 @@ ActiveNavigationThumbnailScheduler::invalidate()
     m_rows.clear();
     m_rowByDemandIdentity.clear();
     m_rowBySourceIdentity.clear();
+    m_rowByNumber.clear();
+    m_acceptedDemandRows.clear();
+    m_highDemandRows.clear();
+    m_nearbyDemandRows.clear();
+    m_activeNearbyRows.clear();
+    m_currentRow.reset();
+    m_activeBackgroundRow.reset();
     m_navigationGeneration = 0;
+    m_demandSnapshotEpoch = 0;
     m_currentNumber = 0;
     m_backgroundArmed = false;
+    m_backgroundCursor = 0;
+    m_backgroundRemaining = 0;
+    m_continuationOutstanding = false;
+    advanceAdmissionEpoch();
     return effects;
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>
 ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
 {
-    m_currentNumber = currentNumber;
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
-    for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        RowState& state = m_rows.at(row);
-        if (state.acceptedDemand.has_value()) {
-            const auto retention = state.sourceKey.row.rowNumber == m_currentNumber
-                ? ActiveNavigationThumbnailRetentionClass::Visible
-                : retentionClass(state.acceptedDemand->priority);
-            effects.emplace_back(
-                ActiveNavigationThumbnailUpdateRetentionEffect { state.sourceKey, retention });
+    const std::optional<std::size_t> previousCurrentRow = m_currentRow;
+    const auto nextCurrent = m_rowByNumber.constFind(currentNumber);
+    m_currentNumber = currentNumber;
+    m_currentRow = nextCurrent == m_rowByNumber.cend() ? std::nullopt
+                                                       : std::optional<std::size_t>(*nextCurrent);
+    if (previousCurrentRow == m_currentRow) {
+        admit(effects);
+        return effects;
+    }
+    if (previousCurrentRow.has_value()) {
+        RowState& previous = m_rows.at(*previousCurrentRow);
+        if (previous.acceptedDemand.has_value()
+            && previous.demandSnapshotEpoch != m_demandSnapshotEpoch) {
+            expireDemand(*previousCurrentRow, effects);
+        } else {
+            reclassifyCurrentRow(*previousCurrentRow, effects);
         }
-        if (state.activeWork.has_value() && state.acceptedDemand.has_value()) {
-            state.activeWork->tier = tierFor(row, *state.acceptedDemand);
-        }
+    }
+    if (m_currentRow.has_value()) {
+        reclassifyCurrentRow(*m_currentRow, effects);
     }
     admit(effects);
     return effects;
@@ -98,7 +120,7 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
         || snapshot.navigationGeneration != m_navigationGeneration) {
         return std::nullopt;
     }
-    std::vector<std::optional<ActiveNavigationThumbnailDemand>> normalized(m_rows.size());
+    std::map<std::size_t, ActiveNavigationThumbnailDemand> normalized;
     for (ActiveNavigationThumbnailDemand& fact : snapshot.demands) {
         if (fact.bucket < ActiveNavigationThumbnailDemandBucket::Normal
             || fact.bucket > ActiveNavigationThumbnailDemandBucket::XXLarge
@@ -110,49 +132,42 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
         if (!row.has_value()) {
             return std::nullopt;
         }
-        auto& accepted = normalized.at(*row);
-        if (!accepted.has_value()) {
-            accepted = std::move(fact);
+        auto [iterator, inserted] = normalized.try_emplace(*row, std::move(fact));
+        if (inserted) {
             continue;
         }
-        if (static_cast<int>(fact.bucket) > static_cast<int>(accepted->bucket)) {
-            accepted->bucket = fact.bucket;
+        ActiveNavigationThumbnailDemand& accepted = iterator->second;
+        if (static_cast<int>(fact.bucket) > static_cast<int>(accepted.bucket)) {
+            accepted.bucket = fact.bucket;
         }
         if (fact.priority == ActiveNavigationThumbnailDemandPriority::Visible) {
-            accepted->priority = ActiveNavigationThumbnailDemandPriority::Visible;
+            accepted.priority = ActiveNavigationThumbnailDemandPriority::Visible;
         }
     }
 
-    std::vector<std::optional<Demand>> demands(m_rows.size());
-    for (std::size_t row = 0; row < normalized.size(); ++row) {
-        if (!normalized.at(row).has_value()) {
-            continue;
-        }
-        const ActiveNavigationThumbnailDemand& fact = *normalized.at(row);
+    std::map<std::size_t, Demand> demands;
+    for (const auto& [row, fact] : normalized) {
         ThumbnailSourceAdapterPlan plan;
         if (m_sourceAdapter) {
             plan = m_sourceAdapter({ m_rows.at(row).sourceKey, fact.bucket, fact.priority });
         }
-        demands.at(row)
-            = Demand { m_rows.at(row).sourceKey, fact.bucket, fact.priority, std::move(plan) };
+        demands.emplace(
+            row, Demand { m_rows.at(row).sourceKey, fact.bucket, fact.priority, std::move(plan) });
     }
 
     std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
-    m_backgroundArmed = true;
-    for (std::size_t row = 0; row < m_rows.size(); ++row) {
+    ++m_demandSnapshotEpoch;
+    if (m_demandSnapshotEpoch == 0) {
+        ++m_demandSnapshotEpoch;
+    }
+    std::set<std::size_t> missingRows = m_acceptedDemandRows;
+    for (auto& [row, demand] : demands) {
+        missingRows.erase(row);
         RowState& state = m_rows.at(row);
-        if (!demands.at(row).has_value()) {
-            if (state.sourceKey.row.rowNumber != m_currentNumber) {
-                cancel(row, effects);
-                state.acceptedDemand.reset();
-                state.completedDemandBucket.reset();
-                effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect {
-                    state.sourceKey, ActiveNavigationThumbnailRetentionClass::Background });
-            }
-            continue;
-        }
-        Demand demand = std::move(*demands.at(row));
+        state.demandSnapshotEpoch = m_demandSnapshotEpoch;
+        m_acceptedDemandRows.insert(row);
         if (state.acceptedDemand.has_value() && sameDemand(*state.acceptedDemand, demand)) {
+            refreshDemandTier(row);
             continue;
         }
         if (state.acceptedDemand.has_value()
@@ -160,10 +175,8 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
             state.acceptedDemand = demand;
             if (state.activeWork.has_value()) {
                 state.activeWork->demand = demand;
-                state.activeWork->tier = tierFor(row, demand);
             }
-            effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect {
-                state.sourceKey, retentionClass(demand.priority) });
+            reclassifyCurrentRow(row, effects);
             continue;
         }
         cancel(row, effects);
@@ -176,7 +189,15 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
                 ActiveNavigationThumbnailApplyUnsupportedEffect { state.sourceKey });
             state.completedDemandBucket = demand.bucket;
         }
+        refreshDemandTier(row);
     }
+    for (const std::size_t row : missingRows) {
+        if (m_currentRow.has_value() && row == *m_currentRow) {
+            continue;
+        }
+        expireDemand(row, effects);
+    }
+    armBackgroundSweep();
     admit(effects);
     return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
 }
@@ -197,6 +218,11 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
         return effects;
     }
     const Claim claim = *state.activeWork;
+    if (claim.tier == Tier::Nearby) {
+        m_activeNearbyRows.erase(*row);
+    } else if (claim.tier == Tier::Background) {
+        m_activeBackgroundRow.reset();
+    }
     state.activeWork.reset();
     if (claim.kind == ActiveNavigationThumbnailWorkKind::Background) {
         if (std::find(state.completedBackgroundBuckets.cbegin(),
@@ -206,12 +232,25 @@ ActiveNavigationThumbnailScheduler::acceptCompletion(
         }
     } else {
         state.completedDemandBucket = completion.bucket;
+        refreshDemandTier(*row);
     }
     const auto retention = claim.tier == Tier::Current
         ? ActiveNavigationThumbnailRetentionClass::Visible
         : retentionClass(claim.demand.priority);
     effects.emplace_back(
         ActiveNavigationThumbnailAcceptCompletionEffect { std::move(completion), retention });
+    admit(effects);
+    return effects;
+}
+
+std::vector<ActiveNavigationThumbnailScheduleEffect>
+ActiveNavigationThumbnailScheduler::continueAdmission(quint64 admissionEpoch)
+{
+    if (admissionEpoch == 0 || admissionEpoch != m_admissionEpoch || !m_continuationOutstanding) {
+        return {};
+    }
+    m_continuationOutstanding = false;
+    std::vector<ActiveNavigationThumbnailScheduleEffect> effects;
     admit(effects);
     return effects;
 }
@@ -306,6 +345,86 @@ bool ActiveNavigationThumbnailScheduler::backgroundComplete(
         != state.completedBackgroundBuckets.cend();
 }
 
+void ActiveNavigationThumbnailScheduler::advanceAdmissionEpoch()
+{
+    ++m_admissionEpoch;
+    if (m_admissionEpoch == 0) {
+        ++m_admissionEpoch;
+    }
+}
+
+void ActiveNavigationThumbnailScheduler::armBackgroundSweep()
+{
+    const std::size_t bucketCount = backgroundBuckets().size();
+    if (m_rows.empty() || bucketCount == 0
+        || m_rows.size() > std::numeric_limits<std::size_t>::max() / bucketCount) {
+        m_backgroundArmed = false;
+        m_backgroundRemaining = 0;
+        return;
+    }
+    const std::size_t candidateCount = m_rows.size() * bucketCount;
+    m_backgroundArmed = candidateCount != 0;
+    m_backgroundRemaining = candidateCount;
+    if (candidateCount != 0) {
+        m_backgroundCursor %= candidateCount;
+    }
+}
+
+void ActiveNavigationThumbnailScheduler::refreshDemandTier(std::size_t row)
+{
+    m_highDemandRows.erase(row);
+    m_nearbyDemandRows.erase(row);
+    const RowState& state = m_rows.at(row);
+    if (!state.acceptedDemand.has_value() || demandComplete(state)) {
+        return;
+    }
+    const Tier tier = tierFor(row, *state.acceptedDemand);
+    if (tier == Tier::Current || tier == Tier::Visible) {
+        m_highDemandRows.insert(row);
+    } else {
+        m_nearbyDemandRows.insert(row);
+    }
+}
+
+void ActiveNavigationThumbnailScheduler::expireDemand(
+    std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
+{
+    RowState& state = m_rows.at(row);
+    if (!state.acceptedDemand.has_value()) {
+        return;
+    }
+    cancel(row, effects);
+    state.acceptedDemand.reset();
+    state.completedDemandBucket.reset();
+    state.demandSnapshotEpoch = 0;
+    m_acceptedDemandRows.erase(row);
+    refreshDemandTier(row);
+    effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect {
+        state.sourceKey, ActiveNavigationThumbnailRetentionClass::Background });
+}
+
+void ActiveNavigationThumbnailScheduler::reclassifyCurrentRow(
+    std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
+{
+    RowState& state = m_rows.at(row);
+    if (!state.acceptedDemand.has_value()) {
+        return;
+    }
+    const Tier tier = tierFor(row, *state.acceptedDemand);
+    if (state.activeWork.has_value()
+        && state.activeWork->kind == ActiveNavigationThumbnailWorkKind::Foreground) {
+        m_activeNearbyRows.erase(row);
+        state.activeWork->tier = tier;
+        if (tier == Tier::Nearby) {
+            m_activeNearbyRows.insert(row);
+        }
+    }
+    refreshDemandTier(row);
+    effects.emplace_back(ActiveNavigationThumbnailUpdateRetentionEffect { state.sourceKey,
+        tier == Tier::Current ? ActiveNavigationThumbnailRetentionClass::Visible
+                              : retentionClass(state.acceptedDemand->priority) });
+}
+
 ActiveNavigationThumbnailWorkId ActiveNavigationThumbnailScheduler::nextWorkId()
 {
     if (m_nextWorkId == 0) {
@@ -322,6 +441,11 @@ void ActiveNavigationThumbnailScheduler::cancel(
         return;
     }
     effects.emplace_back(ActiveNavigationThumbnailCancelWorkEffect { state.activeWork->id });
+    if (state.activeWork->tier == Tier::Nearby) {
+        m_activeNearbyRows.erase(row);
+    } else if (state.activeWork->tier == Tier::Background) {
+        m_activeBackgroundRow.reset();
+    }
     state.activeWork.reset();
 }
 
@@ -332,6 +456,11 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
     RowState& state = m_rows.at(row);
     Claim claim { nextWorkId(), kind, demand, tier };
     state.activeWork = claim;
+    if (tier == Tier::Nearby) {
+        m_activeNearbyRows.insert(row);
+    } else if (tier == Tier::Background) {
+        m_activeBackgroundRow = row;
+    }
     effects.emplace_back(ActiveNavigationThumbnailStartWorkEffect {
         { claim.id, demand.sourceKey, demand.bucket, kind, demand.sourcePlan } });
 }
@@ -339,87 +468,78 @@ void ActiveNavigationThumbnailScheduler::start(std::size_t row,
 void ActiveNavigationThumbnailScheduler::admit(
     std::vector<ActiveNavigationThumbnailScheduleEffect>& effects)
 {
-    bool foregroundExists = false;
-    for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        const RowState& state = m_rows.at(row);
-        if (!state.acceptedDemand.has_value() || demandComplete(state)) {
-            continue;
+    if (!m_highDemandRows.empty()) {
+        const std::set<std::size_t> activeNearby = m_activeNearbyRows;
+        for (const std::size_t row : activeNearby) {
+            cancel(row, effects);
         }
-        const Tier tier = tierFor(row, *state.acceptedDemand);
-        if (tier == Tier::Current || tier == Tier::Visible) {
-            foregroundExists = true;
+        if (m_activeBackgroundRow.has_value()) {
+            cancel(*m_activeBackgroundRow, effects);
         }
-    }
-    if (foregroundExists) {
-        for (std::size_t row = 0; row < m_rows.size(); ++row) {
+        for (const std::size_t row : m_highDemandRows) {
             RowState& state = m_rows.at(row);
-            if (state.activeWork.has_value()
-                && (state.activeWork->tier == Tier::Nearby
-                    || state.activeWork->tier == Tier::Background)) {
-                cancel(row, effects);
-            }
-            if (!state.acceptedDemand.has_value() || demandComplete(state)
-                || state.activeWork.has_value()) {
-                continue;
-            }
-            const Tier tier = tierFor(row, *state.acceptedDemand);
-            if ((tier == Tier::Current || tier == Tier::Visible)
+            if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
                 && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
-                start(row, ActiveNavigationThumbnailWorkKind::Foreground, tier,
+                start(row, ActiveNavigationThumbnailWorkKind::Foreground,
+                    tierFor(row, *state.acceptedDemand), *state.acceptedDemand, effects);
+            }
+        }
+        return;
+    }
+    if (!m_nearbyDemandRows.empty()) {
+        if (m_activeBackgroundRow.has_value()) {
+            cancel(*m_activeBackgroundRow, effects);
+        }
+        for (const std::size_t row : m_nearbyDemandRows) {
+            RowState& state = m_rows.at(row);
+            if (!state.activeWork.has_value() && state.acceptedDemand.has_value()
+                && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
+                start(row, ActiveNavigationThumbnailWorkKind::Foreground, Tier::Nearby,
                     *state.acceptedDemand, effects);
             }
         }
         return;
     }
-    bool demandExists = false;
-    for (std::size_t row = 0; row < m_rows.size(); ++row) {
-        RowState& state = m_rows.at(row);
-        if (!state.acceptedDemand.has_value() || demandComplete(state)) {
-            continue;
-        }
-        demandExists = true;
-        if (!state.activeWork.has_value()
-            && supportsGeneratedThumbnail(state.acceptedDemand->sourcePlan)) {
-            start(row, ActiveNavigationThumbnailWorkKind::Foreground, Tier::Nearby,
-                *state.acceptedDemand, effects);
-        }
-    }
-    if (demandExists || !m_backgroundArmed) {
-        if (demandExists) {
-            for (std::size_t row = 0; row < m_rows.size(); ++row) {
-                if (m_rows.at(row).activeWork.has_value()
-                    && m_rows.at(row).activeWork->tier == Tier::Background) {
-                    cancel(row, effects);
-                }
-            }
-        }
+    if (!m_backgroundArmed || m_activeBackgroundRow.has_value() || !m_activeNearbyRows.empty()) {
         return;
     }
-    for (const RowState& state : m_rows) {
-        if (state.activeWork.has_value()) {
-            return;
+    constexpr std::size_t BackgroundScanBudget = 16;
+    const auto buckets = backgroundBuckets();
+    const std::size_t candidateCount = m_rows.size() * buckets.size();
+    std::size_t scanned = 0;
+    while (m_backgroundRemaining != 0 && scanned < BackgroundScanBudget) {
+        const std::size_t candidate = m_backgroundCursor;
+        m_backgroundCursor = (m_backgroundCursor + 1) % candidateCount;
+        --m_backgroundRemaining;
+        ++scanned;
+        const std::size_t row = candidate % m_rows.size();
+        const auto bucket = buckets.at(candidate / m_rows.size());
+        RowState& state = m_rows.at(row);
+        if (backgroundComplete(state, bucket)) {
+            continue;
         }
+        ThumbnailSourceAdapterPlan plan;
+        if (m_sourceAdapter) {
+            plan = m_sourceAdapter(
+                { state.sourceKey, bucket, ActiveNavigationThumbnailDemandPriority::Nearby });
+        }
+        if (!supportsGeneratedThumbnail(plan)) {
+            continue;
+        }
+        Demand demand { state.sourceKey, bucket, ActiveNavigationThumbnailDemandPriority::Nearby,
+            std::move(plan) };
+        start(
+            row, ActiveNavigationThumbnailWorkKind::Background, Tier::Background, demand, effects);
+        return;
     }
-    for (auto bucket : backgroundBuckets()) {
-        for (std::size_t row = 0; row < m_rows.size(); ++row) {
-            RowState& state = m_rows.at(row);
-            if (backgroundComplete(state, bucket)) {
-                continue;
-            }
-            ThumbnailSourceAdapterPlan plan;
-            if (m_sourceAdapter) {
-                plan = m_sourceAdapter(
-                    { state.sourceKey, bucket, ActiveNavigationThumbnailDemandPriority::Nearby });
-            }
-            if (!supportsGeneratedThumbnail(plan)) {
-                continue;
-            }
-            Demand demand { state.sourceKey, bucket,
-                ActiveNavigationThumbnailDemandPriority::Nearby, std::move(plan) };
-            start(row, ActiveNavigationThumbnailWorkKind::Background, Tier::Background, demand,
-                effects);
-            return;
-        }
+    if (m_backgroundRemaining == 0) {
+        m_backgroundArmed = false;
+        return;
+    }
+    if (!m_continuationOutstanding) {
+        m_continuationOutstanding = true;
+        effects.emplace_back(
+            ActiveNavigationThumbnailScheduleContinuationEffect { m_admissionEpoch });
     }
 }
 }

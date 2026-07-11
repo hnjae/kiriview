@@ -7,7 +7,9 @@
 #include "session/activenavigationthumbnailwork.h"
 
 #include <QHash>
+#include <cstddef>
 #include <optional>
+#include <set>
 #include <variant>
 #include <vector>
 
@@ -52,12 +54,16 @@ struct ActiveNavigationThumbnailAcceptCompletionEffect
         = ActiveNavigationThumbnailRetentionClass::Background;
 };
 
-using ActiveNavigationThumbnailScheduleEffect
-    = std::variant<ActiveNavigationThumbnailCancelWorkEffect,
-        ActiveNavigationThumbnailStartWorkEffect, ActiveNavigationThumbnailApplyPendingEffect,
-        ActiveNavigationThumbnailApplyUnsupportedEffect,
-        ActiveNavigationThumbnailUpdateRetentionEffect,
-        ActiveNavigationThumbnailAcceptCompletionEffect>;
+struct ActiveNavigationThumbnailScheduleContinuationEffect
+{
+    quint64 admissionEpoch = 0;
+};
+
+using ActiveNavigationThumbnailScheduleEffect = std::variant<
+    ActiveNavigationThumbnailCancelWorkEffect, ActiveNavigationThumbnailStartWorkEffect,
+    ActiveNavigationThumbnailApplyPendingEffect, ActiveNavigationThumbnailApplyUnsupportedEffect,
+    ActiveNavigationThumbnailUpdateRetentionEffect, ActiveNavigationThumbnailAcceptCompletionEffect,
+    ActiveNavigationThumbnailScheduleContinuationEffect>;
 
 class ActiveNavigationThumbnailScheduler final
 {
@@ -72,6 +78,7 @@ public:
         ActiveNavigationThumbnailDemandSnapshot snapshot);
     std::vector<ActiveNavigationThumbnailScheduleEffect> acceptCompletion(
         ActiveNavigationThumbnailWorkCompletion completion);
+    std::vector<ActiveNavigationThumbnailScheduleEffect> continueAdmission(quint64 admissionEpoch);
 
 private:
     enum class Tier {
@@ -105,6 +112,7 @@ private:
         std::optional<Claim> activeWork;
         std::optional<ActiveNavigationThumbnailDemandBucket> completedDemandBucket;
         std::vector<ActiveNavigationThumbnailDemandBucket> completedBackgroundBuckets;
+        quint64 demandSnapshotEpoch = 0;
     };
 
     static bool sameDemand(const Demand& left, const Demand& right);
@@ -120,6 +128,13 @@ private:
     bool demandComplete(const RowState& state) const;
     bool backgroundComplete(
         const RowState& state, ActiveNavigationThumbnailDemandBucket bucket) const;
+    void advanceAdmissionEpoch();
+    void armBackgroundSweep();
+    void refreshDemandTier(std::size_t row);
+    void expireDemand(
+        std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
+    void reclassifyCurrentRow(
+        std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     ActiveNavigationThumbnailWorkId nextWorkId();
     void cancel(std::size_t row, std::vector<ActiveNavigationThumbnailScheduleEffect>& effects);
     void start(std::size_t row, ActiveNavigationThumbnailWorkKind kind, Tier tier,
@@ -129,11 +144,23 @@ private:
     ThumbnailSourceAdapter m_sourceAdapter;
     std::vector<RowState> m_rows;
     quint64 m_navigationGeneration = 0;
+    quint64 m_demandSnapshotEpoch = 0;
+    quint64 m_admissionEpoch = 1;
     quint64 m_nextWorkId = 1;
     int m_currentNumber = 0;
     bool m_backgroundArmed = false;
+    bool m_continuationOutstanding = false;
+    std::size_t m_backgroundCursor = 0;
+    std::size_t m_backgroundRemaining = 0;
+    std::optional<std::size_t> m_currentRow;
+    std::optional<std::size_t> m_activeBackgroundRow;
+    std::set<std::size_t> m_acceptedDemandRows;
+    std::set<std::size_t> m_highDemandRows;
+    std::set<std::size_t> m_nearbyDemandRows;
+    std::set<std::size_t> m_activeNearbyRows;
     QHash<ThumbnailDemandKey, std::size_t> m_rowByDemandIdentity;
     QHash<ThumbnailSourceRevisionKey, std::size_t> m_rowBySourceIdentity;
+    QHash<int, std::size_t> m_rowByNumber;
 };
 }
 

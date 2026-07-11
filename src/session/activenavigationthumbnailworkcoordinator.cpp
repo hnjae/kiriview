@@ -6,6 +6,7 @@
 #include "session/thumbnaillogging.h"
 
 #include <QDebug>
+#include <QMetaObject>
 #include <utility>
 
 namespace {
@@ -140,6 +141,17 @@ void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
     ActiveNavigationThumbnailAcceptCompletionEffect effect)
 {
     publishCompletion(effect);
+}
+
+void ActiveNavigationThumbnailWorkCoordinator::applyEffect(
+    ActiveNavigationThumbnailScheduleContinuationEffect effect)
+{
+    QMetaObject::invokeMethod(
+        this,
+        [this, admissionEpoch = effect.admissionEpoch]() {
+            applyEffects(m_scheduler.continueAdmission(admissionEpoch));
+        },
+        Qt::QueuedConnection);
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
