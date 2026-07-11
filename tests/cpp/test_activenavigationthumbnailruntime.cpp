@@ -73,17 +73,19 @@ void TestActiveNavigationThumbnailRuntime::rowIdentityChangesGenerationButCurren
 void TestActiveNavigationThumbnailRuntime::defaultSourceAdapterAcceptsOnlySupportedLocalRows()
 {
     const auto adapter = kiriview::defaultThumbnailSourceAdapter();
-    kiriview::ThumbnailSourceKey localKey;
-    localKey.url = QUrl::fromLocalFile(QStringLiteral("/media/one.png"));
-    localKey.sourceKind = kiriview::activeNavigationThumbnailSourceKindIdentity(
-        kiriview::ActiveNavigationThumbnailSourceKind::DirectImage);
+    auto localKey = kiriview::thumbnailSourceRevisionKey(1,
+        QUrl::fromLocalFile(QStringLiteral("/media/one.png")), QStringLiteral("one.png"),
+        QStringLiteral("image"),
+        kiriview::activeNavigationThumbnailSourceKindIdentity(
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+        1);
     QCOMPARE(
         adapter({ localKey }).kind, kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile);
 
-    localKey.url = QUrl(QStringLiteral("https://example.invalid/one.png"));
+    localKey.sourceUrl = QUrl(QStringLiteral("https://example.invalid/one.png"));
     QCOMPARE(adapter({ localKey }).kind, kiriview::ThumbnailSourceAdapterPlanKind::Unsupported);
-    localKey.url = QUrl::fromLocalFile(QStringLiteral("/media/archive.zip"));
-    localKey.sourceKind = QStringLiteral("collection");
+    localKey.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/archive.zip"));
+    localKey.row.sourceKind = QStringLiteral("collection");
     QCOMPARE(adapter({ localKey }).kind, kiriview::ThumbnailSourceAdapterPlanKind::Unsupported);
 }
 

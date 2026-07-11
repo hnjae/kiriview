@@ -30,15 +30,12 @@ kiriview::ActiveNavigationThumbnailWorkRequest request(
     plan.kind = planKind;
     plan.localPathBytes = path;
     plan.originalIdentity = kiriview::ThumbnailOriginalIdentity::fromLocalPathBytes(path);
-    kiriview::ThumbnailSourceKey sourceKey;
-    sourceKey.rowNumber = 1;
-    sourceKey.url = QUrl::fromLocalFile(QString::fromUtf8(path));
-    sourceKey.label = QStringLiteral("one.png");
-    sourceKey.pageKind = QStringLiteral("image");
-    sourceKey.sourceKind = kiriview::activeNavigationThumbnailSourceKindIdentity(
-        kiriview::ActiveNavigationThumbnailSourceKind::DirectImage);
-    sourceKey.rowIdentity = QStringLiteral("row-one");
-    sourceKey.navigationGeneration = 7;
+    auto sourceKey
+        = kiriview::thumbnailSourceRevisionKey(1, QUrl::fromLocalFile(QString::fromUtf8(path)),
+            QStringLiteral("one.png"), QStringLiteral("image"),
+            kiriview::activeNavigationThumbnailSourceKindIdentity(
+                kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+            7);
     return {
         { id },
         std::move(sourceKey),

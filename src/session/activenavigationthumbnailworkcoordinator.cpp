@@ -51,7 +51,7 @@ ActiveNavigationThumbnailWorkCoordinator::~ActiveNavigationThumbnailWorkCoordina
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::resetRows(
-    std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration)
+    std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration)
 {
     applyEffects(m_scheduler.reset(std::move(rows), navigationGeneration));
 }
@@ -173,7 +173,7 @@ void ActiveNavigationThumbnailWorkCoordinator::publishCompletion(
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::recordFailureDiagnostic(
-    ActiveNavigationThumbnailWorkId workId, const ThumbnailSourceKey& sourceKey,
+    ActiveNavigationThumbnailWorkId workId, const ThumbnailSourceRevisionKey& sourceKey,
     ActiveNavigationThumbnailWorkKind workKind, ActiveNavigationThumbnailDemandBucket bucket,
     ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString)
 {
@@ -182,9 +182,10 @@ void ActiveNavigationThumbnailWorkCoordinator::recordFailureDiagnostic(
     m_failureDiagnostics.push_back(
         { workId, sourceKey, workKind, bucket, failureKind, resolvedErrorString });
     qCDebug(kiriviewThumbnailLog) << "Thumbnail failure diagnostic" << workId.value << "kind"
-                                  << static_cast<int>(workKind) << "number" << sourceKey.rowNumber
-                                  << "url" << sourceKey.url << "bucket" << static_cast<int>(bucket)
-                                  << "failure" << static_cast<int>(failureKind) << "error"
+                                  << static_cast<int>(workKind) << "number"
+                                  << sourceKey.row.rowNumber << "url" << sourceKey.sourceUrl
+                                  << "bucket" << static_cast<int>(bucket) << "failure"
+                                  << static_cast<int>(failureKind) << "error"
                                   << resolvedErrorString;
 }
 }

@@ -107,7 +107,7 @@ public:
 kiriview::ThumbnailSourceAdapter localAdapter()
 {
     return [](kiriview::ThumbnailSourceAdapterRequest request) {
-        const QByteArray path = request.sourceKey.url.toLocalFile().toUtf8();
+        const QByteArray path = request.sourceKey.sourceUrl.toLocalFile().toUtf8();
         return kiriview::ThumbnailSourceAdapterPlan {
             kiriview::ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
             path,
@@ -148,7 +148,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndP
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
-        { { 1, rows.sourceKeyAt(0).url, Bucket::Large, Priority::Visible } })));
+        { { 1, rows.sourceKeyAt(0).sourceUrl, Bucket::Large, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
     QCOMPARE(providers.generations.size(), std::size_t(1));
@@ -169,7 +169,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
-    const QUrl url = rows.sourceKeyAt(0).url;
+    const QUrl url = rows.sourceKeyAt(0).sourceUrl;
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
         rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
@@ -197,7 +197,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
     coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
-    const QUrl url = rows.sourceKeyAt(0).url;
+    const QUrl url = rows.sourceKeyAt(0).sourceUrl;
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
         rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
@@ -236,8 +236,8 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     const quint64 generation = rows.navigationGeneration();
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
-        { { 2, rows.sourceKeyAt(1).url, Bucket::Normal, Priority::Nearby },
-            { 1, rows.sourceKeyAt(0).url, Bucket::Normal, Priority::Visible } })));
+        { { 2, rows.sourceKeyAt(1).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 1, rows.sourceKeyAt(0).sourceUrl, Bucket::Normal, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     QCOMPARE(providers.lookups.front().request.localPathBytes, QByteArray("/media/one.png"));
 

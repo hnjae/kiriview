@@ -8,25 +8,6 @@
 #include <utility>
 
 namespace kiriview {
-namespace {
-    QString demandIdentity(int number, const QUrl& url, quint64 generation)
-    {
-        return QStringLiteral("%1\x1f%2\x1f%3")
-            .arg(number)
-            .arg(url.toString(QUrl::FullyEncoded))
-            .arg(generation);
-    }
-
-    QString sourceIdentity(const ThumbnailSourceKey& sourceKey)
-    {
-        return QStringLiteral("%1\x1f%2\x1f%3\x1f%4\x1f%5\x1f%6\x1f%7")
-            .arg(sourceKey.rowNumber)
-            .arg(sourceKey.url.toString(QUrl::FullyEncoded), sourceKey.label, sourceKey.pageKind,
-                sourceKey.sourceKind, sourceKey.rowIdentity)
-            .arg(sourceKey.navigationGeneration);
-    }
-}
-
 ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
 {
     return [](ThumbnailSourceAdapterRequest request) {
@@ -34,12 +15,12 @@ ThumbnailSourceAdapter defaultThumbnailSourceAdapter()
             ActiveNavigationThumbnailSourceKind::DirectImage);
         const QString directVideo = activeNavigationThumbnailSourceKindIdentity(
             ActiveNavigationThumbnailSourceKind::DirectVideo);
-        if ((request.sourceKey.sourceKind != directImage
-                && request.sourceKey.sourceKind != directVideo)
-            || !request.sourceKey.url.isLocalFile()) {
+        if ((request.sourceKey.row.sourceKind != directImage
+                && request.sourceKey.row.sourceKind != directVideo)
+            || !request.sourceKey.sourceUrl.isLocalFile()) {
             return ThumbnailSourceAdapterPlan {};
         }
-        const QByteArray path = QFile::encodeName(request.sourceKey.url.toLocalFile());
+        const QByteArray path = QFile::encodeName(request.sourceKey.sourceUrl.toLocalFile());
         return ThumbnailSourceAdapterPlan { ThumbnailSourceAdapterPlanKind::CacheableLocalFile,
             path, ThumbnailOriginalIdentity::fromLocalPathBytes(path), {} };
     };
@@ -52,18 +33,19 @@ ActiveNavigationThumbnailScheduler::ActiveNavigationThumbnailScheduler(
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect> ActiveNavigationThumbnailScheduler::reset(
-    std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration)
+    std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration)
 {
     auto effects = invalidate();
     m_rows.reserve(rows.size());
-    for (ThumbnailSourceKey& sourceKey : rows) {
+    for (ThumbnailSourceRevisionKey& sourceKey : rows) {
         RowState state;
         state.sourceKey = std::move(sourceKey);
         const std::size_t row = m_rows.size();
-        m_rowByDemandIdentity.insert(demandIdentity(state.sourceKey.rowNumber, state.sourceKey.url,
-                                         state.sourceKey.navigationGeneration),
+        m_rowByDemandIdentity.insert(
+            thumbnailDemandKey(state.sourceKey.row.rowNumber, state.sourceKey.sourceUrl,
+                state.sourceKey.navigationGeneration),
             row);
-        m_rowBySourceIdentity.insert(sourceIdentity(state.sourceKey), row);
+        m_rowBySourceIdentity.insert(state.sourceKey, row);
         m_rows.push_back(std::move(state));
     }
     m_navigationGeneration = navigationGeneration;
@@ -94,7 +76,7 @@ ActiveNavigationThumbnailScheduler::setCurrentNumber(int currentNumber)
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         RowState& state = m_rows.at(row);
         if (state.acceptedDemand.has_value()) {
-            const auto retention = state.sourceKey.rowNumber == m_currentNumber
+            const auto retention = state.sourceKey.row.rowNumber == m_currentNumber
                 ? ActiveNavigationThumbnailRetentionClass::Visible
                 : retentionClass(state.acceptedDemand->priority);
             effects.emplace_back(
@@ -160,7 +142,7 @@ ActiveNavigationThumbnailScheduler::replaceDemandSnapshot(
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         RowState& state = m_rows.at(row);
         if (!demands.at(row).has_value()) {
-            if (state.sourceKey.rowNumber != m_currentNumber) {
+            if (state.sourceKey.row.rowNumber != m_currentNumber) {
                 cancel(row, effects);
                 state.acceptedDemand.reset();
                 state.completedDemandBucket.reset();
@@ -242,9 +224,8 @@ bool ActiveNavigationThumbnailScheduler::sameDemand(const Demand& left, const De
 bool ActiveNavigationThumbnailScheduler::sameDemandExceptPriority(
     const Demand& left, const Demand& right)
 {
-    return sameThumbnailSourceKey(left.sourceKey, right.sourceKey)
-        && left.sourceKey.navigationGeneration == right.sourceKey.navigationGeneration
-        && left.bucket == right.bucket && left.sourcePlan.kind == right.sourcePlan.kind
+    return left.sourceKey == right.sourceKey && left.bucket == right.bucket
+        && left.sourcePlan.kind == right.sourcePlan.kind
         && left.sourcePlan.localPathBytes == right.sourcePlan.localPathBytes
         && left.sourcePlan.originalIdentity.uri == right.sourcePlan.originalIdentity.uri
         && left.sourcePlan.originalIdentity.localPathBytes
@@ -282,15 +263,16 @@ ActiveNavigationThumbnailScheduler::backgroundBuckets()
 std::optional<std::size_t> ActiveNavigationThumbnailScheduler::rowForIdentity(
     int number, const QUrl& url, quint64 generation) const
 {
-    const auto iterator = m_rowByDemandIdentity.constFind(demandIdentity(number, url, generation));
+    const auto iterator
+        = m_rowByDemandIdentity.constFind(thumbnailDemandKey(number, url, generation));
     return iterator == m_rowByDemandIdentity.cend() ? std::nullopt
                                                     : std::optional<std::size_t>(*iterator);
 }
 
 std::optional<std::size_t> ActiveNavigationThumbnailScheduler::rowForSourceKey(
-    const ThumbnailSourceKey& sourceKey) const
+    const ThumbnailSourceRevisionKey& sourceKey) const
 {
-    const auto iterator = m_rowBySourceIdentity.constFind(sourceIdentity(sourceKey));
+    const auto iterator = m_rowBySourceIdentity.constFind(sourceKey);
     return iterator == m_rowBySourceIdentity.cend() ? std::nullopt
                                                     : std::optional<std::size_t>(*iterator);
 }
@@ -298,7 +280,7 @@ std::optional<std::size_t> ActiveNavigationThumbnailScheduler::rowForSourceKey(
 ActiveNavigationThumbnailScheduler::Tier ActiveNavigationThumbnailScheduler::tierFor(
     std::size_t row, const Demand& demand) const
 {
-    if (m_rows.at(row).sourceKey.rowNumber == m_currentNumber) {
+    if (m_rows.at(row).sourceKey.row.rowNumber == m_currentNumber) {
         return Tier::Current;
     }
     return demand.priority == ActiveNavigationThumbnailDemandPriority::Visible ? Tier::Visible

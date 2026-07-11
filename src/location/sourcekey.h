@@ -48,14 +48,26 @@ struct OpenedCollectionEntrySourceKey
     QString collectionKind;
 };
 
-struct ThumbnailSourceKey
+struct ThumbnailRowKey
 {
     int rowNumber = 0;
-    QUrl url;
+    SourceKey source;
     QString label;
     QString pageKind;
     QString sourceKind;
-    QString rowIdentity;
+};
+
+struct ThumbnailDemandKey
+{
+    int rowNumber = 0;
+    SourceKey source;
+    quint64 navigationGeneration = 0;
+};
+
+struct ThumbnailSourceRevisionKey
+{
+    ThumbnailRowKey row;
+    QUrl sourceUrl;
     quint64 navigationGeneration = 0;
 };
 
@@ -86,8 +98,10 @@ ImageDocumentPageSourceKey imageDocumentPageSourceKey(
     const QUrl& scopeUrl, const QUrl& pageUrl, const QString& pageKind);
 OpenedCollectionEntrySourceKey openedCollectionEntrySourceKey(
     const QUrl& scopeUrl, const QUrl& entryUrl, const QString& collectionKind);
-ThumbnailSourceKey thumbnailSourceKey(int rowNumber, const QUrl& url, const QString& label,
-    const QString& pageKind, const QString& sourceKind, quint64 navigationGeneration);
+ThumbnailDemandKey thumbnailDemandKey(int rowNumber, const QUrl& url, quint64 navigationGeneration);
+ThumbnailSourceRevisionKey thumbnailSourceRevisionKey(int rowNumber, const QUrl& url,
+    const QString& label, const QString& pageKind, const QString& sourceKind,
+    quint64 navigationGeneration);
 PredecodeCandidateKey predecodeCandidateKey(
     const QUrl& payloadUrl, const QUrl& scopeUrl, quint64 generation);
 RenderSurfaceKey renderSurfaceKey(const QString& surfaceIdentity, quint64 surfaceGeneration,
@@ -101,7 +115,16 @@ bool sameImageDocumentPageSourceKey(
     const ImageDocumentPageSourceKey& left, const ImageDocumentPageSourceKey& right);
 bool sameOpenedCollectionEntrySourceKey(
     const OpenedCollectionEntrySourceKey& left, const OpenedCollectionEntrySourceKey& right);
-bool sameThumbnailSourceKey(const ThumbnailSourceKey& left, const ThumbnailSourceKey& right);
+bool isValidThumbnailRowKey(const ThumbnailRowKey& key);
+bool isValidThumbnailDemandKey(const ThumbnailDemandKey& key);
+bool isValidThumbnailSourceRevisionKey(const ThumbnailSourceRevisionKey& key);
+bool sameThumbnailRowKey(const ThumbnailRowKey& left, const ThumbnailRowKey& right);
+bool operator==(const ThumbnailRowKey& left, const ThumbnailRowKey& right);
+bool operator!=(const ThumbnailRowKey& left, const ThumbnailRowKey& right);
+bool operator==(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right);
+bool operator!=(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right);
+bool operator==(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right);
+bool operator!=(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right);
 bool samePredecodeCandidateKey(
     const PredecodeCandidateKey& left, const PredecodeCandidateKey& right);
 bool sameRenderSurfaceKey(const RenderSurfaceKey& left, const RenderSurfaceKey& right);
@@ -113,7 +136,9 @@ uint qHash(const DirectMediaSourceKey& key, uint seed = 0);
 uint qHash(const DirectMediaScopeKey& key, uint seed = 0);
 uint qHash(const ImageDocumentPageSourceKey& key, uint seed = 0);
 uint qHash(const OpenedCollectionEntrySourceKey& key, uint seed = 0);
-uint qHash(const ThumbnailSourceKey& key, uint seed = 0);
+uint qHash(const ThumbnailRowKey& key, uint seed = 0);
+uint qHash(const ThumbnailDemandKey& key, uint seed = 0);
+uint qHash(const ThumbnailSourceRevisionKey& key, uint seed = 0);
 uint qHash(const PredecodeCandidateKey& key, uint seed = 0);
 uint qHash(const RenderSurfaceKey& key, uint seed = 0);
 }

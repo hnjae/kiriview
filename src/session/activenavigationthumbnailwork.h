@@ -55,7 +55,7 @@ enum class ThumbnailSourceAdapterPlanKind {
 
 struct ThumbnailSourceAdapterRequest
 {
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
     ActiveNavigationThumbnailDemandBucket requestedBucket
         = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailDemandPriority priority
@@ -73,7 +73,7 @@ struct ThumbnailSourceAdapterPlan
 struct ActiveNavigationThumbnailWorkRequest
 {
     ActiveNavigationThumbnailWorkId workId;
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
     ThumbnailSourceAdapterPlan sourcePlan;
@@ -96,7 +96,7 @@ struct ActiveNavigationThumbnailWorkResult
 struct ActiveNavigationThumbnailWorkCompletion
 {
     ActiveNavigationThumbnailWorkId workId;
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
     ActiveNavigationThumbnailWorkResult result;

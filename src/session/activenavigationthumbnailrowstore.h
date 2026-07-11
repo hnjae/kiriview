@@ -36,15 +36,15 @@ public:
     ActiveNavigationThumbnailRowPort(const ActiveNavigationThumbnailRowPort&) = delete;
     ActiveNavigationThumbnailRowPort& operator=(const ActiveNavigationThumbnailRowPort&) = delete;
 
-    virtual bool hasUsableReadyImage(const ThumbnailSourceKey& sourceKey) const = 0;
-    virtual void applyPending(const ThumbnailSourceKey& sourceKey) = 0;
-    virtual void applyUnsupported(const ThumbnailSourceKey& sourceKey) = 0;
-    virtual void applyFailed(const ThumbnailSourceKey& sourceKey) = 0;
-    virtual bool installReadyImage(const ThumbnailSourceKey& sourceKey, const QImage& image,
+    virtual bool hasUsableReadyImage(const ThumbnailSourceRevisionKey& sourceKey) const = 0;
+    virtual void applyPending(const ThumbnailSourceRevisionKey& sourceKey) = 0;
+    virtual void applyUnsupported(const ThumbnailSourceRevisionKey& sourceKey) = 0;
+    virtual void applyFailed(const ThumbnailSourceRevisionKey& sourceKey) = 0;
+    virtual bool installReadyImage(const ThumbnailSourceRevisionKey& sourceKey, const QImage& image,
         ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage)
         = 0;
     virtual void updateRetentionPriority(
-        const ThumbnailSourceKey& sourceKey, ThumbnailImageRetentionPriority priority)
+        const ThumbnailSourceRevisionKey& sourceKey, ThumbnailImageRetentionPriority priority)
         = 0;
 
 protected:
@@ -64,7 +64,7 @@ public:
     QAbstractListModel* model() const;
     quint64 navigationGeneration() const;
     std::size_t rowCount() const;
-    std::vector<ThumbnailSourceKey> sourceKeys() const;
+    std::vector<ThumbnailSourceRevisionKey> sourceKeys() const;
     bool hasSameRowIdentities(const std::vector<ActiveNavigationThumbnailRow>& rows) const;
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
@@ -72,32 +72,31 @@ public:
 
     std::optional<std::size_t> rowIndexForIdentity(
         int number, const QUrl& url, quint64 navigationGeneration) const;
-    std::optional<std::size_t> rowIndexForSourceKey(const ThumbnailSourceKey& sourceKey) const;
-    ThumbnailSourceKey sourceKeyAt(std::size_t row) const;
-    bool hasUsableReadyImage(const ThumbnailSourceKey& sourceKey) const override;
-    void applyPending(const ThumbnailSourceKey& sourceKey) override;
-    void applyUnsupported(const ThumbnailSourceKey& sourceKey) override;
-    void applyFailed(const ThumbnailSourceKey& sourceKey) override;
+    std::optional<std::size_t> rowIndexForSourceKey(
+        const ThumbnailSourceRevisionKey& sourceKey) const;
+    ThumbnailSourceRevisionKey sourceKeyAt(std::size_t row) const;
+    bool hasUsableReadyImage(const ThumbnailSourceRevisionKey& sourceKey) const override;
+    void applyPending(const ThumbnailSourceRevisionKey& sourceKey) override;
+    void applyUnsupported(const ThumbnailSourceRevisionKey& sourceKey) override;
+    void applyFailed(const ThumbnailSourceRevisionKey& sourceKey) override;
     void applyResult(
-        const ThumbnailSourceKey& sourceKey, const ActiveNavigationThumbnailResult& result);
-    bool installReadyImage(const ThumbnailSourceKey& sourceKey, const QImage& image,
+        const ThumbnailSourceRevisionKey& sourceKey, const ActiveNavigationThumbnailResult& result);
+    bool installReadyImage(const ThumbnailSourceRevisionKey& sourceKey, const QImage& image,
         ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage) override;
-    void updateRetentionPriority(
-        const ThumbnailSourceKey& sourceKey, ThumbnailImageRetentionPriority priority) override;
+    void updateRetentionPriority(const ThumbnailSourceRevisionKey& sourceKey,
+        ThumbnailImageRetentionPriority priority) override;
 
 private:
     struct RowState
     {
         ActiveNavigationThumbnailRow row;
-        ThumbnailSourceKey sourceKey;
+        ThumbnailSourceRevisionKey sourceKey;
         ActiveNavigationThumbnailResult result;
         QString imageStoreId;
     };
 
     static bool sameRowIdentity(
         const ActiveNavigationThumbnailRow& left, const ActiveNavigationThumbnailRow& right);
-    static QString rowDemandIndexKey(int number, const QUrl& url, quint64 navigationGeneration);
-    static QString sourceKeyIndexKey(const ThumbnailSourceKey& sourceKey);
     bool hasUsableReadyImage(const RowState& state) const;
     void releaseImage(RowState& state);
     void releaseAllImages();
@@ -109,8 +108,8 @@ private:
     std::shared_ptr<ThumbnailImageStore> m_imageStore;
     std::vector<RowState> m_rows;
     quint64 m_navigationGeneration = 0;
-    QHash<QString, std::size_t> m_rowIndexByDemandIdentity;
-    QHash<QString, std::size_t> m_rowIndexBySourceKey;
+    QHash<ThumbnailDemandKey, std::size_t> m_rowIndexByDemandIdentity;
+    QHash<ThumbnailSourceRevisionKey, std::size_t> m_rowIndexBySourceKey;
 };
 }
 

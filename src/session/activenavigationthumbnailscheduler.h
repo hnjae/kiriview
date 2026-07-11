@@ -30,17 +30,17 @@ struct ActiveNavigationThumbnailStartWorkEffect
 
 struct ActiveNavigationThumbnailApplyPendingEffect
 {
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
 };
 
 struct ActiveNavigationThumbnailApplyUnsupportedEffect
 {
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
 };
 
 struct ActiveNavigationThumbnailUpdateRetentionEffect
 {
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
     ActiveNavigationThumbnailRetentionClass retentionClass
         = ActiveNavigationThumbnailRetentionClass::Background;
 };
@@ -65,7 +65,7 @@ public:
     explicit ActiveNavigationThumbnailScheduler(ThumbnailSourceAdapter sourceAdapter);
 
     std::vector<ActiveNavigationThumbnailScheduleEffect> reset(
-        std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration);
+        std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration);
     std::vector<ActiveNavigationThumbnailScheduleEffect> invalidate();
     std::vector<ActiveNavigationThumbnailScheduleEffect> setCurrentNumber(int currentNumber);
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> replaceDemandSnapshot(
@@ -83,7 +83,7 @@ private:
 
     struct Demand
     {
-        ThumbnailSourceKey sourceKey;
+        ThumbnailSourceRevisionKey sourceKey;
         ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
         ActiveNavigationThumbnailDemandPriority priority
             = ActiveNavigationThumbnailDemandPriority::Nearby;
@@ -100,7 +100,7 @@ private:
 
     struct RowState
     {
-        ThumbnailSourceKey sourceKey;
+        ThumbnailSourceRevisionKey sourceKey;
         std::optional<Demand> acceptedDemand;
         std::optional<Claim> activeWork;
         std::optional<ActiveNavigationThumbnailDemandBucket> completedDemandBucket;
@@ -115,7 +115,7 @@ private:
     static std::vector<ActiveNavigationThumbnailDemandBucket> backgroundBuckets();
     std::optional<std::size_t> rowForIdentity(
         int number, const QUrl& url, quint64 generation) const;
-    std::optional<std::size_t> rowForSourceKey(const ThumbnailSourceKey& sourceKey) const;
+    std::optional<std::size_t> rowForSourceKey(const ThumbnailSourceRevisionKey& sourceKey) const;
     Tier tierFor(std::size_t row, const Demand& demand) const;
     bool demandComplete(const RowState& state) const;
     bool backgroundComplete(
@@ -132,8 +132,8 @@ private:
     quint64 m_nextWorkId = 1;
     int m_currentNumber = 0;
     bool m_backgroundArmed = false;
-    QHash<QString, std::size_t> m_rowByDemandIdentity;
-    QHash<QString, std::size_t> m_rowBySourceIdentity;
+    QHash<ThumbnailDemandKey, std::size_t> m_rowByDemandIdentity;
+    QHash<ThumbnailSourceRevisionKey, std::size_t> m_rowBySourceIdentity;
 };
 }
 

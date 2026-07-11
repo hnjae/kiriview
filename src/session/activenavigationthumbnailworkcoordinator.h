@@ -18,7 +18,7 @@ namespace kiriview {
 struct ActiveNavigationThumbnailFailureDiagnostic
 {
     ActiveNavigationThumbnailWorkId workId;
-    ThumbnailSourceKey sourceKey;
+    ThumbnailSourceRevisionKey sourceKey;
     ActiveNavigationThumbnailWorkKind workKind = ActiveNavigationThumbnailWorkKind::Foreground;
     ActiveNavigationThumbnailDemandBucket bucket = ActiveNavigationThumbnailDemandBucket::None;
     ActiveNavigationThumbnailFailureKind failureKind
@@ -40,7 +40,7 @@ public:
         const ActiveNavigationThumbnailWorkCoordinator&)
         = delete;
 
-    void resetRows(std::vector<ThumbnailSourceKey> rows, quint64 navigationGeneration);
+    void resetRows(std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration);
     void invalidateRows();
     void setCurrentNumber(int currentNumber);
     bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
@@ -58,7 +58,7 @@ private:
     void applyEffect(ActiveNavigationThumbnailAcceptCompletionEffect effect);
     void publishCompletion(const ActiveNavigationThumbnailAcceptCompletionEffect& effect);
     void recordFailureDiagnostic(ActiveNavigationThumbnailWorkId workId,
-        const ThumbnailSourceKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
+        const ThumbnailSourceRevisionKey& sourceKey, ActiveNavigationThumbnailWorkKind workKind,
         ActiveNavigationThumbnailDemandBucket bucket,
         ActiveNavigationThumbnailFailureKind failureKind, const QString& errorString);
 

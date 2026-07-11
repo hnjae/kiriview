@@ -144,9 +144,9 @@ public:
         providerRequest.localPathBytes = request.sourcePlan.localPathBytes;
         providerRequest.originalIdentity = request.sourcePlan.originalIdentity;
         providerRequest.openedCollectionScope = request.sourcePlan.openedCollectionScope;
-        providerRequest.sourceUrl = request.sourceKey.url;
-        providerRequest.sourceLabel = request.sourceKey.label;
-        providerRequest.sourceKind = thumbnailSourceKind(request.sourceKey.sourceKind);
+        providerRequest.sourceUrl = request.sourceKey.sourceUrl;
+        providerRequest.sourceLabel = request.sourceKey.row.label;
+        providerRequest.sourceKind = thumbnailSourceKind(request.sourceKey.row.sourceKind);
         providerRequest.requestedBucket = request.bucket;
         providerRequest.cacheInstallEnabled = enablesCacheInstall(request.sourcePlan);
         const std::weak_ptr<State> weakState = weak_from_this();

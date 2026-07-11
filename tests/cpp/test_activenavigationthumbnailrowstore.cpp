@@ -66,7 +66,7 @@ void TestActiveNavigationThumbnailRowStore::identityReplacementAdvancesGeneratio
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore store(this, images);
     store.setRows({ row(1, QStringLiteral("/media/one.png"), true) });
-    const kiriview::ThumbnailSourceKey firstKey = store.sourceKeyAt(0);
+    const kiriview::ThumbnailSourceRevisionKey firstKey = store.sourceKeyAt(0);
     QVERIFY(store.installReadyImage(
         firstKey, image(Qt::red), kiriview::ThumbnailImageRetentionPriority::Visible, false));
     QCOMPARE(images->size(), qsizetype(1));
@@ -85,7 +85,7 @@ void TestActiveNavigationThumbnailRowStore::currentOnlyChangePreservesGeneration
     kiriview::ActiveNavigationThumbnailRowStore store(this, images);
     store.setRows({ row(1, QStringLiteral("/media/one.png"), true),
         row(2, QStringLiteral("/media/two.png")) });
-    const kiriview::ThumbnailSourceKey firstKey = store.sourceKeyAt(0);
+    const kiriview::ThumbnailSourceRevisionKey firstKey = store.sourceKeyAt(0);
     QVERIFY(store.installReadyImage(
         firstKey, image(Qt::green), kiriview::ThumbnailImageRetentionPriority::Visible, false));
     const QUrl readySource = store.resultAt(0).imageSource;
@@ -105,7 +105,7 @@ void TestActiveNavigationThumbnailRowStore::readyReplacementReleasesPreviousEntr
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore store(this, images);
     store.setRows({ row(1, QStringLiteral("/media/one.png"), true) });
-    const kiriview::ThumbnailSourceKey key = store.sourceKeyAt(0);
+    const kiriview::ThumbnailSourceRevisionKey key = store.sourceKeyAt(0);
     QVERIFY(store.installReadyImage(
         key, image(Qt::red), kiriview::ThumbnailImageRetentionPriority::Visible, false));
     const QString firstId = imageId(store.resultAt(0).imageSource);
@@ -128,7 +128,7 @@ void TestActiveNavigationThumbnailRowStore::staleSourceKeyCannotMutateCurrentRow
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore store(this, images);
     store.setRows({ row(1, QStringLiteral("/media/one.png"), true) });
-    kiriview::ThumbnailSourceKey staleKey = store.sourceKeyAt(0);
+    kiriview::ThumbnailSourceRevisionKey staleKey = store.sourceKeyAt(0);
     ++staleKey.navigationGeneration;
 
     store.applyPending(staleKey);

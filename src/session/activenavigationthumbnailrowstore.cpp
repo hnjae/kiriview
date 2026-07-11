@@ -10,10 +10,10 @@
 #include <utility>
 
 namespace {
-kiriview::ThumbnailSourceKey sourceKeyForRow(
+kiriview::ThumbnailSourceRevisionKey sourceKeyForRow(
     const kiriview::ActiveNavigationThumbnailRow& row, quint64 navigationGeneration)
 {
-    return kiriview::thumbnailSourceKey(row.number, row.url, row.label,
+    return kiriview::thumbnailSourceRevisionKey(row.number, row.url, row.label,
         kiriview::activeNavigationThumbnailPageKindIdentity(row.kind),
         kiriview::activeNavigationThumbnailSourceKindIdentity(row.sourceKind),
         navigationGeneration);
@@ -42,9 +42,9 @@ quint64 ActiveNavigationThumbnailRowStore::navigationGeneration() const
 
 std::size_t ActiveNavigationThumbnailRowStore::rowCount() const { return m_rows.size(); }
 
-std::vector<ThumbnailSourceKey> ActiveNavigationThumbnailRowStore::sourceKeys() const
+std::vector<ThumbnailSourceRevisionKey> ActiveNavigationThumbnailRowStore::sourceKeys() const
 {
-    std::vector<ThumbnailSourceKey> result;
+    std::vector<ThumbnailSourceRevisionKey> result;
     result.reserve(m_rows.size());
     for (const RowState& state : m_rows) {
         result.push_back(state.sourceKey);
@@ -120,8 +120,8 @@ ActiveNavigationThumbnailResult ActiveNavigationThumbnailRowStore::resultAt(std:
 std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForIdentity(
     int number, const QUrl& url, quint64 navigationGeneration) const
 {
-    const QString identity = rowDemandIndexKey(number, url, navigationGeneration);
-    if (identity.isEmpty()) {
+    const ThumbnailDemandKey identity = thumbnailDemandKey(number, url, navigationGeneration);
+    if (!isValidThumbnailDemandKey(identity)) {
         return {};
     }
 
@@ -133,33 +133,32 @@ std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForIdentit
 }
 
 std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForSourceKey(
-    const ThumbnailSourceKey& sourceKey) const
+    const ThumbnailSourceRevisionKey& sourceKey) const
 {
-    const QString identity = sourceKeyIndexKey(sourceKey);
-    if (identity.isEmpty()) {
+    if (!isValidThumbnailSourceRevisionKey(sourceKey)) {
         return {};
     }
 
-    const auto row = m_rowIndexBySourceKey.constFind(identity);
+    const auto row = m_rowIndexBySourceKey.constFind(sourceKey);
     if (row == m_rowIndexBySourceKey.cend()) {
         return {};
     }
     return *row;
 }
 
-ThumbnailSourceKey ActiveNavigationThumbnailRowStore::sourceKeyAt(std::size_t row) const
+ThumbnailSourceRevisionKey ActiveNavigationThumbnailRowStore::sourceKeyAt(std::size_t row) const
 {
     return m_rows.at(row).sourceKey;
 }
 
 bool ActiveNavigationThumbnailRowStore::hasUsableReadyImage(
-    const ThumbnailSourceKey& sourceKey) const
+    const ThumbnailSourceRevisionKey& sourceKey) const
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     return row.has_value() && hasUsableReadyImage(m_rows.at(*row));
 }
 
-void ActiveNavigationThumbnailRowStore::applyPending(const ThumbnailSourceKey& sourceKey)
+void ActiveNavigationThumbnailRowStore::applyPending(const ThumbnailSourceRevisionKey& sourceKey)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value() || hasUsableReadyImage(m_rows.at(*row))) {
@@ -172,7 +171,8 @@ void ActiveNavigationThumbnailRowStore::applyPending(const ThumbnailSourceKey& s
     publishResultAt(*row);
 }
 
-void ActiveNavigationThumbnailRowStore::applyUnsupported(const ThumbnailSourceKey& sourceKey)
+void ActiveNavigationThumbnailRowStore::applyUnsupported(
+    const ThumbnailSourceRevisionKey& sourceKey)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value()) {
@@ -185,7 +185,7 @@ void ActiveNavigationThumbnailRowStore::applyUnsupported(const ThumbnailSourceKe
     publishResultAt(*row);
 }
 
-void ActiveNavigationThumbnailRowStore::applyFailed(const ThumbnailSourceKey& sourceKey)
+void ActiveNavigationThumbnailRowStore::applyFailed(const ThumbnailSourceRevisionKey& sourceKey)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value()) {
@@ -204,7 +204,7 @@ void ActiveNavigationThumbnailRowStore::applyFailed(const ThumbnailSourceKey& so
 }
 
 void ActiveNavigationThumbnailRowStore::applyResult(
-    const ThumbnailSourceKey& sourceKey, const ActiveNavigationThumbnailResult& result)
+    const ThumbnailSourceRevisionKey& sourceKey, const ActiveNavigationThumbnailResult& result)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value()) {
@@ -223,8 +223,9 @@ void ActiveNavigationThumbnailRowStore::applyResult(
     publishResultAt(*row);
 }
 
-bool ActiveNavigationThumbnailRowStore::installReadyImage(const ThumbnailSourceKey& sourceKey,
-    const QImage& image, ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage)
+bool ActiveNavigationThumbnailRowStore::installReadyImage(
+    const ThumbnailSourceRevisionKey& sourceKey, const QImage& image,
+    ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value()) {
@@ -251,7 +252,7 @@ bool ActiveNavigationThumbnailRowStore::installReadyImage(const ThumbnailSourceK
 }
 
 void ActiveNavigationThumbnailRowStore::updateRetentionPriority(
-    const ThumbnailSourceKey& sourceKey, ThumbnailImageRetentionPriority priority)
+    const ThumbnailSourceRevisionKey& sourceKey, ThumbnailImageRetentionPriority priority)
 {
     const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
     if (!row.has_value()) {
@@ -269,31 +270,6 @@ bool ActiveNavigationThumbnailRowStore::sameRowIdentity(
 {
     return left.number == right.number && left.url == right.url && left.label == right.label
         && left.kind == right.kind && left.sourceKind == right.sourceKind;
-}
-
-QString ActiveNavigationThumbnailRowStore::rowDemandIndexKey(
-    int number, const QUrl& url, quint64 navigationGeneration)
-{
-    const SourceKey sourceKey = sourceKeyForUrl(url);
-    if (number <= 0 || !sourceKey.valid || navigationGeneration == 0) {
-        return {};
-    }
-
-    return QStringLiteral("%1\x1f%2\x1f%3")
-        .arg(number)
-        .arg(sourceKey.identity)
-        .arg(navigationGeneration);
-}
-
-QString ActiveNavigationThumbnailRowStore::sourceKeyIndexKey(const ThumbnailSourceKey& sourceKey)
-{
-    if (sourceKey.rowIdentity.isEmpty() || sourceKey.navigationGeneration == 0) {
-        return {};
-    }
-
-    return QStringLiteral("%1\x1f%2")
-        .arg(sourceKey.rowIdentity)
-        .arg(sourceKey.navigationGeneration);
 }
 
 bool ActiveNavigationThumbnailRowStore::hasUsableReadyImage(const RowState& state) const
@@ -324,15 +300,14 @@ void ActiveNavigationThumbnailRowStore::rebuildRowIndexes()
     m_rowIndexBySourceKey.clear();
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         const RowState& state = m_rows.at(row);
-        const QString demandIdentity
-            = rowDemandIndexKey(state.row.number, state.row.url, m_navigationGeneration);
-        if (!demandIdentity.isEmpty()) {
+        const ThumbnailDemandKey demandIdentity
+            = thumbnailDemandKey(state.row.number, state.row.url, m_navigationGeneration);
+        if (isValidThumbnailDemandKey(demandIdentity)) {
             m_rowIndexByDemandIdentity.insert(demandIdentity, row);
         }
 
-        const QString sourceIdentity = sourceKeyIndexKey(state.sourceKey);
-        if (!sourceIdentity.isEmpty()) {
-            m_rowIndexBySourceKey.insert(sourceIdentity, row);
+        if (isValidThumbnailSourceRevisionKey(state.sourceKey)) {
+            m_rowIndexBySourceKey.insert(state.sourceKey, row);
         }
     }
 }

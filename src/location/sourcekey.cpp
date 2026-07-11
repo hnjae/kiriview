@@ -108,22 +108,17 @@ OpenedCollectionEntrySourceKey openedCollectionEntrySourceKey(
     };
 }
 
-ThumbnailSourceKey thumbnailSourceKey(int rowNumber, const QUrl& url, const QString& label,
-    const QString& pageKind, const QString& sourceKind, quint64 navigationGeneration)
+ThumbnailDemandKey thumbnailDemandKey(int rowNumber, const QUrl& url, quint64 navigationGeneration)
 {
-    const SourceKey urlKey = sourceKeyForUrl(url);
-    const QString rowIdentity = QStringLiteral("%1|%2|%3|%4|%5")
-                                    .arg(rowNumber)
-                                    .arg(sourceKind, urlKey.identity, label, pageKind);
-    return ThumbnailSourceKey {
-        rowNumber,
-        url,
-        label,
-        pageKind,
-        sourceKind,
-        rowIdentity,
-        navigationGeneration,
-    };
+    return { rowNumber, sourceKeyForUrl(url), navigationGeneration };
+}
+
+ThumbnailSourceRevisionKey thumbnailSourceRevisionKey(int rowNumber, const QUrl& url,
+    const QString& label, const QString& pageKind, const QString& sourceKind,
+    quint64 navigationGeneration)
+{
+    return { { rowNumber, sourceKeyForUrl(url), label, pageKind, sourceKind }, url,
+        navigationGeneration };
 }
 
 PredecodeCandidateKey predecodeCandidateKey(
@@ -184,9 +179,59 @@ bool sameOpenedCollectionEntrySourceKey(
         && left.collectionKind == right.collectionKind;
 }
 
-bool sameThumbnailSourceKey(const ThumbnailSourceKey& left, const ThumbnailSourceKey& right)
+bool isValidThumbnailRowKey(const ThumbnailRowKey& key)
 {
-    return left.rowIdentity == right.rowIdentity;
+    return key.rowNumber > 0 && key.source.valid;
+}
+
+bool isValidThumbnailDemandKey(const ThumbnailDemandKey& key)
+{
+    return key.rowNumber > 0 && key.source.valid && key.navigationGeneration != 0;
+}
+
+bool isValidThumbnailSourceRevisionKey(const ThumbnailSourceRevisionKey& key)
+{
+    return isValidThumbnailRowKey(key.row) && !key.sourceUrl.isEmpty() && key.sourceUrl.isValid()
+        && key.navigationGeneration != 0;
+}
+
+bool sameThumbnailRowKey(const ThumbnailRowKey& left, const ThumbnailRowKey& right)
+{
+    return left == right;
+}
+
+bool operator==(const ThumbnailRowKey& left, const ThumbnailRowKey& right)
+{
+    return left.rowNumber == right.rowNumber && left.source.valid == right.source.valid
+        && left.source.identity == right.source.identity && left.label == right.label
+        && left.pageKind == right.pageKind && left.sourceKind == right.sourceKind;
+}
+
+bool operator!=(const ThumbnailRowKey& left, const ThumbnailRowKey& right)
+{
+    return !(left == right);
+}
+
+bool operator==(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
+{
+    return left.rowNumber == right.rowNumber && left.source.valid == right.source.valid
+        && left.source.identity == right.source.identity
+        && left.navigationGeneration == right.navigationGeneration;
+}
+
+bool operator!=(const ThumbnailDemandKey& left, const ThumbnailDemandKey& right)
+{
+    return !(left == right);
+}
+
+bool operator==(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right)
+{
+    return left.row == right.row && left.navigationGeneration == right.navigationGeneration;
+}
+
+bool operator!=(const ThumbnailSourceRevisionKey& left, const ThumbnailSourceRevisionKey& right)
+{
+    return !(left == right);
 }
 
 bool samePredecodeCandidateKey(
@@ -238,7 +283,22 @@ uint qHash(const OpenedCollectionEntrySourceKey& key, uint seed)
     return qHashMulti(seed, key.scope, key.entry, key.collectionKind);
 }
 
-uint qHash(const ThumbnailSourceKey& key, uint seed) { return qHash(key.rowIdentity, seed); }
+uint qHash(const ThumbnailRowKey& key, uint seed)
+{
+    return qHashMulti(seed, key.rowNumber, key.source.valid, key.source.identity, key.label,
+        key.pageKind, key.sourceKind);
+}
+
+uint qHash(const ThumbnailDemandKey& key, uint seed)
+{
+    return qHashMulti(
+        seed, key.rowNumber, key.source.valid, key.source.identity, key.navigationGeneration);
+}
+
+uint qHash(const ThumbnailSourceRevisionKey& key, uint seed)
+{
+    return qHashMulti(seed, key.row, key.navigationGeneration);
+}
 
 uint qHash(const PredecodeCandidateKey& key, uint seed)
 {

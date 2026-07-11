@@ -28,7 +28,7 @@ kiriview::ThumbnailSourceAdapter documentSessionThumbnailSourceAdapter(
         }
 
         if (imageDocument == nullptr || !imageDocument->snapshot
-            || request.sourceKey.sourceKind
+            || request.sourceKey.row.sourceKind
                 != kiriview::activeNavigationThumbnailSourceKindIdentity(
                     kiriview::ActiveNavigationThumbnailSourceKind::ImageDocumentPageImage)) {
             return kiriview::ThumbnailSourceAdapterPlan {};
@@ -38,7 +38,7 @@ kiriview::ThumbnailSourceAdapter documentSessionThumbnailSourceAdapter(
             = imageDocument->snapshot().displayedOpenedCollectionScope;
         const kiriview::OpenedCollectionThumbnailSourcePlan collectionPlan
             = kiriview::openedCollectionThumbnailSourcePlan(openedCollectionScope,
-                request.sourceKey.url, kiriview::ImageDocumentPageKind::Image);
+                request.sourceKey.sourceUrl, kiriview::ImageDocumentPageKind::Image);
         if (collectionPlan.kind
             != kiriview::OpenedCollectionThumbnailSourcePlanKind::CacheableOpenedCollectionEntry) {
             return kiriview::ThumbnailSourceAdapterPlan {};
