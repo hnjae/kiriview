@@ -287,6 +287,9 @@ public:
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
     ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
+    ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
+        ImageViewport::PageRole role, const GeometryInput& geometry);
+    quint64 currentProviderGeneration() const;
     ImageSequenceProviderDisplayDemand providerDisplayDemand(
         ImageViewport::PageRole role, const GeometryInput& geometry);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);

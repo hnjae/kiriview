@@ -342,6 +342,35 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
     return result;
 }
 
+quint64 ViewportEngine::currentProviderGeneration() const
+{
+    return m_requestState.sequenceGeneration;
+}
+
+ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameRequest(
+    ImageViewport::PageRole role, const GeometryInput& geometry)
+{
+    ViewportProviderFrameQueueFlushResult result;
+    const auto flush = flushQueuedProviderFrameRequest(role);
+    if (!flush.startRequest) {
+        return result;
+    }
+    const auto& request = requestForRole(m_requestState, role);
+    const DisplayRequestTarget target {
+        flush.frame, request.target.position, flush.targetKind };
+    const auto start = startProviderFrameRequest(role, target, geometry);
+    result.providerFrameTransport.closeSession = start.closeSession;
+    result.providerFrameTransport.sessionClose = start.sessionClose;
+    result.providerFrameTransport.sendCommand = start.sendCommand;
+    result.providerFrameTransport.command = start.command;
+    result.changes.requestState = true;
+    result.changes.requestRevision = true;
+    result.changes.diagnostics = m_requestState.status == ImageViewport::RequestStatus::Error
+        && m_requestState.reason == ImageViewport::RequestReason::ProviderFailure;
+    result.schedule = playbackScheduleEffect();
+    return result;
+}
+
 ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAdmission(
     ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata)
 {

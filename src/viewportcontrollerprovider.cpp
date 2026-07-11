@@ -90,7 +90,7 @@ quint64 ViewportController::currentProviderGeneration() const
 
 quint64 ViewportController::currentProviderGeneration(ImageViewport::PageRole) const
 {
-    return viewportRequestState(viewport).sequenceGeneration;
+    return state.engine.currentProviderGeneration();
 }
 
 std::shared_ptr<ImageSequenceProviderSessionFactory> ViewportController::providerSessionFactory(
@@ -348,29 +348,8 @@ ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFra
 ViewportProviderFrameQueueFlushResult ViewportController::flushQueuedProviderFrameRequestEvent(
     ImageViewport::PageRole role)
 {
-    ViewportProviderFrameQueueFlushResult result;
-    const ViewportProviderFrameQueueFlush flush = flushQueuedProviderFrameRequest(role);
-    if (!flush.startRequest) {
-        return result;
-    }
-
-    const ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(viewportRequestState(viewport), role);
-    const DisplayRequestTarget target {
-        flush.frame,
-        activeRequest.target.position,
-        flush.targetKind,
-    };
-    const ViewportProviderFrameRequestStartResult start
-        = startProviderFrameRequest(role, { target });
-    appendProviderFrameStartResult(result.providerFrameTransport, start);
-    markRequestMutation(result.changes);
-    if (viewportRequestState(viewport).status == ImageViewport::RequestStatus::Error
-        && viewportRequestState(viewport).reason == ImageViewport::RequestReason::ProviderFailure) {
-        markDiagnosticsMutation(result.changes);
-    }
-    result.schedule = state.engine.playbackScheduleEffect();
-    return result;
+    return state.engine.reduceQueuedProviderFrameRequest(
+        role, acceptedGeometryInput(viewport));
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(
