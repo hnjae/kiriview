@@ -1,5 +1,5 @@
 #include "viewportengine_p.h"
-#include "viewportenginestate_p.h"
+#include "viewportenginecapabilities_p.h"
 
 #include "imageviewportlimits_p.h"
 #include "imageviewportproviderfacts_p.h"

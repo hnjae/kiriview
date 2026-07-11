@@ -1,5 +1,5 @@
 #include "viewportengine_p.h"
-#include "viewportenginestate_p.h"
+#include "viewportenginecapabilities_p.h"
 
 #include "imagesequencesource_p.h"
 #include "viewportgeometryhelpers_p.h"
