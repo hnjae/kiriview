@@ -18,6 +18,15 @@ kiriview::ThumbnailSourceRevisionKey sourceKeyForRow(
         kiriview::activeNavigationThumbnailSourceKindIdentity(row.sourceKind),
         navigationGeneration);
 }
+
+quint64 nextNavigationGeneration(quint64 generation)
+{
+    ++generation;
+    if (generation == 0) {
+        ++generation;
+    }
+    return generation;
+}
 }
 
 namespace kiriview {
@@ -40,59 +49,104 @@ quint64 ActiveNavigationThumbnailRowStore::navigationGeneration() const
     return m_navigationGeneration;
 }
 
-std::size_t ActiveNavigationThumbnailRowStore::rowCount() const { return m_rows.size(); }
-
-std::vector<ThumbnailSourceRevisionKey> ActiveNavigationThumbnailRowStore::sourceKeys() const
+ActiveNavigationThumbnailSchedulingSnapshot
+ActiveNavigationThumbnailRowStore::schedulingSnapshot() const
 {
-    std::vector<ThumbnailSourceRevisionKey> result;
-    result.reserve(m_rows.size());
+    ActiveNavigationThumbnailSchedulingSnapshot snapshot;
+    snapshot.navigationGeneration = m_navigationGeneration;
+    snapshot.rows.reserve(m_rows.size());
     for (const RowState& state : m_rows) {
-        result.push_back(state.sourceKey);
+        snapshot.rows.push_back(state.sourceKey);
     }
-    return result;
+    return snapshot;
 }
 
-bool ActiveNavigationThumbnailRowStore::hasSameRowIdentities(
-    const std::vector<ActiveNavigationThumbnailRow>& rows) const
+ActiveNavigationThumbnailRowUpdatePlan ActiveNavigationThumbnailRowStore::prepareRows(
+    std::vector<ActiveNavigationThumbnailRow> rows) const
 {
-    if (m_rows.size() != rows.size()) {
-        return false;
-    }
-
-    for (std::size_t row = 0; row < rows.size(); ++row) {
-        if (!sameRowIdentity(m_rows.at(row).row, rows.at(row))) {
-            return false;
+    int currentNumber = 0;
+    for (const ActiveNavigationThumbnailRow& row : rows) {
+        if (row.current) {
+            currentNumber = row.number;
+            break;
         }
     }
-    return true;
+    for (ActiveNavigationThumbnailRow& row : rows) {
+        row.current = currentNumber != 0 && row.number == currentNumber;
+    }
+    ActiveNavigationThumbnailRowUpdateKind kind
+        = ActiveNavigationThumbnailRowUpdateKind::ProjectionOnly;
+    quint64 targetGeneration = m_navigationGeneration;
+    if (m_rows.size() != rows.size()) {
+        kind = ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement;
+        targetGeneration = nextNavigationGeneration(m_navigationGeneration);
+    }
+    std::vector<ThumbnailSourceRevisionKey> sourceKeys;
+    sourceKeys.reserve(rows.size());
+    for (std::size_t row = 0; row < rows.size(); ++row) {
+        ThumbnailSourceRevisionKey sourceKey = sourceKeyForRow(rows.at(row), targetGeneration);
+        if (kind != ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
+            const RowState& existing = m_rows.at(row);
+            if (!sameRowIdentity(existing.sourceKey.row, sourceKey.row)) {
+                kind = ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement;
+                targetGeneration = nextNavigationGeneration(m_navigationGeneration);
+                sourceKeys.clear();
+                break;
+            }
+            if (existing.sourceKey.sourceUrl != sourceKey.sourceUrl) {
+                kind = ActiveNavigationThumbnailRowUpdateKind::SourceRefresh;
+            }
+        }
+        sourceKeys.push_back(std::move(sourceKey));
+    }
+    if (kind == ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
+        sourceKeys.clear();
+        sourceKeys.reserve(rows.size());
+        for (const ActiveNavigationThumbnailRow& row : rows) {
+            sourceKeys.push_back(sourceKeyForRow(row, targetGeneration));
+        }
+    }
+    return ActiveNavigationThumbnailRowUpdatePlan(
+        kind, currentNumber, targetGeneration, std::move(rows), std::move(sourceKeys));
 }
 
-void ActiveNavigationThumbnailRowStore::setRows(std::vector<ActiveNavigationThumbnailRow> rows)
+ActiveNavigationThumbnailRowCommit ActiveNavigationThumbnailRowStore::commitRows(
+    ActiveNavigationThumbnailRowUpdatePlan plan)
 {
-    if (hasSameRowIdentities(rows)) {
-        for (std::size_t row = 0; row < rows.size(); ++row) {
-            m_rows.at(row).row.current = rows.at(row).current;
+    const auto kind = plan.m_kind;
+    if (kind != ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
+        for (std::size_t row = 0; row < plan.m_rows.size(); ++row) {
+            m_rows.at(row).row = std::move(plan.m_rows.at(row));
+            if (kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh) {
+                m_rows.at(row).sourceKey = std::move(plan.m_sourceKeys.at(row));
+            }
+        }
+        if (kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh) {
+            rebuildRowIndexes();
         }
         publishRows();
-        return;
+        return { kind, plan.m_currentNumber,
+            kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh
+                ? std::optional<ActiveNavigationThumbnailSchedulingSnapshot>(schedulingSnapshot())
+                : std::nullopt };
     }
 
     releaseAllImages();
-    ++m_navigationGeneration;
-    m_rowIndexByDemandIdentity.clear();
+    m_navigationGeneration = plan.m_navigationGeneration;
     m_rowIndexBySourceKey.clear();
     qCDebug(kiriviewThumbnailLog) << "Reset active navigation thumbnail rows generation"
-                                  << m_navigationGeneration << "rowCount" << rows.size();
+                                  << m_navigationGeneration << "rowCount" << plan.m_rows.size();
     m_rows.clear();
-    m_rows.reserve(rows.size());
-    for (ActiveNavigationThumbnailRow& row : rows) {
+    m_rows.reserve(plan.m_rows.size());
+    for (std::size_t row = 0; row < plan.m_rows.size(); ++row) {
         RowState state;
-        state.row = std::move(row);
-        state.sourceKey = sourceKeyForRow(state.row, m_navigationGeneration);
+        state.row = std::move(plan.m_rows.at(row));
+        state.sourceKey = std::move(plan.m_sourceKeys.at(row));
         m_rows.push_back(std::move(state));
     }
     rebuildRowIndexes();
     publishRows();
+    return { kind, plan.m_currentNumber, schedulingSnapshot() };
 }
 
 void ActiveNavigationThumbnailRowStore::setCurrentNumber(int currentNumber)
@@ -112,26 +166,6 @@ void ActiveNavigationThumbnailRowStore::setCurrentNumber(int currentNumber)
     }
 }
 
-ActiveNavigationThumbnailResult ActiveNavigationThumbnailRowStore::resultAt(std::size_t row) const
-{
-    return m_rows.at(row).result;
-}
-
-std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForIdentity(
-    int number, const QUrl& url, quint64 navigationGeneration) const
-{
-    const ThumbnailDemandKey identity = thumbnailDemandKey(number, url, navigationGeneration);
-    if (!isValidThumbnailDemandKey(identity)) {
-        return {};
-    }
-
-    const auto row = m_rowIndexByDemandIdentity.constFind(identity);
-    if (row == m_rowIndexByDemandIdentity.cend()) {
-        return {};
-    }
-    return *row;
-}
-
 std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForSourceKey(
     const ThumbnailSourceRevisionKey& sourceKey) const
 {
@@ -144,11 +178,6 @@ std::optional<std::size_t> ActiveNavigationThumbnailRowStore::rowIndexForSourceK
         return {};
     }
     return *row;
-}
-
-ThumbnailSourceRevisionKey ActiveNavigationThumbnailRowStore::sourceKeyAt(std::size_t row) const
-{
-    return m_rows.at(row).sourceKey;
 }
 
 bool ActiveNavigationThumbnailRowStore::hasUsableReadyImage(
@@ -203,26 +232,6 @@ void ActiveNavigationThumbnailRowStore::applyFailed(const ThumbnailSourceRevisio
     publishResultAt(*row);
 }
 
-void ActiveNavigationThumbnailRowStore::applyResult(
-    const ThumbnailSourceRevisionKey& sourceKey, const ActiveNavigationThumbnailResult& result)
-{
-    const std::optional<std::size_t> row = rowIndexForSourceKey(sourceKey);
-    if (!row.has_value()) {
-        return;
-    }
-
-    RowState& state = m_rows.at(*row);
-    if (result.status != ActiveNavigationThumbnailResultStatus::Ready
-        && hasUsableReadyImage(state)) {
-        state.result = { ActiveNavigationThumbnailResultStatus::Ready,
-            thumbnailImageSourceForId(state.imageStoreId) };
-    } else {
-        releaseImage(state);
-        state.result = result;
-    }
-    publishResultAt(*row);
-}
-
 bool ActiveNavigationThumbnailRowStore::installReadyImage(
     const ThumbnailSourceRevisionKey& sourceKey, const QImage& image,
     ThumbnailImageRetentionPriority priority, bool preserveExistingReadyImage)
@@ -266,10 +275,9 @@ void ActiveNavigationThumbnailRowStore::updateRetentionPriority(
 }
 
 bool ActiveNavigationThumbnailRowStore::sameRowIdentity(
-    const ActiveNavigationThumbnailRow& left, const ActiveNavigationThumbnailRow& right)
+    const ThumbnailRowKey& left, const ThumbnailRowKey& right)
 {
-    return left.number == right.number && left.url == right.url && left.label == right.label
-        && left.kind == right.kind && left.sourceKind == right.sourceKind;
+    return sameThumbnailRowKey(left, right);
 }
 
 bool ActiveNavigationThumbnailRowStore::hasUsableReadyImage(const RowState& state) const
@@ -296,16 +304,9 @@ void ActiveNavigationThumbnailRowStore::releaseAllImages()
 
 void ActiveNavigationThumbnailRowStore::rebuildRowIndexes()
 {
-    m_rowIndexByDemandIdentity.clear();
     m_rowIndexBySourceKey.clear();
     for (std::size_t row = 0; row < m_rows.size(); ++row) {
         const RowState& state = m_rows.at(row);
-        const ThumbnailDemandKey demandIdentity
-            = thumbnailDemandKey(state.row.number, state.row.url, m_navigationGeneration);
-        if (isValidThumbnailDemandKey(demandIdentity)) {
-            m_rowIndexByDemandIdentity.insert(demandIdentity, row);
-        }
-
         if (isValidThumbnailSourceRevisionKey(state.sourceKey)) {
             m_rowIndexBySourceKey.insert(state.sourceKey, row);
         }

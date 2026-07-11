@@ -70,8 +70,9 @@ class ActiveNavigationThumbnailScheduler final
 public:
     explicit ActiveNavigationThumbnailScheduler(ThumbnailSourceAdapter sourceAdapter);
 
-    std::vector<ActiveNavigationThumbnailScheduleEffect> reset(
-        std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration);
+    std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> reset(
+        ActiveNavigationThumbnailSchedulingSnapshot snapshot);
+    bool refreshRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
     std::vector<ActiveNavigationThumbnailScheduleEffect> invalidate();
     std::vector<ActiveNavigationThumbnailScheduleEffect> setCurrentNumber(int currentNumber);
     std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>> replaceDemandSnapshot(

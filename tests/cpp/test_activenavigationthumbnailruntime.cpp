@@ -5,6 +5,8 @@
 #include "session/activenavigationthumbnailruntime.h"
 
 #include <QAbstractItemModel>
+#include <QColor>
+#include <QImage>
 #include <QModelIndex>
 #include <QObject>
 #include <QSignalSpy>
@@ -33,6 +35,8 @@ private Q_SLOTS:
     void publishesStableModelRolesAndCurrentProjection();
     void rowIdentityChangesGenerationButCurrentOnlyChangesDoNot();
     void defaultSourceAdapterAcceptsOnlySupportedLocalRows();
+    void normalizedSourceRefreshUsesLatestRequestedUrl();
+    void identityReplacementCancelsWorkBeforeReleasingImage();
 };
 
 void TestActiveNavigationThumbnailRuntime::publishesStableModelRolesAndCurrentProjection()
@@ -87,6 +91,63 @@ void TestActiveNavigationThumbnailRuntime::defaultSourceAdapterAcceptsOnlySuppor
     localKey.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/archive.zip"));
     localKey.row.sourceKind = QStringLiteral("collection");
     QCOMPARE(adapter({ localKey }).kind, kiriview::ThumbnailSourceAdapterPlanKind::Unsupported);
+}
+
+void TestActiveNavigationThumbnailRuntime::normalizedSourceRefreshUsesLatestRequestedUrl()
+{
+    QUrl adaptedUrl;
+    kiriview::ActiveNavigationThumbnailRuntimeDependencies dependencies;
+    dependencies.sourceAdapter = [&adaptedUrl](kiriview::ThumbnailSourceAdapterRequest request) {
+        adaptedUrl = request.sourceKey.sourceUrl;
+        return kiriview::ThumbnailSourceAdapterPlan {};
+    };
+    kiriview::ActiveNavigationThumbnailRuntime runtime(this, std::move(dependencies));
+    runtime.setRows({ row(1, QStringLiteral("/media/chapter/../one.png"), true) });
+    const quint64 generation = runtime.navigationGeneration();
+
+    runtime.setRows({ row(1, QStringLiteral("/media/one.png"), true) });
+    QCOMPARE(runtime.navigationGeneration(), generation);
+    QVERIFY(runtime.replaceDemandSnapshot({ generation,
+        { { 1, QUrl::fromLocalFile(QStringLiteral("/media/one.png")),
+            kiriview::ActiveNavigationThumbnailDemandBucket::Normal,
+            kiriview::ActiveNavigationThumbnailDemandPriority::Visible } } }));
+    QCOMPARE(adaptedUrl, QUrl::fromLocalFile(QStringLiteral("/media/one.png")));
+}
+
+void TestActiveNavigationThumbnailRuntime::identityReplacementCancelsWorkBeforeReleasingImage()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    bool canceledBeforeRelease = false;
+    kiriview::ActiveNavigationThumbnailRuntimeDependencies dependencies;
+    dependencies.imageStore = images;
+    dependencies.sourceAdapter = kiriview::defaultThumbnailSourceAdapter();
+    dependencies.lookupProvider = [images, &canceledBeforeRelease](QObject*,
+                                      kiriview::ThumbnailCacheLookupRequest request,
+                                      kiriview::ThumbnailCacheLookupCallback callback) {
+        if (request.requestedBucket == kiriview::ActiveNavigationThumbnailDemandBucket::Normal) {
+            QImage ready(QSize(2, 1), QImage::Format_RGBA8888);
+            ready.fill(Qt::green);
+            callback({ kiriview::ThumbnailCacheLookupStatus::Ready, std::move(ready),
+                request.requestedBucket, request.requestedBucket, {}, {} });
+            return kiriview::ImageIoJob {};
+        }
+        return kiriview::ImageIoJob(new QObject, [images, &canceledBeforeRelease](QObject* object) {
+            canceledBeforeRelease = images->size() == 1;
+            delete object;
+        });
+    };
+    kiriview::ActiveNavigationThumbnailRuntime runtime(this, std::move(dependencies));
+    runtime.setRows({ row(1, QStringLiteral("/media/one.png"), true) });
+    const quint64 generation = runtime.navigationGeneration();
+    QVERIFY(runtime.replaceDemandSnapshot({ generation,
+        { { 1, QUrl::fromLocalFile(QStringLiteral("/media/one.png")),
+            kiriview::ActiveNavigationThumbnailDemandBucket::Normal,
+            kiriview::ActiveNavigationThumbnailDemandPriority::Visible } } }));
+    QCOMPARE(images->size(), qsizetype(1));
+
+    runtime.setRows({ row(1, QStringLiteral("/media/two.png"), true) });
+    QVERIFY(canceledBeforeRelease);
+    QCOMPARE(images->size(), qsizetype(0));
 }
 
 QTEST_GUILESS_MAIN(TestActiveNavigationThumbnailRuntime)

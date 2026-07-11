@@ -64,6 +64,18 @@ kiriview::ActiveNavigationThumbnailDemandSnapshot snapshot(
 {
     return { generation, demands };
 }
+
+kiriview::ActiveNavigationThumbnailSchedulingSnapshot schedulingSnapshot(
+    quint64 generation, std::initializer_list<kiriview::ThumbnailSourceRevisionKey> rows)
+{
+    return { generation, rows };
+}
+
+kiriview::ActiveNavigationThumbnailSchedulingSnapshot schedulingSnapshot(
+    quint64 generation, std::vector<kiriview::ThumbnailSourceRevisionKey> rows)
+{
+    return { generation, std::move(rows) };
+}
 }
 
 class TestActiveNavigationThumbnailScheduler : public QObject
@@ -84,12 +96,13 @@ private Q_SLOTS:
     void staleContinuationIsRejectedAfterReset();
     void foregroundDoesNotWaitForBackgroundContinuation();
     void movingCurrentExpiresUnreportedPinnedDemand();
+    void malformedSchedulingSnapshotIsRejectedAtomically();
 };
 
 void TestActiveNavigationThumbnailScheduler::demandWindowIsAtomicAndRejectsOutsideReports()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
     QVERIFY(!scheduler
             .replaceDemandSnapshot(
                 snapshot(2, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }))
@@ -104,7 +117,7 @@ void TestActiveNavigationThumbnailScheduler::demandWindowIsAtomicAndRejectsOutsi
 void TestActiveNavigationThumbnailScheduler::visibleRunsBeforeNearbyRegardlessOfReportOrder()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1), key(2) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1), key(2) })).has_value());
     auto committed = scheduler.replaceDemandSnapshot(snapshot(1,
         { { 2, key(2).sourceUrl, Bucket::Normal, Priority::Nearby },
             { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
@@ -123,7 +136,7 @@ void TestActiveNavigationThumbnailScheduler::visibleRunsBeforeNearbyRegardlessOf
 void TestActiveNavigationThumbnailScheduler::currentPromotesCommittedNearbyWithoutRestart()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
     const auto committed = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
     QVERIFY(committed.has_value());
@@ -139,7 +152,7 @@ void TestActiveNavigationThumbnailScheduler::currentPromotesCommittedNearbyWitho
 void TestActiveNavigationThumbnailScheduler::newerForegroundCancelsActiveNearby()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1), key(2) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1), key(2) })).has_value());
     auto committed = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 2, key(2).sourceUrl, Bucket::Normal, Priority::Nearby } }));
     QVERIFY(committed.has_value());
@@ -163,7 +176,7 @@ void TestActiveNavigationThumbnailScheduler::newerForegroundCancelsActiveNearby(
 void TestActiveNavigationThumbnailScheduler::newerWindowExpiresMissingDemandAndDemotesRetention()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1), key(2) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1), key(2) })).has_value());
     auto committed = scheduler.replaceDemandSnapshot(snapshot(1,
         { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible },
             { 2, key(2).sourceUrl, Bucket::Normal, Priority::Visible } }));
@@ -188,7 +201,7 @@ void TestActiveNavigationThumbnailScheduler::newerWindowExpiresMissingDemandAndD
 void TestActiveNavigationThumbnailScheduler::backgroundRunsOneAtATimeAndYieldsToDemand()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
     auto committed = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
     QVERIFY(committed.has_value());
@@ -218,7 +231,7 @@ void TestActiveNavigationThumbnailScheduler::
     invalidSnapshotIsRejectedWithoutReplacingCommittedDemand()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
     const auto accepted = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
     QVERIFY(accepted.has_value());
@@ -248,7 +261,7 @@ void TestActiveNavigationThumbnailScheduler::duplicateSnapshotFactsMergeBeforeSo
                 {},
             };
         });
-    scheduler.reset({ key(1) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1) })).has_value());
     const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1,
         { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby },
             { 1, key(1).sourceUrl, Bucket::XLarge, Priority::Visible } }));
@@ -263,7 +276,7 @@ void TestActiveNavigationThumbnailScheduler::duplicateSnapshotFactsMergeBeforeSo
 void TestActiveNavigationThumbnailScheduler::emptySnapshotExpiresNonCurrentDemand()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1), key(2) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1), key(2) })).has_value());
     const auto first = scheduler.replaceDemandSnapshot(snapshot(1,
         { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible },
             { 2, key(2).sourceUrl, Bucket::Normal, Priority::Visible } }));
@@ -300,7 +313,7 @@ void TestActiveNavigationThumbnailScheduler::backgroundScanYieldsAndResumesWithE
     for (int number = 1; number <= 20; ++number) {
         rows.push_back(key(number));
     }
-    scheduler.reset(std::move(rows), 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, std::move(rows))).has_value());
 
     const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1, {}));
     QVERIFY(accepted.has_value());
@@ -328,14 +341,14 @@ void TestActiveNavigationThumbnailScheduler::staleContinuationIsRejectedAfterRes
     for (int number = 1; number <= 20; ++number) {
         rows.push_back(key(number));
     }
-    scheduler.reset(std::move(rows), 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, std::move(rows))).has_value());
     const auto accepted = scheduler.replaceDemandSnapshot(snapshot(1, {}));
     QVERIFY(accepted.has_value());
     const auto continuation
         = effectsOfType<kiriview::ActiveNavigationThumbnailScheduleContinuationEffect>(*accepted)
               .front();
 
-    scheduler.reset({ key(1, 2) }, 2);
+    QVERIFY(scheduler.reset(schedulingSnapshot(2, { key(1, 2) })).has_value());
     QVERIFY(scheduler.continueAdmission(continuation.admissionEpoch).empty());
 }
 
@@ -358,7 +371,7 @@ void TestActiveNavigationThumbnailScheduler::foregroundDoesNotWaitForBackgroundC
     for (int number = 1; number <= 20; ++number) {
         rows.push_back(key(number));
     }
-    scheduler.reset(std::move(rows), 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, std::move(rows))).has_value());
     const auto empty = scheduler.replaceDemandSnapshot(snapshot(1, {}));
     QVERIFY(empty.has_value());
     const auto continuation
@@ -381,7 +394,7 @@ void TestActiveNavigationThumbnailScheduler::foregroundDoesNotWaitForBackgroundC
 void TestActiveNavigationThumbnailScheduler::movingCurrentExpiresUnreportedPinnedDemand()
 {
     kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
-    scheduler.reset({ key(1), key(2) }, 1);
+    QVERIFY(scheduler.reset(schedulingSnapshot(1, { key(1), key(2) })).has_value());
     scheduler.setCurrentNumber(1);
     const auto accepted = scheduler.replaceDemandSnapshot(
         snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Nearby } }));
@@ -403,6 +416,36 @@ void TestActiveNavigationThumbnailScheduler::movingCurrentExpiresUnreportedPinne
     QCOMPARE(retention.front().sourceKey.row.rowNumber, 1);
     QCOMPARE(retention.front().retentionClass,
         kiriview::ActiveNavigationThumbnailRetentionClass::Background);
+}
+
+void TestActiveNavigationThumbnailScheduler::malformedSchedulingSnapshotIsRejectedAtomically()
+{
+    kiriview::ActiveNavigationThumbnailScheduler scheduler(adapter());
+    QVERIFY(scheduler.reset(kiriview::ActiveNavigationThumbnailSchedulingSnapshot { 1, { key(1) } })
+            .has_value());
+    const auto accepted = scheduler.replaceDemandSnapshot(
+        snapshot(1, { { 1, key(1).sourceUrl, Bucket::Normal, Priority::Visible } }));
+    QVERIFY(accepted.has_value());
+    const auto foreground
+        = effectsOfType<kiriview::ActiveNavigationThumbnailStartWorkEffect>(*accepted).front();
+
+    QVERIFY(
+        !scheduler.reset(kiriview::ActiveNavigationThumbnailSchedulingSnapshot { 2, { key(1) } })
+            .has_value());
+    const auto duplicateDemand = kiriview::thumbnailSourceRevisionKey(1, key(1).sourceUrl,
+        QStringLiteral("other-label.png"), QStringLiteral("image"),
+        kiriview::activeNavigationThumbnailSourceKindIdentity(
+            kiriview::ActiveNavigationThumbnailSourceKind::DirectImage),
+        1);
+    QVERIFY(!scheduler
+            .reset(kiriview::ActiveNavigationThumbnailSchedulingSnapshot {
+                1, { key(1), duplicateDemand } })
+            .has_value());
+
+    QCOMPARE(effectsOfType<kiriview::ActiveNavigationThumbnailAcceptCompletionEffect>(
+                 scheduler.acceptCompletion(ready(foreground)))
+                 .size(),
+        std::size_t(1));
 }
 
 QTEST_GUILESS_MAIN(TestActiveNavigationThumbnailScheduler)

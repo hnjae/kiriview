@@ -51,10 +51,21 @@ ActiveNavigationThumbnailWorkCoordinator::~ActiveNavigationThumbnailWorkCoordina
     }
 }
 
-void ActiveNavigationThumbnailWorkCoordinator::resetRows(
-    std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration)
+bool ActiveNavigationThumbnailWorkCoordinator::resetRows(
+    ActiveNavigationThumbnailSchedulingSnapshot snapshot)
 {
-    applyEffects(m_scheduler.reset(std::move(rows), navigationGeneration));
+    auto effects = m_scheduler.reset(std::move(snapshot));
+    if (!effects.has_value()) {
+        return false;
+    }
+    applyEffects(std::move(*effects));
+    return true;
+}
+
+bool ActiveNavigationThumbnailWorkCoordinator::refreshRows(
+    ActiveNavigationThumbnailSchedulingSnapshot snapshot)
+{
+    return m_scheduler.refreshRows(std::move(snapshot));
 }
 
 void ActiveNavigationThumbnailWorkCoordinator::invalidateRows()

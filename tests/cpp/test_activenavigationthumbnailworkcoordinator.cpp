@@ -4,6 +4,7 @@
 #include "session/activenavigationthumbnailrowstore.h"
 #include "session/activenavigationthumbnailworkcoordinator.h"
 
+#include <QAbstractItemModel>
 #include <QColor>
 #include <QCoreApplication>
 #include <QImage>
@@ -120,6 +121,30 @@ kiriview::ThumbnailSourceAdapter localAdapter()
 
 QString imageId(const QUrl& source) { return source.path().mid(1); }
 
+kiriview::ActiveNavigationThumbnailSchedulingSnapshot setRows(
+    kiriview::ActiveNavigationThumbnailRowStore& store,
+    std::vector<kiriview::ActiveNavigationThumbnailRow> rows)
+{
+    store.commitRows(store.prepareRows(std::move(rows)));
+    return store.schedulingSnapshot();
+}
+
+Status resultStatus(const kiriview::ActiveNavigationThumbnailRowStore& store, int row)
+{
+    return static_cast<Status>(store.model()
+            ->data(store.model()->index(row, 0),
+                kiriview::ActiveNavigationThumbnailModel::ThumbnailStatusRole)
+            .toInt());
+}
+
+QUrl resultSource(const kiriview::ActiveNavigationThumbnailRowStore& store, int row)
+{
+    return store.model()
+        ->data(store.model()->index(row, 0),
+            kiriview::ActiveNavigationThumbnailModel::ThumbnailImageSourceRole)
+        .toUrl();
+}
+
 kiriview::ActiveNavigationThumbnailDemandSnapshot demandSnapshot(
     quint64 generation, std::initializer_list<kiriview::ActiveNavigationThumbnailDemand> demands)
 {
@@ -144,22 +169,21 @@ void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndP
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
-    rows.setRows({ row(1, QStringLiteral("/media/one.png")) });
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    QVERIFY(coordinator.resetRows(schedulingRows));
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(),
-        { { 1, rows.sourceKeyAt(0).sourceUrl, Bucket::Large, Priority::Visible } })));
+        { { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Large, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
     QCOMPARE(providers.generations.size(), std::size_t(1));
     providers.finishGeneration(0, kiriview::ThumbnailGenerationStatus::Ready, image(Qt::green));
 
-    QCOMPARE(rows.resultAt(0).status, Status::Ready);
-    QCOMPARE(
-        images->image(imageId(rows.resultAt(0).imageSource)).pixelColor(0, 0), QColor(Qt::green));
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+    QCOMPARE(images->image(imageId(resultSource(rows, 0))).pixelColor(0, 0), QColor(Qt::green));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::
@@ -167,12 +191,12 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
-    rows.setRows({ row(1, QStringLiteral("/media/one.png")) });
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
-    const QUrl url = rows.sourceKeyAt(0).sourceUrl;
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const QUrl url = schedulingRows.rows.at(0).sourceUrl;
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
         rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
@@ -181,13 +205,12 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::red));
-    QCOMPARE(rows.resultAt(0).status, Status::Pending);
+    QCOMPARE(resultStatus(rows, 0), Status::Pending);
     QCOMPARE(images->size(), qsizetype(0));
 
     providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::blue));
-    QCOMPARE(rows.resultAt(0).status, Status::Ready);
-    QCOMPARE(
-        images->image(imageId(rows.resultAt(0).imageSource)).pixelColor(0, 0), QColor(Qt::blue));
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+    QCOMPARE(images->image(imageId(resultSource(rows, 0))).pixelColor(0, 0), QColor(Qt::blue));
 }
 
 void TestActiveNavigationThumbnailWorkCoordinator::
@@ -195,21 +218,21 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
-    rows.setRows({ row(1, QStringLiteral("/media/one.png")) });
+    const auto schedulingRows = setRows(rows, { row(1, QStringLiteral("/media/one.png")) });
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
-    const QUrl url = rows.sourceKeyAt(0).sourceUrl;
+    QVERIFY(coordinator.resetRows(schedulingRows));
+    const QUrl url = schedulingRows.rows.at(0).sourceUrl;
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
         rows.navigationGeneration(), { { 1, url, Bucket::Normal, Priority::Visible } })));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
-    const QUrl foregroundSource = rows.resultAt(0).imageSource;
+    const QUrl foregroundSource = resultSource(rows, 0);
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
     providers.finishLookup(1, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::blue));
-    QCOMPARE(rows.resultAt(0).imageSource, foregroundSource);
+    QCOMPARE(resultSource(rows, 0), foregroundSource);
     QCOMPARE(images->size(), qsizetype(1));
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(
@@ -218,8 +241,8 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     providers.finishLookup(foregroundLookup, kiriview::ThumbnailCacheLookupStatus::Failed, {},
         QStringLiteral("refinement lookup failed"));
 
-    QCOMPARE(rows.resultAt(0).status, Status::Ready);
-    QCOMPARE(rows.resultAt(0).imageSource, foregroundSource);
+    QCOMPARE(resultStatus(rows, 0), Status::Ready);
+    QCOMPARE(resultSource(rows, 0), foregroundSource);
     QVERIFY(!coordinator.failureDiagnostics().empty());
     QCOMPARE(coordinator.failureDiagnostics().back().errorString,
         QStringLiteral("refinement lookup failed"));
@@ -230,17 +253,17 @@ void TestActiveNavigationThumbnailWorkCoordinator::
 {
     auto images = std::make_shared<kiriview::ThumbnailImageStore>();
     kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
-    rows.setRows(
+    const auto schedulingRows = setRows(rows,
         { row(1, QStringLiteral("/media/one.png")), row(2, QStringLiteral("/media/two.png")) });
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    QVERIFY(coordinator.resetRows(schedulingRows));
     const quint64 generation = rows.navigationGeneration();
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(generation,
-        { { 2, rows.sourceKeyAt(1).sourceUrl, Bucket::Normal, Priority::Nearby },
-            { 1, rows.sourceKeyAt(0).sourceUrl, Bucket::Normal, Priority::Visible } })));
+        { { 2, schedulingRows.rows.at(1).sourceUrl, Bucket::Normal, Priority::Nearby },
+            { 1, schedulingRows.rows.at(0).sourceUrl, Bucket::Normal, Priority::Visible } })));
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     QCOMPARE(providers.lookups.front().request.localPathBytes, QByteArray("/media/one.png"));
 
@@ -257,7 +280,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligib
     for (int number = 1; number <= 20; ++number) {
         sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));
     }
-    rows.setRows(std::move(sourceRows));
+    const auto schedulingRows = setRows(rows, std::move(sourceRows));
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
         providers.lookupProvider(), providers.generationProvider(),
@@ -273,7 +296,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::queuedContinuationFindsEligib
                 {},
             };
         });
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    QVERIFY(coordinator.resetRows(schedulingRows));
 
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(), {})));
     QVERIFY(providers.lookups.empty());
@@ -289,7 +312,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::invalidationRejectsQueuedCont
     for (int number = 1; number <= 20; ++number) {
         sourceRows.push_back(row(number, QStringLiteral("/media/%1.png").arg(number)));
     }
-    rows.setRows(std::move(sourceRows));
+    const auto schedulingRows = setRows(rows, std::move(sourceRows));
     ManualProviders providers;
     bool eligible = false;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(this, rows,
@@ -306,7 +329,7 @@ void TestActiveNavigationThumbnailWorkCoordinator::invalidationRejectsQueuedCont
                 {},
             };
         });
-    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    QVERIFY(coordinator.resetRows(schedulingRows));
     QVERIFY(coordinator.replaceDemandSnapshot(demandSnapshot(rows.navigationGeneration(), {})));
 
     eligible = true;

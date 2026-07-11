@@ -43,23 +43,25 @@ quint64 ActiveNavigationThumbnailRuntime::navigationGeneration() const
 
 void ActiveNavigationThumbnailRuntime::setRows(std::vector<ActiveNavigationThumbnailRow> rows)
 {
-    int currentNumber = 0;
-    for (const ActiveNavigationThumbnailRow& row : rows) {
-        if (row.current) {
-            currentNumber = row.number;
-            break;
-        }
+    ActiveNavigationThumbnailRowUpdatePlan plan = m_rowStore->prepareRows(std::move(rows));
+    const auto kind = plan.kind();
+    if (kind == ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
+        m_workCoordinator->invalidateRows();
     }
-    if (m_rowStore->hasSameRowIdentities(rows)) {
-        m_rowStore->setRows(std::move(rows));
-        m_workCoordinator->setCurrentNumber(currentNumber);
-        return;
+    ActiveNavigationThumbnailRowCommit commit = m_rowStore->commitRows(std::move(plan));
+    if (kind == ActiveNavigationThumbnailRowUpdateKind::IdentityReplacement) {
+        Q_ASSERT(commit.schedulingSnapshot.has_value());
+        const bool reset = m_workCoordinator->resetRows(std::move(*commit.schedulingSnapshot));
+        Q_ASSERT(reset);
+        Q_UNUSED(reset);
+    } else if (kind == ActiveNavigationThumbnailRowUpdateKind::SourceRefresh) {
+        Q_ASSERT(commit.schedulingSnapshot.has_value());
+        const bool refreshed
+            = m_workCoordinator->refreshRows(std::move(*commit.schedulingSnapshot));
+        Q_ASSERT(refreshed);
+        Q_UNUSED(refreshed);
     }
-
-    m_workCoordinator->invalidateRows();
-    m_rowStore->setRows(std::move(rows));
-    m_workCoordinator->resetRows(m_rowStore->sourceKeys(), m_rowStore->navigationGeneration());
-    m_workCoordinator->setCurrentNumber(currentNumber);
+    m_workCoordinator->setCurrentNumber(commit.currentNumber);
 }
 
 void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)

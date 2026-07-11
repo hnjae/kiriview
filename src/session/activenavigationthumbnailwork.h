@@ -15,11 +15,18 @@
 #include <QString>
 #include <QtGlobal>
 #include <functional>
+#include <vector>
 
 namespace kiriview {
 enum class ActiveNavigationThumbnailWorkKind {
     Foreground,
     Background,
+};
+
+struct ActiveNavigationThumbnailSchedulingSnapshot
+{
+    quint64 navigationGeneration = 0;
+    std::vector<ThumbnailSourceRevisionKey> rows;
 };
 
 struct ActiveNavigationThumbnailWorkId

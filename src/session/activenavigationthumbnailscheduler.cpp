@@ -4,6 +4,7 @@
 #include "session/activenavigationthumbnailscheduler.h"
 
 #include <QFile>
+#include <QSet>
 #include <algorithm>
 #include <limits>
 #include <map>
@@ -34,12 +35,29 @@ ActiveNavigationThumbnailScheduler::ActiveNavigationThumbnailScheduler(
 {
 }
 
-std::vector<ActiveNavigationThumbnailScheduleEffect> ActiveNavigationThumbnailScheduler::reset(
-    std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration)
+std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>
+ActiveNavigationThumbnailScheduler::reset(ActiveNavigationThumbnailSchedulingSnapshot snapshot)
 {
+    if (snapshot.navigationGeneration == 0) {
+        return std::nullopt;
+    }
+    QSet<ThumbnailSourceRevisionKey> sourceIdentities;
+    QSet<ThumbnailDemandKey> demandIdentities;
+    for (const ThumbnailSourceRevisionKey& sourceKey : snapshot.rows) {
+        const ThumbnailDemandKey demandIdentity = thumbnailDemandKey(
+            sourceKey.row.rowNumber, sourceKey.sourceUrl, sourceKey.navigationGeneration);
+        if (!isValidThumbnailSourceRevisionKey(sourceKey)
+            || sourceKey.navigationGeneration != snapshot.navigationGeneration
+            || !isValidThumbnailDemandKey(demandIdentity) || sourceIdentities.contains(sourceKey)
+            || demandIdentities.contains(demandIdentity)) {
+            return std::nullopt;
+        }
+        sourceIdentities.insert(sourceKey);
+        demandIdentities.insert(demandIdentity);
+    }
     auto effects = invalidate();
-    m_rows.reserve(rows.size());
-    for (ThumbnailSourceRevisionKey& sourceKey : rows) {
+    m_rows.reserve(snapshot.rows.size());
+    for (ThumbnailSourceRevisionKey& sourceKey : snapshot.rows) {
         RowState state;
         state.sourceKey = std::move(sourceKey);
         const std::size_t row = m_rows.size();
@@ -51,8 +69,35 @@ std::vector<ActiveNavigationThumbnailScheduleEffect> ActiveNavigationThumbnailSc
         m_rowByNumber.insert(state.sourceKey.row.rowNumber, row);
         m_rows.push_back(std::move(state));
     }
-    m_navigationGeneration = navigationGeneration;
-    return effects;
+    m_navigationGeneration = snapshot.navigationGeneration;
+    return std::optional<std::vector<ActiveNavigationThumbnailScheduleEffect>>(std::move(effects));
+}
+
+bool ActiveNavigationThumbnailScheduler::refreshRows(
+    ActiveNavigationThumbnailSchedulingSnapshot snapshot)
+{
+    if (snapshot.navigationGeneration == 0
+        || snapshot.navigationGeneration != m_navigationGeneration
+        || snapshot.rows.size() != m_rows.size()) {
+        return false;
+    }
+    for (std::size_t row = 0; row < snapshot.rows.size(); ++row) {
+        if (!isValidThumbnailSourceRevisionKey(snapshot.rows.at(row))
+            || snapshot.rows.at(row) != m_rows.at(row).sourceKey) {
+            return false;
+        }
+    }
+    for (std::size_t row = 0; row < snapshot.rows.size(); ++row) {
+        RowState& state = m_rows.at(row);
+        state.sourceKey = std::move(snapshot.rows.at(row));
+        if (state.acceptedDemand.has_value()) {
+            state.acceptedDemand->sourceKey = state.sourceKey;
+        }
+        if (state.activeWork.has_value()) {
+            state.activeWork->demand.sourceKey = state.sourceKey;
+        }
+    }
+    return true;
 }
 
 std::vector<ActiveNavigationThumbnailScheduleEffect>

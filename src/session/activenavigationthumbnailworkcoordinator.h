@@ -39,7 +39,8 @@ public:
         const ActiveNavigationThumbnailWorkCoordinator&)
         = delete;
 
-    void resetRows(std::vector<ThumbnailSourceRevisionKey> rows, quint64 navigationGeneration);
+    bool resetRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
+    bool refreshRows(ActiveNavigationThumbnailSchedulingSnapshot snapshot);
     void invalidateRows();
     void setCurrentNumber(int currentNumber);
     bool replaceDemandSnapshot(ActiveNavigationThumbnailDemandSnapshot snapshot);
