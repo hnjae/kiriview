@@ -60,7 +60,7 @@ ImageViewport::DisplayStatus retainedDisplayStatus(const DisplayState& display)
 }
 
 bool effectiveProviderLooping(const RequestState& request,
-    const ImageSequenceAuthoredAnimationFacts& authored)
+    ImageSequenceAuthoredAnimationFacts authored)
 {
     if (request.looping) {
         return true;
