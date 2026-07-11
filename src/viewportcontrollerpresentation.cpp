@@ -2,17 +2,6 @@
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollergeometryhelpers_p.h"
 
-ImageViewportInternal::ViewportChangeSet ViewportController::applyPresentationTransition(
-    const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
-    double previousZoomPercent)
-{
-    return state.engine.applyPresentationTargetTransition(
-        { policy.magnificationPolicy, policy.contentPositionTransition, policy.rotationTransition,
-            policy.mirrorTransition, policy.explicitFitMode, policy.explicitSpreadDirection,
-            policy.explicitPageGap, acceptedGeometryInput(viewport), previousContentPosition,
-            previousZoomPercent, viewport.hasReadyDisplay() });
-}
-
 ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {

@@ -134,11 +134,6 @@ int providerFrameIndexForPositionForRole(
     return provider.timingIntervals.frameIndexForPosition(position);
 }
 
-const ViewportSequenceRoleSource& secondaryRoleSource(const ViewportControllerState& state)
-{
-    return state.secondarySource;
-}
-
 DisplayRequestTarget providerPlaybackStartTarget(ViewportControllerPort& viewport,
     const ViewportControllerState& state, ImageViewport::PageRole role)
 {

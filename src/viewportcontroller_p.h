@@ -61,7 +61,6 @@ struct ViewportSequenceAssignmentResult;
 
 struct ViewportControllerState
 {
-    ViewportSequenceRoleSource secondarySource;
     ViewportEngine engine;
 };
 
@@ -249,22 +248,6 @@ public:
     void incrementRequestRevision();
     void incrementCommandRevision();
     void setCommandRevision(quint64 revision);
-    void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
-        ImageViewportInternal::DisplayRequestTarget target, bool rememberAsLatestNonPlayback);
-    void beginAcceptedDisplayRequest(ImageViewportInternal::DisplayRequestOrigin origin,
-        ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
-        bool rememberAsLatestNonPlayback);
-    void discardPendingRenderCommit();
-    void setSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame,
-        bool rememberAsLatestNonPlayback = false);
-    void publishReadyDisplayState();
-    void publishRenderWaitingState();
-    void publishAcceptedTargetState();
-    void publishAcceptedTargetState(const ImageViewportInternal::PreparedPayload& providerPayload);
-    void publishProviderFrameLoadingState();
-    void publishProviderFrameLoadingState(ImageViewport::PageRole role);
     void setPlaybackPhase(ViewportCommandResult& result, ImageViewport::PlaybackPhase phase);
     void setPlaybackPhase(
         ImageViewportInternal::ViewportChangeSet& changes, ImageViewport::PlaybackPhase phase);
@@ -393,27 +376,8 @@ public:
 
 private:
     quint64 allocateRevisionToken();
-    ImageViewportInternal::ViewportChangeSet applyPresentationTransition(
-        const ControllerTransitionPolicy& policy, QPointF previousContentPosition,
-        double previousZoomPercent);
-    ViewportCommandResult applyAcceptedClearPresentationTarget(
-        const ViewportEngine::PresentationTargetAssignmentResult& assignment);
-    void publishLoadingWaitState(ImageViewportInternal::TargetSpreadWaitState waitState);
-    void initializeSecondaryActiveRequest(ImageViewportInternal::DisplayRequestTarget target,
-        ImageViewportInternal::ResolvedFrameIdentity resolvedFrame);
-    void stageBuiltInPrimarySpreadPayload();
-    void publishUploadPendingState();
-    void publishPendingRenderState();
-    void publishSequenceReadyState();
-    void publishSequenceReadyState(const ImageViewportInternal::PreparedPayload& providerPayload);
-    void publishStagedBuiltInPrimarySpreadReadyState();
     ViewportCommandResult rejectUnsupportedCommand();
     ViewportCommandResult rejectIgnoredNoRequestCommand();
-    bool targetSpreadTerminalSealedForActiveRequest();
-    void recordTargetSpreadTerminal(ImageViewport::PageRole role,
-        ImageViewport::RequestStatus status, ImageViewport::RequestReason reason,
-        ImageViewportInternal::FailureScope failureScope, const QString& diagnostic,
-        ImageViewportInternal::ViewportChangeSet& changes);
     void armAuthoredAutoplayIfEligible();
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);

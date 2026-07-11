@@ -1,6 +1,7 @@
 #include "viewportengine_p.h"
 
 #include "imageviewporttoken_p.h"
+#include "imageviewportproviderfacts_p.h"
 
 #include <limits>
 
@@ -91,6 +92,86 @@ ImageViewport::DisplayStatus retainedOrEmptyDisplayStatus(
                                || display.status == ImageViewport::DisplayStatus::Retained)
         && display.displayedImageSize.isValid();
     return canRetain ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
+}
+
+void resetProviderGeneration(ImageViewportInternal::ProviderGenerationState& provider,
+    ImageSequenceAuthoredAnimationFacts authored = {})
+{
+    provider.metadataReady = false;
+    provider.timedMetadata = false;
+    provider.timedPlaybackSupport = false;
+    provider.frameSeekSupport = false;
+    provider.positionSeekSupport = false;
+    provider.authoredAnimationFacts = authored;
+    provider.logicalSize = {};
+    provider.timingIntervals = {};
+    provider.activeMetadataToken = {};
+    provider.activeFrameToken = {};
+}
+
+ImageViewportInternal::DisplayRequestTarget initialBuiltInTarget(
+    const ImageViewportInternal::ImageSequenceSource& source)
+{
+    if (!source.facts.present || source.facts.provider || source.facts.frameCount <= 0) {
+        return {};
+    }
+    return { 0, source.facts.timed ? sourceFrameStartPosition(source, 0) : -1,
+        ImageViewportInternal::ProviderRequestTargetKind::Unknown };
+}
+
+void initializeSecondaryRequest(ImageViewportInternal::RequestState& request,
+    ImageViewportInternal::DisplayRequestTarget target)
+{
+    request.secondaryActiveRequest.identity = request.activeRequest.identity;
+    request.secondaryActiveRequest.target = target;
+    request.secondaryActiveRequest.resolvedFrame
+        = target.frame >= 0
+        ? ImageViewportInternal::ResolvedFrameIdentity { target.frame, target.position }
+        : ImageViewportInternal::ResolvedFrameIdentity {};
+    request.secondaryActiveRequest.preparedPayloadId = request.activeRequest.preparedPayloadId;
+    if (target.frame >= 0) {
+        request.secondaryLatestNonPlaybackRequest = request.secondaryActiveRequest;
+    }
+}
+
+void stageInitialBuiltInSpread(ViewportEngine& engine)
+{
+    auto& request = engine.requestState();
+    auto& display = engine.displayState();
+    display.captureRenderFailureRetainedDisplay(request.sequenceSource.facts.present);
+    display.pendingRenderPayload.commitPending = true;
+    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.activeRequest);
+    display.pendingRenderPayload
+        = FramePreparation::admitBuiltInFrame(request.sequenceSource,
+              request.activeRequest.target.frame, display.pendingRenderPayload)
+              .preparedPayload;
+    if (request.secondarySequence && !request.secondarySequenceIsProvider
+        && request.secondaryActiveRequest.target.frame >= 0) {
+        ImageViewportInternal::PreparedPayload payload;
+        payload.commitPending = true;
+        payload.generation = request.sequenceGeneration;
+        payload.requestId = request.activeRequest.identity.id;
+        payload.payloadId = ++display.nextPreparedPayloadId;
+        request.secondaryActiveRequest.preparedPayloadId = payload.payloadId;
+        display.secondaryPendingRenderPayload
+            = FramePreparation::admitBuiltInFrame(request.secondarySequenceSource,
+                  request.secondaryActiveRequest.target.frame, payload)
+                  .preparedPayload;
+    }
+}
+
+double projectedZoomPercent(const PresentationGeometry::State& state)
+{
+    QSizeF spread = PresentationGeometry::spreadSize(state);
+    const int rotation = ((state.rotationDegrees % 360) + 360) % 360;
+    if (rotation == 90 || rotation == 270) {
+        spread.transpose();
+    }
+    const QRectF content = PresentationGeometry::contentRect(state);
+    if (content.isEmpty() || spread.width() <= 0.0 || spread.height() <= 0.0) {
+        return state.manualZoom * 100.0;
+    }
+    return content.width() / spread.width() * state.devicePixelRatio * 100.0;
 }
 
 bool activeProviderFrameTokenMatchesActiveRequest(const ViewportEngine& engine,
@@ -615,7 +696,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
         = clear && m_presentationTargetState.acceptedRoleSet == ImageViewportRoleSet();
     const bool presentationTargetChanged = !clearNoop;
     PresentationTargetAssignmentResult result;
-    result.command = acceptedPreservingCommandDiagnostics();
+    result.command = clear ? accepted() : acceptedPreservingCommandDiagnostics();
     result.presentationTargetChanged = presentationTargetChanged;
     result.clear = clear;
     result.retainPreviousDisplay = input.transitionPolicy.displayTransition()
@@ -632,6 +713,166 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
     }
 
     result.presentationTargetState = m_presentationTargetState;
+    if (!presentationTargetChanged) {
+        result.schedule = playbackScheduleEffect();
+        return result;
+    }
+
+    const auto oldGeometry = geometryState(input.geometry);
+    const auto oldPlayback = m_requestState.playbackPhase;
+    const QString oldError = m_requestState.errorString;
+    const QString oldWarning = m_requestState.warningString;
+    result.providerEffects[0] = closeProviderSession(ImageViewport::PageRole::Primary);
+    result.providerEffects[1] = closeProviderSession(ImageViewport::PageRole::Secondary);
+
+    ImageViewportInternal::ImageSequenceSource primary = input.primarySource;
+    ImageViewportInternal::ImageSequenceSource secondary = input.secondarySource;
+    if (!clear && !primary.sequence) {
+        primary = ImageViewportInternal::factorySequenceSource(input.presentationTarget.primary());
+    }
+    if (!clear && !secondary.sequence) {
+        secondary
+            = ImageViewportInternal::factorySequenceSource(input.presentationTarget.secondary());
+    }
+    m_requestState.sequenceSource = std::move(primary);
+    m_requestState.sequence = m_requestState.sequenceSource.sequence;
+    m_requestState.secondarySequenceSource = std::move(secondary);
+    m_requestState.secondarySequence = m_requestState.secondarySequenceSource.sequence;
+    m_requestState.secondarySequenceIsProvider
+        = m_requestState.secondarySequenceSource.facts.provider;
+    m_requestState.sequenceGeneration = m_presentationTargetState.generation;
+    m_requestState.clearDisplayRequests();
+    m_displayState.nextPreparedPayloadId = 0;
+    m_displayState.clearPendingRenderPayload();
+    if (result.releaseDisplayedState) {
+        m_displayState.clearDisplayedDisplay();
+        m_displayState.clearRenderFailureRetainedDisplay();
+    }
+    m_requestState.errorString.clear();
+    m_requestState.warningString.clear();
+    m_requestState.playbackPhase = ImageViewport::PlaybackPhase::Stopped;
+    m_requestState.stopPlaybackWhenRequestReady = false;
+    m_requestState.providerPlaybackStartPending = false;
+    resetProviderGeneration(m_roles[0].provider,
+        m_requestState.sequenceSource.facts.provider
+            ? m_requestState.sequenceSource.facts.authoredAnimationFacts
+            : ImageSequenceAuthoredAnimationFacts {});
+    resetProviderGeneration(m_roles[1].provider,
+        m_requestState.secondarySequenceSource.facts.provider
+            ? m_requestState.secondarySequenceSource.facts.authoredAnimationFacts
+            : ImageSequenceAuthoredAnimationFacts {});
+
+    if (clear) {
+        m_displayState.clearDisplayedDisplay();
+        m_displayState.clearRenderFailureRetainedDisplay();
+        m_requestState.status = ImageViewport::RequestStatus::NoRequest;
+        m_requestState.reason = ImageViewport::RequestReason::NoRequest;
+        m_displayState.status = ImageViewport::DisplayStatus::Empty;
+    } else {
+        const auto secondaryTarget = initialBuiltInTarget(m_requestState.secondarySequenceSource);
+        if (m_requestState.sequenceSource.facts.provider) {
+            auto& provider = m_roles[0].provider;
+            const auto& facts = m_requestState.sequenceSource.facts;
+            ImageViewportInternal::DisplayRequestTarget target { -1, -1,
+                ImageViewportInternal::ProviderRequestTargetKind::Unknown };
+            if (facts.hasCompleteProviderKnownMetadata) {
+                provider.metadataReady = true;
+                provider.timedMetadata = facts.providerKnownFacts.isTimedFrameList();
+                provider.timedPlaybackSupport = ImageViewportInternal::providerResolvedCapability(
+                    facts.providerTimedPlaybackCapability, provider.timedMetadata);
+                provider.frameSeekSupport = ImageViewportInternal::providerResolvedCapability(
+                    facts.providerFrameSeekCapability, true);
+                provider.positionSeekSupport = ImageViewportInternal::providerResolvedCapability(
+                    facts.providerPositionSeekCapability, provider.timedMetadata);
+                provider.logicalSize = facts.providerKnownLogicalSize;
+                provider.timingIntervals = facts.providerKnownTimingIntervals;
+                target = { 0, provider.timedMetadata ? 0 : -1,
+                    ImageViewportInternal::ProviderRequestTargetKind::Frame };
+            }
+            m_requestState.beginDisplayRequest(
+                ImageViewportInternal::DisplayRequestOrigin::Initial, target, true);
+            m_requestState.playbackPosition = target.position;
+            initializeSecondaryRequest(m_requestState, secondaryTarget);
+            m_requestState.status = ImageViewport::RequestStatus::Loading;
+            m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
+            m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+            result.openPrimaryProviderSession = true;
+        } else if (m_requestState.sequenceSource.facts.present) {
+            const auto target = initialBuiltInTarget(m_requestState.sequenceSource);
+            m_requestState.beginDisplayRequest(
+                ImageViewportInternal::DisplayRequestOrigin::Initial, target, true);
+            m_requestState.playbackPosition = target.position;
+            initializeSecondaryRequest(m_requestState, secondaryTarget);
+            stageInitialBuiltInSpread(*this);
+            ImageViewportInternal::TargetSpreadWaitState wait;
+            wait.requiresSecondary = m_requestState.secondarySequence != nullptr;
+            if (input.geometry.itemBounds.isEmpty()) {
+                wait.primary.renderWaiting = true;
+                if (wait.requiresSecondary && !m_requestState.secondarySequenceIsProvider) {
+                    wait.secondary.renderWaiting = true;
+                }
+            } else {
+                wait.primary.uploadPending = true;
+                if (wait.requiresSecondary && !m_requestState.secondarySequenceIsProvider) {
+                    wait.secondary.uploadPending = true;
+                }
+            }
+            if (m_requestState.secondarySequenceIsProvider) {
+                wait.secondary.providerWaiting = true;
+            }
+            m_requestState.status = ImageViewport::RequestStatus::Loading;
+            m_requestState.reason = ImageViewportInternal::projectWaitReason(wait);
+            m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+        }
+        if (m_requestState.secondarySequenceIsProvider) {
+            m_requestState.status = ImageViewport::RequestStatus::Loading;
+            m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
+            m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+            result.openSecondaryProviderSession = true;
+        }
+    }
+
+    GeometryInput acceptedGeometry = input.geometry;
+    acceptedGeometry.primaryPresent = m_requestState.sequenceSource.facts.present;
+    acceptedGeometry.primarySize
+        = ImageViewportInternal::sourceLogicalSize(m_requestState.sequenceSource);
+    acceptedGeometry.secondarySize
+        = ImageViewportInternal::sourceLogicalSize(m_requestState.secondarySequenceSource);
+    const auto transition = clear ? ImageViewportInternal::ViewportChangeSet {}
+                                  : applyPresentationTargetTransition({ input.transitionPolicy.zoomTransition(),
+        input.transitionPolicy.contentPositionTransition(), input.transitionPolicy.rotationTransition(),
+        input.transitionPolicy.mirrorTransition(),
+        input.transitionPolicy.fitModeTransition()
+                == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
+            ? std::optional<ImageViewport::FitMode>(input.transitionPolicy.fitMode())
+            : std::nullopt,
+        input.transitionPolicy.spreadDirectionTransition()
+                == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
+            ? std::optional<ImageViewport::SpreadDirection>(input.transitionPolicy.spreadDirection())
+            : std::nullopt,
+        input.transitionPolicy.pageGapTransition()
+                == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
+            ? std::optional<double>(input.transitionPolicy.pageGap())
+            : std::nullopt,
+        acceptedGeometry, PresentationGeometry::contentPosition(oldGeometry),
+        projectedZoomPercent(oldGeometry),
+        m_displayState.hasReadyDisplay(m_requestState.sequenceSource.facts.present) });
+    armAuthoredAutoplayIfEligible();
+    result.changes = transition;
+    result.changes.requestState = true;
+    result.changes.requestRevision = true;
+    result.changes.displayState = true;
+    result.changes.displayRevision = true;
+    const auto newGeometry = geometryState(acceptedGeometry);
+    result.changes.geometryState = PresentationGeometry::contentRect(oldGeometry)
+            != PresentationGeometry::contentRect(newGeometry)
+        || PresentationGeometry::visibleImageRect(oldGeometry)
+            != PresentationGeometry::visibleImageRect(newGeometry);
+    result.changes.playbackPhase = oldPlayback != m_requestState.playbackPhase;
+    result.changes.diagnostics = oldError != m_requestState.errorString
+        || oldWarning != m_requestState.warningString;
+    result.changes.scheduleUpdate = true;
+    result.schedule = playbackScheduleEffect();
     return result;
 }
 

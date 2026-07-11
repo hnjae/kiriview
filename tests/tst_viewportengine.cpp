@@ -999,6 +999,14 @@ void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAnd
     QCOMPARE(result.presentationTargetState.activeRole, ImageViewport::PageRole::Primary);
     QCOMPARE(
         engine.presentationTargetState().generation, result.presentationTargetState.generation);
+    QCOMPARE(engine.requestState().sequence, sequence->sequence());
+    QCOMPARE(engine.requestState().sequenceGeneration, 1);
+    QCOMPARE(engine.requestState().activeRequest.identity.id, 1);
+    QCOMPARE(engine.requestState().activeRequest.target.frame, 0);
+    QCOMPARE(engine.requestState().status, ImageViewport::RequestStatus::Loading);
+    QCOMPARE(engine.requestState().reason, ImageViewport::RequestReason::RenderWaiting);
+    QCOMPARE(engine.displayState().pendingRenderPayload.commitPending, true);
+    QCOMPARE(engine.displayState().pendingRenderPayload.image.isNull(), false);
 }
 
 void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
@@ -1029,6 +1037,13 @@ void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
         result.presentationTargetState.generation);
     QCOMPARE(result.presentationTargetState.secondaryRoleGeneration,
         result.presentationTargetState.generation);
+    QCOMPARE(engine.requestState().secondarySequence, secondary->sequence());
+    QCOMPARE(engine.requestState().secondaryActiveRequest.identity.id,
+        engine.requestState().activeRequest.identity.id);
+    QCOMPARE(engine.requestState().secondaryActiveRequest.identity.origin,
+        engine.requestState().activeRequest.identity.origin);
+    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.commitPending, true);
+    QCOMPARE(engine.displayState().secondaryPendingRenderPayload.image.isNull(), false);
 }
 
 void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics()
@@ -1127,6 +1142,10 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
     QCOMPARE(clearResult.releaseDisplayedState, true);
     QCOMPARE(clearResult.resetDisplayRequests, true);
     QCOMPARE(clearResult.closeProviderSessions, true);
+    QCOMPARE(engine.requestState().status, ImageViewport::RequestStatus::NoRequest);
+    QCOMPARE(engine.displayState().status, ImageViewport::DisplayStatus::Empty);
+    QCOMPARE(engine.requestState().sequence, nullptr);
+    QCOMPARE(engine.displayState().displayedImageSize, QSizeF());
 
     const ViewportEngine::PresentationTargetAssignmentResult noopClear
         = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });

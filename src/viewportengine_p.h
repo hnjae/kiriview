@@ -47,6 +47,9 @@ public:
         ImageViewportPresentationTarget presentationTarget
             = ImageViewportPresentationTarget::clear();
         PresentationTargetTransitionPolicy transitionPolicy;
+        ImageViewportInternal::ImageSequenceSource primarySource;
+        ImageViewportInternal::ImageSequenceSource secondarySource;
+        GeometryInput geometry;
     };
 
     struct CommandDiagnostics
@@ -113,6 +116,11 @@ public:
         bool resetDisplayRequests = false;
         bool stopPlayback = false;
         bool closeProviderSessions = false;
+        ImageViewportInternal::ViewportChangeSet changes;
+        std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
+        bool openPrimaryProviderSession = false;
+        bool openSecondaryProviderSession = false;
+        ViewportPlaybackScheduleEffect schedule;
     };
     struct ProviderEventAdmissionInput
     {
