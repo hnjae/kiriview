@@ -413,13 +413,6 @@ private:
         ImageViewportInternal::FailureScope failureScope, const QString& diagnostic,
         ImageViewportInternal::ViewportChangeSet& changes);
     void armAuthoredAutoplayIfEligible();
-    ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
-        ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation violation);
-    ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
-        ViewportProviderEndOfSequenceProtocolViolation violation);
-    ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence(
-        ImageViewport::PageRole role);
-    ViewportProviderEndOfSequenceResult handleProviderPlaybackEndOfSequence();
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(

@@ -58,6 +58,23 @@ ImageViewport::DisplayStatus retainedDisplayStatus(const DisplayState& display)
                     : ImageViewport::DisplayStatus::Empty;
 }
 
+bool effectiveProviderLooping(const RequestState& request,
+    const ImageSequenceAuthoredAnimationFacts& authored)
+{
+    if (request.looping) {
+        return true;
+    }
+    switch (authored.loopMode()) {
+    case ImageSequenceAuthoredAnimationFacts::LoopMode::Infinite:
+        return true;
+    case ImageSequenceAuthoredAnimationFacts::LoopMode::Finite:
+        return request.playbackLoopIterationsCompleted + 1 < authored.loopCount();
+    case ImageSequenceAuthoredAnimationFacts::LoopMode::PlayOnce:
+        return false;
+    }
+    return false;
+}
+
 void stageBuiltInSecondaryPayload(RequestState& request, DisplayState& display)
 {
     if (!request.secondarySequence || request.secondarySequenceIsProvider
@@ -822,5 +839,105 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceP
         QStringLiteral("provider protocol violation"), result.changes);
     setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeProviderSession(role);
+    return result;
+}
+
+ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
+    ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event,
+    const GeometryInput& geometry)
+{
+    ViewportProviderEndOfSequenceResult result;
+    auto& provider = providerForRole(*this, role);
+    const bool present = role == ImageViewport::PageRole::Primary
+        ? m_requestState.sequenceSource.facts.provider
+        : m_requestState.secondarySequence && m_requestState.secondarySequenceIsProvider;
+    if (!present || !provider.sessionActive) {
+        return result;
+    }
+    const bool metadataToken = !provider.metadataReady && provider.activeMetadataToken.isValid()
+        && event.token == provider.activeMetadataToken;
+    const auto& request = requestForRole(m_requestState, role);
+    const bool frameToken = provider.activeFrameToken.isValid()
+        && event.token == provider.activeFrameToken && event.token == request.providerFrameToken;
+    if (!metadataToken && !frameToken) {
+        return result;
+    }
+    const auto& terminal = m_requestState.targetSpreadTerminal;
+    if (terminal.sealed && terminal.generation == m_requestState.sequenceGeneration
+        && terminal.requestId == m_requestState.activeRequest.identity.id) {
+        return result;
+    }
+    if (metadataToken || !provider.metadataReady || !provider.timedMetadata
+        || request.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
+        return reduceProviderEndOfSequenceProtocolViolation(
+            role, { metadataToken, frameToken });
+    }
+
+    provider.activeFrameToken = {};
+    const bool diagnosticsChanged = m_requestState.clearDiagnostics();
+    const bool loop = effectiveProviderLooping(m_requestState, provider.authoredAnimationFacts);
+    const int selectedFrame = loop ? 0 : provider.timingIntervals.frameCount() - 1;
+    const int selectedPosition
+        = loop ? 0 : provider.timingIntervals.frameStartPosition(selectedFrame);
+    m_requestState.playbackPosition
+        = loop ? 0 : provider.timingIntervals.totalDuration();
+    m_requestState.stopPlaybackWhenRequestReady = !loop;
+    const DisplayRequestTarget target {
+        selectedFrame, selectedPosition, ProviderRequestTargetKind::Playback };
+
+    if (role == ImageViewport::PageRole::Secondary) {
+        const auto primary = m_requestState.activeRequest;
+        m_requestState.beginDisplayRequest(
+            DisplayRequestOrigin::Playback, primary.target, primary.resolvedFrame, false);
+        m_requestState.secondaryActiveRequest.identity = m_requestState.activeRequest.identity;
+        m_requestState.secondaryActiveRequest.target = target;
+        m_requestState.secondaryActiveRequest.resolvedFrame
+            = { selectedFrame, selectedPosition };
+        m_requestState.secondaryActiveRequest.providerFrameToken = {};
+        m_requestState.secondaryActiveRequest.preparedPayloadId
+            = m_requestState.activeRequest.preparedPayloadId;
+    } else {
+        m_requestState.activeRequest.target = target;
+        m_requestState.activeRequest.resolvedFrame = { selectedFrame, selectedPosition };
+    }
+
+    const bool sameDisplayedFinal = role == ImageViewport::PageRole::Primary && !loop
+        && m_displayState.hasReadyDisplay(m_requestState.sequenceSource.facts.present)
+        && m_displayState.displayedRequest.generation == m_requestState.sequenceGeneration
+        && m_displayState.displayedRequest.request.resolvedFrame.frame == selectedFrame
+        && m_displayState.displayedRequest.request.resolvedFrame.position == selectedPosition;
+    if (sameDisplayedFinal) {
+        m_requestState.status = ImageViewport::RequestStatus::Ready;
+        m_requestState.reason = ImageViewport::RequestReason::Ready;
+        m_displayState.status = ImageViewport::DisplayStatus::Ready;
+        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        m_requestState.stopPlaybackWhenRequestReady = false;
+        result.changes.requestState = true;
+        result.changes.requestRevision = true;
+        result.changes.displayState = true;
+        result.changes.displayRevision = true;
+        result.changes.diagnostics = diagnosticsChanged;
+        result.changes.scheduleUpdate = true;
+        return result;
+    }
+
+    m_requestState.targetSpreadTerminal.clear();
+    m_displayState.clearPendingRenderPayload();
+    m_displayState.clearRenderFailureRetainedDisplay();
+    const auto start = startProviderFrameRequest(role, target, geometry);
+    result.providerFrameTransport.closeSession = start.closeSession;
+    result.providerFrameTransport.sessionClose = start.sessionClose;
+    result.providerFrameTransport.sendCommand = start.sendCommand;
+    result.providerFrameTransport.command = start.command;
+    if (loop && !m_requestState.looping) {
+        ++m_requestState.playbackLoopIterationsCompleted;
+    }
+    setPlaybackPhase(ImageViewport::PlaybackPhase::Waiting, result.changes);
+    result.changes.requestState = true;
+    result.changes.requestRevision = true;
+    result.changes.displayState = true;
+    result.changes.displayRevision = true;
+    result.changes.diagnostics = diagnosticsChanged || !start.accepted;
+    result.changes.scheduleUpdate = true;
     return result;
 }

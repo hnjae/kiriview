@@ -274,6 +274,9 @@ public:
         ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
     ViewportProviderEndOfSequenceResult reduceProviderEndOfSequenceProtocolViolation(
         ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation input);
+    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequence(
+        ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event,
+        const GeometryInput& geometry);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
