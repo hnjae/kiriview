@@ -20,6 +20,30 @@ public:
     void request(const ImageSequenceProviderRequest&) override { }
 };
 
+class StubProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+{
+public:
+    ImageSequenceProviderSession* createSession(QObject* parent) override
+    {
+        return new StubProviderSession(parent);
+    }
+};
+
+class StubProviderAdapter final : public ImageSequenceProviderAdapter
+{
+    Q_OBJECT
+
+public:
+    using ImageSequenceProviderAdapter::ImageSequenceProviderAdapter;
+
+    ImageSequenceProviderDescriptor descriptor() const override
+    {
+        ImageSequenceProviderDescriptor descriptor;
+        descriptor.setSessionFactory(std::make_shared<StubProviderSessionFactory>());
+        return descriptor;
+    }
+};
+
 struct ProviderFrameQueueSetup
 {
     ImageSequenceProviderRequestToken activeToken;
@@ -121,6 +145,7 @@ private slots:
     void renderSnapshotUsesEnginePresentationAndPayloadState();
     void validPresentationTargetAssignmentAllocatesGenerationAndRoleSet();
     void twoRoleAssignmentIsAcceptedAtomically();
+    void providerAssignmentRegistersSessionIdentityBeforeHostOpen();
     void invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics();
     void invalidTransitionPolicyMutatesOnlyCommandDiagnostics();
     void clearPresentationTargetAllocatesTransactionAndThenNoops();
@@ -1044,6 +1069,25 @@ void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
         ViewportEngineTestAccess::request(engine).roles[0].activeRequest.identity.origin);
     QCOMPARE(ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.commitPending, true);
     QCOMPARE(ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.image.isNull(), false);
+}
+
+void ViewportEngineTest::providerAssignmentRegistersSessionIdentityBeforeHostOpen()
+{
+    ImageSequenceFactory factory;
+    StubProviderAdapter adapter;
+    QScopedPointer<ImageSequenceFactoryResult> sequence(factory.fromProvider(&adapter));
+    QVERIFY(sequence->sequence());
+
+    ViewportEngine engine;
+    const auto result = engine.assignPresentationTarget(
+        { ImageViewportPresentationTarget(sequence->sequence()), {} });
+    const auto binding = engine.providerSessionBinding(ImageViewport::PageRole::Primary);
+
+    QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(result.openPrimaryProviderSession, true);
+    QCOMPARE(binding.generation, result.presentationTargetState.primaryRoleGeneration);
+    QVERIFY(binding.sessionSerial != 0);
+    QCOMPARE(binding.sessionActive, true);
 }
 
 void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics()

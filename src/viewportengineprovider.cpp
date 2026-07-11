@@ -848,6 +848,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOp
     ViewportChangeSet changes;
     clearQueuedProviderFrameRequest(role);
     auto& provider = providerState(role);
+    provider.sessionActive = false;
     provider.activeMetadataToken = {};
     provider.activeFrameToken = {};
     recordProviderTerminal(role, ImageViewport::RequestStatus::Error,

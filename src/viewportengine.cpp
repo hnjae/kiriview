@@ -866,6 +866,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
             m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+            activateProviderSession(ImageViewport::PageRole::Primary);
             result.openPrimaryProviderSession = true;
         } else if (m_requestState.roles[0].source.facts.present) {
             const auto target = initialBuiltInTarget(m_requestState.roles[0].source);
@@ -898,6 +899,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             m_requestState.status = ImageViewport::RequestStatus::Loading;
             m_requestState.reason = ImageViewport::RequestReason::ProviderWaiting;
             m_displayState.status = retainedOrEmptyDisplayStatus(m_displayState);
+            activateProviderSession(ImageViewport::PageRole::Secondary);
             result.openSecondaryProviderSession = true;
         }
     }

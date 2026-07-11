@@ -114,6 +114,12 @@ ImageSequenceProviderThreadingContract ViewportController::providerThreadingCont
     return engine.providerSessionBinding(role).threadingContract;
 }
 
+ViewportEngine::ProviderSessionBinding ViewportController::providerSessionBinding(
+    ImageViewport::PageRole role) const
+{
+    return engine.providerSessionBinding(role);
+}
+
 bool ViewportController::acceptsProviderSessionResult(quint64 sessionSerial) const
 {
     return acceptsProviderSessionResult(ImageViewport::PageRole::Primary, sessionSerial);
@@ -136,6 +142,59 @@ ViewportProviderEventResult ViewportController::handleProviderEvent(
     const ViewportProviderEvent& event)
 {
     return engine.reduceProviderEvent(event, engine.acceptedGeometryInput(itemBounds()));
+}
+
+ViewportProviderHostEventResult ViewportController::handleProviderHostEvent(
+    const ViewportProviderHostEvent& event)
+{
+    ViewportProviderHostEventResult result;
+    switch (event.kind) {
+    case ViewportProviderHostEvent::Kind::SessionOpened: {
+        const auto opened
+            = engine.reduceProviderSessionOpened(event.role, engine.acceptedGeometryInput(itemBounds()));
+        result.metadataTransport = opened.providerMetadataTransport;
+        result.frameTransport = opened.providerFrameTransport;
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::SessionOpenFailed:
+        result.changes = engine.reduceProviderSessionOpenFailure(event.role, event.diagnostic);
+        result.schedule = engine.playbackScheduleEffect();
+        return result;
+    case ViewportProviderHostEvent::Kind::ProviderEvent: {
+        const auto reduced
+            = engine.reduceProviderEvent(event.providerEvent, engine.acceptedGeometryInput(itemBounds()));
+        result.changes = reduced.changes;
+        result.frameTransport = reduced.providerFrameTransport;
+        result.transportPhase = reduced.providerFrameTransportPhase;
+        result.schedule = reduced.schedule;
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::DispatchFailed: {
+        const auto reduced
+            = engine.reduceProviderDispatchFailure(event.role, { event.token, event.diagnostic });
+        result.changes = reduced.changes;
+        result.frameTransport = reduced.providerFrameTransport;
+        result.schedule = reduced.schedule;
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
+        const auto reduced = engine.reduceQueuedProviderFrameRequest(
+            event.role, engine.acceptedGeometryInput(itemBounds()));
+        result.changes = reduced.changes;
+        result.frameTransport = reduced.providerFrameTransport;
+        result.schedule = reduced.schedule;
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed: {
+        const auto reduced
+            = engine.reduceProviderQueueSchedulingFailure(event.role, event.diagnostic);
+        result.changes = reduced.changes;
+        result.schedulerDiagnostic = reduced.diagnostic;
+        result.schedule = reduced.schedule;
+        return result;
+    }
+    }
+    return result;
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportController::restageProviderDemands(

@@ -36,6 +36,8 @@ struct ViewportProviderFrameRequestStart;
 struct ViewportProviderFrameRequestStartResult;
 struct ViewportProviderFrameTerminalResult;
 struct ViewportProviderFrameTransportEffect;
+struct ViewportProviderHostEvent;
+struct ViewportProviderHostEventResult;
 struct ViewportProviderMetadataAdmissionRejection;
 struct ViewportProviderMetadataAdmissionResult;
 struct ViewportProviderMetadataContradiction;
@@ -112,6 +114,8 @@ public:
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
     ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
+    ViewportProviderHostEventResult handleProviderHostEvent(
+        const ViewportProviderHostEvent& event);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         double devicePixelRatio = 1.0);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(ImageViewport::PageRole role,
@@ -141,6 +145,8 @@ public:
     std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
         ImageViewport::PageRole role) const;
     ImageSequenceProviderThreadingContract providerThreadingContract(
+        ImageViewport::PageRole role) const;
+    ViewportEngine::ProviderSessionBinding providerSessionBinding(
         ImageViewport::PageRole role) const;
     bool acceptsProviderSessionResult(quint64 sessionSerial) const;
     bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;

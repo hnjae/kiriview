@@ -25,21 +25,22 @@ ImageSequenceProviderRequest providerRequestForCommand(
 
 ImageViewportProviderHost::ImageViewportProviderHost(ImageViewportPrivate& viewport)
     : viewport(viewport)
-    , providerBridge(*this)
-    , secondaryProviderBridge(*this, PageRole::Secondary)
+    , secondaryProviderBridge(PageRole::Secondary)
 {
 }
 
 bool ImageViewportProviderHost::openSession(PageRole role)
 {
-    if (!bridgeForRole(role).openSession()) {
+    const auto binding = viewport.controller.providerSessionBinding(role);
+    if (!bridgeForRole(role).openSession({ binding.factory, binding.threadingContract,
+            binding.generation, binding.sessionSerial, viewport.q,
+            [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } })) {
+        applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, role, {}, {},
+            QStringLiteral("provider session creation failed") });
         return false;
     }
 
-    const ViewportProviderSessionOpenResult result
-        = viewport.controller.handleProviderSessionOpened(role);
-    applyMetadataTransportEffect(result.providerMetadataTransport, role);
-    applyFrameTransportEffect(result.providerFrameTransport, role);
+    applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, role });
     return true;
 }
 
@@ -100,47 +101,32 @@ void ImageViewportProviderHost::applyFrameTransportEffect(
     }
 }
 
-QObject* ImageViewportProviderHost::providerCallbackTarget() const { return viewport.q; }
-
-std::shared_ptr<ImageSequenceProviderSessionFactory>
-ImageViewportProviderHost::providerSessionFactory(PageRole role) const
-{
-    return viewport.controller.providerSessionFactory(role);
-}
-
-quint64 ImageViewportProviderHost::activateProviderSession(PageRole role)
-{
-    return viewport.controller.activateProviderSession(role);
-}
-
-void ImageViewportProviderHost::retireProviderSession(PageRole role)
-{
-    viewport.controller.retireProviderSession(role);
-}
-
-quint64 ImageViewportProviderHost::currentProviderGeneration(PageRole role) const
-{
-    return viewport.controller.currentProviderGeneration(role);
-}
-
-ImageSequenceProviderThreadingContract ImageViewportProviderHost::providerThreadingContract(
-    PageRole role) const
-{
-    return viewport.controller.providerThreadingContract(role);
-}
-
 void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent& event)
 {
-    const ViewportProviderEventResult result = viewport.controller.handleProviderEvent(event);
-    if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::BeforeChanges) {
-        applyFrameTransportEffect(result.providerFrameTransport, event.role);
+    ViewportProviderHostEvent input;
+    input.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    input.role = event.role;
+    input.providerEvent = event;
+    applyHostEvent(input);
+}
+
+void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& event)
+{
+    const ViewportProviderHostEventResult result = viewport.controller.handleProviderHostEvent(event);
+    if (result.transportPhase == ViewportProviderEventTransportPhase::BeforeChanges) {
+        applyMetadataTransportEffect(result.metadataTransport, event.role);
+        applyFrameTransportEffect(result.frameTransport, event.role);
     }
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
         viewport.playbackScheduler.apply(result.schedule);
     }
-    if (result.providerFrameTransportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
-        applyFrameTransportEffect(result.providerFrameTransport, event.role);
+    if (result.schedulerDiagnostic.valid) {
+        viewport.internalDiagnostics.recordProviderSchedulerFailure(result.schedulerDiagnostic);
+    }
+    if (result.transportPhase == ViewportProviderEventTransportPhase::AfterChanges) {
+        applyMetadataTransportEffect(result.metadataTransport, event.role);
+        applyFrameTransportEffect(result.frameTransport, event.role);
     }
 }
 
@@ -189,37 +175,20 @@ bool ImageViewportProviderHost::scheduleDeferredControllerEvent(
 
 void ImageViewportProviderHost::handleQueueFlushSchedulingFailure(PageRole role)
 {
-    const ViewportProviderSchedulerFailureResult result
-        = viewport.controller.handleProviderQueueFlushSchedulingFailure(
-            role, QStringLiteral("provider queued request scheduling failed"));
-    viewport.internalDiagnostics.recordProviderSchedulerFailure(result.diagnostic);
-    viewport.applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(result.schedule);
-    }
+    applyHostEvent({ ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed, role, {}, {},
+        QStringLiteral("provider queued request scheduling failed") });
 }
 
 void ImageViewportProviderHost::handleDispatchFailure(
     PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic)
 {
-    const ViewportProviderTerminalEventResult result
-        = viewport.controller.handleProviderDispatchFailure(role, { token, diagnostic });
-    viewport.applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(result.schedule);
-    }
-    applyFrameTransportEffect(result.providerFrameTransport, role);
+    applyHostEvent(
+        { ViewportProviderHostEvent::Kind::DispatchFailed, role, {}, token, diagnostic });
 }
 
 void ImageViewportProviderHost::flushQueuedFrameRequest(PageRole role)
 {
-    const ViewportProviderFrameQueueFlushResult result
-        = viewport.controller.flushQueuedProviderFrameRequestEvent(role);
-    applyFrameTransportEffect(result.providerFrameTransport, role);
-    viewport.applyControllerChanges(result.changes);
-    if (result.changes.playbackPhase) {
-        viewport.playbackScheduler.apply(result.schedule);
-    }
+    applyHostEvent({ ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest, role });
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

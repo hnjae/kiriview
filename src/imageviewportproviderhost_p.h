@@ -6,7 +6,7 @@
 
 class ImageViewportPrivate;
 
-class ImageViewportProviderHost : public ViewportProviderBridgeClient
+class ImageViewportProviderHost
 {
 public:
     using PageRole = ImageViewport::PageRole;
@@ -28,14 +28,8 @@ public:
 #endif
 
 private:
-    QObject* providerCallbackTarget() const override;
-    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
-        PageRole role) const override;
-    quint64 activateProviderSession(PageRole role) override;
-    void retireProviderSession(PageRole role) override;
-    quint64 currentProviderGeneration(PageRole role) const override;
-    ImageSequenceProviderThreadingContract providerThreadingContract(PageRole role) const override;
-    void handleProviderEvent(const ViewportProviderEvent& event) override;
+    void handleProviderEvent(const ViewportProviderEvent& event);
+    void applyHostEvent(const ViewportProviderHostEvent& event);
 
     ViewportProviderBridge& bridgeForRole(PageRole role);
     void applyMetadataTransportEffect(

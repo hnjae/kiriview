@@ -297,3 +297,32 @@ struct ViewportProviderMetadataReadyResult
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
+
+struct ViewportProviderHostEvent
+{
+    enum class Kind {
+        SessionOpened,
+        SessionOpenFailed,
+        ProviderEvent,
+        DispatchFailed,
+        FlushQueuedFrameRequest,
+        QueueFlushSchedulingFailed,
+    };
+
+    Kind kind = Kind::ProviderEvent;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ViewportProviderEvent providerEvent;
+    ImageSequenceProviderRequestToken token;
+    QString diagnostic;
+};
+
+struct ViewportProviderHostEventResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportProviderMetadataTransportEffect metadataTransport;
+    ViewportProviderFrameTransportEffect frameTransport;
+    ViewportProviderEventTransportPhase transportPhase
+        = ViewportProviderEventTransportPhase::AfterChanges;
+    ImageViewportInternal::ProviderSchedulerDiagnostic schedulerDiagnostic;
+    ViewportPlaybackScheduleEffect schedule;
+};

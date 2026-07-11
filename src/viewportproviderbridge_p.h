@@ -12,25 +12,15 @@
 
 class QObject;
 
-class ViewportProviderBridgeClient
+struct ViewportProviderSessionOpenInput
 {
-public:
-    ViewportProviderBridgeClient() = default;
-    ViewportProviderBridgeClient(const ViewportProviderBridgeClient&) = delete;
-    ViewportProviderBridgeClient& operator=(const ViewportProviderBridgeClient&) = delete;
-    virtual ~ViewportProviderBridgeClient() = default;
-
-    virtual QObject* providerCallbackTarget() const = 0;
-    virtual std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
-        ImageViewport::PageRole role) const
-        = 0;
-    virtual quint64 activateProviderSession(ImageViewport::PageRole role) = 0;
-    virtual void retireProviderSession(ImageViewport::PageRole role) = 0;
-    virtual quint64 currentProviderGeneration(ImageViewport::PageRole role) const = 0;
-    virtual ImageSequenceProviderThreadingContract providerThreadingContract(
-        ImageViewport::PageRole role) const
-        = 0;
-    virtual void handleProviderEvent(const ViewportProviderEvent& event) = 0;
+    std::shared_ptr<ImageSequenceProviderSessionFactory> factory;
+    ImageSequenceProviderThreadingContract threadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
+    quint64 generation = 0;
+    quint64 sessionSerial = 0;
+    QObject* callbackTarget = nullptr;
+    std::function<void(const ViewportProviderEvent&)> eventSink;
 };
 
 class ViewportProviderExecutor
@@ -59,12 +49,12 @@ struct ViewportProviderTransportResult
 class ViewportProviderBridge
 {
 public:
-    explicit ViewportProviderBridge(ViewportProviderBridgeClient& client,
+    explicit ViewportProviderBridge(
         ImageViewport::PageRole role = ImageViewport::PageRole::Primary);
 
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
-    bool openSession();
+    bool openSession(const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -78,8 +68,9 @@ private:
     ViewportProviderExecutor& executor() const;
     Qt::ConnectionType eventDeliveryConnectionType() const;
 
-    ViewportProviderBridgeClient& client;
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageSequenceProviderThreadingContract activeThreadingContract
+        = ImageSequenceProviderThreadingContract::AffinityBound;
     ViewportProviderExecutor* providerExecutor = nullptr;
     QPointer<ImageSequenceProviderSession> activeSession;
     QPointer<ImageSequenceProviderSession> pendingCleanupSession;

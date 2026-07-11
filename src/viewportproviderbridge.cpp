@@ -271,10 +271,8 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
 }
 }
 
-ViewportProviderBridge::ViewportProviderBridge(
-    ViewportProviderBridgeClient& client, ImageViewport::PageRole role)
-    : client(client)
-    , role(role)
+ViewportProviderBridge::ViewportProviderBridge(ImageViewport::PageRole role)
+    : role(role)
     , providerExecutor(defaultProviderExecutor())
 {
 }
@@ -317,7 +315,6 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
         }
         if (activeSession == pendingSession) {
             activeSession.clear();
-            client.retireProviderSession(role);
         }
         pendingCleanupSession.clear();
         pendingCleanupMetadataToken = {};
@@ -343,38 +340,29 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
         return result;
     }
     activeSession.clear();
-    client.retireProviderSession(role);
     return result;
 }
 
-bool ViewportProviderBridge::openSession()
+bool ViewportProviderBridge::openSession(const ViewportProviderSessionOpenInput& input)
 {
-    const std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory
-        = client.providerSessionFactory(role);
-    if (!sessionFactory) {
+    if (!input.factory || !input.callbackTarget || !input.eventSink || input.generation == 0
+        || input.sessionSerial == 0) {
         return false;
     }
 
-    QObject* callbackTarget = client.providerCallbackTarget();
-    ImageSequenceProviderSession* session = sessionFactory->createSession(callbackTarget);
+    ImageSequenceProviderSession* session = input.factory->createSession(input.callbackTarget);
     if (!session) {
         return false;
     }
     activeSession = session;
-    const quint64 sessionSerial = client.activateProviderSession(role);
-    if (sessionSerial == 0) {
-        activeSession.clear();
-        delete session;
-        return false;
-    }
-    const quint64 generation = client.currentProviderGeneration(role);
+    activeThreadingContract = input.threadingContract;
     const Qt::ConnectionType eventDeliveryConnectionType = this->eventDeliveryConnectionType();
 
     QObject::connect(
-        session, &ImageSequenceProviderSession::providerEvent, callbackTarget,
-        [this, sessionSerial, generation](const ImageSequenceProviderEvent& typedEvent) {
-            client.handleProviderEvent(
-                viewportProviderEventFromTyped(role, sessionSerial, generation, typedEvent));
+        session, &ImageSequenceProviderSession::providerEvent, input.callbackTarget,
+        [this, sessionSerial = input.sessionSerial, generation = input.generation,
+            eventSink = input.eventSink](const ImageSequenceProviderEvent& typedEvent) {
+            eventSink(viewportProviderEventFromTyped(role, sessionSerial, generation, typedEvent));
         },
         eventDeliveryConnectionType);
 
@@ -423,7 +411,7 @@ ViewportProviderExecutor& ViewportProviderBridge::executor() const
 
 ImageSequenceProviderThreadingContract ViewportProviderBridge::threadingContract() const
 {
-    return client.providerThreadingContract(role);
+    return activeThreadingContract;
 }
 
 bool ViewportProviderBridge::takeForcedDeliveryFailureForTest()

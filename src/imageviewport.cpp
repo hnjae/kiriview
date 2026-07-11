@@ -292,14 +292,10 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
     providerHost.applyFrameTransportEffect(
         result.secondaryProviderFrameTransport, PageRole::Secondary);
     if (result.openProviderSession && !providerHost.openSession()) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(
-            QStringLiteral("provider session creation failed")));
-        playbackScheduler.apply(controller.playbackScheduleEffect());
         return result.outcome;
     }
-    if (result.openSecondaryProviderSession && !providerHost.openSession(PageRole::Secondary)) {
-        applyControllerChanges(controller.handleProviderSessionOpenFailure(
-            PageRole::Secondary, QStringLiteral("provider session creation failed")));
+    if (result.openSecondaryProviderSession) {
+        providerHost.openSession(PageRole::Secondary);
     }
     playbackScheduler.apply(controller.playbackScheduleEffect());
     return result.outcome;
