@@ -421,12 +421,6 @@ private:
         const FramePreparation::ProviderFrameAdmissionResult& admission);
     ImageViewportInternal::ViewportChangeSet handleProviderFrameAdmission(
         const FramePreparation::ProviderFrameAdmissionResult& admission);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
-        ViewportProviderMetadataTargetRejection rejection);
-    ImageViewportInternal::ViewportChangeSet handleProviderMetadataTargetRejection(
-        ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection);
-    ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetSelection(
-        ViewportProviderMetadataTargetSelection selection);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(
         ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation violation);
     ImageViewportInternal::ViewportChangeSet handleProviderEndOfSequenceProtocolViolation(

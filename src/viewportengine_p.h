@@ -240,6 +240,9 @@ public:
         ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
     ImageViewportInternal::ViewportChangeSet rejectProviderMetadataTarget(
         ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection);
+    ViewportProviderMetadataTargetPolicyResult applyProviderMetadataTargetPolicy(
+        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts,
+        const GeometryInput& geometry);
     quint64 activateProviderSession(ImageViewport::PageRole role);
     void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(

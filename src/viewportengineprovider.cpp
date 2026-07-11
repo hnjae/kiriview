@@ -40,6 +40,15 @@ bool roleRequired(const RequestState& request, ImageViewport::PageRole role)
                                                     : request.secondarySequence;
 }
 
+bool unknownMetadataInitialRequest(const DisplayRequest& request)
+{
+    return (request.identity.origin == DisplayRequestOrigin::Initial
+               || request.identity.origin == DisplayRequestOrigin::StopRestore
+               || request.identity.origin == DisplayRequestOrigin::MetadataBoundSelection)
+        && request.target.frame < 0 && request.target.position < 0
+        && request.target.providerTargetKind == ProviderRequestTargetKind::Unknown;
+}
+
 const TargetSpreadRoleTerminalState* currentTerminal(
     const RequestState& request, ImageViewport::PageRole role)
 {
@@ -373,6 +382,135 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::rejectProviderMetadataT
     setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
     changes.diagnostics = changes.diagnostics || diagnosticsChanged;
     return changes;
+}
+
+ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadataTargetPolicy(
+    ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts,
+    const GeometryInput& geometry)
+{
+    ViewportProviderMetadataTargetPolicyResult result;
+    const auto& terminal = m_requestState.targetSpreadTerminal;
+    if (terminal.sealed && terminal.generation == m_requestState.sequenceGeneration
+        && terminal.requestId == m_requestState.activeRequest.identity.id) {
+        return result;
+    }
+    auto& provider = providerForRole(*this, role);
+    const int frameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
+    DisplayRequestTarget target;
+
+    if (role == ImageViewport::PageRole::Primary) {
+        const auto request = m_requestState.activeRequest;
+        const bool playback = m_requestState.providerPlaybackStartPending
+            && request.target.providerTargetKind == ProviderRequestTargetKind::Playback;
+        const bool position
+            = request.target.providerTargetKind == ProviderRequestTargetKind::Position;
+        target.providerTargetKind = playback ? ProviderRequestTargetKind::Playback
+                                             : position ? ProviderRequestTargetKind::Position
+                                                        : ProviderRequestTargetKind::Frame;
+        target.frame = request.target.frame >= 0 ? request.target.frame : 0;
+        target.position = position ? request.target.position : -1;
+        if (playback && (!facts.timedMetadata || !provider.timedPlaybackSupport)) {
+            result.changes = rejectProviderMetadataTarget(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true });
+            return result;
+        }
+        if (position) {
+            if (!facts.timedMetadata || !provider.positionSeekSupport) {
+                result.changes = rejectProviderMetadataTarget(role,
+                    { ImageViewport::RequestStatus::Unsupported,
+                        ImageViewport::RequestReason::UnsupportedRequest });
+                return result;
+            }
+            target.frame = facts.timingIntervals.frameIndexForPosition(request.target.position);
+        }
+        if (target.frame < 0 || target.frame >= frameCount) {
+            result.changes = rejectProviderMetadataTarget(role,
+                { ImageViewport::RequestStatus::Unsupported,
+                    ImageViewport::RequestReason::InvalidRequest, target.frame, true, position });
+            return result;
+        }
+        const int resolvedPosition
+            = facts.timedMetadata ? facts.timingIntervals.frameStartPosition(target.frame) : -1;
+        if (!position) {
+            target.position = resolvedPosition;
+        }
+        const bool carrySecondary = m_requestState.secondarySequence
+            && m_requestState.secondarySequenceIsProvider
+            && m_requestState.secondaryActiveRequest.identity.id == request.identity.id
+            && unknownMetadataInitialRequest(request)
+            && unknownMetadataInitialRequest(m_requestState.secondaryActiveRequest);
+        m_requestState.beginDisplayRequest(DisplayRequestOrigin::MetadataBoundSelection, target,
+            { target.frame, resolvedPosition },
+            target.providerTargetKind != ProviderRequestTargetKind::Playback);
+        if (carrySecondary) {
+            m_requestState.secondaryActiveRequest.identity = m_requestState.activeRequest.identity;
+            m_requestState.secondaryActiveRequest.preparedPayloadId
+                = m_requestState.activeRequest.preparedPayloadId;
+        }
+        m_requestState.playbackPosition = target.position;
+        m_requestState.providerPlaybackStartPending = false;
+    } else {
+        const auto request = m_requestState.secondaryActiveRequest;
+        if (request.identity.id == 0
+            || request.identity.id != m_requestState.activeRequest.identity.id) {
+            return result;
+        }
+        if (unknownMetadataInitialRequest(request)) {
+            target = { 0, facts.timedMetadata ? 0 : -1, ProviderRequestTargetKind::Frame };
+        } else {
+            target = request.target;
+            if (target.providerTargetKind == ProviderRequestTargetKind::Playback) {
+                if (!facts.timedMetadata || !provider.timedPlaybackSupport) {
+                    result.changes = rejectProviderMetadataTarget(role,
+                        { ImageViewport::RequestStatus::Unsupported,
+                            ImageViewport::RequestReason::UnsupportedRequest });
+                    return result;
+                }
+                target.frame = std::max(target.frame, 0);
+                target.position = target.frame < frameCount
+                    ? facts.timingIntervals.frameStartPosition(target.frame)
+                    : -1;
+            } else if (target.providerTargetKind == ProviderRequestTargetKind::Frame) {
+                target.position = facts.timedMetadata
+                    && target.frame >= 0 && target.frame < frameCount
+                    ? facts.timingIntervals.frameStartPosition(target.frame)
+                    : -1;
+            } else if (target.providerTargetKind == ProviderRequestTargetKind::Position) {
+                if (!facts.timedMetadata || !provider.positionSeekSupport) {
+                    result.changes = rejectProviderMetadataTarget(role,
+                        { ImageViewport::RequestStatus::Unsupported,
+                            ImageViewport::RequestReason::UnsupportedRequest });
+                    return result;
+                }
+                target.frame = facts.timingIntervals.frameIndexForPosition(target.position);
+            } else {
+                return result;
+            }
+            if (target.frame < 0 || target.frame >= frameCount) {
+                result.changes = rejectProviderMetadataTarget(role,
+                    { ImageViewport::RequestStatus::Unsupported,
+                        ImageViewport::RequestReason::InvalidRequest });
+                return result;
+            }
+        }
+    }
+
+    if (role == ImageViewport::PageRole::Primary) {
+        m_displayState.clearPendingRenderPayload();
+        m_displayState.clearRenderFailureRetainedDisplay();
+    }
+    const auto start = startProviderFrameRequest(role, target, geometry);
+    result.providerFrameTransport.closeSession = start.closeSession;
+    result.providerFrameTransport.sessionClose = start.sessionClose;
+    result.providerFrameTransport.sendCommand = start.sendCommand;
+    result.providerFrameTransport.command = start.command;
+    result.changes.requestState = true;
+    result.changes.requestRevision = true;
+    if (!start.accepted) {
+        result.changes.diagnostics = true;
+    }
+    return result;
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOpenFailure(
