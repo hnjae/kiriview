@@ -150,8 +150,6 @@ private:
     void refreshLeafPublicSnapshots();
     void syncImageDocumentFileDeletionProgress();
     void setDocumentKind(DocumentSessionKind kind);
-    void recomputeActiveZoomReadout();
-    void recomputeActiveZoomReadoutForKind(DocumentSessionKind kind);
     void publishActiveNavigationForImagePages();
     void recomputePublicProjection();
     void routeSourceUrl(const QUrl& sourceUrl);

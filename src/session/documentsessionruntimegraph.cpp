@@ -127,7 +127,6 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           },
           [this]() { m_directMediaNavigationCoordinator.refresh(m_owner); },
           [this]() { recomputePublicProjection(); },
-          [this]() { recomputeActiveZoomReadout(); },
       })
     , m_directMediaScopePort(&m_state)
     , m_directMediaActivityPort(&m_state, &m_directMediaScopePort)
@@ -856,19 +855,6 @@ void DocumentSessionRuntimeGraph::syncImageDocumentFileDeletionProgress()
 void DocumentSessionRuntimeGraph::setDocumentKind(DocumentSessionKind kind)
 {
     m_state.setDocumentKindAndActiveZoomSnapshot(kind, activeZoomSnapshotForKind(kind));
-}
-
-void DocumentSessionRuntimeGraph::recomputeActiveZoomReadout() { recomputePublicProjection(); }
-
-void DocumentSessionRuntimeGraph::recomputeActiveZoomReadoutForKind(DocumentSessionKind kind)
-{
-    if (m_routingSource) {
-        return;
-    }
-
-    if (m_state.documentKind() == kind) {
-        recomputePublicProjection();
-    }
 }
 
 void DocumentSessionRuntimeGraph::publishActiveNavigationForImagePages()

@@ -7,6 +7,7 @@
 
 #include <QDebug>
 
+#include <cstddef>
 #include <utility>
 
 namespace kiriview {
@@ -77,6 +78,137 @@ namespace {
 
         return "unknown";
     }
+
+    bool samePageNavigation(ImageDocumentPageActiveNavigationSnapshot left,
+        ImageDocumentPageActiveNavigationSnapshot right)
+    {
+        return left.known == right.known && left.canOpenPrevious == right.canOpenPrevious
+            && left.canOpenNext == right.canOpenNext && left.atKnownFirst == right.atKnownFirst
+            && left.atKnownLast == right.atKnownLast && left.currentNumber == right.currentNumber
+            && left.count == right.count;
+    }
+
+    bool sameDirectNavigation(
+        DirectMediaActiveNavigationInput left, DirectMediaActiveNavigationInput right)
+    {
+        return left.known == right.known
+            && left.boundaryState.canOpenPrevious == right.boundaryState.canOpenPrevious
+            && left.boundaryState.canOpenNext == right.boundaryState.canOpenNext
+            && left.boundaryState.atKnownFirst == right.boundaryState.atKnownFirst
+            && left.boundaryState.atKnownLast == right.boundaryState.atKnownLast
+            && left.boundaryState.currentNumber == right.boundaryState.currentNumber
+            && left.boundaryState.count == right.boundaryState.count;
+    }
+
+    bool sameMetadata(const EmbeddedMetadata& left, const EmbeddedMetadata& right)
+    {
+        if (left.cameraMake != right.cameraMake || left.cameraModel != right.cameraModel
+            || left.taken != right.taken || left.location != right.location
+            || left.lens != right.lens || left.exposure != right.exposure || left.iso != right.iso
+            || left.focalLength != right.focalLength || left.software != right.software
+            || left.duration != right.duration || left.frameSize != right.frameSize
+            || left.advancedRows.size() != right.advancedRows.size()) {
+            return false;
+        }
+        for (std::size_t index = 0; index < left.advancedRows.size(); ++index) {
+            if (left.advancedRows.at(index).label != right.advancedRows.at(index).label
+                || left.advancedRows.at(index).value != right.advancedRows.at(index).value) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool sameMediaInformationInput(
+        const MediaInformationProjectionInput& left, const MediaInformationProjectionInput& right)
+    {
+        return left.inputRevision == right.inputRevision && left.documentKind == right.documentKind
+            && left.imageReady == right.imageReady
+            && left.imageUnsupportedOpenedCollectionVideo
+            == right.imageUnsupportedOpenedCollectionVideo
+            && left.imageDisplayedUrl == right.imageDisplayedUrl
+            && left.imageDisplayedOpenedCollectionScope == right.imageDisplayedOpenedCollectionScope
+            && left.imageSize == right.imageSize
+            && sameMetadata(left.imageEmbeddedMetadata, right.imageEmbeddedMetadata)
+            && left.videoSourceUrl == right.videoSourceUrl
+            && left.videoOpenedCollectionScope == right.videoOpenedCollectionScope
+            && left.videoSize == right.videoSize
+            && sameMetadata(left.videoEmbeddedMetadata, right.videoEmbeddedMetadata);
+    }
+
+    bool samePublicProjectionDependency(const DocumentSessionPublicSnapshotInput& left,
+        const DocumentSessionPublicSnapshotInput& right)
+    {
+        const auto& leftSession = left.session;
+        const auto& rightSession = right.session;
+        if (leftSession.sourceUrl != rightSession.sourceUrl
+            || leftSession.documentKind != rightSession.documentKind
+            || leftSession.sessionErrorString != rightSession.sessionErrorString
+            || leftSession.fileDeletionInProgress != rightSession.fileDeletionInProgress
+            || leftSession.directImageLoadMayUseImageDocumentSourceScope
+                != rightSession.directImageLoadMayUseImageDocumentSourceScope
+            || !sameDirectNavigation(
+                leftSession.directMediaNavigation, rightSession.directMediaNavigation)
+            || leftSession.activeNavigationRevealIntent != rightSession.activeNavigationRevealIntent
+            || leftSession.activeNavigationRevealDirection
+                != rightSession.activeNavigationRevealDirection
+            || leftSession.openedCollectionVideoActive != rightSession.openedCollectionVideoActive
+            || left.operations.displayedMediaOpenWithAvailable
+                != right.operations.displayedMediaOpenWithAvailable
+            || !sameMediaInformationInput(left.mediaInformation, right.mediaInformation)) {
+            return false;
+        }
+
+        const auto& leftImage = left.image;
+        const auto& rightImage = right.image;
+        const bool imageRelevant = leftSession.documentKind == DocumentSessionKind::Image
+            || leftSession.openedCollectionVideoActive;
+        if (imageRelevant
+            && (leftImage.sourceMayRepresentDocument != rightImage.sourceMayRepresentDocument
+                || !samePageNavigation(leftImage.pageNavigation, rightImage.pageNavigation)
+                || leftImage.displayedUrl != rightImage.displayedUrl
+                || leftImage.displayedOpenedCollectionScope
+                    != rightImage.displayedOpenedCollectionScope
+                || leftImage.windowTitleFileName != rightImage.windowTitleFileName
+                || leftImage.directMediaSize != rightImage.directMediaSize
+                || !sameMetadata(leftImage.embeddedMetadata, rightImage.embeddedMetadata)
+                || leftImage.readyForDeletion != rightImage.readyForDeletion
+                || leftImage.readyForInformation != rightImage.readyForInformation
+                || leftImage.openedCollectionScopeActive != rightImage.openedCollectionScopeActive
+                || leftImage.unsupportedOpenedCollectionVideo
+                    != rightImage.unsupportedOpenedCollectionVideo
+                || leftImage.directImageReplacementPending
+                    != rightImage.directImageReplacementPending
+                || leftImage.containerNavigationAvailable != rightImage.containerNavigationAvailable
+                || leftImage.twoPageModeEnabled != rightImage.twoPageModeEnabled
+                || leftImage.twoPageModeAvailable != rightImage.twoPageModeAvailable
+                || leftImage.rightToLeftReadingEnabled != rightImage.rightToLeftReadingEnabled
+                || leftImage.rightToLeftReadingAvailable != rightImage.rightToLeftReadingAvailable
+                || leftImage.fitModeSelected != rightImage.fitModeSelected
+                || leftImage.fitHeightModeSelected != rightImage.fitHeightModeSelected
+                || leftImage.fitWidthModeSelected != rightImage.fitWidthModeSelected
+                || leftImage.zoomPercentKnown != rightImage.zoomPercentKnown
+                || leftImage.zoomPercent != rightImage.zoomPercent
+                || leftImage.errorString != rightImage.errorString)) {
+            return false;
+        }
+
+        if (leftSession.documentKind != DocumentSessionKind::Video) {
+            return true;
+        }
+        const auto& leftVideo = left.video;
+        const auto& rightVideo = right.video;
+        return leftVideo.sourceUrl == rightVideo.sourceUrl
+            && leftVideo.windowTitleFileName == rightVideo.windowTitleFileName
+            && leftVideo.directMediaSize == rightVideo.directMediaSize
+            && sameMetadata(leftVideo.embeddedMetadata, rightVideo.embeddedMetadata)
+            && leftVideo.ready == rightVideo.ready && leftVideo.hasVideo == rightVideo.hasVideo
+            && leftVideo.sourcePresent == rightVideo.sourcePresent
+            && leftVideo.error == rightVideo.error
+            && leftVideo.zoomPercentKnown == rightVideo.zoomPercentKnown
+            && leftVideo.zoomPercent == rightVideo.zoomPercent
+            && leftVideo.errorString == rightVideo.errorString;
+    }
 }
 
 DocumentSessionProjectionRuntime::DocumentSessionProjectionRuntime(
@@ -88,26 +220,42 @@ DocumentSessionProjectionRuntime::DocumentSessionProjectionRuntime(
 void DocumentSessionProjectionRuntime::publish(const DocumentSessionPublicSnapshotInput& input,
     const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
-    if (m_ports.updatePublicSnapshot) {
+    const bool publicDependencyChanged = !m_publicDependencyInput.has_value()
+        || !samePublicProjectionDependency(*m_publicDependencyInput, input);
+    if (publicDependencyChanged && m_ports.updatePublicSnapshot) {
         m_ports.updatePublicSnapshot(input);
     }
-    syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
-    clearActiveNavigationRevealContextIfUnavailable();
+    if (publicDependencyChanged) {
+        m_publicDependencyInput = input;
+    }
+    const bool thumbnailDependencyChanged
+        = syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
+    if (publicDependencyChanged || thumbnailDependencyChanged) {
+        clearActiveNavigationRevealContextIfUnavailable();
+    }
 }
 
 void DocumentSessionProjectionRuntime::publishForSourceKind(
     const DocumentSessionPublicSnapshotInput& input, ActiveNavigationSourceKind sourceKind,
     const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
-    const bool updated = m_ports.updatePublicSnapshotForSourceKind
-        && m_ports.updatePublicSnapshotForSourceKind(input, sourceKind);
-    if (updated) {
+    const bool publicDependencyChanged = !m_publicDependencyInput.has_value()
+        || !samePublicProjectionDependency(*m_publicDependencyInput, input);
+    bool accepted
+        = m_ports.activeNavigationSourceKind && m_ports.activeNavigationSourceKind() == sourceKind;
+    if (publicDependencyChanged && m_ports.updatePublicSnapshotForSourceKind) {
+        accepted = m_ports.updatePublicSnapshotForSourceKind(input, sourceKind);
+        if (accepted) {
+            m_publicDependencyInput = input;
+        }
+    }
+    if (accepted) {
         syncActiveNavigationThumbnailRows(imageDocumentPageCandidateSnapshot);
     }
     clearActiveNavigationRevealContextIfUnavailable();
 }
 
-void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
+bool DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
     const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot)
 {
     const ActiveNavigationSourceKind sourceKind = m_ports.activeNavigationSourceKind
@@ -124,6 +272,11 @@ void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
         = activeNavigationThumbnailRowSetIdentity(sourceKind, navigation,
             directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
     if (!rowSetIdentity.has_value()) {
+        if (m_activeNavigationThumbnailProjectionInitialized
+            && !m_activeNavigationThumbnailIdentity.has_value()) {
+            return false;
+        }
+        m_activeNavigationThumbnailProjectionInitialized = true;
         qCDebug(kiriviewThumbnailLog)
             << "Active navigation thumbnail row-set unavailable"
             << "reason"
@@ -146,24 +299,33 @@ void DocumentSessionProjectionRuntime::syncActiveNavigationThumbnailRows(
         if (m_ports.setActiveNavigationThumbnailRows) {
             m_ports.setActiveNavigationThumbnailRows({});
         }
-        return;
+        m_activeNavigationThumbnailCurrentNumber = 0;
+        return true;
     }
 
     if (m_activeNavigationThumbnailIdentity.has_value()
         && sameActiveNavigationThumbnailRowSetIdentity(
-            *m_activeNavigationThumbnailIdentity, *rowSetIdentity)
-        && m_ports.setActiveNavigationThumbnailCurrentNumber) {
-        m_ports.setActiveNavigationThumbnailCurrentNumber(navigation.currentNumber);
-        return;
+            *m_activeNavigationThumbnailIdentity, *rowSetIdentity)) {
+        if (m_activeNavigationThumbnailCurrentNumber == navigation.currentNumber) {
+            return false;
+        }
+        if (m_ports.setActiveNavigationThumbnailCurrentNumber) {
+            m_ports.setActiveNavigationThumbnailCurrentNumber(navigation.currentNumber);
+        }
+        m_activeNavigationThumbnailCurrentNumber = navigation.currentNumber;
+        return true;
     }
 
     std::vector<ActiveNavigationThumbnailRow> rows
         = projectActiveNavigationThumbnailRows(sourceKind, navigation,
             directMediaNavigationCandidateSnapshot, imageDocumentPageCandidateSnapshot);
     m_activeNavigationThumbnailIdentity = rowSetIdentity;
+    m_activeNavigationThumbnailProjectionInitialized = true;
+    m_activeNavigationThumbnailCurrentNumber = navigation.currentNumber;
     if (m_ports.setActiveNavigationThumbnailRows) {
         m_ports.setActiveNavigationThumbnailRows(std::move(rows));
     }
+    return true;
 }
 
 void DocumentSessionProjectionRuntime::clearActiveNavigationRevealContextIfUnavailable()

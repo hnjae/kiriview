@@ -68,8 +68,5 @@ void DocumentSessionVideoDocumentSyncRuntime::apply(
     if (m_ports.recomputePublicProjection) {
         m_ports.recomputePublicProjection();
     }
-    if (m_ports.recomputeActiveZoomReadout) {
-        m_ports.recomputeActiveZoomReadout();
-    }
 }
 }

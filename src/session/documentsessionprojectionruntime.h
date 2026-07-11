@@ -39,12 +39,15 @@ public:
         const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
 
 private:
-    void syncActiveNavigationThumbnailRows(
+    bool syncActiveNavigationThumbnailRows(
         const ImageDocumentPageCandidateListSnapshot& imageDocumentPageCandidateSnapshot);
     void clearActiveNavigationRevealContextIfUnavailable();
 
     DocumentSessionProjectionRuntimePorts m_ports;
+    std::optional<DocumentSessionPublicSnapshotInput> m_publicDependencyInput;
     std::optional<ActiveNavigationThumbnailRowSetIdentity> m_activeNavigationThumbnailIdentity;
+    int m_activeNavigationThumbnailCurrentNumber = 0;
+    bool m_activeNavigationThumbnailProjectionInitialized = false;
 };
 }
 

@@ -61,6 +61,10 @@ class TestDocumentSessionProjectionRuntime : public QObject
 private Q_SLOTS:
     void publishCommitsSnapshotBeforeThumbnailRowsAndRevealCleanup();
     void sameDirectMediaCandidateRevisionUpdatesCurrentWithoutRows();
+    void unchangedDependenciesSkipPublicAndThumbnailProjection();
+    void publicOnlyChangesSkipThumbnailProjection();
+    void candidateRevisionChangesThumbnailWithoutPublicProjection();
+    void repeatedUnavailableThumbnailDependencyClearsRowsOnce();
     void sourceKindPublishSkipsThumbnailRowsWhenRejected();
 };
 
@@ -160,10 +164,130 @@ void TestDocumentSessionProjectionRuntime::
     const std::vector<QString> expected {
         QStringLiteral("commit"),
         QStringLiteral("rows:2"),
-        QStringLiteral("commit"),
         QStringLiteral("current:2"),
     };
     QCOMPARE(events, expected);
+}
+
+void TestDocumentSessionProjectionRuntime::unchangedDependenciesSkipPublicAndThumbnailProjection()
+{
+    std::vector<QString> events;
+    kiriview::ActiveNavigationSourceKind sourceKind
+        = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
+    const kiriview::ActiveNavigationSnapshot navigation = activeNavigationSnapshot(1, 1);
+    const auto candidates = directMediaNavigationCandidateSnapshot(
+        { directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))) });
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&events](const auto&) {
+        events.push_back(QStringLiteral("commit"));
+        return true;
+    };
+    ports.activeNavigationSourceKind = [&sourceKind]() { return sourceKind; };
+    ports.activeNavigationSnapshot = [&navigation]() { return navigation; };
+    ports.directMediaNavigationCandidateSnapshot
+        = [&candidates]() -> const auto& { return candidates; };
+    ports.setActiveNavigationThumbnailRows
+        = [&events](auto) { events.push_back(QStringLiteral("rows")); };
+    ports.setActiveNavigationThumbnailCurrentNumber
+        = [&events](int) { events.push_back(QStringLiteral("current")); };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.inputRevision = 1;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+
+    runtime.publish(input, {});
+    input.inputRevision = 2;
+    runtime.publish(input, {});
+
+    QCOMPARE(events, (std::vector<QString> { QStringLiteral("commit"), QStringLiteral("rows") }));
+}
+
+void TestDocumentSessionProjectionRuntime::publicOnlyChangesSkipThumbnailProjection()
+{
+    std::vector<QString> events;
+    kiriview::ActiveNavigationSourceKind sourceKind
+        = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
+    const kiriview::ActiveNavigationSnapshot navigation = activeNavigationSnapshot(1, 1);
+    const auto candidates = directMediaNavigationCandidateSnapshot(
+        { directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))) });
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&events](const auto&) {
+        events.push_back(QStringLiteral("commit"));
+        return true;
+    };
+    ports.activeNavigationSourceKind = [&sourceKind]() { return sourceKind; };
+    ports.activeNavigationSnapshot = [&navigation]() { return navigation; };
+    ports.directMediaNavigationCandidateSnapshot
+        = [&candidates]() -> const auto& { return candidates; };
+    ports.setActiveNavigationThumbnailRows
+        = [&events](auto) { events.push_back(QStringLiteral("rows")); };
+    ports.setActiveNavigationThumbnailCurrentNumber
+        = [&events](int) { events.push_back(QStringLiteral("current")); };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.readyForInformation = true;
+    input.image.zoomPercentKnown = true;
+    input.image.zoomPercent = 100.0;
+
+    runtime.publish(input, {});
+    input.image.zoomPercent = 125.0;
+    runtime.publish(input, {});
+
+    QCOMPARE(events,
+        (std::vector<QString> {
+            QStringLiteral("commit"), QStringLiteral("rows"), QStringLiteral("commit") }));
+}
+
+void TestDocumentSessionProjectionRuntime::
+    candidateRevisionChangesThumbnailWithoutPublicProjection()
+{
+    std::vector<QString> events;
+    kiriview::ActiveNavigationSourceKind sourceKind
+        = kiriview::ActiveNavigationSourceKind::OrdinaryDirectMedia;
+    const kiriview::ActiveNavigationSnapshot navigation = activeNavigationSnapshot(1, 1);
+    auto candidates = directMediaNavigationCandidateSnapshot(
+        { directMediaNavigationCandidate(localUrl(QStringLiteral("/media/01.png"))) });
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&events](const auto&) {
+        events.push_back(QStringLiteral("commit"));
+        return true;
+    };
+    ports.activeNavigationSourceKind = [&sourceKind]() { return sourceKind; };
+    ports.activeNavigationSnapshot = [&navigation]() { return navigation; };
+    ports.directMediaNavigationCandidateSnapshot
+        = [&candidates]() -> const auto& { return candidates; };
+    ports.setActiveNavigationThumbnailRows
+        = [&events](auto) { events.push_back(QStringLiteral("rows")); };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+
+    runtime.publish(input, {});
+    ++candidates.revision;
+    runtime.publish(input, {});
+
+    QCOMPARE(events,
+        (std::vector<QString> {
+            QStringLiteral("commit"), QStringLiteral("rows"), QStringLiteral("rows") }));
+}
+
+void TestDocumentSessionProjectionRuntime::repeatedUnavailableThumbnailDependencyClearsRowsOnce()
+{
+    std::vector<QString> events;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&events](const auto&) {
+        events.push_back(QStringLiteral("commit"));
+        return true;
+    };
+    ports.setActiveNavigationThumbnailRows
+        = [&events](auto) { events.push_back(QStringLiteral("rows")); };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+
+    runtime.publish({}, {});
+    runtime.publish({}, {});
+
+    QCOMPARE(events, (std::vector<QString> { QStringLiteral("commit"), QStringLiteral("rows") }));
 }
 
 void TestDocumentSessionProjectionRuntime::sourceKindPublishSkipsThumbnailRowsWhenRejected()

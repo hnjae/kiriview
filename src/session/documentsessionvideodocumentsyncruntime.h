@@ -20,7 +20,6 @@ struct DocumentSessionVideoDocumentSyncRuntimePorts
     std::function<bool(const QUrl&)> setDirectVideoCursor;
     std::function<void()> refreshDirectMediaNavigation;
     std::function<void()> recomputePublicProjection;
-    std::function<void()> recomputeActiveZoomReadout;
 };
 
 class DocumentSessionVideoDocumentSyncRuntime final

@@ -33,7 +33,6 @@ struct VideoSyncFixture
         SetDirectVideoCursor,
         RefreshNavigation,
         Publish,
-        ActiveZoom,
     };
 
     std::vector<Event> events;
@@ -60,7 +59,6 @@ struct VideoSyncFixture
             },
             [this]() { events.push_back(Event::RefreshNavigation); },
             [this]() { events.push_back(Event::Publish); },
-            [this]() { events.push_back(Event::ActiveZoom); },
         }
     };
 };
@@ -94,8 +92,7 @@ void TestDocumentSessionVideoDocumentSyncRuntime::emptyVideoSourceClearsSessionD
     QCOMPARE(fixture.events,
         (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::ClearCursor,
             VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::SetDocumentKind,
-            VideoSyncFixture::Event::ClearNavigation, VideoSyncFixture::Event::Publish,
-            VideoSyncFixture::Event::ActiveZoom }));
+            VideoSyncFixture::Event::ClearNavigation, VideoSyncFixture::Event::Publish }));
 }
 
 void TestDocumentSessionVideoDocumentSyncRuntime::
@@ -111,7 +108,7 @@ void TestDocumentSessionVideoDocumentSyncRuntime::
     QCOMPARE(fixture.events,
         (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDirectVideoCursor,
             VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::RefreshNavigation,
-            VideoSyncFixture::Event::Publish, VideoSyncFixture::Event::ActiveZoom }));
+            VideoSyncFixture::Event::Publish }));
 }
 
 void TestDocumentSessionVideoDocumentSyncRuntime::unchangedDirectVideoCursorSkipsRefresh()
@@ -126,8 +123,7 @@ void TestDocumentSessionVideoDocumentSyncRuntime::unchangedDirectVideoCursorSkip
     QCOMPARE(fixture.sourceIdentity, clipUrl);
     QCOMPARE(fixture.events,
         (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDirectVideoCursor,
-            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::Publish,
-            VideoSyncFixture::Event::ActiveZoom }));
+            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::Publish }));
 }
 
 void TestDocumentSessionVideoDocumentSyncRuntime::
@@ -145,8 +141,8 @@ void TestDocumentSessionVideoDocumentSyncRuntime::
     QVERIFY(fixture.directVideoCursorUrl.isEmpty());
     QCOMPARE(fixture.sourceIdentity, clipUrl);
     QCOMPARE(fixture.events,
-        (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetSourceIdentity,
-            VideoSyncFixture::Event::Publish, VideoSyncFixture::Event::ActiveZoom }));
+        (std::vector<VideoSyncFixture::Event> {
+            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::Publish }));
 }
 
 QTEST_GUILESS_MAIN(TestDocumentSessionVideoDocumentSyncRuntime)
