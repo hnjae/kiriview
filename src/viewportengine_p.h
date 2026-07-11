@@ -240,6 +240,23 @@ public:
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
         ImageViewport::PageRole role);
+    ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
+        ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
+    ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
+        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
+    ImageViewportInternal::ViewportChangeSet reduceProviderSessionOpenFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
+    ViewportProviderSessionOpenResult reduceProviderSessionOpened(
+        ImageViewport::PageRole role, const GeometryInput& geometry);
+    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
+        ImageViewport::PageRole role);
+    ViewportProviderFrameRequestStartResult startProviderFrameRequest(ImageViewport::PageRole role,
+        const ImageViewportInternal::DisplayRequestTarget& target, const GeometryInput& geometry);
+    ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
+    ImageViewportInternal::ViewportChangeSet reduceProviderWaitingEvent(
+        ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
     ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
@@ -277,6 +294,10 @@ private:
     }
     FramePreparation::ProviderFrameState providerFramePreparationState(
         ImageViewport::PageRole role) const;
+    void recordProviderTerminal(ImageViewport::PageRole role,
+        ImageViewport::RequestStatus status, ImageViewport::RequestReason reason,
+        ImageViewportInternal::FailureScope scope, const QString& diagnostic,
+        ImageViewportInternal::ViewportChangeSet& changes);
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();

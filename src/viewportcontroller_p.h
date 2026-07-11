@@ -454,7 +454,6 @@ private:
         ViewportProviderWaitingEvent event);
     ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
         ImageViewport::PageRole role, ViewportProviderWaitingEvent event);
-    ImageViewportInternal::ViewportChangeSet handleProviderWaiting();
     ViewportProviderSessionClose handleProviderSessionClose();
     ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
     ViewportProviderRequestTokenAllocation allocateProviderRequestToken();

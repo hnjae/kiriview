@@ -105,6 +105,9 @@ private slots:
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
     void providerDisplayDemandProjectsCanonicalEngineFacts();
+    void providerTerminalReducerRejectsStaleFrameToken();
+    void providerTerminalReducerCommitsFrameFailureAtomically();
+    void providerTerminalReducerClosesMetadataGeneration();
     void providerFrameQueueStoresCurrentRequestIdentity();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
@@ -614,6 +617,85 @@ void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
     QCOMPARE(demand.currentPayloadExactness(), ImageViewport::PayloadExactness::NotExact);
     QCOMPARE(demand.currentPayloadRasterSize(), QSizeF(8.0, 4.0));
     QCOMPARE(demand.currentSourceToPayloadScale(), QSizeF(0.5, 0.5));
+}
+
+void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    engine.providerState().activeFrameToken = providerRequestTokenForTest(3);
+    request.activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
+
+    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
+        { providerRequestTokenForTest(4), ViewportProviderTerminalEvent::Kind::Failure,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+            QStringLiteral("stale"), false });
+
+    QCOMPARE(result.changes.requestState, false);
+    QCOMPARE(engine.providerState().sessionActive, true);
+    QCOMPARE(request.status, ImageViewport::RequestStatus::NoRequest);
+}
+
+void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.provider = true;
+    request.sequenceGeneration = 7;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
+    request.playbackPhase = ImageViewport::PlaybackPhase::Waiting;
+    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    engine.providerState().activeFrameToken = providerRequestTokenForTest(3);
+    request.activeRequest.providerFrameToken = engine.providerState().activeFrameToken;
+
+    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
+        { providerRequestTokenForTest(3), ViewportProviderTerminalEvent::Kind::Failure,
+            ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
+            QStringLiteral("frame failed"), false });
+
+    QCOMPARE(result.changes.requestState, true);
+    QCOMPARE(result.changes.playbackPhase, true);
+    QCOMPARE(request.status, ImageViewport::RequestStatus::Error);
+    QCOMPARE(request.reason, ImageViewport::RequestReason::ProviderFailure);
+    QCOMPARE(request.errorString, QStringLiteral("frame failed"));
+    QCOMPARE(request.playbackPhase, ImageViewport::PlaybackPhase::Stopped);
+    QCOMPARE(engine.providerState().sessionActive, true);
+    QVERIFY(!engine.providerState().activeFrameToken.isValid());
+    QCOMPARE(result.providerFrameTransport.closeSession, false);
+}
+
+void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
+{
+    ViewportEngine engine;
+    auto& request = engine.requestState();
+    request.sequenceSource.facts.present = true;
+    request.sequenceSource.facts.provider = true;
+    request.sequenceGeneration = 9;
+    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
+        { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, false);
+    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    engine.providerState().activeMetadataToken = providerRequestTokenForTest(5);
+
+    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
+        { providerRequestTokenForTest(5), ViewportProviderTerminalEvent::Kind::Unsupported,
+            ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
+            QStringLiteral("unsupported"), true });
+
+    QCOMPARE(request.status, ImageViewport::RequestStatus::Unsupported);
+    QCOMPARE(request.reason, ImageViewport::RequestReason::UnsupportedRequest);
+    QCOMPARE(request.targetSpreadTerminal.primary.failureScope,
+        ImageViewportInternal::FailureScope::Generation);
+    QCOMPARE(engine.providerState().sessionActive, false);
+    QCOMPARE(result.providerFrameTransport.closeSession, true);
+    QVERIFY(!result.providerFrameTransport.sessionClose.metadataToken.isValid());
 }
 
 void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()

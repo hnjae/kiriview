@@ -4,105 +4,6 @@
 #include <memory>
 
 namespace {
-bool unsupportedCauseIsValid(ImageSequenceProviderSession::UnsupportedCause cause)
-{
-    switch (cause) {
-    case ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest:
-    case ImageSequenceProviderSession::UnsupportedCause::PayloadRejection:
-        return true;
-    }
-    return false;
-}
-
-bool terminalEventHasInvalidUnsupportedCause(const ViewportProviderTerminalEvent& event)
-{
-    return event.kind == ViewportProviderTerminalEvent::Kind::Unsupported
-        && event.unsupportedCauseExplicit && !unsupportedCauseIsValid(event.unsupportedCause);
-}
-
-ViewportProviderFrameTerminalResult frameTerminalResultFor(
-    const ViewportProviderTerminalEvent& event)
-{
-    switch (event.kind) {
-    case ViewportProviderTerminalEvent::Kind::Unsupported:
-        if (terminalEventHasInvalidUnsupportedCause(event)) {
-            return {
-                ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection,
-                {},
-                QStringLiteral("provider protocol violation"),
-            };
-        }
-        return {
-            ImageViewport::RequestStatus::Unsupported,
-            event.unsupportedCause
-                    == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-                ? ImageViewport::RequestReason::UnsupportedRequest
-                : ImageViewport::RequestReason::PayloadRejection,
-            event.diagnostic,
-            QStringLiteral("provider unsupported"),
-        };
-    case ViewportProviderTerminalEvent::Kind::Cancellation:
-        return {
-            ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure,
-            event.diagnostic,
-            QStringLiteral("provider cancelled request"),
-        };
-    case ViewportProviderTerminalEvent::Kind::Failure:
-        return {
-            ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure,
-            event.diagnostic,
-            QStringLiteral("provider failure"),
-        };
-    }
-
-    return {};
-}
-
-ViewportProviderMetadataTerminalResult metadataTerminalResultFor(
-    const ViewportProviderTerminalEvent& event)
-{
-    switch (event.kind) {
-    case ViewportProviderTerminalEvent::Kind::Unsupported:
-        if (terminalEventHasInvalidUnsupportedCause(event)) {
-            return {
-                ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection,
-                {},
-                QStringLiteral("provider protocol violation"),
-            };
-        }
-        return {
-            ImageViewport::RequestStatus::Unsupported,
-            event.unsupportedCauseExplicit
-                    && event.unsupportedCause
-                        == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection
-                ? ImageViewport::RequestReason::PayloadRejection
-                : ImageViewport::RequestReason::UnsupportedRequest,
-            event.diagnostic,
-            QStringLiteral("provider unsupported"),
-        };
-    case ViewportProviderTerminalEvent::Kind::Cancellation:
-        return {
-            ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure,
-            event.diagnostic,
-            QStringLiteral("provider cancelled request"),
-        };
-    case ViewportProviderTerminalEvent::Kind::Failure:
-        return {
-            ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure,
-            event.diagnostic,
-            QStringLiteral("provider failure"),
-        };
-    }
-
-    return {};
-}
-
 ViewportProviderTerminalEvent terminalEventFor(const ViewportProviderEvent& event)
 {
     ViewportProviderTerminalEvent terminalEvent;
@@ -139,15 +40,6 @@ void appendProviderFrameQueueResult(
 {
     effect.cancelToken = queue.cancelToken;
     effect.deferredControllerEvent = queue.deferredControllerEvent;
-}
-
-void appendProviderMetadataStartResult(ViewportProviderMetadataTransportEffect& effect,
-    const ViewportProviderMetadataRequestStartResult& start)
-{
-    effect.closeSession = start.closeSession;
-    effect.sessionClose = start.sessionClose;
-    effect.sendCommand = start.sendCommand;
-    effect.token = start.token;
 }
 
 }
@@ -210,16 +102,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessi
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
-    ImageViewportInternal::ViewportChangeSet changes;
-    state.engine.clearQueuedProviderFrameRequest(role);
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::ProviderFailure,
-        ImageViewportInternal::FailureScope::Generation, diagnostic, changes);
-    return changes;
+    return state.engine.reduceProviderSessionOpenFailure(role, diagnostic);
 }
 
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened()
@@ -230,24 +113,7 @@ ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpene
 ViewportProviderSessionOpenResult ViewportController::handleProviderSessionOpened(
     ImageViewport::PageRole role)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-
-    ViewportProviderSessionOpenResult result;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (provider.metadataReady) {
-        discardPendingRenderCommit();
-        appendProviderFrameStartResult(result.providerFrameTransport,
-            startProviderFrameRequest(
-                role, { activeRequestForRole(viewportRequestState(viewport), role).target }));
-        return result;
-    }
-
-    appendProviderMetadataStartResult(
-        result.providerMetadataTransport, startProviderMetadataRequest(role));
-    return result;
+    return state.engine.reduceProviderSessionOpened(role, acceptedGeometryInput(viewport));
 }
 
 quint64 ViewportController::activateProviderSession()
@@ -579,105 +445,20 @@ ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEv
 ViewportProviderTerminalEventResult ViewportController::handleProviderTerminalEvent(
     ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event)
 {
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.sessionActive) {
-        return {};
-    }
-
-    if (activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token)) {
-        return { handleProviderFrameTerminalResult(role, frameTerminalResultFor(event)),
-            terminalEventHasInvalidUnsupportedCause(event)
-                ? closeProviderSession(role)
-                : ViewportProviderFrameTransportEffect {} };
-    }
-
-    if (provider.metadataReady || !provider.activeMetadataToken.isValid()
-        || event.token != provider.activeMetadataToken) {
-        return {};
-    }
-
-    ViewportProviderTerminalEventResult result;
-    result.changes = handleProviderMetadataTerminalResult(role, metadataTerminalResultFor(event));
-    result.providerFrameTransport.closeSession = true;
-    result.providerFrameTransport.sessionClose = handleProviderSessionClose(role);
-    return result;
+    return state.engine.reduceProviderTerminalEvent(role, event);
 }
 
 ViewportProviderTerminalEventResult ViewportController::handleProviderDispatchFailure(
     ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event)
 {
-    const ViewportProviderTerminalEvent terminalEvent {
-        event.token,
-        ViewportProviderTerminalEvent::Kind::Failure,
-        ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-        event.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
-                                   : event.diagnostic,
-        false,
-    };
-
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role)) {
-        return {};
-    }
-    if (activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token)) {
-        ViewportProviderTerminalEventResult result;
-        result.changes
-            = handleProviderFrameTerminalResult(role, frameTerminalResultFor(terminalEvent));
-        result.providerFrameTransport = closeProviderSession(role);
-        result.schedule = state.engine.playbackScheduleEffect();
-        return result;
-    }
-    if (provider.metadataReady || !provider.activeMetadataToken.isValid()
-        || event.token != provider.activeMetadataToken) {
-        return {};
-    }
-    ViewportProviderTerminalEventResult result;
-    result.changes
-        = handleProviderMetadataTerminalResult(role, metadataTerminalResultFor(terminalEvent));
-    result.providerFrameTransport = closeProviderSession(role);
-    result.schedule = state.engine.playbackScheduleEffect();
-    return result;
+    return state.engine.reduceProviderDispatchFailure(role, event);
 }
 
 ViewportProviderSchedulerFailureResult
 ViewportController::handleProviderQueueFlushSchedulingFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
-    ViewportProviderSchedulerFailureResult result;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    const ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(viewportRequestState(viewport), role);
-    const bool hadQueuedRequest = provider.queuedFrameRequest;
-    result.diagnostic = {
-        hadQueuedRequest,
-        role,
-        provider.queuedFrameGeneration,
-        activeRequest.identity.id,
-        provider.queuedFrameRequestId,
-        provider.queuedFrameTargetKind,
-        ImageViewportInternal::ProviderSchedulerOperation::FlushQueuedFrameRequest,
-    };
-    if (!hadQueuedRequest || !hasProviderSequenceForRole(viewport, role)) {
-        state.engine.clearQueuedProviderFrameRequest(role);
-        return result;
-    }
-
-    const bool playbackOwned = provider.queuedFrameFromPlayback;
-    state.engine.clearQueuedProviderFrameRequest(role);
-    recordTargetSpreadTerminal(role, ImageViewport::RequestStatus::Error,
-        ImageViewport::RequestReason::ProviderFailure,
-        ImageViewportInternal::FailureScope::DisplayRequest,
-        FramePreparation::boundedDiagnostic(
-            diagnostic, QStringLiteral("provider command delivery failed")),
-        result.changes);
-    if (playbackOwned) {
-        setPlaybackPhase(result.changes, ImageViewport::PlaybackPhase::Stopped);
-    }
-    result.schedule = state.engine.playbackScheduleEffect();
-    return result;
+    return state.engine.reduceProviderQueueSchedulingFailure(role, diagnostic);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderFrameTerminalResult(
@@ -1024,42 +805,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiti
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(
     ImageViewport::PageRole role, ViewportProviderWaitingEvent event)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    if (!hasProviderSequenceForRole(viewport, role) || !provider.sessionActive) {
-        return {};
-    }
-    if (event.progress
-        && (!std::isfinite(event.progressValue) || event.progressValue < 0.0
-            || event.progressValue > 1.0)) {
-        return {};
-    }
-
-    const bool activeMetadataToken = !provider.metadataReady
-        && provider.activeMetadataToken.isValid() && event.token == provider.activeMetadataToken;
-    const bool activeFrameToken
-        = activeProviderFrameTokenMatchesActiveRequest(state, viewport, role, event.token);
-    if (!activeMetadataToken && !activeFrameToken) {
-        return {};
-    }
-
-    return handleProviderWaiting();
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaiting()
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    if (viewportRequestState(viewport).status != ImageViewport::RequestStatus::Loading
-        || viewportRequestState(viewport).reason == ImageViewport::RequestReason::ProviderWaiting) {
-        return changes;
-    }
-
-    viewportRequestState(viewport).reason = ImageViewport::RequestReason::ProviderWaiting;
-    markRequestMutation(changes);
-    return changes;
+    return state.engine.reduceProviderWaitingEvent(role, event);
 }
 
 ViewportProviderEndOfSequenceResult ViewportController::handleProviderEndOfSequenceEvent(
@@ -1216,20 +962,13 @@ ViewportProviderEndOfSequenceResult ViewportController::handleProviderPlaybackEn
 
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession()
 {
-    ViewportProviderFrameTransportEffect effect;
-    effect.closeSession
-        = providerGenerationStateForRole(state, ImageViewport::PageRole::Primary).sessionActive;
-    effect.sessionClose = handleProviderSessionClose();
-    return effect;
+    return state.engine.closeProviderSession(ImageViewport::PageRole::Primary);
 }
 
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession(
     ImageViewport::PageRole role)
 {
-    ViewportProviderFrameTransportEffect effect;
-    effect.closeSession = providerGenerationStateForRole(state, role).sessionActive;
-    effect.sessionClose = handleProviderSessionClose(role);
-    return effect;
+    return state.engine.closeProviderSession(role);
 }
 
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
@@ -1240,21 +979,7 @@ ViewportProviderSessionClose ViewportController::handleProviderSessionClose()
 ViewportProviderSessionClose ViewportController::handleProviderSessionClose(
     ImageViewport::PageRole role)
 {
-    ViewportProviderSessionClose sessionClose;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    state.engine.clearQueuedProviderFrameRequest(role);
-    if (!provider.sessionActive) {
-        return sessionClose;
-    }
-
-    sessionClose.metadataToken = provider.activeMetadataToken;
-    sessionClose.frameToken = provider.activeFrameToken;
-    provider.sessionActive = false;
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-    provider.nextRequestToken = 0;
-    return sessionClose;
+    return state.engine.closeProviderSession(role).sessionClose;
 }
 
 ViewportProviderRequestTokenAllocation ViewportController::allocateProviderRequestToken()
@@ -1276,67 +1001,14 @@ ViewportProviderMetadataRequestStartResult ViewportController::startProviderMeta
 ViewportProviderMetadataRequestStartResult ViewportController::startProviderMetadataRequest(
     ImageViewport::PageRole role)
 {
-    ViewportProviderMetadataRequestStartResult result;
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken(role);
-    result.closeSession = allocation.closeSession;
-    result.sessionClose = allocation.sessionClose;
-    provider.activeMetadataToken = allocation.token;
-    if (!provider.activeMetadataToken.isValid()) {
-        return result;
-    }
-
-    result.sendCommand = provider.sessionActive;
-    result.token = provider.activeMetadataToken;
-    return result;
+    return state.engine.startProviderMetadataRequest(role);
 }
 
 ViewportProviderFrameRequestStartResult ViewportController::startProviderFrameRequest(
     ImageViewport::PageRole role, ViewportProviderFrameRequestStart request)
 {
-    ViewportProviderFrameRequestStartResult result;
-    state.engine.clearQueuedProviderFrameRequest(role);
-    ImageViewportInternal::TargetSpreadWaitState waitState;
-    if (role == ImageViewport::PageRole::Secondary) {
-        waitState.requiresSecondary = true;
-        waitState.secondary.providerWaiting = true;
-    } else {
-        waitState.primary.providerWaiting = true;
-    }
-    publishLoadingWaitState(waitState);
-
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    const ViewportProviderRequestTokenAllocation allocation = allocateProviderRequestToken(role);
-    result.closeSession = allocation.closeSession;
-    result.sessionClose = allocation.sessionClose;
-    provider.activeFrameToken = allocation.token;
-    if (!provider.activeFrameToken.isValid()) {
-        return result;
-    }
-
-    if (role == ImageViewport::PageRole::Secondary) {
-        const int resolvedPosition = provider.timedMetadata
-            ? provider.timingIntervals.frameStartPosition(request.target.frame)
-            : -1;
-        setSecondaryActiveRequest(request.target, { request.target.frame, resolvedPosition },
-            request.target.providerTargetKind
-                != ImageViewportInternal::ProviderRequestTargetKind::Playback);
-    }
-
-    ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(viewportRequestState(viewport), role);
-    activeRequest.providerFrameToken = provider.activeFrameToken;
-    result.accepted = true;
-    result.sendCommand = provider.sessionActive;
-    result.command.token = provider.activeFrameToken;
-    result.command.frame = activeRequest.resolvedFrame.frame;
-    result.command.position = activeRequest.target.position;
-    result.command.targetKind = activeRequest.target.providerTargetKind;
-    result.command.demand
-        = state.engine.providerDisplayDemand(role, acceptedGeometryInput(viewport));
-    return result;
+    return state.engine.startProviderFrameRequest(
+        role, request.target, acceptedGeometryInput(viewport));
 }
 
 ViewportProviderFrameQueueResult ViewportController::queueProviderFrameRequest(
