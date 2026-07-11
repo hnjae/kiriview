@@ -4,13 +4,12 @@
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
-#include "viewportrendercontract_p.h"
-#include "viewportplaybackcontract_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
+#include "viewportplaybackcontract_p.h"
+#include "viewportrendercontract_p.h"
 
 #include <array>
 #include <optional>
-
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
@@ -248,8 +247,7 @@ public:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     PresentationGeometry::State geometryState(const GeometryInput& input,
         const ImageViewportInternal::PresentationState& presentation) const;
-    GeometryInput projectedGeometryInput(const QRectF& itemBounds,
-        double devicePixelRatio = 1.0,
+    GeometryInput projectedGeometryInput(const QRectF& itemBounds, double devicePixelRatio = 1.0,
         GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay) const;
     GeometryInput acceptedGeometryInput(
         const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
@@ -274,9 +272,8 @@ public:
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
     ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
         ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
-    ViewportProviderMetadataReadyResult reduceProviderMetadataReady(
-        ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event,
-        const GeometryInput& geometry);
+    ViewportProviderMetadataReadyResult reduceProviderMetadataReady(ImageViewport::PageRole role,
+        const ViewportProviderMetadataReadyEvent& event, const GeometryInput& geometry);
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
     ImageViewportInternal::ViewportChangeSet acceptProviderMetadataFacts(
@@ -311,9 +308,8 @@ public:
         ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
     ViewportProviderEndOfSequenceResult reduceProviderEndOfSequenceProtocolViolation(
         ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation input);
-    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequence(
-        ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event,
-        const GeometryInput& geometry);
+    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequence(ImageViewport::PageRole role,
+        ViewportProviderEndOfSequenceEvent event, const GeometryInput& geometry);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
     bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
@@ -321,13 +317,12 @@ public:
     ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewport::PageRole role, const GeometryInput& geometry);
-    quint64 currentProviderGeneration() const;
     ImageSequenceProviderDisplayDemand providerDisplayDemand(
         ImageViewport::PageRole role, const GeometryInput& geometry);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
-    void setPlaybackPhase(ImageViewport::PlaybackPhase phase,
-        ImageViewportInternal::ViewportChangeSet& changes);
+    void setPlaybackPhase(
+        ImageViewport::PlaybackPhase phase, ImageViewportInternal::ViewportChangeSet& changes);
     void armAuthoredAutoplayIfEligible();
     ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
 
@@ -365,10 +360,9 @@ private:
     }
     FramePreparation::ProviderFrameState providerFramePreparationState(
         ImageViewport::PageRole role) const;
-    void recordProviderTerminal(ImageViewport::PageRole role,
-        ImageViewport::RequestStatus status, ImageViewport::RequestReason reason,
-        ImageViewportInternal::FailureScope scope, const QString& diagnostic,
-        ImageViewportInternal::ViewportChangeSet& changes);
+    void recordProviderTerminal(ImageViewport::PageRole role, ImageViewport::RequestStatus status,
+        ImageViewport::RequestReason reason, ImageViewportInternal::FailureScope scope,
+        const QString& diagnostic, ImageViewportInternal::ViewportChangeSet& changes);
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();

@@ -1,8 +1,8 @@
 #include "imageviewport.h"
+#include "viewportcontroller_p.h"
 #include "viewportcontrollercommandcontract_p.h"
 #include "viewportcontrollerplaybackcontract_p.h"
 #include "viewportcontrollerrendercontract_p.h"
-#include "viewportcontroller_p.h"
 
 #include <QtTest/QTest>
 
@@ -46,7 +46,6 @@ public:
         descriptor.setSessionFactory(std::make_shared<StubProviderSessionFactory>());
         return descriptor;
     }
-
 };
 
 enum class RoleCommandAdmissionCase {
@@ -108,10 +107,7 @@ public:
     double height() const { return size.height(); }
     bool hasSecondaryTimedSequence() const { return secondarySequence != nullptr; }
     int secondarySequenceFrameCount() const { return secondaryDurations.size(); }
-    int secondarySequenceTotalDuration() const
-    {
-        return totalDurationFor(secondaryDurations);
-    }
+    int secondarySequenceTotalDuration() const { return totalDurationFor(secondaryDurations); }
     QSizeF secondarySequenceLogicalSize() const { return logicalSize; }
 
     int sequenceFrameStartPosition(int frame) const
@@ -172,16 +168,11 @@ private:
         return position == start && !frameDurations.isEmpty() ? frameDurations.size() - 1 : -1;
     }
 
-    int sequenceTotalDuration() const
-    {
-        return totalDurationFor(durations);
-    }
+    int sequenceTotalDuration() const { return totalDurationFor(durations); }
 };
 
 std::unique_ptr<ImageSequenceFactoryResult> makeTimedSequenceFor(
-    ImageSequenceFactory& factory,
-    QVector<QImage>& retainedImages,
-    const QVector<int>& durations)
+    ImageSequenceFactory& factory, QVector<QImage>& retainedImages, const QVector<int>& durations)
 {
     QImage firstImage(16, 8, QImage::Format_ARGB32_Premultiplied);
     firstImage.fill(Qt::transparent);
@@ -233,7 +224,8 @@ std::unique_ptr<ImageSequenceFactoryResult> makeStillSequence(
 std::unique_ptr<ImageSequenceFactoryResult> makeSecondaryTimedSequence(
     ImageSequenceFactory& factory, PlaybackControllerContext& context)
 {
-    auto result = makeTimedSequenceFor(factory, context.secondaryImages, context.secondaryDurations);
+    auto result
+        = makeTimedSequenceFor(factory, context.secondaryImages, context.secondaryDurations);
     if (!result || !result->sequence()) {
         return {};
     }
@@ -264,9 +256,8 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
         = controller.displayState().roles[0].pendingRenderPayload.identity().isValid()
         ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
-    QVector<ViewportRenderRolePayload> rolePayloads {
-        { ImageViewport::PageRole::Primary, primaryPayload }
-    };
+    QVector<ViewportRenderRolePayload> rolePayloads { { ImageViewport::PageRole::Primary,
+        primaryPayload } };
     if (controller.requestState().roles[1].sequence
         && controller.requestState().roles[1].activeRequest.target.frame >= 0) {
         const ImageViewportInternal::PreparedPayloadIdentity secondaryPayload
@@ -275,8 +266,7 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
             : primaryPayload;
         rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
     }
-    controller.acknowledgeRenderCommit(
-        { primaryPayload, rolePayloads }, true, synchronization);
+    controller.acknowledgeRenderCommit({ primaryPayload, rolePayloads }, true, synchronization);
 }
 
 void failPendingRenderCommit(ViewportController& controller)
@@ -288,13 +278,12 @@ void failPendingRenderCommit(ViewportController& controller)
         ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
     QVERIFY(primaryPayload.isValid());
-    controller.acknowledgeRenderFailure(
-        { primaryPayload, {}, ImageViewport::PageRole::Primary,
-            RenderFailureCause::TextureCreationFailure });
+    controller.acknowledgeRenderFailure({ primaryPayload, {}, ImageViewport::PageRole::Primary,
+        RenderFailureCause::TextureCreationFailure });
 }
 
-ViewportCommandResult invokeRoleCommand(ViewportController& controller, RoleCommandKind kind,
-    ImageViewport::PageRole role, int value)
+ViewportCommandResult invokeRoleCommand(
+    ViewportController& controller, RoleCommandKind kind, ImageViewport::PageRole role, int value)
 {
     switch (kind) {
     case RoleCommandKind::Play:
@@ -350,9 +339,9 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data()
 
     addRow("malformed-role-before-no-request", RoleCommandAdmissionCase::MalformedRole,
         RoleCommandKind::SeekFrame,
-        static_cast<ImageViewport::PageRole>(99), // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
-        0,
-        ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
+        static_cast<ImageViewport::PageRole>(
+            99), // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+        0, ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
     addRow("absent-secondary-role", RoleCommandAdmissionCase::AbsentSecondaryRole,
         RoleCommandKind::SeekFrame, ImageViewport::PageRole::Secondary, 0,
         ImageViewport::CommandOutcome::IgnoredNoRequest,
@@ -360,10 +349,9 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder_data()
     addRow("negative-target-before-failure-scope", RoleCommandAdmissionCase::NegativeTarget,
         RoleCommandKind::SeekFrame, ImageViewport::PageRole::Primary, -1,
         ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
-    addRow("known-out-of-range-before-failure-scope",
-        RoleCommandAdmissionCase::OutOfRangeTarget, RoleCommandKind::SeekFrame,
-        ImageViewport::PageRole::Primary, 2, ImageViewport::CommandOutcome::Invalid,
-        ImageViewport::CommandReason::InvalidRequest);
+    addRow("known-out-of-range-before-failure-scope", RoleCommandAdmissionCase::OutOfRangeTarget,
+        RoleCommandKind::SeekFrame, ImageViewport::PageRole::Primary, 2,
+        ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
     addRow("unsupported-capability-after-valid-input",
         RoleCommandAdmissionCase::UnsupportedCapability, RoleCommandKind::SeekPosition,
         ImageViewport::PageRole::Primary, 0, ImageViewport::CommandOutcome::Unsupported,
@@ -404,13 +392,18 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
         QVERIFY(primarySequence);
         controller.assignSequence({ primarySequence->sequence() });
         break;
-    case RoleCommandAdmissionCase::GenerationTerminalFailure:
+    case RoleCommandAdmissionCase::GenerationTerminalFailure: {
         primarySequence = makeProviderSequence(factory, context);
         QVERIFY(primarySequence);
         controller.assignSequence({ primarySequence->sequence() });
-        controller.handleProviderSessionOpenFailure(QStringLiteral("session failed"));
+        ViewportProviderHostEvent failure;
+        failure.kind = ViewportProviderHostEvent::Kind::SessionOpenFailed;
+        failure.role = ImageViewport::PageRole::Primary;
+        failure.diagnostic = QStringLiteral("session failed");
+        controller.handleProviderHostEvent(failure);
         QCOMPARE(controller.requestState().status, ImageViewport::RequestStatus::Error);
         break;
+    }
     case RoleCommandAdmissionCase::DisplayRequestTerminalFailure:
         primarySequence = makeTimedSequence(factory, context);
         QVERIFY(primarySequence);
@@ -444,8 +437,7 @@ void ViewportControllerPlaybackTest::roleCommandAdmissionOrder()
         = invokeRoleCommand(controller, static_cast<RoleCommandKind>(commandKind),
             static_cast<ImageViewport::PageRole>(role), value);
     QCOMPARE(result.outcome, static_cast<ImageViewport::CommandOutcome>(expectedOutcome));
-    QCOMPARE(
-        controller.requestState().commandReason,
+    QCOMPARE(controller.requestState().commandReason,
         static_cast<ImageViewport::CommandReason>(expectedCommandReason));
 }
 

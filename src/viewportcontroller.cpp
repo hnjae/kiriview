@@ -10,7 +10,6 @@
 #include <optional>
 #include <utility>
 
-
 ViewportController::ViewportController(std::function<QRectF()> captureItemBounds)
     : captureItemBounds(std::move(captureItemBounds))
 {
@@ -49,30 +48,14 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
     return ViewportEngineTestAccess::request(engine);
 }
 
-bool ViewportController::hasProviderSession() const
-{
-    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).sessionActive;
-}
-
-
-bool ViewportController::providerMetadataReady() const
-{
-    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).metadataReady;
-}
-
-bool ViewportController::secondaryProviderMetadataReady() const
-{
-    return ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary).metadataReady;
-}
 #endif
 
 ViewportSequenceAssignmentResult ViewportController::assignSequence(
     ViewportSequenceAssignment assignment)
 {
     if (assignment.presentationTarget.isClear()) {
-        ImageSequence* const primary = assignment.source.sequence
-            ? assignment.source.sequence
-            : assignment.sequence;
+        ImageSequence* const primary
+            = assignment.source.sequence ? assignment.source.sequence : assignment.sequence;
         ImageSequence* const secondary = assignment.secondarySourceHandle.sequence
             ? assignment.secondarySourceHandle.sequence
             : assignment.secondarySequence;
@@ -98,10 +81,9 @@ ViewportSequenceAssignmentResult ViewportController::assignSequence(
             = ImageViewportInternal::makeImageSequenceSource(assignment.secondarySequence);
     }
 
-    const auto engineResult = engine.assignPresentationTarget(
-        { assignment.presentationTarget, assignment.transitionPolicy,
-            std::move(assignment.source), std::move(assignment.secondarySourceHandle),
-            engine.acceptedGeometryInput(itemBounds()) });
+    const auto engineResult = engine.assignPresentationTarget({ assignment.presentationTarget,
+        assignment.transitionPolicy, std::move(assignment.source),
+        std::move(assignment.secondarySourceHandle), engine.acceptedGeometryInput(itemBounds()) });
     const ViewportCommandResult command
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     ViewportSequenceAssignmentResult result;
@@ -146,14 +128,17 @@ ViewportCommandResult ViewportController::clear()
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
-    ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).nextRequestToken = token;
+    ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).nextRequestToken
+        = token;
 }
 
 void ViewportController::setNextProviderRequestTokenForTest(
     ImageViewport::PageRole role, quint64 token)
 {
     if (role == ImageViewport::PageRole::Secondary) {
-        ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary).nextRequestToken = token;
+        ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary)
+            .nextRequestToken
+            = token;
         return;
     }
 

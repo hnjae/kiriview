@@ -18,45 +18,9 @@ struct ViewportCommandResult;
 struct ViewportPlaybackAdvanceResult;
 struct ViewportPlaybackScheduleEffect;
 struct ViewportPresentationCommandInput;
-struct ViewportProviderAcceptedMetadataFacts;
-struct ViewportProviderDispatchFailureEvent;
-struct ViewportProviderEndOfSequenceEvent;
-struct ViewportProviderEndOfSequenceProtocolViolation;
-struct ViewportProviderEndOfSequenceResult;
-struct ViewportProviderEvent;
-struct ViewportProviderEventResult;
-struct ViewportProviderFrameDispatchResult;
-struct ViewportProviderFrameEvent;
-struct ViewportProviderFrameEventAcceptance;
-struct ViewportProviderFrameQueueFlush;
-struct ViewportProviderFrameQueueFlushResult;
-struct ViewportProviderFrameQueueRequest;
-struct ViewportProviderFrameQueueResult;
-struct ViewportProviderFrameRequestStart;
-struct ViewportProviderFrameRequestStartResult;
-struct ViewportProviderFrameTerminalResult;
 struct ViewportProviderFrameTransportEffect;
 struct ViewportProviderHostEvent;
 struct ViewportProviderHostEventResult;
-struct ViewportProviderMetadataAdmissionRejection;
-struct ViewportProviderMetadataAdmissionResult;
-struct ViewportProviderMetadataContradiction;
-struct ViewportProviderMetadataEvent;
-struct ViewportProviderMetadataEventAcceptance;
-struct ViewportProviderMetadataReadyEvent;
-struct ViewportProviderMetadataReadyResult;
-struct ViewportProviderMetadataRequestStartResult;
-struct ViewportProviderMetadataTargetPolicyResult;
-struct ViewportProviderMetadataTargetRejection;
-struct ViewportProviderMetadataTargetSelection;
-struct ViewportProviderMetadataTerminalResult;
-struct ViewportProviderRequestTokenAllocation;
-struct ViewportProviderSchedulerFailureResult;
-struct ViewportProviderSessionClose;
-struct ViewportProviderSessionOpenResult;
-struct ViewportProviderTerminalEvent;
-struct ViewportProviderTerminalEventResult;
-struct ViewportProviderWaitingEvent;
 struct ViewportRenderAcknowledgement;
 struct ViewportRenderSynchronization;
 struct ViewportSequenceAssignment;
@@ -77,9 +41,6 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
-    bool hasProviderSession() const;
-    bool providerMetadataReady() const;
-    bool secondaryProviderMetadataReady() const;
 #endif
     ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
     ImageViewportInternal::ViewportChangeSet publishChanges(
@@ -119,81 +80,8 @@ public:
     ViewportCommandResult setMirrorHorizontally(bool enabled, QPointF anchor);
     ViewportCommandResult setMirrorVertically(bool enabled, QPointF anchor);
     ViewportCommandResult resetView();
-    ViewportProviderEventResult handleProviderEvent(const ViewportProviderEvent& event);
-    ViewportProviderHostEventResult handleProviderHostEvent(
-        const ViewportProviderHostEvent& event);
-    ViewportProviderTransportBatch restageProviderDemands(
-        double devicePixelRatio = 1.0);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(ImageViewport::PageRole role,
-        ViewportProviderFrameEvent event, ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata);
-    ImageViewportInternal::ViewportChangeSet handleProviderFrameEvent(
-        ViewportProviderFrameEvent event, ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata);
-    ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
-        ViewportProviderMetadataEvent event);
-    ViewportProviderMetadataEventAcceptance acceptProviderMetadataEvent(
-        ImageViewport::PageRole role, ViewportProviderMetadataEvent event);
-    ViewportProviderMetadataReadyResult handleProviderMetadataReadyEvent(
-        ImageViewport::PageRole role, const ViewportProviderMetadataReadyEvent& event);
-    ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
-        const QString& diagnostic);
-    ImageViewportInternal::ViewportChangeSet handleProviderSessionOpenFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
-    ViewportProviderSessionOpenResult handleProviderSessionOpened();
-    ViewportProviderSessionOpenResult handleProviderSessionOpened(ImageViewport::PageRole role);
-    quint64 activateProviderSession();
-    quint64 activateProviderSession(ImageViewport::PageRole role);
-    void retireProviderSession();
-    void retireProviderSession(ImageViewport::PageRole role);
-    quint64 currentProviderGeneration() const;
-    quint64 currentProviderGeneration(ImageViewport::PageRole role) const;
-    std::shared_ptr<ImageSequenceProviderSessionFactory> providerSessionFactory(
-        ImageViewport::PageRole role) const;
-    ImageSequenceProviderThreadingContract providerThreadingContract(
-        ImageViewport::PageRole role) const;
-    ViewportEngine::ProviderSessionBinding providerSessionBinding(
-        ImageViewport::PageRole role) const;
-    bool acceptsProviderSessionResult(quint64 sessionSerial) const;
-    bool acceptsProviderSessionResult(ImageViewport::PageRole role, quint64 sessionSerial) const;
-    bool acceptsProviderSessionResult(
-        ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
-    ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
-        const ImageSequenceProviderMetadata& metadata);
-    ViewportProviderMetadataAdmissionResult handleProviderMetadataAdmission(
-        ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
-    ViewportProviderTerminalEventResult handleProviderTerminalEvent(
-        const ViewportProviderTerminalEvent& event);
-    ViewportProviderTerminalEventResult handleProviderTerminalEvent(
-        ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
-    ViewportProviderTerminalEventResult handleProviderDispatchFailure(
-        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
-    ViewportProviderSchedulerFailureResult handleProviderQueueFlushSchedulingFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
-    ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
-        const ViewportProviderAcceptedMetadataFacts& facts);
-    ImageViewportInternal::ViewportChangeSet handleProviderAcceptedMetadataFacts(
-        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
-    ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
-        const ViewportProviderAcceptedMetadataFacts& facts);
-    ViewportProviderMetadataTargetPolicyResult handleProviderMetadataTargetPolicy(
-        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
-    ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
-        ViewportProviderEndOfSequenceEvent event);
-    ViewportProviderEndOfSequenceResult handleProviderEndOfSequenceEvent(
-        ImageViewport::PageRole role, ViewportProviderEndOfSequenceEvent event);
-    ViewportProviderFrameTransportEffect closeProviderSession();
-    ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent();
-    ViewportProviderFrameQueueFlushResult flushQueuedProviderFrameRequestEvent(
-        ImageViewport::PageRole role);
-    ViewportProviderFrameRequestStartResult startProviderFrameRequest(
-        ViewportProviderFrameRequestStart request);
-    ViewportProviderFrameRequestStartResult startProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
-    ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
-        ViewportProviderFrameRequestStart request);
-    ViewportProviderFrameDispatchResult dispatchProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportProviderFrameRequestStart request);
+    ViewportProviderHostEventResult handleProviderHostEvent(const ViewportProviderHostEvent& event);
+    ViewportProviderTransportBatch restageProviderDemands(double devicePixelRatio = 1.0);
     GeometryChangeResult handleGeometryChanged(
         const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
     ViewportRenderSynchronization beginRenderSynchronization(double devicePixelRatio = 1.0);
@@ -220,24 +108,6 @@ public:
 
 private:
     QRectF itemBounds() const;
-    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
-        ViewportProviderWaitingEvent event);
-    ImageViewportInternal::ViewportChangeSet handleProviderWaitingEvent(
-        ImageViewport::PageRole role, ViewportProviderWaitingEvent event);
-    ViewportProviderSessionClose handleProviderSessionClose();
-    ViewportProviderSessionClose handleProviderSessionClose(ImageViewport::PageRole role);
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken();
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
-        ImageViewport::PageRole role);
-    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest();
-    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
-        ImageViewport::PageRole role);
-    ViewportProviderFrameQueueResult queueProviderFrameRequest(
-        ViewportProviderFrameQueueRequest request);
-    ViewportProviderFrameQueueResult queueProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportProviderFrameQueueRequest request);
-    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest();
-    ViewportProviderFrameQueueFlush flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 
     std::function<QRectF()> captureItemBounds;
     ViewportEngine engine;

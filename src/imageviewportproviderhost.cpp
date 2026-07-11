@@ -14,7 +14,8 @@ ImageViewportProviderHost::ImageViewportProviderHost(ImageViewportPrivate& viewp
 
 void ImageViewportProviderHost::closeActiveSessions()
 {
-    ViewportProviderFrameTransportEffect primary = viewport.controller.closeProviderSession();
+    ViewportProviderFrameTransportEffect primary
+        = viewport.controller.closeProviderSession(PageRole::Primary);
     primary.closeSession = true;
     applyFrameTransportEffect(primary);
     ViewportProviderFrameTransportEffect secondary
@@ -44,7 +45,7 @@ void ImageViewportProviderHost::applyFrameTransportEffect(
         ImageSequenceProviderRequest request;
         if (effect.command.targetKind == ProviderRequestTargetKind::Playback) {
             request = ImageSequenceProviderRequest::playback(effect.command.token, role,
-            effect.command.frame, effect.command.position, effect.command.demand);
+                effect.command.frame, effect.command.position, effect.command.demand);
         } else if (effect.command.targetKind == ProviderRequestTargetKind::Position) {
             request = ImageSequenceProviderRequest::position(effect.command.token, role,
                 effect.command.position, effect.command.frame, effect.command.demand);
@@ -58,8 +59,7 @@ void ImageViewportProviderHost::applyFrameTransportEffect(
     applyTransportEffects(batch);
 }
 
-void ImageViewportProviderHost::applyTransportEffects(
-    const ViewportProviderTransportBatch& effects)
+void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTransportBatch& effects)
 {
     for (const auto& effect : effects) {
         ViewportProviderBridge& bridge = bridgeForRole(effect.role);
@@ -72,8 +72,7 @@ void ImageViewportProviderHost::applyTransportEffects(
                     {}, {}, QStringLiteral("provider session creation failed") });
                 return;
             } else {
-                applyHostEvent(
-                    { ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
+                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
             }
             break;
         case ViewportProviderTransportCommand::Kind::SendRequest: {
@@ -110,7 +109,8 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
 
 void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& event)
 {
-    const ViewportProviderHostEventResult result = viewport.controller.handleProviderHostEvent(event);
+    const ViewportProviderHostEventResult result
+        = viewport.controller.handleProviderHostEvent(event);
     applyTransportEffects(result.beforeChanges);
     viewport.applyControllerChanges(result.changes);
     if (result.changes.playbackPhase) {
@@ -127,8 +127,7 @@ ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)
     return role == PageRole::Secondary ? secondaryProviderBridge : providerBridge;
 }
 
-void ImageViewportProviderHost::recordTransportResult(
-    const ViewportProviderTransportResult& result)
+void ImageViewportProviderHost::recordTransportResult(const ViewportProviderTransportResult& result)
 {
     viewport.internalDiagnostics.recordProviderCleanupFailure(result.diagnostic);
 }
@@ -154,8 +153,8 @@ bool ImageViewportProviderHost::scheduleDeferredControllerEvent(
             return true;
         }
 #endif
-        if (!QMetaObject::invokeMethod(viewport.q,
-                [this, role]() { flushQueuedFrameRequest(role); },
+        if (!QMetaObject::invokeMethod(
+                viewport.q, [this, role]() { flushQueuedFrameRequest(role); },
                 Qt::QueuedConnection)) {
             handleQueueFlushSchedulingFailure(role);
             return false;

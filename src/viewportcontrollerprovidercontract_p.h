@@ -1,11 +1,10 @@
 #pragma once
 
-#include "framepreparation_p.h"
 #include "imageviewport.h"
 #include "imageviewportstate_p.h"
 #include "timingintervals_p.h"
-#include "viewportproviderevent_p.h"
 #include "viewportplaybackcontract_p.h"
+#include "viewportproviderevent_p.h"
 
 #include <QtCore/QSizeF>
 #include <QtCore/QString>
@@ -24,26 +23,10 @@ struct ViewportProviderFrameEvent
     ImageSequenceProviderRequestToken token;
 };
 
-struct ViewportProviderFrameEventAcceptance
-{
-    bool accepted = false;
-    FramePreparation::ProviderFrameState preparationState;
-};
-
-struct ViewportProviderMetadataEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
 struct ViewportProviderMetadataReadyEvent
 {
     ImageSequenceProviderRequestToken token;
     ImageSequenceProviderMetadata metadata;
-};
-
-struct ViewportProviderMetadataEventAcceptance
-{
-    bool accepted = false;
 };
 
 struct ViewportProviderMetadataTerminalResult
@@ -76,16 +59,6 @@ struct ViewportProviderDispatchFailureEvent
     QString diagnostic;
 };
 
-struct ViewportProviderMetadataContradiction
-{
-    QString diagnostic;
-};
-
-struct ViewportProviderMetadataAdmissionRejection
-{
-    QString diagnostic;
-};
-
 struct ViewportProviderMetadataTargetRejection
 {
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Unsupported;
@@ -94,15 +67,6 @@ struct ViewportProviderMetadataTargetRejection
     bool updateActiveTarget = false;
     bool selectedFromPosition = false;
     bool clearPlaybackStartPending = false;
-};
-
-struct ViewportProviderMetadataTargetSelection
-{
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    int selectedFrame = -1;
-    bool selectedFromPosition = false;
-    bool timedMetadata = false;
 };
 
 struct ViewportProviderAcceptedMetadataFacts
@@ -163,36 +127,9 @@ struct ViewportProviderMetadataTransportEffect
     ImageSequenceProviderRequestToken token;
 };
 
-struct ViewportProviderFrameQueueRequest
-{
-    int frame = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
 enum class ViewportProviderDeferredControllerEvent {
     None,
     FlushQueuedFrameRequest,
-};
-
-struct ViewportProviderFrameQueueResult
-{
-    ImageSequenceProviderRequestToken cancelToken;
-    ViewportProviderDeferredControllerEvent deferredControllerEvent
-        = ViewportProviderDeferredControllerEvent::None;
-};
-
-struct ViewportProviderFrameQueueFlush
-{
-    bool startRequest = false;
-    int frame = -1;
-    ImageViewportInternal::ProviderRequestTargetKind targetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-};
-
-struct ViewportProviderFrameRequestStart
-{
-    ImageViewportInternal::DisplayRequestTarget target;
 };
 
 struct ViewportProviderFrameCommand
@@ -263,12 +200,6 @@ struct ViewportProviderEventResult
     ViewportProviderEventTransportPhase providerFrameTransportPhase
         = ViewportProviderEventTransportPhase::None;
     ViewportPlaybackScheduleEffect schedule;
-};
-
-struct ViewportProviderFrameDispatchResult
-{
-    bool accepted = false;
-    ViewportProviderFrameTransportEffect transport;
 };
 
 struct ViewportProviderFrameQueueFlushResult
