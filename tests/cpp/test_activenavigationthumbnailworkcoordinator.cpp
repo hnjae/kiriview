@@ -127,6 +127,7 @@ private Q_SLOTS:
     void cacheMissChainsGenerationAndPublishesReadyImage();
     void supersededLookupCompletionIsRejectedByJobIdentity();
     void backgroundResultAndFailedRefinementPreserveForegroundReadyImage();
+    void demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder();
 };
 
 void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndPublishesReadyImage()
@@ -137,10 +138,12 @@ void TestActiveNavigationThumbnailWorkCoordinator::cacheMissChainsGenerationAndP
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.rowCount(), rows.navigationGeneration());
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
 
+    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, rows.sourceKeyAt(0).url, Bucket::Large, Priority::Visible, rows.navigationGeneration()));
+    coordinator.finishDemandWindow(rows.navigationGeneration());
     QCOMPARE(providers.lookups.size(), std::size_t(1));
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Missing);
     QCOMPARE(providers.generations.size(), std::size_t(1));
@@ -160,13 +163,17 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.rowCount(), rows.navigationGeneration());
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
     const QUrl url = rows.sourceKeyAt(0).url;
 
+    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, url, Bucket::Normal, Priority::Visible, rows.navigationGeneration()));
+    coordinator.finishDemandWindow(rows.navigationGeneration());
+    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, url, Bucket::Large, Priority::Visible, rows.navigationGeneration()));
+    coordinator.finishDemandWindow(rows.navigationGeneration());
     QCOMPARE(providers.lookups.size(), std::size_t(2));
 
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::red));
@@ -188,11 +195,13 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     ManualProviders providers;
     kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
         this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
-    coordinator.resetRows(rows.rowCount(), rows.navigationGeneration());
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
     const QUrl url = rows.sourceKeyAt(0).url;
 
+    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, url, Bucket::Normal, Priority::Visible, rows.navigationGeneration()));
+    coordinator.finishDemandWindow(rows.navigationGeneration());
     providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
     const QUrl foregroundSource = rows.resultAt(0).imageSource;
     QCOMPARE(providers.lookups.size(), std::size_t(2));
@@ -201,8 +210,10 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QCOMPARE(rows.resultAt(0).imageSource, foregroundSource);
     QCOMPARE(images->size(), qsizetype(1));
 
+    QVERIFY(coordinator.beginDemandWindow(rows.navigationGeneration()));
     QVERIFY(coordinator.reportDemand(
         1, url, Bucket::XLarge, Priority::Visible, rows.navigationGeneration()));
+    coordinator.finishDemandWindow(rows.navigationGeneration());
     const std::size_t foregroundLookup = providers.lookups.size() - 1;
     providers.finishLookup(foregroundLookup, kiriview::ThumbnailCacheLookupStatus::Failed, {},
         QStringLiteral("refinement lookup failed"));
@@ -212,6 +223,35 @@ void TestActiveNavigationThumbnailWorkCoordinator::
     QVERIFY(!coordinator.failureDiagnostics().empty());
     QCOMPARE(coordinator.failureDiagnostics().back().errorString,
         QStringLiteral("refinement lookup failed"));
+}
+
+void TestActiveNavigationThumbnailWorkCoordinator::
+    demandWindowAdmitsVisibleBeforeNearbyRegardlessOfReportOrder()
+{
+    auto images = std::make_shared<kiriview::ThumbnailImageStore>();
+    kiriview::ActiveNavigationThumbnailRowStore rows(this, images);
+    rows.setRows(
+        { row(1, QStringLiteral("/media/one.png")), row(2, QStringLiteral("/media/two.png")) });
+    ManualProviders providers;
+    kiriview::ActiveNavigationThumbnailWorkCoordinator coordinator(
+        this, rows, providers.lookupProvider(), providers.generationProvider(), localAdapter());
+    coordinator.resetRows(rows.sourceKeys(), rows.navigationGeneration());
+    const quint64 generation = rows.navigationGeneration();
+
+    QVERIFY(coordinator.beginDemandWindow(generation));
+    QVERIFY(coordinator.reportDemand(
+        2, rows.sourceKeyAt(1).url, Bucket::Normal, Priority::Nearby, generation));
+    QVERIFY(coordinator.reportDemand(
+        1, rows.sourceKeyAt(0).url, Bucket::Normal, Priority::Visible, generation));
+    QCOMPARE(providers.lookups.size(), std::size_t(0));
+
+    coordinator.finishDemandWindow(generation);
+    QCOMPARE(providers.lookups.size(), std::size_t(1));
+    QCOMPARE(providers.lookups.front().request.localPathBytes, QByteArray("/media/one.png"));
+
+    providers.finishLookup(0, kiriview::ThumbnailCacheLookupStatus::Ready, image(Qt::green));
+    QCOMPARE(providers.lookups.size(), std::size_t(2));
+    QCOMPARE(providers.lookups.back().request.localPathBytes, QByteArray("/media/two.png"));
 }
 
 QTEST_GUILESS_MAIN(TestActiveNavigationThumbnailWorkCoordinator)

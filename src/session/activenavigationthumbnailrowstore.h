@@ -36,13 +36,6 @@ public:
     ActiveNavigationThumbnailRowPort(const ActiveNavigationThumbnailRowPort&) = delete;
     ActiveNavigationThumbnailRowPort& operator=(const ActiveNavigationThumbnailRowPort&) = delete;
 
-    virtual std::optional<std::size_t> rowIndexForIdentity(
-        int number, const QUrl& url, quint64 navigationGeneration) const
-        = 0;
-    virtual std::optional<std::size_t> rowIndexForSourceKey(
-        const ThumbnailSourceKey& sourceKey) const
-        = 0;
-    virtual ThumbnailSourceKey sourceKeyAt(std::size_t row) const = 0;
     virtual bool hasUsableReadyImage(const ThumbnailSourceKey& sourceKey) const = 0;
     virtual void applyPending(const ThumbnailSourceKey& sourceKey) = 0;
     virtual void applyUnsupported(const ThumbnailSourceKey& sourceKey) = 0;
@@ -71,16 +64,16 @@ public:
     QAbstractListModel* model() const;
     quint64 navigationGeneration() const;
     std::size_t rowCount() const;
+    std::vector<ThumbnailSourceKey> sourceKeys() const;
     bool hasSameRowIdentities(const std::vector<ActiveNavigationThumbnailRow>& rows) const;
     void setRows(std::vector<ActiveNavigationThumbnailRow> rows);
     void setCurrentNumber(int currentNumber);
     ActiveNavigationThumbnailResult resultAt(std::size_t row) const;
 
     std::optional<std::size_t> rowIndexForIdentity(
-        int number, const QUrl& url, quint64 navigationGeneration) const override;
-    std::optional<std::size_t> rowIndexForSourceKey(
-        const ThumbnailSourceKey& sourceKey) const override;
-    ThumbnailSourceKey sourceKeyAt(std::size_t row) const override;
+        int number, const QUrl& url, quint64 navigationGeneration) const;
+    std::optional<std::size_t> rowIndexForSourceKey(const ThumbnailSourceKey& sourceKey) const;
+    ThumbnailSourceKey sourceKeyAt(std::size_t row) const;
     bool hasUsableReadyImage(const ThumbnailSourceKey& sourceKey) const override;
     void applyPending(const ThumbnailSourceKey& sourceKey) override;
     void applyUnsupported(const ThumbnailSourceKey& sourceKey) override;

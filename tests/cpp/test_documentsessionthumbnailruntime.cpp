@@ -110,8 +110,10 @@ void TestDocumentSessionThumbnailRuntime::
     const QUrl pageUrl = archivePageUrl(cbzScope.rootUrl(), QStringLiteral("pages/001.png"));
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
-    QVERIFY(
-        runtime.reportDemand(1, pageUrl, 256, Priority::Visible, runtime.navigationGeneration()));
+    const quint64 generation = runtime.navigationGeneration();
+    QVERIFY(runtime.beginDemandWindow(generation));
+    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
+    runtime.finishDemandWindow(generation);
 
     QCOMPARE(generationCount, 1);
     QCOMPARE(generatedRequest.openedCollectionScope, cbzScope);
@@ -153,8 +155,10 @@ void TestDocumentSessionThumbnailRuntime::directoryCollectionRowsStayPlaceholder
     const QUrl pageUrl = localUrl(QStringLiteral("/books/book/chapter/001.png"));
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
-    QVERIFY(
-        runtime.reportDemand(1, pageUrl, 256, Priority::Visible, runtime.navigationGeneration()));
+    const quint64 generation = runtime.navigationGeneration();
+    QVERIFY(runtime.beginDemandWindow(generation));
+    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
+    runtime.finishDemandWindow(generation);
 
     QCOMPARE(lookupCount, 0);
     QCOMPARE(generationCount, 0);
@@ -195,8 +199,10 @@ void TestDocumentSessionThumbnailRuntime::nonZipArchiveCollectionRowsStayPlaceho
     const QUrl pageUrl = archivePageUrl(cb7Scope.rootUrl(), QStringLiteral("pages/001.png"));
     runtime.setRows({ thumbnailRow(1, pageUrl) });
 
-    QVERIFY(
-        runtime.reportDemand(1, pageUrl, 256, Priority::Visible, runtime.navigationGeneration()));
+    const quint64 generation = runtime.navigationGeneration();
+    QVERIFY(runtime.beginDemandWindow(generation));
+    QVERIFY(runtime.reportDemand(1, pageUrl, 256, Priority::Visible, generation));
+    runtime.finishDemandWindow(generation);
 
     QCOMPARE(lookupCount, 0);
     QCOMPARE(generationCount, 0);

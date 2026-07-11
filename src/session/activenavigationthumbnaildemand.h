@@ -6,7 +6,6 @@
 
 #include "thumbnail/thumbnailbucket.h"
 
-#include <QHash>
 #include <QUrl>
 #include <QtGlobal>
 
@@ -29,15 +28,6 @@ struct ActiveNavigationThumbnailDemand
 ActiveNavigationThumbnailDemandBucket activeNavigationThumbnailDemandBucketForPhysicalMaxEdge(
     int physicalMaxEdge);
 
-class ActiveNavigationThumbnailDemandTracker final
-{
-public:
-    bool record(const ActiveNavigationThumbnailDemand& demand);
-    void reset();
-
-private:
-    QHash<QString, ActiveNavigationThumbnailDemand> m_acceptedDemandsByIdentity;
-};
 }
 
 #endif

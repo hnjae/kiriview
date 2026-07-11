@@ -42,6 +42,16 @@ quint64 ActiveNavigationThumbnailRowStore::navigationGeneration() const
 
 std::size_t ActiveNavigationThumbnailRowStore::rowCount() const { return m_rows.size(); }
 
+std::vector<ThumbnailSourceKey> ActiveNavigationThumbnailRowStore::sourceKeys() const
+{
+    std::vector<ThumbnailSourceKey> result;
+    result.reserve(m_rows.size());
+    for (const RowState& state : m_rows) {
+        result.push_back(state.sourceKey);
+    }
+    return result;
+}
+
 bool ActiveNavigationThumbnailRowStore::hasSameRowIdentities(
     const std::vector<ActiveNavigationThumbnailRow>& rows) const
 {

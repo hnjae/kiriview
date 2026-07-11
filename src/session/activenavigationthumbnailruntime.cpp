@@ -43,19 +43,29 @@ quint64 ActiveNavigationThumbnailRuntime::navigationGeneration() const
 
 void ActiveNavigationThumbnailRuntime::setRows(std::vector<ActiveNavigationThumbnailRow> rows)
 {
+    int currentNumber = 0;
+    for (const ActiveNavigationThumbnailRow& row : rows) {
+        if (row.current) {
+            currentNumber = row.number;
+            break;
+        }
+    }
     if (m_rowStore->hasSameRowIdentities(rows)) {
         m_rowStore->setRows(std::move(rows));
+        m_workCoordinator->setCurrentNumber(currentNumber);
         return;
     }
 
     m_workCoordinator->invalidateRows();
     m_rowStore->setRows(std::move(rows));
-    m_workCoordinator->resetRows(m_rowStore->rowCount(), m_rowStore->navigationGeneration());
+    m_workCoordinator->resetRows(m_rowStore->sourceKeys(), m_rowStore->navigationGeneration());
+    m_workCoordinator->setCurrentNumber(currentNumber);
 }
 
 void ActiveNavigationThumbnailRuntime::setCurrentNumber(int currentNumber)
 {
     m_rowStore->setCurrentNumber(currentNumber);
+    m_workCoordinator->setCurrentNumber(currentNumber);
 }
 
 bool ActiveNavigationThumbnailRuntime::beginDemandWindow(quint64 navigationGeneration)
