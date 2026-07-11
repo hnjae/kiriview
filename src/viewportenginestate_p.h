@@ -2,18 +2,55 @@
 
 #include "viewportenginecapabilities_p.h"
 
-struct ViewportEngineCanonicalState
+struct ViewportEngineRequestState
+{
+    quint64 nextPresentationTargetGeneration = 0;
+    ViewportEngine::PresentationTargetState presentationTarget;
+    ImageViewportInternal::RequestState request;
+};
+
+struct ViewportEngineDisplayState
+{
+    ImageViewportInternal::DisplayState display;
+};
+
+struct ViewportEngineProviderRoleState
+{
+    std::array<ViewportEngineRoleState, 2> roles;
+};
+
+struct ViewportEnginePlaybackState
+{
+    // Playback identity and lifecycle remain canonical fields of RequestState. This component
+    // marks playback as a distinct capability domain without duplicating that identity.
+};
+
+struct ViewportEnginePresentationState
+{
+    ImageViewportInternal::PresentationState presentation;
+};
+
+struct ViewportEngineRenderCoordinationState
+{
+    quint64 nextSynchronizationAttempt = 0;
+    ViewportRenderSynchronization lastSynchronization;
+};
+
+struct ViewportEngineRevisionState
 {
     quint64 nextRevision = 0;
-    quint64 nextPresentationTargetGeneration = 0;
-    quint64 nextRenderSynchronizationAttempt = 0;
     quint64 presentationRevision = 0;
     quint64 snapshotRevision = 0;
-    ViewportRenderSynchronization lastRenderSynchronization;
     RevisionToken commandRevision;
-    ViewportEngine::PresentationTargetState presentationTarget;
-    ImageViewportInternal::DisplayState display;
-    ImageViewportInternal::RequestState request;
-    std::array<ViewportEngineRoleState, 2> roles;
-    ImageViewportInternal::PresentationState presentation;
+};
+
+struct ViewportEngineCanonicalState
+{
+    ViewportEngineRequestState requestState;
+    ViewportEngineDisplayState displayState;
+    ViewportEngineProviderRoleState providerState;
+    ViewportEnginePlaybackState playbackState;
+    ViewportEnginePresentationState presentationState;
+    ViewportEngineRenderCoordinationState renderCoordination;
+    ViewportEngineRevisionState revisions;
 };
