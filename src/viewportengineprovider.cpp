@@ -325,6 +325,32 @@ ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAd
     return result;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportEngine::acceptProviderMetadataFacts(
+    ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
+{
+    ViewportChangeSet changes;
+    const auto& terminal = m_requestState.targetSpreadTerminal;
+    if (terminal.sealed && terminal.generation == m_requestState.sequenceGeneration
+        && terminal.requestId == m_requestState.activeRequest.identity.id) {
+        return changes;
+    }
+
+    auto& provider = providerForRole(*this, role);
+    provider.metadataReady = true;
+    provider.timedMetadata = facts.timedMetadata;
+    provider.timedPlaybackSupport = facts.timedPlaybackSupport;
+    provider.frameSeekSupport = facts.frameSeekSupport;
+    provider.positionSeekSupport = facts.positionSeekSupport;
+    provider.logicalSize = facts.logicalSize;
+    provider.timingIntervals = facts.timingIntervals;
+    provider.authoredAnimationFacts = facts.authoredAnimationFacts;
+    if (role == ImageViewport::PageRole::Secondary) {
+        changes.requestState = true;
+        changes.requestRevision = true;
+    }
+    return changes;
+}
+
 ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {

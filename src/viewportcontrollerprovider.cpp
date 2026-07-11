@@ -712,26 +712,7 @@ ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAccep
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderAcceptedMetadataFacts(
     ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts)
 {
-    if (targetSpreadTerminalSealedForActiveRequest()) {
-        return {};
-    }
-
-    ImageViewportInternal::ProviderGenerationState& provider
-        = providerGenerationStateForRole(state, role);
-    provider.metadataReady = true;
-    provider.timedMetadata = facts.timedMetadata;
-    provider.timedPlaybackSupport = facts.timedPlaybackSupport;
-    provider.frameSeekSupport = facts.frameSeekSupport;
-    provider.positionSeekSupport = facts.positionSeekSupport;
-    provider.logicalSize = facts.logicalSize;
-    provider.timingIntervals = facts.timingIntervals;
-    provider.authoredAnimationFacts = facts.authoredAnimationFacts;
-
-    ImageViewportInternal::ViewportChangeSet changes;
-    if (role == ImageViewport::PageRole::Secondary) {
-        markRequestMutation(changes);
-    }
-    return changes;
+    return state.engine.acceptProviderMetadataFacts(role, facts);
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::handleProviderWaitingEvent(

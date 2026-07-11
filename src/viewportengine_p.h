@@ -236,6 +236,8 @@ public:
     ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
     ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
         ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
+    ImageViewportInternal::ViewportChangeSet acceptProviderMetadataFacts(
+        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
     quint64 activateProviderSession(ImageViewport::PageRole role);
     void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(
