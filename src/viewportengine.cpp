@@ -157,12 +157,6 @@ ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetState(
     return m_state->requestState.presentationTarget;
 }
 
-ViewportEngineProviderStateAccess ViewportEngine::providerAccess()
-{
-    return { m_state->requestState.request, m_state->playbackState.playback,
-        m_state->displayState.display, m_state->providerState.roles };
-}
-
 ViewportEngineProviderFactsView ViewportEngine::providerFactsView() const
 {
     return { m_state->providerState.roles[0].provider.facts,
@@ -290,31 +284,6 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
     return projectViewportRenderSnapshot(input,
         { m_state->requestState.request, m_state->displayState.display,
             m_state->presentationState.presentation });
-}
-
-bool ViewportEngine::acceptsProviderSessionEvent(
-    ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
-{
-    ViewportEngineProviderSessionAdmissionAccess access(
-        m_state->requestState.request.sequenceGeneration,
-        m_state->providerState.roles[roleIndex(role)].provider.session);
-    return acceptsViewportEngineProviderSessionEvent(
-        { generation, sessionSerial }, std::move(access));
-}
-
-void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole role)
-{
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    provider.requests.queuedFrameRequest = false;
-    provider.requests.queuedFrameGeneration = 0;
-    provider.requests.queuedFrameRequestId = 0;
-    provider.requests.queuedFrame = -1;
-    provider.requests.queuedPosition = -1;
-    provider.requests.queuedResolvedFrame = {};
-    provider.requests.queuedFrameFromPlayback = false;
-    provider.requests.queuedFrameTargetKind
-        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(

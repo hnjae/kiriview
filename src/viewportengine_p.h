@@ -9,6 +9,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineproviderfailureoperations_p.h"
+#include "viewportengineprovidereventcompletionoperations_p.h"
 #include "viewportengineproviderframeoperations_p.h"
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
@@ -29,7 +30,6 @@ class ViewportController;
 #define VIEWPORT_ENGINE_TEST_VISIBILITY private
 #endif
 struct ViewportEngineCanonicalState;
-struct ViewportEngineProviderStateAccess;
 struct ViewportEngineSnapshotStateAccess;
 
 class ViewportEngine
@@ -171,8 +171,6 @@ public:
 public:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
-    bool acceptsProviderSessionEvent(
-        ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
 public:
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
@@ -183,17 +181,8 @@ public:
 public:
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ImageViewportInternal::ViewportChangeSet reduceProviderWaitingEvent(
-        ImageViewport::PageRole role, const ViewportProviderWaitingEvent& event);
-    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequenceProtocolViolation(
-        ImageViewport::PageRole role, ViewportProviderEndOfSequenceProtocolViolation input);
-    ViewportProviderEndOfSequenceResult reduceProviderEndOfSequence(ImageViewport::PageRole role,
-        ViewportProviderEndOfSequenceEvent event, const GeometryInput& geometry);
 public:
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
 public:
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewport::PageRole role, const GeometryInput& geometry);
@@ -231,7 +220,6 @@ private:
     ImageViewportInternal::PlaybackState& playbackState();
     const ImageViewportInternal::PlaybackState& playbackState() const;
 #endif
-    ViewportEngineProviderStateAccess providerAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;

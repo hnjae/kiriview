@@ -2,36 +2,6 @@
 
 #include "viewportenginestate_p.h"
 
-class ViewportEngineProviderStateAccess
-{
-private:
-    friend class ViewportEngine;
-    ViewportEngineProviderStateAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
-        : m_request(request)
-        , m_playback(playback)
-        , m_display(display)
-        , m_roles(roles)
-    {
-    }
-
-public:
-    ViewportEngineProviderStateAccess(const ViewportEngineProviderStateAccess&) = delete;
-    ViewportEngineProviderStateAccess& operator=(const ViewportEngineProviderStateAccess&) = delete;
-
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
-    std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
-
-private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-};
-
 class ViewportEngineSnapshotStateAccess
 {
 private:

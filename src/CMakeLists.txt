@@ -58,6 +58,8 @@ qt_add_qml_module(
     viewportengineplaybackoperations.cpp
     viewportengineplaybackoperations_p.h
     viewportengineprovider.cpp
+    viewportengineprovidereventcompletionoperations.cpp
+    viewportengineprovidereventcompletionoperations_p.h
     viewportengineproviderfailureoperations.cpp
     viewportengineproviderfailureoperations_p.h
     viewportengineproviderframeoperations.cpp

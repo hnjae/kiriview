@@ -16,23 +16,6 @@ struct ViewportProviderDispatchFailureEvent
     QString diagnostic;
 };
 
-struct ViewportProviderWaitingEvent
-{
-    ImageSequenceProviderRequestToken token;
-    bool progress = false;
-    double progressValue = 0.0;
-};
-
-struct ViewportProviderEndOfSequenceEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
-struct ViewportProviderEndOfSequenceProtocolViolation
-{
-    bool activeMetadataToken = false;
-    bool activeFrameToken = false;
-};
 
 struct ViewportProviderSessionClose
 {
@@ -154,12 +137,6 @@ struct ViewportProviderTerminalEventResult
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;
     ViewportPlaybackScheduleEffect schedule;
-};
-
-struct ViewportProviderEndOfSequenceResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
 struct ViewportProviderHostEvent

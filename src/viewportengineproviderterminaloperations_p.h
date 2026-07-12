@@ -18,6 +18,7 @@ class ViewportEngineProviderTerminalEventAccess;
 class ViewportEngineProviderDispatchFailureAccess;
 class ViewportEngineProviderSessionOpenFailureAccess;
 class ViewportEngineProviderQueueFailureAccess;
+class ViewportEngineProviderEndOfSequenceAccess;
 
 class ViewportEngineProviderTerminalProjectionAccess
 {
@@ -28,6 +29,7 @@ class ViewportEngineProviderTerminalProjectionAccess
     friend class ViewportEngineProviderDispatchFailureAccess;
     friend class ViewportEngineProviderSessionOpenFailureAccess;
     friend class ViewportEngineProviderQueueFailureAccess;
+    friend class ViewportEngineProviderEndOfSequenceAccess;
     friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
         ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess);

@@ -119,6 +119,7 @@ class ViewportEngineProviderFrameRequestAccess
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderMetadataReadyAccess;
+    friend class ViewportEngineProviderEndOfSequenceAccess;
     friend ViewportProviderFrameRequestStartResult startViewportEngineProviderFrameRequest(
         ViewportEngineProviderFrameRequestInput, ViewportEngineProviderFrameRequestAccess);
     ViewportEngineProviderFrameRequestAccess(ImageViewportInternal::RequestState& request,

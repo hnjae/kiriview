@@ -10,6 +10,7 @@
 #include "viewportengineprovidersessionoperations_p.h"
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderterminaloperations_p.h"
+#include "viewportengineprovidereventcompletionoperations_p.h"
 
 #include <type_traits>
 
@@ -90,7 +91,6 @@ struct HasProviderRequestAccess<Access,
 {
 };
 
-static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionOpenAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionOpenAccess>);
@@ -176,6 +176,20 @@ static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionOpenFailureAccess>
 static_assert(!HasRolesAccess<ViewportEngineProviderSessionOpenFailureAccess>::value);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderQueueFailureAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderQueueFailureAccess>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderWaitingAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderWaitingAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderWaitingAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderWaitingAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderWaiting),
+    ViewportEngineProviderWaitingReduction (*)(ViewportEngineProviderWaitingInput,
+        ViewportEngineProviderWaitingAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderEndOfSequenceAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderEndOfSequenceAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderEndOfSequenceAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderEndOfSequenceAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderEndOfSequence),
+    ViewportEngineProviderEndOfSequenceReduction (*)(ViewportEngineProviderEndOfSequenceInput,
+        ViewportEngineProviderEndOfSequenceAccess)>);
 static_assert(!HasRequestAccess<ViewportEngineProviderQueueFailureAccess>::value);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderQueueFailureAccess>::value);
 static_assert(!HasRolesAccess<ViewportEngineProviderQueueFailureAccess>::value);
