@@ -8,9 +8,20 @@
 #include "viewportplaybackcontract_p.h"
 
 #include <algorithm>
-#include <limits>
 
 namespace {
+
+void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
+    const ImageViewportInternal::ViewportChangeSet& source)
+{
+    target.requestState |= source.requestState;
+    target.displayState |= source.displayState;
+    target.playbackPhase |= source.playbackPhase;
+    target.diagnostics |= source.diagnostics;
+    target.displayRevision |= source.displayRevision;
+    target.requestRevision |= source.requestRevision;
+    target.scheduleUpdate |= source.scheduleUpdate;
+}
 
 const ImageViewportInternal::RequestState::RoleState& requestRole(
     const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
@@ -183,30 +194,15 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 : ViewportProviderDeferredControllerEvent::None;
             return true;
         }
-        if (provider.requests.nextRequestToken == std::numeric_limits<quint64>::max()) {
-            effect.closeSession = provider.session.sessionActive;
-            effect.sessionClose.metadataToken = provider.requests.activeMetadataToken;
-            effect.sessionClose.frameToken = provider.requests.activeFrameToken;
-            provider.requests.activeMetadataToken = {};
-            provider.requests.activeFrameToken = {};
-            provider.requests.nextRequestToken = 0;
-            playbackAccess().request().status = ImageViewport::RequestStatus::Error;
-            playbackAccess().request().reason = ImageViewport::RequestReason::ProviderFailure;
-            playbackAccess().request().errorString
-                = QStringLiteral("provider request token exhausted");
-            playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Stopped;
-            playbackAccess().display().status
-                = playbackAccess().display().status == ImageViewport::DisplayStatus::Empty
-                ? ImageViewport::DisplayStatus::Empty
-                : ImageViewport::DisplayStatus::Retained;
-            result.changes.playbackPhase = true;
-            result.changes.diagnostics = true;
-            markRequest();
+        const auto allocation = allocateViewportProviderRequestToken(
+            { role }, providerRequestTokenAllocationAccess());
+        effect.closeSession = allocation.closeSession;
+        effect.sessionClose = allocation.sessionClose;
+        mergeChanges(result.changes, allocation.changes);
+        if (allocation.exhausted) {
             return false;
         }
-        provider.requests.activeFrameToken
-            = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
-                ++provider.requests.nextRequestToken);
+        provider.requests.activeFrameToken = allocation.token;
         active.providerFrameToken = provider.requests.activeFrameToken;
         effect.sendCommand = provider.session.sessionActive;
         effect.command.token = provider.requests.activeFrameToken;
@@ -746,39 +742,32 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
             effect.deferredControllerEvent = queued.deferredFlush
                 ? ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest
                 : ViewportProviderDeferredControllerEvent::None;
-        } else if (provider.requests.nextRequestToken == std::numeric_limits<quint64>::max()) {
-            effect.closeSession = provider.session.sessionActive;
-            effect.sessionClose.metadataToken = provider.requests.activeMetadataToken;
-            effect.sessionClose.frameToken = provider.requests.activeFrameToken;
-            provider.requests.activeMetadataToken = {};
-            provider.requests.activeFrameToken = {};
-            provider.requests.nextRequestToken = 0;
-            playbackAccess().request().status = ImageViewport::RequestStatus::Error;
-            playbackAccess().request().reason = ImageViewport::RequestReason::ProviderFailure;
-            playbackAccess().request().errorString
-                = QStringLiteral("provider request token exhausted");
-            playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Stopped;
-            result.changes.diagnostics = true;
-            acceptedDispatch = false;
         } else {
-            provider.requests.activeFrameToken
-                = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
-                    ++provider.requests.nextRequestToken);
-            active.providerFrameToken = provider.requests.activeFrameToken;
-            effect.sendCommand = provider.session.sessionActive;
-            effect.command.token = provider.requests.activeFrameToken;
-            effect.command.frame = active.resolvedFrame.frame;
-            effect.command.position = active.target.position;
-            effect.command.targetKind = active.target.providerTargetKind;
-            effect.command.demand = providerDisplayDemand(role, input.geometry);
-            playbackAccess().request().status = ImageViewport::RequestStatus::Loading;
-            playbackAccess().request().reason = ImageViewport::RequestReason::ProviderWaiting;
-            playbackAccess().display().status
-                = playbackAccess().display().roles[0].displayedImageSize.isValid()
-                ? ImageViewport::DisplayStatus::Retained
-                : ImageViewport::DisplayStatus::Empty;
-            playbackAccess().display().clearPendingRenderPayload();
-            playbackAccess().display().clearRenderFailureRetainedDisplay();
+            const auto allocation = allocateViewportProviderRequestToken(
+                { role }, providerRequestTokenAllocationAccess());
+            effect.closeSession = allocation.closeSession;
+            effect.sessionClose = allocation.sessionClose;
+            mergeChanges(result.changes, allocation.changes);
+            if (allocation.exhausted) {
+                acceptedDispatch = false;
+            } else {
+                provider.requests.activeFrameToken = allocation.token;
+                active.providerFrameToken = provider.requests.activeFrameToken;
+                effect.sendCommand = provider.session.sessionActive;
+                effect.command.token = provider.requests.activeFrameToken;
+                effect.command.frame = active.resolvedFrame.frame;
+                effect.command.position = active.target.position;
+                effect.command.targetKind = active.target.providerTargetKind;
+                effect.command.demand = providerDisplayDemand(role, input.geometry);
+                playbackAccess().request().status = ImageViewport::RequestStatus::Loading;
+                playbackAccess().request().reason = ImageViewport::RequestReason::ProviderWaiting;
+                playbackAccess().display().status
+                    = playbackAccess().display().roles[0].displayedImageSize.isValid()
+                    ? ImageViewport::DisplayStatus::Retained
+                    : ImageViewport::DisplayStatus::Empty;
+                playbackAccess().display().clearPendingRenderPayload();
+                playbackAccess().display().clearRenderFailureRetainedDisplay();
+            }
         }
         if (acceptedDispatch) {
             playbackAccess().playback().stopWhenRequestReady = target.reachedEnd;

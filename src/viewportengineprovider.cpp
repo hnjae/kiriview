@@ -249,7 +249,8 @@ ViewportProviderMetadataRequestStartResult ViewportEngine::startProviderMetadata
 {
     ViewportProviderMetadataRequestStartResult result;
     auto& provider = providerFor(providerAccess().roles(), role);
-    const auto allocation = allocateProviderRequestToken(role);
+    const auto allocation = allocateViewportProviderRequestToken(
+        { role }, providerRequestTokenAllocationAccess());
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
     provider.requests.activeMetadataToken = allocation.token;
@@ -279,7 +280,8 @@ ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameReques
         : ImageViewport::DisplayStatus::Empty;
 
     auto& provider = providerFor(providerAccess().roles(), role);
-    const auto allocation = allocateProviderRequestToken(role);
+    const auto allocation = allocateViewportProviderRequestToken(
+        { role }, providerRequestTokenAllocationAccess());
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
     provider.requests.activeFrameToken = allocation.token;

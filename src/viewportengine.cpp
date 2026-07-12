@@ -7,7 +7,6 @@
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
 
-#include <limits>
 #include <utility>
 
 namespace {
@@ -232,6 +231,12 @@ ViewportEnginePlaybackStateAccess ViewportEngine::playbackAccess()
 {
     return { m_state->requestState.request, m_state->playbackState.playback,
         m_state->displayState.display, m_state->providerState.roles };
+}
+
+ViewportProviderRequestTokenAllocationAccess ViewportEngine::providerRequestTokenAllocationAccess()
+{
+    return { m_state->providerState.roles, m_state->requestState.request,
+        m_state->playbackState.playback, m_state->displayState.display };
 }
 
 ViewportEngineGeometryTransitionAccess ViewportEngine::renderAccess()
@@ -505,36 +510,6 @@ ViewportEngine::ProviderSessionBinding ViewportEngine::providerSessionBinding(
         : m_state->requestState.presentationTarget.primaryRoleGeneration;
     return { source.providerSessionFactory, source.facts.providerThreadingContract, generation,
         provider.session.sessionSerial, provider.session.sessionActive };
-}
-
-ViewportProviderRequestTokenAllocation ViewportEngine::allocateProviderRequestToken(
-    ImageViewport::PageRole role)
-{
-    ViewportProviderRequestTokenAllocation allocation;
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    if (provider.requests.nextRequestToken != std::numeric_limits<quint64>::max()) {
-        allocation.token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
-            ++provider.requests.nextRequestToken);
-        return allocation;
-    }
-
-    allocation.closeSession = provider.session.sessionActive;
-    allocation.sessionClose.metadataToken = provider.requests.activeMetadataToken;
-    allocation.sessionClose.frameToken = provider.requests.activeFrameToken;
-    clearQueuedProviderFrameRequest(role);
-    provider.session.sessionActive = false;
-    provider.requests.activeMetadataToken = {};
-    provider.requests.activeFrameToken = {};
-    provider.requests.nextRequestToken = 0;
-    m_state->playbackState.playback.providerStartPending = false;
-    m_state->playbackState.playback.stopWhenRequestReady = false;
-    m_state->requestState.request.status = ImageViewport::RequestStatus::Error;
-    m_state->requestState.request.reason = ImageViewport::RequestReason::ProviderFailure;
-    m_state->requestState.request.errorString = QStringLiteral("provider request token exhausted");
-    m_state->playbackState.playback.phase = ImageViewport::PlaybackPhase::Stopped;
-    m_state->displayState.display.clearRenderFailureRetainedDisplay();
-    return allocation;
 }
 
 void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole role)

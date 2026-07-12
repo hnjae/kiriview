@@ -7,6 +7,7 @@
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginerenderoperations_p.h"
+#include "viewportengineproviderrequesttokenoperations_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportrendercontract_p.h"
 
@@ -284,8 +285,7 @@ public:
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
     ProviderSessionBinding providerSessionBinding(ImageViewport::PageRole role) const;
-    ViewportProviderRequestTokenAllocation allocateProviderRequestToken(
-        ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocationAccess providerRequestTokenAllocationAccess();
     ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
         ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
 public:
