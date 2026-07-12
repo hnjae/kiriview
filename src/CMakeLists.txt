@@ -79,6 +79,7 @@ qt_add_qml_module(
     viewportengine_p.h
     viewportenginestate_p.h
     viewportenginetestaccess_p.h
+    viewportenginetransition_p.h
     viewportcontroller.cpp
     viewportcontrollerassignmentcontract_p.h
     viewportcontrollercommandcontract_p.h

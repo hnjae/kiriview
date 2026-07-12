@@ -815,19 +815,22 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     requests.nextRequestToken = 4;
     request.roles[0].activeRequest.providerFrameToken = requests.activeFrameToken;
 
-    const auto effects
-        = engine.restageProviderDemands({ QRectF(0.0, 0.0, 200.0, 100.0), 2.0 });
+    const auto transition = engine.handleDevicePixelRatioChanged(
+        { QRectF(0.0, 0.0, 200.0, 100.0), 2.0 });
+    QCOMPARE(transition.providerAfterPublication.size(), 2);
+    const auto& cancel = transition.providerAfterPublication[0];
+    const auto& send = transition.providerAfterPublication[1];
 
-    QCOMPARE(effects[0].cancelToken, providerRequestTokenForTest(4));
-    QCOMPARE(effects[0].sendCommand, true);
-    QCOMPARE(effects[0].command.frame, 2);
-    QCOMPARE(effects[0].command.position, 120);
-    QCOMPARE(effects[0].command.demand.targetDisplaySizePixels(), QSizeF(400.0, 200.0));
-    QCOMPARE(effects[0].command.demand.effectiveDevicePixelRatio(), 2.0);
-    QVERIFY(effects[0].command.demand.demandRevision().isValid());
+    QCOMPARE(cancel.request.tokens(),
+        QVector<ImageSequenceProviderRequestToken> { providerRequestTokenForTest(4) });
+    QCOMPARE(send.request.frame(), 2);
+    QCOMPARE(send.request.requestedPosition(), 120);
+    QCOMPARE(send.request.demand().targetDisplaySizePixels(), QSizeF(400.0, 200.0));
+    QCOMPARE(send.request.demand().effectiveDevicePixelRatio(), 2.0);
+    QVERIFY(send.request.demand().demandRevision().isValid());
     QCOMPARE(
-        request.roles[0].activeRequest.demandRevision, effects[0].command.demand.demandRevision());
-    QCOMPARE(request.roles[0].activeRequest.providerFrameToken, effects[0].command.token);
+        request.roles[0].activeRequest.demandRevision, send.request.demand().demandRevision());
+    QCOMPARE(request.roles[0].activeRequest.providerFrameToken, send.request.token());
 }
 
 void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
@@ -847,12 +850,14 @@ void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
               .activeFrameToken;
 
-    const auto result = engine.reduceProviderEvent(
-        providerTerminalEvent(engine, providerRequestTokenForTest(4),
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewport::PageRole::Primary;
+    hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(4),
             ViewportProviderEvent::Kind::Failure,
             ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-            QStringLiteral("stale"), false),
-        {});
+            QStringLiteral("stale"), false);
+    const auto result = engine.handleProviderHostEvent({ hostEvent, {} });
 
     QCOMPARE(result.changes.requestState, false);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewport::PageRole::Primary)
@@ -879,12 +884,14 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
               .activeFrameToken;
 
-    const auto result = engine.reduceProviderEvent(
-        providerTerminalEvent(engine, providerRequestTokenForTest(3),
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewport::PageRole::Primary;
+    hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(3),
             ViewportProviderEvent::Kind::Failure,
             ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-            QStringLiteral("frame failed"), false),
-        {});
+            QStringLiteral("frame failed"), false);
+    const auto result = engine.handleProviderHostEvent({ hostEvent, {} });
 
     QCOMPARE(result.changes.requestState, true);
     QCOMPARE(result.changes.playbackPhase, true);
@@ -898,7 +905,7 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
         true);
     QVERIFY(!ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
             .activeFrameToken.isValid());
-    QCOMPARE(result.providerFrameTransport.closeSession, false);
+    QVERIFY(result.providerAfterPublication.isEmpty());
 }
 
 void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
@@ -915,12 +922,14 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
         .activeMetadataToken
         = providerRequestTokenForTest(5);
 
-    const auto result = engine.reduceProviderEvent(
-        providerTerminalEvent(engine, providerRequestTokenForTest(5),
+    ViewportProviderHostEvent hostEvent;
+    hostEvent.kind = ViewportProviderHostEvent::Kind::ProviderEvent;
+    hostEvent.role = ImageViewport::PageRole::Primary;
+    hostEvent.providerEvent = providerTerminalEvent(engine, providerRequestTokenForTest(5),
             ViewportProviderEvent::Kind::Unsupported,
             ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
-            QStringLiteral("unsupported"), true),
-        {});
+            QStringLiteral("unsupported"), true);
+    const auto result = engine.handleProviderHostEvent({ hostEvent, {} });
 
     QCOMPARE(request.status, ImageViewport::RequestStatus::Unsupported);
     QCOMPARE(request.reason, ImageViewport::RequestReason::UnsupportedRequest);
@@ -929,8 +938,10 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewport::PageRole::Primary)
                  .sessionActive,
         false);
-    QCOMPARE(result.providerFrameTransport.closeSession, true);
-    QVERIFY(!result.providerFrameTransport.sessionClose.metadataToken.isValid());
+    QCOMPARE(result.providerAfterPublication.size(), 1);
+    QCOMPARE(result.providerAfterPublication[0].kind,
+        ViewportProviderTransportCommand::Kind::CloseSession);
+    QVERIFY(!result.providerAfterPublication[0].sessionClose.metadataToken.isValid());
 }
 
 void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()
@@ -940,14 +951,16 @@ void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()
     setUpCurrentProviderFrameQueueRequest(engine, session);
     seedCurrentProviderFrameQueue(engine);
 
-    const auto result = engine.reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole::Primary, ViewportEngine::ViewportInput {});
+    ViewportProviderHostEvent event;
+    event.kind = ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest;
+    event.role = ImageViewport::PageRole::Primary;
+    const auto result = engine.handleProviderHostEvent({ event, {} });
 
     QCOMPARE(result.changes.requestState, true);
-    QCOMPARE(result.providerFrameTransport.sendCommand, true);
-    QCOMPARE(result.providerFrameTransport.command.frame, 4);
-    QCOMPARE(result.providerFrameTransport.command.targetKind,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback);
+    QCOMPARE(result.providerAfterPublication.size(), 1);
+    QCOMPARE(result.providerAfterPublication[0].request.frame(), 4);
+    QCOMPARE(result.providerAfterPublication[0].request.kind(),
+        ImageSequenceProviderRequestKind::Playback);
     verifyProviderFrameQueueCleared(
         ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary));
 }
@@ -960,11 +973,13 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
     seedCurrentProviderFrameQueue(engine);
     ViewportEngineTestAccess::request(engine).roles[0].activeRequest.target.frame = 5;
 
-    const auto result = engine.reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole::Primary, ViewportEngine::ViewportInput {});
+    ViewportProviderHostEvent event;
+    event.kind = ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest;
+    event.role = ImageViewport::PageRole::Primary;
+    const auto result = engine.handleProviderHostEvent({ event, {} });
 
     QCOMPARE(result.changes.requestState, false);
-    QCOMPARE(result.providerFrameTransport.sendCommand, false);
+    QVERIFY(result.providerAfterPublication.isEmpty());
     verifyProviderFrameQueueCleared(
         ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary));
 }

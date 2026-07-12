@@ -6,6 +6,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
+#include "viewportenginetransition_p.h"
 #include "viewportengineassignmentoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
@@ -153,6 +154,11 @@ public:
         QPointF anchor;
         int quarterTurnDelta = 0;
     };
+    struct ProviderHostEventInput
+    {
+        ViewportProviderHostEvent event;
+        ViewportInput viewport;
+    };
     ImageViewportStateSnapshot snapshot(ViewportInput input = {}) const;
 
 private:
@@ -177,21 +183,8 @@ public:
         const RenderAcknowledgementInput& input);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
         const GeometryChangeInput& input);
-    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
-        ViewportInput input);
-    ViewportProviderEventResult reduceProviderEvent(
-        const ViewportProviderEvent& event, ViewportInput input);
-    ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
-        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
-    ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
-    ViewportProviderSessionOpenResult reduceProviderSessionOpened(
-        ImageViewport::PageRole role, ViewportInput input);
-    ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
-    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
-    ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportInput input);
+    ViewportEngineTransition handleProviderHostEvent(const ProviderHostEventInput& input);
+    ViewportEngineTransition handleDevicePixelRatioChanged(ViewportInput input);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
     PresentationTargetAssignmentResult assignPresentationTarget(
@@ -227,6 +220,21 @@ private:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
+    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
+        ViewportInput input);
+    ViewportProviderEventResult reduceProviderEvent(
+        const ViewportProviderEvent& event, ViewportInput input);
+    ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
+        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
+    ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
+    ViewportProviderSessionOpenResult reduceProviderSessionOpened(
+        ImageViewport::PageRole role, ViewportInput input);
+    ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
+        ImageViewport::PageRole role, const QString& diagnostic);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
+    ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
+        ImageViewport::PageRole role, ViewportInput input);
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
     {

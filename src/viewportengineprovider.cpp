@@ -2,6 +2,7 @@
 #include "viewportenginecapabilities_p.h"
 
 #include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <memory>
 
@@ -21,6 +22,88 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
         : ViewportEngineProviderTerminalEventInput::Kind::Failure;
     return result;
 }
+}
+
+ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
+    const ProviderHostEventInput& input)
+{
+    const auto& event = input.event;
+    ViewportEngineTransition result;
+    switch (event.kind) {
+    case ViewportProviderHostEvent::Kind::SessionOpened: {
+        const auto opened = reduceProviderSessionOpened(event.role, input.viewport);
+        appendProviderTransport(
+            result.providerAfterPublication, opened.providerMetadataTransport, event.role);
+        appendProviderTransport(
+            result.providerAfterPublication, opened.providerFrameTransport, event.role);
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::SessionOpenFailed: {
+        const auto reduced = reduceProviderSessionOpenFailure(event.role, event.diagnostic);
+        result.changes = reduced.changes;
+        result.playbackSchedule = reduced.schedule;
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::ProviderEvent: {
+        const auto reduced = reduceProviderEvent(event.providerEvent, input.viewport);
+        result.changes = reduced.changes;
+        auto& batch = reduced.providerFrameTransportPhase
+                == ViewportProviderEventTransportPhase::BeforeChanges
+            ? result.providerBeforePublication
+            : result.providerAfterPublication;
+        appendProviderTransport(batch, reduced.providerFrameTransport, event.role);
+        if (result.changes.playbackPhase) {
+            result.playbackSchedule = reduced.schedule;
+        }
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::DispatchFailed: {
+        const auto reduced
+            = reduceProviderDispatchFailure(event.role, { event.token, event.diagnostic });
+        result.changes = reduced.changes;
+        appendProviderTransport(
+            result.providerAfterPublication, reduced.providerFrameTransport, event.role);
+        if (result.changes.playbackPhase) {
+            result.playbackSchedule = reduced.schedule;
+        }
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
+        const auto reduced = reduceQueuedProviderFrameRequest(event.role, input.viewport);
+        result.changes = reduced.changes;
+        appendProviderTransport(
+            result.providerAfterPublication, reduced.providerFrameTransport, event.role);
+        if (result.changes.playbackPhase) {
+            result.playbackSchedule = reduced.schedule;
+        }
+        return result;
+    }
+    case ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed: {
+        const auto reduced
+            = reduceProviderQueueSchedulingFailure(event.role, event.diagnostic);
+        result.changes = reduced.changes;
+        result.providerSchedulerDiagnostic = reduced.diagnostic;
+        if (result.changes.playbackPhase) {
+            result.playbackSchedule = reduced.schedule;
+        }
+        return result;
+    }
+    }
+    return result;
+}
+
+ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(ViewportInput input)
+{
+    ViewportEngineTransition result;
+    result.changes.displayRevision = true;
+    result.changes.geometryState = true;
+    result.changes.scheduleUpdate = true;
+    const auto effects = restageProviderDemands(input);
+    appendProviderTransport(result.providerAfterPublication, effects[0],
+        ImageViewport::PageRole::Primary);
+    appendProviderTransport(result.providerAfterPublication, effects[1],
+        ImageViewport::PageRole::Secondary);
+    return result;
 }
 
 ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(

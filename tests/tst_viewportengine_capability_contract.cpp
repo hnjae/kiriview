@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportcontrollertransition_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
@@ -103,6 +104,34 @@ template <typename Engine>
 struct HasPublicProjectedGeometryInput<Engine,
     std::void_t<decltype(std::declval<const Engine&>().projectedGeometryInput(QRectF {}, 1.0))>>
     : std::true_type
+{
+};
+template <typename Engine, typename = void> struct HasPublicProviderReducer : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicProviderReducer<Engine,
+    std::void_t<decltype(std::declval<Engine&>().reduceProviderEvent(
+        std::declval<const ViewportProviderEvent&>(), ViewportEngineViewportInput {}))>>
+    : std::true_type
+{
+};
+template <typename Engine, typename = void> struct HasPublicProviderRestaging : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicProviderRestaging<Engine,
+    std::void_t<decltype(std::declval<Engine&>().restageProviderDemands(
+        ViewportEngineViewportInput {}))>> : std::true_type
+{
+};
+template <typename Engine, typename = void> struct HasPublicProviderSessionClose : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicProviderSessionClose<Engine,
+    std::void_t<decltype(std::declval<Engine&>().closeProviderSession(
+        ImageViewport::PageRole::Primary))>> : std::true_type
 {
 };
 template <typename Engine>
@@ -398,6 +427,15 @@ static_assert(!HasPublicRejectInvalidCommand<ViewportEngine>::value);
 static_assert(!HasPublicRevisionAllocator<ViewportEngine>::value);
 static_assert(!HasPublicAcceptedGeometryInput<ViewportEngine>::value);
 static_assert(!HasPublicProjectedGeometryInput<ViewportEngine>::value);
+static_assert(!HasPublicProviderReducer<ViewportEngine>::value);
+static_assert(!HasPublicProviderRestaging<ViewportEngine>::value);
+static_assert(!HasPublicProviderSessionClose<ViewportEngine>::value);
+static_assert(std::is_same_v<decltype(&ViewportEngine::handleProviderHostEvent),
+    ViewportEngineTransition (ViewportEngine::*)(
+        const ViewportEngine::ProviderHostEventInput&)>);
+static_assert(std::is_same_v<decltype(&ViewportEngine::handleDevicePixelRatioChanged),
+    ViewportEngineTransition (ViewportEngine::*)(ViewportEngineViewportInput)>);
+static_assert(std::is_same_v<ViewportControllerTransition, ViewportEngineTransition>);
 static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PresentationTargetAssignmentInput>()
                                           .viewport),
     ViewportEngineViewportInput>);
