@@ -104,14 +104,6 @@ struct ViewportProviderSessionClose
     ImageSequenceProviderRequestToken frameToken;
 };
 
-struct ViewportProviderMetadataRequestStartResult
-{
-    bool closeSession = false;
-    ViewportProviderSessionClose sessionClose;
-    bool sendCommand = false;
-    ImageSequenceProviderRequestToken token;
-};
-
 struct ViewportProviderMetadataTransportEffect
 {
     bool closeSession = false;

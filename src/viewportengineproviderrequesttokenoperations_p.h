@@ -24,6 +24,10 @@ class ViewportProviderRequestTokenAllocationAccess
     friend class ViewportEnginePlaybackSeekAccess;
     friend class ViewportEnginePlaybackPlayAccess;
     friend class ViewportEnginePlaybackTickAccess;
+    friend class ViewportEngineProviderSessionOpenedAccess;
+    friend class ViewportEngineProviderQueueFlushAccess;
+    friend class ViewportEngineProviderDemandRestageAccess;
+    friend class ViewportEngineProviderFrameRequestAccess;
     ViewportProviderRequestTokenAllocationAccess(std::array<ViewportEngineRoleState, 2>& roles,
         ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,

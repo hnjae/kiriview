@@ -4,6 +4,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
+#include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
 #include <type_traits>
@@ -113,6 +114,24 @@ static_assert(std::is_same_v<decltype(&closeViewportEngineProviderSession),
 static_assert(std::is_same_v<decltype(&acceptsViewportEngineProviderSessionEvent),
     bool (*)(ViewportEngineProviderSessionAdmissionInput,
         ViewportEngineProviderSessionAdmissionAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionOpenedAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionOpenedAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderSessionOpenedAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderSessionOpenedAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionOpenedAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderSessionOpenedAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderQueueFlushAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderQueueFlushAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderQueueFlushAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderQueueFlushAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderQueueFlushAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderQueueFlushAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderDemandRestageAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderDemandRestageAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderDemandRestageAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderDemandRestageAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderDemandRestageAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderDemandRestageAccess>::value);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);

@@ -9,6 +9,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
+#include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportplaybackcontract_p.h"
@@ -121,27 +122,6 @@ public:
         bool accepted = false;
     };
 
-    struct ProviderFrameQueueInput
-    {
-        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-        int frame = -1;
-        ImageViewportInternal::ProviderRequestTargetKind targetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    };
-
-    struct ProviderFrameQueueResult
-    {
-        ImageSequenceProviderRequestToken cancelToken;
-        bool deferredFlush = false;
-    };
-
-    struct ProviderFrameQueueFlushResult
-    {
-        bool startRequest = false;
-        int frame = -1;
-        ImageViewportInternal::ProviderRequestTargetKind targetKind
-            = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-    };
     using RenderSynchronizationInput = ViewportEngineRenderSynchronizationInput;
 
     using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
@@ -228,7 +208,6 @@ public:
         const GeometryInput& geometry);
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
-    ViewportProviderRequestTokenAllocationAccess providerRequestTokenAllocationAccess();
     ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
         ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
 public:
@@ -238,11 +217,6 @@ public:
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(
         ImageViewport::PageRole role, const GeometryInput& geometry);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ViewportProviderMetadataRequestStartResult startProviderMetadataRequest(
-        ImageViewport::PageRole role);
-    ViewportProviderFrameRequestStartResult startProviderFrameRequest(ImageViewport::PageRole role,
-        ImageViewportInternal::DisplayRequestTarget target, const GeometryInput& geometry);
 public:
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
@@ -257,14 +231,8 @@ public:
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     VIEWPORT_ENGINE_TEST_VISIBILITY:
     void clearQueuedProviderFrameRequest(ImageViewport::PageRole role);
-    bool hasActiveProviderFrameToken(ImageViewport::PageRole role) const;
-    ProviderFrameQueueResult queueProviderFrameRequest(ProviderFrameQueueInput input);
-    ProviderFrameQueueFlushResult flushQueuedProviderFrameRequest(ImageViewport::PageRole role);
 public:
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole role, const GeometryInput& geometry);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ImageSequenceProviderDisplayDemand providerDisplayDemand(
         ImageViewport::PageRole role, const GeometryInput& geometry);
 public:
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);

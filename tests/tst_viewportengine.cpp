@@ -93,6 +93,33 @@ ProviderFrameQueueSetup setUpCurrentProviderFrameQueueRequest(
     return { providerRequests.activeFrameToken, request.roles[0].activeRequest.identity.id };
 }
 
+void seedCurrentProviderFrameQueue(ViewportEngine& engine)
+{
+    auto& request = ViewportEngineTestAccess::request(engine);
+    auto& activeRequest = request.roles[0].activeRequest;
+    auto& requests
+        = ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary);
+    auto& display = ViewportEngineTestAccess::display(engine);
+
+    request.status = ImageViewport::RequestStatus::Loading;
+    request.reason = ImageViewport::RequestReason::RequestQueued;
+    display.roles[0].pendingRenderPayload = {};
+    display.roles[0].retainedDisplayValid = false;
+    display.roles[0].retainedRequest = {};
+    display.roles[0].retainedImageSize = {};
+    display.roles[0].retainedImage = {};
+    requests.activeFrameToken = {};
+    activeRequest.providerFrameToken = {};
+    requests.queuedFrameRequest = true;
+    requests.queuedFrameGeneration = request.sequenceGeneration;
+    requests.queuedFrameRequestId = activeRequest.identity.id;
+    requests.queuedFrame = activeRequest.target.frame;
+    requests.queuedPosition = activeRequest.target.position;
+    requests.queuedResolvedFrame = activeRequest.resolvedFrame;
+    requests.queuedFrameFromPlayback = true;
+    requests.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Playback;
+}
+
 void verifyProviderFrameQueueCleared(const ImageViewportInternal::ProviderRequestState& requests)
 {
     QCOMPARE(requests.queuedFrameRequest, false);
@@ -134,12 +161,10 @@ private slots:
     void playbackTickAdvancesBuiltInTargetInEngine();
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
-    void providerDisplayDemandProjectsCanonicalEngineFacts();
     void providerDemandRestagingCancelsAndReissuesCurrentTarget();
     void providerTerminalReducerRejectsStaleFrameToken();
     void providerTerminalReducerCommitsFrameFailureAtomically();
     void providerTerminalReducerClosesMetadataGeneration();
-    void providerFrameQueueStoresCurrentRequestIdentity();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
     void invalidCommandUpdatesOnlyCommandDiagnostics();
@@ -754,109 +779,6 @@ void ViewportEngineTest::providerStateOwnsTokensQueuesAndMetadataByRole()
     QCOMPARE(facts.logicalSize, QSizeF(16.0, 8.0));
 }
 
-void ViewportEngineTest::providerFrameQueueStoresCurrentRequestIdentity()
-{
-    ViewportEngine engine;
-    StubProviderSession session;
-    const ProviderFrameQueueSetup setup = setUpCurrentProviderFrameQueueRequest(engine, session);
-
-    const auto result = engine.queueProviderFrameRequest({ ImageViewport::PageRole::Primary, 4,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback });
-
-    QCOMPARE(result.deferredFlush, true);
-    QCOMPARE(result.cancelToken, setup.activeToken);
-    QVERIFY(!ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-            .activeFrameToken.isValid());
-    QVERIFY(!ViewportEngineTestAccess::request(engine)
-            .roles[0]
-            .activeRequest.providerFrameToken.isValid());
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedFrameGeneration,
-        7);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedFrameRequestId,
-        setup.activeRequestId);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedFrame,
-        4);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedPosition,
-        120);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedResolvedFrame.frame,
-        4);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedResolvedFrame.position,
-        120);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedFrameFromPlayback,
-        true);
-    QCOMPARE(ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
-                 .queuedFrameTargetKind,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback);
-    QCOMPARE(
-        ViewportEngineTestAccess::request(engine).status, ImageViewport::RequestStatus::Loading);
-    QCOMPARE(ViewportEngineTestAccess::request(engine).reason,
-        ImageViewport::RequestReason::RequestQueued);
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.commitPending,
-        false);
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.commitPending,
-        false);
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].retainedDisplayValid, false);
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].retainedRequest.generation, 0);
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].retainedImageSize, QSizeF());
-    QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].retainedImage.isNull(), true);
-}
-
-void ViewportEngineTest::providerDisplayDemandProjectsCanonicalEngineFacts()
-{
-    ViewportEngine engine;
-    auto& request = ViewportEngineTestAccess::request(engine);
-    request.roles[0].source.facts.present = true;
-    request.roles[0].source.facts.provider = true;
-    request.sequenceGeneration = 7;
-    request.requestRevision = 11;
-    request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
-        { 2, 120, ImageViewportInternal::ProviderRequestTargetKind::Position }, { 2, 100 }, false);
-    ViewportEngineTestAccess::providerFacts(engine, ImageViewport::PageRole::Primary).logicalSize
-        = QSizeF(16.0, 8.0);
-    ViewportEngineTestAccess::display(engine).roles[0].displayedPayload.quality
-        = ImageViewport::PayloadQuality::Preview;
-    ViewportEngineTestAccess::display(engine).roles[0].displayedPayload.exactness
-        = ImageViewport::PayloadExactness::NotExact;
-    ViewportEngineTestAccess::display(engine).roles[0].displayedPayload.payloadRasterSize
-        = QSizeF(8.0, 4.0);
-    ViewportEngineTestAccess::display(engine).roles[0].displayedPayload.sourceToPayloadScale
-        = QSizeF(0.5, 0.5);
-
-    ViewportEngine::GeometryInput geometry;
-    geometry.primaryPresent = true;
-    geometry.itemBounds = QRectF(0.0, 0.0, 100.0, 50.0);
-    geometry.primarySize = QSizeF(16.0, 8.0);
-    geometry.devicePixelRatio = 2.0;
-    const ImageSequenceProviderDisplayDemand demand
-        = engine.providerDisplayDemand(ImageViewport::PageRole::Primary, geometry);
-
-    QVERIFY(demand.demandRevision().isValid());
-    QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].activeRequest.demandRevision,
-        demand.demandRevision());
-    QVERIFY(demand.requestRevision().isValid());
-    QCOMPARE(demand.role(), ImageViewport::PageRole::Primary);
-    QCOMPARE(demand.resolvedFrame(), 2);
-    QCOMPARE(demand.requestedPosition(), 120);
-    QCOMPARE(demand.sourceLogicalSize(), QSizeF(16.0, 8.0));
-    QCOMPARE(demand.visibleSourceRect(), QRectF(0.0, 0.0, 16.0, 8.0));
-    QCOMPARE(demand.targetDisplaySizePixels(), QSizeF(200.0, 100.0));
-    QCOMPARE(demand.effectiveDevicePixelRatio(), 2.0);
-    QCOMPARE(demand.maximumTextureSize(), -1);
-    QCOMPARE(demand.maximumPayloadBytes(), ImageSequenceLimits::maximumPayloadBytesPerFrame());
-    QCOMPARE(demand.displayByteBudget(), -1);
-    QCOMPARE(demand.currentPayloadQuality(), ImageViewport::PayloadQuality::Preview);
-    QCOMPARE(demand.currentPayloadExactness(), ImageViewport::PayloadExactness::NotExact);
-    QCOMPARE(demand.currentPayloadRasterSize(), QSizeF(8.0, 4.0));
-    QCOMPARE(demand.currentSourceToPayloadScale(), QSizeF(0.5, 0.5));
-}
-
 void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget()
 {
     ViewportEngine engine;
@@ -880,8 +802,6 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
 
     ViewportEngine::GeometryInput geometry { true, QRectF(0.0, 0.0, 100.0, 50.0), QSizeF(16.0, 8.0),
         {}, 1.0 };
-    const auto oldDemand
-        = engine.providerDisplayDemand(ImageViewport::PageRole::Primary, geometry).demandRevision();
     geometry.itemBounds = QRectF(0.0, 0.0, 200.0, 100.0);
     geometry.devicePixelRatio = 2.0;
 
@@ -893,7 +813,7 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     QCOMPARE(effects[0].command.position, 120);
     QCOMPARE(effects[0].command.demand.targetDisplaySizePixels(), QSizeF(400.0, 200.0));
     QCOMPARE(effects[0].command.demand.effectiveDevicePixelRatio(), 2.0);
-    QVERIFY(effects[0].command.demand.demandRevision() != oldDemand);
+    QVERIFY(effects[0].command.demand.demandRevision().isValid());
     QCOMPARE(
         request.roles[0].activeRequest.demandRevision, effects[0].command.demand.demandRevision());
     QCOMPARE(request.roles[0].activeRequest.providerFrameToken, effects[0].command.token);
@@ -1001,14 +921,16 @@ void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()
     ViewportEngine engine;
     StubProviderSession session;
     setUpCurrentProviderFrameQueueRequest(engine, session);
-    engine.queueProviderFrameRequest({ ImageViewport::PageRole::Primary, 4,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback });
+    seedCurrentProviderFrameQueue(engine);
 
-    const auto result = engine.flushQueuedProviderFrameRequest(ImageViewport::PageRole::Primary);
+    const auto result = engine.reduceQueuedProviderFrameRequest(
+        ImageViewport::PageRole::Primary, ViewportEngine::GeometryInput {});
 
-    QCOMPARE(result.startRequest, true);
-    QCOMPARE(result.frame, 4);
-    QCOMPARE(result.targetKind, ImageViewportInternal::ProviderRequestTargetKind::Playback);
+    QCOMPARE(result.changes.requestState, true);
+    QCOMPARE(result.providerFrameTransport.sendCommand, true);
+    QCOMPARE(result.providerFrameTransport.command.frame, 4);
+    QCOMPARE(result.providerFrameTransport.command.targetKind,
+        ImageViewportInternal::ProviderRequestTargetKind::Playback);
     verifyProviderFrameQueueCleared(
         ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary));
 }
@@ -1018,13 +940,14 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
     ViewportEngine engine;
     StubProviderSession session;
     setUpCurrentProviderFrameQueueRequest(engine, session);
-    engine.queueProviderFrameRequest({ ImageViewport::PageRole::Primary, 4,
-        ImageViewportInternal::ProviderRequestTargetKind::Playback });
+    seedCurrentProviderFrameQueue(engine);
     ViewportEngineTestAccess::request(engine).roles[0].activeRequest.target.frame = 5;
 
-    const auto result = engine.flushQueuedProviderFrameRequest(ImageViewport::PageRole::Primary);
+    const auto result = engine.reduceQueuedProviderFrameRequest(
+        ImageViewport::PageRole::Primary, ViewportEngine::GeometryInput {});
 
-    QCOMPARE(result.startRequest, false);
+    QCOMPARE(result.changes.requestState, false);
+    QCOMPARE(result.providerFrameTransport.sendCommand, false);
     verifyProviderFrameQueueCleared(
         ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary));
 }

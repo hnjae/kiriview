@@ -59,6 +59,8 @@ qt_add_qml_module(
     viewportengineplaybackoperations_p.h
     viewportengineprovider.cpp
     viewportengineproviderrequesttokenoperations.cpp
+    viewportengineproviderrequestoperations.cpp
+    viewportengineproviderrequestoperations_p.h
     viewportengineproviderprojection.cpp
     viewportengineprovidersessionoperations.cpp
     viewportengineprovidersessionoperations_p.h

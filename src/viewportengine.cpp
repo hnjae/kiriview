@@ -227,12 +227,6 @@ ViewportEngineProviderStateAccess ViewportEngine::providerAccess()
         m_state->displayState.display, m_state->providerState.roles };
 }
 
-ViewportProviderRequestTokenAllocationAccess ViewportEngine::providerRequestTokenAllocationAccess()
-{
-    return { m_state->providerState.roles, m_state->requestState.request,
-        m_state->playbackState.playback, m_state->displayState.display };
-}
-
 ViewportEngineProviderFactsView ViewportEngine::providerFactsView() const
 {
     return { m_state->providerState.roles[0].provider.facts,
@@ -470,120 +464,6 @@ void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole rol
     provider.requests.queuedFrameFromPlayback = false;
     provider.requests.queuedFrameTargetKind
         = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
-}
-
-bool ViewportEngine::hasActiveProviderFrameToken(ImageViewport::PageRole role) const
-{
-    return m_state->providerState.roles[roleIndex(role)]
-        .provider.requests.activeFrameToken.isValid();
-}
-
-ViewportEngine::ProviderFrameQueueResult ViewportEngine::queueProviderFrameRequest(
-    ProviderFrameQueueInput input)
-{
-    ProviderFrameQueueResult result;
-
-    ImageViewportInternal::TargetSpreadWaitState waitState;
-    if (input.role == ImageViewport::PageRole::Secondary) {
-        waitState.requiresSecondary = true;
-        waitState.secondary.requestQueued = true;
-    } else {
-        waitState.primary.requestQueued = true;
-    }
-    m_state->requestState.request.status = ImageViewport::RequestStatus::Loading;
-    m_state->requestState.request.reason = ImageViewportInternal::projectWaitReason(waitState);
-    m_state->displayState.display.status
-        = retainedOrEmptyDisplayStatus(m_state->displayState.display);
-    m_state->displayState.display.clearPendingRenderPayload();
-    m_state->displayState.display.clearRenderFailureRetainedDisplay();
-
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(input.role)].provider;
-    ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(m_state->requestState.request, input.role);
-    if (provider.session.sessionActive && provider.requests.activeFrameToken.isValid()) {
-        result.cancelToken = provider.requests.activeFrameToken;
-    }
-    provider.requests.activeFrameToken = {};
-    activeRequest.providerFrameToken = {};
-
-    provider.requests.queuedFrameRequest = true;
-    provider.requests.queuedFrameGeneration = m_state->requestState.request.sequenceGeneration;
-    provider.requests.queuedFrameRequestId = activeRequest.identity.id;
-    provider.requests.queuedFrame = input.frame;
-    provider.requests.queuedPosition = activeRequest.target.position;
-    provider.requests.queuedResolvedFrame = activeRequest.resolvedFrame;
-    provider.requests.queuedFrameFromPlayback
-        = input.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
-    provider.requests.queuedFrameTargetKind = input.targetKind;
-    result.deferredFlush = true;
-    return result;
-}
-
-ViewportEngine::ProviderFrameQueueFlushResult ViewportEngine::flushQueuedProviderFrameRequest(
-    ImageViewport::PageRole role)
-{
-    ProviderFrameQueueFlushResult result;
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    if (!provider.requests.queuedFrameRequest
-        || !hasProviderSequenceForRole(m_state->requestState.request, role)
-        || !provider.session.sessionActive) {
-        clearQueuedProviderFrameRequest(role);
-        return result;
-    }
-
-    const quint64 queuedGeneration = provider.requests.queuedFrameGeneration;
-    const int queuedFrame = provider.requests.queuedFrame;
-    const int queuedPosition = provider.requests.queuedPosition;
-    const ImageViewportInternal::ResolvedFrameIdentity queuedResolvedFrame
-        = provider.requests.queuedResolvedFrame;
-    const quint64 queuedRequestId = provider.requests.queuedFrameRequestId;
-    const ImageViewportInternal::ProviderRequestTargetKind queuedTargetKind
-        = provider.requests.queuedFrameTargetKind;
-    const ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(m_state->requestState.request, role);
-    const bool stillCurrent = queuedGeneration == m_state->requestState.request.sequenceGeneration
-        && queuedRequestId == activeRequest.identity.id
-        && m_state->requestState.request.status == ImageViewport::RequestStatus::Loading
-        && m_state->requestState.request.reason == ImageViewport::RequestReason::RequestQueued
-        && activeRequest.target.frame == queuedFrame
-        && activeRequest.target.position == queuedPosition
-        && activeRequest.resolvedFrame.frame == queuedResolvedFrame.frame
-        && activeRequest.resolvedFrame.position == queuedResolvedFrame.position
-        && activeRequest.target.providerTargetKind == queuedTargetKind;
-    clearQueuedProviderFrameRequest(role);
-    if (!stillCurrent) {
-        return result;
-    }
-
-    result.startRequest = true;
-    result.frame = queuedFrame;
-    result.targetKind = queuedTargetKind;
-    return result;
-}
-
-ImageSequenceProviderDisplayDemand ViewportEngine::providerDisplayDemand(
-    ImageViewport::PageRole role, const GeometryInput& geometry)
-{
-    if (role != ImageViewport::PageRole::Primary && role != ImageViewport::PageRole::Secondary)
-        return {};
-    auto& request = activeRequestForRole(m_state->requestState.request, role);
-    request.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(
-        allocateRevisionValue());
-    const quint64 presentationRevision = m_state->revisions.presentationRevision != 0
-        ? m_state->revisions.presentationRevision
-        : m_state->requestState.presentationTarget.generation;
-    return projectViewportProviderDemand(
-        { role, geometry, request.demandRevision,
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                m_state->requestState.request.requestRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-                presentationRevision),
-            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-                m_state->requestState.presentationTarget.generation) },
-        { m_state->requestState.request, m_state->displayState.display, providerFactsView(),
-            m_state->presentationState.presentation });
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
