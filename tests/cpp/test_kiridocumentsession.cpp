@@ -436,11 +436,13 @@ std::unique_ptr<KiriDocumentSession> createSessionWithProvider(
     kiriview::ThumbnailCacheLookupProvider thumbnailLookupProvider = {},
     kiriview::ThumbnailGenerationProvider thumbnailGenerationProvider = {},
     std::shared_ptr<kiriview::ThumbnailImageStore> thumbnailImageStore = {},
-    kiriview::MediaEntrySourceFactory mediaEntrySourceFactory = {})
+    kiriview::MediaEntrySourceFactory mediaEntrySourceFactory = {},
+    kiriview::NavigationSourceFactProvider navigationSourceFacts = {})
 {
     kiriview::KiriDocumentSessionDependencies dependencies;
     dependencies.sessionRuntime.directMediaNavigationCandidateProvider
         = std::move(directMediaNavigationCandidateProvider);
+    dependencies.sessionRuntime.navigationSourceFacts = std::move(navigationSourceFacts);
     dependencies.sessionRuntime.mediaOpenWithProvider = std::move(mediaOpenWithProvider);
     dependencies.sessionRuntime.activeNavigationThumbnails.lookupProvider
         = std::move(thumbnailLookupProvider);
@@ -563,6 +565,7 @@ private Q_SLOTS:
     void activeZoomReadoutFollowsSessionDocumentKind();
     void archiveAndDirectoryInputsRouteToImageDocument();
     void directImageAfterVideoRestoresImageDocument();
+    void directImageRouteCollectsNavigationSourceFactsOnce();
     void kioArchiveImageAfterKioArchiveVideoUsesOriginalImageUrl();
     void directImageDirectMediaNavigationIncludesSiblingVideos();
     void directImageActiveNavigationIgnoresImageDocumentDirectoryPageCandidates();
@@ -1068,6 +1071,33 @@ void TestKiriDocumentSession::directImageAfterVideoRestoresImageDocument()
     QCOMPARE(session->sourceUrl(), image);
     QCOMPARE(session->imageDocument()->sourceUrl(), image);
     QCOMPARE(session->videoDocument()->sourceUrl(), QUrl());
+}
+
+void TestKiriDocumentSession::directImageRouteCollectsNavigationSourceFactsOnce()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QUrl imageUrl = localUrl(directory.filePath(QStringLiteral("page.png")));
+    int probeCount = 0;
+    FakeDirectMediaNavigationCandidateProvider directMediaNavigationProvider;
+    directMediaNavigationProvider.setMedia(localUrl(directory.path() + QStringLiteral("/")),
+        { directMediaNavigationCandidate(imageUrl) });
+    kiriview::TestSupport::ManualImageDataLoader dataLoader;
+    std::unique_ptr<KiriDocumentSession> session
+        = createSessionWithProvider(directMediaNavigationProvider.provider(), nullptr, &dataLoader,
+            {}, kiriview::TestSupport::staticImageDataDecoder(), {}, {}, {}, {}, {},
+            [&probeCount, &imageUrl](const QUrl& url) {
+                if (url == imageUrl) {
+                    ++probeCount;
+                }
+                return kiriview::NavigationSourceFacts {};
+            });
+
+    session->setSourceUrl(imageUrl);
+    QCOMPARE(probeCount, 1);
+    QVERIFY(dataLoader.finishOldestActiveLoadForUrl(imageUrl, QByteArrayLiteral("image bytes")));
+    QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
+    QCOMPARE(probeCount, 1);
 }
 
 void TestKiriDocumentSession::kioArchiveImageAfterKioArchiveVideoUsesOriginalImageUrl()

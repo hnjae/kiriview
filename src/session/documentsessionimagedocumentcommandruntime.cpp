@@ -28,6 +28,25 @@ void DocumentSessionImageDocumentCommandRuntime::setSameScopeImageNavigationSour
     }
 }
 
+void DocumentSessionImageDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
+{
+    if (m_commands.source.setSource) {
+        m_commands.source.setSource(source);
+        return;
+    }
+    setSourceUrl(source.requestedUrl());
+}
+
+void DocumentSessionImageDocumentCommandRuntime::setSameScopeImageNavigationSource(
+    const ResolvedNavigationSource& source)
+{
+    if (m_commands.source.setSameScopeImageNavigationSource) {
+        m_commands.source.setSameScopeImageNavigationSource(source);
+        return;
+    }
+    setSameScopeImageNavigationSourceUrl(source.requestedUrl());
+}
+
 void DocumentSessionImageDocumentCommandRuntime::clearSourceUrl() { setSourceUrl(QUrl()); }
 
 MediaEntrySourceVideoPlaybackDeviceResult

@@ -108,6 +108,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               m_videoOutputRuntime.clearAttachment(attachmentPort);
           })
     , m_state(ports.state)
+    , m_navigationSourceFacts(std::move(dependencies.navigationSourceFacts))
     , m_videoDocumentSyncRuntime(DocumentSessionVideoDocumentSyncRuntimePorts {
           [this]() {
               const bool changed = m_state.clearDirectMediaCursor();
@@ -171,13 +172,13 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
                   logDirectMediaScope("direct media cursor cleared", m_state.directMediaScope());
                   return changed;
               },
-              [this](const QUrl& url) {
-                  const bool changed = m_state.setDirectVideoCursor(url);
+              [this](const QUrl&) {
+                  const bool changed = m_state.setDirectVideoCursor(m_routeNavigationSource);
                   logDirectMediaScope("direct video cursor set", m_state.directMediaScope());
                   return changed;
               },
-              [this](const QUrl& url) {
-                  const bool changed = m_state.requestDirectImageCursor(url);
+              [this](const QUrl&) {
+                  const bool changed = m_state.requestDirectImageCursor(m_routeNavigationSource);
                   logDirectMediaScope("direct image cursor requested", m_state.directMediaScope());
                   return changed;
               },
@@ -205,15 +206,16 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
                   m_state.setOpenedCollectionVideoActive(false);
                   setDocumentKind(DocumentSessionKind::Empty);
               },
-              [this](const QUrl& url) {
+              [this](const QUrl&) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSourceUrl(url);
+                  m_imageDocumentCommandRuntime.setSource(m_routeNavigationSource);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const QUrl& url) {
+              [this](const QUrl&) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSameScopeImageNavigationSourceUrl(url);
+                  m_imageDocumentCommandRuntime.setSameScopeImageNavigationSource(
+                      m_routeNavigationSource);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },
@@ -876,16 +878,19 @@ void DocumentSessionRuntimeGraph::routeSourceUrl(const QUrl& sourceUrl)
 {
     setPendingActiveNavigationRevealContext(
         ActiveNavigationRevealContext { ActiveNavigationRevealIntent::LoadOrOpen });
-    m_routeRuntime.routeSourceUrl(sourceUrl, m_state.documentKind());
+    executeRoutePlan(documentSessionRoutePlanForSourceUrl(sourceUrl, m_state.documentKind()));
 }
 
 void DocumentSessionRuntimeGraph::openMediaUrl(const QUrl& url)
 {
-    m_routeRuntime.routeMediaUrl(url, m_state.documentKind());
+    executeRoutePlan(documentSessionRoutePlanForMediaUrl(url, m_state.documentKind()));
 }
 
 void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePlan& plan)
 {
+    m_routeNavigationSource = plan.sourceUrl.isEmpty()
+        ? ResolvedNavigationSource {}
+        : resolveNavigationSource(plan.sourceUrl, m_navigationSourceFacts);
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
         << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl

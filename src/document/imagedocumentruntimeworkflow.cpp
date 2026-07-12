@@ -231,6 +231,9 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
     };
     operations.sourceLoad.prepareSourceLoad
         = [ports](const kiriview::ImageDocumentSourceLoadRequest& request) {
+              if (ports.openController != nullptr) {
+                  ports.openController->prepareSourceLoad(request);
+              }
               if (ports.mediaEntrySourceStore != nullptr && ports.state != nullptr) {
                   ports.mediaEntrySourceStore->prepareForOpenedCollectionScope(
                       kiriview::openedCollectionScopeForImageDocumentSourceLoad(

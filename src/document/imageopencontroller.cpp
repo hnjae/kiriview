@@ -132,13 +132,24 @@ void ImageOpenController::open()
         return;
     }
 
-    const ImageLoadRequest request = ImageLoadRequest::fromTarget(
-        ImageDocumentPageTarget { m_state.sourceUrl(), m_state.sourceKind() },
-        m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl());
+    const std::optional<ResolvedNavigationSource> source
+        = m_sourceLoadRequest.has_value() ? m_sourceLoadRequest->resolvedSource : std::nullopt;
+    m_sourceLoadRequest.reset();
+    const ImageLoadRequest request = source.has_value()
+        ? ImageLoadRequest::fromResolvedTarget(*source, m_state.sourceKind(),
+              m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl())
+        : ImageLoadRequest::fromTarget(
+              ImageDocumentPageTarget { m_state.sourceUrl(), m_state.sourceKind() },
+              m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl());
     beginSourceLoad();
     m_imageLoader->start(request, m_presentationRuntime.firstDisplayDecodeContext(),
         m_callbacks.pageCandidateSnapshot ? m_callbacks.pageCandidateSnapshot()
                                           : ImageDocumentPageCandidateListSnapshot {});
+}
+
+void ImageOpenController::prepareSourceLoad(const ImageDocumentSourceLoadRequest& request)
+{
+    m_sourceLoadRequest = request;
 }
 
 void ImageOpenController::cancel() { m_imageLoader->cancel(); }

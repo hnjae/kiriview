@@ -336,6 +336,8 @@ private:
 
     void setSourceUrl(const QUrl& sourceUrl);
     void setSameScopeImageNavigationSourceUrl(const QUrl& sourceUrl);
+    void setSource(const kiriview::ResolvedNavigationSource& source);
+    void setSameScopeImageNavigationSource(const kiriview::ResolvedNavigationSource& source);
     kiriview::MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
         const QUrl& videoUrl) const;

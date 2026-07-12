@@ -25,8 +25,9 @@ ImageLoadPlan ImageLoadSessionTracker::start(
 {
     cancel();
 
-    const ResolvedNavigationSource source
-        = resolveNavigationSource(request.sourceUrl(), m_sourceFactProvider);
+    const ResolvedNavigationSource source = request.sourceResolved
+        ? request.source.source()
+        : resolveNavigationSource(request.sourceUrl(), m_sourceFactProvider);
     ImageLoadResolvedSourceFacts resolvedSourceFacts {
         openedCollectionScopeLocationForDirectlyOpenedLocalSource(source),
         source,

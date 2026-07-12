@@ -269,6 +269,17 @@ void KiriImageDocument::setSameScopeImageNavigationSourceUrl(const QUrl& sourceU
     m_runtime->setSameScopeImageNavigationSourceUrl(sourceUrl);
 }
 
+void KiriImageDocument::setSource(const kiriview::ResolvedNavigationSource& source)
+{
+    m_runtime->setSource(source);
+}
+
+void KiriImageDocument::setSameScopeImageNavigationSource(
+    const kiriview::ResolvedNavigationSource& source)
+{
+    m_runtime->setSameScopeImageNavigationSource(source);
+}
+
 kiriview::MediaEntrySourceVideoPlaybackDeviceResult
 KiriImageDocument::loadOpenedCollectionVideoPlaybackDevice(
     const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,

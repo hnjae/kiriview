@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONRUNTIMEDEPENDENCIES_H
 #define KIRIVIEW_DOCUMENTSESSIONRUNTIMEDEPENDENCIES_H
 
+#include "location/imageurl.h"
 #include "navigation/directmedianavigationcandidateprovider.h"
 #include "session/documentsessionmediapredecoderuntime.h"
 #include "session/documentsessionthumbnailruntime.h"
@@ -13,6 +14,7 @@
 namespace kiriview {
 struct DocumentSessionRuntimeDependencies
 {
+    NavigationSourceFactProvider navigationSourceFacts;
     DirectMediaNavigationCandidateProvider directMediaNavigationCandidateProvider;
     FileDeletionProvider fileDeletionProvider;
     MediaOpenWithProvider mediaOpenWithProvider;

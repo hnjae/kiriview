@@ -83,6 +83,16 @@ void ImageDocumentRuntime::setSameScopeImageNavigationSourceUrl(const QUrl& sour
     loadSource(ImageDocumentSourceLoadRequest::fromSameScopeImageNavigationUrl(sourceUrl));
 }
 
+void ImageDocumentRuntime::setSource(const ResolvedNavigationSource& source)
+{
+    loadSource(ImageDocumentSourceLoadRequest::fromSource(source));
+}
+
+void ImageDocumentRuntime::setSameScopeImageNavigationSource(const ResolvedNavigationSource& source)
+{
+    loadSource(ImageDocumentSourceLoadRequest::fromSameScopeImageNavigationSource(source));
+}
+
 MediaEntrySourceVideoPlaybackDeviceResult
 ImageDocumentRuntime::loadOpenedCollectionVideoPlaybackDevice(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const

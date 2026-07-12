@@ -64,9 +64,11 @@ public:
     void setSessionErrorString(const QString& errorString);
     bool clearDirectMediaCursor();
     bool requestDirectImageCursor(const QUrl& url);
+    bool requestDirectImageCursor(ResolvedNavigationSource source);
     bool confirmDirectImageCursor(const QUrl& url);
     bool restoreDirectImageCursorAfterFailure();
     bool setDirectVideoCursor(const QUrl& url);
+    bool setDirectVideoCursor(ResolvedNavigationSource source);
 
     void publish(DocumentSessionChange change);
     void publish(std::vector<DocumentSessionChange> changes);

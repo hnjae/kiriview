@@ -23,6 +23,13 @@ std::optional<OpenedCollectionScopeLocation> containerOpenedCollectionScopeForIm
         return std::nullopt;
     }
 
+    if (!request.openedCollectionScope().isEmpty()
+        && kiriview::sameNormalizedUrl(
+            request.openedCollectionScope().fileUrl(), request.containerNavigationUrl())
+        && openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.sourceUrl())) {
+        return request.openedCollectionScope();
+    }
+
     const std::optional<OpenedCollectionScopeLocation> containerOpenedCollectionScope
         = openedCollectionScopeLocationForLocalArchiveUrl(request.containerNavigationUrl());
     if (containerOpenedCollectionScope.has_value()
@@ -58,7 +65,9 @@ OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(
     }
 
     const std::optional<OpenedCollectionScopeLocation> archiveOpenedCollectionScope
-        = openedCollectionScopeLocationForLocalArchiveUrl(request.sourceUrl());
+        = resolvedSourceFacts.source.isEmpty()
+        ? openedCollectionScopeLocationForLocalArchiveUrl(request.sourceUrl())
+        : openedCollectionScopeLocationForLocalArchiveSource(resolvedSourceFacts.source);
     if (archiveOpenedCollectionScope.has_value()) {
         return { *archiveOpenedCollectionScope,
             OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };

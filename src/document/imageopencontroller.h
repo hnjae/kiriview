@@ -59,6 +59,7 @@ public:
     ~ImageOpenController();
 
     void open();
+    void prepareSourceLoad(const ImageDocumentSourceLoadRequest& request);
     void cancel();
     void finishEmptySourceLoad();
     void finishAnimationLoadWithError(const QString& errorString);
@@ -85,6 +86,7 @@ private:
     ImagePresentationRuntime& m_presentationRuntime;
     Callbacks m_callbacks;
     std::unique_ptr<ImageLoader> m_imageLoader;
+    std::optional<ImageDocumentSourceLoadRequest> m_sourceLoadRequest;
 };
 }
 

@@ -366,6 +366,11 @@ kiriview::DocumentSessionImageDocumentCommandPort KiriDocumentSession::imageDocu
                 const QUrl& videoUrl) {
                 return document.loadOpenedCollectionVideoPlaybackDevice(
                     openedCollectionScope, videoUrl);
+            },
+            [&document](
+                const kiriview::ResolvedNavigationSource& source) { document.setSource(source); },
+            [&document](const kiriview::ResolvedNavigationSource& source) {
+                document.setSameScopeImageNavigationSource(source);
             } },
         { [&document]() { document.openPreviousPage(); },
             [&document]() { document.openNextPage(); },

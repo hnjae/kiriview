@@ -20,6 +20,7 @@ struct ImageLoadRequest
     ImageDocumentPageKind sourceKind = ImageDocumentPageKind::Image;
     OpenedCollectionScopeLocation displayedOpenedCollectionScope;
     ContainerLocation containerNavigation;
+    bool sourceResolved = false;
 
     static ImageLoadRequest fromUrl(QUrl sourceUrl, QUrl containerNavigationUrl = QUrl())
     {
@@ -44,6 +45,15 @@ struct ImageLoadRequest
         return ImageLoadRequest { ImageLocation::fromUrl(std::move(target.url)), target.kind,
             std::move(displayedOpenedCollectionScope),
             ContainerLocation::fromUrl(std::move(containerNavigationUrl)) };
+    }
+
+    static ImageLoadRequest fromResolvedTarget(ResolvedNavigationSource source,
+        ImageDocumentPageKind kind, OpenedCollectionScopeLocation displayedOpenedCollectionScope,
+        QUrl containerNavigationUrl = QUrl())
+    {
+        return ImageLoadRequest { ImageLocation::fromResolvedSource(std::move(source)), kind,
+            std::move(displayedOpenedCollectionScope),
+            ContainerLocation::fromUrl(std::move(containerNavigationUrl)), true };
     }
 
     const QUrl& sourceUrl() const { return source.url(); }

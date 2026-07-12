@@ -78,6 +78,8 @@ struct DocumentSessionImageDocumentSourceCommandPort
     std::function<MediaEntrySourceVideoPlaybackDeviceResult(
         const OpenedCollectionScopeLocation&, const QUrl&)>
         loadOpenedCollectionVideoPlaybackDevice;
+    std::function<void(const ResolvedNavigationSource&)> setSource;
+    std::function<void(const ResolvedNavigationSource&)> setSameScopeImageNavigationSource;
 };
 
 struct DocumentSessionImageDocumentPageNavigationCommandPort
