@@ -30,7 +30,7 @@ ImageViewportStateSnapshot ViewportController::stateSnapshot(double devicePixelR
 ImageViewportInternal::ViewportChangeSet ViewportController::publishChanges(
     ImageViewportInternal::ViewportChangeSet changes)
 {
-    return engine.publishChanges(changes);
+    return engine.publish(engine.preparePublication(std::move(changes)));
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

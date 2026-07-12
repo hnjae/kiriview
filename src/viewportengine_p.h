@@ -14,6 +14,7 @@
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
+class ViewportController;
 #define VIEWPORT_ENGINE_TEST_VISIBILITY public
 #else
 #define VIEWPORT_ENGINE_TEST_VISIBILITY private
@@ -29,6 +30,24 @@ struct ViewportEngineSnapshotStateAccess;
 class ViewportEngine
 {
 public:
+    class PendingPublication
+    {
+    public:
+        PendingPublication() = delete;
+        PendingPublication(const PendingPublication&) = delete;
+        PendingPublication& operator=(const PendingPublication&) = delete;
+        PendingPublication(PendingPublication&& other) noexcept;
+        PendingPublication& operator=(PendingPublication&& other) noexcept;
+
+    private:
+        friend class ViewportEngine;
+        PendingPublication(ViewportEngine* owner,
+            ImageViewportInternal::ViewportChangeSet changes);
+
+        ViewportEngine* m_owner = nullptr;
+        ImageViewportInternal::ViewportChangeSet m_changes;
+    };
+
     ViewportEngine();
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
@@ -252,8 +271,6 @@ public:
     ImageViewportStateSnapshot snapshot() const;
     ImageViewportStateSnapshot snapshot(const GeometryInput& input) const;
     ImageViewportStateSnapshot snapshot(const SnapshotInput& input) const;
-    ImageViewportInternal::ViewportChangeSet publishChanges(
-        ImageViewportInternal::ViewportChangeSet changes);
     VIEWPORT_ENGINE_TEST_VISIBILITY:
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
@@ -370,13 +387,18 @@ public:
     CommandResult clearFromEmpty();
     CommandResult validatePresentationNoop(ImageViewport::FitMode mode);
     quint64 allocateRevisionValue();
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 public:
     void setNextRevisionValueForTest(quint64 token);
+#endif
 
 private:
+    friend class ViewportController;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
 #endif
+    PendingPublication preparePublication(ImageViewportInternal::ViewportChangeSet changes);
+    ImageViewportInternal::ViewportChangeSet publish(PendingPublication publication);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;

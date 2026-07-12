@@ -5,6 +5,7 @@
 #include "imageviewportproviderfacts_p.h"
 
 #include <limits>
+#include <utility>
 
 namespace {
 bool isPositiveGeometrySize(QSizeF size)
@@ -251,6 +252,29 @@ ViewportEngine::ViewportEngine()
 
 ViewportEngine::~ViewportEngine() = default;
 
+ViewportEngine::PendingPublication::PendingPublication(
+    ViewportEngine* owner, ImageViewportInternal::ViewportChangeSet changes)
+    : m_owner(owner)
+    , m_changes(std::move(changes))
+{
+}
+
+ViewportEngine::PendingPublication::PendingPublication(PendingPublication&& other) noexcept
+    : m_owner(std::exchange(other.m_owner, nullptr))
+    , m_changes(std::move(other.m_changes))
+{
+}
+
+ViewportEngine::PendingPublication& ViewportEngine::PendingPublication::operator=(
+    PendingPublication&& other) noexcept
+{
+    if (this != &other) {
+        m_owner = std::exchange(other.m_owner, nullptr);
+        m_changes = std::move(other.m_changes);
+    }
+    return *this;
+}
+
 ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
 {
     return { m_state->commandState.reason, m_state->commandState.revision };
@@ -334,9 +358,20 @@ const ImageViewportInternal::PresentationState& ViewportEngine::presentationStat
 }
 #endif
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
+ViewportEngine::PendingPublication ViewportEngine::preparePublication(
     ImageViewportInternal::ViewportChangeSet changes)
 {
+    return PendingPublication(this, std::move(changes));
+}
+
+ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(
+    PendingPublication publication)
+{
+    if (publication.m_owner != this) {
+        qFatal("ViewportEngine pending publication owner mismatch");
+    }
+    publication.m_owner = nullptr;
+    auto changes = std::move(publication.m_changes);
     if (changes.requestRevision) {
         m_state->requestState.request.requestRevision = allocateRevisionValue();
     }
@@ -1059,12 +1094,14 @@ quint64 ViewportEngine::allocateRevisionValue()
     return ++m_state->revisions.nextRevision;
 }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportEngine::setNextRevisionValueForTest(quint64 token)
 {
     m_state->revisions.nextRevision = token == 0 ? 0 : token - 1;
     m_state->commandState.revision = {};
     m_state->commandState.publishedRevision = 0;
 }
+#endif
 
 quint64 ViewportEngine::nextPresentationTargetGeneration()
 {

@@ -13,6 +13,9 @@ static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineRenderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
+static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
+static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
+static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);
 
 static_assert(std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEnginePresentationStateAccess>>>);
 static_assert(std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEngineSnapshotStateAccess>>>);
