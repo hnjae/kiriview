@@ -6,6 +6,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
+#include "viewportengineassignmentoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineproviderfailureoperations_p.h"
@@ -233,9 +234,6 @@ private:
     CommandResult accepted();
     CommandResult acceptedPreservingCommandDiagnostics() const;
     RevisionToken nextCommandRevision();
-    quint64 nextPresentationTargetGeneration();
-    PresentationTargetState presentationTargetStateFor(
-        const ImageViewportPresentationTarget& presentationTarget, quint64 generation) const;
 
     std::unique_ptr<ViewportEngineCanonicalState> m_state;
 };

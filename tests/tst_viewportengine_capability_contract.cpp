@@ -2,6 +2,7 @@
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
+#include "viewportengineassignmentoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderframeoperations_p.h"
 #include "viewportengineproviderfailureoperations_p.h"
@@ -92,6 +93,16 @@ struct HasProviderRequestAccess<Access,
 };
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
+static_assert(!std::is_default_constructible_v<ViewportEnginePresentationTargetAssignmentAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationTargetAssignmentAccess>);
+static_assert(!HasRequestAccess<ViewportEnginePresentationTargetAssignmentAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePresentationTargetAssignmentAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEnginePresentationTargetAssignmentAccess>::value);
+static_assert(!HasRolesAccess<ViewportEnginePresentationTargetAssignmentAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePresentationTargetAssignment),
+    ViewportEnginePresentationTargetAssignmentReduction (*)(
+        ViewportEnginePresentationTargetAssignmentInput,
+        ViewportEnginePresentationTargetAssignmentAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionOpenAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionOpenAccess>);
 static_assert(!HasRequestAccess<ViewportEngineProviderSessionOpenAccess>::value);

@@ -67,6 +67,7 @@ private:
 class ViewportEnginePresentationTargetTransitionStateView
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePresentationTargetAssignmentAccess;
     explicit ViewportEnginePresentationTargetTransitionStateView(
         const ImageViewportInternal::PresentationState& presentation)
         : m_presentation(presentation)

@@ -22,6 +22,7 @@ struct ViewportEngineAuthoredAutoplayReduction
 class ViewportEngineAuthoredAutoplayAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePresentationTargetAssignmentAccess;
     friend class ViewportEngineTestAccess;
     ViewportEngineAuthoredAutoplayAccess(const ImageViewportInternal::ImageSequenceSource& source,
         const ImageViewportInternal::ProviderFactsState& providerFacts,

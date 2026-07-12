@@ -18,6 +18,7 @@ struct ViewportEngineProviderSessionOpenEffect
 class ViewportEngineProviderSessionOpenAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePresentationTargetAssignmentAccess;
     friend ViewportEngineProviderSessionOpenEffect beginViewportEngineProviderSession(
         ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess);
 
@@ -44,6 +45,7 @@ private:
 class ViewportEngineProviderSessionCloseAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePresentationTargetAssignmentAccess;
     friend class ViewportEngineProviderMetadataReadyAccess;
     friend class ViewportEngineProviderTerminalEventAccess;
     friend class ViewportEngineProviderDispatchFailureAccess;
