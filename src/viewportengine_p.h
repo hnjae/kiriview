@@ -370,6 +370,7 @@ private:
     ViewportEnginePresentationStateAccess presentationAccess();
     ViewportEnginePresentationLoopingStateAccess presentationLoopingAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
+    ViewportEngineProviderFactsView providerFactsView() const;
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
     {

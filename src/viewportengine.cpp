@@ -1,11 +1,11 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
-#include "viewportenginestate_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
+#include "viewportenginestate_p.h"
 
-#include "imageviewporttoken_p.h"
 #include "imageviewportproviderfacts_p.h"
+#include "imageviewporttoken_p.h"
 
 #include <limits>
 #include <utility>
@@ -73,19 +73,19 @@ ImageViewport::DisplayStatus retainedOrEmptyDisplayStatus(
     return canRetain ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
 }
 
-void resetProviderGeneration(ImageViewportInternal::ProviderGenerationState& provider,
+void resetProviderGeneration(ImageViewportInternal::ProviderRoleState& provider,
     ImageSequenceAuthoredAnimationFacts authored = {})
 {
-    provider.metadataReady = false;
-    provider.timedMetadata = false;
-    provider.timedPlaybackSupport = false;
-    provider.frameSeekSupport = false;
-    provider.positionSeekSupport = false;
-    provider.authoredAnimationFacts = authored;
-    provider.logicalSize = {};
-    provider.timingIntervals = {};
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
+    provider.facts.metadataReady = false;
+    provider.facts.timedMetadata = false;
+    provider.facts.timedPlaybackSupport = false;
+    provider.facts.frameSeekSupport = false;
+    provider.facts.positionSeekSupport = false;
+    provider.facts.authoredAnimationFacts = authored;
+    provider.facts.logicalSize = {};
+    provider.facts.timingIntervals = {};
+    provider.requests.activeMetadataToken = {};
+    provider.requests.activeFrameToken = {};
 }
 
 ImageViewportInternal::DisplayRequestTarget initialBuiltInTarget(
@@ -103,25 +103,26 @@ void initializeSecondaryRequest(ImageViewportInternal::RequestState& request,
 {
     request.roles[1].activeRequest.identity = request.roles[0].activeRequest.identity;
     request.roles[1].activeRequest.target = target;
-    request.roles[1].activeRequest.resolvedFrame
-        = target.frame >= 0
+    request.roles[1].activeRequest.resolvedFrame = target.frame >= 0
         ? ImageViewportInternal::ResolvedFrameIdentity { target.frame, target.position }
         : ImageViewportInternal::ResolvedFrameIdentity {};
-    request.roles[1].activeRequest.preparedPayloadId = request.roles[0].activeRequest.preparedPayloadId;
+    request.roles[1].activeRequest.preparedPayloadId
+        = request.roles[0].activeRequest.preparedPayloadId;
     if (target.frame >= 0) {
         request.roles[1].latestNonPlaybackRequest = request.roles[1].activeRequest;
     }
 }
 
-void stageInitialBuiltInSpread(ImageViewportInternal::RequestState& request,
-    ImageViewportInternal::DisplayState& display)
+void stageInitialBuiltInSpread(
+    ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display)
 {
     display.captureRenderFailureRetainedDisplay(request.roles[0].source.facts.present);
     display.roles[0].pendingRenderPayload.commitPending = true;
-    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);
+    display.beginPreparedPayloadIdentity(
+        request.sequenceGeneration, request.roles[0].activeRequest);
     display.roles[0].pendingRenderPayload
         = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-              request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
+            request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
               .preparedPayload;
     if (request.roles[1].sequence && !request.roles[1].provider
         && request.roles[1].activeRequest.target.frame >= 0) {
@@ -131,10 +132,9 @@ void stageInitialBuiltInSpread(ImageViewportInternal::RequestState& request,
         payload.requestId = request.roles[0].activeRequest.identity.id;
         payload.payloadId = ++display.nextPreparedPayloadId;
         request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-        display.roles[1].pendingRenderPayload
-            = FramePreparation::admitBuiltInFrame(request.roles[1].source,
-                  request.roles[1].activeRequest.target.frame, payload)
-                  .preparedPayload;
+        display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
+            request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
+                                                    .preparedPayload;
     }
 }
 
@@ -153,11 +153,12 @@ double projectedZoomPercent(const PresentationGeometry::State& state)
 }
 
 bool activeProviderFrameTokenMatchesActiveRequest(
-    const ImageViewportInternal::ProviderGenerationState& provider,
+    const ImageViewportInternal::ProviderRoleState& provider,
     const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role,
     ImageSequenceProviderRequestToken token)
 {
-    if (!provider.activeFrameToken.isValid() || token != provider.activeFrameToken) {
+    if (!provider.requests.activeFrameToken.isValid()
+        || token != provider.requests.activeFrameToken) {
         return false;
     }
 
@@ -173,7 +174,8 @@ bool displayedPrimaryPayloadMatchesActiveTarget(const ImageViewportInternal::Dis
         = activeRequestForRole(request, ImageViewport::PageRole::Primary);
     return display.hasReadyDisplay(request.roles[0].source.facts.present)
         && display.roles[0].displayedRequest.generation == request.sequenceGeneration
-        && display.roles[0].displayedRequest.request.resolvedFrame.frame == activeRequest.resolvedFrame.frame
+        && display.roles[0].displayedRequest.request.resolvedFrame.frame
+        == activeRequest.resolvedFrame.frame
         && display.roles[0].displayedRequest.request.resolvedFrame.position
         == activeRequest.resolvedFrame.position;
 }
@@ -249,25 +251,36 @@ ViewportEnginePresentationLoopingStateAccess ViewportEngine::presentationLooping
     return ViewportEnginePresentationLoopingStateAccess(m_state->playbackState.playback);
 }
 
+ViewportEngineProviderFactsView ViewportEngine::providerFactsView() const
+{
+    return { m_state->providerState.roles[0].provider.facts,
+        m_state->providerState.roles[1].provider.facts };
+}
+
 ViewportEngineSnapshotStateAccess ViewportEngine::snapshotAccess() const
 {
     return { m_state->requestState.request, m_state->playbackState.playback,
-        m_state->displayState.display, m_state->providerState.roles, m_state->presentationState.presentation,
+        m_state->displayState.display, providerFactsView(), m_state->presentationState.presentation,
         m_state->requestState.presentationTarget, m_state->commandState.reason,
         m_state->commandState.revision, m_state->commandState.publishedRevision,
-        m_state->revisions.presentationRevision,
-        m_state->revisions.snapshotRevision };
+        m_state->revisions.presentationRevision, m_state->revisions.snapshotRevision };
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-ImageViewportInternal::DisplayState& ViewportEngine::displayState() { return m_state->displayState.display; }
+ImageViewportInternal::DisplayState& ViewportEngine::displayState()
+{
+    return m_state->displayState.display;
+}
 
 const ImageViewportInternal::DisplayState& ViewportEngine::displayState() const
 {
     return m_state->displayState.display;
 }
 
-ImageViewportInternal::RequestState& ViewportEngine::requestState() { return m_state->requestState.request; }
+ImageViewportInternal::RequestState& ViewportEngine::requestState()
+{
+    return m_state->requestState.request;
+}
 
 const ImageViewportInternal::RequestState& ViewportEngine::requestState() const
 {
@@ -298,8 +311,7 @@ ViewportEngine::PendingPublication ViewportEngine::preparePublication(
     return PendingPublication(this, std::move(changes));
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(
-    PendingPublication publication)
+ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublication publication)
 {
     if (publication.m_owner != this) {
         qFatal("ViewportEngine pending publication owner mismatch");
@@ -312,8 +324,10 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(
     if (changes.displayRevision) {
         m_state->displayState.display.revision = allocateRevisionValue();
         if (m_state->displayState.display.status == ImageViewport::DisplayStatus::Ready) {
-            m_state->displayState.display.displayedPresentation = m_state->presentationState.presentation;
-            m_state->displayState.display.displayedPresentationRevision = m_state->displayState.display.revision;
+            m_state->displayState.display.displayedPresentation
+                = m_state->presentationState.presentation;
+            m_state->displayState.display.displayedPresentationRevision
+                = m_state->displayState.display.revision;
         }
     }
     if (changes.presentationRevision) {
@@ -323,8 +337,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(
         m_state->commandState.publishedRevision = changes.commandRevisionValue != 0
             ? changes.commandRevisionValue
             : allocateRevisionValue();
-        m_state->commandState.revision = ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(
-            m_state->commandState.publishedRevision);
+        m_state->commandState.revision
+            = ImageViewportInternal::RevisionTokenPrivateAccess::fromValue(
+                m_state->commandState.publishedRevision);
     }
     if (changes.requestRevision || changes.displayRevision || changes.presentationRevision
         || changes.commandRevision || changes.requestState || changes.displayState
@@ -345,23 +360,22 @@ PresentationGeometry::State ViewportEngine::geometryState(
     return projectViewportGeometryState(input, presentation);
 }
 
-ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(const QRectF& itemBounds,
-    double devicePixelRatio, GeometryProjectionTarget target) const
+ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(
+    const QRectF& itemBounds, double devicePixelRatio, GeometryProjectionTarget target) const
 {
     if (target == GeometryProjectionTarget::CurrentDisplay) {
         return projectViewportCurrentGeometry({ itemBounds, devicePixelRatio },
             { m_state->requestState.request, m_state->displayState.display });
     }
     return projectViewportPendingGeometry({ itemBounds, devicePixelRatio },
-        { m_state->requestState.request, m_state->displayState.display,
-            m_state->providerState.roles });
+        { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
 }
 
 ViewportEngine::GeometryInput ViewportEngine::acceptedGeometryInput(
     const QRectF& itemBounds, double devicePixelRatio) const
 {
-    return projectViewportAcceptedGeometry({ itemBounds, devicePixelRatio },
-        { m_state->requestState.request, m_state->providerState.roles });
+    return projectViewportAcceptedGeometry(
+        { itemBounds, devicePixelRatio }, { m_state->requestState.request, providerFactsView() });
 }
 
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
@@ -375,22 +389,24 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
 FramePreparation::ProviderFrameState ViewportEngine::providerFramePreparationState(
     ImageViewport::PageRole role) const
 {
-    const ImageViewportInternal::ProviderGenerationState& provider
+    const ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
     const ImageViewportInternal::DisplayRequest& request
         = activeRequestForRole(m_state->requestState.request, role);
-    ImageViewportInternal::PreparedPayload preparedPayload = m_state->displayState.display.roles[0].pendingRenderPayload;
+    ImageViewportInternal::PreparedPayload preparedPayload
+        = m_state->displayState.display.roles[0].pendingRenderPayload;
     if (role == ImageViewport::PageRole::Primary && !preparedPayload.identity().isValid()) {
         preparedPayload.generation = m_state->requestState.request.sequenceGeneration;
         preparedPayload.requestId = request.identity.id;
-        preparedPayload.payloadId
-            = preparedPayload.requestId == 0 ? 0 : m_state->displayState.display.nextPreparedPayloadId + 1;
+        preparedPayload.payloadId = preparedPayload.requestId == 0
+            ? 0
+            : m_state->displayState.display.nextPreparedPayloadId + 1;
     }
     return {
-        provider.metadataReady,
-        provider.timedMetadata,
-        provider.logicalSize,
-        provider.timingIntervals,
+        provider.facts.metadataReady,
+        provider.facts.timedMetadata,
+        provider.facts.logicalSize,
+        provider.facts.timingIntervals,
         request.resolvedFrame,
         preparedPayload,
         request.demandRevision,
@@ -405,17 +421,18 @@ ViewportEngine::ProviderFrameEventAdmission ViewportEngine::admitProviderFrameEv
         return {};
     }
 
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(input.role)].provider;
-    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role) || !provider.sessionActive
+    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role)
+        || !provider.session.sessionActive
         || !activeProviderFrameTokenMatchesActiveRequest(
             provider, m_state->requestState.request, input.role, input.token)) {
         return {};
     }
 
     if (input.role == ImageViewport::PageRole::Secondary) {
-        ImageViewportInternal::PreparedPayload& preparedPayload
-            = pendingPayloadForRole(m_state->displayState.display, ImageViewport::PageRole::Primary);
+        ImageViewportInternal::PreparedPayload& preparedPayload = pendingPayloadForRole(
+            m_state->displayState.display, ImageViewport::PageRole::Primary);
         ImageViewportInternal::DisplayRequest& primaryRequest
             = activeRequestForRole(m_state->requestState.request, ImageViewport::PageRole::Primary);
         if (!preparedPayload.identity().isValid()) {
@@ -423,12 +440,13 @@ ViewportEngine::ProviderFrameEventAdmission ViewportEngine::admitProviderFrameEv
             preparedPayload.generation = m_state->requestState.request.sequenceGeneration;
             preparedPayload.requestId = primaryRequest.identity.id;
             preparedPayload.payloadId = ++m_state->displayState.display.nextPreparedPayloadId;
-            if (displayedPrimaryPayloadMatchesActiveTarget(m_state->displayState.display, m_state->requestState.request)) {
+            if (displayedPrimaryPayloadMatchesActiveTarget(
+                    m_state->displayState.display, m_state->requestState.request)) {
                 preparedPayload.image = m_state->displayState.display.roles[0].displayedImage;
             }
             primaryRequest.preparedPayloadId = preparedPayload.payloadId;
         }
-        provider.activeFrameToken = {};
+        provider.requests.activeFrameToken = {};
     }
 
     return { true, providerFramePreparationState(input.role) };
@@ -441,37 +459,38 @@ ViewportEngine::ProviderMetadataEventAdmission ViewportEngine::admitProviderMeta
         return {};
     }
 
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(input.role)].provider;
-    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role) || !provider.sessionActive
-        || !provider.activeMetadataToken.isValid() || input.token != provider.activeMetadataToken) {
+    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role)
+        || !provider.session.sessionActive || !provider.requests.activeMetadataToken.isValid()
+        || input.token != provider.requests.activeMetadataToken) {
         return {};
     }
 
-    provider.activeMetadataToken = {};
+    provider.requests.activeMetadataToken = {};
     return { true };
 }
 
 quint64 ViewportEngine::activateProviderSession(ImageViewport::PageRole role)
 {
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
-    provider.sessionActive = true;
-    return ++provider.sessionSerial;
+    provider.session.sessionActive = true;
+    return ++provider.session.sessionSerial;
 }
 
 void ViewportEngine::retireProviderSession(ImageViewport::PageRole role)
 {
-    m_state->providerState.roles[roleIndex(role)].provider.sessionActive = false;
+    m_state->providerState.roles[roleIndex(role)].provider.session.sessionActive = false;
 }
 
 bool ViewportEngine::acceptsProviderSessionEvent(
     ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
 {
-    const ImageViewportInternal::ProviderGenerationState& provider
+    const ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
     return generation != 0 && generation == m_state->requestState.request.sequenceGeneration
-        && provider.sessionActive && provider.sessionSerial == sessionSerial;
+        && provider.session.sessionActive && provider.session.sessionSerial == sessionSerial;
 }
 
 ViewportEngine::ProviderSessionBinding ViewportEngine::providerSessionBinding(
@@ -485,29 +504,29 @@ ViewportEngine::ProviderSessionBinding ViewportEngine::providerSessionBinding(
         ? m_state->requestState.presentationTarget.secondaryRoleGeneration
         : m_state->requestState.presentationTarget.primaryRoleGeneration;
     return { source.providerSessionFactory, source.facts.providerThreadingContract, generation,
-        provider.sessionSerial, provider.sessionActive };
+        provider.session.sessionSerial, provider.session.sessionActive };
 }
 
 ViewportProviderRequestTokenAllocation ViewportEngine::allocateProviderRequestToken(
     ImageViewport::PageRole role)
 {
     ViewportProviderRequestTokenAllocation allocation;
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
-    if (provider.nextRequestToken != std::numeric_limits<quint64>::max()) {
+    if (provider.requests.nextRequestToken != std::numeric_limits<quint64>::max()) {
         allocation.token = ImageViewportInternal::ProviderRequestTokenPrivateAccess::fromValue(
-            ++provider.nextRequestToken);
+            ++provider.requests.nextRequestToken);
         return allocation;
     }
 
-    allocation.closeSession = provider.sessionActive;
-    allocation.sessionClose.metadataToken = provider.activeMetadataToken;
-    allocation.sessionClose.frameToken = provider.activeFrameToken;
+    allocation.closeSession = provider.session.sessionActive;
+    allocation.sessionClose.metadataToken = provider.requests.activeMetadataToken;
+    allocation.sessionClose.frameToken = provider.requests.activeFrameToken;
     clearQueuedProviderFrameRequest(role);
-    provider.sessionActive = false;
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-    provider.nextRequestToken = 0;
+    provider.session.sessionActive = false;
+    provider.requests.activeMetadataToken = {};
+    provider.requests.activeFrameToken = {};
+    provider.requests.nextRequestToken = 0;
     m_state->playbackState.playback.providerStartPending = false;
     m_state->playbackState.playback.stopWhenRequestReady = false;
     m_state->requestState.request.status = ImageViewport::RequestStatus::Error;
@@ -520,21 +539,23 @@ ViewportProviderRequestTokenAllocation ViewportEngine::allocateProviderRequestTo
 
 void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole role)
 {
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
-    provider.queuedFrameRequest = false;
-    provider.queuedFrameGeneration = 0;
-    provider.queuedFrameRequestId = 0;
-    provider.queuedFrame = -1;
-    provider.queuedPosition = -1;
-    provider.queuedResolvedFrame = {};
-    provider.queuedFrameFromPlayback = false;
-    provider.queuedFrameTargetKind = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
+    provider.requests.queuedFrameRequest = false;
+    provider.requests.queuedFrameGeneration = 0;
+    provider.requests.queuedFrameRequestId = 0;
+    provider.requests.queuedFrame = -1;
+    provider.requests.queuedPosition = -1;
+    provider.requests.queuedResolvedFrame = {};
+    provider.requests.queuedFrameFromPlayback = false;
+    provider.requests.queuedFrameTargetKind
+        = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
 }
 
 bool ViewportEngine::hasActiveProviderFrameToken(ImageViewport::PageRole role) const
 {
-    return m_state->providerState.roles[roleIndex(role)].provider.activeFrameToken.isValid();
+    return m_state->providerState.roles[roleIndex(role)]
+        .provider.requests.activeFrameToken.isValid();
 }
 
 ViewportEngine::ProviderFrameQueueResult ViewportEngine::queueProviderFrameRequest(
@@ -551,29 +572,30 @@ ViewportEngine::ProviderFrameQueueResult ViewportEngine::queueProviderFrameReque
     }
     m_state->requestState.request.status = ImageViewport::RequestStatus::Loading;
     m_state->requestState.request.reason = ImageViewportInternal::projectWaitReason(waitState);
-    m_state->displayState.display.status = retainedOrEmptyDisplayStatus(m_state->displayState.display);
+    m_state->displayState.display.status
+        = retainedOrEmptyDisplayStatus(m_state->displayState.display);
     m_state->displayState.display.clearPendingRenderPayload();
     m_state->displayState.display.clearRenderFailureRetainedDisplay();
 
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(input.role)].provider;
     ImageViewportInternal::DisplayRequest& activeRequest
         = activeRequestForRole(m_state->requestState.request, input.role);
-    if (provider.sessionActive && provider.activeFrameToken.isValid()) {
-        result.cancelToken = provider.activeFrameToken;
+    if (provider.session.sessionActive && provider.requests.activeFrameToken.isValid()) {
+        result.cancelToken = provider.requests.activeFrameToken;
     }
-    provider.activeFrameToken = {};
+    provider.requests.activeFrameToken = {};
     activeRequest.providerFrameToken = {};
 
-    provider.queuedFrameRequest = true;
-    provider.queuedFrameGeneration = m_state->requestState.request.sequenceGeneration;
-    provider.queuedFrameRequestId = activeRequest.identity.id;
-    provider.queuedFrame = input.frame;
-    provider.queuedPosition = activeRequest.target.position;
-    provider.queuedResolvedFrame = activeRequest.resolvedFrame;
-    provider.queuedFrameFromPlayback
+    provider.requests.queuedFrameRequest = true;
+    provider.requests.queuedFrameGeneration = m_state->requestState.request.sequenceGeneration;
+    provider.requests.queuedFrameRequestId = activeRequest.identity.id;
+    provider.requests.queuedFrame = input.frame;
+    provider.requests.queuedPosition = activeRequest.target.position;
+    provider.requests.queuedResolvedFrame = activeRequest.resolvedFrame;
+    provider.requests.queuedFrameFromPlayback
         = input.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback;
-    provider.queuedFrameTargetKind = input.targetKind;
+    provider.requests.queuedFrameTargetKind = input.targetKind;
     result.deferredFlush = true;
     return result;
 }
@@ -582,22 +604,23 @@ ViewportEngine::ProviderFrameQueueFlushResult ViewportEngine::flushQueuedProvide
     ImageViewport::PageRole role)
 {
     ProviderFrameQueueFlushResult result;
-    ImageViewportInternal::ProviderGenerationState& provider
+    ImageViewportInternal::ProviderRoleState& provider
         = m_state->providerState.roles[roleIndex(role)].provider;
-    if (!provider.queuedFrameRequest || !hasProviderSequenceForRole(m_state->requestState.request, role)
-        || !provider.sessionActive) {
+    if (!provider.requests.queuedFrameRequest
+        || !hasProviderSequenceForRole(m_state->requestState.request, role)
+        || !provider.session.sessionActive) {
         clearQueuedProviderFrameRequest(role);
         return result;
     }
 
-    const quint64 queuedGeneration = provider.queuedFrameGeneration;
-    const int queuedFrame = provider.queuedFrame;
-    const int queuedPosition = provider.queuedPosition;
+    const quint64 queuedGeneration = provider.requests.queuedFrameGeneration;
+    const int queuedFrame = provider.requests.queuedFrame;
+    const int queuedPosition = provider.requests.queuedPosition;
     const ImageViewportInternal::ResolvedFrameIdentity queuedResolvedFrame
-        = provider.queuedResolvedFrame;
-    const quint64 queuedRequestId = provider.queuedFrameRequestId;
+        = provider.requests.queuedResolvedFrame;
+    const quint64 queuedRequestId = provider.requests.queuedFrameRequestId;
     const ImageViewportInternal::ProviderRequestTargetKind queuedTargetKind
-        = provider.queuedFrameTargetKind;
+        = provider.requests.queuedFrameTargetKind;
     const ImageViewportInternal::DisplayRequest& activeRequest
         = activeRequestForRole(m_state->requestState.request, role);
     const bool stillCurrent = queuedGeneration == m_state->requestState.request.sequenceGeneration
@@ -629,15 +652,18 @@ ImageSequenceProviderDisplayDemand ViewportEngine::providerDisplayDemand(
     request.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(
         allocateRevisionValue());
     const quint64 presentationRevision = m_state->revisions.presentationRevision != 0
-        ? m_state->revisions.presentationRevision : m_state->requestState.presentationTarget.generation;
-    return projectViewportProviderDemand({ role, geometry, request.demandRevision,
-        ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-            m_state->requestState.request.requestRevision),
-        ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(presentationRevision),
-        ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-            m_state->requestState.presentationTarget.generation) },
-        { m_state->requestState.request, m_state->displayState.display,
-            m_state->providerState.roles, m_state->presentationState.presentation });
+        ? m_state->revisions.presentationRevision
+        : m_state->requestState.presentationTarget.generation;
+    return projectViewportProviderDemand(
+        { role, geometry, request.demandRevision,
+            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
+                m_state->requestState.request.requestRevision),
+            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
+                presentationRevision),
+            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
+                m_state->requestState.presentationTarget.generation) },
+        { m_state->requestState.request, m_state->displayState.display, providerFactsView(),
+            m_state->presentationState.presentation });
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
@@ -648,8 +674,8 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
     }
 
     const bool clear = input.presentationTarget.isClear();
-    const bool clearNoop
-        = clear && m_state->requestState.presentationTarget.acceptedRoleSet == ImageViewportRoleSet();
+    const bool clearNoop = clear
+        && m_state->requestState.presentationTarget.acceptedRoleSet == ImageViewportRoleSet();
     const bool presentationTargetChanged = !clearNoop;
     PresentationTargetAssignmentResult result;
     result.command = clear ? accepted() : acceptedPreservingCommandDiagnostics();
@@ -691,12 +717,15 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             = ImageViewportInternal::factorySequenceSource(input.presentationTarget.secondary());
     }
     m_state->requestState.request.roles[0].source = std::move(primary);
-    m_state->requestState.request.roles[0].sequence = m_state->requestState.request.roles[0].source.sequence;
+    m_state->requestState.request.roles[0].sequence
+        = m_state->requestState.request.roles[0].source.sequence;
     m_state->requestState.request.roles[1].source = std::move(secondary);
-    m_state->requestState.request.roles[1].sequence = m_state->requestState.request.roles[1].source.sequence;
+    m_state->requestState.request.roles[1].sequence
+        = m_state->requestState.request.roles[1].source.sequence;
     m_state->requestState.request.roles[1].provider
         = m_state->requestState.request.roles[1].source.facts.provider;
-    m_state->requestState.request.sequenceGeneration = m_state->requestState.presentationTarget.generation;
+    m_state->requestState.request.sequenceGeneration
+        = m_state->requestState.presentationTarget.generation;
     m_state->requestState.request.clearDisplayRequests();
     m_state->playbackState.playback.resetRequestIdentity();
     m_state->displayState.display.nextPreparedPayloadId = 0;
@@ -726,24 +755,27 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
         m_state->requestState.request.reason = ImageViewport::RequestReason::NoRequest;
         m_state->displayState.display.status = ImageViewport::DisplayStatus::Empty;
     } else {
-        const auto secondaryTarget = initialBuiltInTarget(m_state->requestState.request.roles[1].source);
+        const auto secondaryTarget
+            = initialBuiltInTarget(m_state->requestState.request.roles[1].source);
         if (m_state->requestState.request.roles[0].source.facts.provider) {
             auto& provider = m_state->providerState.roles[0].provider;
             const auto& facts = m_state->requestState.request.roles[0].source.facts;
             ImageViewportInternal::DisplayRequestTarget target { -1, -1,
                 ImageViewportInternal::ProviderRequestTargetKind::Unknown };
             if (facts.hasCompleteProviderKnownMetadata) {
-                provider.metadataReady = true;
-                provider.timedMetadata = facts.providerKnownFacts.isTimedFrameList();
-                provider.timedPlaybackSupport = ImageViewportInternal::providerResolvedCapability(
-                    facts.providerTimedPlaybackCapability, provider.timedMetadata);
-                provider.frameSeekSupport = ImageViewportInternal::providerResolvedCapability(
+                provider.facts.metadataReady = true;
+                provider.facts.timedMetadata = facts.providerKnownFacts.isTimedFrameList();
+                provider.facts.timedPlaybackSupport
+                    = ImageViewportInternal::providerResolvedCapability(
+                        facts.providerTimedPlaybackCapability, provider.facts.timedMetadata);
+                provider.facts.frameSeekSupport = ImageViewportInternal::providerResolvedCapability(
                     facts.providerFrameSeekCapability, true);
-                provider.positionSeekSupport = ImageViewportInternal::providerResolvedCapability(
-                    facts.providerPositionSeekCapability, provider.timedMetadata);
-                provider.logicalSize = facts.providerKnownLogicalSize;
-                provider.timingIntervals = facts.providerKnownTimingIntervals;
-                target = { 0, provider.timedMetadata ? 0 : -1,
+                provider.facts.positionSeekSupport
+                    = ImageViewportInternal::providerResolvedCapability(
+                        facts.providerPositionSeekCapability, provider.facts.timedMetadata);
+                provider.facts.logicalSize = facts.providerKnownLogicalSize;
+                provider.facts.timingIntervals = facts.providerKnownTimingIntervals;
+                target = { 0, provider.facts.timedMetadata ? 0 : -1,
                     ImageViewportInternal::ProviderRequestTargetKind::Frame };
             }
             m_state->requestState.request.beginDisplayRequest(
@@ -752,7 +784,8 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             initializeSecondaryRequest(m_state->requestState.request, secondaryTarget);
             m_state->requestState.request.status = ImageViewport::RequestStatus::Loading;
             m_state->requestState.request.reason = ImageViewport::RequestReason::ProviderWaiting;
-            m_state->displayState.display.status = retainedOrEmptyDisplayStatus(m_state->displayState.display);
+            m_state->displayState.display.status
+                = retainedOrEmptyDisplayStatus(m_state->displayState.display);
             activateProviderSession(ImageViewport::PageRole::Primary);
             result.openPrimaryProviderSession = true;
         } else if (m_state->requestState.request.roles[0].source.facts.present) {
@@ -780,12 +813,14 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             }
             m_state->requestState.request.status = ImageViewport::RequestStatus::Loading;
             m_state->requestState.request.reason = ImageViewportInternal::projectWaitReason(wait);
-            m_state->displayState.display.status = retainedOrEmptyDisplayStatus(m_state->displayState.display);
+            m_state->displayState.display.status
+                = retainedOrEmptyDisplayStatus(m_state->displayState.display);
         }
         if (m_state->requestState.request.roles[1].provider) {
             m_state->requestState.request.status = ImageViewport::RequestStatus::Loading;
             m_state->requestState.request.reason = ImageViewport::RequestReason::ProviderWaiting;
-            m_state->displayState.display.status = retainedOrEmptyDisplayStatus(m_state->displayState.display);
+            m_state->displayState.display.status
+                = retainedOrEmptyDisplayStatus(m_state->displayState.display);
             activateProviderSession(ImageViewport::PageRole::Secondary);
             result.openSecondaryProviderSession = true;
         }
@@ -797,25 +832,29 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
         = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[0].source);
     acceptedGeometry.secondarySize
         = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[1].source);
-    const auto transition = clear ? ImageViewportInternal::ViewportChangeSet {}
-                                  : applyPresentationTargetTransition({ input.transitionPolicy.zoomTransition(),
-        input.transitionPolicy.contentPositionTransition(), input.transitionPolicy.rotationTransition(),
-        input.transitionPolicy.mirrorTransition(),
-        input.transitionPolicy.fitModeTransition()
-                == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
-            ? std::optional<ImageViewport::FitMode>(input.transitionPolicy.fitMode())
-            : std::nullopt,
-        input.transitionPolicy.spreadDirectionTransition()
-                == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
-            ? std::optional<ImageViewport::SpreadDirection>(input.transitionPolicy.spreadDirection())
-            : std::nullopt,
-        input.transitionPolicy.pageGapTransition()
-                == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
-            ? std::optional<double>(input.transitionPolicy.pageGap())
-            : std::nullopt,
-        acceptedGeometry, PresentationGeometry::contentPosition(oldGeometry),
-        projectedZoomPercent(oldGeometry),
-        m_state->displayState.display.hasReadyDisplay(m_state->requestState.request.roles[0].source.facts.present) });
+    const auto transition = clear
+        ? ImageViewportInternal::ViewportChangeSet {}
+        : applyPresentationTargetTransition({ input.transitionPolicy.zoomTransition(),
+              input.transitionPolicy.contentPositionTransition(),
+              input.transitionPolicy.rotationTransition(),
+              input.transitionPolicy.mirrorTransition(),
+              input.transitionPolicy.fitModeTransition()
+                      == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
+                  ? std::optional<ImageViewport::FitMode>(input.transitionPolicy.fitMode())
+                  : std::nullopt,
+              input.transitionPolicy.spreadDirectionTransition()
+                      == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
+                  ? std::optional<ImageViewport::SpreadDirection>(
+                        input.transitionPolicy.spreadDirection())
+                  : std::nullopt,
+              input.transitionPolicy.pageGapTransition()
+                      == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
+                  ? std::optional<double>(input.transitionPolicy.pageGap())
+                  : std::nullopt,
+              acceptedGeometry, PresentationGeometry::contentPosition(oldGeometry),
+              projectedZoomPercent(oldGeometry),
+              m_state->displayState.display.hasReadyDisplay(
+                  m_state->requestState.request.roles[0].source.facts.present) });
     armAuthoredAutoplayIfEligible();
     result.changes = transition;
     result.changes.requestState = true;
@@ -908,7 +947,8 @@ void ViewportEngine::setNextRevisionValueForTest(quint64 token)
 
 quint64 ViewportEngine::nextPresentationTargetGeneration()
 {
-    if (m_state->requestState.nextPresentationTargetGeneration == std::numeric_limits<quint64>::max()) {
+    if (m_state->requestState.nextPresentationTargetGeneration
+        == std::numeric_limits<quint64>::max()) {
         qFatal("ImageViewport presentation-target generation allocator exhausted");
     }
     return ++m_state->requestState.nextPresentationTargetGeneration;

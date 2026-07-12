@@ -2,8 +2,8 @@
 #include "viewportenginecapabilities_p.h"
 
 #include "imagesequencesource_p.h"
-#include "viewportgeometryhelpers_p.h"
 #include "viewportenginerenderackhelpers_p.h"
+#include "viewportgeometryhelpers_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
@@ -33,11 +33,13 @@ void stageBuiltIn(RequestState& request, DisplayState& display)
 {
     display.captureRenderFailureRetainedDisplay(hasDisplayable(request));
     display.roles[0].pendingRenderPayload.commitPending = true;
-    display.beginPreparedPayloadIdentity(request.sequenceGeneration, request.roles[0].activeRequest);
+    display.beginPreparedPayloadIdentity(
+        request.sequenceGeneration, request.roles[0].activeRequest);
     if (request.roles[0].activeRequest.target.frame >= 0) {
-        display.roles[0].pendingRenderPayload = FramePreparation::admitBuiltInFrame(request.roles[0].source,
-            request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
-                                           .preparedPayload;
+        display.roles[0].pendingRenderPayload
+            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
+                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
+                  .preparedPayload;
     }
     if (hasSecondary(request) && !request.roles[1].provider) {
         auto& secondary = display.roles[1].pendingRenderPayload;
@@ -67,8 +69,7 @@ ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
 {
     auto reduction = reduceViewportEngineRenderCommit(input,
         { m_state->requestState.request, m_state->displayState.display,
-            m_state->playbackState.playback, m_state->providerState.roles,
-            m_state->renderCoordination });
+            m_state->playbackState.playback, providerFactsView(), m_state->renderCoordination });
     return { reduction.changes,
         reduction.changes.playbackPhase ? playbackScheduleEffect()
                                         : ViewportPlaybackScheduleEffect {} };
@@ -105,7 +106,8 @@ ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
             stageBuiltIn(renderAccess().request(), renderAccess().display());
             renderAccess().request().status = ImageViewport::RequestStatus::Loading;
             renderAccess().request().reason = ImageViewport::RequestReason::UploadPending;
-            renderAccess().display().status = renderAccess().display().hasReadyDisplay(hasDisplayable(renderAccess().request()))
+            renderAccess().display().status
+                = renderAccess().display().hasReadyDisplay(hasDisplayable(renderAccess().request()))
                 ? ImageViewport::DisplayStatus::Retained
                 : ImageViewport::DisplayStatus::Empty;
             changes.requestState = true;
@@ -119,7 +121,8 @@ ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(
     } else if (renderAccess().request().roles[0].source.facts.provider
         && renderAccess().request().status == ImageViewport::RequestStatus::Loading
         && renderAccess().request().reason == ImageViewport::RequestReason::UploadPending
-        && input.itemBounds.isEmpty() && !renderAccess().display().roles[0].pendingRenderPayload.image.isNull()) {
+        && input.itemBounds.isEmpty()
+        && !renderAccess().display().roles[0].pendingRenderPayload.image.isNull()) {
         renderAccess().request().reason = ImageViewport::RequestReason::RenderWaiting;
         changes.requestState = true;
         changes.requestRevision = true;

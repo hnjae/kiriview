@@ -9,10 +9,10 @@
 namespace {
 using namespace ImageViewportInternal;
 
-const ProviderGenerationState& providerFor(
-    const std::array<ViewportEngineRoleState, 2>& roles, ImageViewport::PageRole role)
+const ProviderFactsState& providerFor(
+    const ViewportEngineProviderFactsView& facts, ImageViewport::PageRole role)
 {
-    return roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
+    return facts[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
 }
 
 bool positive(QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; }
@@ -110,8 +110,8 @@ ImageViewport::CapabilitySupport support(bool value)
     return value ? ImageViewport::CapabilitySupport::True : ImageViewport::CapabilitySupport::False;
 }
 
-Metadata metadataFor(const RequestState& request, const ProviderGenerationState& primaryProvider,
-    const ProviderGenerationState& secondaryProvider, ImageViewport::PageRole role)
+Metadata metadataFor(const RequestState& request, const ProviderFactsState& primaryProvider,
+    const ProviderFactsState& secondaryProvider, ImageViewport::PageRole role)
 {
     const auto& source = sourceForRole(request, role);
     if (!source.facts.present) {
@@ -194,8 +194,7 @@ PresentationGeometry::State projectViewportGeometryState(const ViewportEngineGeo
         presentation.pageGap, presentation.spreadDirection, presentation.fitMode,
         presentation.rotationDegrees, presentation.mirrorHorizontally,
         presentation.mirrorVertically, presentation.manualZoom,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0,
-        presentation.contentPosition };
+        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0, presentation.contentPosition };
 }
 
 ImageViewportStateSnapshot projectViewportStateSnapshot(
@@ -219,13 +218,16 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         = primaryDisplayed ? access.display().roles[0].displayedRequest.generation : 0;
     const bool displayAccepted
         = primaryDisplayed && displayedGenerationValue == acceptedGenerationValue;
-    const PresentationGeometry::State acceptedGeometry = projectViewportGeometryState(input.acceptedGeometry, access.presentation());
-    const PresentationGeometry::State displayedGeometry = projectViewportGeometryState(input.displayedGeometry,
-        access.display().status == ImageViewport::DisplayStatus::Retained
-            ? access.display().displayedPresentation
-            : access.presentation());
-    const quint64 presentationRevisionValue
-        = access.presentationRevision() != 0 ? access.presentationRevision() : access.display().revision;
+    const PresentationGeometry::State acceptedGeometry
+        = projectViewportGeometryState(input.acceptedGeometry, access.presentation());
+    const PresentationGeometry::State displayedGeometry
+        = projectViewportGeometryState(input.displayedGeometry,
+            access.display().status == ImageViewport::DisplayStatus::Retained
+                ? access.display().displayedPresentation
+                : access.presentation());
+    const quint64 presentationRevisionValue = access.presentationRevision() != 0
+        ? access.presentationRevision()
+        : access.display().revision;
     const quint64 commandRevisionValue = access.publishedCommandRevision() != 0
         ? access.publishedCommandRevision()
         : RevisionTokenPrivateAccess::value(access.commandRevision());
@@ -243,9 +245,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         playbackRole = QVariant::fromValue(access.playback().role);
     }
 
-    const ImageViewportRequestSnapshot requestSnapshot(access.request().status, access.request().reason,
-        access.playback().phase, acceptedGeneration, acceptedRoles, targetRoles, activeRole,
-        playbackRole);
+    const ImageViewportRequestSnapshot requestSnapshot(access.request().status,
+        access.request().reason, access.playback().phase, acceptedGeneration, acceptedRoles,
+        targetRoles, activeRole, playbackRole);
     const QSizeF displayedSpreadSize = PresentationGeometry::spreadSize(displayedGeometry);
     const ImageViewportDisplaySnapshot displaySnapshot(access.display().status,
         displayPhase(access.display().status, access.request().status),
@@ -271,8 +273,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         access.presentation().mirrorVertically, access.presentation().spreadDirection,
         access.presentation().pageGap, access.presentation().backgroundMode,
         access.presentation().backgroundColor, access.presentation().smoothing,
-        access.presentation().mipmap, access.playback().looping, access.presentation().qualityPreference,
-        access.presentation().exactnessPreference);
+        access.presentation().mipmap, access.playback().looping,
+        access.presentation().qualityPreference, access.presentation().exactnessPreference);
 
     const auto roleSnapshot = [&](ImageViewport::PageRole role) {
         const auto& source = sourceForRole(access.request(), role);
@@ -284,11 +286,12 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             && positive(displayedSize);
         const bool belongs = displayed && displayedRequest.generation == acceptedGenerationValue;
         const Metadata metadata = metadataFor(access.request(),
-            providerFor(access.roles(), ImageViewport::PageRole::Primary),
-            providerFor(access.roles(), ImageViewport::PageRole::Secondary), role);
+            providerFor(access.providerFacts(), ImageViewport::PageRole::Primary),
+            providerFor(access.providerFacts(), ImageViewport::PageRole::Secondary), role);
         const QSizeF logicalSize = source.facts.provider
-            ? (providerFor(access.roles(), role).metadataReady ? providerFor(access.roles(), role).logicalSize
-                                                          : source.facts.providerKnownLogicalSize)
+            ? (providerFor(access.providerFacts(), role).metadataReady
+                      ? providerFor(access.providerFacts(), role).logicalSize
+                      : source.facts.providerKnownLogicalSize)
             : sourceLogicalSize(source);
         const auto& payload = displayedPayloadForRole(access.display(), role);
         const QSizeF payloadRaster
@@ -313,8 +316,9 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             = !input.acceptedGeometry.itemBounds.isEmpty() && !acceptedPageRect.isEmpty();
         const bool displayedGeometryAvailable
             = !input.displayedGeometry.itemBounds.isEmpty() && !displayedPageRect.isEmpty();
-        const auto animation = source.facts.provider && providerFor(access.roles(), role).metadataReady
-            ? providerFor(access.roles(), role).authoredAnimationFacts
+        const auto animation
+            = source.facts.provider && providerFor(access.providerFacts(), role).metadataReady
+            ? providerFor(access.providerFacts(), role).authoredAnimationFacts
             : source.facts.authoredAnimationFacts;
         const int loopCount
             = animation.loopMode() == ImageSequenceAuthoredAnimationFacts::LoopMode::Finite
@@ -359,15 +363,14 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         roleSnapshot(ImageViewport::PageRole::Primary),
         roleSnapshot(ImageViewport::PageRole::Secondary),
         ImageViewportDiagnosticsSnapshot(
-            access.request().errorString, access.request().warningString,
-            access.commandReason()),
+            access.request().errorString, access.request().warningString, access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
             revision(access.display().revision), revision(presentationRevisionValue),
             revision(commandRevisionValue), revision(snapshotRevisionValue)));
 }
 
-ViewportEngineGeometryInput projectViewportCurrentGeometry(ViewportEngineGeometryQueryInput input,
-    ViewportEngineCurrentGeometryProjectionAccess access)
+ViewportEngineGeometryInput projectViewportCurrentGeometry(
+    ViewportEngineGeometryQueryInput input, ViewportEngineCurrentGeometryProjectionAccess access)
 {
     const bool present = access.request().roles[0].source.facts.present;
     const bool ready = access.display().hasReadyDisplay(present);
@@ -377,61 +380,72 @@ ViewportEngineGeometryInput projectViewportCurrentGeometry(ViewportEngineGeometr
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
 }
 
-ViewportEngineGeometryInput projectViewportPendingGeometry(ViewportEngineGeometryQueryInput input,
-    ViewportEnginePendingGeometryProjectionAccess access)
+ViewportEngineGeometryInput projectViewportPendingGeometry(
+    ViewportEngineGeometryQueryInput input, ViewportEnginePendingGeometryProjectionAccess access)
 {
     const auto& request = access.request();
     const auto& display = access.display();
     const bool ready = display.hasReadyDisplay(request.roles[0].source.facts.present);
     QSizeF primary = ready ? display.roles[0].displayedImageSize : QSizeF {};
     QSizeF secondary = ready ? display.roles[1].displayedImageSize : QSizeF {};
-    const auto imageSize = [](const QImage& image) { return image.isNull() ? QSizeF() : image.deviceIndependentSize(); };
-    if (request.roles[0].source.facts.provider && positive(access.roles()[0].provider.logicalSize))
-        primary = access.roles()[0].provider.logicalSize;
+    const auto imageSize = [](const QImage& image) {
+        return image.isNull() ? QSizeF() : image.deviceIndependentSize();
+    };
+    if (request.roles[0].source.facts.provider && positive(access.providerFacts()[0].logicalSize))
+        primary = access.providerFacts()[0].logicalSize;
     else if (positive(imageSize(display.roles[0].pendingRenderPayload.image)))
         primary = imageSize(display.roles[0].pendingRenderPayload.image);
-    if (!request.roles[1].sequence || request.roles[1].activeRequest.target.frame < 0) secondary = {};
-    else if (request.roles[1].provider && positive(access.roles()[1].provider.logicalSize))
-        secondary = access.roles()[1].provider.logicalSize;
+    if (!request.roles[1].sequence || request.roles[1].activeRequest.target.frame < 0)
+        secondary = {};
+    else if (request.roles[1].provider && positive(access.providerFacts()[1].logicalSize))
+        secondary = access.providerFacts()[1].logicalSize;
     else if (positive(imageSize(display.roles[1].pendingRenderPayload.image)))
         secondary = imageSize(display.roles[1].pendingRenderPayload.image);
     return { positive(primary), input.itemBounds, primary, secondary,
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
 }
 
-ViewportEngineGeometryInput projectViewportAcceptedGeometry(ViewportEngineGeometryQueryInput input,
-    ViewportEngineAcceptedGeometryProjectionAccess access)
+ViewportEngineGeometryInput projectViewportAcceptedGeometry(
+    ViewportEngineGeometryQueryInput input, ViewportEngineAcceptedGeometryProjectionAccess access)
 {
     const auto& request = access.request();
-    QSizeF primary = request.roles[0].source.facts.provider ? access.roles()[0].provider.logicalSize
+    QSizeF primary = request.roles[0].source.facts.provider
+        ? access.providerFacts()[0].logicalSize
         : sourceLogicalSize(request.roles[0].source);
     QSizeF secondary;
     if (request.roles[1].sequence) {
-        if (request.roles[1].provider) secondary = access.roles()[1].provider.logicalSize;
-        else if (request.roles[1].activeRequest.target.frame >= 0) secondary = sourceLogicalSize(request.roles[1].source);
+        if (request.roles[1].provider)
+            secondary = access.providerFacts()[1].logicalSize;
+        else if (request.roles[1].activeRequest.target.frame >= 0)
+            secondary = sourceLogicalSize(request.roles[1].source);
     }
-    if (!positive(primary)) primary = {};
-    if (!positive(secondary)) secondary = {};
+    if (!positive(primary))
+        primary = {};
+    if (!positive(secondary))
+        secondary = {};
     return { positive(primary), input.itemBounds, primary, secondary,
         input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0 };
 }
 
-ViewportRenderSnapshot projectViewportRenderSnapshot(ViewportRenderSnapshotInput input,
-    ViewportEngineRenderSnapshotProjectionAccess access)
+ViewportRenderSnapshot projectViewportRenderSnapshot(
+    ViewportRenderSnapshotInput input, ViewportEngineRenderSnapshotProjectionAccess access)
 {
     const auto target = [&](ImageViewport::PageRole role) {
-        return PresentationGeometry::pageItemRect(input.geometryState, role).intersected(input.geometryState.itemBounds);
+        return PresentationGeometry::pageItemRect(input.geometryState, role)
+            .intersected(input.geometryState.itemBounds);
     };
     const auto source = [&](ImageViewport::PageRole role) {
         return PresentationGeometry::visiblePageRect(input.geometryState, role);
     };
     auto primary = input.preparedPayload;
-    if (primary.image.isNull() && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present))
+    if (primary.image.isNull()
+        && access.display().hasReadyDisplay(access.request().roles[0].source.facts.present))
         primary.image = access.display().roles[0].displayedImage;
     auto secondary = primary;
     if (input.pendingTargetCommit && !access.display().roles[1].pendingRenderPayload.image.isNull())
         secondary = access.display().roles[1].pendingRenderPayload;
-    else secondary.image = access.display().roles[1].displayedImage;
+    else
+        secondary.image = access.display().roles[1].displayedImage;
     ViewportRenderSnapshot snapshot;
     snapshot.itemSize = input.itemSize;
     snapshot.backgroundMode = access.presentation().backgroundMode;
@@ -445,8 +459,10 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(ViewportRenderSnapshotInput
     snapshot.targetRect = target(ImageViewport::PageRole::Primary);
     snapshot.sourceRect = source(ImageViewport::PageRole::Primary);
     const auto append = [&](ImageViewport::PageRole role, const auto& payload, bool requireRects) {
-        const QRectF targetRect = target(role); const QRectF sourceRect = source(role);
-        if (!payload.image.isNull() && (!requireRects || (!targetRect.isEmpty() && !sourceRect.isEmpty())))
+        const QRectF targetRect = target(role);
+        const QRectF sourceRect = source(role);
+        if (!payload.image.isNull()
+            && (!requireRects || (!targetRect.isEmpty() && !sourceRect.isEmpty())))
             snapshot.imageLayers.append({ role, payload, targetRect, sourceRect,
                 access.presentation().rotationDegrees, access.presentation().mirrorHorizontally,
                 access.presentation().mirrorVertically });

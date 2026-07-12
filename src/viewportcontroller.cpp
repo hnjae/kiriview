@@ -136,7 +136,8 @@ ViewportCommandResult ViewportController::clear()
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
-    ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Primary).nextRequestToken
+    ViewportEngineTestAccess::providerRequests(
+        engine, ImageViewport::PageRole::Primary).nextRequestToken
         = token;
 }
 
@@ -144,7 +145,7 @@ void ViewportController::setNextProviderRequestTokenForTest(
     ImageViewport::PageRole role, quint64 token)
 {
     if (role == ImageViewport::PageRole::Secondary) {
-        ViewportEngineTestAccess::provider(engine, ImageViewport::PageRole::Secondary)
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Secondary)
             .nextRequestToken
             = token;
         return;

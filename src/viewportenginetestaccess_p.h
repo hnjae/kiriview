@@ -43,19 +43,26 @@ public:
     {
         return engine.m_state->commandState.publishedRevision;
     }
-    static ImageViewportInternal::ProviderGenerationState& provider(
+    static ImageViewportInternal::ProviderSessionState& providerSession(
         ViewportEngine& engine, ImageViewport::PageRole role)
     {
         return engine.m_state->providerState
             .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
-            .provider;
+            .provider.session;
     }
-    static const ImageViewportInternal::ProviderGenerationState& provider(
-        const ViewportEngine& engine, ImageViewport::PageRole role)
+    static ImageViewportInternal::ProviderRequestState& providerRequests(
+        ViewportEngine& engine, ImageViewport::PageRole role)
     {
         return engine.m_state->providerState
             .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
-            .provider;
+            .provider.requests;
+    }
+    static ImageViewportInternal::ProviderFactsState& providerFacts(
+        ViewportEngine& engine, ImageViewport::PageRole role)
+    {
+        return engine.m_state->providerState
+            .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
+            .provider.facts;
     }
 };
 #endif

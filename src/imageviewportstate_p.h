@@ -301,8 +301,7 @@ struct DisplayState
         auto& pending = roles[0].pendingRenderPayload;
         pending.generation = sequenceGeneration;
         pending.requestId = activeRequest.identity.id;
-        pending.payloadId
-            = activeRequest.identity.id == 0 ? 0 : ++nextPreparedPayloadId;
+        pending.payloadId = activeRequest.identity.id == 0 ? 0 : ++nextPreparedPayloadId;
         activeRequest.preparedPayloadId = pending.payloadId;
     }
 
@@ -337,8 +336,7 @@ struct DisplayState
         return hasDisplayableSequence
             && (status == ImageViewport::DisplayStatus::Ready
                 || status == ImageViewport::DisplayStatus::Retained)
-            && roles[0].displayedImageSize.isValid()
-            && roles[0].displayedImageSize.width() > 0.0
+            && roles[0].displayedImageSize.isValid() && roles[0].displayedImageSize.width() > 0.0
             && roles[0].displayedImageSize.height() > 0.0;
     }
 
@@ -492,10 +490,14 @@ struct RequestState
     QString warningString;
 };
 
-struct ProviderGenerationState
+struct ProviderSessionState
 {
     bool sessionActive = false;
     quint64 sessionSerial = 0;
+};
+
+struct ProviderRequestState
+{
     quint64 nextRequestToken = 0;
     ImageSequenceProviderRequestToken activeMetadataToken;
     ImageSequenceProviderRequestToken activeFrameToken;
@@ -507,6 +509,10 @@ struct ProviderGenerationState
     ResolvedFrameIdentity queuedResolvedFrame;
     bool queuedFrameFromPlayback = false;
     ProviderRequestTargetKind queuedFrameTargetKind = ProviderRequestTargetKind::Unknown;
+};
+
+struct ProviderFactsState
+{
     bool metadataReady = false;
     bool timedMetadata = false;
     bool timedPlaybackSupport = false;
@@ -515,6 +521,13 @@ struct ProviderGenerationState
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
     QSizeF logicalSize;
     TimingIntervals timingIntervals;
+};
+
+struct ProviderRoleState
+{
+    ProviderSessionState session;
+    ProviderRequestState requests;
+    ProviderFactsState facts;
 };
 
 }

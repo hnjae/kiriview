@@ -8,7 +8,7 @@
 
 struct ViewportEngineRoleState
 {
-    ImageViewportInternal::ProviderGenerationState provider;
+    ImageViewportInternal::ProviderRoleState provider;
 };
 
 struct ViewportEngineRequestState
@@ -26,6 +26,26 @@ struct ViewportEngineDisplayState
 struct ViewportEngineProviderRoleState
 {
     std::array<ViewportEngineRoleState, 2> roles;
+};
+
+class ViewportEngineProviderFactsView
+{
+public:
+    ViewportEngineProviderFactsView(const ImageViewportInternal::ProviderFactsState& primary,
+        const ImageViewportInternal::ProviderFactsState& secondary)
+        : m_primary(primary)
+        , m_secondary(secondary)
+    {
+    }
+
+    const ImageViewportInternal::ProviderFactsState& operator[](std::size_t index) const
+    {
+        return index == 0 ? m_primary : m_secondary;
+    }
+
+private:
+    const ImageViewportInternal::ProviderFactsState& m_primary;
+    const ImageViewportInternal::ProviderFactsState& m_secondary;
 };
 
 struct ViewportEnginePlaybackState

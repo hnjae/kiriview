@@ -17,6 +17,18 @@ template<typename Access>
 struct HasPlaybackAccess<Access,
     std::void_t<decltype(std::declval<Access&>().playback())>> : std::true_type { };
 
+template<typename Access, typename = void>
+struct HasProviderSessionAccess : std::false_type { };
+template<typename Access>
+struct HasProviderSessionAccess<Access,
+    std::void_t<decltype(std::declval<Access&>().providerSessions())>> : std::true_type { };
+
+template<typename Access, typename = void>
+struct HasProviderRequestAccess : std::false_type { };
+template<typename Access>
+struct HasProviderRequestAccess<Access,
+    std::void_t<decltype(std::declval<Access&>().providerRequests())>> : std::true_type { };
+
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineGeometryTransitionAccess>);
@@ -68,6 +80,32 @@ static_assert(std::is_const_v<std::remove_reference_t<
 static_assert(std::is_const_v<std::remove_reference_t<
     PresentationAccess<ViewportEngineProviderDemandProjectionAccess>>>);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderDemandProjectionAccess>::value);
+static_assert(!std::is_same_v<ImageViewportInternal::ProviderSessionState,
+    ImageViewportInternal::ProviderRequestState>);
+static_assert(!std::is_same_v<ImageViewportInternal::ProviderSessionState,
+    ImageViewportInternal::ProviderFactsState>);
+static_assert(!std::is_same_v<ImageViewportInternal::ProviderRequestState,
+    ImageViewportInternal::ProviderFactsState>);
+static_assert(std::is_const_v<std::remove_reference_t<decltype(
+    std::declval<ViewportEngineProviderDemandProjectionAccess&>().providerFacts())>>);
+static_assert(!HasProviderSessionAccess<ViewportEngineProviderDemandProjectionAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineProviderDemandProjectionAccess>::value);
+static_assert(std::is_const_v<std::remove_reference_t<decltype(
+    std::declval<ViewportEngineSnapshotStateAccess&>().providerFacts())>>);
+static_assert(std::is_const_v<std::remove_reference_t<decltype(
+    std::declval<ViewportEnginePendingGeometryProjectionAccess&>().providerFacts())>>);
+static_assert(std::is_const_v<std::remove_reference_t<decltype(
+    std::declval<ViewportEngineAcceptedGeometryProjectionAccess&>().providerFacts())>>);
+static_assert(std::is_const_v<std::remove_reference_t<decltype(
+    std::declval<ViewportEngineRenderCommitAccess&>().providerFacts())>>);
+static_assert(!HasProviderSessionAccess<ViewportEngineSnapshotStateAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineSnapshotStateAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEnginePendingGeometryProjectionAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEnginePendingGeometryProjectionAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEngineAcceptedGeometryProjectionAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineAcceptedGeometryProjectionAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEngineRenderCommitAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineRenderCommitAccess>::value);
 static_assert(std::is_same_v<decltype(&projectViewportProviderDemand),
     ImageSequenceProviderDisplayDemand (*)(ViewportEngineProviderDemandInput,
         ViewportEngineProviderDemandProjectionAccess)>);

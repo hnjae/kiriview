@@ -10,7 +10,7 @@
 namespace {
 using namespace ImageViewportInternal;
 
-ProviderGenerationState& providerFor(
+ProviderRoleState& providerFor(
     std::array<ViewportEngineRoleState, 2>& roles, ImageViewport::PageRole role)
 {
     return roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
@@ -230,17 +230,17 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
 {
     ViewportProviderFrameTransportEffect effect;
     auto& provider = providerFor(providerAccess().roles(), role);
-    effect.closeSession = provider.sessionActive;
+    effect.closeSession = provider.session.sessionActive;
     clearQueuedProviderFrameRequest(role);
-    if (!provider.sessionActive) {
+    if (!provider.session.sessionActive) {
         return effect;
     }
-    effect.sessionClose.metadataToken = provider.activeMetadataToken;
-    effect.sessionClose.frameToken = provider.activeFrameToken;
-    provider.sessionActive = false;
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
-    provider.nextRequestToken = 0;
+    effect.sessionClose.metadataToken = provider.requests.activeMetadataToken;
+    effect.sessionClose.frameToken = provider.requests.activeFrameToken;
+    provider.session.sessionActive = false;
+    provider.requests.activeMetadataToken = {};
+    provider.requests.activeFrameToken = {};
+    provider.requests.nextRequestToken = 0;
     return effect;
 }
 
@@ -252,9 +252,10 @@ ViewportProviderMetadataRequestStartResult ViewportEngine::startProviderMetadata
     const auto allocation = allocateProviderRequestToken(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
-    provider.activeMetadataToken = allocation.token;
-    result.sendCommand = provider.sessionActive && provider.activeMetadataToken.isValid();
-    result.token = provider.activeMetadataToken;
+    provider.requests.activeMetadataToken = allocation.token;
+    result.sendCommand
+        = provider.session.sessionActive && provider.requests.activeMetadataToken.isValid();
+    result.token = provider.requests.activeMetadataToken;
     return result;
 }
 
@@ -272,7 +273,8 @@ ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameReques
     }
     providerAccess().request().status = ImageViewport::RequestStatus::Loading;
     providerAccess().request().reason = projectWaitReason(wait);
-    providerAccess().display().status = providerAccess().display().roles[0].displayedImageSize.isValid()
+    providerAccess().display().status
+        = providerAccess().display().roles[0].displayedImageSize.isValid()
         ? ImageViewport::DisplayStatus::Retained
         : ImageViewport::DisplayStatus::Empty;
 
@@ -280,18 +282,19 @@ ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameReques
     const auto allocation = allocateProviderRequestToken(role);
     result.closeSession = allocation.closeSession;
     result.sessionClose = allocation.sessionClose;
-    provider.activeFrameToken = allocation.token;
-    if (!provider.activeFrameToken.isValid()) {
+    provider.requests.activeFrameToken = allocation.token;
+    if (!provider.requests.activeFrameToken.isValid()) {
         return result;
     }
     if (role == ImageViewport::PageRole::Secondary) {
-        const int position = provider.timedMetadata
-            ? provider.timingIntervals.frameStartPosition(target.frame)
+        const int position = provider.facts.timedMetadata
+            ? provider.facts.timingIntervals.frameStartPosition(target.frame)
             : -1;
         providerAccess().request().roles[1].activeRequest.identity
             = providerAccess().request().roles[0].activeRequest.identity;
         providerAccess().request().roles[1].activeRequest.target = target;
-        providerAccess().request().roles[1].activeRequest.resolvedFrame = { target.frame, position };
+        providerAccess().request().roles[1].activeRequest.resolvedFrame
+            = { target.frame, position };
         providerAccess().request().roles[1].activeRequest.providerFrameToken = {};
         providerAccess().request().roles[1].activeRequest.preparedPayloadId
             = providerAccess().request().roles[0].activeRequest.preparedPayloadId;
@@ -301,10 +304,10 @@ ViewportProviderFrameRequestStartResult ViewportEngine::startProviderFrameReques
         }
     }
     auto& request = requestForRole(providerAccess().request(), role);
-    request.providerFrameToken = provider.activeFrameToken;
+    request.providerFrameToken = provider.requests.activeFrameToken;
     result.accepted = true;
-    result.sendCommand = provider.sessionActive;
-    result.command.token = provider.activeFrameToken;
+    result.sendCommand = provider.session.sessionActive;
+    result.command.token = provider.requests.activeFrameToken;
     result.command.frame = request.resolvedFrame.frame;
     result.command.position = request.target.position;
     result.command.targetKind = request.target.providerTargetKind;
@@ -322,7 +325,7 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
         return result;
     }
     auto& provider = providerFor(providerAccess().roles(), role);
-    if (provider.metadataReady) {
+    if (provider.facts.metadataReady) {
         providerAccess().display().clearPendingRenderPayload();
         providerAccess().display().clearRenderFailureRetainedDisplay();
         const auto start = startProviderFrameRequest(
@@ -358,7 +361,8 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     result.providerFrameTransport.command = start.command;
     result.changes.requestState = true;
     result.changes.requestRevision = true;
-    result.changes.diagnostics = providerAccess().request().status == ImageViewport::RequestStatus::Error
+    result.changes.diagnostics
+        = providerAccess().request().status == ImageViewport::RequestStatus::Error
         && providerAccess().request().reason == ImageViewport::RequestReason::ProviderFailure;
     result.schedule = playbackScheduleEffect();
     return result;
@@ -374,14 +378,15 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
         auto& request = requestForRole(providerAccess().request(), role);
         const bool present = role == ImageViewport::PageRole::Primary
             ? providerAccess().request().roles[0].source.facts.provider
-            : providerAccess().request().roles[1].sequence && providerAccess().request().roles[1].provider;
-        if (!present || !provider.sessionActive || !provider.metadataReady
-            || !provider.activeFrameToken.isValid() || request.identity.id == 0
+            : providerAccess().request().roles[1].sequence
+                && providerAccess().request().roles[1].provider;
+        if (!present || !provider.session.sessionActive || !provider.facts.metadataReady
+            || !provider.requests.activeFrameToken.isValid() || request.identity.id == 0
             || request.resolvedFrame.frame < 0) {
             continue;
         }
-        const auto cancelled = provider.activeFrameToken;
-        provider.activeFrameToken = {};
+        const auto cancelled = provider.requests.activeFrameToken;
+        provider.requests.activeFrameToken = {};
         request.providerFrameToken = {};
         const auto start = startProviderFrameRequest(role, request.target, geometry);
         auto& effect = effects[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
@@ -556,7 +561,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
     auto& provider = providerFor(providerAccess().roles(), role);
     if (!admission.accepted()) {
         clearQueuedProviderFrameRequest(role);
-        provider.activeFrameToken = {};
+        provider.requests.activeFrameToken = {};
         recordProviderTerminal(role, admission.status, admission.reason,
             FailureScope::DisplayRequest, admission.diagnostic, changes);
         setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
@@ -567,11 +572,12 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
     const auto oldRequestReason = providerAccess().request().reason;
     const auto oldGeometry = geometryState(geometry);
     const bool diagnosticsChanged = providerAccess().request().clearDiagnostics();
-    provider.activeFrameToken = {};
+    provider.requests.activeFrameToken = {};
 
     if (role == ImageViewport::PageRole::Secondary) {
         providerAccess().display().roles[1].pendingRenderPayload = admission.preparedPayload;
-        const bool primaryReady = providerAccess().display().roles[0].pendingRenderPayload.commitPending
+        const bool primaryReady
+            = providerAccess().display().roles[0].pendingRenderPayload.commitPending
             && !providerAccess().display().roles[0].pendingRenderPayload.image.isNull();
         TargetSpreadWaitState wait;
         wait.requiresSecondary = true;
@@ -630,8 +636,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
     }
 
     const auto newGeometry = geometryState(geometry);
-    changes.requestRevision
-        = oldRequestStatus != providerAccess().request().status || oldRequestReason != providerAccess().request().reason;
+    changes.requestRevision = oldRequestStatus != providerAccess().request().status
+        || oldRequestReason != providerAccess().request().reason;
     changes.requestState = true;
     changes.displayState = true;
     changes.displayRevision = true;
@@ -669,14 +675,14 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::acceptProviderMetadataF
     }
 
     auto& provider = providerFor(providerAccess().roles(), role);
-    provider.metadataReady = true;
-    provider.timedMetadata = facts.timedMetadata;
-    provider.timedPlaybackSupport = facts.timedPlaybackSupport;
-    provider.frameSeekSupport = facts.frameSeekSupport;
-    provider.positionSeekSupport = facts.positionSeekSupport;
-    provider.logicalSize = facts.logicalSize;
-    provider.timingIntervals = facts.timingIntervals;
-    provider.authoredAnimationFacts = facts.authoredAnimationFacts;
+    provider.facts.metadataReady = true;
+    provider.facts.timedMetadata = facts.timedMetadata;
+    provider.facts.timedPlaybackSupport = facts.timedPlaybackSupport;
+    provider.facts.frameSeekSupport = facts.frameSeekSupport;
+    provider.facts.positionSeekSupport = facts.positionSeekSupport;
+    provider.facts.logicalSize = facts.logicalSize;
+    provider.facts.timingIntervals = facts.timingIntervals;
+    provider.facts.authoredAnimationFacts = facts.authoredAnimationFacts;
     if (role == ImageViewport::PageRole::Secondary) {
         changes.requestState = true;
         changes.requestRevision = true;
@@ -733,14 +739,14 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
                                              : ProviderRequestTargetKind::Frame;
         target.frame = request.target.frame >= 0 ? request.target.frame : 0;
         target.position = position ? request.target.position : -1;
-        if (playback && (!facts.timedMetadata || !provider.timedPlaybackSupport)) {
+        if (playback && (!facts.timedMetadata || !provider.facts.timedPlaybackSupport)) {
             result.changes = rejectProviderMetadataTarget(role,
                 { ImageViewport::RequestStatus::Unsupported,
                     ImageViewport::RequestReason::UnsupportedRequest, -1, false, false, true });
             return result;
         }
         if (position) {
-            if (!facts.timedMetadata || !provider.positionSeekSupport) {
+            if (!facts.timedMetadata || !provider.facts.positionSeekSupport) {
                 result.changes = rejectProviderMetadataTarget(role,
                     { ImageViewport::RequestStatus::Unsupported,
                         ImageViewport::RequestReason::UnsupportedRequest });
@@ -764,8 +770,8 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
             && providerAccess().request().roles[1].activeRequest.identity.id == request.identity.id
             && unknownMetadataInitialRequest(request)
             && unknownMetadataInitialRequest(providerAccess().request().roles[1].activeRequest);
-        providerAccess().request().beginDisplayRequest(DisplayRequestOrigin::MetadataBoundSelection, target,
-            { target.frame, resolvedPosition },
+        providerAccess().request().beginDisplayRequest(DisplayRequestOrigin::MetadataBoundSelection,
+            target, { target.frame, resolvedPosition },
             target.providerTargetKind != ProviderRequestTargetKind::Playback);
         if (carrySecondary) {
             providerAccess().request().roles[1].activeRequest.identity
@@ -778,7 +784,8 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
     } else {
         const auto request = providerAccess().request().roles[1].activeRequest;
         if (request.identity.id == 0
-            || request.identity.id != providerAccess().request().roles[0].activeRequest.identity.id) {
+            || request.identity.id
+                != providerAccess().request().roles[0].activeRequest.identity.id) {
             return result;
         }
         if (unknownMetadataInitialRequest(request)) {
@@ -786,7 +793,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
         } else {
             target = request.target;
             if (target.providerTargetKind == ProviderRequestTargetKind::Playback) {
-                if (!facts.timedMetadata || !provider.timedPlaybackSupport) {
+                if (!facts.timedMetadata || !provider.facts.timedPlaybackSupport) {
                     result.changes = rejectProviderMetadataTarget(role,
                         { ImageViewport::RequestStatus::Unsupported,
                             ImageViewport::RequestReason::UnsupportedRequest });
@@ -802,7 +809,7 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
                     ? facts.timingIntervals.frameStartPosition(target.frame)
                     : -1;
             } else if (target.providerTargetKind == ProviderRequestTargetKind::Position) {
-                if (!facts.timedMetadata || !provider.positionSeekSupport) {
+                if (!facts.timedMetadata || !provider.facts.positionSeekSupport) {
                     result.changes = rejectProviderMetadataTarget(role,
                         { ImageViewport::RequestStatus::Unsupported,
                             ImageViewport::RequestReason::UnsupportedRequest });
@@ -844,9 +851,9 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOp
     ViewportChangeSet changes;
     clearQueuedProviderFrameRequest(role);
     auto& provider = providerFor(providerAccess().roles(), role);
-    provider.sessionActive = false;
-    provider.activeMetadataToken = {};
-    provider.activeFrameToken = {};
+    provider.session.sessionActive = false;
+    provider.requests.activeMetadataToken = {};
+    provider.requests.activeFrameToken = {};
     recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::ProviderFailure, FailureScope::Generation, diagnostic,
         changes);
@@ -862,17 +869,18 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
     const bool providerPresent = role == ImageViewport::PageRole::Primary
         ? providerAccess().request().roles[0].source.facts.provider
         : providerAccess().request().roles[1].provider;
-    if (!providerPresent || !provider.sessionActive) {
+    if (!providerPresent || !provider.session.sessionActive) {
         return result;
     }
 
     const DisplayRequest& request = requestForRole(providerAccess().request(), role);
-    const bool frameToken = event.token.isValid() && event.token == provider.activeFrameToken
+    const bool frameToken = event.token.isValid()
+        && event.token == provider.requests.activeFrameToken
         && event.token == request.providerFrameToken;
     if (frameToken) {
         const auto terminal = frameTerminal(event);
         clearQueuedProviderFrameRequest(role);
-        provider.activeFrameToken = {};
+        provider.requests.activeFrameToken = {};
         recordProviderTerminal(role, terminal.status, terminal.reason, FailureScope::DisplayRequest,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes);
@@ -884,12 +892,12 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
         return result;
     }
 
-    if (provider.metadataReady || !provider.activeMetadataToken.isValid()
-        || event.token != provider.activeMetadataToken) {
+    if (provider.facts.metadataReady || !provider.requests.activeMetadataToken.isValid()
+        || event.token != provider.requests.activeMetadataToken) {
         return result;
     }
     const auto terminal = metadataTerminal(event);
-    provider.activeMetadataToken = {};
+    provider.requests.activeMetadataToken = {};
     providerAccess().playback().providerStartPending = false;
     recordProviderTerminal(role, terminal.status, terminal.reason, FailureScope::Generation,
         FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
@@ -910,11 +918,11 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
                                    : event.diagnostic,
         false };
     auto& provider = providerFor(providerAccess().roles(), role);
-    const bool sessionWasActive = provider.sessionActive;
-    provider.sessionActive = true;
+    const bool sessionWasActive = provider.session.sessionActive;
+    provider.session.sessionActive = true;
     ViewportProviderTerminalEventResult result = reduceProviderTerminalEvent(role, terminal);
     if (!sessionWasActive) {
-        provider.sessionActive = false;
+        provider.session.sessionActive = false;
         result.providerFrameTransport.closeSession = false;
     }
     if (result.changes.requestState && !result.providerFrameTransport.closeSession) {
@@ -930,10 +938,11 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
     ViewportProviderSchedulerFailureResult result;
     auto& provider = providerFor(providerAccess().roles(), role);
     const DisplayRequest& request = requestForRole(providerAccess().request(), role);
-    const bool queued = provider.queuedFrameRequest;
-    result.diagnostic = { queued, role, provider.queuedFrameGeneration, request.identity.id,
-        provider.queuedFrameRequestId, provider.queuedFrameTargetKind,
-        ProviderSchedulerOperation::FlushQueuedFrameRequest };
+    const bool queued = provider.requests.queuedFrameRequest;
+    result.diagnostic
+        = { queued, role, provider.requests.queuedFrameGeneration, request.identity.id,
+              provider.requests.queuedFrameRequestId, provider.requests.queuedFrameTargetKind,
+              ProviderSchedulerOperation::FlushQueuedFrameRequest };
     const bool providerPresent = role == ImageViewport::PageRole::Primary
         ? providerAccess().request().roles[0].source.facts.provider
         : providerAccess().request().roles[1].provider;
@@ -942,7 +951,7 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
         return result;
     }
 
-    const bool playbackOwned = provider.queuedFrameFromPlayback;
+    const bool playbackOwned = provider.requests.queuedFrameFromPlayback;
     clearQueuedProviderFrameRequest(role);
     recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::ProviderFailure, FailureScope::DisplayRequest,
@@ -969,17 +978,19 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderWaitingEv
     const bool providerPresent = role == ImageViewport::PageRole::Primary
         ? providerAccess().request().roles[0].source.facts.provider
         : providerAccess().request().roles[1].provider;
-    if (!providerPresent || !provider.sessionActive
+    if (!providerPresent || !provider.session.sessionActive
         || (event.progress
             && (!std::isfinite(event.progressValue) || event.progressValue < 0.0
                 || event.progressValue > 1.0))) {
         return changes;
     }
-    const bool metadataToken = !provider.metadataReady && provider.activeMetadataToken.isValid()
-        && event.token == provider.activeMetadataToken;
+    const bool metadataToken = !provider.facts.metadataReady
+        && provider.requests.activeMetadataToken.isValid()
+        && event.token == provider.requests.activeMetadataToken;
     const DisplayRequest& request = requestForRole(providerAccess().request(), role);
-    const bool frameToken = provider.activeFrameToken.isValid()
-        && event.token == provider.activeFrameToken && event.token == request.providerFrameToken;
+    const bool frameToken = provider.requests.activeFrameToken.isValid()
+        && event.token == provider.requests.activeFrameToken
+        && event.token == request.providerFrameToken;
     if ((!metadataToken && !frameToken)
         || providerAccess().request().status != ImageViewport::RequestStatus::Loading
         || providerAccess().request().reason == ImageViewport::RequestReason::ProviderWaiting) {
@@ -998,10 +1009,10 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceP
     clearQueuedProviderFrameRequest(role);
     auto& provider = providerFor(providerAccess().roles(), role);
     if (input.activeMetadataToken) {
-        provider.activeMetadataToken = {};
+        provider.requests.activeMetadataToken = {};
     }
     if (input.activeFrameToken) {
-        provider.activeFrameToken = {};
+        provider.requests.activeFrameToken = {};
     }
     providerAccess().playback().providerStartPending = false;
     providerAccess().playback().stopWhenRequestReady = false;
@@ -1022,15 +1033,18 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
     auto& provider = providerFor(providerAccess().roles(), role);
     const bool present = role == ImageViewport::PageRole::Primary
         ? providerAccess().request().roles[0].source.facts.provider
-        : providerAccess().request().roles[1].sequence && providerAccess().request().roles[1].provider;
-    if (!present || !provider.sessionActive) {
+        : providerAccess().request().roles[1].sequence
+            && providerAccess().request().roles[1].provider;
+    if (!present || !provider.session.sessionActive) {
         return result;
     }
-    const bool metadataToken = !provider.metadataReady && provider.activeMetadataToken.isValid()
-        && event.token == provider.activeMetadataToken;
+    const bool metadataToken = !provider.facts.metadataReady
+        && provider.requests.activeMetadataToken.isValid()
+        && event.token == provider.requests.activeMetadataToken;
     const auto& request = requestForRole(providerAccess().request(), role);
-    const bool frameToken = provider.activeFrameToken.isValid()
-        && event.token == provider.activeFrameToken && event.token == request.providerFrameToken;
+    const bool frameToken = provider.requests.activeFrameToken.isValid()
+        && event.token == provider.requests.activeFrameToken
+        && event.token == request.providerFrameToken;
     if (!metadataToken && !frameToken) {
         return result;
     }
@@ -1039,19 +1053,20 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
         && terminal.requestId == providerAccess().request().roles[0].activeRequest.identity.id) {
         return result;
     }
-    if (metadataToken || !provider.metadataReady || !provider.timedMetadata
+    if (metadataToken || !provider.facts.metadataReady || !provider.facts.timedMetadata
         || request.target.providerTargetKind != ProviderRequestTargetKind::Playback) {
         return reduceProviderEndOfSequenceProtocolViolation(role, { metadataToken, frameToken });
     }
 
-    provider.activeFrameToken = {};
+    provider.requests.activeFrameToken = {};
     const bool diagnosticsChanged = providerAccess().request().clearDiagnostics();
-    const bool loop
-        = effectiveProviderLooping(providerAccess().playback(), provider.authoredAnimationFacts);
-    const int selectedFrame = loop ? 0 : provider.timingIntervals.frameCount() - 1;
+    const bool loop = effectiveProviderLooping(
+        providerAccess().playback(), provider.facts.authoredAnimationFacts);
+    const int selectedFrame = loop ? 0 : provider.facts.timingIntervals.frameCount() - 1;
     const int selectedPosition
-        = loop ? 0 : provider.timingIntervals.frameStartPosition(selectedFrame);
-    providerAccess().playback().position = loop ? 0 : provider.timingIntervals.totalDuration();
+        = loop ? 0 : provider.facts.timingIntervals.frameStartPosition(selectedFrame);
+    providerAccess().playback().position
+        = loop ? 0 : provider.facts.timingIntervals.totalDuration();
     providerAccess().playback().stopWhenRequestReady = !loop;
     const DisplayRequestTarget target { selectedFrame, selectedPosition,
         ProviderRequestTargetKind::Playback };
@@ -1063,19 +1078,24 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
         providerAccess().request().roles[1].activeRequest.identity
             = providerAccess().request().roles[0].activeRequest.identity;
         providerAccess().request().roles[1].activeRequest.target = target;
-        providerAccess().request().roles[1].activeRequest.resolvedFrame = { selectedFrame, selectedPosition };
+        providerAccess().request().roles[1].activeRequest.resolvedFrame
+            = { selectedFrame, selectedPosition };
         providerAccess().request().roles[1].activeRequest.providerFrameToken = {};
         providerAccess().request().roles[1].activeRequest.preparedPayloadId
             = providerAccess().request().roles[0].activeRequest.preparedPayloadId;
     } else {
         providerAccess().request().roles[0].activeRequest.target = target;
-        providerAccess().request().roles[0].activeRequest.resolvedFrame = { selectedFrame, selectedPosition };
+        providerAccess().request().roles[0].activeRequest.resolvedFrame
+            = { selectedFrame, selectedPosition };
     }
 
     const bool sameDisplayedFinal = role == ImageViewport::PageRole::Primary && !loop
-        && providerAccess().display().hasReadyDisplay(providerAccess().request().roles[0].source.facts.present)
-        && providerAccess().display().roles[0].displayedRequest.generation == providerAccess().request().sequenceGeneration
-        && providerAccess().display().roles[0].displayedRequest.request.resolvedFrame.frame == selectedFrame
+        && providerAccess().display().hasReadyDisplay(
+            providerAccess().request().roles[0].source.facts.present)
+        && providerAccess().display().roles[0].displayedRequest.generation
+            == providerAccess().request().sequenceGeneration
+        && providerAccess().display().roles[0].displayedRequest.request.resolvedFrame.frame
+            == selectedFrame
         && providerAccess().display().roles[0].displayedRequest.request.resolvedFrame.position
             == selectedPosition;
     if (sameDisplayedFinal) {

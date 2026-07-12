@@ -7,14 +7,15 @@ class ViewportEngineProviderStateAccess
 private:
     friend class ViewportEngine;
     ViewportEngineProviderStateAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback, ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles)
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
         , m_roles(roles)
     {
     }
+
 public:
     ViewportEngineProviderStateAccess(const ViewportEngineProviderStateAccess&) = delete;
     ViewportEngineProviderStateAccess& operator=(const ViewportEngineProviderStateAccess&) = delete;
@@ -36,14 +37,15 @@ class ViewportEnginePlaybackStateAccess
 private:
     friend class ViewportEngine;
     ViewportEnginePlaybackStateAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback, ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles)
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
         , m_roles(roles)
     {
     }
+
 public:
     ViewportEnginePlaybackStateAccess(const ViewportEnginePlaybackStateAccess&) = delete;
     ViewportEnginePlaybackStateAccess& operator=(const ViewportEnginePlaybackStateAccess&) = delete;
@@ -65,16 +67,17 @@ class ViewportEngineGeometryTransitionAccess
 private:
     friend class ViewportEngine;
     ViewportEngineGeometryTransitionAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles)
+        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
         : m_request(request)
         , m_display(display)
         , m_roles(roles)
     {
     }
+
 public:
     ViewportEngineGeometryTransitionAccess(const ViewportEngineGeometryTransitionAccess&) = delete;
-    ViewportEngineGeometryTransitionAccess& operator=(const ViewportEngineGeometryTransitionAccess&) = delete;
+    ViewportEngineGeometryTransitionAccess& operator=(const ViewportEngineGeometryTransitionAccess&)
+        = delete;
 
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }
@@ -98,6 +101,7 @@ private:
         , m_presentation(presentation)
     {
     }
+
 public:
     ViewportEnginePresentationStateAccess(const ViewportEnginePresentationStateAccess&) = delete;
     ViewportEnginePresentationStateAccess& operator=(const ViewportEnginePresentationStateAccess&)
@@ -122,11 +126,14 @@ private:
         : m_playback(playback)
     {
     }
+
 public:
     ViewportEnginePresentationLoopingStateAccess(
-        const ViewportEnginePresentationLoopingStateAccess&) = delete;
+        const ViewportEnginePresentationLoopingStateAccess&)
+        = delete;
     ViewportEnginePresentationLoopingStateAccess& operator=(
-        const ViewportEnginePresentationLoopingStateAccess&) = delete;
+        const ViewportEnginePresentationLoopingStateAccess&)
+        = delete;
 
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
 
@@ -141,16 +148,15 @@ private:
     ViewportEngineSnapshotStateAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::PlaybackState& playback,
         const ImageViewportInternal::DisplayState& display,
-        const std::array<ViewportEngineRoleState, 2>& roles,
+        ViewportEngineProviderFactsView providerFacts,
         const ImageViewportInternal::PresentationState& presentation,
         const ViewportEnginePresentationTargetState& presentationTarget,
         ImageViewport::CommandReason commandReason, const RevisionToken& commandRevision,
-        quint64 publishedCommandRevision, quint64 presentationRevision,
-        quint64 snapshotRevision)
+        quint64 publishedCommandRevision, quint64 presentationRevision, quint64 snapshotRevision)
         : m_request(request)
         , m_playback(playback)
         , m_display(display)
-        , m_roles(roles)
+        , m_providerFacts(providerFacts)
         , m_presentation(presentation)
         , m_presentationTarget(presentationTarget)
         , m_commandRevision(commandRevision)
@@ -160,6 +166,7 @@ private:
         , m_snapshotRevision(snapshotRevision)
     {
     }
+
 public:
     ViewportEngineSnapshotStateAccess(const ViewportEngineSnapshotStateAccess&) = delete;
     ViewportEngineSnapshotStateAccess& operator=(const ViewportEngineSnapshotStateAccess&) = delete;
@@ -167,7 +174,7 @@ public:
     const ImageViewportInternal::RequestState& request() const { return m_request; }
     const ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    const std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
+    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
     const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
     const ViewportEnginePresentationTargetState& presentationTarget() const
     {
@@ -183,7 +190,7 @@ private:
     const ImageViewportInternal::RequestState& m_request;
     const ImageViewportInternal::PlaybackState& m_playback;
     const ImageViewportInternal::DisplayState& m_display;
-    const std::array<ViewportEngineRoleState, 2>& m_roles;
+    ViewportEngineProviderFactsView m_providerFacts;
     const ImageViewportInternal::PresentationState& m_presentation;
     const ViewportEnginePresentationTargetState& m_presentationTarget;
     const RevisionToken& m_commandRevision;

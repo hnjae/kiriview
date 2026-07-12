@@ -58,15 +58,25 @@ class ViewportEngineRenderSynchronizationAccess
         const ImageViewportInternal::DisplayState& display,
         const ImageViewportInternal::PresentationState& presentation,
         ViewportEngineRenderCoordinationState& render)
-        : m_request(request), m_display(display), m_presentation(presentation), m_render(render) { }
+        : m_request(request)
+        , m_display(display)
+        , m_presentation(presentation)
+        , m_render(render)
+    {
+    }
+
 public:
-    ViewportEngineRenderSynchronizationAccess(const ViewportEngineRenderSynchronizationAccess&) = delete;
+    ViewportEngineRenderSynchronizationAccess(const ViewportEngineRenderSynchronizationAccess&)
+        = delete;
     const ImageViewportInternal::RequestState& request() const { return m_request; }
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
     ViewportEngineRenderCoordinationState& render() const { return m_render; }
     ViewportEngineRenderSnapshotProjectionAccess renderSnapshot() const
-    { return { m_request, m_display, m_presentation }; }
+    {
+        return { m_request, m_display, m_presentation };
+    }
+
 private:
     const ImageViewportInternal::RequestState& m_request;
     const ImageViewportInternal::DisplayState& m_display;
@@ -78,22 +88,31 @@ class ViewportEngineRenderCommitAccess
 {
     friend class ViewportEngine;
     ViewportEngineRenderCommitAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display, ImageViewportInternal::PlaybackState& playback,
-        const std::array<ViewportEngineRoleState, 2>& roles,
+        ImageViewportInternal::DisplayState& display,
+        ImageViewportInternal::PlaybackState& playback,
+        ViewportEngineProviderFactsView providerFacts,
         const ViewportEngineRenderCoordinationState& render)
-        : m_request(request), m_display(display), m_playback(playback), m_roles(roles), m_render(render) { }
+        : m_request(request)
+        , m_display(display)
+        , m_playback(playback)
+        , m_providerFacts(providerFacts)
+        , m_render(render)
+    {
+    }
+
 public:
     ViewportEngineRenderCommitAccess(const ViewportEngineRenderCommitAccess&) = delete;
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    const std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
+    const ViewportEngineProviderFactsView& providerFacts() const { return m_providerFacts; }
     const ViewportEngineRenderCoordinationState& render() const { return m_render; }
+
 private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::DisplayState& m_display;
     ImageViewportInternal::PlaybackState& m_playback;
-    const std::array<ViewportEngineRoleState, 2>& m_roles;
+    ViewportEngineProviderFactsView m_providerFacts;
     const ViewportEngineRenderCoordinationState& m_render;
 };
 
@@ -101,15 +120,23 @@ class ViewportEngineRenderFailureAccess
 {
     friend class ViewportEngine;
     ViewportEngineRenderFailureAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display, ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display,
+        ImageViewportInternal::PlaybackState& playback,
         const ViewportEngineRenderCoordinationState& render)
-        : m_request(request), m_display(display), m_playback(playback), m_render(render) { }
+        : m_request(request)
+        , m_display(display)
+        , m_playback(playback)
+        , m_render(render)
+    {
+    }
+
 public:
     ViewportEngineRenderFailureAccess(const ViewportEngineRenderFailureAccess&) = delete;
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
     const ViewportEngineRenderCoordinationState& render() const { return m_render; }
+
 private:
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::DisplayState& m_display;
