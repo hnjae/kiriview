@@ -56,12 +56,14 @@ private:
 class ViewportEngineRenderSnapshotProjectionAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEngineRenderSynchronizationAccess;
     ViewportEngineRenderSnapshotProjectionAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::DisplayState& display,
         const ImageViewportInternal::PresentationState& presentation)
         : m_request(request), m_display(display), m_presentation(presentation) { }
 public:
     ViewportEngineRenderSnapshotProjectionAccess(const ViewportEngineRenderSnapshotProjectionAccess&) = delete;
+    ViewportEngineRenderSnapshotProjectionAccess(ViewportEngineRenderSnapshotProjectionAccess&&) = default;
     const ImageViewportInternal::RequestState& request() const { return m_request; }
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }

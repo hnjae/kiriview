@@ -36,14 +36,13 @@ ViewportControllerTransition ViewportController::acknowledgeRenderCommit(
     const ViewportRenderSynchronization& synchronization)
 {
     ViewportControllerTransition result;
-    result.changes = engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
+    const auto transition = engine.acknowledgeRenderCommit({ acknowledgement, renderedImagePresent,
         synchronization.attempt, synchronization.pendingTargetCommit,
         synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
         synchronization.oldDisplayStatus, synchronization.oldContentRect,
         synchronization.oldVisibleImageRect, synchronization.geometryState });
-    if (result.changes.playbackPhase) {
-        result.playbackSchedule = engine.playbackScheduleEffect();
-    }
+    result.changes = transition.changes;
+    result.playbackSchedule = transition.playbackSchedule;
     return result;
 }
 
@@ -51,9 +50,8 @@ ViewportControllerTransition ViewportController::acknowledgeRenderFailure(
     const ViewportRenderAcknowledgement& acknowledgement)
 {
     ViewportControllerTransition result;
-    result.changes = engine.acknowledgeRenderFailure({ acknowledgement });
-    if (result.changes.playbackPhase) {
-        result.playbackSchedule = engine.playbackScheduleEffect();
-    }
+    const auto transition = engine.acknowledgeRenderFailure({ acknowledgement });
+    result.changes = transition.changes;
+    result.playbackSchedule = transition.playbackSchedule;
     return result;
 }

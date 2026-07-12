@@ -231,11 +231,10 @@ ViewportEnginePlaybackStateAccess ViewportEngine::playbackAccess()
         m_state->displayState.display, m_state->providerState.roles };
 }
 
-ViewportEngineRenderStateAccess ViewportEngine::renderAccess()
+ViewportEngineGeometryTransitionAccess ViewportEngine::renderAccess()
 {
-    return { m_state->requestState.request, m_state->playbackState.playback,
-        m_state->displayState.display, m_state->providerState.roles,
-        m_state->renderCoordination.nextSynchronizationAttempt, m_state->renderCoordination.lastSynchronization };
+    return { m_state->requestState.request, m_state->displayState.display,
+        m_state->providerState.roles };
 }
 
 ViewportEnginePresentationStateAccess ViewportEngine::presentationAccess()

@@ -6,6 +6,7 @@
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
+#include "viewportenginerenderoperations_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportrendercontract_p.h"
 
@@ -25,7 +26,7 @@ struct ViewportEnginePlaybackStateAccess;
 struct ViewportEnginePresentationLoopingStateAccess;
 struct ViewportEnginePresentationStateAccess;
 struct ViewportEngineProviderStateAccess;
-struct ViewportEngineRenderStateAccess;
+struct ViewportEngineGeometryTransitionAccess;
 struct ViewportEngineSnapshotStateAccess;
 
 class ViewportEngine
@@ -186,29 +187,9 @@ public:
         ImageViewportInternal::ProviderRequestTargetKind targetKind
             = ImageViewportInternal::ProviderRequestTargetKind::Unknown;
     };
-    struct RenderSynchronizationInput
-    {
-        QSizeF itemSize;
-        QRectF itemBounds;
-        QRectF oldContentRect;
-        QRectF oldVisibleImageRect;
-        GeometryInput currentGeometry;
-        GeometryInput pendingGeometry;
-    };
+    using RenderSynchronizationInput = ViewportEngineRenderSynchronizationInput;
 
-    struct RenderAcknowledgementInput
-    {
-        ViewportRenderAcknowledgement acknowledgement;
-        bool renderedImagePresent = false;
-        quint64 synchronizationAttempt = 0;
-        bool pendingTargetCommit = false;
-        bool pendingSecondaryProviderCommit = false;
-        ImageViewportInternal::PreparedPayload preparedPayload;
-        ImageViewport::DisplayStatus oldDisplayStatus = ImageViewport::DisplayStatus::Empty;
-        QRectF oldContentRect;
-        QRectF oldVisibleImageRect;
-        PresentationGeometry::State geometryState;
-    };
+    using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
 
     struct GeometryChangeInput
     {
@@ -266,9 +247,9 @@ public:
 public:
     ViewportRenderSynchronization beginRenderSynchronization(
         const RenderSynchronizationInput& input);
-    ImageViewportInternal::ViewportChangeSet acknowledgeRenderCommit(
+    ViewportEngineRenderCommitTransition acknowledgeRenderCommit(
         const RenderAcknowledgementInput& input);
-    ImageViewportInternal::ViewportChangeSet acknowledgeRenderFailure(
+    ViewportEngineRenderFailureTransition acknowledgeRenderFailure(
         const RenderAcknowledgementInput& input);
     GeometryChangeResult handleGeometryChanged(const GeometryChangeInput& input);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
@@ -385,7 +366,7 @@ private:
 #endif
     ViewportEngineProviderStateAccess providerAccess();
     ViewportEnginePlaybackStateAccess playbackAccess();
-    ViewportEngineRenderStateAccess renderAccess();
+    ViewportEngineGeometryTransitionAccess renderAccess();
     ViewportEnginePresentationStateAccess presentationAccess();
     ViewportEnginePresentationLoopingStateAccess presentationLoopingAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;

@@ -12,7 +12,7 @@ using PresentationAccess = decltype(std::declval<Access&>().presentation());
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
-static_assert(!std::is_copy_constructible_v<ViewportEngineRenderStateAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineGeometryTransitionAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
@@ -41,5 +41,17 @@ static_assert(std::is_same_v<decltype(&projectViewportAcceptedGeometry),
 static_assert(std::is_same_v<decltype(&projectViewportRenderSnapshot),
     ViewportRenderSnapshot (*)(ViewportRenderSnapshotInput,
         ViewportEngineRenderSnapshotProjectionAccess)>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineRenderSynchronizationAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineRenderCommitAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineRenderFailureAccess>);
+static_assert(std::is_same_v<decltype(&synchronizeViewportEngineRender),
+    ViewportRenderSynchronization (*)(ViewportEngineRenderSynchronizationInput,
+        ViewportEngineRenderSynchronizationAccess)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderCommit),
+    ViewportEngineRenderCommitReduction (*)(ViewportEngineRenderAcknowledgementInput,
+        ViewportEngineRenderCommitAccess)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderFailure),
+    ViewportEngineRenderFailureReduction (*)(ViewportEngineRenderAcknowledgementInput,
+        ViewportEngineRenderFailureAccess)>);
 
 int main() { }

@@ -3,15 +3,10 @@
 
 #include "imagesequencesource_p.h"
 #include "viewportgeometryhelpers_p.h"
+#include "viewportenginerenderackhelpers_p.h"
 
 namespace {
 using namespace ImageViewportInternal;
-
-ProviderGenerationState& providerFor(
-    std::array<ViewportEngineRoleState, 2>& roles, ImageViewport::PageRole role)
-{
-    return roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
-}
 
 bool hasSecondary(const RequestState& request)
 {
@@ -20,13 +15,6 @@ bool hasSecondary(const RequestState& request)
 
 bool hasDisplayable(const RequestState& request) { return request.roles[0].source.facts.present; }
 
-bool terminalSealed(const RequestState& request)
-{
-    return request.targetSpreadTerminal.sealed
-        && request.targetSpreadTerminal.generation == request.sequenceGeneration
-        && request.targetSpreadTerminal.requestId == request.roles[0].activeRequest.identity.id;
-}
-
 bool waitingForRender(const RequestState& request)
 {
     return request.status == ImageViewport::RequestStatus::Loading
@@ -34,123 +22,11 @@ bool waitingForRender(const RequestState& request)
             || request.reason == ImageViewport::RequestReason::RenderWaiting);
 }
 
-bool payloadMatches(PreparedPayloadIdentity actual, PreparedPayloadIdentity expected)
-{
-    return actual.isValid() && expected.isValid() && actual.generation == expected.generation
-        && actual.requestId == expected.requestId && actual.payloadId == expected.payloadId;
-}
-
-PreparedPayloadIdentity acknowledgedPayload(
-    const ViewportRenderAcknowledgement& acknowledgement, ImageViewport::PageRole role)
-{
-    for (const auto& payload : acknowledgement.rolePayloads) {
-        if (payload.role == role) {
-            return payload.preparedPayload;
-        }
-    }
-    return role == ImageViewport::PageRole::Primary ? acknowledgement.preparedPayload
-                                                    : PreparedPayloadIdentity {};
-}
-
-PreparedPayloadIdentity expectedPayload(
-    const DisplayState& display, const RequestState& request, ImageViewport::PageRole role)
-{
-    if (role == ImageViewport::PageRole::Primary) {
-        return display.roles[0].pendingRenderPayload.identity();
-    }
-    if (!hasSecondary(request)) {
-        return {};
-    }
-    const auto secondary = display.roles[1].pendingRenderPayload.identity();
-    return secondary.isValid() ? secondary : display.roles[0].pendingRenderPayload.identity();
-}
-
-bool primaryAcknowledgementMatches(const DisplayState& display, const RequestState& request,
-    const ViewportRenderAcknowledgement& acknowledgement)
-{
-    const auto actual = acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Primary);
-    return display.roles[0].pendingRenderPayload.commitPending
-        && payloadMatches(actual, display.roles[0].pendingRenderPayload.identity())
-        && request.activeRequestOwnsPreparedPayload(actual);
-}
-
-bool completeAcknowledgementMatches(const DisplayState& display, const RequestState& request,
-    const ViewportRenderAcknowledgement& acknowledgement)
-{
-    return primaryAcknowledgementMatches(display, request, acknowledgement)
-        && (!hasSecondary(request)
-            || payloadMatches(
-                acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Secondary),
-                expectedPayload(display, request, ImageViewport::PageRole::Secondary)));
-}
-
-bool failureAcknowledgementMatches(const DisplayState& display, const RequestState& request,
-    const ViewportRenderAcknowledgement& acknowledgement)
-{
-    if (acknowledgement.failedRole == ImageViewport::PageRole::Primary) {
-        return primaryAcknowledgementMatches(display, request, acknowledgement);
-    }
-    return hasSecondary(request)
-        && payloadMatches(acknowledgedPayload(acknowledgement, acknowledgement.failedRole),
-            expectedPayload(display, request, acknowledgement.failedRole));
-}
-
 bool pendingSpreadReady(const DisplayState& display, const RequestState& request)
 {
     return display.roles[0].pendingRenderPayload.commitPending
         && !display.roles[0].pendingRenderPayload.image.isNull()
         && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
-}
-
-void publishSecondaryDisplay(RequestState& request, DisplayState& display,
-    const ProviderGenerationState& secondaryProvider)
-{
-    if (!hasSecondary(request)) {
-        display.roles[1].displayedRequest = {};
-        display.roles[1].displayedImageSize = {};
-        display.roles[1].displayedImage = {};
-        display.roles[1].displayedPayload = {};
-        return;
-    }
-    display.roles[1].displayedRequest.generation = request.sequenceGeneration;
-    display.roles[1].displayedRequest.request = request.roles[1].activeRequest;
-    const int position = request.roles[1].activeRequest.resolvedFrame.position;
-    display.roles[1].displayedRequest.request.target.position = position;
-    display.roles[1].displayedRequest.request.resolvedFrame.position = position;
-    display.roles[1].displayedImageSize = request.roles[1].provider
-        ? secondaryProvider.logicalSize
-        : sourceLogicalSize(request.roles[1].source);
-    if (!request.roles[1].provider
-        && !display.roles[1].pendingRenderPayload.image.isNull()) {
-        display.roles[1].displayedImage = display.roles[1].pendingRenderPayload.image;
-        display.roles[1].displayedPayload = display.roles[1].pendingRenderPayload;
-    }
-}
-
-void publishReady(RequestState& request, DisplayState& display,
-    const ProviderGenerationState& primaryProvider,
-    const ProviderGenerationState& secondaryProvider, const PreparedPayload& payload)
-{
-    request.status = ImageViewport::RequestStatus::Ready;
-    request.reason = ImageViewport::RequestReason::Ready;
-    display.status = ImageViewport::DisplayStatus::Ready;
-    if (request.roles[0].source.facts.provider) {
-        display.commitPreparedPayloadIdentity(request.roles[0].activeRequest, payload);
-    }
-    const int frame = request.roles[0].activeRequest.resolvedFrame.frame;
-    const int position = request.roles[0].activeRequest.resolvedFrame.position >= 0
-        ? request.roles[0].activeRequest.resolvedFrame.position
-        : request.roles[0].source.facts.provider
-        ? primaryProvider.timingIntervals.frameStartPosition(frame)
-        : sourceFrameStartPosition(request.roles[0].source, frame);
-    display.roles[0].displayedRequest = display.activeRequestSnapshot(
-        request.sequenceGeneration, request.roles[0].activeRequest, position);
-    display.roles[0].displayedImageSize = request.roles[0].source.facts.provider
-        ? primaryProvider.logicalSize
-        : sourceLogicalSize(request.roles[0].source);
-    display.roles[0].displayedImage = payload.image;
-    display.roles[0].displayedPayload = payload;
-    publishSecondaryDisplay(request, display, secondaryProvider);
 }
 
 void stageBuiltIn(RequestState& request, DisplayState& display)
@@ -176,165 +52,38 @@ void stageBuiltIn(RequestState& request, DisplayState& display)
     }
 }
 
-void markPlayback(
-    ViewportChangeSet& changes, PlaybackState& playback, ImageViewport::PlaybackPhase phase)
-{
-    if (playback.phase != phase) {
-        playback.phase = phase;
-        changes.playbackPhase = true;
-        changes.requestState = true;
-        changes.requestRevision = true;
-    }
-}
 }
 
 ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
     const RenderSynchronizationInput& input)
 {
-    ViewportRenderSynchronization result;
-    result.attempt = ++renderAccess().nextSynchronizationAttempt();
-    result.oldContentRect = input.oldContentRect;
-    result.oldVisibleImageRect = input.oldVisibleImageRect;
-    result.oldDisplayStatus = renderAccess().display().status;
-    result.pendingTargetCommit = !terminalSealed(renderAccess().request()) && waitingForRender(renderAccess().request())
-        && pendingSpreadReady(renderAccess().display(), renderAccess().request()) && !input.itemBounds.isEmpty();
-    result.pendingSecondaryProviderCommit = result.pendingTargetCommit
-        && hasSecondary(renderAccess().request()) && renderAccess().request().roles[1].provider
-        && !renderAccess().display().roles[1].pendingRenderPayload.image.isNull();
-    if (result.pendingTargetCommit) {
-        result.preparedPayload = renderAccess().display().roles[0].pendingRenderPayload;
-    } else if (renderAccess().display().roles[0].pendingRenderPayload.commitPending
-        && renderAccess().display().hasReadyDisplay(hasDisplayable(renderAccess().request()))) {
-        result.preparedPayload = renderAccess().display().roles[0].pendingRenderPayload;
-        result.preparedPayload.image = renderAccess().display().roles[0].displayedImage;
-    }
-    result.geometryState
-        = geometryState(result.pendingTargetCommit ? input.pendingGeometry : input.currentGeometry);
-    result.renderSnapshot = renderSnapshot({ input.itemSize, result.pendingTargetCommit,
-        result.preparedPayload, result.geometryState });
-    renderAccess().lastSynchronization() = result;
-    return result;
+    return synchronizeViewportEngineRender(input,
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->presentationState.presentation, m_state->renderCoordination });
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderCommit(
+ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
     const RenderAcknowledgementInput& input)
 {
-    ViewportChangeSet changes;
-    if (terminalSealed(renderAccess().request()) || !input.renderedImagePresent
-        || (input.acknowledgement.synchronizationAttempt != 0
-            && (input.acknowledgement.synchronizationAttempt != input.synchronizationAttempt
-                || input.synchronizationAttempt != renderAccess().nextSynchronizationAttempt()))
-        || !completeAcknowledgementMatches(renderAccess().display(), renderAccess().request(), input.acknowledgement)) {
-        return changes;
-    }
-    const auto oldStatus = renderAccess().display().status;
-    if (input.pendingTargetCommit) {
-        publishReady(renderAccess().request(), renderAccess().display(),
-            providerFor(renderAccess().roles(), ImageViewport::PageRole::Primary),
-            providerFor(renderAccess().roles(), ImageViewport::PageRole::Secondary), input.preparedPayload);
-    }
-    if (input.pendingSecondaryProviderCommit) {
-        renderAccess().display().roles[1].displayedImage = renderAccess().display().roles[1].pendingRenderPayload.image;
-        renderAccess().display().roles[1].displayedPayload = renderAccess().display().roles[1].pendingRenderPayload;
-        renderAccess().display().roles[1].displayedImageSize
-            = providerFor(renderAccess().roles(), ImageViewport::PageRole::Secondary).logicalSize;
-    }
-    const bool resume = renderAccess().playback().phase == ImageViewport::PlaybackPhase::Waiting
-        && renderAccess().request().status == ImageViewport::RequestStatus::Ready;
-    renderAccess().display().commitDisplayedRequestSnapshot(renderAccess().request().sequenceGeneration,
-        renderAccess().request().roles[0].activeRequest, renderAccess().display().roles[0].pendingRenderPayload.payloadId);
-    renderAccess().display().clearPendingRenderPayload();
-    renderAccess().display().clearRenderFailureRetainedDisplay();
-    if (resume) {
-        markPlayback(changes, renderAccess().playback(),
-            renderAccess().playback().stopWhenRequestReady ? ImageViewport::PlaybackPhase::Stopped
-                                                        : ImageViewport::PlaybackPhase::Playing);
-        renderAccess().playback().stopWhenRequestReady = false;
-    }
-    if (input.pendingTargetCommit) {
-        changes.requestState = true;
-        changes.requestRevision = true;
-        changes.displayRevision = true;
-        changes.displayState = renderAccess().display().status != oldStatus;
-        changes.geometryState
-            = rectsDifferExactly(
-                  PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
-            || rectsDifferExactly(PresentationGeometry::visibleImageRect(input.geometryState),
-                input.oldVisibleImageRect);
-    }
-    return changes;
+    auto reduction = reduceViewportEngineRenderCommit(input,
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->playbackState.playback, m_state->providerState.roles,
+            m_state->renderCoordination });
+    return { reduction.changes,
+        reduction.changes.playbackPhase ? playbackScheduleEffect()
+                                        : ViewportPlaybackScheduleEffect {} };
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::acknowledgeRenderFailure(
+ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
     const RenderAcknowledgementInput& input)
 {
-    ViewportChangeSet changes;
-    const bool pending
-        = waitingForRender(renderAccess().request()) && pendingSpreadReady(renderAccess().display(), renderAccess().request());
-    if (terminalSealed(renderAccess().request())
-        || (input.acknowledgement.synchronizationAttempt != 0
-            && input.acknowledgement.synchronizationAttempt != renderAccess().nextSynchronizationAttempt())
-        || !failureAcknowledgementMatches(renderAccess().display(), renderAccess().request(), input.acknowledgement)
-        || (renderAccess().display().status != ImageViewport::DisplayStatus::Ready && !pending)) {
-        return changes;
-    }
-    const auto oldStatus = renderAccess().display().status;
-    const auto failed
-        = acknowledgedPayload(input.acknowledgement, input.acknowledgement.failedRole);
-    const RenderFailureDiagnostic diagnostic { true, input.acknowledgement.failedRole,
-        failed.generation, failed.requestId, failed.payloadId, input.acknowledgement.failureCause };
-    renderAccess().request().lastAcceptedRenderFailure = diagnostic;
-    changes.renderFailureDiagnostic = diagnostic;
-    renderAccess().display().clearPendingRenderPayload();
-    if (renderAccess().display().roles[0].retainedDisplayValid) {
-        renderAccess().display().status = ImageViewport::DisplayStatus::Retained;
-        for (auto& role : renderAccess().display().roles) {
-            if (role.retainedDisplayValid) {
-                role.displayedRequest = role.retainedRequest;
-                role.displayedImageSize = role.retainedImageSize;
-                role.displayedImage = role.retainedImage;
-            } else {
-                role.displayedRequest = {};
-                role.displayedImageSize = {};
-                role.displayedImage = {};
-                role.displayedPayload = {};
-            }
-        }
-    } else {
-        renderAccess().display().status = ImageViewport::DisplayStatus::Empty;
-        renderAccess().display().clearDisplayedDisplay();
-    }
-    renderAccess().display().clearRenderFailureRetainedDisplay();
-    auto& terminal = renderAccess().request().targetSpreadTerminal;
-    terminal.clear();
-    terminal.sealed = true;
-    terminal.generation = renderAccess().request().sequenceGeneration;
-    terminal.requestId = renderAccess().request().roles[0].activeRequest.identity.id;
-    auto& role = input.acknowledgement.failedRole == ImageViewport::PageRole::Primary
-        ? terminal.primary
-        : terminal.secondary;
-    role.terminal = true;
-    role.status = ImageViewport::RequestStatus::Error;
-    role.reason = ImageViewport::RequestReason::RenderFailure;
-    role.failureScope = FailureScope::DisplayRequest;
-    role.diagnostic = QStringLiteral("render commit failed");
-    renderAccess().request().status = role.status;
-    renderAccess().request().reason = role.reason;
-    const bool diagnosticChanged = renderAccess().request().errorString != role.diagnostic;
-    renderAccess().request().errorString = role.diagnostic;
-    markPlayback(changes, renderAccess().playback(), ImageViewport::PlaybackPhase::Stopped);
-    changes.requestState = true;
-    changes.requestRevision = true;
-    changes.diagnostics = diagnosticChanged;
-    changes.displayRevision = true;
-    changes.displayState = renderAccess().display().status != oldStatus;
-    changes.geometryState = rectsDifferExactly(PresentationGeometry::contentRect(
-                                                   renderAccess().lastSynchronization().geometryState),
-                                renderAccess().lastSynchronization().oldContentRect)
-        || rectsDifferExactly(
-            PresentationGeometry::visibleImageRect(renderAccess().lastSynchronization().geometryState),
-            renderAccess().lastSynchronization().oldVisibleImageRect);
-    return changes;
+    auto reduction = reduceViewportEngineRenderFailure(input,
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->playbackState.playback, m_state->renderCoordination });
+    return { reduction.changes,
+        reduction.changes.playbackPhase ? playbackScheduleEffect()
+                                        : ViewportPlaybackScheduleEffect {},
+        reduction.diagnostic };
 }
 
 ViewportEngine::GeometryChangeResult ViewportEngine::handleGeometryChanged(

@@ -60,40 +60,30 @@ private:
     std::array<ViewportEngineRoleState, 2>& m_roles;
 };
 
-class ViewportEngineRenderStateAccess
+class ViewportEngineGeometryTransitionAccess
 {
 private:
     friend class ViewportEngine;
-    ViewportEngineRenderStateAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback, ImageViewportInternal::DisplayState& display,
-        std::array<ViewportEngineRoleState, 2>& roles, quint64& nextSynchronizationAttempt,
-        ViewportRenderSynchronization& lastSynchronization)
+    ViewportEngineGeometryTransitionAccess(ImageViewportInternal::RequestState& request,
+        ImageViewportInternal::DisplayState& display,
+        std::array<ViewportEngineRoleState, 2>& roles)
         : m_request(request)
-        , m_playback(playback)
         , m_display(display)
         , m_roles(roles)
-        , m_nextSynchronizationAttempt(nextSynchronizationAttempt)
-        , m_lastSynchronization(lastSynchronization)
     {
     }
 public:
-    ViewportEngineRenderStateAccess(const ViewportEngineRenderStateAccess&) = delete;
-    ViewportEngineRenderStateAccess& operator=(const ViewportEngineRenderStateAccess&) = delete;
+    ViewportEngineGeometryTransitionAccess(const ViewportEngineGeometryTransitionAccess&) = delete;
+    ViewportEngineGeometryTransitionAccess& operator=(const ViewportEngineGeometryTransitionAccess&) = delete;
 
     ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
     ImageViewportInternal::DisplayState& display() const { return m_display; }
     std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
-    quint64& nextSynchronizationAttempt() const { return m_nextSynchronizationAttempt; }
-    ViewportRenderSynchronization& lastSynchronization() const { return m_lastSynchronization; }
 
 private:
     ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
     ImageViewportInternal::DisplayState& m_display;
     std::array<ViewportEngineRoleState, 2>& m_roles;
-    quint64& m_nextSynchronizationAttempt;
-    ViewportRenderSynchronization& m_lastSynchronization;
 };
 
 class ViewportEnginePresentationStateAccess
