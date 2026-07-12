@@ -6,6 +6,8 @@
 #include "viewportengineproviderprojection_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
+#include "viewportengineprovidermetadataoperations_p.h"
+#include "viewportengineproviderterminaloperations_p.h"
 
 #include <type_traits>
 
@@ -132,6 +134,25 @@ static_assert(!HasRequestAccess<ViewportEngineProviderDemandRestageAccess>::valu
 static_assert(!HasDisplayStateAccess<ViewportEngineProviderDemandRestageAccess>::value);
 static_assert(!HasPlaybackAccess<ViewportEngineProviderDemandRestageAccess>::value);
 static_assert(!HasRolesAccess<ViewportEngineProviderDemandRestageAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderMetadataReadyAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderMetadataReadyAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderMetadataReadyAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderMetadataReadyAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderMetadataReadyAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderMetadataReadyAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderMetadataReady),
+    ViewportEngineProviderMetadataReadyReduction (*)(ViewportEngineProviderMetadataReadyInput,
+        ViewportEngineProviderMetadataReadyAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderTerminalProjectionAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderTerminalProjection),
+    ImageViewportInternal::ViewportChangeSet (*)(
+        ViewportEngineProviderTerminalProjectionInput,
+        ViewportEngineProviderTerminalProjectionAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);

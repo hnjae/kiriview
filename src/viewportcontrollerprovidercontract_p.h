@@ -23,12 +23,6 @@ struct ViewportProviderFrameEvent
     ImageSequenceProviderRequestToken token;
 };
 
-struct ViewportProviderMetadataReadyEvent
-{
-    ImageSequenceProviderRequestToken token;
-    ImageSequenceProviderMetadata metadata;
-};
-
 struct ViewportProviderMetadataTerminalResult
 {
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
@@ -57,27 +51,6 @@ struct ViewportProviderDispatchFailureEvent
 {
     ImageSequenceProviderRequestToken token;
     QString diagnostic;
-};
-
-struct ViewportProviderMetadataTargetRejection
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Unsupported;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::UnsupportedRequest;
-    int selectedFrame = -1;
-    bool updateActiveTarget = false;
-    bool selectedFromPosition = false;
-    bool clearPlaybackStartPending = false;
-};
-
-struct ViewportProviderAcceptedMetadataFacts
-{
-    bool timedMetadata = false;
-    bool timedPlaybackSupport = false;
-    bool frameSeekSupport = false;
-    bool positionSeekSupport = false;
-    QSizeF logicalSize;
-    TimingIntervals timingIntervals;
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts;
 };
 
 struct ViewportProviderWaitingEvent
@@ -220,27 +193,7 @@ struct ViewportProviderTerminalEventResult
     ViewportPlaybackScheduleEffect schedule;
 };
 
-struct ViewportProviderMetadataAdmissionResult
-{
-    bool accepted = false;
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderAcceptedMetadataFacts facts;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
 struct ViewportProviderEndOfSequenceResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderMetadataTargetPolicyResult
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportProviderFrameTransportEffect providerFrameTransport;
-};
-
-struct ViewportProviderMetadataReadyResult
 {
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportProviderFrameTransportEffect providerFrameTransport;

@@ -44,6 +44,7 @@ private:
 class ViewportEngineProviderSessionCloseAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEngineProviderMetadataReadyAccess;
     friend ViewportProviderFrameTransportEffect closeViewportEngineProviderSession(
         ViewportEngineProviderSessionCloseAccess);
 

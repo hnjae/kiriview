@@ -1,0 +1,44 @@
+#pragma once
+
+#include "viewportenginestate_p.h"
+
+struct ViewportEngineProviderTerminalProjectionInput
+{
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Error;
+    ImageViewport::RequestReason reason = ImageViewport::RequestReason::ProviderFailure;
+    ImageViewportInternal::FailureScope scope = ImageViewportInternal::FailureScope::None;
+    QString diagnostic;
+    ImageViewportInternal::ViewportChangeSet changes;
+};
+
+class ViewportEngineProviderMetadataReadyAccess;
+
+class ViewportEngineProviderTerminalProjectionAccess
+{
+    friend class ViewportEngine;
+    friend class ViewportEngineProviderMetadataReadyAccess;
+    friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
+        ViewportEngineProviderTerminalProjectionInput,
+        ViewportEngineProviderTerminalProjectionAccess);
+
+    explicit ViewportEngineProviderTerminalProjectionAccess(
+        ImageViewportInternal::RequestState& request)
+        : m_request(request)
+    {
+    }
+
+public:
+    ViewportEngineProviderTerminalProjectionAccess(
+        const ViewportEngineProviderTerminalProjectionAccess&)
+        = delete;
+    ViewportEngineProviderTerminalProjectionAccess(
+        ViewportEngineProviderTerminalProjectionAccess&&) noexcept
+        = default;
+
+private:
+    ImageViewportInternal::RequestState& m_request;
+};
+
+ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
+    ViewportEngineProviderTerminalProjectionInput, ViewportEngineProviderTerminalProjectionAccess);

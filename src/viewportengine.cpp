@@ -422,25 +422,6 @@ ViewportEngine::ProviderFrameEventAdmission ViewportEngine::admitProviderFrameEv
     return { true, providerFramePreparationState(input.role) };
 }
 
-ViewportEngine::ProviderMetadataEventAdmission ViewportEngine::admitProviderMetadataEvent(
-    ProviderEventAdmissionInput input)
-{
-    if (targetSpreadTerminalMatchesActiveRequest(m_state->requestState.request)) {
-        return {};
-    }
-
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(input.role)].provider;
-    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role)
-        || !provider.session.sessionActive || !provider.requests.activeMetadataToken.isValid()
-        || input.token != provider.requests.activeMetadataToken) {
-        return {};
-    }
-
-    provider.requests.activeMetadataToken = {};
-    return { true };
-}
-
 bool ViewportEngine::acceptsProviderSessionEvent(
     ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
 {

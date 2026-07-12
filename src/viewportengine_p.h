@@ -8,6 +8,7 @@
 #include "viewportenginecontracts_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
+#include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
@@ -117,11 +118,6 @@ public:
         FramePreparation::ProviderFrameState preparationState;
     };
 
-    struct ProviderMetadataEventAdmission
-    {
-        bool accepted = false;
-    };
-
     using RenderSynchronizationInput = ViewportEngineRenderSynchronizationInput;
 
     using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
@@ -190,22 +186,10 @@ public:
     ImageViewportInternal::ViewportChangeSet reduceProviderFrameEvent(ImageViewport::PageRole role,
         ViewportProviderFrameEvent event, ImageFrame* frame,
         ImageSequenceProviderFrameMetadata metadata, const GeometryInput& geometry);
-    ProviderMetadataEventAdmission admitProviderMetadataEvent(ProviderEventAdmissionInput input);
-    ViewportProviderMetadataAdmissionResult reduceProviderMetadataAdmission(
-        ImageViewport::PageRole role, const ImageSequenceProviderMetadata& metadata);
-    ViewportProviderMetadataReadyResult reduceProviderMetadataReady(ImageViewport::PageRole role,
-        const ViewportProviderMetadataReadyEvent& event, const GeometryInput& geometry);
 public:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
     VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ImageViewportInternal::ViewportChangeSet acceptProviderMetadataFacts(
-        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts);
-    ImageViewportInternal::ViewportChangeSet rejectProviderMetadataTarget(
-        ImageViewport::PageRole role, ViewportProviderMetadataTargetRejection rejection);
-    ViewportProviderMetadataTargetPolicyResult applyProviderMetadataTargetPolicy(
-        ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts,
-        const GeometryInput& geometry);
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
     ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
@@ -279,9 +263,6 @@ private:
     }
     FramePreparation::ProviderFrameState providerFramePreparationState(
         ImageViewport::PageRole role) const;
-    void recordProviderTerminal(ImageViewport::PageRole role, ImageViewport::RequestStatus status,
-        ImageViewport::RequestReason reason, ImageViewportInternal::FailureScope scope,
-        const QString& diagnostic, ImageViewportInternal::ViewportChangeSet& changes);
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();
