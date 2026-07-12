@@ -18,11 +18,6 @@ struct ViewportProviderFrameTerminalResult
     QString fallbackDiagnostic;
 };
 
-struct ViewportProviderFrameEvent
-{
-    ImageSequenceProviderRequestToken token;
-};
-
 struct ViewportProviderMetadataTerminalResult
 {
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;

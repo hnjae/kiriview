@@ -1,0 +1,57 @@
+#pragma once
+
+#include "framepreparation_p.h"
+#include "viewportenginecontracts_p.h"
+#include "viewportengineproviderterminaloperations_p.h"
+
+struct ViewportEngineProviderFrameReadyInput
+{
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageSequenceProviderRequestToken token;
+    ImageFrame* frame = nullptr;
+    ImageSequenceProviderFrameMetadata metadata;
+    ViewportEngineGeometryInput geometry;
+};
+
+struct ViewportEngineProviderFrameReadyReduction
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+};
+
+class ViewportEngineProviderFrameReadyAccess
+{
+    friend class ViewportEngine;
+    friend ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
+        ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess);
+
+    ViewportEngineProviderFrameReadyAccess(ImageViewportInternal::RequestState& request,
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display,
+        ImageViewportInternal::ProviderRoleState& provider,
+        const ImageViewportInternal::PresentationState& presentation)
+        : m_request(request)
+        , m_playback(playback)
+        , m_display(display)
+        , m_provider(provider)
+        , m_presentation(presentation)
+    {
+    }
+
+public:
+    ViewportEngineProviderFrameReadyAccess(const ViewportEngineProviderFrameReadyAccess&) = delete;
+    ViewportEngineProviderFrameReadyAccess(ViewportEngineProviderFrameReadyAccess&&) noexcept
+        = default;
+
+private:
+    ImageViewportInternal::ViewportChangeSet recordTerminal(
+        ViewportEngineProviderTerminalProjectionInput input);
+
+    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::DisplayState& m_display;
+    ImageViewportInternal::ProviderRoleState& m_provider;
+    const ImageViewportInternal::PresentationState& m_presentation;
+};
+
+ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady(
+    ViewportEngineProviderFrameReadyInput, ViewportEngineProviderFrameReadyAccess);

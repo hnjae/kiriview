@@ -27,42 +27,6 @@ bool fitModeValid(ImageViewport::FitMode mode)
     return false;
 }
 
-ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
-    ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? display.roles[1].pendingRenderPayload
-                                                      : display.roles[0].pendingRenderPayload;
-}
-
-ImageViewportInternal::DisplayRequest& activeRequestForRole(
-    ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
-}
-
-const ImageViewportInternal::DisplayRequest& activeRequestForRole(
-    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
-}
-
-bool targetSpreadTerminalMatchesActiveRequest(const ImageViewportInternal::RequestState& request)
-{
-    return request.targetSpreadTerminal.sealed
-        && request.targetSpreadTerminal.generation == request.sequenceGeneration
-        && request.targetSpreadTerminal.requestId == request.roles[0].activeRequest.identity.id;
-}
-
-bool hasProviderSequenceForRole(
-    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Primary
-        ? request.roles[0].source.facts.provider
-        : (request.roles[1].sequence && request.roles[1].provider);
-}
-
 ImageViewport::DisplayStatus retainedOrEmptyDisplayStatus(
     const ImageViewportInternal::DisplayState& display)
 {
@@ -149,34 +113,6 @@ double projectedZoomPercent(const PresentationGeometry::State& state)
         return state.manualZoom * 100.0;
     }
     return content.width() / spread.width() * state.devicePixelRatio * 100.0;
-}
-
-bool activeProviderFrameTokenMatchesActiveRequest(
-    const ImageViewportInternal::ProviderRoleState& provider,
-    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role,
-    ImageSequenceProviderRequestToken token)
-{
-    if (!provider.requests.activeFrameToken.isValid()
-        || token != provider.requests.activeFrameToken) {
-        return false;
-    }
-
-    const ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(request, role);
-    return token.isValid() && token == activeRequest.providerFrameToken;
-}
-
-bool displayedPrimaryPayloadMatchesActiveTarget(const ImageViewportInternal::DisplayState& display,
-    const ImageViewportInternal::RequestState& request)
-{
-    const ImageViewportInternal::DisplayRequest& activeRequest
-        = activeRequestForRole(request, ImageViewport::PageRole::Primary);
-    return display.hasReadyDisplay(request.roles[0].source.facts.present)
-        && display.roles[0].displayedRequest.generation == request.sequenceGeneration
-        && display.roles[0].displayedRequest.request.resolvedFrame.frame
-        == activeRequest.resolvedFrame.frame
-        && display.roles[0].displayedRequest.request.resolvedFrame.position
-        == activeRequest.resolvedFrame.position;
 }
 
 }
@@ -354,72 +290,6 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
     return projectViewportRenderSnapshot(input,
         { m_state->requestState.request, m_state->displayState.display,
             m_state->presentationState.presentation });
-}
-
-FramePreparation::ProviderFrameState ViewportEngine::providerFramePreparationState(
-    ImageViewport::PageRole role) const
-{
-    const ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    const ImageViewportInternal::DisplayRequest& request
-        = activeRequestForRole(m_state->requestState.request, role);
-    ImageViewportInternal::PreparedPayload preparedPayload
-        = m_state->displayState.display.roles[0].pendingRenderPayload;
-    if (role == ImageViewport::PageRole::Primary && !preparedPayload.identity().isValid()) {
-        preparedPayload.generation = m_state->requestState.request.sequenceGeneration;
-        preparedPayload.requestId = request.identity.id;
-        preparedPayload.payloadId = preparedPayload.requestId == 0
-            ? 0
-            : m_state->displayState.display.nextPreparedPayloadId + 1;
-    }
-    return {
-        provider.facts.metadataReady,
-        provider.facts.timedMetadata,
-        provider.facts.logicalSize,
-        provider.facts.timingIntervals,
-        request.resolvedFrame,
-        preparedPayload,
-        request.demandRevision,
-        m_state->presentationState.presentation.exactnessPreference,
-    };
-}
-
-ViewportEngine::ProviderFrameEventAdmission ViewportEngine::admitProviderFrameEvent(
-    ProviderEventAdmissionInput input)
-{
-    if (targetSpreadTerminalMatchesActiveRequest(m_state->requestState.request)) {
-        return {};
-    }
-
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(input.role)].provider;
-    if (!hasProviderSequenceForRole(m_state->requestState.request, input.role)
-        || !provider.session.sessionActive
-        || !activeProviderFrameTokenMatchesActiveRequest(
-            provider, m_state->requestState.request, input.role, input.token)) {
-        return {};
-    }
-
-    if (input.role == ImageViewport::PageRole::Secondary) {
-        ImageViewportInternal::PreparedPayload& preparedPayload = pendingPayloadForRole(
-            m_state->displayState.display, ImageViewport::PageRole::Primary);
-        ImageViewportInternal::DisplayRequest& primaryRequest
-            = activeRequestForRole(m_state->requestState.request, ImageViewport::PageRole::Primary);
-        if (!preparedPayload.identity().isValid()) {
-            preparedPayload.commitPending = true;
-            preparedPayload.generation = m_state->requestState.request.sequenceGeneration;
-            preparedPayload.requestId = primaryRequest.identity.id;
-            preparedPayload.payloadId = ++m_state->displayState.display.nextPreparedPayloadId;
-            if (displayedPrimaryPayloadMatchesActiveTarget(
-                    m_state->displayState.display, m_state->requestState.request)) {
-                preparedPayload.image = m_state->displayState.display.roles[0].displayedImage;
-            }
-            primaryRequest.preparedPayloadId = preparedPayload.payloadId;
-        }
-        provider.requests.activeFrameToken = {};
-    }
-
-    return { true, providerFramePreparationState(input.role) };
 }
 
 bool ViewportEngine::acceptsProviderSessionEvent(

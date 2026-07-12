@@ -3,6 +3,7 @@
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
+#include "viewportengineproviderframeoperations_p.h"
 #include "viewportengineproviderprojection_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
@@ -143,6 +144,17 @@ static_assert(!HasRolesAccess<ViewportEngineProviderMetadataReadyAccess>::value)
 static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderMetadataReady),
     ViewportEngineProviderMetadataReadyReduction (*)(ViewportEngineProviderMetadataReadyInput,
         ViewportEngineProviderMetadataReadyAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderFrameReadyAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderFrameReadyAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineProviderFrameReadyAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderFrameReady),
+    ViewportEngineProviderFrameReadyReduction (*)(ViewportEngineProviderFrameReadyInput,
+        ViewportEngineProviderFrameReadyAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
 static_assert(!HasRequestAccess<ViewportEngineProviderTerminalProjectionAccess>::value);

@@ -13,11 +13,13 @@ struct ViewportEngineProviderTerminalProjectionInput
 };
 
 class ViewportEngineProviderMetadataReadyAccess;
+class ViewportEngineProviderFrameReadyAccess;
 
 class ViewportEngineProviderTerminalProjectionAccess
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderMetadataReadyAccess;
+    friend class ViewportEngineProviderFrameReadyAccess;
     friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
         ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess);

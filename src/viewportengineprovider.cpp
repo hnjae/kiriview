@@ -27,14 +27,6 @@ DisplayRequest& requestForRole(RequestState& request, ImageViewport::PageRole ro
                                                       : request.roles[0].activeRequest;
 }
 
-ImageViewport::DisplayStatus retainedDisplayStatus(const DisplayState& display)
-{
-    const bool retained = (display.status == ImageViewport::DisplayStatus::Ready
-                              || display.status == ImageViewport::DisplayStatus::Retained)
-        && display.roles[0].displayedImageSize.isValid();
-    return retained ? ImageViewport::DisplayStatus::Retained : ImageViewport::DisplayStatus::Empty;
-}
-
 bool effectiveProviderLooping(
     const PlaybackState& playback, ImageSequenceAuthoredAnimationFacts authored)
 {
@@ -60,23 +52,6 @@ void updatePlaybackPhase(PlaybackState& playback, ImageViewport::PlaybackPhase p
     }
     playback.phase = phase;
     changes.playbackPhase = true;
-}
-
-void stageBuiltInSecondaryPayload(RequestState& request, DisplayState& display)
-{
-    if (!request.roles[1].sequence || request.roles[1].provider
-        || request.roles[1].activeRequest.target.frame < 0) {
-        return;
-    }
-    PreparedPayload payload;
-    payload.commitPending = true;
-    payload.generation = request.sequenceGeneration;
-    payload.requestId = request.roles[0].activeRequest.identity.id;
-    payload.payloadId = ++display.nextPreparedPayloadId;
-    request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
-    display.roles[1].pendingRenderPayload = FramePreparation::admitBuiltInFrame(
-        request.roles[1].source, request.roles[1].activeRequest.target.frame, payload)
-                                                .preparedPayload;
 }
 
 bool unsupportedCauseValid(ImageSequenceProviderSession::UnsupportedCause cause)
@@ -222,22 +197,36 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         break;
     }
     case ViewportProviderEvent::Kind::ImageFrameReady:
-    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady:
-        result.changes = reduceProviderFrameEvent(event.role, { event.token }, event.imageFrame,
-            event.kind == ViewportProviderEvent::Kind::ImageFrameReady
-                ? ImageSequenceProviderFrameMetadata::stillFrame()
-                : event.frameMetadata,
-            geometry);
+    case ViewportProviderEvent::Kind::ImageFrameWithMetadataReady: {
+        auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
+        ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
+            m_state->playbackState.playback, m_state->displayState.display, provider,
+            m_state->presentationState.presentation);
+        result.changes = reduceViewportEngineProviderFrameReady(
+            { event.role, event.token, event.imageFrame,
+                event.kind == ViewportProviderEvent::Kind::ImageFrameReady
+                    ? ImageSequenceProviderFrameMetadata::stillFrame()
+                    : event.frameMetadata,
+                geometry },
+            std::move(access))
+                             .changes;
         break;
+    }
     case ViewportProviderEvent::Kind::FrameHandleReady:
     case ViewportProviderEvent::Kind::FrameHandleWithMetadataReady: {
         std::unique_ptr<ImageSequenceProviderFrameHandle> owned(event.frameHandle);
-        result.changes = reduceProviderFrameEvent(event.role, { event.token },
-            owned ? owned->frame() : nullptr,
-            event.kind == ViewportProviderEvent::Kind::FrameHandleReady
-                ? ImageSequenceProviderFrameMetadata::stillFrame()
-                : event.frameMetadata,
-            geometry);
+        auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
+        ViewportEngineProviderFrameReadyAccess access(m_state->requestState.request,
+            m_state->playbackState.playback, m_state->displayState.display, provider,
+            m_state->presentationState.presentation);
+        result.changes = reduceViewportEngineProviderFrameReady(
+            { event.role, event.token, owned ? owned->frame() : nullptr,
+                event.kind == ViewportProviderEvent::Kind::FrameHandleReady
+                    ? ImageSequenceProviderFrameMetadata::stillFrame()
+                    : event.frameMetadata,
+                geometry },
+            std::move(access))
+                             .changes;
         break;
     }
     case ViewportProviderEvent::Kind::Waiting:
@@ -266,121 +255,6 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
     }
     result.schedule = currentPlaybackSchedule();
     return result;
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmission(
-    ImageViewport::PageRole role, const FramePreparation::ProviderFrameAdmissionResult& admission,
-    const GeometryInput& geometry)
-{
-    ViewportChangeSet changes;
-    auto& provider = providerFor(providerAccess().roles(), role);
-    if (!admission.accepted()) {
-        clearQueuedProviderFrameRequest(role);
-        provider.requests.activeFrameToken = {};
-        changes = reduceViewportEngineProviderTerminalProjection(
-            { role, admission.status, admission.reason, FailureScope::DisplayRequest,
-                admission.diagnostic, changes },
-            ViewportEngineProviderTerminalProjectionAccess(m_state->requestState.request));
-        updatePlaybackPhase(
-            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, changes);
-        return changes;
-    }
-
-    const auto oldRequestStatus = providerAccess().request().status;
-    const auto oldRequestReason = providerAccess().request().reason;
-    const auto oldGeometry = geometryState(geometry);
-    const bool diagnosticsChanged = providerAccess().request().clearDiagnostics();
-    provider.requests.activeFrameToken = {};
-
-    if (role == ImageViewport::PageRole::Secondary) {
-        providerAccess().display().roles[1].pendingRenderPayload = admission.preparedPayload;
-        const bool primaryReady
-            = providerAccess().display().roles[0].pendingRenderPayload.commitPending
-            && !providerAccess().display().roles[0].pendingRenderPayload.image.isNull();
-        TargetSpreadWaitState wait;
-        wait.requiresSecondary = true;
-        if (primaryReady && geometry.itemBounds.isEmpty()) {
-            wait.primary.renderWaiting = true;
-            wait.secondary.renderWaiting = true;
-        } else if (primaryReady) {
-            wait.primary.uploadPending = true;
-            wait.secondary.uploadPending = true;
-        } else {
-            wait.primary.providerWaiting = true;
-            wait.secondary.uploadPending = true;
-        }
-        providerAccess().request().status = ImageViewport::RequestStatus::Loading;
-        providerAccess().request().reason = projectWaitReason(wait);
-        providerAccess().display().status = retainedDisplayStatus(providerAccess().display());
-    } else {
-        providerAccess().request().targetSpreadTerminal.clear();
-        providerAccess().display().captureRenderFailureRetainedDisplay(
-            providerAccess().request().roles[0].source.facts.present);
-        providerAccess().display().commitPreparedPayloadIdentity(
-            providerAccess().request().roles[0].activeRequest, admission.preparedPayload);
-        stageBuiltInSecondaryPayload(providerAccess().request(), providerAccess().display());
-        TargetSpreadWaitState wait;
-        wait.requiresSecondary = providerAccess().request().roles[1].sequence
-            && (providerAccess().request().roles[1].provider
-                || providerAccess().request().roles[1].activeRequest.target.frame >= 0);
-        if (geometry.itemBounds.isEmpty()) {
-            wait.primary.renderWaiting = true;
-            if (wait.requiresSecondary && !providerAccess().request().roles[1].provider) {
-                wait.secondary.renderWaiting = true;
-            }
-        } else {
-            wait.primary.uploadPending = true;
-            if (wait.requiresSecondary && !providerAccess().request().roles[1].provider) {
-                wait.secondary.uploadPending = true;
-            }
-        }
-        if (wait.requiresSecondary && providerAccess().request().roles[1].provider
-            && providerAccess().display().roles[1].pendingRenderPayload.image.isNull()) {
-            wait.secondary.providerWaiting = true;
-        }
-        providerAccess().request().status = ImageViewport::RequestStatus::Loading;
-        providerAccess().request().reason = projectWaitReason(wait);
-        providerAccess().display().status = retainedDisplayStatus(providerAccess().display());
-        providerAccess().display().roles[0].pendingRenderPayload.commitPending = true;
-        if (providerAccess().playback().phase == ImageViewport::PlaybackPhase::Waiting
-            && providerAccess().request().status == ImageViewport::RequestStatus::Ready
-            && !providerAccess().display().roles[0].pendingRenderPayload.commitPending) {
-            updatePlaybackPhase(providerAccess().playback(),
-                providerAccess().playback().stopWhenRequestReady
-                    ? ImageViewport::PlaybackPhase::Stopped
-                    : ImageViewport::PlaybackPhase::Playing,
-                changes);
-            providerAccess().playback().stopWhenRequestReady = false;
-        }
-    }
-
-    const auto newGeometry = geometryState(geometry);
-    changes.requestRevision = oldRequestStatus != providerAccess().request().status
-        || oldRequestReason != providerAccess().request().reason;
-    changes.requestState = true;
-    changes.displayState = true;
-    changes.displayRevision = true;
-    changes.geometryState = PresentationGeometry::contentRect(oldGeometry)
-            != PresentationGeometry::contentRect(newGeometry)
-        || PresentationGeometry::visibleImageRect(oldGeometry)
-            != PresentationGeometry::visibleImageRect(newGeometry);
-    changes.diagnostics = diagnosticsChanged;
-    changes.scheduleUpdate = true;
-    return changes;
-}
-
-ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameEvent(
-    ImageViewport::PageRole role, ViewportProviderFrameEvent event, ImageFrame* frame,
-    ImageSequenceProviderFrameMetadata metadata, const GeometryInput& geometry)
-{
-    const ProviderFrameEventAdmission eventAdmission
-        = admitProviderFrameEvent({ role, event.token });
-    if (!eventAdmission.accepted) {
-        return {};
-    }
-    const auto frameAdmission
-        = FramePreparation::admitProviderFrame(frame, metadata, eventAdmission.preparationState);
-    return reduceProviderFrameAdmission(role, frameAdmission, geometry);
 }
 
 ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOpenFailure(

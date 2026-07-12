@@ -8,6 +8,7 @@
 #include "viewportenginecontracts_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
+#include "viewportengineproviderframeoperations_p.h"
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
@@ -107,17 +108,6 @@ public:
         std::array<ViewportEngineProviderSessionOpenEffect, 2> providerSessionOpenEffects;
         ViewportPlaybackScheduleEffect schedule;
     };
-    struct ProviderEventAdmissionInput
-    {
-        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
-        ImageSequenceProviderRequestToken token;
-    };
-    struct ProviderFrameEventAdmission
-    {
-        bool accepted = false;
-        FramePreparation::ProviderFrameState preparationState;
-    };
-
     using RenderSynchronizationInput = ViewportEngineRenderSynchronizationInput;
 
     using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
@@ -177,15 +167,6 @@ public:
         const ViewportEngineGeometryChangeInput& input);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ProviderFrameEventAdmission admitProviderFrameEvent(ProviderEventAdmissionInput input);
-    ImageViewportInternal::ViewportChangeSet reduceProviderFrameAdmission(
-        ImageViewport::PageRole role,
-        const FramePreparation::ProviderFrameAdmissionResult& admission,
-        const GeometryInput& geometry);
-    ImageViewportInternal::ViewportChangeSet reduceProviderFrameEvent(ImageViewport::PageRole role,
-        ViewportProviderFrameEvent event, ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata, const GeometryInput& geometry);
 public:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
@@ -261,8 +242,6 @@ private:
     {
         return role == ImageViewport::PageRole::Secondary ? 1U : 0U;
     }
-    FramePreparation::ProviderFrameState providerFramePreparationState(
-        ImageViewport::PageRole role) const;
     CommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);
     CommandResult accepted();
