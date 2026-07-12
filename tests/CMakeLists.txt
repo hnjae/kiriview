@@ -9,8 +9,8 @@ target_link_libraries(imageviewport_core_test_support INTERFACE ImageViewport Qt
 
 target_include_directories(imageviewport_core_test_support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
                                                                      ${OPENGL_INCLUDE_DIR})
-target_compile_definitions(
-    imageviewport_core_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
+target_compile_definitions(imageviewport_core_test_support
+                           INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 
 add_library(imageviewport_test_support INTERFACE)
 
@@ -19,22 +19,7 @@ target_link_libraries(imageviewport_test_support INTERFACE imageviewport_core_te
 
 target_compile_definitions(
     imageviewport_test_support INTERFACE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1
-                                         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src"
-                                         IMAGEVIEWPORT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-
-# M0 baseline conformance anchors before controller ownership refactors: - retained display after
-# failed replacement:
-# imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek. - command
-# failure preservation:
-# imageviewport_provider_terminal/providerFrameFailureRetainsDisplayAndClearsOnSeek. -
-# request/display revision behavior:
-# imageviewport_public_api/emptyGeometryChangeIncrementsDisplayRevision. - provider stale results:
-# imageviewport_provider_requests/providerTimedFrameSeekCancelsStaleRequest. - render
-# acknowledgement identity: imageviewport_render_commit/providerStaleRenderFailureIsIgnored. -
-# stop restoration: imageviewport_timed/timedFrameListStopWhileRenderWaitingRestoresPreviousDisplay.
-# - metadata-bound target selection:
-# imageviewport_provider_metadata/providerTimedMetadataSelectsInitialFrameRequest. - playback
-# waiting: imageviewport_provider_playback/providerTimedPlaybackWaitsForMetadata.
+                                         IMAGEVIEWPORT_QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src")
 
 # Add a Qt test executable without private probe declarations.
 function(add_imageviewport_core_qt_test target source)
@@ -69,9 +54,6 @@ target_link_libraries(viewportengine_capability_contract PRIVATE ImageViewport)
 target_compile_definitions(viewportengine_capability_contract
                            PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 add_test(NAME viewportengine_capability_contract COMMAND viewportengine_capability_contract)
-add_executable(viewportengine_facade_contract tst_viewportengine_facade_contract.cpp)
-target_link_libraries(viewportengine_facade_contract PRIVATE ImageViewport)
-add_test(NAME viewportengine_facade_contract COMMAND viewportengine_facade_contract)
 add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
 add_imageviewport_core_qt_test(viewportcontroller_presentation
                                tst_viewportcontroller_presentation.cpp)

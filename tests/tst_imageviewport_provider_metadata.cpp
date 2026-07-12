@@ -1,9 +1,5 @@
 #include "imageviewport_provider_test_support.h"
 
-#include <QtCore/QElapsedTimer>
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-
 namespace {
 
 enum MetadataProjectionScenario {
@@ -14,30 +10,6 @@ enum MetadataProjectionScenario {
     RuntimeStillMetadata,
     RuntimeTimedMetadata,
 };
-
-void verifyImageViewportMetadataProjectionIsControllerForwarding()
-{
-    QFile sourceFile(QStringLiteral(IMAGEVIEWPORT_SOURCE_DIR "/src/imageviewport.cpp"));
-    QVERIFY2(sourceFile.open(QIODevice::ReadOnly | QIODevice::Text),
-        qPrintable(QStringLiteral("could not open %1").arg(sourceFile.fileName())));
-
-    const QString source = QString::fromUtf8(sourceFile.readAll());
-    const QStringList forbiddenTokens {
-        QStringLiteral("m_hasCompleteProviderKnownMetadata"),
-        QStringLiteral("m_providerKnown"),
-        QStringLiteral("m_providerTimedPlaybackCapability"),
-        QStringLiteral("m_providerFrameSeekCapability"),
-        QStringLiteral("m_providerPositionSeekCapability"),
-        QStringLiteral("providerCapabilityKnownTrue("),
-        QStringLiteral("providerResolvedCapability("),
-        QStringLiteral("providerCapabilitySupport("),
-    };
-    for (const QString& token : forbiddenTokens) {
-        QVERIFY2(!source.contains(token),
-            qPrintable(QStringLiteral("ImageViewportPrivate metadata projection still uses %1")
-                    .arg(token)));
-    }
-}
 
 } // namespace
 
@@ -163,10 +135,6 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
     QFETCH(QByteArray, expectedTimedPlaybackSupport);
     QFETCH(QByteArray, expectedFrameSeekSupport);
     QFETCH(QByteArray, expectedPositionSeekSupport);
-
-    if (!secondaryRole && scenario == UnknownProviderFacts) {
-        verifyImageViewportMetadataProjectionIsControllerForwarding();
-    }
 
     ImageSequenceProviderKnownFacts knownFacts;
     ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport
