@@ -162,6 +162,7 @@ private Q_SLOTS:
     void directoryAdjacentImageUsesInjectedProvider();
     void comicBookAdjacentImageUsesInjectedProvider();
     void directArchiveAdjacentImageUsesInjectedProvider();
+    void archivePageUpdatePreservesConfirmedCandidateSnapshot();
     void pageNavigationKeepsKnownListWhileRefreshingCurrentImage();
     void pageNavigationStaysUnknownUntilArchiveListCompletes();
     void pageNavigationDoesNotPublishSyntheticBoundaryWhenCurrentMissing();
@@ -257,6 +258,68 @@ void TestImageDocumentPageNavigationService::directArchiveAdjacentImageUsesInjec
         NavigationDirection::Next);
 
     QCOMPARE(openedUrl, nextUrl);
+}
+
+void TestImageDocumentPageNavigationService::archivePageUpdatePreservesConfirmedCandidateSnapshot()
+{
+    FakeCandidateProvider fakeProvider;
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+    QVERIFY(archiveCollection.has_value());
+    const QUrl firstUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
+    const QUrl secondUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.png"));
+    fakeProvider.setOpenedCollectionCandidates(archiveCollection->rootUrl(),
+        {
+            imageDocumentPageCandidate(firstUrl),
+            imageDocumentPageCandidate(secondUrl),
+        });
+
+    std::vector<kiriview::ImageDocumentPageCandidateListSnapshot> observedSnapshots;
+    kiriview::ImageDocumentPageNavigationService* servicePtr = nullptr;
+    kiriview::ImageDocumentPageNavigationService service(nullptr, fakeProvider.provider(),
+        navigationCallbacks({}, {}, {}, [&servicePtr, &observedSnapshots]() {
+            observedSnapshots.push_back(servicePtr->confirmedPageCandidateSnapshot());
+        }));
+    servicePtr = &service;
+
+    const auto firstContext = navigationContext(
+        kiriview::DisplayedImageLocation::fromOpenedCollectionScope(firstUrl, *archiveCollection));
+    const auto secondContext = navigationContext(
+        kiriview::DisplayedImageLocation::fromOpenedCollectionScope(secondUrl, *archiveCollection));
+    service.updatePageNavigation(firstContext);
+
+    const auto& firstSnapshot = service.confirmedPageCandidateSnapshot();
+    QVERIFY(firstSnapshot.known);
+    QVERIFY(kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+        firstSnapshot, firstContext->source()));
+    const quint64 candidateRevision = firstSnapshot.revision;
+    const auto* candidateRows = firstSnapshot.candidates.get();
+    QVERIFY(candidateRows != nullptr);
+    QCOMPARE(fakeProvider.openedCollectionCandidateLoadCount(archiveCollection->rootUrl()), 1);
+
+    observedSnapshots.clear();
+    const std::optional<kiriview::ImageDocumentPageTarget> selectedTarget = service.selectPage(2);
+    QVERIFY(selectedTarget.has_value());
+    QCOMPARE(selectedTarget->url, secondUrl);
+    service.updatePageNavigation(secondContext);
+
+    QCOMPARE(service.currentPageNumber(), 2);
+    QCOMPARE(service.pageCount(), 2);
+    QCOMPARE(observedSnapshots.size(), std::size_t(2));
+    for (const kiriview::ImageDocumentPageCandidateListSnapshot& snapshot : observedSnapshots) {
+        QVERIFY(snapshot.known);
+        QVERIFY(kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
+            snapshot, secondContext->source()));
+        QCOMPARE(snapshot.revision, candidateRevision);
+        QVERIFY(snapshot.candidates.get() == candidateRows);
+    }
+
+    const auto& secondSnapshot = service.confirmedPageCandidateSnapshot();
+    QVERIFY(secondSnapshot.known);
+    QCOMPARE(secondSnapshot.revision, candidateRevision);
+    QVERIFY(secondSnapshot.candidates.get() == candidateRows);
+    QCOMPARE(fakeProvider.openedCollectionCandidateLoadCount(archiveCollection->rootUrl()), 1);
 }
 
 void TestImageDocumentPageNavigationService::

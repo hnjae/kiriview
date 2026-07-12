@@ -27,6 +27,12 @@ struct ImageDocumentPageNavigationRefreshPlan
     quint64 refreshId = 0;
 };
 
+struct ImageDocumentPageNavigationCandidateReuseResult
+{
+    bool reused = false;
+    bool changed = false;
+};
+
 class ImageDocumentPageNavigationModel
 {
 public:
@@ -42,6 +48,8 @@ public:
     std::optional<ImageDocumentPageTarget> selectAdjacentPage(NavigationDirection direction);
 
     bool shouldKeepExistingWatcherFor(const ImageDocumentPageCandidateListContext& context) const;
+    ImageDocumentPageNavigationCandidateReuseResult reuseConfirmedCandidates(
+        const ImageDocumentPageCandidateListContext& context);
     ImageDocumentPageNavigationRefreshPlan beginRefresh(
         const ImageDocumentPageCandidateListContext& context);
     bool completeRefresh(const std::vector<ImageDocumentPageCandidate>& candidates,

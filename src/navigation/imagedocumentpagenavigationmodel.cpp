@@ -107,6 +107,23 @@ bool ImageDocumentPageNavigationModel::shouldKeepExistingWatcherFor(
             m_knownRefreshContext->source(), context.source());
 }
 
+ImageDocumentPageNavigationCandidateReuseResult
+ImageDocumentPageNavigationModel::reuseConfirmedCandidates(
+    const ImageDocumentPageCandidateListContext& context)
+{
+    if (!imageDocumentPageCandidateListSnapshotMatchesSource(
+            m_candidateSnapshot, context.source())) {
+        return {};
+    }
+
+    m_pendingRefresh.cancel();
+    m_pendingRefreshContext = context;
+    m_knownRefreshContext = context;
+    const bool changed
+        = replaceState(pageNavigationStateForCurrentUrl(m_state, context.currentUrl()), true);
+    return ImageDocumentPageNavigationCandidateReuseResult { true, changed };
+}
+
 ImageDocumentPageNavigationRefreshPlan ImageDocumentPageNavigationModel::beginRefresh(
     const ImageDocumentPageCandidateListContext& context)
 {

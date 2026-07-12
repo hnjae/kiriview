@@ -177,21 +177,16 @@ void ImageDocumentPageNavigationController::update(
         return;
     }
 
-    const std::optional<ImageDocumentPageCandidateSnapshot> snapshot = m_model.candidateSnapshot();
-    if (snapshot.has_value() && pageCandidateSourceIsOpenedCollection(context->source())
-        && imageDocumentPageCandidateSnapshotMatchesSource(*snapshot, context->source())) {
-        const ImageDocumentPageNavigationRefreshPlan refreshPlan = m_model.beginRefresh(*context);
-        if (refreshPlan.changed) {
-            notifyChanged();
+    if (pageCandidateSourceIsOpenedCollection(context->source())) {
+        const ImageDocumentPageNavigationCandidateReuseResult reuse
+            = m_model.reuseConfirmedCandidates(*context);
+        if (reuse.reused) {
+            if (reuse.changed) {
+                notifyChanged();
+            }
+            watchChanges(*context);
+            return;
         }
-
-        const ImageDocumentPageNavigationRefreshResult refresh = m_model.completePendingRefresh(
-            snapshot->candidates, refreshPlan.refreshId, context->source());
-        if (refresh.accepted && refresh.changed) {
-            notifyChanged();
-        }
-        watchChanges(*context);
-        return;
     }
 
     const ImageDocumentPageNavigationRefreshPlan refreshPlan = m_model.beginRefresh(*context);
