@@ -3,14 +3,13 @@
 
 PresentationGeometry::State ViewportController::geometryState(double devicePixelRatio) const
 {
-    return engine.geometryState(
-        engine.projectedGeometryInput(itemBounds(), devicePixelRatio));
+    return engine.geometryState({ itemBounds(), devicePixelRatio });
 }
 
 PresentationGeometry::State ViewportController::geometryStateForItemBounds(
     const QRectF& itemBounds, double devicePixelRatio) const
 {
-    return engine.geometryState(engine.projectedGeometryInput(itemBounds, devicePixelRatio));
+    return engine.geometryState({ itemBounds, devicePixelRatio });
 }
 
 double ViewportController::minimumManualZoomPercent() const
@@ -21,7 +20,7 @@ double ViewportController::minimumManualZoomPercent() const
 double ViewportController::maximumManualZoomPercent(double devicePixelRatio) const
 {
     return manualZoomMaximumPercentValue(
-        engine.geometryState(engine.projectedGeometryInput(itemBounds(), devicePixelRatio)));
+        engine.geometryState({ itemBounds(), devicePixelRatio }));
 }
 
 double ViewportController::manualZoomStepFactor() const { return manualZoomStepFactorValue(); }
@@ -29,11 +28,11 @@ double ViewportController::manualZoomStepFactor() const { return manualZoomStepF
 double ViewportController::clampedManualZoomPercent(double percent, double devicePixelRatio) const
 {
     return clampedManualZoomPercentValue(percent,
-        engine.geometryState(engine.projectedGeometryInput(itemBounds(), devicePixelRatio)));
+        engine.geometryState({ itemBounds(), devicePixelRatio }));
 }
 
 double ViewportController::steppedManualZoomPercent(int stepCount, double devicePixelRatio) const
 {
     return steppedManualZoomPercentValue(stepCount,
-        engine.geometryState(engine.projectedGeometryInput(itemBounds(), devicePixelRatio)));
+        engine.geometryState({ itemBounds(), devicePixelRatio }));
 }

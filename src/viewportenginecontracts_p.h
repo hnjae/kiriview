@@ -5,6 +5,12 @@
 #include <QtCore/QRectF>
 #include <QtCore/QSizeF>
 
+struct ViewportEngineViewportInput
+{
+    QRectF itemBounds;
+    double devicePixelRatio = 1.0;
+};
+
 struct ViewportEngineGeometryInput
 {
     bool primaryPresent = false;
@@ -12,11 +18,6 @@ struct ViewportEngineGeometryInput
     QSizeF primarySize;
     QSizeF secondarySize;
     double devicePixelRatio = 1.0;
-};
-
-enum class ViewportEngineGeometryProjectionTarget {
-    CurrentDisplay,
-    PendingRender,
 };
 
 struct ViewportEngineSnapshotInput

@@ -6,7 +6,7 @@
 ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackCommand command)
 {
     const ViewportEngine::PlaybackCommandResult engineResult
-        = engine.applyPlaybackCommand({ command, engine.acceptedGeometryInput(itemBounds()) });
+        = engine.applyPlaybackCommand({ command, { itemBounds(), 1.0 } });
     ViewportCommandResult result;
     result.outcome = engineResult.command.outcome;
     result.transition.changes = engineResult.changes;
@@ -47,8 +47,8 @@ ViewportCommandResult ViewportController::seekToPosition(
 
 ViewportControllerTransition ViewportController::advancePlayback(int elapsedMilliseconds)
 {
-    const ViewportEngine::PlaybackTickResult engineResult = engine.advancePlayback(
-        { elapsedMilliseconds, engine.acceptedGeometryInput(itemBounds()) });
+    const ViewportEngine::PlaybackTickResult engineResult
+        = engine.advancePlayback({ elapsedMilliseconds, { itemBounds(), 1.0 } });
     ViewportControllerTransition result;
     result.changes = engineResult.changes;
     appendProviderTransport(result.providerBeforePublication,

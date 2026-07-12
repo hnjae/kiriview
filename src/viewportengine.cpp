@@ -155,22 +155,28 @@ PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& i
     return projectViewportGeometryState(input, m_state->presentationState.presentation);
 }
 
-ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(
-    const QRectF& itemBounds, double devicePixelRatio, GeometryProjectionTarget target) const
+ViewportEngine::GeometryInput ViewportEngine::currentGeometry(ViewportInput input) const
 {
-    if (target == GeometryProjectionTarget::CurrentDisplay) {
-        return projectViewportCurrentGeometry({ itemBounds, devicePixelRatio },
-            { m_state->requestState.request, m_state->displayState.display });
-    }
-    return projectViewportPendingGeometry({ itemBounds, devicePixelRatio },
+    return projectViewportCurrentGeometry({ input.itemBounds, input.devicePixelRatio },
+        { m_state->requestState.request, m_state->displayState.display });
+}
+
+ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(ViewportInput input) const
+{
+    return projectViewportPendingGeometry({ input.itemBounds, input.devicePixelRatio },
         { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
 }
 
-ViewportEngine::GeometryInput ViewportEngine::acceptedGeometryInput(
-    const QRectF& itemBounds, double devicePixelRatio) const
+ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(ViewportInput input) const
 {
     return projectViewportAcceptedGeometry(
-        { itemBounds, devicePixelRatio }, { m_state->requestState.request, providerFactsView() });
+        { input.itemBounds, input.devicePixelRatio },
+        { m_state->requestState.request, providerFactsView() });
+}
+
+PresentationGeometry::State ViewportEngine::geometryState(ViewportInput input) const
+{
+    return geometryState(currentGeometry(input));
 }
 
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
@@ -197,7 +203,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
         m_state->providerState.roles, m_state->presentationState.presentation);
     const auto reduction = reduceViewportEnginePresentationTargetAssignment(
         { input.presentationTarget, input.transitionPolicy, input.primarySource,
-            input.secondarySource, input.geometry },
+            input.secondarySource, acceptedGeometry(input.viewport) },
         std::move(access));
     result.presentationTargetState = reduction.presentationTargetState;
     result.presentationTargetChanged = reduction.presentationTargetChanged;

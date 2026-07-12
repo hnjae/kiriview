@@ -4,8 +4,9 @@
 ViewportControllerTransition ViewportController::handleGeometryChanged(
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
-    const auto engineResult = engine.handleGeometryChanged({ itemBounds(), oldContentRect,
-        oldVisibleImageRect, engine.geometryState(engine.projectedGeometryInput(itemBounds())) });
+    const auto engineResult
+        = engine.handleGeometryChanged({ { itemBounds(), 1.0 }, oldContentRect,
+            oldVisibleImageRect });
     ViewportControllerTransition result;
     result.changes = engineResult.changes;
     appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[0],
@@ -18,14 +19,7 @@ ViewportControllerTransition ViewportController::handleGeometryChanged(
 ViewportRenderSynchronization ViewportController::beginRenderSynchronization(
     double devicePixelRatio)
 {
-    const QRectF bounds = itemBounds();
-    const auto current = engine.projectedGeometryInput(bounds, devicePixelRatio);
-    const auto pending = engine.projectedGeometryInput(
-        bounds, devicePixelRatio, ViewportEngine::GeometryProjectionTarget::PendingRender);
-    const auto currentState = engine.geometryState(current);
-    return engine.beginRenderSynchronization(
-        { bounds.size(), bounds, PresentationGeometry::contentRect(currentState),
-            PresentationGeometry::visibleImageRect(currentState), current, pending });
+    return engine.beginRenderSynchronization({ { itemBounds(), devicePixelRatio } });
 }
 
 ViewportControllerTransition ViewportController::acknowledgeRenderCommit(

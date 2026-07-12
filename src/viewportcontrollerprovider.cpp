@@ -8,8 +8,7 @@ ViewportControllerTransition ViewportController::handleProviderHostEvent(
     ViewportControllerTransition result;
     switch (event.kind) {
     case ViewportProviderHostEvent::Kind::SessionOpened: {
-        const auto opened = engine.reduceProviderSessionOpened(
-            event.role, engine.acceptedGeometryInput(itemBounds()));
+        const auto opened = engine.reduceProviderSessionOpened(event.role, { itemBounds(), 1.0 });
         appendProviderTransport(
             result.providerAfterPublication, opened.providerMetadataTransport, event.role);
         appendProviderTransport(
@@ -23,8 +22,8 @@ ViewportControllerTransition ViewportController::handleProviderHostEvent(
         return result;
     }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
-        const auto reduced = engine.reduceProviderEvent(
-            event.providerEvent, engine.acceptedGeometryInput(itemBounds()));
+        const auto reduced
+            = engine.reduceProviderEvent(event.providerEvent, { itemBounds(), 1.0 });
         result.changes = reduced.changes;
         auto& batch = reduced.providerFrameTransportPhase
                 == ViewportProviderEventTransportPhase::BeforeChanges
@@ -48,8 +47,8 @@ ViewportControllerTransition ViewportController::handleProviderHostEvent(
         return result;
     }
     case ViewportProviderHostEvent::Kind::FlushQueuedFrameRequest: {
-        const auto reduced = engine.reduceQueuedProviderFrameRequest(
-            event.role, engine.acceptedGeometryInput(itemBounds()));
+        const auto reduced
+            = engine.reduceQueuedProviderFrameRequest(event.role, { itemBounds(), 1.0 });
         result.changes = reduced.changes;
         appendProviderTransport(
             result.providerAfterPublication, reduced.providerFrameTransport, event.role);
@@ -79,8 +78,7 @@ ViewportControllerTransition ViewportController::handleDevicePixelRatioChanged(
     result.changes.displayRevision = true;
     result.changes.geometryState = true;
     result.changes.scheduleUpdate = true;
-    const auto effects = engine.restageProviderDemands(
-        engine.acceptedGeometryInput(itemBounds(), devicePixelRatio));
+    const auto effects = engine.restageProviderDemands({ itemBounds(), devicePixelRatio });
     appendProviderTransport(
         result.providerAfterPublication, effects[0], ImageViewport::PageRole::Primary);
     appendProviderTransport(

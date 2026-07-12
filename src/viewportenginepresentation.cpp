@@ -48,7 +48,7 @@ bool applyContentPosition(PresentationState& presentation,
 }
 
 void preserveAnchoredContentPosition(PresentationState& presentation,
-    const ViewportEngine::GeometryInput& geometryInput,
+    const ViewportEngineGeometryInput& geometryInput,
     const PresentationGeometry::State& previousGeometry, QPointF anchor)
 {
     const CoordinateResult anchoredSpreadPoint
@@ -326,10 +326,12 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
 }
 
 ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationCommand(
-    const ViewportEnginePresentationCommandInput& input)
+    const PresentationCommandInput& input)
 {
     PresentationCommandResult result;
-    if (!validateViewportEnginePresentationCommand(input)) {
+    const ViewportEnginePresentationCommandInput operationInput { input.command,
+        currentGeometry(input.viewport), input.anchor, input.quarterTurnDelta };
+    if (!validateViewportEnginePresentationCommand(operationInput)) {
         result.command = rejectInvalidCommand();
         return result;
     }
@@ -339,7 +341,8 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     ViewportEnginePresentationCommandStateView presentationState(
         m_state->presentationState.presentation, m_state->playbackState.playback.looping,
         readyDisplay);
-    auto reduction = reduceViewportEnginePresentationCommand(input, std::move(presentationState));
+    auto reduction
+        = reduceViewportEnginePresentationCommand(operationInput, std::move(presentationState));
     if (!reduction.presentation && !reduction.looping) {
         result.command = acceptedPreservingCommandDiagnostics();
         return result;
@@ -353,7 +356,7 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     result.command = accepted();
     result.changes = reduction.changes;
     if (reduction.restageProviderDemands) {
-        result.providerEffects = restageProviderDemands(input.geometry);
+        result.providerEffects = restageProviderDemands(operationInput.geometry);
         const bool restaged
             = result.providerEffects[0].sendCommand || result.providerEffects[1].sendCommand;
         if (restaged) {

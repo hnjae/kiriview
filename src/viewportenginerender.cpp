@@ -6,7 +6,13 @@
 ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
     const RenderSynchronizationInput& input)
 {
-    return synchronizeViewportEngineRender(input,
+    const GeometryInput current = currentGeometry(input.viewport);
+    const PresentationGeometry::State currentState = geometryState(current);
+    const ViewportEngineRenderSynchronizationInput operationInput { input.viewport.itemBounds.size(),
+        input.viewport.itemBounds, PresentationGeometry::contentRect(currentState),
+        PresentationGeometry::visibleImageRect(currentState), current,
+        pendingGeometry(input.viewport) };
+    return synchronizeViewportEngineRender(operationInput,
         { m_state->requestState.request, m_state->displayState.display,
             m_state->presentationState.presentation, m_state->renderCoordination });
 }
@@ -35,11 +41,13 @@ ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
 }
 
 ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
-    const ViewportEngineGeometryChangeInput& input)
+    const GeometryChangeInput& input)
 {
+    const ViewportEngineGeometryChangeInput operationInput { input.viewport.itemBounds,
+        input.oldContentRect, input.oldVisibleImageRect, geometryState(input.viewport) };
     ViewportEngineGeometryChangeAccess access(
         m_state->requestState.request, m_state->displayState.display);
-    auto reduction = reduceViewportEngineGeometryChange(input, std::move(access));
+    auto reduction = reduceViewportEngineGeometryChange(operationInput, std::move(access));
     ViewportEngineGeometryChangeTransition result;
     result.changes = reduction.changes;
     if (reduction.providerDemandGeometry) {

@@ -87,6 +87,24 @@ struct HasPublicRevisionAllocator<Engine,
     std::void_t<decltype(std::declval<Engine&>().allocateRevisionValue())>> : std::true_type
 {
 };
+template <typename Engine, typename = void> struct HasPublicAcceptedGeometryInput : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicAcceptedGeometryInput<Engine,
+    std::void_t<decltype(std::declval<const Engine&>().acceptedGeometryInput(QRectF {}, 1.0))>>
+    : std::true_type
+{
+};
+template <typename Engine, typename = void> struct HasPublicProjectedGeometryInput : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicProjectedGeometryInput<Engine,
+    std::void_t<decltype(std::declval<const Engine&>().projectedGeometryInput(QRectF {}, 1.0))>>
+    : std::true_type
+{
+};
 template <typename Engine>
 struct HasPlaybackScheduleEffect<Engine,
     std::void_t<decltype(std::declval<const Engine&>().playbackScheduleEffect())>> : std::true_type
@@ -378,6 +396,23 @@ static_assert(std::is_same_v<decltype(&projectViewportPlaybackSchedule),
 static_assert(!HasPlaybackScheduleEffect<ViewportEngine>::value);
 static_assert(!HasPublicRejectInvalidCommand<ViewportEngine>::value);
 static_assert(!HasPublicRevisionAllocator<ViewportEngine>::value);
+static_assert(!HasPublicAcceptedGeometryInput<ViewportEngine>::value);
+static_assert(!HasPublicProjectedGeometryInput<ViewportEngine>::value);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PresentationTargetAssignmentInput>()
+                                          .viewport),
+    ViewportEngineViewportInput>);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PlaybackCommandInput>().viewport),
+    ViewportEngineViewportInput>);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PlaybackTickInput>().viewport),
+    ViewportEngineViewportInput>);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PresentationCommandInput>()
+                                          .viewport),
+    ViewportEngineViewportInput>);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::RenderSynchronizationInput>()
+                                          .viewport),
+    ViewportEngineViewportInput>);
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::GeometryChangeInput>().viewport),
+    ViewportEngineViewportInput>);
 static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackPauseAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackPauseAccess>);
 static_assert(!std::is_const_v<std::remove_reference_t<

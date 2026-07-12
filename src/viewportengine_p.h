@@ -55,9 +55,7 @@ public:
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
     ViewportEngine& operator=(const ViewportEngine&) = delete;
-    using GeometryInput = ViewportEngineGeometryInput;
-    using GeometryProjectionTarget = ViewportEngineGeometryProjectionTarget;
-    using SnapshotInput = ViewportEngineSnapshotInput;
+    using ViewportInput = ViewportEngineViewportInput;
 
     using PresentationTargetState = ViewportEnginePresentationTargetState;
 
@@ -68,7 +66,7 @@ public:
         PresentationTargetTransitionPolicy transitionPolicy;
         ImageViewportInternal::ImageSequenceSource primarySource;
         ImageViewportInternal::ImageSequenceSource secondarySource;
-        GeometryInput geometry;
+        ViewportInput viewport;
     };
 
     struct CommandDiagnostics
@@ -107,19 +105,29 @@ public:
         std::array<ViewportEngineProviderSessionOpenEffect, 2> providerSessionOpenEffects;
         ViewportPlaybackScheduleEffect schedule;
     };
-    using RenderSynchronizationInput = ViewportEngineRenderSynchronizationInput;
+    struct RenderSynchronizationInput
+    {
+        ViewportInput viewport;
+    };
+
+    struct GeometryChangeInput
+    {
+        ViewportInput viewport;
+        QRectF oldContentRect;
+        QRectF oldVisibleImageRect;
+    };
 
     using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
 
     struct PlaybackCommandInput
     {
         ViewportPlaybackCommand command;
-        GeometryInput geometry;
+        ViewportInput viewport;
     };
     struct PlaybackTickInput
     {
         int elapsedMilliseconds = 0;
-        GeometryInput geometry;
+        ViewportInput viewport;
     };
     struct PlaybackProviderEffects
     {
@@ -138,11 +146,17 @@ public:
         PlaybackProviderEffects effects;
         ViewportPlaybackScheduleEffect schedule;
     };
-    ImageViewportStateSnapshot snapshot() const;
-    ImageViewportStateSnapshot snapshot(const GeometryInput& input) const;
-    ImageViewportStateSnapshot snapshot(const SnapshotInput& input) const;
+    struct PresentationCommandInput
+    {
+        ImageViewportPresentationCommand command;
+        ViewportInput viewport;
+        QPointF anchor;
+        int quarterTurnDelta = 0;
+    };
+    ImageViewportStateSnapshot snapshot(ViewportInput input = {}) const;
 
 private:
+    using GeometryInput = ViewportEngineGeometryInput;
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -150,11 +164,7 @@ private:
 #endif
 
 public:
-    PresentationGeometry::State geometryState(const GeometryInput& input) const;
-    GeometryInput projectedGeometryInput(const QRectF& itemBounds, double devicePixelRatio = 1.0,
-        GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay) const;
-    GeometryInput acceptedGeometryInput(
-        const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
+    PresentationGeometry::State geometryState(ViewportInput input) const;
 private:
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
 
@@ -166,28 +176,28 @@ public:
     ViewportEngineRenderFailureTransition acknowledgeRenderFailure(
         const RenderAcknowledgementInput& input);
     ViewportEngineGeometryChangeTransition handleGeometryChanged(
-        const ViewportEngineGeometryChangeInput& input);
+        const GeometryChangeInput& input);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
-        const GeometryInput& geometry);
+        ViewportInput input);
     ViewportProviderEventResult reduceProviderEvent(
-        const ViewportProviderEvent& event, const GeometryInput& geometry);
+        const ViewportProviderEvent& event, ViewportInput input);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(
-        ImageViewport::PageRole role, const GeometryInput& geometry);
+        ImageViewport::PageRole role, ViewportInput input);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole role, const GeometryInput& geometry);
+        ImageViewport::PageRole role, ViewportInput input);
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
     PresentationCommandResult applyPresentationCommand(
-        const ViewportEnginePresentationCommandInput& input);
+        const PresentationCommandInput& input);
 private:
     CommandResult rejectInvalidCommand();
     quint64 allocateRevisionValue();
@@ -211,6 +221,12 @@ private:
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
+    GeometryInput currentGeometry(ViewportInput input) const;
+    GeometryInput pendingGeometry(ViewportInput input) const;
+    GeometryInput acceptedGeometry(ViewportInput input) const;
+    PresentationGeometry::State geometryState(const GeometryInput& input) const;
+    std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
+        const GeometryInput& geometry);
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
     {

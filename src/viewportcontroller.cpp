@@ -23,8 +23,7 @@ QRectF ViewportController::itemBounds() const
 
 ImageViewportStateSnapshot ViewportController::stateSnapshot(double devicePixelRatio) const
 {
-    return engine.snapshot({ engine.acceptedGeometryInput(itemBounds(), devicePixelRatio),
-        engine.projectedGeometryInput(itemBounds(), devicePixelRatio) });
+    return engine.snapshot({ itemBounds(), devicePixelRatio });
 }
 
 ImageViewportInternal::ViewportChangeSet ViewportController::publishChanges(
@@ -98,7 +97,7 @@ ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignm
 
     const auto engineResult = engine.assignPresentationTarget({ assignment.presentationTarget,
         assignment.transitionPolicy, std::move(assignment.source),
-        std::move(assignment.secondarySourceHandle), engine.acceptedGeometryInput(itemBounds()) });
+        std::move(assignment.secondarySourceHandle), { itemBounds(), 1.0 } });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);

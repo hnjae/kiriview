@@ -32,8 +32,9 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
 }
 
 ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
-    ImageViewport::PageRole role, const GeometryInput& geometry)
+    ImageViewport::PageRole role, ViewportInput input)
 {
+    const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderSessionOpenedAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
@@ -44,8 +45,9 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
 }
 
 ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameRequest(
-    ImageViewport::PageRole role, const GeometryInput& geometry)
+    ImageViewport::PageRole role, ViewportInput input)
 {
+    const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderQueueFlushAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,
         m_state->providerState.roles, m_state->presentationState.presentation,
@@ -60,6 +62,12 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
+    ViewportInput input)
+{
+    return restageProviderDemands(acceptedGeometry(input));
+}
+
+std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
     const GeometryInput& geometry)
 {
     ViewportEngineProviderDemandRestageAccess access(m_state->requestState.request,
@@ -71,8 +79,9 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
 }
 
 ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
-    const ViewportProviderEvent& event, const GeometryInput& geometry)
+    const ViewportProviderEvent& event, ViewportInput input)
 {
+    const GeometryInput geometry = acceptedGeometry(input);
     auto& eventProvider = m_state->providerState.roles[roleIndex(event.role)].provider;
     ViewportEngineProviderSessionAdmissionAccess sessionAccess(
         m_state->requestState.request.sequenceGeneration, eventProvider.session);

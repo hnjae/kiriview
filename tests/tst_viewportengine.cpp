@@ -659,8 +659,8 @@ void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()
     ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Playing;
     ViewportEngineTestAccess::playback(engine).position = 0;
 
-    const auto result = engine.advancePlayback(
-        { 100, { true, QRectF(0.0, 0.0, 100.0, 100.0), QSizeF(16.0, 8.0), {}, 1.0 } });
+    const auto result
+        = engine.advancePlayback({ 100, { QRectF(0.0, 0.0, 100.0, 100.0), 1.0 } });
 
     QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].activeRequest.target.frame, 1);
     QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].activeRequest.target.position, 100);
@@ -815,12 +815,8 @@ void ViewportEngineTest::providerDemandRestagingCancelsAndReissuesCurrentTarget(
     requests.nextRequestToken = 4;
     request.roles[0].activeRequest.providerFrameToken = requests.activeFrameToken;
 
-    ViewportEngine::GeometryInput geometry { true, QRectF(0.0, 0.0, 100.0, 50.0), QSizeF(16.0, 8.0),
-        {}, 1.0 };
-    geometry.itemBounds = QRectF(0.0, 0.0, 200.0, 100.0);
-    geometry.devicePixelRatio = 2.0;
-
-    const auto effects = engine.restageProviderDemands(geometry);
+    const auto effects
+        = engine.restageProviderDemands({ QRectF(0.0, 0.0, 200.0, 100.0), 2.0 });
 
     QCOMPARE(effects[0].cancelToken, providerRequestTokenForTest(4));
     QCOMPARE(effects[0].sendCommand, true);
@@ -945,7 +941,7 @@ void ViewportEngineTest::providerFrameQueueFlushesOnlyCurrentLoadingRequest()
     seedCurrentProviderFrameQueue(engine);
 
     const auto result = engine.reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole::Primary, ViewportEngine::GeometryInput {});
+        ImageViewport::PageRole::Primary, ViewportEngine::ViewportInput {});
 
     QCOMPARE(result.changes.requestState, true);
     QCOMPARE(result.providerFrameTransport.sendCommand, true);
@@ -965,7 +961,7 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
     ViewportEngineTestAccess::request(engine).roles[0].activeRequest.target.frame = 5;
 
     const auto result = engine.reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole::Primary, ViewportEngine::GeometryInput {});
+        ImageViewport::PageRole::Primary, ViewportEngine::ViewportInput {});
 
     QCOMPARE(result.changes.requestState, false);
     QCOMPARE(result.providerFrameTransport.sendCommand, false);
@@ -1000,6 +996,13 @@ void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
 void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
 {
     ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[1].source.facts.present = true;
+    auto& display = ViewportEngineTestAccess::display(engine);
+    display.status = ImageViewport::DisplayStatus::Ready;
+    display.roles[0].displayedImageSize = QSizeF(20.0, 10.0);
+    display.roles[1].displayedImageSize = QSizeF(8.0, 10.0);
     ImageViewportPresentationCommand command;
     command.setPageGap(4.0);
     command.setSpreadDirection(ImageViewport::SpreadDirection::RightToLeft);
@@ -1008,14 +1011,13 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
     command.setMirrorHorizontally(true);
     QCOMPARE(
         engine
-            .applyPresentationCommand({ command,
-                { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 },
-                {}, 0 })
+            .applyPresentationCommand(
+                { command, { QRectF(0.0, 0.0, 100.0, 80.0), 2.0 }, {}, 0 })
             .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 
-    const PresentationGeometry::State geometry = engine.geometryState(
-        { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
+    const PresentationGeometry::State geometry
+        = engine.geometryState({ QRectF(0.0, 0.0, 100.0, 80.0), 2.0 });
 
     QCOMPARE(geometry.hasReadyDisplay, true);
     QCOMPARE(geometry.itemBounds, QRectF(0.0, 0.0, 100.0, 80.0));
@@ -1036,6 +1038,13 @@ void ViewportEngineTest::geometryProjectionUsesEnginePresentationState()
 void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
 {
     ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.roles[1].source.facts.present = true;
+    auto& display = ViewportEngineTestAccess::display(engine);
+    display.status = ImageViewport::DisplayStatus::Ready;
+    display.roles[0].displayedImageSize = QSizeF(20.0, 10.0);
+    display.roles[1].displayedImageSize = QSizeF(8.0, 10.0);
     ImageViewportPresentationCommand command;
     command.setBackgroundMode(ImageViewport::BackgroundMode::SolidColor);
     command.setBackgroundColor(QColor(0x10, 0x20, 0x30));
@@ -1045,12 +1054,11 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     command.setMirrorHorizontally(true);
     command.setMirrorVertically(true);
     QCOMPARE(engine
-                 .applyPresentationCommand({ command,
-                     { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), {}, 1.0 }, {}, 0 })
+                 .applyPresentationCommand(
+                     { command, { QRectF(0.0, 0.0, 100.0, 80.0), 1.0 }, {}, 0 })
                  .command.outcome,
         ImageViewport::CommandOutcome::Accepted);
 
-    auto& request = ViewportEngineTestAccess::request(engine);
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
         ImageViewportInternal::DisplayRequestTarget {
@@ -1062,7 +1070,6 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     QImage secondaryImage(8, 10, QImage::Format_ARGB32_Premultiplied);
     secondaryImage.fill(Qt::blue);
 
-    auto& display = ViewportEngineTestAccess::display(engine);
     display.roles[0].pendingRenderPayload = { true, request.sequenceGeneration,
         request.roles[0].activeRequest.identity.id, 3, primaryImage };
     display.roles[1].pendingRenderPayload = { true, request.sequenceGeneration,
@@ -1072,8 +1079,7 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     input.itemSize = QSizeF(100.0, 80.0);
     input.pendingTargetCommit = true;
     input.preparedPayload = display.roles[0].pendingRenderPayload;
-    input.geometryState = engine.geometryState(
-        { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
+    input.geometryState = engine.geometryState({ QRectF(0.0, 0.0, 100.0, 80.0), 2.0 });
 
     const ViewportRenderSnapshot snapshot = ViewportEngineTestAccess::renderSnapshot(engine, input);
 

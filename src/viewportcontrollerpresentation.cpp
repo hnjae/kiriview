@@ -8,8 +8,8 @@ ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {
     const ViewportEngine::PresentationCommandResult engineResult
-        = engine.applyPresentationCommand({ input.command,
-            engine.projectedGeometryInput(itemBounds(), input.devicePixelRatio), input.anchor });
+        = engine.applyPresentationCommand(
+            { input.command, { itemBounds(), input.devicePixelRatio }, input.anchor });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
@@ -98,7 +98,7 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
     ImageViewportPresentationCommand command;
     ViewportPresentationCommandInput input { command, anchor, 1.0 };
     const auto engineResult = engine.applyPresentationCommand(
-        { input.command, engine.projectedGeometryInput(itemBounds()), input.anchor, 1 });
+        { input.command, { itemBounds(), 1.0 }, input.anchor, 1 });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
@@ -112,8 +112,8 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
 ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
 {
     ImageViewportPresentationCommand command;
-    const auto engineResult = engine.applyPresentationCommand(
-        { command, engine.projectedGeometryInput(itemBounds()), anchor, -1 });
+    const auto engineResult
+        = engine.applyPresentationCommand({ command, { itemBounds(), 1.0 }, anchor, -1 });
     ViewportCommandResult result
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
