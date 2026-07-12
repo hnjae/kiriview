@@ -1,3 +1,4 @@
+#include "framepreparation_p.h"
 #include "imagesequencesource_p.h"
 #include "viewportenginerenderackhelpers_p.h"
 #include "viewportenginerenderoperations_p.h"
@@ -9,6 +10,7 @@ bool hasSecondary(const RequestState& request)
 {
     return request.roles[1].sequence && request.roles[1].activeRequest.target.frame >= 0;
 }
+bool hasDisplayable(const RequestState& request) { return request.roles[0].source.facts.present; }
 bool terminalSealed(const RequestState& request)
 {
     return request.targetSpreadTerminal.sealed
@@ -26,6 +28,30 @@ bool pendingSpreadReady(const DisplayState& display, const RequestState& request
     return display.roles[0].pendingRenderPayload.commitPending
         && !display.roles[0].pendingRenderPayload.image.isNull()
         && (!hasSecondary(request) || !display.roles[1].pendingRenderPayload.image.isNull());
+}
+void stageBuiltIn(RequestState& request, DisplayState& display)
+{
+    display.captureRenderFailureRetainedDisplay(hasDisplayable(request));
+    display.roles[0].pendingRenderPayload.commitPending = true;
+    display.beginPreparedPayloadIdentity(
+        request.sequenceGeneration, request.roles[0].activeRequest);
+    if (request.roles[0].activeRequest.target.frame >= 0) {
+        display.roles[0].pendingRenderPayload
+            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
+                request.roles[0].activeRequest.target.frame, display.roles[0].pendingRenderPayload)
+                  .preparedPayload;
+    }
+    if (hasSecondary(request) && !request.roles[1].provider) {
+        auto& secondary = display.roles[1].pendingRenderPayload;
+        secondary.commitPending = true;
+        secondary.generation = request.sequenceGeneration;
+        secondary.requestId = request.roles[0].activeRequest.identity.id;
+        secondary.payloadId = ++display.nextPreparedPayloadId;
+        request.roles[1].activeRequest.preparedPayloadId = secondary.payloadId;
+        secondary = FramePreparation::admitBuiltInFrame(
+            request.roles[1].source, request.roles[1].activeRequest.target.frame, secondary)
+                        .preparedPayload;
+    }
 }
 const ProviderFactsState& providerFor(
     const ViewportEngineProviderFactsView& facts, ImageViewport::PageRole role)
@@ -243,5 +269,57 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
         || rectsDifferExactly(PresentationGeometry::visibleImageRect(
                                   access.render().lastSynchronization.geometryState),
             access.render().lastSynchronization.oldVisibleImageRect);
+    return result;
+}
+
+ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
+    ViewportEngineGeometryChangeInput input, ViewportEngineGeometryChangeAccess access)
+{
+    ViewportEngineGeometryChangeReduction result;
+    auto& changes = result.changes;
+    result.providerDemandGeometry
+        = ViewportEngineGeometryInput { input.geometryState.hasReadyDisplay,
+              input.geometryState.itemBounds, input.geometryState.primaryImageSize,
+              input.geometryState.secondaryImageSize, input.geometryState.devicePixelRatio };
+
+    if (hasDisplayable(access.request()) && waitingForRender(access.request())
+        && !input.itemBounds.isEmpty()) {
+        if (pendingSpreadReady(access.display(), access.request())) {
+            changes.scheduleUpdate = true;
+            return result;
+        }
+        if (!access.request().roles[0].source.facts.provider) {
+            stageBuiltIn(access.request(), access.display());
+            access.request().status = ImageViewport::RequestStatus::Loading;
+            access.request().reason = ImageViewport::RequestReason::UploadPending;
+            access.display().status
+                = access.display().hasReadyDisplay(hasDisplayable(access.request()))
+                ? ImageViewport::DisplayStatus::Retained
+                : ImageViewport::DisplayStatus::Empty;
+            changes.requestState = true;
+            changes.requestRevision = true;
+            changes.displayState = true;
+            changes.displayRevision = true;
+            changes.scheduleUpdate = true;
+            return result;
+        }
+    } else if (access.request().roles[0].source.facts.provider
+        && access.request().status == ImageViewport::RequestStatus::Loading
+        && access.request().reason == ImageViewport::RequestReason::UploadPending
+        && input.itemBounds.isEmpty()
+        && !access.display().roles[0].pendingRenderPayload.image.isNull()) {
+        access.request().reason = ImageViewport::RequestReason::RenderWaiting;
+        changes.requestState = true;
+        changes.requestRevision = true;
+        changes.displayRevision = true;
+    } else {
+        changes.displayRevision = true;
+    }
+    changes.geometryState
+        = rectsDifferExactly(
+              PresentationGeometry::contentRect(input.geometryState), input.oldContentRect)
+        || rectsDifferExactly(
+            PresentationGeometry::visibleImageRect(input.geometryState), input.oldVisibleImageRect);
+    changes.scheduleUpdate = true;
     return result;
 }

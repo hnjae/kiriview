@@ -62,33 +62,6 @@ private:
     std::array<ViewportEngineRoleState, 2>& m_roles;
 };
 
-class ViewportEngineGeometryTransitionAccess
-{
-private:
-    friend class ViewportEngine;
-    ViewportEngineGeometryTransitionAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
-        : m_request(request)
-        , m_display(display)
-        , m_roles(roles)
-    {
-    }
-
-public:
-    ViewportEngineGeometryTransitionAccess(const ViewportEngineGeometryTransitionAccess&) = delete;
-    ViewportEngineGeometryTransitionAccess& operator=(const ViewportEngineGeometryTransitionAccess&)
-        = delete;
-
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
-    std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
-
-private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-};
-
 class ViewportEngineSnapshotStateAccess
 {
 private:

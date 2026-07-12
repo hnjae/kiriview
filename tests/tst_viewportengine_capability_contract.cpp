@@ -45,6 +45,24 @@ struct HasRequestAccess<Access, std::void_t<decltype(std::declval<Access&>().req
 template <typename Access, typename = void> struct HasDisplayStateAccess : std::false_type
 {
 };
+
+template <typename Access, typename = void> struct HasRolesAccess : std::false_type
+{
+};
+template <typename Access>
+struct HasRolesAccess<Access, std::void_t<decltype(std::declval<Access&>().roles())>>
+    : std::true_type
+{
+};
+
+template <typename Access, typename = void> struct HasPresentationStateAccess : std::false_type
+{
+};
+template <typename Access>
+struct HasPresentationStateAccess<Access,
+    std::void_t<decltype(std::declval<Access&>().presentation())>> : std::true_type
+{
+};
 template <typename Access>
 struct HasDisplayStateAccess<Access, std::void_t<decltype(std::declval<Access&>().display())>>
     : std::true_type
@@ -58,7 +76,6 @@ struct HasProviderRequestAccess<Access,
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
-static_assert(!std::is_copy_constructible_v<ViewportEngineGeometryTransitionAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
@@ -99,6 +116,18 @@ static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderCommit),
 static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderFailure),
     ViewportEngineRenderFailureReduction (*)(
         ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderFailureAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineGeometryChangeAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineGeometryChangeAccess>);
+static_assert(HasRequestAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(HasDisplayStateAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineGeometryChangeAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineGeometryChange),
+    ViewportEngineGeometryChangeReduction (*)(
+        ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess)>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderDemandProjectionAccess>);
 static_assert(std::is_const_v<std::remove_reference_t<
         decltype(std::declval<ViewportEngineProviderDemandProjectionAccess&>().request())>>);

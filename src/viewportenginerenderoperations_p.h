@@ -1,7 +1,31 @@
 #pragma once
 
+#include "viewportcontrollerprovidercontract_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportplaybackcontract_p.h"
+
+#include <array>
+#include <optional>
+
+struct ViewportEngineGeometryChangeInput
+{
+    QRectF itemBounds;
+    QRectF oldContentRect;
+    QRectF oldVisibleImageRect;
+    PresentationGeometry::State geometryState;
+};
+
+struct ViewportEngineGeometryChangeReduction
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    std::optional<ViewportEngineGeometryInput> providerDemandGeometry;
+};
+
+struct ViewportEngineGeometryChangeTransition
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
+};
 
 struct ViewportEngineRenderSynchronizationInput
 {
@@ -49,6 +73,30 @@ struct ViewportEngineRenderFailureTransition
     ImageViewportInternal::ViewportChangeSet changes;
     ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
+};
+
+class ViewportEngineGeometryChangeAccess
+{
+    friend class ViewportEngine;
+    ViewportEngineGeometryChangeAccess(
+        ImageViewportInternal::RequestState& request, ImageViewportInternal::DisplayState& display)
+        : m_request(request)
+        , m_display(display)
+    {
+    }
+
+public:
+    ViewportEngineGeometryChangeAccess(const ViewportEngineGeometryChangeAccess&) = delete;
+    ViewportEngineGeometryChangeAccess(ViewportEngineGeometryChangeAccess&&) noexcept = default;
+    ViewportEngineGeometryChangeAccess& operator=(const ViewportEngineGeometryChangeAccess&)
+        = delete;
+
+    ImageViewportInternal::RequestState& request() const { return m_request; }
+    ImageViewportInternal::DisplayState& display() const { return m_display; }
+
+private:
+    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::DisplayState& m_display;
 };
 
 class ViewportEngineRenderSynchronizationAccess
@@ -150,3 +198,5 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderCommitAccess);
 ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     ViewportEngineRenderAcknowledgementInput, ViewportEngineRenderFailureAccess);
+ViewportEngineGeometryChangeReduction reduceViewportEngineGeometryChange(
+    ViewportEngineGeometryChangeInput, ViewportEngineGeometryChangeAccess);

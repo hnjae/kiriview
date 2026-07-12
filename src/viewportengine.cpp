@@ -239,12 +239,6 @@ ViewportProviderRequestTokenAllocationAccess ViewportEngine::providerRequestToke
         m_state->playbackState.playback, m_state->displayState.display };
 }
 
-ViewportEngineGeometryTransitionAccess ViewportEngine::renderAccess()
-{
-    return { m_state->requestState.request, m_state->displayState.display,
-        m_state->providerState.roles };
-}
-
 ViewportEngineProviderFactsView ViewportEngine::providerFactsView() const
 {
     return { m_state->providerState.roles[0].provider.facts,

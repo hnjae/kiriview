@@ -25,7 +25,6 @@ class ViewportController;
 struct ViewportEngineCanonicalState;
 struct ViewportEnginePlaybackStateAccess;
 struct ViewportEngineProviderStateAccess;
-struct ViewportEngineGeometryTransitionAccess;
 struct ViewportEngineSnapshotStateAccess;
 
 class ViewportEngine
@@ -89,12 +88,6 @@ public:
         ImageViewportInternal::ViewportChangeSet changes;
         std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
     };
-    struct GeometryChangeResult
-    {
-        ImageViewportInternal::ViewportChangeSet changes;
-        std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-    };
-
     struct PresentationTargetAssignmentResult
     {
         CommandResult command;
@@ -163,13 +156,6 @@ public:
 
     using RenderAcknowledgementInput = ViewportEngineRenderAcknowledgementInput;
 
-    struct GeometryChangeInput
-    {
-        QRectF itemBounds;
-        QRectF oldContentRect;
-        QRectF oldVisibleImageRect;
-        PresentationGeometry::State geometryState;
-    };
     struct PlaybackCommandInput
     {
         ViewportPlaybackCommand command;
@@ -221,7 +207,8 @@ public:
         const RenderAcknowledgementInput& input);
     ViewportEngineRenderFailureTransition acknowledgeRenderFailure(
         const RenderAcknowledgementInput& input);
-    GeometryChangeResult handleGeometryChanged(const GeometryChangeInput& input);
+    ViewportEngineGeometryChangeTransition handleGeometryChanged(
+        const ViewportEngineGeometryChangeInput& input);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
     VIEWPORT_ENGINE_TEST_VISIBILITY:
@@ -334,7 +321,6 @@ private:
 #endif
     ViewportEngineProviderStateAccess providerAccess();
     ViewportEnginePlaybackStateAccess playbackAccess();
-    ViewportEngineGeometryTransitionAccess renderAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
 
