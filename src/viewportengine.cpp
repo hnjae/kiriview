@@ -1,6 +1,7 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportenginestate_p.h"
+#include "viewportengineprojection_p.h"
 
 #include "imageviewporttoken_p.h"
 #include "imageviewportproviderfacts_p.h"
@@ -14,11 +15,6 @@ bool isPositiveGeometrySize(QSizeF size)
     return size.isValid() && size.width() > 0.0 && size.height() > 0.0;
 }
 
-QSizeF imageLogicalSize(const QImage& image)
-{
-    return image.isNull() ? QSizeF() : image.deviceIndependentSize();
-}
-
 bool fitModeValid(ImageViewport::FitMode mode)
 {
     switch (mode) {
@@ -29,23 +25,6 @@ bool fitModeValid(ImageViewport::FitMode mode)
         return true;
     }
     return false;
-}
-
-QRectF renderTargetRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
-{
-    return PresentationGeometry::pageItemRect(geometry, role).intersected(geometry.itemBounds);
-}
-
-QRectF renderSourceRect(const PresentationGeometry::State& geometry, ImageViewport::PageRole role)
-{
-    return PresentationGeometry::visiblePageRect(geometry, role);
-}
-
-const ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
-    const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? display.roles[1].pendingRenderPayload
-                                                      : display.roles[0].pendingRenderPayload;
 }
 
 ImageViewportInternal::PreparedPayload& pendingPayloadForRole(
@@ -198,52 +177,6 @@ bool displayedPrimaryPayloadMatchesActiveTarget(const ImageViewportInternal::Dis
         == activeRequest.resolvedFrame.position;
 }
 
-const QImage& displayedImageForRole(
-    const ImageViewportInternal::DisplayState& display, ImageViewport::PageRole role)
-{
-    return role == ImageViewport::PageRole::Secondary ? display.roles[1].displayedImage
-                                                      : display.roles[0].displayedImage;
-}
-
-ImageViewportInternal::PreparedPayload primaryRenderPayload(
-    const ImageViewportInternal::DisplayState& display,
-    const ImageViewportInternal::RequestState& request, const ViewportRenderSnapshotInput& input)
-{
-    ImageViewportInternal::PreparedPayload payload = input.preparedPayload;
-    if (payload.image.isNull() && display.hasReadyDisplay(request.roles[0].source.facts.present)) {
-        payload.image = displayedImageForRole(display, ImageViewport::PageRole::Primary);
-    }
-    return payload;
-}
-
-ImageViewportInternal::PreparedPayload secondaryRenderPayload(
-    const ImageViewportInternal::DisplayState& display, const ViewportRenderSnapshotInput& input,
-    const ImageViewportInternal::PreparedPayload& primaryPayload)
-{
-    ImageViewportInternal::PreparedPayload payload = primaryPayload;
-    const auto& secondaryPending
-        = pendingPayloadForRole(display, ImageViewport::PageRole::Secondary);
-    if (input.pendingTargetCommit && !secondaryPending.image.isNull()) {
-        return secondaryPending;
-    }
-    payload.image = displayedImageForRole(display, ImageViewport::PageRole::Secondary);
-    return payload;
-}
-
-void appendRenderLayer(QVector<ViewportRenderLayer>& layers, ImageViewport::PageRole role,
-    const ImageViewportInternal::PreparedPayload& payload, const QRectF& targetRect,
-    const QRectF& sourceRect, const ImageViewportInternal::PresentationState& presentation,
-    bool requirePresentableRects)
-{
-    if (payload.image.isNull()) {
-        return;
-    }
-    if (requirePresentableRects && (targetRect.isEmpty() || sourceRect.isEmpty())) {
-        return;
-    }
-    layers.append({ role, payload, targetRect, sourceRect, presentation.rotationDegrees,
-        presentation.mirrorHorizontally, presentation.mirrorVertically });
-}
 }
 
 ViewportEngine::ViewportEngine()
@@ -409,119 +342,34 @@ PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& i
 PresentationGeometry::State ViewportEngine::geometryState(
     const GeometryInput& input, const ImageViewportInternal::PresentationState& presentation) const
 {
-    return {
-        input.primaryPresent,
-        input.itemBounds,
-        input.primarySize,
-        input.secondarySize,
-        presentation.pageGap,
-        presentation.spreadDirection,
-        presentation.fitMode,
-        presentation.rotationDegrees,
-        presentation.mirrorHorizontally,
-        presentation.mirrorVertically,
-        presentation.manualZoom,
-        input.devicePixelRatio > 0.0 ? input.devicePixelRatio : 1.0,
-        presentation.contentPosition,
-    };
+    return projectViewportGeometryState(input, presentation);
 }
 
 ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(const QRectF& itemBounds,
     double devicePixelRatio, GeometryProjectionTarget target) const
 {
-    const bool sequencePresent = m_state->requestState.request.roles[0].source.facts.present;
-    const bool displayReady = m_state->displayState.display.hasReadyDisplay(sequencePresent);
-    QSizeF primarySize = displayReady ? m_state->displayState.display.roles[0].displayedImageSize : QSizeF {};
-    QSizeF secondarySize = displayReady ? m_state->displayState.display.roles[1].displayedImageSize : QSizeF {};
-
-    if (target == GeometryProjectionTarget::PendingRender) {
-        if (m_state->requestState.request.roles[0].source.facts.provider
-            && isPositiveGeometrySize(m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Primary)].provider.logicalSize)) {
-            primarySize = m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Primary)].provider.logicalSize;
-        } else {
-            const QSizeF pending = imageLogicalSize(m_state->displayState.display.roles[0].pendingRenderPayload.image);
-            if (isPositiveGeometrySize(pending)) {
-                primarySize = pending;
-            }
-        }
-
-        if (!m_state->requestState.request.roles[1].sequence
-            || m_state->requestState.request.roles[1].activeRequest.target.frame < 0) {
-            secondarySize = {};
-        } else if (m_state->requestState.request.roles[1].provider
-            && isPositiveGeometrySize(m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Secondary)].provider.logicalSize)) {
-            secondarySize = m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Secondary)].provider.logicalSize;
-        } else {
-            const QSizeF pending
-                = imageLogicalSize(m_state->displayState.display.roles[1].pendingRenderPayload.image);
-            if (isPositiveGeometrySize(pending)) {
-                secondarySize = pending;
-            }
-        }
+    if (target == GeometryProjectionTarget::CurrentDisplay) {
+        return projectViewportCurrentGeometry({ itemBounds, devicePixelRatio },
+            { m_state->requestState.request, m_state->displayState.display });
     }
-
-    return { isPositiveGeometrySize(primarySize), itemBounds, primarySize, secondarySize,
-        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+    return projectViewportPendingGeometry({ itemBounds, devicePixelRatio },
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->providerState.roles });
 }
 
 ViewportEngine::GeometryInput ViewportEngine::acceptedGeometryInput(
     const QRectF& itemBounds, double devicePixelRatio) const
 {
-    QSizeF primarySize;
-    if (m_state->requestState.request.roles[0].source.facts.provider) {
-        primarySize = m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Primary)].provider.logicalSize;
-    } else {
-        primarySize = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[0].source);
-    }
-    if (!isPositiveGeometrySize(primarySize)) {
-        primarySize = {};
-    }
-
-    QSizeF secondarySize;
-    if (m_state->requestState.request.roles[1].sequence) {
-        if (m_state->requestState.request.roles[1].provider) {
-            secondarySize = m_state->providerState.roles[roleIndex(ImageViewport::PageRole::Secondary)].provider.logicalSize;
-        } else if (m_state->requestState.request.roles[1].activeRequest.target.frame >= 0) {
-            secondarySize
-                = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[1].source);
-        }
-    }
-    if (!isPositiveGeometrySize(secondarySize)) {
-        secondarySize = {};
-    }
-
-    return { isPositiveGeometrySize(primarySize), itemBounds, primarySize, secondarySize,
-        devicePixelRatio > 0.0 ? devicePixelRatio : 1.0 };
+    return projectViewportAcceptedGeometry({ itemBounds, devicePixelRatio },
+        { m_state->requestState.request, m_state->providerState.roles });
 }
 
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
     const ViewportRenderSnapshotInput& input) const
 {
-    ViewportRenderSnapshot snapshot;
-    snapshot.itemSize = input.itemSize;
-    snapshot.backgroundMode = m_state->presentationState.presentation.backgroundMode;
-    snapshot.backgroundColor = m_state->presentationState.presentation.backgroundColor;
-    snapshot.smoothing = m_state->presentationState.presentation.smoothing;
-    snapshot.mipmap = m_state->presentationState.presentation.mipmap;
-    snapshot.rotationDegrees = m_state->presentationState.presentation.rotationDegrees;
-    snapshot.mirrorHorizontally = m_state->presentationState.presentation.mirrorHorizontally;
-    snapshot.mirrorVertically = m_state->presentationState.presentation.mirrorVertically;
-
-    const ImageViewportInternal::PreparedPayload primaryPayload
-        = primaryRenderPayload(m_state->displayState.display, m_state->requestState.request, input);
-    snapshot.preparedPayload = primaryPayload;
-    snapshot.targetRect = renderTargetRect(input.geometryState, ImageViewport::PageRole::Primary);
-    snapshot.sourceRect = renderSourceRect(input.geometryState, ImageViewport::PageRole::Primary);
-    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Primary, primaryPayload,
-        snapshot.targetRect, snapshot.sourceRect, m_state->presentationState.presentation, false);
-
-    const ImageViewportInternal::PreparedPayload secondaryPayload
-        = secondaryRenderPayload(m_state->displayState.display, input, primaryPayload);
-    appendRenderLayer(snapshot.imageLayers, ImageViewport::PageRole::Secondary, secondaryPayload,
-        renderTargetRect(input.geometryState, ImageViewport::PageRole::Secondary),
-        renderSourceRect(input.geometryState, ImageViewport::PageRole::Secondary),
-        m_state->presentationState.presentation, true);
-    return snapshot;
+    return projectViewportRenderSnapshot(input,
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->presentationState.presentation });
 }
 
 FramePreparation::ProviderFrameState ViewportEngine::providerFramePreparationState(

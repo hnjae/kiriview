@@ -2,6 +2,29 @@
 
 #include "imageviewport.h"
 
+#include <QtCore/QRectF>
+#include <QtCore/QSizeF>
+
+struct ViewportEngineGeometryInput
+{
+    bool primaryPresent = false;
+    QRectF itemBounds;
+    QSizeF primarySize;
+    QSizeF secondarySize;
+    double devicePixelRatio = 1.0;
+};
+
+enum class ViewportEngineGeometryProjectionTarget {
+    CurrentDisplay,
+    PendingRender,
+};
+
+struct ViewportEngineSnapshotInput
+{
+    ViewportEngineGeometryInput acceptedGeometry;
+    ViewportEngineGeometryInput displayedGeometry;
+};
+
 struct ViewportEnginePresentationTargetState
 {
     ImageViewportPresentationTarget presentationTarget

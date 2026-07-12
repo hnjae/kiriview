@@ -1,5 +1,6 @@
 #include "viewportenginecapabilities_p.h"
 #include "viewportengine_p.h"
+#include "viewportengineprojection_p.h"
 
 #include <type_traits>
 
@@ -21,5 +22,24 @@ static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEnginePresentationStateAccess>>>);
 static_assert(std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEngineSnapshotStateAccess>>>);
 static_assert(std::is_const_v<std::remove_reference_t<PresentationAccess<ViewportEngineSnapshotStateAccess>>>);
+static_assert(std::is_same_v<decltype(&projectViewportStateSnapshot),
+    ImageViewportStateSnapshot (*)(ViewportEngineSnapshotInput,
+        ViewportEngineSnapshotStateAccess)>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineCurrentGeometryProjectionAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePendingGeometryProjectionAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineAcceptedGeometryProjectionAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineRenderSnapshotProjectionAccess>);
+static_assert(std::is_same_v<decltype(&projectViewportCurrentGeometry),
+    ViewportEngineGeometryInput (*)(ViewportEngineGeometryQueryInput,
+        ViewportEngineCurrentGeometryProjectionAccess)>);
+static_assert(std::is_same_v<decltype(&projectViewportPendingGeometry),
+    ViewportEngineGeometryInput (*)(ViewportEngineGeometryQueryInput,
+        ViewportEnginePendingGeometryProjectionAccess)>);
+static_assert(std::is_same_v<decltype(&projectViewportAcceptedGeometry),
+    ViewportEngineGeometryInput (*)(ViewportEngineGeometryQueryInput,
+        ViewportEngineAcceptedGeometryProjectionAccess)>);
+static_assert(std::is_same_v<decltype(&projectViewportRenderSnapshot),
+    ViewportRenderSnapshot (*)(ViewportRenderSnapshotInput,
+        ViewportEngineRenderSnapshotProjectionAccess)>);
 
 int main() { }

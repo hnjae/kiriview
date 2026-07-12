@@ -53,23 +53,9 @@ public:
     ~ViewportEngine();
     ViewportEngine(const ViewportEngine&) = delete;
     ViewportEngine& operator=(const ViewportEngine&) = delete;
-    struct GeometryInput
-    {
-        bool primaryPresent = false;
-        QRectF itemBounds;
-        QSizeF primarySize;
-        QSizeF secondarySize;
-        double devicePixelRatio = 1.0;
-    };
-    enum class GeometryProjectionTarget {
-        CurrentDisplay,
-        PendingRender,
-    };
-    struct SnapshotInput
-    {
-        GeometryInput acceptedGeometry;
-        GeometryInput displayedGeometry;
-    };
+    using GeometryInput = ViewportEngineGeometryInput;
+    using GeometryProjectionTarget = ViewportEngineGeometryProjectionTarget;
+    using SnapshotInput = ViewportEngineSnapshotInput;
 
     using PresentationTargetState = ViewportEnginePresentationTargetState;
 
