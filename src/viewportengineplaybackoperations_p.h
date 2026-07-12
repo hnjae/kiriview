@@ -242,6 +242,63 @@ private:
     quint64 m_presentationTargetGeneration = 0;
 };
 
+struct ViewportEnginePlaybackTickInput
+{
+    int elapsedMilliseconds = 0;
+    ViewportEngineGeometryInput geometry;
+};
+
+struct ViewportEnginePlaybackTickReduction
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
+    bool projectSchedule = false;
+};
+
+class ViewportEnginePlaybackTickAccess
+{
+    friend class ViewportEngine;
+    friend ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
+        ViewportEnginePlaybackTickInput, ViewportEnginePlaybackTickAccess);
+
+    ViewportEnginePlaybackTickAccess(ImageViewportInternal::RequestState& request,
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display,
+        std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation,
+        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        : m_request(request)
+        , m_playback(playback)
+        , m_display(display)
+        , m_roles(roles)
+        , m_presentation(presentation)
+        , m_nextRevision(nextRevision)
+        , m_presentationRevision(presentationRevision)
+        , m_presentationTargetGeneration(presentationTargetGeneration)
+    {
+    }
+
+public:
+    ViewportEnginePlaybackTickAccess(const ViewportEnginePlaybackTickAccess&) = delete;
+    ViewportEnginePlaybackTickAccess(ViewportEnginePlaybackTickAccess&&) noexcept = default;
+    ViewportEnginePlaybackTickAccess& operator=(const ViewportEnginePlaybackTickAccess&) = delete;
+
+private:
+    ImageSequenceProviderDisplayDemand providerDemand(
+        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
+        ImageViewport::PageRole role);
+
+    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::DisplayState& m_display;
+    std::array<ViewportEngineRoleState, 2>& m_roles;
+    const ImageViewportInternal::PresentationState& m_presentation;
+    quint64& m_nextRevision;
+    quint64 m_presentationRevision = 0;
+    quint64 m_presentationTargetGeneration = 0;
+};
+
 class ViewportEnginePlaybackPauseAccess
 {
     friend class ViewportEngine;
@@ -300,5 +357,7 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
     ViewportEnginePlaybackSeekInput, ViewportEnginePlaybackSeekAccess);
 ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
     ViewportEnginePlaybackPlayInput, ViewportEnginePlaybackPlayAccess);
+ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
+    ViewportEnginePlaybackTickInput, ViewportEnginePlaybackTickAccess);
 ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
     ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess);

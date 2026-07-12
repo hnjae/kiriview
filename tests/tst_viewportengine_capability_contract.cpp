@@ -85,7 +85,6 @@ struct HasProviderRequestAccess<Access,
 };
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
-static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
@@ -264,6 +263,15 @@ static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackPlayAccess>::val
 static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackPlay),
     ViewportEnginePlaybackPlayReduction (*)(
         ViewportEnginePlaybackPlayInput, ViewportEnginePlaybackPlayAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackTickAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackTickAccess>);
+static_assert(!HasRequestAccess<ViewportEnginePlaybackTickAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePlaybackTickAccess>::value);
+static_assert(!HasRolesAccess<ViewportEnginePlaybackTickAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackTickAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackTick),
+    ViewportEnginePlaybackTickReduction (*)(
+        ViewportEnginePlaybackTickInput, ViewportEnginePlaybackTickAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
 static_assert(std::is_const_v<std::remove_reference_t<

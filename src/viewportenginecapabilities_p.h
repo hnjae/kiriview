@@ -32,36 +32,6 @@ private:
     std::array<ViewportEngineRoleState, 2>& m_roles;
 };
 
-class ViewportEnginePlaybackStateAccess
-{
-private:
-    friend class ViewportEngine;
-    ViewportEnginePlaybackStateAccess(ImageViewportInternal::RequestState& request,
-        ImageViewportInternal::PlaybackState& playback,
-        ImageViewportInternal::DisplayState& display, std::array<ViewportEngineRoleState, 2>& roles)
-        : m_request(request)
-        , m_playback(playback)
-        , m_display(display)
-        , m_roles(roles)
-    {
-    }
-
-public:
-    ViewportEnginePlaybackStateAccess(const ViewportEnginePlaybackStateAccess&) = delete;
-    ViewportEnginePlaybackStateAccess& operator=(const ViewportEnginePlaybackStateAccess&) = delete;
-
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-    ImageViewportInternal::DisplayState& display() const { return m_display; }
-    std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
-
-private:
-    ImageViewportInternal::RequestState& m_request;
-    ImageViewportInternal::PlaybackState& m_playback;
-    ImageViewportInternal::DisplayState& m_display;
-    std::array<ViewportEngineRoleState, 2>& m_roles;
-};
-
 class ViewportEngineSnapshotStateAccess
 {
 private:

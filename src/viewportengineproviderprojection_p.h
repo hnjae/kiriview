@@ -18,6 +18,7 @@ class ViewportEngineProviderDemandProjectionAccess
     friend class ViewportEnginePlaybackStopAccess;
     friend class ViewportEnginePlaybackSeekAccess;
     friend class ViewportEnginePlaybackPlayAccess;
+    friend class ViewportEnginePlaybackTickAccess;
     ViewportEngineProviderDemandProjectionAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::DisplayState& display,
         ViewportEngineProviderFactsView providerFacts,

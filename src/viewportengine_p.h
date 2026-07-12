@@ -24,7 +24,6 @@ class ViewportController;
 #define VIEWPORT_ENGINE_TEST_VISIBILITY private
 #endif
 struct ViewportEngineCanonicalState;
-struct ViewportEnginePlaybackStateAccess;
 struct ViewportEngineProviderStateAccess;
 struct ViewportEngineSnapshotStateAccess;
 
@@ -283,9 +282,6 @@ public:
 public:
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
-    void setPlaybackPhase(
-        ImageViewport::PlaybackPhase phase, ImageViewportInternal::ViewportChangeSet& changes);
 public:
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
@@ -318,7 +314,6 @@ private:
     const ImageViewportInternal::PlaybackState& playbackState() const;
 #endif
     ViewportEngineProviderStateAccess providerAccess();
-    ViewportEnginePlaybackStateAccess playbackAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
     ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;

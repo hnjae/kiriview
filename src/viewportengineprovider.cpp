@@ -74,6 +74,16 @@ bool effectiveProviderLooping(
     return false;
 }
 
+void updatePlaybackPhase(PlaybackState& playback, ImageViewport::PlaybackPhase phase,
+    ViewportChangeSet& changes)
+{
+    if (playback.phase == phase) {
+        return;
+    }
+    playback.phase = phase;
+    changes.playbackPhase = true;
+}
+
 void stageBuiltInSecondaryPayload(RequestState& request, DisplayState& display)
 {
     if (!request.roles[1].sequence || request.roles[1].provider
@@ -416,7 +426,8 @@ ViewportProviderMetadataAdmissionResult ViewportEngine::reduceProviderMetadataAd
         recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
             ImageViewport::RequestReason::PayloadRejection, FailureScope::Generation, diagnostic,
             result.changes);
-        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(
+            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
         result.providerFrameTransport = closeProviderSession(role);
     };
 
@@ -566,7 +577,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
         provider.requests.activeFrameToken = {};
         recordProviderTerminal(role, admission.status, admission.reason,
             FailureScope::DisplayRequest, admission.diagnostic, changes);
-        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
+        updatePlaybackPhase(
+            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, changes);
         return changes;
     }
 
@@ -629,7 +641,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderFrameAdmi
         if (providerAccess().playback().phase == ImageViewport::PlaybackPhase::Waiting
             && providerAccess().request().status == ImageViewport::RequestStatus::Ready
             && !providerAccess().display().roles[0].pendingRenderPayload.commitPending) {
-            setPlaybackPhase(providerAccess().playback().stopWhenRequestReady
+            updatePlaybackPhase(providerAccess().playback(),
+                providerAccess().playback().stopWhenRequestReady
                     ? ImageViewport::PlaybackPhase::Stopped
                     : ImageViewport::PlaybackPhase::Playing,
                 changes);
@@ -711,7 +724,8 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::rejectProviderMetadataT
     }
     recordProviderTerminal(
         role, rejection.status, rejection.reason, FailureScope::DisplayRequest, {}, changes);
-    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
+    updatePlaybackPhase(
+        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, changes);
     changes.diagnostics = changes.diagnostics || diagnosticsChanged;
     return changes;
 }
@@ -860,7 +874,8 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
     recordProviderTerminal(role, ImageViewport::RequestStatus::Error,
         ImageViewport::RequestReason::ProviderFailure, FailureScope::Generation, diagnostic,
         changes);
-    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
+    updatePlaybackPhase(
+        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, changes);
     if (changes.playbackPhase) {
         result.schedule = currentPlaybackSchedule();
     }
@@ -890,7 +905,8 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
         recordProviderTerminal(role, terminal.status, terminal.reason, FailureScope::DisplayRequest,
             FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
             result.changes);
-        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(
+            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
         if (invalidUnsupportedCause(event)) {
             result.providerFrameTransport = closeProviderSession(role);
         }
@@ -908,7 +924,8 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
     recordProviderTerminal(role, terminal.status, terminal.reason, FailureScope::Generation,
         FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
         result.changes);
-    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+    updatePlaybackPhase(
+        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeProviderSession(role);
     result.schedule = currentPlaybackSchedule();
     return result;
@@ -965,7 +982,8 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
             diagnostic, QStringLiteral("provider command delivery failed")),
         result.changes);
     if (playbackOwned) {
-        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(
+            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
     }
     result.schedule = currentPlaybackSchedule();
     return result;
@@ -1026,7 +1044,8 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequenceP
         ImageViewport::RequestReason::PayloadRejection,
         input.activeMetadataToken ? FailureScope::Generation : FailureScope::DisplayRequest,
         QStringLiteral("provider protocol violation"), result.changes);
-    setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+    updatePlaybackPhase(
+        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeProviderSession(role);
     return result;
 }
@@ -1108,7 +1127,8 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
         providerAccess().request().status = ImageViewport::RequestStatus::Ready;
         providerAccess().request().reason = ImageViewport::RequestReason::Ready;
         providerAccess().display().status = ImageViewport::DisplayStatus::Ready;
-        setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
+        updatePlaybackPhase(
+            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
         providerAccess().playback().stopWhenRequestReady = false;
         result.changes.requestState = true;
         result.changes.requestRevision = true;
@@ -1130,7 +1150,8 @@ ViewportProviderEndOfSequenceResult ViewportEngine::reduceProviderEndOfSequence(
     if (loop && !providerAccess().playback().looping) {
         ++providerAccess().playback().loopIterationsCompleted;
     }
-    setPlaybackPhase(ImageViewport::PlaybackPhase::Waiting, result.changes);
+    updatePlaybackPhase(
+        providerAccess().playback(), ImageViewport::PlaybackPhase::Waiting, result.changes);
     result.changes.requestState = true;
     result.changes.requestRevision = true;
     result.changes.displayState = true;

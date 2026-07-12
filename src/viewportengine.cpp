@@ -227,12 +227,6 @@ ViewportEngineProviderStateAccess ViewportEngine::providerAccess()
         m_state->displayState.display, m_state->providerState.roles };
 }
 
-ViewportEnginePlaybackStateAccess ViewportEngine::playbackAccess()
-{
-    return { m_state->requestState.request, m_state->playbackState.playback,
-        m_state->displayState.display, m_state->providerState.roles };
-}
-
 ViewportProviderRequestTokenAllocationAccess ViewportEngine::providerRequestTokenAllocationAccess()
 {
     return { m_state->providerState.roles, m_state->requestState.request,
