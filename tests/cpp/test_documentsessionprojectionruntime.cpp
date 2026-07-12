@@ -65,6 +65,7 @@ private Q_SLOTS:
     void publicOnlyChangesSkipThumbnailProjection();
     void candidateRevisionChangesThumbnailWithoutPublicProjection();
     void repeatedUnavailableThumbnailDependencyClearsRowsOnce();
+    void mediaInformationRevisionDoesNotInvalidateSemanticDependency();
     void sourceKindPublishSkipsThumbnailRowsWhenRejected();
 };
 
@@ -288,6 +289,36 @@ void TestDocumentSessionProjectionRuntime::repeatedUnavailableThumbnailDependenc
     runtime.publish({}, {});
 
     QCOMPARE(events, (std::vector<QString> { QStringLiteral("commit"), QStringLiteral("rows") }));
+}
+
+void TestDocumentSessionProjectionRuntime::
+    mediaInformationRevisionDoesNotInvalidateSemanticDependency()
+{
+    int commitCount = 0;
+    kiriview::DocumentSessionProjectionRuntimePorts ports;
+    ports.updatePublicSnapshot = [&commitCount](const auto&) {
+        ++commitCount;
+        return true;
+    };
+    kiriview::DocumentSessionProjectionRuntime runtime(std::move(ports));
+    kiriview::DocumentSessionPublicSnapshotInput input;
+    input.inputRevision = 1;
+    input.session.documentKind = kiriview::DocumentSessionKind::Image;
+    input.image.readyForInformation = true;
+    input.image.displayedUrl = localUrl(QStringLiteral("/media/01.png"));
+    input.image.directMediaSize = QSize(640, 480);
+    input.image.embeddedMetadata.cameraModel = QStringLiteral("Camera");
+
+    runtime.publish(input, {});
+    input.inputRevision = 2;
+    runtime.publish(input, {});
+
+    QCOMPARE(commitCount, 1);
+
+    input.image.directMediaSize = QSize(800, 600);
+    runtime.publish(input, {});
+
+    QCOMPARE(commitCount, 2);
 }
 
 void TestDocumentSessionProjectionRuntime::sourceKindPublishSkipsThumbnailRowsWhenRejected()

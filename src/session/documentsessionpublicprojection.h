@@ -113,7 +113,6 @@ struct DocumentSessionPublicSnapshotInput
     DocumentSessionPublicImageLeafSnapshot image;
     DocumentSessionPublicVideoLeafSnapshot video;
     DocumentSessionPublicOperationAvailabilitySnapshot operations;
-    MediaInformationProjectionInput mediaInformation;
 };
 
 DocumentSessionPublicProjection projectDocumentSessionPublicState(

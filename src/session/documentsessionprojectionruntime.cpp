@@ -119,23 +119,6 @@ namespace {
         return true;
     }
 
-    bool sameMediaInformationInput(
-        const MediaInformationProjectionInput& left, const MediaInformationProjectionInput& right)
-    {
-        return left.inputRevision == right.inputRevision && left.documentKind == right.documentKind
-            && left.imageReady == right.imageReady
-            && left.imageUnsupportedOpenedCollectionVideo
-            == right.imageUnsupportedOpenedCollectionVideo
-            && left.imageDisplayedUrl == right.imageDisplayedUrl
-            && left.imageDisplayedOpenedCollectionScope == right.imageDisplayedOpenedCollectionScope
-            && left.imageSize == right.imageSize
-            && sameMetadata(left.imageEmbeddedMetadata, right.imageEmbeddedMetadata)
-            && left.videoSourceUrl == right.videoSourceUrl
-            && left.videoOpenedCollectionScope == right.videoOpenedCollectionScope
-            && left.videoSize == right.videoSize
-            && sameMetadata(left.videoEmbeddedMetadata, right.videoEmbeddedMetadata);
-    }
-
     bool samePublicProjectionDependency(const DocumentSessionPublicSnapshotInput& left,
         const DocumentSessionPublicSnapshotInput& right)
     {
@@ -154,8 +137,7 @@ namespace {
                 != rightSession.activeNavigationRevealDirection
             || leftSession.openedCollectionVideoActive != rightSession.openedCollectionVideoActive
             || left.operations.displayedMediaOpenWithAvailable
-                != right.operations.displayedMediaOpenWithAvailable
-            || !sameMediaInformationInput(left.mediaInformation, right.mediaInformation)) {
+                != right.operations.displayedMediaOpenWithAvailable) {
             return false;
         }
 

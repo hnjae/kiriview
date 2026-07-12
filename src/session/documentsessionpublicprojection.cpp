@@ -211,10 +211,6 @@ kiriview::OpenedCollectionScopeLocation videoOpenedCollectionScopeForInput(
 kiriview::MediaInformationProjectionInput mediaInformationInputForSnapshotInput(
     const kiriview::DocumentSessionPublicSnapshotInput& input)
 {
-    if (input.mediaInformation.inputRevision != 0) {
-        return input.mediaInformation;
-    }
-
     kiriview::MediaInformationProjectionInput mediaInformationInput;
     mediaInformationInput.inputRevision = input.inputRevision;
     mediaInformationInput.documentKind = input.session.documentKind;
