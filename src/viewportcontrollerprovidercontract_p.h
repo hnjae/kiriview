@@ -10,38 +10,6 @@
 #include <QtCore/QString>
 #include <QtCore/QVector>
 
-struct ViewportProviderFrameTerminalResult
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
-    QString diagnostic;
-    QString fallbackDiagnostic;
-};
-
-struct ViewportProviderMetadataTerminalResult
-{
-    ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
-    ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
-    QString diagnostic;
-    QString fallbackDiagnostic;
-};
-
-struct ViewportProviderTerminalEvent
-{
-    enum class Kind {
-        Failure,
-        Unsupported,
-        Cancellation,
-    };
-
-    ImageSequenceProviderRequestToken token;
-    Kind kind = Kind::Failure;
-    ImageSequenceProviderSession::UnsupportedCause unsupportedCause
-        = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-    QString diagnostic;
-    bool unsupportedCauseExplicit = false;
-};
-
 struct ViewportProviderDispatchFailureEvent
 {
     ImageSequenceProviderRequestToken token;

@@ -54,75 +54,19 @@ void updatePlaybackPhase(PlaybackState& playback, ImageViewport::PlaybackPhase p
     changes.playbackPhase = true;
 }
 
-bool unsupportedCauseValid(ImageSequenceProviderSession::UnsupportedCause cause)
+ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEvent& event)
 {
-    return cause == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-        || cause == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;
-}
-
-bool invalidUnsupportedCause(const ViewportProviderTerminalEvent& event)
-{
-    return event.kind == ViewportProviderTerminalEvent::Kind::Unsupported
-        && event.unsupportedCauseExplicit && !unsupportedCauseValid(event.unsupportedCause);
-}
-
-ViewportProviderFrameTerminalResult frameTerminal(const ViewportProviderTerminalEvent& event)
-{
-    if (event.kind == ViewportProviderTerminalEvent::Kind::Unsupported) {
-        if (invalidUnsupportedCause(event)) {
-            return { ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection, {},
-                QStringLiteral("provider protocol violation") };
-        }
-        return { ImageViewport::RequestStatus::Unsupported,
-            event.unsupportedCause
-                    == ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest
-                ? ImageViewport::RequestReason::UnsupportedRequest
-                : ImageViewport::RequestReason::PayloadRejection,
-            event.diagnostic, QStringLiteral("provider unsupported") };
-    }
-    return { ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::ProviderFailure,
-        event.diagnostic,
-        event.kind == ViewportProviderTerminalEvent::Kind::Cancellation
-            ? QStringLiteral("provider cancelled request")
-            : QStringLiteral("provider failure") };
-}
-
-ViewportProviderMetadataTerminalResult metadataTerminal(const ViewportProviderTerminalEvent& event)
-{
-    if (event.kind == ViewportProviderTerminalEvent::Kind::Unsupported) {
-        if (invalidUnsupportedCause(event)) {
-            return { ImageViewport::RequestStatus::Error,
-                ImageViewport::RequestReason::PayloadRejection, {},
-                QStringLiteral("provider protocol violation") };
-        }
-        return { ImageViewport::RequestStatus::Unsupported,
-            event.unsupportedCauseExplicit
-                    && event.unsupportedCause
-                        == ImageSequenceProviderSession::UnsupportedCause::PayloadRejection
-                ? ImageViewport::RequestReason::PayloadRejection
-                : ImageViewport::RequestReason::UnsupportedRequest,
-            event.diagnostic, QStringLiteral("provider unsupported") };
-    }
-    return { ImageViewport::RequestStatus::Error, ImageViewport::RequestReason::ProviderFailure,
-        event.diagnostic,
-        event.kind == ViewportProviderTerminalEvent::Kind::Cancellation
-            ? QStringLiteral("provider cancelled request")
-            : QStringLiteral("provider failure") };
-}
-
-ViewportProviderTerminalEvent terminalEvent(const ViewportProviderEvent& event)
-{
-    ViewportProviderTerminalEvent result;
+    ViewportEngineProviderTerminalEventInput result;
+    result.role = event.role;
     result.token = event.token;
     result.unsupportedCause = event.unsupportedCause;
     result.diagnostic = event.diagnostic;
     result.unsupportedCauseExplicit = event.unsupportedCauseExplicit;
     result.kind = event.kind == ViewportProviderEvent::Kind::Unsupported
-        ? ViewportProviderTerminalEvent::Kind::Unsupported
+        ? ViewportEngineProviderTerminalEventInput::Kind::Unsupported
         : event.kind == ViewportProviderEvent::Kind::Cancellation
-        ? ViewportProviderTerminalEvent::Kind::Cancellation
-        : ViewportProviderTerminalEvent::Kind::Failure;
+        ? ViewportEngineProviderTerminalEventInput::Kind::Cancellation
+        : ViewportEngineProviderTerminalEventInput::Kind::Failure;
     return result;
 }
 }
@@ -246,7 +190,11 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
     case ViewportProviderEvent::Kind::Failure:
     case ViewportProviderEvent::Kind::Unsupported:
     case ViewportProviderEvent::Kind::Cancellation: {
-        const auto terminal = reduceProviderTerminalEvent(event.role, terminalEvent(event));
+        auto& provider = m_state->providerState.roles[roleIndex(event.role)].provider;
+        ViewportEngineProviderTerminalEventAccess access(m_state->requestState.request,
+            m_state->playbackState.playback, provider.facts, provider.session, provider.requests);
+        const auto terminal
+            = reduceViewportEngineProviderTerminalEvent(terminalEvent(event), std::move(access));
         result.changes = terminal.changes;
         result.providerFrameTransport = terminal.providerFrameTransport;
         result.providerFrameTransportPhase = ViewportProviderEventTransportPhase::AfterChanges;
@@ -260,100 +208,30 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
 ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
+    auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+    ViewportEngineProviderSessionOpenFailureAccess access(m_state->requestState.request,
+        m_state->playbackState.playback, provider.session, provider.requests);
+    const auto reduction = reduceViewportEngineProviderSessionOpenFailure(
+        { role, diagnostic }, std::move(access));
     ViewportProviderSessionOpenFailureResult result;
-    auto& changes = result.changes;
-    clearQueuedProviderFrameRequest(role);
-    auto& provider = providerFor(providerAccess().roles(), role);
-    provider.session.sessionActive = false;
-    provider.requests.activeMetadataToken = {};
-    provider.requests.activeFrameToken = {};
-    changes = reduceViewportEngineProviderTerminalProjection(
-        { role, ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure, FailureScope::Generation, diagnostic,
-            changes },
-        ViewportEngineProviderTerminalProjectionAccess(m_state->requestState.request));
-    updatePlaybackPhase(
-        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, changes);
-    if (changes.playbackPhase) {
+    result.changes = reduction.changes;
+    if (result.changes.playbackPhase) {
         result.schedule = currentPlaybackSchedule();
     }
-    return result;
-}
-
-ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
-    ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event)
-{
-    ViewportProviderTerminalEventResult result;
-    auto& provider = providerFor(providerAccess().roles(), role);
-    const bool providerPresent = role == ImageViewport::PageRole::Primary
-        ? providerAccess().request().roles[0].source.facts.provider
-        : providerAccess().request().roles[1].provider;
-    if (!providerPresent || !provider.session.sessionActive) {
-        return result;
-    }
-
-    const DisplayRequest& request = requestForRole(providerAccess().request(), role);
-    const bool frameToken = event.token.isValid()
-        && event.token == provider.requests.activeFrameToken
-        && event.token == request.providerFrameToken;
-    if (frameToken) {
-        const auto terminal = frameTerminal(event);
-        clearQueuedProviderFrameRequest(role);
-        provider.requests.activeFrameToken = {};
-        result.changes = reduceViewportEngineProviderTerminalProjection(
-            { role, terminal.status, terminal.reason, FailureScope::DisplayRequest,
-                FramePreparation::boundedDiagnostic(
-                    terminal.diagnostic, terminal.fallbackDiagnostic),
-                result.changes },
-            ViewportEngineProviderTerminalProjectionAccess(m_state->requestState.request));
-        updatePlaybackPhase(
-            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
-        if (invalidUnsupportedCause(event)) {
-            result.providerFrameTransport = closeProviderSession(role);
-        }
-        result.schedule = currentPlaybackSchedule();
-        return result;
-    }
-
-    if (provider.facts.metadataReady || !provider.requests.activeMetadataToken.isValid()
-        || event.token != provider.requests.activeMetadataToken) {
-        return result;
-    }
-    const auto terminal = metadataTerminal(event);
-    provider.requests.activeMetadataToken = {};
-    providerAccess().playback().providerStartPending = false;
-    result.changes = reduceViewportEngineProviderTerminalProjection(
-        { role, terminal.status, terminal.reason, FailureScope::Generation,
-            FramePreparation::boundedDiagnostic(terminal.diagnostic, terminal.fallbackDiagnostic),
-            result.changes },
-        ViewportEngineProviderTerminalProjectionAccess(m_state->requestState.request));
-    updatePlaybackPhase(
-        providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
-    result.providerFrameTransport = closeProviderSession(role);
-    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
 ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailure(
     ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event)
 {
-    ViewportProviderTerminalEvent terminal { event.token,
-        ViewportProviderTerminalEvent::Kind::Failure,
-        ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-        event.diagnostic.isEmpty() ? QStringLiteral("provider command delivery failed")
-                                   : event.diagnostic,
-        false };
-    auto& provider = providerFor(providerAccess().roles(), role);
-    const bool sessionWasActive = provider.session.sessionActive;
-    provider.session.sessionActive = true;
-    ViewportProviderTerminalEventResult result = reduceProviderTerminalEvent(role, terminal);
-    if (!sessionWasActive) {
-        provider.session.sessionActive = false;
-        result.providerFrameTransport.closeSession = false;
-    }
-    if (result.changes.requestState && !result.providerFrameTransport.closeSession) {
-        result.providerFrameTransport = closeProviderSession(role);
-    }
+    auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+    ViewportEngineProviderDispatchFailureAccess access(m_state->requestState.request,
+        m_state->playbackState.playback, provider.facts, provider.session, provider.requests);
+    const auto reduction = reduceViewportEngineProviderDispatchFailure(
+        { role, event.token, event.diagnostic }, std::move(access));
+    ViewportProviderTerminalEventResult result;
+    result.changes = reduction.changes;
+    result.providerFrameTransport = reduction.providerFrameTransport;
     result.schedule = currentPlaybackSchedule();
     return result;
 }
@@ -361,35 +239,14 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
 ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedulingFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
+    auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+    ViewportEngineProviderQueueFailureAccess access(
+        m_state->requestState.request, m_state->playbackState.playback, provider.requests);
+    const auto reduction
+        = reduceViewportEngineProviderQueueFailure({ role, diagnostic }, std::move(access));
     ViewportProviderSchedulerFailureResult result;
-    auto& provider = providerFor(providerAccess().roles(), role);
-    const DisplayRequest& request = requestForRole(providerAccess().request(), role);
-    const bool queued = provider.requests.queuedFrameRequest;
-    result.diagnostic
-        = { queued, role, provider.requests.queuedFrameGeneration, request.identity.id,
-              provider.requests.queuedFrameRequestId, provider.requests.queuedFrameTargetKind,
-              ProviderSchedulerOperation::FlushQueuedFrameRequest };
-    const bool providerPresent = role == ImageViewport::PageRole::Primary
-        ? providerAccess().request().roles[0].source.facts.provider
-        : providerAccess().request().roles[1].provider;
-    if (!queued || !providerPresent) {
-        clearQueuedProviderFrameRequest(role);
-        return result;
-    }
-
-    const bool playbackOwned = provider.requests.queuedFrameFromPlayback;
-    clearQueuedProviderFrameRequest(role);
-    result.changes = reduceViewportEngineProviderTerminalProjection(
-        { role, ImageViewport::RequestStatus::Error,
-            ImageViewport::RequestReason::ProviderFailure, FailureScope::DisplayRequest,
-            FramePreparation::boundedDiagnostic(
-                diagnostic, QStringLiteral("provider command delivery failed")),
-            result.changes },
-        ViewportEngineProviderTerminalProjectionAccess(m_state->requestState.request));
-    if (playbackOwned) {
-        updatePlaybackPhase(
-            providerAccess().playback(), ImageViewport::PlaybackPhase::Stopped, result.changes);
-    }
+    result.changes = reduction.changes;
+    result.diagnostic = reduction.diagnostic;
     result.schedule = currentPlaybackSchedule();
     return result;
 }

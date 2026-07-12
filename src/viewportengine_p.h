@@ -8,6 +8,7 @@
 #include "viewportenginecontracts_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
+#include "viewportengineproviderfailureoperations_p.h"
 #include "viewportengineproviderframeoperations_p.h"
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
@@ -170,11 +171,8 @@ public:
 public:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
-    ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
-        ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);
 public:
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);

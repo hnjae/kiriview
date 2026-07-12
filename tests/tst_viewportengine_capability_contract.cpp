@@ -4,6 +4,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderframeoperations_p.h"
+#include "viewportengineproviderfailureoperations_p.h"
 #include "viewportengineproviderprojection_p.h"
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
@@ -155,6 +156,40 @@ static_assert(!HasProviderRequestAccess<ViewportEngineProviderFrameReadyAccess>:
 static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderFrameReady),
     ViewportEngineProviderFrameReadyReduction (*)(ViewportEngineProviderFrameReadyInput,
         ViewportEngineProviderFrameReadyAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderTerminalEventAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalEventAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderTerminalEventAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderTerminalEventAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderTerminalEventAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderTerminalEvent),
+    ViewportEngineProviderTerminalEventReduction (*)(ViewportEngineProviderTerminalEventInput,
+        ViewportEngineProviderTerminalEventAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderDispatchFailureAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderDispatchFailureAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderDispatchFailureAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderDispatchFailureAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderDispatchFailureAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionOpenFailureAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionOpenFailureAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderSessionOpenFailureAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionOpenFailureAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderSessionOpenFailureAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderQueueFailureAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderQueueFailureAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderQueueFailureAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderQueueFailureAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderQueueFailureAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderDispatchFailure),
+    ViewportEngineProviderTerminalEventReduction (*)(
+        ViewportEngineProviderDispatchFailureInput,
+        ViewportEngineProviderDispatchFailureAccess)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderSessionOpenFailure),
+    ViewportEngineProviderSessionOpenFailureReduction (*)(
+        ViewportEngineProviderSessionOpenFailureInput,
+        ViewportEngineProviderSessionOpenFailureAccess)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineProviderQueueFailure),
+    ViewportEngineProviderQueueFailureReduction (*)(ViewportEngineProviderQueueFailureInput,
+        ViewportEngineProviderQueueFailureAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderTerminalProjectionAccess>);
 static_assert(!HasRequestAccess<ViewportEngineProviderTerminalProjectionAccess>::value);

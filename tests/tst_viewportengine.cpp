@@ -133,6 +133,24 @@ void verifyProviderFrameQueueCleared(const ImageViewportInternal::ProviderReques
         requests.queuedFrameTargetKind, ImageViewportInternal::ProviderRequestTargetKind::Unknown);
 }
 
+ViewportProviderEvent providerTerminalEvent(ViewportEngine& engine,
+    ImageSequenceProviderRequestToken token, ViewportProviderEvent::Kind kind,
+    ImageSequenceProviderSession::UnsupportedCause cause, const QString& diagnostic,
+    bool causeExplicit)
+{
+    ViewportProviderEvent event;
+    event.kind = kind;
+    event.role = ImageViewport::PageRole::Primary;
+    event.sessionSerial
+        = ViewportEngineTestAccess::providerSession(engine, event.role).sessionSerial;
+    event.generation = ViewportEngineTestAccess::request(engine).sequenceGeneration;
+    event.token = token;
+    event.unsupportedCause = cause;
+    event.diagnostic = diagnostic;
+    event.unsupportedCauseExplicit = causeExplicit;
+    return event;
+}
+
 } // namespace
 
 class ViewportEngineTest : public QObject
@@ -836,10 +854,12 @@ void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
               .activeFrameToken;
 
-    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
-        { providerRequestTokenForTest(4), ViewportProviderTerminalEvent::Kind::Failure,
+    const auto result = engine.reduceProviderEvent(
+        providerTerminalEvent(engine, providerRequestTokenForTest(4),
+            ViewportProviderEvent::Kind::Failure,
             ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-            QStringLiteral("stale"), false });
+            QStringLiteral("stale"), false),
+        {});
 
     QCOMPARE(result.changes.requestState, false);
     QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewport::PageRole::Primary)
@@ -866,10 +886,12 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
         = ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
               .activeFrameToken;
 
-    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
-        { providerRequestTokenForTest(3), ViewportProviderTerminalEvent::Kind::Failure,
+    const auto result = engine.reduceProviderEvent(
+        providerTerminalEvent(engine, providerRequestTokenForTest(3),
+            ViewportProviderEvent::Kind::Failure,
             ImageSequenceProviderSession::UnsupportedCause::PayloadRejection,
-            QStringLiteral("frame failed"), false });
+            QStringLiteral("frame failed"), false),
+        {});
 
     QCOMPARE(result.changes.requestState, true);
     QCOMPARE(result.changes.playbackPhase, true);
@@ -900,10 +922,12 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
         .activeMetadataToken
         = providerRequestTokenForTest(5);
 
-    const auto result = engine.reduceProviderTerminalEvent(ImageViewport::PageRole::Primary,
-        { providerRequestTokenForTest(5), ViewportProviderTerminalEvent::Kind::Unsupported,
+    const auto result = engine.reduceProviderEvent(
+        providerTerminalEvent(engine, providerRequestTokenForTest(5),
+            ViewportProviderEvent::Kind::Unsupported,
             ImageSequenceProviderSession::UnsupportedCause::UnsupportedRequest,
-            QStringLiteral("unsupported"), true });
+            QStringLiteral("unsupported"), true),
+        {});
 
     QCOMPARE(request.status, ImageViewport::RequestStatus::Unsupported);
     QCOMPARE(request.reason, ImageViewport::RequestReason::UnsupportedRequest);

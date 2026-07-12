@@ -14,12 +14,20 @@ struct ViewportEngineProviderTerminalProjectionInput
 
 class ViewportEngineProviderMetadataReadyAccess;
 class ViewportEngineProviderFrameReadyAccess;
+class ViewportEngineProviderTerminalEventAccess;
+class ViewportEngineProviderDispatchFailureAccess;
+class ViewportEngineProviderSessionOpenFailureAccess;
+class ViewportEngineProviderQueueFailureAccess;
 
 class ViewportEngineProviderTerminalProjectionAccess
 {
     friend class ViewportEngine;
     friend class ViewportEngineProviderMetadataReadyAccess;
     friend class ViewportEngineProviderFrameReadyAccess;
+    friend class ViewportEngineProviderTerminalEventAccess;
+    friend class ViewportEngineProviderDispatchFailureAccess;
+    friend class ViewportEngineProviderSessionOpenFailureAccess;
+    friend class ViewportEngineProviderQueueFailureAccess;
     friend ImageViewportInternal::ViewportChangeSet reduceViewportEngineProviderTerminalProjection(
         ViewportEngineProviderTerminalProjectionInput,
         ViewportEngineProviderTerminalProjectionAccess);
