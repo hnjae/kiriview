@@ -93,6 +93,36 @@ ViewportEnginePlaybackSeekAccess::allocateProviderRequestToken(ImageViewport::Pa
         { role }, { m_roles, m_request, m_playback, m_display });
 }
 
+ImageSequenceProviderDisplayDemand ViewportEnginePlaybackPlayAccess::providerDemand(
+    ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const
+{
+    if (m_nextRevision == std::numeric_limits<quint64>::max()) {
+        qFatal("ImageViewport revision token allocator exhausted");
+    }
+    auto& active = requestRole(m_request, role).activeRequest;
+    active.demandRevision
+        = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(++m_nextRevision);
+    const quint64 presentationRevision
+        = m_presentationRevision != 0 ? m_presentationRevision : m_presentationTargetGeneration;
+    return projectViewportProviderDemand(
+        { role, geometry, active.demandRevision,
+            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
+                m_request.requestRevision),
+            ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
+                presentationRevision),
+            ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
+                m_presentationTargetGeneration) },
+        { m_request, m_display,
+            { m_roles[0].provider.facts, m_roles[1].provider.facts }, m_presentation });
+}
+
+ViewportProviderRequestTokenAllocationResult
+ViewportEnginePlaybackPlayAccess::allocateProviderRequestToken(ImageViewport::PageRole role)
+{
+    return allocateViewportProviderRequestToken(
+        { role }, { m_roles, m_request, m_playback, m_display });
+}
+
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand command)
 {
     switch (command.kind) {
@@ -544,6 +574,248 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
     }
     if (playback.phase == ImageViewport::PlaybackPhase::Playing) {
         playback.phase = ImageViewport::PlaybackPhase::Waiting;
+        result.changes.playbackPhase = true;
+    }
+    return result;
+}
+
+ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
+    ViewportEnginePlaybackPlayInput input, ViewportEnginePlaybackPlayAccess access)
+{
+    using namespace ImageViewportInternal;
+    ViewportEnginePlaybackPlayReduction result;
+    auto reject = [&result](ImageViewport::CommandOutcome outcome,
+                      ImageViewport::CommandReason reason) {
+        result.outcome = outcome;
+        result.reason = reason;
+        return result;
+    };
+    auto& request = access.m_request;
+    auto& playback = access.m_playback;
+    auto& display = access.m_display;
+    const std::size_t index
+        = input.role == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    auto& roleState = requestRole(request, input.role);
+    const auto& source = roleState.source;
+    auto& provider = access.m_roles[index].provider;
+
+    const auto& terminal = request.targetSpreadTerminal;
+    const bool generationTerminal = terminal.sealed
+        && terminal.generation == request.sequenceGeneration
+        && terminal.requestId == request.roles[0].activeRequest.identity.id
+        && ((terminal.primary.terminal
+                && terminal.primary.failureScope == FailureScope::Generation)
+            || (terminal.secondary.terminal
+                && terminal.secondary.failureScope == FailureScope::Generation));
+    const bool providerTransportUnavailable = source.facts.provider
+        && !provider.session.sessionActive
+        && (request.status == ImageViewport::RequestStatus::Unsupported
+            || request.status == ImageViewport::RequestStatus::Error);
+    if (generationTerminal || providerTransportUnavailable) {
+        return reject(ImageViewport::CommandOutcome::Unsupported,
+            ImageViewport::CommandReason::UnsupportedRequest);
+    }
+
+    auto beginRoleRequest = [&request](ImageViewport::PageRole role,
+                                DisplayRequestOrigin origin, DisplayRequestTarget target,
+                                ResolvedFrameIdentity resolved, bool remember) {
+        if (role == ImageViewport::PageRole::Primary) {
+            request.beginDisplayRequest(origin, target, resolved, remember);
+            return;
+        }
+        const auto primary = request.roles[0].activeRequest;
+        request.beginDisplayRequest(origin, primary.target, primary.resolvedFrame, false);
+        auto& secondary = request.roles[1].activeRequest;
+        secondary.identity = request.roles[0].activeRequest.identity;
+        secondary.target = target;
+        secondary.resolvedFrame = resolved;
+        secondary.providerFrameToken = {};
+        secondary.preparedPayloadId = 0;
+        if (remember) {
+            request.roles[1].latestNonPlaybackRequest = secondary;
+        }
+    };
+    auto markRequest = [&result]() {
+        result.changes.requestState = true;
+        result.changes.requestRevision = true;
+        result.changes.displayState = true;
+        result.changes.displayRevision = true;
+        result.changes.scheduleUpdate = true;
+    };
+    auto stageBuiltIn = [&]() {
+        request.targetSpreadTerminal.clear();
+        request.lastAcceptedRenderFailure = {};
+        display.captureRenderFailureRetainedDisplay(true);
+        display.roles[0].pendingRenderPayload.commitPending = true;
+        display.beginPreparedPayloadIdentity(
+            request.sequenceGeneration, request.roles[0].activeRequest);
+        display.roles[0].pendingRenderPayload
+            = FramePreparation::admitBuiltInFrame(request.roles[0].source,
+                request.roles[0].activeRequest.target.frame,
+                display.roles[0].pendingRenderPayload)
+                  .preparedPayload;
+        if (request.roles[1].source.facts.present && !request.roles[1].source.facts.provider
+            && request.roles[1].activeRequest.target.frame >= 0) {
+            PreparedPayload payload;
+            payload.commitPending = true;
+            payload.generation = request.sequenceGeneration;
+            payload.requestId = request.roles[0].activeRequest.identity.id;
+            payload.payloadId = ++display.nextPreparedPayloadId;
+            request.roles[1].activeRequest.preparedPayloadId = payload.payloadId;
+            display.roles[1].pendingRenderPayload
+                = FramePreparation::admitBuiltInFrame(request.roles[1].source,
+                    request.roles[1].activeRequest.target.frame, payload)
+                      .preparedPayload;
+        }
+        request.status = ImageViewport::RequestStatus::Loading;
+        request.reason = input.geometry.itemBounds.isEmpty()
+            ? ImageViewport::RequestReason::RenderWaiting
+            : ImageViewport::RequestReason::UploadPending;
+        display.status = display.roles[0].displayedImageSize.isValid()
+            ? ImageViewport::DisplayStatus::Retained
+            : ImageViewport::DisplayStatus::Empty;
+    };
+    auto dispatchProvider = [&]() {
+        auto& effect = result.providerFrameTransport[index];
+        auto& active = roleState.activeRequest;
+        if (provider.requests.activeFrameToken.isValid()) {
+            TargetSpreadWaitState wait;
+            if (input.role == ImageViewport::PageRole::Secondary) {
+                wait.requiresSecondary = true;
+                wait.secondary.requestQueued = true;
+            } else {
+                wait.primary.requestQueued = true;
+            }
+            request.status = ImageViewport::RequestStatus::Loading;
+            request.reason = projectWaitReason(wait);
+            const bool retained = (display.status == ImageViewport::DisplayStatus::Ready
+                                      || display.status == ImageViewport::DisplayStatus::Retained)
+                && display.roles[0].displayedImageSize.isValid();
+            display.status = retained ? ImageViewport::DisplayStatus::Retained
+                                      : ImageViewport::DisplayStatus::Empty;
+            display.clearPendingRenderPayload();
+            display.clearRenderFailureRetainedDisplay();
+            if (provider.session.sessionActive) {
+                effect.cancelToken = provider.requests.activeFrameToken;
+            }
+            provider.requests.activeFrameToken = {};
+            active.providerFrameToken = {};
+            provider.requests.queuedFrameRequest = true;
+            provider.requests.queuedFrameGeneration = request.sequenceGeneration;
+            provider.requests.queuedFrameRequestId = active.identity.id;
+            provider.requests.queuedFrame = active.target.frame;
+            provider.requests.queuedPosition = active.target.position;
+            provider.requests.queuedResolvedFrame = active.resolvedFrame;
+            provider.requests.queuedFrameFromPlayback = true;
+            provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
+            effect.deferredControllerEvent
+                = ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest;
+            return;
+        }
+        auto allocation = access.allocateProviderRequestToken(input.role);
+        effect.closeSession = allocation.closeSession;
+        effect.sessionClose = allocation.sessionClose;
+        mergeChanges(result.changes, allocation.changes);
+        if (allocation.exhausted) {
+            return;
+        }
+        provider.requests.activeFrameToken = allocation.token;
+        active.providerFrameToken = allocation.token;
+        effect.sendCommand = provider.session.sessionActive;
+        effect.command.token = allocation.token;
+        effect.command.frame = active.resolvedFrame.frame;
+        effect.command.position = active.target.position;
+        effect.command.targetKind = active.target.providerTargetKind;
+        effect.command.demand = access.providerDemand(input.role, input.geometry);
+        request.status = ImageViewport::RequestStatus::Loading;
+        request.reason = ImageViewport::RequestReason::ProviderWaiting;
+        display.status = display.roles[0].displayedImageSize.isValid()
+            ? ImageViewport::DisplayStatus::Retained
+            : ImageViewport::DisplayStatus::Empty;
+        display.clearPendingRenderPayload();
+        display.clearRenderFailureRetainedDisplay();
+    };
+
+    if (source.facts.provider && !provider.facts.metadataReady) {
+        if (providerCapabilityKnownFalse(source.facts.providerTimedPlaybackCapability)) {
+            return reject(ImageViewport::CommandOutcome::Unsupported,
+                ImageViewport::CommandReason::UnsupportedRequest);
+        }
+        playback.role = input.role;
+        playback.stopWhenRequestReady = false;
+        playback.loopIterationsCompleted = 0;
+        if (provider.requests.activeFrameToken.isValid()) {
+            result.providerFrameTransport[index].cancelToken
+                = provider.requests.activeFrameToken;
+            provider.requests.activeFrameToken = {};
+        }
+        if (input.role == ImageViewport::PageRole::Primary) {
+            beginRoleRequest(input.role, DisplayRequestOrigin::Playback,
+                { -1, -1, ProviderRequestTargetKind::Playback }, { -1, -1 }, false);
+        } else {
+            auto& secondary = request.roles[1].activeRequest;
+            secondary.target = { -1, -1, ProviderRequestTargetKind::Playback };
+            secondary.resolvedFrame = { -1, -1 };
+            secondary.providerFrameToken = {};
+        }
+        playback.providerStartPending = input.role == ImageViewport::PageRole::Primary;
+        playback.position = -1;
+        playback.phase = ImageViewport::PlaybackPhase::Waiting;
+        result.changes.playbackPhase = true;
+        markRequest();
+        return result;
+    }
+    if (source.facts.provider
+        && (!provider.facts.timedMetadata || !provider.facts.timedPlaybackSupport)) {
+        return reject(ImageViewport::CommandOutcome::Unsupported,
+            ImageViewport::CommandReason::UnsupportedRequest);
+    }
+    if (!source.facts.provider
+        && (!source.facts.timed || !source.facts.timingIntervals.isValid())) {
+        return reject(ImageViewport::CommandOutcome::Unsupported,
+            ImageViewport::CommandReason::UnsupportedRequest);
+    }
+
+    if (!source.facts.provider
+        && (request.status == ImageViewport::RequestStatus::Unsupported
+            || request.status == ImageViewport::RequestStatus::Error)) {
+        result.changes.diagnostics = request.clearDiagnostics();
+        stageBuiltIn();
+        markRequest();
+    }
+    const bool preservePosition = playback.role == input.role && playback.position >= 0
+        && !playback.stopWhenRequestReady
+        && playback.phase != ImageViewport::PlaybackPhase::Stopped;
+    playback.role = input.role;
+    playback.stopWhenRequestReady = false;
+    if (!preservePosition) {
+        const int frame = roleState.activeRequest.target.frame;
+        const auto& intervals
+            = source.facts.provider ? provider.facts.timingIntervals : source.facts.timingIntervals;
+        playback.position = intervals.frameStartPosition(frame);
+        playback.loopIterationsCompleted = 0;
+    }
+    if (source.facts.provider
+        && (request.status == ImageViewport::RequestStatus::Unsupported
+            || request.status == ImageViewport::RequestStatus::Error)) {
+        auto& active = roleState.activeRequest;
+        int frame = active.target.frame;
+        if (frame < 0 || frame >= provider.facts.timingIntervals.frameCount()) {
+            frame = 0;
+        }
+        active.target = { frame, provider.facts.timingIntervals.frameStartPosition(frame),
+            ProviderRequestTargetKind::Playback };
+        active.resolvedFrame = { frame, provider.facts.timingIntervals.frameStartPosition(frame) };
+        request.clearDiagnostics();
+        request.targetSpreadTerminal.clear();
+        dispatchProvider();
+        markRequest();
+    }
+    const auto phase = request.status == ImageViewport::RequestStatus::Loading
+        ? ImageViewport::PlaybackPhase::Waiting
+        : ImageViewport::PlaybackPhase::Playing;
+    if (playback.phase != phase) {
+        playback.phase = phase;
         result.changes.playbackPhase = true;
     }
     return result;
