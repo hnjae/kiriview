@@ -35,6 +35,9 @@ public:
     const ImageViewportInternal::PresentationState& presentationState() const;
     const ImageViewportInternal::DisplayState& displayState() const;
     const ImageViewportInternal::RequestState& requestState() const;
+    const ImageViewportInternal::PlaybackState& playbackState() const;
+    ViewportEngine::CommandDiagnostics commandDiagnostics() const;
+    quint64 publishedCommandRevision() const;
 #endif
     ImageViewportStateSnapshot stateSnapshot(double devicePixelRatio = 1.0) const;
     PresentationGeometry::State geometryState(double devicePixelRatio = 1.0) const;

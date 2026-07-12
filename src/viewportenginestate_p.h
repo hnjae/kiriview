@@ -21,8 +21,7 @@ struct ViewportEngineProviderRoleState
 
 struct ViewportEnginePlaybackState
 {
-    // Playback identity and lifecycle remain canonical fields of RequestState. This component
-    // marks playback as a distinct capability domain without duplicating that identity.
+    ImageViewportInternal::PlaybackState playback;
 };
 
 struct ViewportEnginePresentationState
@@ -41,7 +40,13 @@ struct ViewportEngineRevisionState
     quint64 nextRevision = 0;
     quint64 presentationRevision = 0;
     quint64 snapshotRevision = 0;
-    RevisionToken commandRevision;
+};
+
+struct ViewportEngineCommandState
+{
+    ImageViewport::CommandReason reason = ImageViewport::CommandReason::NoCommand;
+    RevisionToken revision;
+    quint64 publishedRevision = 0;
 };
 
 struct ViewportEngineCanonicalState
@@ -52,5 +57,6 @@ struct ViewportEngineCanonicalState
     ViewportEnginePlaybackState playbackState;
     ViewportEnginePresentationState presentationState;
     ViewportEngineRenderCoordinationState renderCoordination;
+    ViewportEngineCommandState commandState;
     ViewportEngineRevisionState revisions;
 };

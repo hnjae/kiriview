@@ -20,6 +20,7 @@ class ViewportEngineTestAccess;
 #endif
 struct ViewportEngineCanonicalState;
 struct ViewportEnginePlaybackStateAccess;
+struct ViewportEnginePresentationLoopingStateAccess;
 struct ViewportEnginePresentationStateAccess;
 struct ViewportEngineProviderStateAccess;
 struct ViewportEngineRenderStateAccess;
@@ -376,17 +377,19 @@ private:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
 #endif
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     ImageViewportInternal::DisplayState& displayState();
     const ImageViewportInternal::DisplayState& displayState() const;
     ImageViewportInternal::RequestState& requestState();
     const ImageViewportInternal::RequestState& requestState() const;
-    ImageViewportInternal::ProviderGenerationState& providerState(ImageViewport::PageRole role);
-    const ImageViewportInternal::ProviderGenerationState& providerState(
-        ImageViewport::PageRole role) const;
+    ImageViewportInternal::PlaybackState& playbackState();
+    const ImageViewportInternal::PlaybackState& playbackState() const;
+#endif
     ViewportEngineProviderStateAccess providerAccess();
     ViewportEnginePlaybackStateAccess playbackAccess();
     ViewportEngineRenderStateAccess renderAccess();
     ViewportEnginePresentationStateAccess presentationAccess();
+    ViewportEnginePresentationLoopingStateAccess presentationLoopingAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)

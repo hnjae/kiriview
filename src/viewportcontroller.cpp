@@ -49,6 +49,21 @@ const ImageViewportInternal::RequestState& ViewportController::requestState() co
     return ViewportEngineTestAccess::request(engine);
 }
 
+const ImageViewportInternal::PlaybackState& ViewportController::playbackState() const
+{
+    return ViewportEngineTestAccess::playback(engine);
+}
+
+ViewportEngine::CommandDiagnostics ViewportController::commandDiagnostics() const
+{
+    return engine.commandDiagnostics();
+}
+
+quint64 ViewportController::publishedCommandRevision() const
+{
+    return ViewportEngineTestAccess::publishedCommandRevision(engine);
+}
+
 #endif
 
 ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignment assignment)
@@ -143,7 +158,7 @@ void ViewportController::setNextRevisionTokenForTest(quint64 token)
     engine.setNextRevisionValueForTest(token);
     ViewportEngineTestAccess::display(engine).revision = 0;
     ViewportEngineTestAccess::request(engine).requestRevision = 0;
-    ViewportEngineTestAccess::request(engine).commandRevision = 0;
+    ViewportEngineTestAccess::publishedCommandRevision(engine) = 0;
 }
 
 bool ViewportController::hasPendingRenderCommitForTest() const

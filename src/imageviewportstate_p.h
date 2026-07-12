@@ -377,6 +377,24 @@ struct DisplayState
     quint64 revision = 0;
 };
 
+struct PlaybackState
+{
+    void resetRequestIdentity()
+    {
+        position = -1;
+        role = ImageViewport::PageRole::Primary;
+        loopIterationsCompleted = 0;
+    }
+
+    ImageViewport::PlaybackPhase phase = ImageViewport::PlaybackPhase::Stopped;
+    bool looping = false;
+    bool stopWhenRequestReady = false;
+    bool providerStartPending = false;
+    int position = -1;
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    int loopIterationsCompleted = 0;
+};
+
 struct RequestState
 {
     struct RoleState
@@ -401,9 +419,6 @@ struct RequestState
         roles[1].activeRequest = {};
         roles[0].latestNonPlaybackRequest = {};
         roles[1].latestNonPlaybackRequest = {};
-        playbackPosition = -1;
-        playbackRole = ImageViewport::PageRole::Primary;
-        playbackLoopIterationsCompleted = 0;
         targetSpreadTerminal.clear();
         lastAcceptedRenderFailure = {};
     }
@@ -442,18 +457,6 @@ struct RequestState
         }
     }
 
-    void setCommandDiagnostic(ImageViewport::CommandReason reason) { commandReason = reason; }
-
-    bool clearCommandDiagnosticForAcceptedCommand()
-    {
-        if (commandReason == ImageViewport::CommandReason::NoCommand) {
-            return false;
-        }
-
-        setCommandDiagnostic(ImageViewport::CommandReason::NoCommand);
-        return true;
-    }
-
     bool clearDiagnostics()
     {
         if (errorString.isEmpty() && warningString.isEmpty()) {
@@ -480,20 +483,11 @@ struct RequestState
     std::array<RoleState, 2> roles;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::NoRequest;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::NoRequest;
-    ImageViewport::CommandReason commandReason = ImageViewport::CommandReason::NoCommand;
-    ImageViewport::PlaybackPhase playbackPhase = ImageViewport::PlaybackPhase::Stopped;
-    bool looping = false;
-    bool stopPlaybackWhenRequestReady = false;
-    bool providerPlaybackStartPending = false;
-    int playbackPosition = -1;
-    ImageViewport::PageRole playbackRole = ImageViewport::PageRole::Primary;
-    int playbackLoopIterationsCompleted = 0;
     quint64 sequenceGeneration = 0;
     quint64 nextRequestId = 0;
     TargetSpreadTerminalState targetSpreadTerminal;
     RenderFailureDiagnostic lastAcceptedRenderFailure;
     quint64 requestRevision = 0;
-    quint64 commandRevision = 0;
     QString errorString;
     QString warningString;
 };
