@@ -90,6 +90,7 @@ void ImageViewport::itemChange(ItemChange change, const ItemChangeData& data)
     }
 }
 
+#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 namespace ImageViewportTestHooks {
 
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds)
@@ -256,3 +257,4 @@ QImage imageForTest(const ImageFrame& frame)
 }
 
 } // namespace ImageViewportTestHooks
+#endif
