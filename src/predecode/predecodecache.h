@@ -57,6 +57,7 @@ private:
         OpenedCollectionScopeLocation openedCollectionScope;
         StaticDisplayImagePayload displayImage;
         qsizetype byteCost = 0;
+        mutable quint64 lastUsedSequence = 0;
     };
     using CachedImageIterator = std::vector<CachedImage>::iterator;
     using ConstCachedImageIterator = std::vector<CachedImage>::const_iterator;
@@ -71,13 +72,15 @@ private:
     void removeCachedImage(
         const QUrl& normalizedUrl, const OpenedCollectionScopeLocation& openedCollectionScope);
     std::size_t windowPriority(const QUrl& normalizedUrl) const;
-    void trimImagesToWindow();
+    quint64 nextLastUsedSequence() const;
+    void trimImagesToBudget();
 
     std::vector<QUrl> m_windowUrls;
     PredecodeDisplayedHistory m_displayedHistory;
     std::deque<PredecodeRequest> m_queue;
     std::vector<CachedImage> m_images;
     qsizetype m_byteBudget = 0;
+    mutable quint64 m_lastUsedSequence = 0;
 };
 }
 

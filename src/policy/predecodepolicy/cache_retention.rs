@@ -12,6 +12,7 @@ struct RetainedCachedImage {
     recent_displayed_priority: usize,
     window_priority: usize,
     byte_cost: i64,
+    last_used_sequence: u64,
 }
 
 pub(super) fn retained_cached_image_indices(
@@ -27,11 +28,7 @@ pub(super) fn retained_cached_image_indices(
         .into_iter()
         .enumerate()
         .filter_map(|(original_index, state)| {
-            if (!state.current_displayed
-                && !state.recent_displayed
-                && state.window_priority >= window_count)
-                || state.byte_cost <= 0
-            {
+            if state.byte_cost <= 0 {
                 return None;
             }
 
@@ -43,6 +40,7 @@ pub(super) fn retained_cached_image_indices(
                 recent_displayed_priority: state.recent_displayed_priority,
                 window_priority: state.window_priority,
                 byte_cost: state.byte_cost,
+                last_used_sequence: state.last_used_sequence,
             })
         })
         .collect();
@@ -65,9 +63,9 @@ pub(super) fn retained_cached_image_indices(
 
     images.retain(|image| !image.current_displayed);
     images.sort_by(|left, right| {
-        retention_group(*left)
-            .cmp(&retention_group(*right))
-            .then_with(|| retention_priority(*left).cmp(&retention_priority(*right)))
+        retention_group(*left, window_count)
+            .cmp(&retention_group(*right, window_count))
+            .then_with(|| retention_priority(*left, *right, window_count))
             .then(left.original_index.cmp(&right.original_index))
     });
 
@@ -89,15 +87,28 @@ pub(super) fn retained_cached_image_indices(
         .collect()
 }
 
-fn retention_group(image: RetainedCachedImage) -> usize {
-    if image.recent_displayed { 0 } else { 1 }
+fn retention_group(image: RetainedCachedImage, window_count: usize) -> usize {
+    if image.recent_displayed {
+        0
+    } else if image.window_priority < window_count {
+        1
+    } else {
+        2
+    }
 }
 
-fn retention_priority(image: RetainedCachedImage) -> usize {
-    if image.recent_displayed {
-        image.recent_displayed_priority
+fn retention_priority(
+    left: RetainedCachedImage,
+    right: RetainedCachedImage,
+    window_count: usize,
+) -> std::cmp::Ordering {
+    if left.recent_displayed && right.recent_displayed {
+        left.recent_displayed_priority
+            .cmp(&right.recent_displayed_priority)
+    } else if left.window_priority < window_count && right.window_priority < window_count {
+        left.window_priority.cmp(&right.window_priority)
     } else {
-        image.window_priority
+        right.last_used_sequence.cmp(&left.last_used_sequence)
     }
 }
 
@@ -106,7 +117,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn retained_cached_image_indices_drop_images_outside_window_and_sort_by_priority() {
+    fn retained_cached_image_indices_keep_warm_images_after_window_images() {
         assert_eq!(
             retained_cached_image_indices(
                 vec![
@@ -118,7 +129,7 @@ mod tests {
                 3,
                 100,
             ),
-            vec![2, 3, 0]
+            vec![2, 3, 0, 1]
         );
     }
 
@@ -202,6 +213,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn retained_cached_image_indices_evict_oldest_warm_image_first() {
+        assert_eq!(
+            retained_cached_image_indices(
+                vec![
+                    warm_cached_image_state(3, 10),
+                    cached_image_state(0, 10),
+                    warm_cached_image_state(7, 10),
+                ],
+                1,
+                20,
+            ),
+            vec![1, 2]
+        );
+    }
+
     fn cached_image_state(window_priority: usize, byte_cost: i64) -> RustPredecodeCachedImageState {
         RustPredecodeCachedImageState {
             current_displayed: false,
@@ -210,6 +237,7 @@ mod tests {
             recent_displayed_priority: usize::MAX,
             window_priority,
             byte_cost,
+            last_used_sequence: 0,
         }
     }
 
@@ -224,6 +252,7 @@ mod tests {
             recent_displayed_priority: usize::MAX,
             window_priority,
             byte_cost,
+            last_used_sequence: 0,
         }
     }
 
@@ -238,6 +267,22 @@ mod tests {
             recent_displayed_priority,
             window_priority: usize::MAX,
             byte_cost,
+            last_used_sequence: 0,
+        }
+    }
+
+    fn warm_cached_image_state(
+        last_used_sequence: u64,
+        byte_cost: i64,
+    ) -> RustPredecodeCachedImageState {
+        RustPredecodeCachedImageState {
+            current_displayed: false,
+            recent_displayed: false,
+            current_displayed_priority: usize::MAX,
+            recent_displayed_priority: usize::MAX,
+            window_priority: usize::MAX,
+            byte_cost,
+            last_used_sequence,
         }
     }
 }

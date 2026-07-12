@@ -60,7 +60,7 @@ class TestPredecodeLoadController : public QObject
 private Q_SLOTS:
     void windowLoadsCacheDisplayedImageAndPumpQueuedDecodes();
     void parallelLimitStartsMultipleWindowLoads();
-    void startWindowLoadsReplacesActiveGeneration();
+    void startWindowLoadsReprioritizesWithoutCancelingActiveDecode();
     void cancelBackgroundWorkSuppressesStaleDecode();
 };
 
@@ -115,7 +115,7 @@ void TestPredecodeLoadController::parallelLimitStartsMultipleWindowLoads()
     QCOMPARE(dataLoader.backLoad().url, previousUrl);
 }
 
-void TestPredecodeLoadController::startWindowLoadsReplacesActiveGeneration()
+void TestPredecodeLoadController::startWindowLoadsReprioritizesWithoutCancelingActiveDecode()
 {
     ManualImageDataLoader dataLoader;
     ManualImageWorkerScheduler workerScheduler;
@@ -135,18 +135,21 @@ void TestPredecodeLoadController::startWindowLoadsReplacesActiveGeneration()
 
     controller.startWindowLoads(loadWindow(displayedUrl, { displayedUrl, nextUrl }, 8));
 
-    QVERIFY(dataLoader.frontLoad().canceled);
-    QCOMPARE(dataLoader.loadCount(), std::size_t(2));
-    QCOMPARE(dataLoader.backLoad().url, nextUrl);
+    QVERIFY(!dataLoader.frontLoad().canceled);
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
 
-    dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
-    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(0));
-    QVERIFY(!controller.findPredecodedImage(staleNextUrl).has_value());
-
-    dataLoader.finishBackLoad(QByteArrayLiteral("next"));
+    dataLoader.finishFrontLoad(QByteArrayLiteral("warm"));
     QCOMPARE(workerScheduler.scheduleCount(), std::size_t(1));
     workerScheduler.runWork(0);
     workerScheduler.finish(0);
+    QVERIFY(controller.findPredecodedImage(staleNextUrl).has_value());
+    QTRY_COMPARE(dataLoader.loadCount(), std::size_t(2));
+    QCOMPARE(dataLoader.backLoad().url, nextUrl);
+
+    dataLoader.finishBackLoad(QByteArrayLiteral("next"));
+    QCOMPARE(workerScheduler.scheduleCount(), std::size_t(2));
+    workerScheduler.runWork(1);
+    workerScheduler.finish(1);
     QVERIFY(controller.findPredecodedImage(nextUrl).has_value());
 }
 

@@ -36,8 +36,7 @@ void PredecodeLoadController::startWindowLoads(PredecodeLoadWindow window)
                                   << "generation" << window.generation << "primaryUrl"
                                   << window.primaryDisplayedUrl << "urls" << window.urls.size()
                                   << "parallelLimit" << window.parallelLimit;
-    m_activeDecodes.cancel();
-    m_loadState.startWindow(std::move(window));
+    m_loadState.startWindow(std::move(window), m_activeDecodes.activeLoads());
     startNextLoads();
 }
 

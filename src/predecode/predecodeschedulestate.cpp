@@ -14,13 +14,14 @@ namespace kiriview {
 PredecodeScheduleRuntimePlan PredecodeScheduleState::schedule(
     PredecodeScheduleContext context, qint64 monotonicMsec)
 {
-    cancelBackgroundWork();
-    PredecodeScheduleRuntimePlan plan { CancelBackgroundPredecodeOperation {} };
+    invalidatePendingSchedule();
 
     if (!validPredecodeScheduleContext(context)) {
         m_currentContext.reset();
-        return plan;
+        return { CancelBackgroundPredecodeOperation {} };
     }
+
+    PredecodeScheduleRuntimePlan plan { SupersedePredecodeScheduleOperation {} };
 
     updateNavigationMomentum(context.pageIndex, monotonicMsec);
     const quint64 generation = m_generation.next();
@@ -50,7 +51,7 @@ PredecodeScheduleRuntimePlan PredecodeScheduleState::setPowerSaverEnabled(
 
     m_powerSaverEnabled = enabled;
     if (enabled) {
-        cancelBackgroundWork();
+        invalidatePendingSchedule();
         return {
             CancelBackgroundPredecodeOperation {},
             ClearPredecodeWindowUrlsOperation {},
@@ -92,7 +93,7 @@ PredecodeScheduleRuntimePlan PredecodeScheduleState::settlePendingScheduleToNeut
     m_momentumState.mode = PredecodeMomentumMode::Neutral;
     m_pendingSchedule->generation = m_generation.next();
     return {
-        CancelBackgroundPredecodeOperation {},
+        SupersedePredecodeScheduleOperation {},
         StartAdjacentPredecodeOperation { *m_pendingSchedule },
     };
 }
@@ -102,7 +103,7 @@ bool PredecodeScheduleState::accepts(quint64 generation) const
     return m_generation.accepts(generation);
 }
 
-void PredecodeScheduleState::cancelBackgroundWork()
+void PredecodeScheduleState::invalidatePendingSchedule()
 {
     m_generation.invalidate();
     m_pendingSchedule.reset();
@@ -110,7 +111,7 @@ void PredecodeScheduleState::cancelBackgroundWork()
 
 void PredecodeScheduleState::cancel()
 {
-    cancelBackgroundWork();
+    invalidatePendingSchedule();
     m_currentContext.reset();
     m_momentumState = {};
 }

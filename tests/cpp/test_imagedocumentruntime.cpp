@@ -2591,7 +2591,8 @@ void TestImageDocumentRuntime::twoPageModeLoadingNavigationUsesPendingPrimaryPag
     runtime->openNextPage();
     QTRY_VERIFY(dataLoader.hasActiveLoadForUrl(fifthPageUrl));
     QCOMPARE(runtime->currentPageNumber(), 5);
-    QVERIFY(!finishOldestActiveLoadForUrl(dataLoader, fourthPageUrl));
+    QVERIFY(finishOldestActiveLoadForUrl(dataLoader, fourthPageUrl));
+    QCOMPARE(runtime->currentPageNumber(), 5);
 
     QVERIFY(finishNewestActiveLoadForUrl(dataLoader, fifthPageUrl));
 

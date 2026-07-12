@@ -147,6 +147,7 @@ void TestPredecodePolicyConversion::loadStateInputsMapPlainFields()
             2,
             3,
             4096,
+            99,
         });
     QVERIFY(cached.current_displayed);
     QVERIFY(cached.recent_displayed);
@@ -154,6 +155,7 @@ void TestPredecodePolicyConversion::loadStateInputsMapPlainFields()
     QCOMPARE(cached.recent_displayed_priority, std::size_t(2));
     QCOMPARE(cached.window_priority, std::size_t(3));
     QCOMPARE(cached.byte_cost, qint64(4096));
+    QCOMPARE(cached.last_used_sequence, quint64(99));
 
     const kiriview::RustPredecodeWindowLoadState window
         = kiriview::Bridge::rustPredecodeWindowLoadState(

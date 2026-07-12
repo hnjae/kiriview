@@ -13,11 +13,14 @@
 #include <vector>
 
 namespace {
+using kiriview::TestSupport::imageDecodeDependenciesFor;
 using kiriview::TestSupport::indexedImageUrl;
+using kiriview::TestSupport::ManualImageDataLoader;
 using kiriview::TestSupport::ManualPowerSaverMonitor;
 using kiriview::TestSupport::ManualTimerScheduler;
 using kiriview::TestSupport::powerSaverProviderFor;
 using kiriview::TestSupport::staticDisplayTestImagePayload;
+using kiriview::TestSupport::staticImageDataDecoder;
 using kiriview::TestSupport::testImage;
 
 constexpr qsizetype testCacheByteBudget = 1024 * 1024;
@@ -63,6 +66,7 @@ private Q_SLOTS:
     void immediateScheduleStartsAdjacentWithoutDebounce();
     void manualTimerSchedulerFiresDebouncedPredecode();
     void invalidScheduleCancelsDomainBackgroundWork();
+    void validScheduleSupersedesPlanningWithoutCancelingActiveDecode();
     void powerSaverSuppressesAndReschedulesPendingPredecode();
     void enablingPowerSaverKeepsDisplayedImageCache();
 };
@@ -170,6 +174,32 @@ void TestPredecodeScheduleRuntime::invalidScheduleCancelsDomainBackgroundWork()
     runtime.schedule({});
 
     QCOMPARE(cancelCount, 1);
+}
+
+void TestPredecodeScheduleRuntime::validScheduleSupersedesPlanningWithoutCancelingActiveDecode()
+{
+    ManualImageDataLoader dataLoader;
+    kiriview::PredecodeLoadController loadController(this,
+        imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder()), testCacheByteBudget);
+    const QUrl displayedUrl = indexedImageUrl(20);
+    const QUrl activeUrl = indexedImageUrl(21);
+    loadController.startWindowLoads(kiriview::PredecodeLoadWindow {
+        displayedUrl,
+        kiriview::OpenedCollectionScopeLocation::none(),
+        { displayedUrl, activeUrl },
+        { displayedImage(displayedUrl) },
+        {},
+        1,
+        1,
+    });
+    QCOMPARE(dataLoader.loadCount(), std::size_t(1));
+
+    kiriview::PredecodeScheduleRuntime runtime(
+        this, loadController, [](const kiriview::PredecodePendingSchedule&) { }, {},
+        noOpPowerSaverProvider());
+    runtime.schedule(scheduleContext(displayedUrl));
+
+    QVERIFY(!dataLoader.frontLoad().canceled);
 }
 
 void TestPredecodeScheduleRuntime::powerSaverSuppressesAndReschedulesPendingPredecode()

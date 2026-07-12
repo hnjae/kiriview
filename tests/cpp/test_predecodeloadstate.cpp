@@ -71,7 +71,8 @@ void TestPredecodeLoadState::activeWindowBuildsDecodeRequestsFromCanonicalContex
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
 
-    state.startWindow(loadWindow(displayedUrl, { displayedUrl, nextUrl }));
+    state.startWindow(
+        loadWindow(displayedUrl, { displayedUrl, nextUrl }), kiriview::PredecodeActiveLoads {});
 
     const std::optional<kiriview::PredecodedImage> displayed
         = state.findPredecodedImage(displayedUrl);
@@ -98,7 +99,7 @@ void TestPredecodeLoadState::activeLoadSnapshotIsTheAdmissionInput()
         = loadWindow(displayedUrl, { displayedUrl, nextUrl, previousUrl });
     window.parallelLimit = 2;
 
-    state.startWindow(std::move(window));
+    state.startWindow(std::move(window), activeLoads({ nextUrl }));
 
     const std::optional<kiriview::PredecodeLoadStart> load
         = state.takeNextLoad(activeLoads({ nextUrl }));
@@ -115,8 +116,10 @@ void TestPredecodeLoadState::replacingWindowClearsQueuedLoadsAndUsesNextGenerati
     const QUrl displayedUrl = indexedImageUrl(3);
     const QUrl nextUrl = indexedImageUrl(4);
 
-    state.startWindow(loadWindow(staleDisplayedUrl, { staleDisplayedUrl, staleNextUrl }));
-    state.startWindow(loadWindow(displayedUrl, { displayedUrl, nextUrl }, 8));
+    state.startWindow(loadWindow(staleDisplayedUrl, { staleDisplayedUrl, staleNextUrl }),
+        kiriview::PredecodeActiveLoads {});
+    state.startWindow(
+        loadWindow(displayedUrl, { displayedUrl, nextUrl }, 8), kiriview::PredecodeActiveLoads {});
 
     const std::optional<kiriview::PredecodeLoadStart> load
         = state.takeNextLoad(kiriview::PredecodeActiveLoads {});
@@ -133,7 +136,8 @@ void TestPredecodeLoadState::cancelBackgroundWorkKeepsDisplayedCacheButDropsQueu
     const QUrl displayedUrl = indexedImageUrl(1);
     const QUrl nextUrl = indexedImageUrl(2);
 
-    state.startWindow(loadWindow(displayedUrl, { displayedUrl, nextUrl }));
+    state.startWindow(
+        loadWindow(displayedUrl, { displayedUrl, nextUrl }), kiriview::PredecodeActiveLoads {});
     state.cancelBackgroundWork();
 
     QVERIFY(!state.takeNextLoad(kiriview::PredecodeActiveLoads {}).has_value());
@@ -145,7 +149,8 @@ void TestPredecodeLoadState::findPredecodedImageDoesNotConsumeCachedImage()
     kiriview::PredecodeLoadState state = loadState();
     const QUrl displayedUrl = indexedImageUrl(1);
 
-    state.startWindow(loadWindow(displayedUrl, { displayedUrl }));
+    state.startWindow(
+        loadWindow(displayedUrl, { displayedUrl }), kiriview::PredecodeActiveLoads {});
 
     const std::optional<kiriview::PredecodedImage> firstLookup
         = state.findPredecodedImage(displayedUrl);

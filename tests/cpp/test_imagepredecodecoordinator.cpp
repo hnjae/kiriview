@@ -179,7 +179,7 @@ private Q_SLOTS:
     void archiveThreadCountProviderControlsParallelLoadLimit();
     void animatedBackgroundDecodeIsNotCachedAsStaticPredecodedImage_data();
     void animatedBackgroundDecodeIsNotCachedAsStaticPredecodedImage();
-    void staleGenerationDecodeIsIgnored();
+    void sameScopeGenerationChangeRetainsActiveDecodeCompletion();
     void rapidNavigationDebouncesSkippedPagePredecode();
     void powerSaverMonitorSuppressesAndReschedulesPredecode();
     void cancelSuppressesPendingDecode();
@@ -564,7 +564,7 @@ void TestImagePredecodeCoordinator::animatedBackgroundDecodeIsNotCachedAsStaticP
     QVERIFY(!coordinator.findPredecodedImage(animatedUrl).has_value());
 }
 
-void TestImagePredecodeCoordinator::staleGenerationDecodeIsIgnored()
+void TestImagePredecodeCoordinator::sameScopeGenerationChangeRetainsActiveDecodeCompletion()
 {
     FakeCandidateProvider candidateProvider;
     ManualImageDataLoader dataLoader;
@@ -587,8 +587,8 @@ void TestImagePredecodeCoordinator::staleGenerationDecodeIsIgnored()
         displayTestImagePayload(testImage()),
     }));
 
-    dataLoader.deliverFrontLoadDataIgnoringCancellation(QByteArrayLiteral("stale"));
-    QVERIFY(!coordinator.findPredecodedImage(indexedImageUrl(1)).has_value());
+    dataLoader.finishFrontLoad(QByteArrayLiteral("warm"));
+    QVERIFY(coordinator.findPredecodedImage(indexedImageUrl(1)).has_value());
 }
 
 void TestImagePredecodeCoordinator::rapidNavigationDebouncesSkippedPagePredecode()

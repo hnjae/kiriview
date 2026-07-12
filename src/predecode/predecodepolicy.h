@@ -69,6 +69,7 @@ struct PredecodeCachedImageState
     std::size_t recentDisplayedPriority = 0;
     std::size_t windowPriority = 0;
     qsizetype byteCost = 0;
+    quint64 lastUsedSequence = 0;
 };
 
 struct PredecodeWindowLoadState

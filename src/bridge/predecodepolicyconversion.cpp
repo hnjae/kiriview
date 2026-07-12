@@ -121,6 +121,7 @@ RustPredecodeCachedImageState rustPredecodeCachedImageState(const PredecodeCache
         state.recentDisplayedPriority,
         state.windowPriority,
         rustByteSize(state.byteCost),
+        state.lastUsedSequence,
     };
 }
 

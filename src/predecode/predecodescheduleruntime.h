@@ -40,6 +40,7 @@ private:
     void dispatchScheduleOperation(const PredecodeScheduleOperation& operation);
     void startDebouncedPredecode();
     void scheduleSettledNeutralPredecode();
+    void supersedeScheduleRuntime();
     void cancelBackgroundRuntime();
     qint64 currentMonotonicMsec() const;
 

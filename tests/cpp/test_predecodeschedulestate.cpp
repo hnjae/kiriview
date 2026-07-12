@@ -91,7 +91,7 @@ void TestPredecodeScheduleState::schedulePublishesCurrentContextAndPendingGenera
         = state.schedule(scheduleContext(firstUrl, 1), 1000);
 
     QCOMPARE(update.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(update, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(update, 0) != nullptr);
     const auto* cacheOperation
         = operationAt<kiriview::CacheDisplayedPredecodeContextOperation>(update, 1);
     QVERIFY(cacheOperation != nullptr);
@@ -142,7 +142,7 @@ void TestPredecodeScheduleState::scheduleAcceptsCursorWithoutDisplayedImages()
         1000);
 
     QCOMPARE(update.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(update, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(update, 0) != nullptr);
     const auto* cacheOperation
         = operationAt<kiriview::CacheDisplayedPredecodeContextOperation>(update, 1);
     QVERIFY(cacheOperation != nullptr);
@@ -163,7 +163,7 @@ void TestPredecodeScheduleState::immediateScheduleStartsSelectedTargetWithoutDeb
         = state.schedule(scheduleContext(targetUrl, 12, true), 1000);
 
     QCOMPARE(update.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(update, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(update, 0) != nullptr);
     QVERIFY(operationAt<kiriview::CacheDisplayedPredecodeContextOperation>(update, 1) != nullptr);
     const auto* startOperation = operationAt<kiriview::StartAdjacentPredecodeOperation>(update, 2);
     QVERIFY(startOperation != nullptr);
@@ -206,7 +206,7 @@ void TestPredecodeScheduleState::powerSaverSuppressesPendingScheduleButKeepsCurr
         = state.schedule(scheduleContext(displayedUrl, 3), 1000);
 
     QCOMPARE(update.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(update, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(update, 0) != nullptr);
     const auto* cacheOperation
         = operationAt<kiriview::CacheDisplayedPredecodeContextOperation>(update, 1);
     QVERIFY(cacheOperation != nullptr);
@@ -233,7 +233,7 @@ void TestPredecodeScheduleState::disablingPowerSaverReschedulesCurrentContext()
     const kiriview::PredecodeScheduleRuntimePlan resumed = state.setPowerSaverEnabled(false, 1200);
 
     QCOMPARE(resumed.size(), std::size_t(3));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(resumed, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(resumed, 0) != nullptr);
     const auto* cacheOperation
         = operationAt<kiriview::CacheDisplayedPredecodeContextOperation>(resumed, 1);
     QVERIFY(cacheOperation != nullptr);
@@ -280,7 +280,7 @@ void TestPredecodeScheduleState::settledNeutralScheduleReissuesPendingGeneration
     const kiriview::PredecodeScheduleRuntimePlan settled = state.settlePendingScheduleToNeutral();
 
     QCOMPARE(settled.size(), std::size_t(2));
-    QVERIFY(operationAt<kiriview::CancelBackgroundPredecodeOperation>(settled, 0) != nullptr);
+    QVERIFY(operationAt<kiriview::SupersedePredecodeScheduleOperation>(settled, 0) != nullptr);
     const auto* startOperation = operationAt<kiriview::StartAdjacentPredecodeOperation>(settled, 1);
     QVERIFY(startOperation != nullptr);
     QCOMPARE(payloadMarker(startOperation->schedule.context), 99);

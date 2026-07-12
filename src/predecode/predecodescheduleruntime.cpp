@@ -94,6 +94,9 @@ void PredecodeScheduleRuntime::dispatchScheduleOperation(
             if constexpr (std::is_same_v<Operation, CancelBackgroundPredecodeOperation>) {
                 qCDebug(kiriviewPredecodeLog) << "cancel background predecode";
                 cancelBackgroundRuntime();
+            } else if constexpr (std::is_same_v<Operation, SupersedePredecodeScheduleOperation>) {
+                qCDebug(kiriviewPredecodeLog) << "supersede predecode schedule";
+                supersedeScheduleRuntime();
             } else if constexpr (std::is_same_v<Operation,
                                      CacheDisplayedPredecodeContextOperation>) {
                 qCDebug(kiriviewPredecodeLog) << "cache displayed predecode context"
@@ -149,7 +152,7 @@ void PredecodeScheduleRuntime::scheduleSettledNeutralPredecode()
     dispatchSchedulePlan(m_scheduleState.settlePendingScheduleToNeutral());
 }
 
-void PredecodeScheduleRuntime::cancelBackgroundRuntime()
+void PredecodeScheduleRuntime::supersedeScheduleRuntime()
 {
     if (m_debounceTimer != nullptr) {
         m_debounceTimer->stop();
@@ -160,6 +163,11 @@ void PredecodeScheduleRuntime::cancelBackgroundRuntime()
     if (m_cancelDomainBackground) {
         m_cancelDomainBackground();
     }
+}
+
+void PredecodeScheduleRuntime::cancelBackgroundRuntime()
+{
+    supersedeScheduleRuntime();
     m_loadController.cancelBackgroundWork();
 }
 

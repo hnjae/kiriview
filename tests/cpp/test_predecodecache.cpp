@@ -76,6 +76,8 @@ private Q_SLOTS:
     void cacheKeepsOnlyFourRecentDisplayedImages();
     void cacheRejectsUncacheableAndOversizedImages();
     void cacheEvictsLowestPriorityImagesWhenBudgetIsExceeded();
+    void cacheRetainsWarmImagesAcrossWindowReprioritization();
+    void cacheRefreshesWarmImageRecencyOnLookup();
 };
 
 void TestPredecodeCache::queueContainsOnlyMissingWindowImages()
@@ -273,7 +275,7 @@ void TestPredecodeCache::cacheRetainsRecentDisplayedImagesBeforeAdjacentImages()
 
 void TestPredecodeCache::cacheKeepsOnlyFourRecentDisplayedImages()
 {
-    kiriview::PredecodeCache cache(1000);
+    kiriview::PredecodeCache cache(400);
     const kiriview::OpenedCollectionScopeLocation openedCollectionScope
         = comicBookArchiveCollection();
     const QImage image = cacheImage();
@@ -296,7 +298,6 @@ void TestPredecodeCache::cacheRejectsUncacheableAndOversizedImages()
 {
     kiriview::PredecodeCache cache(160);
     const QUrl url = indexedImageUrl(0);
-    const QUrl outsideWindowUrl = indexedImageUrl(9);
     const kiriview::OpenedCollectionScopeLocation openedCollectionScope
         = comicBookArchiveCollection();
 
@@ -308,9 +309,6 @@ void TestPredecodeCache::cacheRejectsUncacheableAndOversizedImages()
     cache.cacheDisplayedImage(
         true, url, openedCollectionScope, kiriview::StaticDisplayImagePayload {});
     QVERIFY(!cache.hasImage(url));
-
-    cache.cacheImage(outsideWindowUrl, openedCollectionScope, cacheDisplayImage(image));
-    QVERIFY(!cache.hasImage(outsideWindowUrl));
 
     const QImage largeImage = tooLargeImage();
     cache.cacheImage(url, openedCollectionScope, cacheDisplayImage(largeImage));
@@ -335,6 +333,60 @@ void TestPredecodeCache::cacheEvictsLowestPriorityImagesWhenBudgetIsExceeded()
     QVERIFY(cache.hasImage(firstUrl));
     QVERIFY(cache.hasImage(secondUrl));
     QVERIFY(!cache.hasImage(thirdUrl));
+}
+
+void TestPredecodeCache::cacheRetainsWarmImagesAcrossWindowReprioritization()
+{
+    kiriview::PredecodeCache cache(480);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+    std::vector<QUrl> urls;
+    for (int index = 1; index <= 6; ++index) {
+        urls.push_back(indexedImageUrl(index));
+    }
+
+    cache.setWindowUrls(urls);
+    for (const QUrl& url : urls) {
+        cache.cacheImage(url, openedCollectionScope, cacheDisplayImage(cacheImage()));
+    }
+
+    const std::vector<QUrl> smallerWindow(urls.begin(), urls.end() - 1);
+    cache.setWindowUrls(smallerWindow);
+    QVERIFY(cache.findImage(urls.back()).has_value());
+
+    cache.setWindowUrls(urls);
+    cache.enqueueMissingWindowLoads(
+        urls.front(), openedCollectionScope, kiriview::PredecodeActiveLoads {});
+    while (const std::optional<kiriview::PredecodeRequest> request
+        = cache.takeNextRequest(kiriview::PredecodeActiveLoads {})) {
+        QVERIFY(request->url != urls.back());
+    }
+
+    cache.clear();
+    QVERIFY(!cache.findImage(urls.back()).has_value());
+}
+
+void TestPredecodeCache::cacheRefreshesWarmImageRecencyOnLookup()
+{
+    kiriview::PredecodeCache cache(160);
+    const QUrl firstWarmUrl = indexedImageUrl(1);
+    const QUrl secondWarmUrl = indexedImageUrl(2);
+    const QUrl windowUrl = indexedImageUrl(3);
+    const kiriview::OpenedCollectionScopeLocation openedCollectionScope
+        = comicBookArchiveCollection();
+
+    cache.setWindowUrls({ firstWarmUrl, secondWarmUrl });
+    cache.cacheImage(firstWarmUrl, openedCollectionScope, cacheDisplayImage(cacheImage()));
+    cache.cacheImage(secondWarmUrl, openedCollectionScope, cacheDisplayImage(cacheImage()));
+    cache.setWindowUrls({});
+    QVERIFY(cache.findImage(firstWarmUrl).has_value());
+
+    cache.setWindowUrls({ windowUrl });
+    cache.cacheImage(windowUrl, openedCollectionScope, cacheDisplayImage(cacheImage()));
+
+    QVERIFY(cache.hasImage(windowUrl));
+    QVERIFY(cache.hasImage(firstWarmUrl));
+    QVERIFY(!cache.hasImage(secondWarmUrl));
 }
 
 QTEST_GUILESS_MAIN(TestPredecodeCache)

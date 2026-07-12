@@ -82,6 +82,7 @@ mod ffi {
         recent_displayed_priority: usize,
         window_priority: usize,
         byte_cost: i64,
+        last_used_sequence: u64,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]

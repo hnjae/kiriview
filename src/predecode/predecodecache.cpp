@@ -35,6 +35,7 @@ void PredecodeCache::clear()
     m_displayedHistory.clear();
     m_queue.clear();
     m_images.clear();
+    m_lastUsedSequence = 0;
 }
 
 void PredecodeCache::clearQueuedLoads()
@@ -61,7 +62,7 @@ void PredecodeCache::setWindowUrls(const std::vector<QUrl>& urls)
         m_windowUrls.push_back(*normalizedUrl);
     }
 
-    trimImagesToWindow();
+    trimImagesToBudget();
     qCDebug(kiriviewPredecodeLog) << "predecode window urls set"
                                   << "requested" << urls.size() << "accepted"
                                   << m_windowUrls.size();
@@ -70,7 +71,7 @@ void PredecodeCache::setWindowUrls(const std::vector<QUrl>& urls)
 void PredecodeCache::setDisplayedUrls(const std::vector<QUrl>& urls)
 {
     m_displayedHistory.setDisplayedUrls(urls);
-    trimImagesToWindow();
+    trimImagesToBudget();
 }
 
 void PredecodeCache::enqueueMissingWindowLoads(const QUrl& displayedUrl,
@@ -180,6 +181,7 @@ std::optional<PredecodedImage> PredecodeCache::findImage(const QUrl& url) const
     if (cached == m_images.cend()) {
         return std::nullopt;
     }
+    cached->lastUsedSequence = nextLastUsedSequence();
 
     const DisplayedImageLocation location
         = DisplayedImageLocation::fromUrl(cached->url, cached->openedCollectionScope);
@@ -199,6 +201,7 @@ std::optional<PredecodedImage> PredecodeCache::findImage(
     if (cached == m_images.cend()) {
         return std::nullopt;
     }
+    cached->lastUsedSequence = nextLastUsedSequence();
 
     return PredecodedImage { cached->displayImage,
         DisplayedImageLocation::fromUrl(cached->url, cached->openedCollectionScope),
@@ -226,24 +229,22 @@ void PredecodeCache::cacheImage(const QUrl& url,
     }
 
     const std::optional<QUrl> normalizedUrl = normalizedValidImageUrl(url);
-    if (!normalizedUrl.has_value()
-        || (!containsUrl(m_windowUrls, *normalizedUrl)
-            && !m_displayedHistory.retainedContains(*normalizedUrl))) {
+    if (!normalizedUrl.has_value()) {
         qCDebug(kiriviewPredecodeLog) << "predecode cache store skipped"
                                       << "reason"
-                                      << "outside-window"
+                                      << "invalid-url"
                                       << "url" << url;
         return;
     }
 
     removeCachedImage(*normalizedUrl, openedCollectionScope);
-    m_images.push_back(
-        CachedImage { *normalizedUrl, openedCollectionScope, std::move(displayImage), *byteCost });
+    m_images.push_back(CachedImage { *normalizedUrl, openedCollectionScope, std::move(displayImage),
+        *byteCost, nextLastUsedSequence() });
     qCDebug(kiriviewPredecodeLog) << "predecode cache stored"
                                   << "url" << *normalizedUrl << "byteCost" << *byteCost
                                   << "cachedImages" << m_images.size();
 
-    trimImagesToWindow();
+    trimImagesToBudget();
 }
 
 void PredecodeCache::cacheDisplayedImage(bool cacheable, const QUrl& url,
@@ -319,7 +320,16 @@ std::size_t PredecodeCache::windowPriority(const QUrl& normalizedUrl) const
     return static_cast<std::size_t>(std::distance(m_windowUrls.cbegin(), priorityEntry));
 }
 
-void PredecodeCache::trimImagesToWindow()
+quint64 PredecodeCache::nextLastUsedSequence() const
+{
+    ++m_lastUsedSequence;
+    if (m_lastUsedSequence == 0) {
+        ++m_lastUsedSequence;
+    }
+    return m_lastUsedSequence;
+}
+
+void PredecodeCache::trimImagesToBudget()
 {
     std::vector<PredecodeCachedImageState> states;
     states.reserve(m_images.size());
@@ -332,6 +342,7 @@ void PredecodeCache::trimImagesToWindow()
             m_displayedHistory.recentPriority(entry.url),
             windowPriority(entry.url),
             entry.byteCost,
+            entry.lastUsedSequence,
         });
     }
 

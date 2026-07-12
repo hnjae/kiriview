@@ -59,6 +59,9 @@ const Payload* predecodeSchedulePayload(const PredecodePendingSchedule& schedule
 struct CancelBackgroundPredecodeOperation
 {
 };
+struct SupersedePredecodeScheduleOperation
+{
+};
 struct CacheDisplayedPredecodeContextOperation
 {
     std::vector<DisplayedPredecodeImage> images;
@@ -75,9 +78,10 @@ struct StartAdjacentPredecodeOperation
     PredecodePendingSchedule schedule;
 };
 
-using PredecodeScheduleOperation = std::variant<CancelBackgroundPredecodeOperation,
-    CacheDisplayedPredecodeContextOperation, ClearPredecodeWindowUrlsOperation,
-    StartPredecodeDebounceOperation, StartAdjacentPredecodeOperation>;
+using PredecodeScheduleOperation
+    = std::variant<CancelBackgroundPredecodeOperation, SupersedePredecodeScheduleOperation,
+        CacheDisplayedPredecodeContextOperation, ClearPredecodeWindowUrlsOperation,
+        StartPredecodeDebounceOperation, StartAdjacentPredecodeOperation>;
 using PredecodeScheduleRuntimePlan = std::vector<PredecodeScheduleOperation>;
 
 class PredecodeScheduleState final
@@ -93,10 +97,10 @@ public:
     PredecodeScheduleRuntimePlan settlePendingScheduleToNeutral();
     bool accepts(quint64 generation) const;
 
-    void cancelBackgroundWork();
     void cancel();
 
 private:
+    void invalidatePendingSchedule();
     void updateNavigationMomentum(int pageIndex, qint64 monotonicMsec);
 
     std::optional<PredecodeScheduleContext> m_currentContext;
