@@ -3,7 +3,6 @@
 
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewporttoken_p.h"
-#include "imageviewportvalidation_p.h"
 #include "playbacktimeline_p.h"
 #include "viewportplaybackcontract_p.h"
 
@@ -76,17 +75,27 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     const PlaybackCommandInput& input)
 {
     PlaybackCommandResult result;
-    if (!ImageViewportInternal::isValidPageRole(input.command.role)) {
+    if (!validateViewportPlaybackCommand(input.command)) {
         result.command = rejectInvalidCommand();
         appendCommandChanges(result.command, result.changes);
         result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
         return result;
     }
-    if (!rolePresent(playbackAccess().request(), input.command.role)) {
+    if (!rolePresent(m_state->requestState.request, input.command.role)) {
         result.command = rejected(ImageViewport::CommandOutcome::IgnoredNoRequest,
             ImageViewport::CommandReason::IgnoredNoRequest);
         appendCommandChanges(result.command, result.changes);
         result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
+        return result;
+    }
+    if (input.command.kind == ViewportPlaybackCommand::Kind::Pause) {
+        result.command = accepted();
+        appendCommandChanges(result.command, result.changes);
+        ViewportEnginePlaybackPauseAccess access(m_state->playbackState.playback);
+        const auto reduction
+            = reduceViewportEnginePlaybackPause({ input.command.role }, std::move(access));
+        result.changes.playbackPhase = reduction.playbackPhaseChanged;
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
     const auto& terminal = playbackAccess().request().targetSpreadTerminal;
@@ -222,19 +231,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         return true;
     };
 
-    if (input.command.kind == ViewportPlaybackCommand::Kind::Pause
-        && (playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Stopped
-            || playbackAccess().playback().role == input.command.role)
-        && (playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Playing
-            || playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Waiting)) {
-        result.command = accepted();
-        appendCommandChanges(result.command, result.changes);
-        playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Paused;
-        result.changes.playbackPhase = true;
-    } else if (input.command.kind == ViewportPlaybackCommand::Kind::Pause) {
-        result.command = accepted();
-        appendCommandChanges(result.command, result.changes);
-    } else if (input.command.kind == ViewportPlaybackCommand::Kind::Play) {
+    if (input.command.kind == ViewportPlaybackCommand::Kind::Play) {
         const auto& source = requestRole(playbackAccess().request(), input.command.role).source;
         auto& provider = playbackAccess().roles()[roleIndex(input.command.role)].provider;
         if (source.facts.provider && !provider.facts.metadataReady) {

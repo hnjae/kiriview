@@ -129,6 +129,7 @@ private slots:
     void playbackScheduleUsesBuiltInFrameRemainder();
     void playbackScheduleUsesProviderFrameRemainderByRole();
     void playbackPauseCommandMutatesEngineAtomically();
+    void malformedPlaybackCommandKindIsRejectedBeforeStateMutation();
     void playbackTickAdvancesBuiltInTargetInEngine();
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
@@ -450,6 +451,61 @@ void ViewportEngineTest::playbackPauseCommandMutatesEngineAtomically()
         ViewportEngineTestAccess::playback(engine).phase, ImageViewport::PlaybackPhase::Paused);
     QCOMPARE(result.changes.playbackPhase, true);
     QCOMPARE(result.schedule.action, ViewportPlaybackScheduleEffect::Action::Stop);
+
+    ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Waiting;
+    const auto waiting = engine.applyPlaybackCommand(
+        { { ViewportPlaybackCommand::Kind::Pause, ImageViewport::PageRole::Primary }, {} });
+    QCOMPARE(waiting.command.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        ViewportEngineTestAccess::playback(engine).phase, ImageViewport::PlaybackPhase::Paused);
+    QCOMPARE(waiting.changes.playbackPhase, true);
+
+    request.roles[1].source.facts.present = true;
+    ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Playing;
+    const auto otherRole = engine.applyPlaybackCommand(
+        { { ViewportPlaybackCommand::Kind::Pause, ImageViewport::PageRole::Secondary }, {} });
+    QCOMPARE(otherRole.command.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        ViewportEngineTestAccess::playback(engine).phase, ImageViewport::PlaybackPhase::Playing);
+    QCOMPARE(otherRole.changes.playbackPhase, false);
+
+    ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Stopped;
+    const auto stopped = engine.applyPlaybackCommand(
+        { { ViewportPlaybackCommand::Kind::Pause, ImageViewport::PageRole::Primary }, {} });
+    QCOMPARE(stopped.command.outcome, ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(
+        ViewportEngineTestAccess::playback(engine).phase, ImageViewport::PlaybackPhase::Stopped);
+    QCOMPARE(stopped.changes.playbackPhase, false);
+}
+
+void ViewportEngineTest::malformedPlaybackCommandKindIsRejectedBeforeStateMutation()
+{
+    ViewportEngine engine;
+    auto& request = ViewportEngineTestAccess::request(engine);
+    request.roles[0].source.facts.present = true;
+    request.status = ImageViewport::RequestStatus::Ready;
+    request.reason = ImageViewport::RequestReason::Ready;
+    auto& playback = ViewportEngineTestAccess::playback(engine);
+    playback.role = ImageViewport::PageRole::Primary;
+    playback.phase = ImageViewport::PlaybackPhase::Playing;
+    playback.position = 25;
+
+    ViewportPlaybackCommand command;
+    command.kind = static_cast<ViewportPlaybackCommand::Kind>(-1);
+    command.role = ImageViewport::PageRole::Primary;
+    const auto result = engine.applyPlaybackCommand({ command, {} });
+
+    QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(result.command.reason, ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(playback.phase, ImageViewport::PlaybackPhase::Playing);
+    QCOMPARE(playback.position, 25);
+    QCOMPARE(request.status, ImageViewport::RequestStatus::Ready);
+    QCOMPARE(request.reason, ImageViewport::RequestReason::Ready);
+    QCOMPARE(result.changes.requestState, false);
+    QCOMPARE(result.changes.displayState, false);
+    QCOMPARE(result.changes.playbackPhase, false);
+    QCOMPARE(result.effects.providerFrameTransport[0].sendCommand, false);
+    QCOMPARE(result.effects.providerFrameTransport[1].sendCommand, false);
 }
 
 void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()

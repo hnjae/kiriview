@@ -3,6 +3,35 @@
 #include "viewportenginestate_p.h"
 #include "viewportplaybackcontract_p.h"
 
+struct ViewportEnginePlaybackPauseInput
+{
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+};
+
+struct ViewportEnginePlaybackPauseReduction
+{
+    bool playbackPhaseChanged = false;
+};
+
+class ViewportEnginePlaybackPauseAccess
+{
+    friend class ViewportEngine;
+    explicit ViewportEnginePlaybackPauseAccess(ImageViewportInternal::PlaybackState& playback)
+        : m_playback(playback)
+    {
+    }
+
+public:
+    ViewportEnginePlaybackPauseAccess(const ViewportEnginePlaybackPauseAccess&) = delete;
+    ViewportEnginePlaybackPauseAccess(ViewportEnginePlaybackPauseAccess&&) noexcept = default;
+    ViewportEnginePlaybackPauseAccess& operator=(const ViewportEnginePlaybackPauseAccess&) = delete;
+
+    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
+
+private:
+    ImageViewportInternal::PlaybackState& m_playback;
+};
+
 class ViewportEnginePlaybackScheduleAccess
 {
     friend class ViewportEngine;
@@ -33,3 +62,6 @@ private:
 
 ViewportPlaybackScheduleEffect projectViewportPlaybackSchedule(
     ViewportEnginePlaybackScheduleAccess);
+bool validateViewportPlaybackCommand(ViewportPlaybackCommand);
+ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
+    ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess);

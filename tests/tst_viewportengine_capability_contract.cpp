@@ -222,5 +222,20 @@ static_assert(!HasProviderRequestAccess<ViewportEnginePlaybackScheduleAccess>::v
 static_assert(std::is_same_v<decltype(&projectViewportPlaybackSchedule),
     ViewportPlaybackScheduleEffect (*)(ViewportEnginePlaybackScheduleAccess)>);
 static_assert(!HasPlaybackScheduleEffect<ViewportEngine>::value);
+static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackPauseAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackPauseAccess>);
+static_assert(!std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePlaybackPauseAccess&>().playback())>>);
+static_assert(!HasRequestAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(!HasRolesAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEnginePlaybackPauseAccess>::value);
+static_assert(
+    std::is_same_v<decltype(&validateViewportPlaybackCommand), bool (*)(ViewportPlaybackCommand)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackPause),
+    ViewportEnginePlaybackPauseReduction (*)(
+        ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess)>);
 
 int main() { }

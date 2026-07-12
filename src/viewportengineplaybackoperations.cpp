@@ -10,6 +10,41 @@ const ImageViewportInternal::RequestState::RoleState& requestRole(
 }
 }
 
+bool validateViewportPlaybackCommand(ViewportPlaybackCommand command)
+{
+    switch (command.kind) {
+    case ViewportPlaybackCommand::Kind::Play:
+    case ViewportPlaybackCommand::Kind::Pause:
+    case ViewportPlaybackCommand::Kind::Stop:
+    case ViewportPlaybackCommand::Kind::SeekFrame:
+    case ViewportPlaybackCommand::Kind::SeekPosition:
+        break;
+    default:
+        return false;
+    }
+    switch (command.role) {
+    case ImageViewport::PageRole::Primary:
+    case ImageViewport::PageRole::Secondary:
+        return true;
+    default:
+        return false;
+    }
+}
+
+ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
+    ViewportEnginePlaybackPauseInput input, ViewportEnginePlaybackPauseAccess access)
+{
+    ViewportEnginePlaybackPauseReduction result;
+    if (access.playback().role != input.role
+        || (access.playback().phase != ImageViewport::PlaybackPhase::Playing
+            && access.playback().phase != ImageViewport::PlaybackPhase::Waiting)) {
+        return result;
+    }
+    access.playback().phase = ImageViewport::PlaybackPhase::Paused;
+    result.playbackPhaseChanged = true;
+    return result;
+}
+
 ViewportPlaybackScheduleEffect projectViewportPlaybackSchedule(
     ViewportEnginePlaybackScheduleAccess access)
 {
