@@ -366,7 +366,7 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
     result.changes.diagnostics
         = providerAccess().request().status == ImageViewport::RequestStatus::Error
         && providerAccess().request().reason == ImageViewport::RequestReason::ProviderFailure;
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
@@ -551,7 +551,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         break;
     }
     }
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
@@ -847,10 +847,11 @@ ViewportProviderMetadataTargetPolicyResult ViewportEngine::applyProviderMetadata
     return result;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOpenFailure(
+ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOpenFailure(
     ImageViewport::PageRole role, const QString& diagnostic)
 {
-    ViewportChangeSet changes;
+    ViewportProviderSessionOpenFailureResult result;
+    auto& changes = result.changes;
     clearQueuedProviderFrameRequest(role);
     auto& provider = providerFor(providerAccess().roles(), role);
     provider.session.sessionActive = false;
@@ -860,7 +861,10 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::reduceProviderSessionOp
         ImageViewport::RequestReason::ProviderFailure, FailureScope::Generation, diagnostic,
         changes);
     setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, changes);
-    return changes;
+    if (changes.playbackPhase) {
+        result.schedule = currentPlaybackSchedule();
+    }
+    return result;
 }
 
 ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
@@ -890,7 +894,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
         if (invalidUnsupportedCause(event)) {
             result.providerFrameTransport = closeProviderSession(role);
         }
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -906,7 +910,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderTerminalEvent(
         result.changes);
     setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
     result.providerFrameTransport = closeProviderSession(role);
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
@@ -930,7 +934,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
     if (result.changes.requestState && !result.providerFrameTransport.closeSession) {
         result.providerFrameTransport = closeProviderSession(role);
     }
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
@@ -963,7 +967,7 @@ ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedu
     if (playbackOwned) {
         setPlaybackPhase(ImageViewport::PlaybackPhase::Stopped, result.changes);
     }
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 

@@ -383,7 +383,7 @@ void ViewportEngineTest::playbackScheduleStopsOutsideReadyPlayingState()
 {
     ViewportEngine engine;
 
-    const auto stopped = engine.playbackScheduleEffect();
+    const auto stopped = ViewportEngineTestAccess::playbackSchedule(engine);
 
     QCOMPARE(stopped.action, ViewportPlaybackScheduleEffect::Action::Stop);
     QCOMPARE(stopped.delayMilliseconds, -1);
@@ -405,7 +405,7 @@ void ViewportEngineTest::playbackScheduleUsesBuiltInFrameRemainder()
     ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Playing;
     request.status = ImageViewport::RequestStatus::Ready;
 
-    const auto effect = engine.playbackScheduleEffect();
+    const auto effect = ViewportEngineTestAccess::playbackSchedule(engine);
 
     QCOMPARE(effect.action, ViewportPlaybackScheduleEffect::Action::ArmAfter);
     QCOMPARE(effect.delayMilliseconds, 225);
@@ -428,7 +428,7 @@ void ViewportEngineTest::playbackScheduleUsesProviderFrameRemainderByRole()
     providerFacts.timedMetadata = true;
     providerFacts.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
 
-    const auto effect = engine.playbackScheduleEffect();
+    const auto effect = ViewportEngineTestAccess::playbackSchedule(engine);
 
     QCOMPARE(effect.action, ViewportPlaybackScheduleEffect::Action::ArmAfter);
     QCOMPARE(effect.delayMilliseconds, 60);

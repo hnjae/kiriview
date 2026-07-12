@@ -648,7 +648,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
 
     result.presentationTargetState = m_state->requestState.presentationTarget;
     if (!presentationTargetChanged) {
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -831,7 +831,7 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
     result.changes.diagnostics = oldError != m_state->requestState.request.errorString
         || oldWarning != m_state->requestState.request.warningString;
     result.changes.scheduleUpdate = true;
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 

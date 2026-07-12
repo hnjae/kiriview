@@ -8,6 +8,7 @@
 #include "viewportplaybackcontract_p.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace {
 
@@ -275,7 +276,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
             result.changes.playbackPhase = true;
             markRequest();
-            result.schedule = playbackScheduleEffect();
+            result.schedule = currentPlaybackSchedule();
             return result;
         }
         if (source.facts.provider
@@ -348,7 +349,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         appendCommandChanges(result.command, result.changes);
         if (playbackAccess().playback().phase != ImageViewport::PlaybackPhase::Stopped
             && playbackAccess().playback().role != input.command.role) {
-            result.schedule = playbackScheduleEffect();
+            result.schedule = currentPlaybackSchedule();
             return result;
         }
         playbackAccess().playback().stopWhenRequestReady = false;
@@ -477,7 +478,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             }
             appendCommandChanges(result.command, result.changes);
             result.schedule = result.command.outcome == ImageViewport::CommandOutcome::Accepted
-                ? playbackScheduleEffect()
+                ? currentPlaybackSchedule()
                 : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange,
                       -1 };
             return result;
@@ -533,7 +534,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
                 playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
                 result.changes.playbackPhase = true;
             }
-            result.schedule = playbackScheduleEffect();
+            result.schedule = currentPlaybackSchedule();
             return result;
         }
         const bool frameSeekOnStill = input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
@@ -583,7 +584,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             result.changes.playbackPhase = true;
         }
     }
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
@@ -668,7 +669,7 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
         || (providerTiming ? (!provider.facts.metadataReady || !provider.facts.timedMetadata
                                  || !provider.facts.timedPlaybackSupport)
                            : (!source.facts.timed || !intervals.isValid()))) {
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -680,7 +681,7 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
         [&intervals](int frame) { return intervals.frameStartPosition(frame); },
         [&intervals](int position) { return intervals.frameIndexForPosition(position); });
     if (!target.valid) {
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -695,11 +696,11 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
         } else if (target.looped && !playbackAccess().playback().looping) {
             ++playbackAccess().playback().loopIterationsCompleted;
         }
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
     if (!target.reachedEnd && !target.looped && target.displayTarget.frame == currentFrame) {
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -779,7 +780,7 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
         result.changes.displayRevision = true;
         result.changes.playbackPhase = true;
         result.changes.scheduleUpdate = true;
-        result.schedule = playbackScheduleEffect();
+        result.schedule = currentPlaybackSchedule();
         return result;
     }
 
@@ -826,48 +827,13 @@ ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const Playbac
     result.changes.displayRevision = true;
     result.changes.playbackPhase = true;
     result.changes.scheduleUpdate = true;
-    result.schedule = playbackScheduleEffect();
+    result.schedule = currentPlaybackSchedule();
     return result;
 }
 
-ViewportPlaybackScheduleEffect ViewportEngine::playbackScheduleEffect() const
+ViewportPlaybackScheduleEffect ViewportEngine::currentPlaybackSchedule() const
 {
-    using Action = ViewportPlaybackScheduleEffect::Action;
-    const auto state = snapshotAccess();
-    if (state.playback().phase != ImageViewport::PlaybackPhase::Playing
-        || state.request().status != ImageViewport::RequestStatus::Ready) {
-        return { Action::Stop, -1 };
-    }
-
-    const ImageViewport::PageRole role = state.playback().role;
-    const auto& roleRequest = requestRole(state.request(), role);
-    const auto& source = roleRequest.source;
-    const auto& provider = state.providerFacts()[roleIndex(role)];
-    const bool providerTiming = source.facts.provider;
-    const TimingIntervals& intervals
-        = providerTiming ? provider.timingIntervals : source.facts.timingIntervals;
-    const int frameCount = providerTiming ? intervals.frameCount() : source.facts.frameCount;
-    const int totalDuration
-        = providerTiming ? intervals.totalDuration() : source.facts.totalDuration;
-    if (providerTiming && (!provider.metadataReady || !provider.timedMetadata)) {
-        return { Action::Stop, -1 };
-    }
-
-    const int currentFrame = roleRequest.activeRequest.target.frame;
-    if (currentFrame < 0 || currentFrame >= frameCount) {
-        return { Action::Stop, -1 };
-    }
-
-    const int frameStart = intervals.frameStartPosition(currentFrame);
-    const int nextFrameStart = currentFrame + 1 < frameCount
-        ? intervals.frameStartPosition(currentFrame + 1)
-        : totalDuration;
-    const int frameDuration = nextFrameStart - frameStart;
-    if (frameStart < 0 || frameDuration <= 0) {
-        return { Action::Stop, -1 };
-    }
-
-    const int playbackPosition
-        = state.playback().position >= 0 ? state.playback().position : frameStart;
-    return { Action::ArmAfter, std::max(1, frameStart + frameDuration - playbackPosition) };
+    ViewportEnginePlaybackScheduleAccess access(
+        m_state->requestState.request, m_state->playbackState.playback, providerFactsView());
+    return projectViewportPlaybackSchedule(std::move(access));
 }

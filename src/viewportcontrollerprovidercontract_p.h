@@ -215,6 +215,12 @@ struct ViewportProviderSessionOpenResult
     ViewportProviderFrameTransportEffect providerFrameTransport;
 };
 
+struct ViewportProviderSessionOpenFailureResult
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    ViewportPlaybackScheduleEffect schedule;
+};
+
 struct ViewportProviderTerminalEventResult
 {
     ImageViewportInternal::ViewportChangeSet changes;

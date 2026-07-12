@@ -16,12 +16,12 @@ ViewportControllerTransition ViewportController::handleProviderHostEvent(
             result.providerAfterPublication, opened.providerFrameTransport, event.role);
         return result;
     }
-    case ViewportProviderHostEvent::Kind::SessionOpenFailed:
-        result.changes = engine.reduceProviderSessionOpenFailure(event.role, event.diagnostic);
-        if (result.changes.playbackPhase) {
-            result.playbackSchedule = engine.playbackScheduleEffect();
-        }
+    case ViewportProviderHostEvent::Kind::SessionOpenFailed: {
+        const auto reduced = engine.reduceProviderSessionOpenFailure(event.role, event.diagnostic);
+        result.changes = reduced.changes;
+        result.playbackSchedule = reduced.schedule;
         return result;
+    }
     case ViewportProviderHostEvent::Kind::ProviderEvent: {
         const auto reduced = engine.reduceProviderEvent(
             event.providerEvent, engine.acceptedGeometryInput(itemBounds()));

@@ -1,5 +1,6 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
+#include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
@@ -56,6 +57,15 @@ struct HasRolesAccess<Access, std::void_t<decltype(std::declval<Access&>().roles
 };
 
 template <typename Access, typename = void> struct HasPresentationStateAccess : std::false_type
+{
+};
+
+template <typename Engine, typename = void> struct HasPlaybackScheduleEffect : std::false_type
+{
+};
+template <typename Engine>
+struct HasPlaybackScheduleEffect<Engine,
+    std::void_t<decltype(std::declval<const Engine&>().playbackScheduleEffect())>> : std::true_type
 {
 };
 template <typename Access>
@@ -197,5 +207,20 @@ static_assert(std::is_same_v<decltype(&reduceViewportEnginePresentationTargetTra
     ViewportEnginePresentationTargetTransitionReduction (*)(
         ViewportEnginePresentationTargetTransitionInput,
         ViewportEnginePresentationTargetTransitionStateView)>);
+static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackScheduleAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackScheduleAccess>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePlaybackScheduleAccess&>().request())>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePlaybackScheduleAccess&>().playback())>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePlaybackScheduleAccess&>().providerFacts())>>);
+static_assert(!HasDisplayStateAccess<ViewportEnginePlaybackScheduleAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackScheduleAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEnginePlaybackScheduleAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEnginePlaybackScheduleAccess>::value);
+static_assert(std::is_same_v<decltype(&projectViewportPlaybackSchedule),
+    ViewportPlaybackScheduleEffect (*)(ViewportEnginePlaybackScheduleAccess)>);
+static_assert(!HasPlaybackScheduleEffect<ViewportEngine>::value);
 
 int main() { }

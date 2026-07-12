@@ -18,7 +18,7 @@ ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
         { m_state->requestState.request, m_state->displayState.display,
             m_state->playbackState.playback, providerFactsView(), m_state->renderCoordination });
     return { reduction.changes,
-        reduction.changes.playbackPhase ? playbackScheduleEffect()
+        reduction.changes.playbackPhase ? currentPlaybackSchedule()
                                         : ViewportPlaybackScheduleEffect {} };
 }
 
@@ -29,7 +29,7 @@ ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
         { m_state->requestState.request, m_state->displayState.display,
             m_state->playbackState.playback, m_state->renderCoordination });
     return { reduction.changes,
-        reduction.changes.playbackPhase ? playbackScheduleEffect()
+        reduction.changes.playbackPhase ? currentPlaybackSchedule()
                                         : ViewportPlaybackScheduleEffect {},
         reduction.diagnostic };
 }

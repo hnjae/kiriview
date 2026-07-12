@@ -7,6 +7,7 @@
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginepresentationoperations_p.h"
+#include "viewportengineplaybackoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportplaybackcontract_p.h"
@@ -247,7 +248,7 @@ public:
 public:
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
-    ImageViewportInternal::ViewportChangeSet reduceProviderSessionOpenFailure(
+    ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(
         ImageViewport::PageRole role, const GeometryInput& geometry);
@@ -287,8 +288,6 @@ public:
         ImageViewport::PlaybackPhase phase, ImageViewportInternal::ViewportChangeSet& changes);
     void armAuthoredAutoplayIfEligible();
 public:
-    ViewportPlaybackScheduleEffect playbackScheduleEffect() const;
-
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
     PresentationCommandResult applyPresentationCommand(
@@ -323,6 +322,7 @@ private:
     ViewportEnginePlaybackStateAccess playbackAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
+    ViewportPlaybackScheduleEffect currentPlaybackSchedule() const;
 
     static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
     {

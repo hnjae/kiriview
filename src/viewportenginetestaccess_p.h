@@ -31,6 +31,10 @@ public:
     {
         return engine.playbackState();
     }
+    static ViewportPlaybackScheduleEffect playbackSchedule(const ViewportEngine& engine)
+    {
+        return engine.currentPlaybackSchedule();
+    }
     static ImageViewport::CommandReason& commandReason(ViewportEngine& engine)
     {
         return engine.m_state->commandState.reason;

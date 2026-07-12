@@ -12,9 +12,6 @@ ViewportControllerTransition ViewportController::handleGeometryChanged(
         ImageViewport::PageRole::Primary);
     appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[1],
         ImageViewport::PageRole::Secondary);
-    if (result.changes.playbackPhase) {
-        result.playbackSchedule = engine.playbackScheduleEffect();
-    }
     return result;
 }
 

@@ -128,9 +128,7 @@ ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignm
 
 ViewportCommandResult ViewportController::clear()
 {
-    ViewportCommandResult result = assignSequence({});
-    result.transition.playbackSchedule = engine.playbackScheduleEffect();
-    return result;
+    return assignSequence({});
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
