@@ -2,6 +2,7 @@
 #include "viewportenginecapabilities_p.h"
 #include "viewportenginestate_p.h"
 #include "viewportengineprojection_p.h"
+#include "viewportengineproviderprojection_p.h"
 
 #include "imageviewporttoken_p.h"
 #include "imageviewportproviderfacts_p.h"
@@ -622,67 +623,21 @@ ViewportEngine::ProviderFrameQueueFlushResult ViewportEngine::flushQueuedProvide
 ImageSequenceProviderDisplayDemand ViewportEngine::providerDisplayDemand(
     ImageViewport::PageRole role, const GeometryInput& geometry)
 {
-    ImageViewportInternal::DisplayRequest& request = activeRequestForRole(m_state->requestState.request, role);
+    if (role != ImageViewport::PageRole::Primary && role != ImageViewport::PageRole::Secondary)
+        return {};
+    auto& request = activeRequestForRole(m_state->requestState.request, role);
     request.demandRevision = ImageViewportInternal::RevisionTokenPrivateAccess::demandFromValue(
         allocateRevisionValue());
-
-    const PresentationGeometry::State projected = geometryState(geometry);
-    const ImageViewportInternal::ProviderGenerationState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    const ImageViewportInternal::ImageSequenceSource& source
-        = role == ImageViewport::PageRole::Secondary ? m_state->requestState.request.roles[1].source
-                                                     : m_state->requestState.request.roles[0].source;
-    const ImageViewportInternal::PreparedPayload& currentPayload
-        = role == ImageViewport::PageRole::Secondary ? m_state->displayState.display.roles[1].displayedPayload
-                                                     : m_state->displayState.display.roles[0].displayedPayload;
-
-    QSizeF logicalSize = provider.logicalSize;
-    if (logicalSize.isEmpty()) {
-        logicalSize = ImageViewportInternal::sourceLogicalSize(source);
-    }
-    QRectF visibleRect = PresentationGeometry::visiblePageRect(projected, role);
-    const QRectF logicalBounds(QPointF(), logicalSize);
-    if (!logicalBounds.isEmpty()) {
-        visibleRect = visibleRect.intersected(logicalBounds);
-    }
-    QSizeF targetPixels = PresentationGeometry::pageItemRect(projected, role).size();
-    if (targetPixels.isValid() && projected.devicePixelRatio > 0.0) {
-        targetPixels *= projected.devicePixelRatio;
-    }
-
-    ImageSequenceProviderDisplayDemand demand;
-    demand.setDemandRevision(request.demandRevision);
-    demand.setRequestRevision(
+    const quint64 presentationRevision = m_state->revisions.presentationRevision != 0
+        ? m_state->revisions.presentationRevision : m_state->requestState.presentationTarget.generation;
+    return projectViewportProviderDemand({ role, geometry, request.demandRevision,
         ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-            m_state->requestState.request.requestRevision));
-    demand.setPresentationRevision(
-        ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(
-            m_state->revisions.presentationRevision != 0 ? m_state->revisions.presentationRevision
-                                        : m_state->requestState.presentationTarget.generation));
-    demand.setRole(role);
-    demand.setResolvedFrame(request.resolvedFrame.frame);
-    demand.setRequestedPosition(
-        request.target.providerTargetKind == ImageViewportInternal::ProviderRequestTargetKind::Frame
-            ? request.resolvedFrame.position
-            : request.target.position);
-    demand.setSourceLogicalSize(logicalSize);
-    demand.setVisibleSourceRect(visibleRect);
-    demand.setTargetDisplaySizePixels(targetPixels);
-    demand.setEffectiveDevicePixelRatio(projected.devicePixelRatio);
-    demand.setRotationDegrees(m_state->presentationState.presentation.rotationDegrees);
-    demand.setMirrorHorizontally(m_state->presentationState.presentation.mirrorHorizontally);
-    demand.setMirrorVertically(m_state->presentationState.presentation.mirrorVertically);
-    demand.setQualityPreference(m_state->presentationState.presentation.qualityPreference);
-    demand.setExactnessPreference(m_state->presentationState.presentation.exactnessPreference);
-    demand.setMaximumPayloadBytes(ImageSequenceLimits::maximumPayloadBytesPerFrame());
-    demand.setAllocationGeneration(
+            m_state->requestState.request.requestRevision),
+        ImageViewportInternal::RevisionTokenPrivateAccess::publicRevisionFromValue(presentationRevision),
         ImageViewportInternal::RevisionTokenPrivateAccess::generationFromValue(
-            m_state->requestState.presentationTarget.generation));
-    demand.setCurrentPayloadQuality(currentPayload.quality);
-    demand.setCurrentPayloadExactness(currentPayload.exactness);
-    demand.setCurrentPayloadRasterSize(currentPayload.payloadRasterSize);
-    demand.setCurrentSourceToPayloadScale(currentPayload.sourceToPayloadScale);
-    return demand;
+            m_state->requestState.presentationTarget.generation) },
+        { m_state->requestState.request, m_state->displayState.display,
+            m_state->providerState.roles, m_state->presentationState.presentation });
 }
 
 ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(

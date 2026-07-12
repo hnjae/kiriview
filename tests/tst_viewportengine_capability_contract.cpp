@@ -1,6 +1,7 @@
 #include "viewportenginecapabilities_p.h"
 #include "viewportengine_p.h"
 #include "viewportengineprojection_p.h"
+#include "viewportengineproviderprojection_p.h"
 
 #include <type_traits>
 
@@ -9,6 +10,12 @@ using DisplayAccess = decltype(std::declval<Access&>().display());
 
 template<typename Access>
 using PresentationAccess = decltype(std::declval<Access&>().presentation());
+
+template<typename Access, typename = void>
+struct HasPlaybackAccess : std::false_type { };
+template<typename Access>
+struct HasPlaybackAccess<Access,
+    std::void_t<decltype(std::declval<Access&>().playback())>> : std::true_type { };
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
@@ -53,5 +60,16 @@ static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderCommit),
 static_assert(std::is_same_v<decltype(&reduceViewportEngineRenderFailure),
     ViewportEngineRenderFailureReduction (*)(ViewportEngineRenderAcknowledgementInput,
         ViewportEngineRenderFailureAccess)>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderDemandProjectionAccess>);
+static_assert(std::is_const_v<std::remove_reference_t<
+    decltype(std::declval<ViewportEngineProviderDemandProjectionAccess&>().request())>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+    DisplayAccess<ViewportEngineProviderDemandProjectionAccess>>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+    PresentationAccess<ViewportEngineProviderDemandProjectionAccess>>>);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderDemandProjectionAccess>::value);
+static_assert(std::is_same_v<decltype(&projectViewportProviderDemand),
+    ImageSequenceProviderDisplayDemand (*)(ViewportEngineProviderDemandInput,
+        ViewportEngineProviderDemandProjectionAccess)>);
 
 int main() { }

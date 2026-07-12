@@ -55,6 +55,7 @@ qt_add_qml_module(
     viewportenginepresentation.cpp
     viewportengineplayback.cpp
     viewportengineprovider.cpp
+    viewportengineproviderprojection.cpp
     viewportengine_p.h
     viewportenginestate_p.h
     viewportenginetestaccess_p.h
