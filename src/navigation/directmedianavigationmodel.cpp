@@ -66,14 +66,11 @@ DirectMediaNavigationOpenRequest numberedDirectMediaNavigationOpenRequest(int me
     return DirectMediaNavigationOpenRequest { DirectMediaNavigationOpenKind::Number, mediaNumber };
 }
 
-QUrl directMediaNavigationSourceUrl(const QUrl& url)
-{
-    return directoryNavigationLocationForFileUrl(url).fileUrl;
-}
+QUrl directMediaNavigationSourceUrl(const QUrl& url) { return normalizedFileContainerUrl(url); }
 
 QUrl directMediaNavigationParentUrl(const QUrl& url)
 {
-    return directoryNavigationLocationForFileUrl(url).directoryUrl;
+    return parentDirectoryUrlForFileNavigation(normalizedFileContainerUrl(url));
 }
 
 std::optional<std::size_t> directMediaNavigationCandidateIndex(

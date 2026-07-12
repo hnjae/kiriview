@@ -26,6 +26,19 @@ struct NavigationSourceFacts
 
 using NavigationSourceFactProvider = std::function<NavigationSourceFacts(const QUrl&)>;
 
+class ResolvedNavigationSource;
+
+class NavigationSourceResolver
+{
+public:
+    NavigationSourceResolver();
+    explicit NavigationSourceResolver(NavigationSourceFactProvider provider);
+    ResolvedNavigationSource resolve(const QUrl& url) const;
+
+private:
+    NavigationSourceFactProvider m_provider;
+};
+
 class ResolvedNavigationSource
 {
 public:
@@ -58,12 +71,8 @@ QUrl parentDirectoryUrlForFileNavigation(const QUrl& url);
 QUrl parentUrlForContainerNavigation(const QUrl& containerUrl);
 QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& facts);
 NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url);
-ResolvedNavigationSource resolveNavigationSource(
-    const QUrl& url, const NavigationSourceFactProvider& provider = {});
-QUrl navigationSourceUrl(const QUrl& url);
 DirectoryNavigationLocation directoryNavigationLocationForSource(
     const ResolvedNavigationSource& source);
-DirectoryNavigationLocation directoryNavigationLocationForFileUrl(const QUrl& url);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);
 bool sameNormalizedUrlOrEmpty(const QUrl& left, const QUrl& right);
 bool sameContainerNavigationUrl(const QUrl& left, const QUrl& right);

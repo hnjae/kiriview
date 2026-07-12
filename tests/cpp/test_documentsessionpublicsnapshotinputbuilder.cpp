@@ -36,8 +36,8 @@ void TestDocumentSessionPublicSnapshotInputBuilder::buildsInputFromCommittedSess
     builderInput.image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
     builderInput.image.displayedUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
     builderInput.image.readyForInformation = true;
-    builderInput.directMediaCursor.pendingUrl
-        = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+    const QUrl pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+    builderInput.directMediaCursor.pendingSource = { pendingUrl, {}, pendingUrl };
 
     const kiriview::DocumentSessionPublicSnapshotInput input
         = kiriview::buildDocumentSessionPublicSnapshotInput(builderInput);

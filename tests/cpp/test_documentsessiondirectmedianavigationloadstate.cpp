@@ -22,10 +22,15 @@ namespace {
 kiriview::DirectMediaScope directMediaScope(
     const QString& currentPath, const QString& parentPath, quint64 generation)
 {
+    const QUrl currentUrl = QUrl::fromLocalFile(currentPath);
+    const QUrl parentUrl = QUrl::fromLocalFile(parentPath);
     return kiriview::DirectMediaScope {
-        QUrl::fromLocalFile(currentPath),
-        QUrl::fromLocalFile(parentPath),
+        currentUrl,
+        parentUrl,
         generation,
+        kiriview::sourceKeyForUrl(currentUrl),
+        kiriview::sourceKeyForUrl(parentUrl),
+        currentUrl,
     };
 }
 }
@@ -60,8 +65,10 @@ void TestDocumentSessionDirectMediaNavigationLoadState::cursorScopeMustMatchCurr
 
     kiriview::DocumentSessionDirectMediaNavigationLoad wrongScope = second;
     wrongScope.scope.parentUrl = first.scope.parentUrl;
+    wrongScope.scope.parentKey = first.scope.parentKey;
     kiriview::DocumentSessionDirectMediaNavigationLoad wrongCurrent = second;
     wrongCurrent.scope.currentUrl = first.scope.currentUrl;
+    wrongCurrent.scope.currentKey = first.scope.currentKey;
     kiriview::DocumentSessionDirectMediaNavigationLoad wrongGeneration = second;
     wrongGeneration.scope.generation = first.scope.generation;
 
@@ -86,6 +93,9 @@ void TestDocumentSessionDirectMediaNavigationLoadState::sourceKeyEquivalentScope
             QUrl(QStringLiteral("file:///media/chapter/../01.mp4")),
             QUrl(QStringLiteral("file:///media/chapter/..")),
             3,
+            kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.mp4"))),
+            kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/"))),
+            QUrl(QStringLiteral("file:///media/01.mp4")),
         });
 
     load.scope.currentUrl = QUrl(QStringLiteral("file:///media/01.mp4"));

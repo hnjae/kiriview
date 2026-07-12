@@ -58,15 +58,9 @@ SourceKey sourceKeyForUrl(const QUrl& url)
     };
 }
 
-SourceKey sourceKeyForDirectMediaCurrentUrl(const QUrl& url)
-{
-    return sourceKeyForUrl(navigationSourceUrl(url));
-}
+SourceKey sourceKeyForDirectMediaCurrentUrl(const QUrl& url) { return sourceKeyForUrl(url); }
 
-SourceKey sourceKeyForDirectMediaParentUrl(const QUrl& url)
-{
-    return sourceKeyForUrl(navigationSourceUrl(url));
-}
+SourceKey sourceKeyForDirectMediaParentUrl(const QUrl& url) { return sourceKeyForUrl(url); }
 
 OrdinaryFileSourceKey ordinaryFileSourceKeyForUrl(const QUrl& url)
 {

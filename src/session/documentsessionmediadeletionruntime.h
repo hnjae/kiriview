@@ -37,8 +37,9 @@ public:
     ~DocumentSessionMediaDeletionRuntime();
 
     DocumentSessionMediaDeletionStartPlan start(QObject* receiver, FileDeletionMode mode,
-        std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& currentUrl,
-        DocumentSessionKind documentKind, CompletionCallback callback);
+        std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+        const QUrl& navigationIdentityUrl, DocumentSessionKind documentKind,
+        CompletionCallback callback);
     bool startForDirectMedia(QObject* receiver, FileDeletionMode mode,
         const DirectMediaScope& scope, ScopeAccepted scopeAccepted,
         DocumentSessionKind documentKind, CompletionCallback callback);

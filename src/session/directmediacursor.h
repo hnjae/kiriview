@@ -13,8 +13,6 @@
 namespace kiriview {
 struct DirectMediaCursor
 {
-    QUrl stableUrl;
-    QUrl pendingUrl;
     ResolvedNavigationSource stableSource;
     ResolvedNavigationSource pendingSource;
     quint64 generation = 0;
@@ -31,19 +29,8 @@ struct DirectMediaScope
 
     friend bool operator==(const DirectMediaScope& left, const DirectMediaScope& right)
     {
-        const SourceKey leftCurrent = left.currentKey.valid
-            ? left.currentKey
-            : sourceKeyForDirectMediaCurrentUrl(left.currentUrl);
-        const SourceKey rightCurrent = right.currentKey.valid
-            ? right.currentKey
-            : sourceKeyForDirectMediaCurrentUrl(right.currentUrl);
-        const SourceKey leftParent = left.parentKey.valid
-            ? left.parentKey
-            : sourceKeyForDirectMediaParentUrl(left.parentUrl);
-        const SourceKey rightParent = right.parentKey.valid
-            ? right.parentKey
-            : sourceKeyForDirectMediaParentUrl(right.parentUrl);
-        return sameSourceKey(leftCurrent, rightCurrent) && sameSourceKey(leftParent, rightParent)
+        return sameSourceKey(left.currentKey, right.currentKey)
+            && sameSourceKey(left.parentKey, right.parentKey)
             && left.generation == right.generation;
     }
 };
@@ -52,11 +39,9 @@ QUrl effectiveDirectMediaCursorUrl(const DirectMediaCursor& cursor);
 DirectMediaScope directMediaScopeForCursor(const DirectMediaCursor& cursor);
 bool directMediaScopeMatchesCursor(const DirectMediaCursor& cursor, const DirectMediaScope& scope);
 bool clearDirectMediaCursor(DirectMediaCursor& cursor);
-bool requestDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url);
 bool requestDirectImageCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source);
 bool confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url);
 bool restoreDirectImageCursorAfterFailure(DirectMediaCursor& cursor);
-bool setDirectVideoCursor(DirectMediaCursor& cursor, const QUrl& url);
 bool setDirectVideoCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source);
 }
 

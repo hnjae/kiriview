@@ -93,6 +93,9 @@ kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
         currentUrl,
         localUrl(QStringLiteral("/media/")),
         7,
+        kiriview::sourceKeyForUrl(currentUrl),
+        kiriview::sourceKeyForUrl(localUrl(QStringLiteral("/media/"))),
+        currentUrl,
     };
 }
 
@@ -124,7 +127,7 @@ struct RuntimeFixture
         std::vector<kiriview::DirectMediaNavigationCandidate> candidates, const QUrl& currentUrl,
         kiriview::DocumentSessionKind kind = kiriview::DocumentSessionKind::Video)
     {
-        return runtime.start(&receiver, mode, std::move(candidates), currentUrl, kind,
+        return runtime.start(&receiver, mode, std::move(candidates), currentUrl, currentUrl, kind,
             [this](kiriview::DocumentSessionMediaDeletionCompletion deletionCompletion) {
                 ++completionCount;
                 completion = std::move(deletionCompletion);

@@ -43,9 +43,11 @@ struct DocumentSessionMediaDeletionCompletionPlan
 };
 
 DocumentSessionMediaDeletionStartPlan documentSessionMediaDeletionStartPlan(FileDeletionMode mode,
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& currentUrl);
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    const QUrl& navigationIdentityUrl);
 DocumentSessionMediaDeletionFallbackPlan documentSessionMediaDeletionFallbackPlan(
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& currentUrl);
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    const QUrl& navigationIdentityUrl);
 DocumentSessionMediaDeletionCompletionPlan documentSessionMediaDeletionCompletionPlan(
     DocumentSessionKind currentKind, const DocumentSessionMediaDeletionFallbackPlan& fallbackPlan,
     FileDeletionResult result);

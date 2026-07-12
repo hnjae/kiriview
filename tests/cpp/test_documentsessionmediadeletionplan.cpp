@@ -69,7 +69,7 @@ void TestDocumentSessionMediaDeletionPlan::startPlanRejectsEmptyCurrentUrl()
 {
     const kiriview::DocumentSessionMediaDeletionStartPlan plan
         = kiriview::documentSessionMediaDeletionStartPlan(
-            kiriview::FileDeletionMode::MoveToTrash, {}, {});
+            kiriview::FileDeletionMode::MoveToTrash, {}, {}, {});
 
     QVERIFY(!plan.shouldStartDeletion);
     QVERIFY(plan.request.targetUrl.isEmpty());
@@ -84,9 +84,10 @@ void TestDocumentSessionMediaDeletionPlan::fallbackPlanUsesOriginalDirectMediaUr
     };
     kiriview::sortDirectMediaNavigationCandidates(&candidates);
 
-    const QUrl deletedUrl = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl deletedUrl = localUrl(QStringLiteral("/portal/02.mp4"));
+    const QUrl identityUrl = localUrl(QStringLiteral("/media/02.mp4"));
     const kiriview::DocumentSessionMediaDeletionFallbackPlan plan
-        = kiriview::documentSessionMediaDeletionFallbackPlan(candidates, deletedUrl);
+        = kiriview::documentSessionMediaDeletionFallbackPlan(candidates, deletedUrl, identityUrl);
 
     QCOMPARE(plan.targetUrl, deletedUrl);
     QCOMPARE(plan.preferredFallbackUrl.value(), localUrl(QStringLiteral("/media/03.png")));
@@ -103,7 +104,7 @@ void TestDocumentSessionMediaDeletionPlan::startPlanUsesDirectMediaTargetAndFall
     const kiriview::DocumentSessionMediaDeletionStartPlan plan
         = kiriview::documentSessionMediaDeletionStartPlan(
             kiriview::FileDeletionMode::DeletePermanently, std::move(candidates),
-            localUrl(QStringLiteral("/media/02.mp4")));
+            localUrl(QStringLiteral("/media/02.mp4")), localUrl(QStringLiteral("/media/02.mp4")));
 
     QVERIFY(plan.shouldStartDeletion);
     QCOMPARE(plan.request.targetUrl, localUrl(QStringLiteral("/media/02.mp4")));

@@ -30,7 +30,8 @@ void TestDocumentSessionPublicSnapshotInputPort::assignsRevisionsWhileBuildingFr
     state.setActiveNavigationRevealDirection(kiriview::ActiveNavigationRevealDirection::Next);
     state.setDirectMediaNavigation(
         kiriview::DirectMediaNavigationBoundaryState { true, false, false, true, 2, 4 }, true, {});
-    state.requestDirectImageCursor(QUrl::fromLocalFile(QStringLiteral("/media/02.png")));
+    const QUrl pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+    state.requestDirectImageCursor({ pendingUrl, {}, pendingUrl });
 
     kiriview::DocumentSessionPublicImageLeafSnapshot image;
     image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));

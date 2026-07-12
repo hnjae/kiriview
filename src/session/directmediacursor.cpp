@@ -13,7 +13,7 @@ namespace {
 const kiriview::ResolvedNavigationSource& effectiveDirectMediaCursorSource(
     const kiriview::DirectMediaCursor& cursor)
 {
-    return !cursor.pendingUrl.isEmpty() ? cursor.pendingSource : cursor.stableSource;
+    return !cursor.pendingSource.isEmpty() ? cursor.pendingSource : cursor.stableSource;
 }
 
 bool sameEffectiveDirectMediaCursorUrl(
@@ -28,7 +28,8 @@ bool sameEffectiveDirectMediaCursorUrl(
 bool replaceDirectMediaCursor(
     kiriview::DirectMediaCursor& current, kiriview::DirectMediaCursor next)
 {
-    if (current.stableUrl == next.stableUrl && current.pendingUrl == next.pendingUrl) {
+    if (current.stableSource.requestedUrl() == next.stableSource.requestedUrl()
+        && current.pendingSource.requestedUrl() == next.pendingSource.requestedUrl()) {
         next.generation = current.generation;
         current = std::move(next);
         return false;
@@ -47,15 +48,16 @@ void logCursorOperation(
     qCDebug(kiriviewNavigationLog)
         << "direct media cursor operation"
         << "operation" << operation << "effectiveUrlChanged" << effectiveUrlChanged << "stableUrl"
-        << cursor.stableUrl << "pendingUrl" << cursor.pendingUrl << "currentUrl" << scope.currentUrl
-        << "parentUrl" << scope.parentUrl << "generation" << scope.generation;
+        << cursor.stableSource.requestedUrl() << "pendingUrl" << cursor.pendingSource.requestedUrl()
+        << "currentUrl" << scope.currentUrl << "parentUrl" << scope.parentUrl << "generation"
+        << scope.generation;
 }
 }
 
 namespace kiriview {
 QUrl effectiveDirectMediaCursorUrl(const DirectMediaCursor& cursor)
 {
-    return !cursor.pendingUrl.isEmpty() ? cursor.pendingUrl : cursor.stableUrl;
+    return effectiveDirectMediaCursorSource(cursor).requestedUrl();
 }
 
 DirectMediaScope directMediaScopeForCursor(const DirectMediaCursor& cursor)
@@ -90,15 +92,9 @@ bool clearDirectMediaCursor(DirectMediaCursor& cursor)
     return effectiveUrlChanged;
 }
 
-bool requestDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url)
-{
-    return requestDirectImageCursor(cursor, resolveNavigationSource(url));
-}
-
 bool requestDirectImageCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source)
 {
     DirectMediaCursor next = cursor;
-    next.pendingUrl = source.requestedUrl();
     next.pendingSource = std::move(source);
     const bool effectiveUrlChanged = replaceDirectMediaCursor(cursor, std::move(next));
     logCursorOperation("request-direct-image", cursor, effectiveUrlChanged);
@@ -108,12 +104,11 @@ bool requestDirectImageCursor(DirectMediaCursor& cursor, ResolvedNavigationSourc
 bool confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url)
 {
     DirectMediaCursor next = cursor;
-    next.stableUrl = url;
-    next.stableSource = !cursor.pendingSource.isEmpty()
-            && sameNormalizedUrl(cursor.pendingSource.requestedUrl(), url)
-        ? cursor.pendingSource
-        : resolveNavigationSource(url);
-    next.pendingUrl = QUrl();
+    if (cursor.pendingSource.isEmpty()
+        || !sameNormalizedUrl(cursor.pendingSource.requestedUrl(), url)) {
+        return false;
+    }
+    next.stableSource = cursor.pendingSource;
     next.pendingSource = {};
     const bool effectiveUrlChanged = replaceDirectMediaCursor(cursor, std::move(next));
     logCursorOperation("confirm-direct-image", cursor, effectiveUrlChanged);
@@ -123,24 +118,17 @@ bool confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url)
 bool restoreDirectImageCursorAfterFailure(DirectMediaCursor& cursor)
 {
     DirectMediaCursor next = cursor;
-    next.pendingUrl = QUrl();
     next.pendingSource = {};
     const bool effectiveUrlChanged = replaceDirectMediaCursor(cursor, std::move(next));
     logCursorOperation("restore-direct-image-after-failure", cursor, effectiveUrlChanged);
     return effectiveUrlChanged;
 }
 
-bool setDirectVideoCursor(DirectMediaCursor& cursor, const QUrl& url)
-{
-    return setDirectVideoCursor(cursor, resolveNavigationSource(url));
-}
-
 bool setDirectVideoCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source)
 {
     DirectMediaCursor next = cursor;
-    next.stableUrl = source.requestedUrl();
     next.stableSource = std::move(source);
-    next.pendingUrl = QUrl();
+    next.pendingSource = {};
     const bool effectiveUrlChanged = replaceDirectMediaCursor(cursor, std::move(next));
     logCursorOperation("set-direct-video", cursor, effectiveUrlChanged);
     return effectiveUrlChanged;

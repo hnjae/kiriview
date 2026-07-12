@@ -27,7 +27,7 @@ DocumentSessionPublicSnapshotInput buildDocumentSessionPublicSnapshotInput(
     input.session = builderInput.session;
     input.image = builderInput.image;
     input.image.directImageReplacementPending
-        = !builderInput.directMediaCursor.pendingUrl.isEmpty();
+        = !builderInput.directMediaCursor.pendingSource.isEmpty();
     input.video = builderInput.video;
     input.operations.displayedMediaOpenWithAvailable
         = mediaOpenWithPlan(MediaOpenWithPlanInput {

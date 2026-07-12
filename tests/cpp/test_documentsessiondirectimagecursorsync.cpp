@@ -7,6 +7,10 @@
 #include <QTest>
 #include <QUrl>
 
+namespace {
+kiriview::ResolvedNavigationSource resolved(const QUrl& url) { return { url, {}, url }; }
+}
+
 class TestDocumentSessionDirectImageCursorSync : public QObject
 {
     Q_OBJECT
@@ -24,7 +28,7 @@ void TestDocumentSessionDirectImageCursorSync::confirmsPendingCursorWhenDisplaye
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.pendingUrl = QUrl(QStringLiteral("file:///media/chapter/../01.png"));
+    input.cursor.pendingSource = resolved(QUrl(QStringLiteral("file:///media/chapter/../01.png")));
     input.image.ordinaryDirectMediaScopeActive = true;
     input.image.displayedUrl = QUrl(QStringLiteral("file:///media/01.png"));
 
@@ -40,8 +44,8 @@ void TestDocumentSessionDirectImageCursorSync::confirmsPendingCursorWhenMatching
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
-    input.image.sourceUrl = input.cursor.pendingUrl;
+    input.cursor.pendingSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/01.png")));
+    input.image.sourceUrl = input.cursor.pendingSource.requestedUrl();
     input.image.error = true;
 
     const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
@@ -49,7 +53,7 @@ void TestDocumentSessionDirectImageCursorSync::confirmsPendingCursorWhenMatching
 
     QCOMPARE(plan.operation,
         kiriview::DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor);
-    QCOMPARE(plan.url, input.cursor.pendingUrl);
+    QCOMPARE(plan.url, input.cursor.pendingSource.requestedUrl());
 }
 
 void TestDocumentSessionDirectImageCursorSync::
@@ -57,8 +61,8 @@ void TestDocumentSessionDirectImageCursorSync::
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.stableUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
-    input.cursor.pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+    input.cursor.stableSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/01.png")));
+    input.cursor.pendingSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/02.png")));
     input.image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/other.png"));
     input.image.error = true;
 
@@ -76,8 +80,8 @@ void TestDocumentSessionDirectImageCursorSync::
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Image;
-    input.cursor.stableUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
-    input.cursor.pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.png"));
+    input.cursor.stableSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/01.png")));
+    input.cursor.pendingSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/02.png")));
     input.image.sourceUrl = QUrl::fromLocalFile(QStringLiteral("/media/03.png"));
 
     const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
@@ -108,9 +112,9 @@ void TestDocumentSessionDirectImageCursorSync::ignoresInactiveDocumentKind()
 {
     kiriview::DocumentSessionDirectImageCursorSyncInput input;
     input.documentKind = kiriview::DocumentSessionKind::Video;
-    input.cursor.pendingUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
+    input.cursor.pendingSource = resolved(QUrl::fromLocalFile(QStringLiteral("/media/01.png")));
     input.image.ordinaryDirectMediaScopeActive = true;
-    input.image.displayedUrl = input.cursor.pendingUrl;
+    input.image.displayedUrl = input.cursor.pendingSource.requestedUrl();
 
     const kiriview::DocumentSessionDirectImageCursorSyncPlan plan
         = kiriview::documentSessionDirectImageCursorSyncPlan(input);

@@ -13,7 +13,7 @@ DocumentSessionDirectImageCursorSyncPlan documentSessionDirectImageCursorSyncPla
         return {};
     }
 
-    const QUrl pendingUrl = input.cursor.pendingUrl;
+    const QUrl pendingUrl = input.cursor.pendingSource.requestedUrl();
     const QUrl displayedUrl = input.image.displayedUrl;
     if (!pendingUrl.isEmpty()) {
         if (input.image.ordinaryDirectMediaScopeActive

@@ -108,7 +108,7 @@ void TestDocumentSessionImageDocumentSyncRuntime::
     const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
     kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(imageUrl);
     input.directImageLoadMayUseImageDocumentSourceScope = true;
-    input.directMediaCursor.pendingUrl = imageUrl;
+    input.directMediaCursor.pendingSource = { imageUrl, {}, imageUrl };
 
     fixture.runtime.sync(input);
 

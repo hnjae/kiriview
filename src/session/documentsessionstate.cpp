@@ -428,11 +428,6 @@ bool DocumentSessionState::clearDirectMediaCursor()
     return kiriview::clearDirectMediaCursor(m_directMediaCursor);
 }
 
-bool DocumentSessionState::requestDirectImageCursor(const QUrl& url)
-{
-    return kiriview::requestDirectImageCursor(m_directMediaCursor, url);
-}
-
 bool DocumentSessionState::requestDirectImageCursor(ResolvedNavigationSource source)
 {
     return kiriview::requestDirectImageCursor(m_directMediaCursor, std::move(source));
@@ -446,11 +441,6 @@ bool DocumentSessionState::confirmDirectImageCursor(const QUrl& url)
 bool DocumentSessionState::restoreDirectImageCursorAfterFailure()
 {
     return kiriview::restoreDirectImageCursorAfterFailure(m_directMediaCursor);
-}
-
-bool DocumentSessionState::setDirectVideoCursor(const QUrl& url)
-{
-    return kiriview::setDirectVideoCursor(m_directMediaCursor, url);
 }
 
 bool DocumentSessionState::setDirectVideoCursor(ResolvedNavigationSource source)

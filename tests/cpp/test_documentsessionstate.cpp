@@ -214,7 +214,7 @@ void TestDocumentSessionState::directMediaCandidateSnapshotReusesRowsWhenOnlyCur
 
     const QUrl firstUrl = QUrl::fromLocalFile(QStringLiteral("/media/01.png"));
     const QUrl secondUrl = QUrl::fromLocalFile(QStringLiteral("/media/02.mp4"));
-    QVERIFY(state.setDirectVideoCursor(firstUrl));
+    QVERIFY(state.setDirectVideoCursor({ firstUrl, {}, firstUrl }));
 
     kiriview::DirectMediaNavigationBoundaryState boundary {
         false,

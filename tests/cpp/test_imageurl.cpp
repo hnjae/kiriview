@@ -101,9 +101,10 @@ void TestImageUrl::directoryNavigationHelpersOwnParentAndIdentityRules()
     QCOMPARE(kiriview::parentDirectoryUrlForFileNavigation(archiveEntry),
         QUrl(QStringLiteral("zip:///path/archive.zip!/chapter/")));
 
+    const QUrl requestedUrl = QUrl::fromLocalFile(QStringLiteral("/images/a/../b/page.png"));
     const kiriview::DirectoryNavigationLocation navigationLocation
-        = kiriview::directoryNavigationLocationForFileUrl(
-            QUrl::fromLocalFile(QStringLiteral("/images/a/../b/page.png")));
+        = kiriview::directoryNavigationLocationForSource(
+            kiriview::ResolvedNavigationSource(requestedUrl, {}, requestedUrl));
     QVERIFY(navigationLocation.isValid());
     QVERIFY(kiriview::sameNormalizedUrl(
         navigationLocation.fileUrl, QUrl::fromLocalFile(QStringLiteral("/images/b/page.png"))));
@@ -199,7 +200,7 @@ void TestImageUrl::resolvedNavigationSourceCollectsFactsOncePerSnapshot()
     };
 
     const kiriview::ResolvedNavigationSource source
-        = kiriview::resolveNavigationSource(portalUrl, provider);
+        = kiriview::NavigationSourceResolver(provider).resolve(portalUrl);
     QCOMPARE(probeCount, 1);
     QCOMPARE(source.requestedUrl(), portalUrl);
     QCOMPARE(source.navigationUrl(), hostUrl);
@@ -218,14 +219,14 @@ void TestImageUrl::resolvedNavigationSourceRetainsNegativeFactsUntilReplacement(
     };
 
     const kiriview::ResolvedNavigationSource first
-        = kiriview::resolveNavigationSource(sourceUrl, provider);
+        = kiriview::NavigationSourceResolver(provider).resolve(sourceUrl);
     QVERIFY(!first.facts().documentPortalHostPath.has_value());
     QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
     QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
     QCOMPARE(probeCount, 1);
 
     const kiriview::ResolvedNavigationSource replacement
-        = kiriview::resolveNavigationSource(sourceUrl, provider);
+        = kiriview::NavigationSourceResolver(provider).resolve(sourceUrl);
     QCOMPARE(replacement.navigationUrl(), sourceUrl);
     QCOMPARE(probeCount, 2);
 }
@@ -252,10 +253,12 @@ void TestImageUrl::documentPortalHostPathOwnsNavigationScope()
 
     const QUrl portalUrl = QUrl::fromLocalFile(portalPath);
     const QUrl hostUrl = QUrl::fromLocalFile(hostPath);
-    QCOMPARE(kiriview::navigationSourceUrl(portalUrl), hostUrl);
+    const kiriview::ResolvedNavigationSource source
+        = kiriview::NavigationSourceResolver {}.resolve(portalUrl);
+    QCOMPARE(source.navigationUrl(), hostUrl);
 
     const kiriview::DirectoryNavigationLocation navigationLocation
-        = kiriview::directoryNavigationLocationForFileUrl(portalUrl);
+        = kiriview::directoryNavigationLocationForSource(source);
     QCOMPARE(navigationLocation.fileUrl, hostUrl);
     QCOMPARE(navigationLocation.directoryUrl,
         QUrl::fromLocalFile(directory.filePath(QStringLiteral("host/"))));
@@ -274,11 +277,17 @@ void TestImageUrl::kioFuseArchivePathsRestoreSupportedArchiveSchemes()
     const QString cb7FusePath
         = QStringLiteral("/run/user/1000/kio-fuse-test/sevenz/books/book.cb7/page.png");
 
-    QCOMPARE(kiriview::navigationSourceUrl(QUrl::fromLocalFile(cbzFusePath)),
+    QCOMPARE(kiriview::NavigationSourceResolver {}
+                 .resolve(QUrl::fromLocalFile(cbzFusePath))
+                 .navigationUrl(),
         archiveUrl(QStringLiteral("zip"), QStringLiteral("/books/book.cbz/page.png")));
-    QCOMPARE(kiriview::navigationSourceUrl(QUrl::fromLocalFile(cbtFusePath)),
+    QCOMPARE(kiriview::NavigationSourceResolver {}
+                 .resolve(QUrl::fromLocalFile(cbtFusePath))
+                 .navigationUrl(),
         archiveUrl(QStringLiteral("tar"), QStringLiteral("/books/book.cbt/page.png")));
-    QCOMPARE(kiriview::navigationSourceUrl(QUrl::fromLocalFile(cb7FusePath)),
+    QCOMPARE(kiriview::NavigationSourceResolver {}
+                 .resolve(QUrl::fromLocalFile(cb7FusePath))
+                 .navigationUrl(),
         archiveUrl(QStringLiteral("sevenz"), QStringLiteral("/books/book.cb7/page.png")));
 
     if (hadRuntimeDir) {

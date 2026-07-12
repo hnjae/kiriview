@@ -122,6 +122,9 @@ kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
         currentUrl,
         localUrl(QStringLiteral("/media/")),
         7,
+        kiriview::sourceKeyForUrl(currentUrl),
+        kiriview::sourceKeyForUrl(localUrl(QStringLiteral("/media/"))),
+        currentUrl,
     };
 }
 }

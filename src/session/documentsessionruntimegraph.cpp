@@ -120,7 +120,8 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           [this](DocumentSessionKind kind) { setDocumentKind(kind); },
           [this]() { m_state.setDirectMediaNavigation({}, false, {}); },
           [this](const QUrl& url) {
-              const bool changed = m_state.setDirectVideoCursor(url);
+              const bool changed = m_state.setDirectVideoCursor(
+                  NavigationSourceResolver(m_navigationSourceFacts).resolve(url));
               if (changed) {
                   syncMediaPredecodeScope();
               }
@@ -890,7 +891,7 @@ void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePla
 {
     m_routeNavigationSource = plan.sourceUrl.isEmpty()
         ? ResolvedNavigationSource {}
-        : resolveNavigationSource(plan.sourceUrl, m_navigationSourceFacts);
+        : NavigationSourceResolver(m_navigationSourceFacts).resolve(plan.sourceUrl);
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
         << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl

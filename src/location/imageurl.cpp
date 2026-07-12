@@ -57,9 +57,20 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
     // File dialogs can return document-portal URLs; navigation needs the real directory.
     const ssize_t valueSize
         = getxattr(encodedLocalPath.constData(), documentPortalHostPathAttribute, nullptr, 0);
+    const int sizeErrno = errno;
     if (valueSize <= 0) {
-        qCDebug(kiriviewNavigationLog) << "document portal host path missing"
-                                       << "url" << url << "errno" << errno;
+        if (valueSize < 0 && sizeErrno != ENODATA
+#ifdef ENOATTR
+            && sizeErrno != ENOATTR
+#endif
+            && sizeErrno != ENOTSUP
+#if EOPNOTSUPP != ENOTSUP
+            && sizeErrno != EOPNOTSUPP
+#endif
+        ) {
+            qCDebug(kiriviewNavigationLog) << "document portal host path probe failed"
+                                           << "url" << url << "errno" << sizeErrno;
+        }
         return std::nullopt;
     }
 
@@ -68,9 +79,20 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
 
     const ssize_t bytesRead = getxattr(encodedLocalPath.constData(),
         documentPortalHostPathAttribute, value.data(), static_cast<std::size_t>(value.size()));
+    const int readErrno = errno;
     if (bytesRead <= 0) {
-        qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
-                                       << "url" << url << "errno" << errno;
+        if (bytesRead < 0 && readErrno != ENODATA
+#ifdef ENOATTR
+            && readErrno != ENOATTR
+#endif
+            && readErrno != ENOTSUP
+#if EOPNOTSUPP != ENOTSUP
+            && readErrno != EOPNOTSUPP
+#endif
+        ) {
+            qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
+                                           << "url" << url << "errno" << readErrno;
+        }
         return std::nullopt;
     }
 
@@ -198,8 +220,6 @@ QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& f
     return url;
 }
 
-QUrl navigationSourceUrl(const QUrl& url) { return resolveNavigationSource(url).navigationUrl(); }
-
 NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
 {
     return NavigationSourceFacts {
@@ -208,10 +228,20 @@ NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
     };
 }
 
-ResolvedNavigationSource resolveNavigationSource(
-    const QUrl& url, const NavigationSourceFactProvider& provider)
+NavigationSourceResolver::NavigationSourceResolver()
+    : m_provider(collectNavigationSourceFacts)
 {
-    NavigationSourceFacts facts = provider ? provider(url) : collectNavigationSourceFacts(url);
+}
+
+NavigationSourceResolver::NavigationSourceResolver(NavigationSourceFactProvider provider)
+    : m_provider(provider ? std::move(provider)
+                          : NavigationSourceFactProvider(collectNavigationSourceFacts))
+{
+}
+
+ResolvedNavigationSource NavigationSourceResolver::resolve(const QUrl& url) const
+{
+    NavigationSourceFacts facts = m_provider(url);
     const QUrl navigationUrl = navigationSourceUrlForFacts(url, facts);
     if (!sameNormalizedUrl(url, navigationUrl)) {
         qCDebug(kiriviewNavigationLog) << "navigation source url resolved"
@@ -228,11 +258,6 @@ DirectoryNavigationLocation directoryNavigationLocationForSource(
         fileUrl,
         parentDirectoryUrlForFileNavigation(fileUrl),
     };
-}
-
-DirectoryNavigationLocation directoryNavigationLocationForFileUrl(const QUrl& url)
-{
-    return directoryNavigationLocationForSource(resolveNavigationSource(url));
 }
 
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right)

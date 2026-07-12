@@ -21,10 +21,11 @@ DocumentSessionMediaDeletionRuntime::~DocumentSessionMediaDeletionRuntime() { ca
 
 DocumentSessionMediaDeletionStartPlan DocumentSessionMediaDeletionRuntime::start(QObject* receiver,
     FileDeletionMode mode, std::vector<DirectMediaNavigationCandidate> candidates,
-    const QUrl& currentUrl, DocumentSessionKind documentKind, CompletionCallback callback)
+    const QUrl& targetUrl, const QUrl& navigationIdentityUrl, DocumentSessionKind documentKind,
+    CompletionCallback callback)
 {
-    const DocumentSessionMediaDeletionStartPlan plan
-        = documentSessionMediaDeletionStartPlan(mode, std::move(candidates), currentUrl);
+    const DocumentSessionMediaDeletionStartPlan plan = documentSessionMediaDeletionStartPlan(
+        mode, std::move(candidates), targetUrl, navigationIdentityUrl);
     if (!plan.shouldStartDeletion) {
         return plan;
     }
@@ -52,10 +53,11 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
 
     auto sharedCallback = std::make_shared<CompletionCallback>(std::move(callback));
     m_candidateRuntime.loadCandidates(receiver, scope, std::move(scopeAccepted),
-        [this, receiver, mode, currentUrl = scope.currentUrl, documentKind, sharedCallback](
-            DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
-            start(receiver, mode, std::move(result.candidates), currentUrl, documentKind,
-                std::move(*sharedCallback));
+        [this, receiver, mode, targetUrl = scope.currentUrl,
+            navigationIdentityUrl = scope.navigationUrl, documentKind,
+            sharedCallback](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
+            start(receiver, mode, std::move(result.candidates), targetUrl, navigationIdentityUrl,
+                documentKind, std::move(*sharedCallback));
         });
     return true;
 }
