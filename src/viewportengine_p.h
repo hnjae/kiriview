@@ -6,14 +6,14 @@
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
-#include "viewportenginerenderoperations_p.h"
+#include "viewportenginepresentationoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
+#include "viewportenginerenderoperations_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportrendercontract_p.h"
 
 #include <array>
 #include <memory>
-#include <optional>
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
@@ -24,8 +24,6 @@ class ViewportController;
 #endif
 struct ViewportEngineCanonicalState;
 struct ViewportEnginePlaybackStateAccess;
-struct ViewportEnginePresentationLoopingStateAccess;
-struct ViewportEnginePresentationStateAccess;
 struct ViewportEngineProviderStateAccess;
 struct ViewportEngineGeometryTransitionAccess;
 struct ViewportEngineSnapshotStateAccess;
@@ -85,14 +83,6 @@ public:
         bool commandRevisionChanged = false;
     };
 
-    struct PresentationCommandInput
-    {
-        ImageViewportPresentationCommand command;
-        GeometryInput geometry;
-        QPointF anchor;
-        int quarterTurnDelta = 0;
-    };
-
     struct PresentationCommandResult
     {
         CommandResult command;
@@ -103,25 +93,6 @@ public:
     {
         ImageViewportInternal::ViewportChangeSet changes;
         std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-    };
-
-    struct PresentationTargetTransitionInput
-    {
-        PresentationTargetTransitionPolicy::ZoomTransition zoomTransition
-            = PresentationTargetTransitionPolicy::ZoomTransition::Preserve;
-        PresentationTargetTransitionPolicy::ContentPositionTransition contentPositionTransition
-            = PresentationTargetTransitionPolicy::ContentPositionTransition::Clamp;
-        PresentationTargetTransitionPolicy::RotationTransition rotationTransition
-            = PresentationTargetTransitionPolicy::RotationTransition::Preserve;
-        PresentationTargetTransitionPolicy::MirrorTransition mirrorTransition
-            = PresentationTargetTransitionPolicy::MirrorTransition::Preserve;
-        std::optional<ImageViewport::FitMode> explicitFitMode;
-        std::optional<ImageViewport::SpreadDirection> explicitSpreadDirection;
-        std::optional<double> explicitPageGap;
-        GeometryInput acceptedGeometry;
-        QPointF previousContentPosition;
-        double previousZoomPercent = 100.0;
-        bool readyDisplay = false;
     };
 
     struct PresentationTargetAssignmentResult
@@ -237,8 +208,6 @@ public:
 #endif
 public:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
-    PresentationGeometry::State geometryState(const GeometryInput& input,
-        const ImageViewportInternal::PresentationState& presentation) const;
     GeometryInput projectedGeometryInput(const QRectF& itemBounds, double devicePixelRatio = 1.0,
         GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay) const;
     GeometryInput acceptedGeometryInput(
@@ -335,10 +304,9 @@ public:
 
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
-    PresentationCommandResult applyPresentationCommand(const PresentationCommandInput& input);
+    PresentationCommandResult applyPresentationCommand(
+        const ViewportEnginePresentationCommandInput& input);
     VIEWPORT_ENGINE_TEST_VISIBILITY:
-    ImageViewportInternal::ViewportChangeSet applyPresentationTargetTransition(
-        const PresentationTargetTransitionInput& input);
     CommandResult rejectInvalidCommand();
     CommandResult rejectMalformedEnumCommand();
     CommandResult clearFromEmpty();
@@ -367,8 +335,6 @@ private:
     ViewportEngineProviderStateAccess providerAccess();
     ViewportEnginePlaybackStateAccess playbackAccess();
     ViewportEngineGeometryTransitionAccess renderAccess();
-    ViewportEnginePresentationStateAccess presentationAccess();
-    ViewportEnginePresentationLoopingStateAccess presentationLoopingAccess();
     ViewportEngineSnapshotStateAccess snapshotAccess() const;
     ViewportEngineProviderFactsView providerFactsView() const;
 

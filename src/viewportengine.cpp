@@ -245,17 +245,6 @@ ViewportEngineGeometryTransitionAccess ViewportEngine::renderAccess()
         m_state->providerState.roles };
 }
 
-ViewportEnginePresentationStateAccess ViewportEngine::presentationAccess()
-{
-    return { m_state->requestState.request, m_state->displayState.display,
-        m_state->presentationState.presentation };
-}
-
-ViewportEnginePresentationLoopingStateAccess ViewportEngine::presentationLoopingAccess()
-{
-    return ViewportEnginePresentationLoopingStateAccess(m_state->playbackState.playback);
-}
-
 ViewportEngineProviderFactsView ViewportEngine::providerFactsView() const
 {
     return { m_state->providerState.roles[0].provider.facts,
@@ -356,13 +345,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
 
 PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const
 {
-    return geometryState(input, m_state->presentationState.presentation);
-}
-
-PresentationGeometry::State ViewportEngine::geometryState(
-    const GeometryInput& input, const ImageViewportInternal::PresentationState& presentation) const
-{
-    return projectViewportGeometryState(input, presentation);
+    return projectViewportGeometryState(input, m_state->presentationState.presentation);
 }
 
 ViewportEngine::GeometryInput ViewportEngine::projectedGeometryInput(
@@ -807,31 +790,40 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
         = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[0].source);
     acceptedGeometry.secondarySize
         = ImageViewportInternal::sourceLogicalSize(m_state->requestState.request.roles[1].source);
-    const auto transition = clear
-        ? ImageViewportInternal::ViewportChangeSet {}
-        : applyPresentationTargetTransition({ input.transitionPolicy.zoomTransition(),
-              input.transitionPolicy.contentPositionTransition(),
-              input.transitionPolicy.rotationTransition(),
-              input.transitionPolicy.mirrorTransition(),
-              input.transitionPolicy.fitModeTransition()
-                      == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
-                  ? std::optional<ImageViewport::FitMode>(input.transitionPolicy.fitMode())
-                  : std::nullopt,
-              input.transitionPolicy.spreadDirectionTransition()
-                      == PresentationTargetTransitionPolicy::SpreadDirectionTransition::SetExplicit
-                  ? std::optional<ImageViewport::SpreadDirection>(
-                        input.transitionPolicy.spreadDirection())
-                  : std::nullopt,
-              input.transitionPolicy.pageGapTransition()
-                      == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
-                  ? std::optional<double>(input.transitionPolicy.pageGap())
-                  : std::nullopt,
-              acceptedGeometry, PresentationGeometry::contentPosition(oldGeometry),
-              projectedZoomPercent(oldGeometry),
-              m_state->displayState.display.hasReadyDisplay(
-                  m_state->requestState.request.roles[0].source.facts.present) });
+    ViewportEnginePresentationTargetTransitionReduction presentationTransition;
+    if (!clear) {
+        ViewportEnginePresentationTargetTransitionStateView presentationState(
+            m_state->presentationState.presentation);
+        presentationTransition = reduceViewportEnginePresentationTargetTransition(
+            { input.transitionPolicy.zoomTransition(),
+                input.transitionPolicy.contentPositionTransition(),
+                input.transitionPolicy.rotationTransition(),
+                input.transitionPolicy.mirrorTransition(),
+                input.transitionPolicy.fitModeTransition()
+                        == PresentationTargetTransitionPolicy::FitModeTransition::SetExplicit
+                    ? std::optional<ImageViewport::FitMode>(input.transitionPolicy.fitMode())
+                    : std::nullopt,
+                input.transitionPolicy.spreadDirectionTransition()
+                        == PresentationTargetTransitionPolicy::SpreadDirectionTransition::
+                            SetExplicit
+                    ? std::optional<ImageViewport::SpreadDirection>(
+                          input.transitionPolicy.spreadDirection())
+                    : std::nullopt,
+                input.transitionPolicy.pageGapTransition()
+                        == PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit
+                    ? std::optional<double>(input.transitionPolicy.pageGap())
+                    : std::nullopt,
+                acceptedGeometry, PresentationGeometry::contentPosition(oldGeometry),
+                projectedZoomPercent(oldGeometry),
+                m_state->displayState.display.hasReadyDisplay(
+                    m_state->requestState.request.roles[0].source.facts.present) },
+            std::move(presentationState));
+        if (presentationTransition.presentation) {
+            m_state->presentationState.presentation = *presentationTransition.presentation;
+        }
+    }
     armAuthoredAutoplayIfEligible();
-    result.changes = transition;
+    result.changes = presentationTransition.changes;
     result.changes.requestState = true;
     result.changes.requestRevision = true;
     result.changes.displayState = true;

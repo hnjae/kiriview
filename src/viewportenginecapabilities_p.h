@@ -89,58 +89,6 @@ private:
     std::array<ViewportEngineRoleState, 2>& m_roles;
 };
 
-class ViewportEnginePresentationStateAccess
-{
-private:
-    friend class ViewportEngine;
-    ViewportEnginePresentationStateAccess(ImageViewportInternal::RequestState& request,
-        const ImageViewportInternal::DisplayState& display,
-        ImageViewportInternal::PresentationState& presentation)
-        : m_request(request)
-        , m_display(display)
-        , m_presentation(presentation)
-    {
-    }
-
-public:
-    ViewportEnginePresentationStateAccess(const ViewportEnginePresentationStateAccess&) = delete;
-    ViewportEnginePresentationStateAccess& operator=(const ViewportEnginePresentationStateAccess&)
-        = delete;
-
-    ImageViewportInternal::RequestState& request() const { return m_request; }
-    const ImageViewportInternal::DisplayState& display() const { return m_display; }
-    ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
-
-private:
-    ImageViewportInternal::RequestState& m_request;
-    const ImageViewportInternal::DisplayState& m_display;
-    ImageViewportInternal::PresentationState& m_presentation;
-};
-
-class ViewportEnginePresentationLoopingStateAccess
-{
-private:
-    friend class ViewportEngine;
-    explicit ViewportEnginePresentationLoopingStateAccess(
-        ImageViewportInternal::PlaybackState& playback)
-        : m_playback(playback)
-    {
-    }
-
-public:
-    ViewportEnginePresentationLoopingStateAccess(
-        const ViewportEnginePresentationLoopingStateAccess&)
-        = delete;
-    ViewportEnginePresentationLoopingStateAccess& operator=(
-        const ViewportEnginePresentationLoopingStateAccess&)
-        = delete;
-
-    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
-
-private:
-    ImageViewportInternal::PlaybackState& m_playback;
-};
-
 class ViewportEngineSnapshotStateAccess
 {
 private:

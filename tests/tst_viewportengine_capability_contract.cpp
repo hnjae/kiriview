@@ -1,5 +1,6 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
+#include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
 
@@ -31,6 +32,24 @@ struct HasProviderSessionAccess<Access,
 template <typename Access, typename = void> struct HasProviderRequestAccess : std::false_type
 {
 };
+
+template <typename Access, typename = void> struct HasRequestAccess : std::false_type
+{
+};
+template <typename Access>
+struct HasRequestAccess<Access, std::void_t<decltype(std::declval<Access&>().request())>>
+    : std::true_type
+{
+};
+
+template <typename Access, typename = void> struct HasDisplayStateAccess : std::false_type
+{
+};
+template <typename Access>
+struct HasDisplayStateAccess<Access, std::void_t<decltype(std::declval<Access&>().display())>>
+    : std::true_type
+{
+};
 template <typename Access>
 struct HasProviderRequestAccess<Access,
     std::void_t<decltype(std::declval<Access&>().providerRequests())>> : std::true_type
@@ -40,14 +59,11 @@ struct HasProviderRequestAccess<Access,
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineGeometryTransitionAccess>);
-static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);
 
-static_assert(
-    std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEnginePresentationStateAccess>>>);
 static_assert(
     std::is_const_v<std::remove_reference_t<DisplayAccess<ViewportEngineSnapshotStateAccess>>>);
 static_assert(std::is_const_v<
@@ -127,5 +143,30 @@ static_assert(!std::is_copy_assignable_v<ViewportProviderRequestTokenAllocationA
 static_assert(std::is_same_v<decltype(&allocateViewportProviderRequestToken),
     ViewportProviderRequestTokenAllocationResult (*)(ViewportProviderRequestTokenAllocationInput,
         ViewportProviderRequestTokenAllocationAccess)>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationCommandStateView>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePresentationTargetTransitionStateView>);
+static_assert(!std::is_default_constructible_v<ViewportEnginePresentationCommandStateView>);
+static_assert(
+    !std::is_default_constructible_v<ViewportEnginePresentationTargetTransitionStateView>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePresentationCommandStateView&>().presentation())>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEnginePresentationTargetTransitionStateView&>()
+                .presentation())>>);
+static_assert(!HasRequestAccess<ViewportEnginePresentationCommandStateView>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePresentationCommandStateView>::value);
+static_assert(!HasPlaybackAccess<ViewportEnginePresentationCommandStateView>::value);
+static_assert(!HasProviderSessionAccess<ViewportEnginePresentationCommandStateView>::value);
+static_assert(!HasProviderRequestAccess<ViewportEnginePresentationCommandStateView>::value);
+static_assert(!HasRequestAccess<ViewportEnginePresentationTargetTransitionStateView>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePresentationTargetTransitionStateView>::value);
+static_assert(!HasPlaybackAccess<ViewportEnginePresentationTargetTransitionStateView>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePresentationCommand),
+    ViewportEnginePresentationCommandReduction (*)(
+        ViewportEnginePresentationCommandInput, ViewportEnginePresentationCommandStateView)>);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePresentationTargetTransition),
+    ViewportEnginePresentationTargetTransitionReduction (*)(
+        ViewportEnginePresentationTargetTransitionInput,
+        ViewportEnginePresentationTargetTransitionStateView)>);
 
 int main() { }

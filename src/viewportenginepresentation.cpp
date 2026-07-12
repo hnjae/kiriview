@@ -1,11 +1,13 @@
 #include "viewportengine_p.h"
-#include "viewportenginecapabilities_p.h"
+#include "viewportenginepresentationoperations_p.h"
+#include "viewportengineprojection_p.h"
 
 #include "imageviewportvalidation_p.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
 namespace {
 using ImageViewportInternal::PresentationState;
@@ -45,14 +47,14 @@ bool applyContentPosition(PresentationState& presentation,
     return true;
 }
 
-void preserveAnchoredContentPosition(ViewportEngine& engine, PresentationState& presentation,
+void preserveAnchoredContentPosition(PresentationState& presentation,
     const ViewportEngine::GeometryInput& geometryInput,
     const PresentationGeometry::State& previousGeometry, QPointF anchor)
 {
     const CoordinateResult anchoredSpreadPoint
         = PresentationGeometry::itemToSpread(previousGeometry, anchor.x(), anchor.y());
     const PresentationGeometry::State nextGeometry
-        = engine.geometryState(geometryInput, presentation);
+        = projectViewportGeometryState(geometryInput, presentation);
     if (!anchoredSpreadPoint.isValid()) {
         presentation.contentPosition = PresentationGeometry::contentPosition(nextGeometry);
         return;
@@ -109,7 +111,7 @@ bool commandHasOperation(const ImageViewportPresentationCommand& command)
         || command.hasExactnessPreference();
 }
 
-bool commandValid(const ViewportEngine::PresentationCommandInput& input)
+bool commandValid(const ViewportEnginePresentationCommandInput& input)
 {
     const ImageViewportPresentationCommand& command = input.command;
     const bool resetConflicts = command.resetView()
@@ -169,26 +171,25 @@ ViewportChangeSet presentationChanges(
 }
 }
 
-ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationCommand(
-    const PresentationCommandInput& input)
+bool validateViewportEnginePresentationCommand(const ViewportEnginePresentationCommandInput& input)
 {
-    PresentationCommandResult result;
-    if (!commandValid(input)) {
-        result.command = rejectInvalidCommand();
-        return result;
-    }
+    return commandValid(input);
+}
 
-    const PresentationState previousPresentation = presentationAccess().presentation();
-    const bool previousLooping = presentationLoopingAccess().playback().looping;
+ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationCommand(
+    ViewportEnginePresentationCommandInput input, ViewportEnginePresentationCommandStateView state)
+{
+    ViewportEnginePresentationCommandReduction result;
+    const PresentationState previousPresentation = state.presentation();
+    const bool previousLooping = state.looping();
     PresentationState next = previousPresentation;
     bool nextLooping = previousLooping;
     bool affectsGeometry = false;
-    const auto geometry = [&] { return geometryState(input.geometry, next); };
+    const auto geometry = [&] { return projectViewportGeometryState(input.geometry, next); };
     const auto applyAnchored = [&](auto mutation) {
         const PresentationGeometry::State previousGeometry = geometry();
         mutation();
-        preserveAnchoredContentPosition(
-            *this, next, input.geometry, previousGeometry, input.anchor);
+        preserveAnchoredContentPosition(next, input.geometry, previousGeometry, input.anchor);
         affectsGeometry = true;
     };
     const ImageViewportPresentationCommand& command = input.command;
@@ -263,8 +264,7 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     }
     if (input.quarterTurnDelta != 0) {
         applyAnchored([&] {
-            next.rotationDegrees
-                = (next.rotationDegrees + input.quarterTurnDelta * 90 + 360) % 360;
+            next.rotationDegrees = (next.rotationDegrees + input.quarterTurnDelta * 90 + 360) % 360;
         });
     }
     if (command.hasMirrorHorizontally()
@@ -309,23 +309,53 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     const bool presentationChanged = !presentationStatesEqual(previousPresentation, next);
     const bool changed = presentationChanged || previousLooping != nextLooping;
     if (!changed) {
+        return result;
+    }
+    if (presentationChanged) {
+        result.presentation = next;
+    }
+    if (previousLooping != nextLooping) {
+        result.looping = nextLooping;
+    }
+    result.changes = presentationChanges(
+        presentationChanged, affectsGeometry, state.readyDisplay(), input.geometry.itemBounds);
+    result.restageProviderDemands = affectsGeometry
+        || previousPresentation.qualityPreference != next.qualityPreference
+        || previousPresentation.exactnessPreference != next.exactnessPreference;
+    return result;
+}
+
+ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationCommand(
+    const ViewportEnginePresentationCommandInput& input)
+{
+    PresentationCommandResult result;
+    if (!validateViewportEnginePresentationCommand(input)) {
+        result.command = rejectInvalidCommand();
+        return result;
+    }
+
+    const bool readyDisplay = m_state->displayState.display.hasReadyDisplay(
+        m_state->requestState.request.roles[0].source.facts.present);
+    ViewportEnginePresentationCommandStateView presentationState(
+        m_state->presentationState.presentation, m_state->playbackState.playback.looping,
+        readyDisplay);
+    auto reduction = reduceViewportEnginePresentationCommand(input, std::move(presentationState));
+    if (!reduction.presentation && !reduction.looping) {
         result.command = acceptedPreservingCommandDiagnostics();
         return result;
     }
-    presentationAccess().presentation() = next;
-    presentationLoopingAccess().playback().looping = nextLooping;
+    if (reduction.presentation) {
+        m_state->presentationState.presentation = *reduction.presentation;
+    }
+    if (reduction.looping) {
+        m_state->playbackState.playback.looping = *reduction.looping;
+    }
     result.command = accepted();
-    result.changes = presentationChanges(
-        presentationChanged, affectsGeometry,
-        presentationAccess().display().hasReadyDisplay(presentationAccess().request().roles[0].source.facts.present),
-        input.geometry.itemBounds);
-    const bool demandChanged = affectsGeometry
-        || previousPresentation.qualityPreference != next.qualityPreference
-        || previousPresentation.exactnessPreference != next.exactnessPreference;
-    if (demandChanged) {
+    result.changes = reduction.changes;
+    if (reduction.restageProviderDemands) {
         result.providerEffects = restageProviderDemands(input.geometry);
-        const bool restaged = result.providerEffects[0].sendCommand
-            || result.providerEffects[1].sendCommand;
+        const bool restaged
+            = result.providerEffects[0].sendCommand || result.providerEffects[1].sendCommand;
         if (restaged) {
             result.changes.requestState = true;
             result.changes.requestRevision = true;
@@ -337,10 +367,13 @@ ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationComma
     return result;
 }
 
-ImageViewportInternal::ViewportChangeSet ViewportEngine::applyPresentationTargetTransition(
-    const PresentationTargetTransitionInput& input)
+ViewportEnginePresentationTargetTransitionReduction
+reduceViewportEnginePresentationTargetTransition(
+    ViewportEnginePresentationTargetTransitionInput input,
+    ViewportEnginePresentationTargetTransitionStateView state)
 {
-    const PresentationState previousPresentation = presentationAccess().presentation();
+    ViewportEnginePresentationTargetTransitionReduction result;
+    const PresentationState previousPresentation = state.presentation();
     PresentationState next = previousPresentation;
     if (input.zoomTransition
         == PresentationTargetTransitionPolicy::ZoomTransition::ResetToContain) {
@@ -370,7 +403,7 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::applyPresentationTarget
     }
 
     const PresentationGeometry::State acceptedGeometry
-        = geometryState(input.acceptedGeometry, next);
+        = projectViewportGeometryState(input.acceptedGeometry, next);
     switch (input.contentPositionTransition) {
     case PresentationTargetTransitionPolicy::ContentPositionTransition::ScanStart:
         applyContentPosition(next, acceptedGeometry, {});
@@ -388,8 +421,10 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::applyPresentationTarget
 
     const bool changed = !presentationStatesEqual(previousPresentation, next);
     if (!changed) {
-        return {};
+        return result;
     }
-    presentationAccess().presentation() = next;
-    return presentationChanges(true, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
+    result.presentation = next;
+    result.changes
+        = presentationChanges(true, true, input.readyDisplay, input.acceptedGeometry.itemBounds);
+    return result;
 }
