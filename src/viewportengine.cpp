@@ -10,18 +10,6 @@
 #include <utility>
 
 namespace {
-bool fitModeValid(ImageViewport::FitMode mode)
-{
-    switch (mode) {
-    case ImageViewport::FitMode::Contain:
-    case ImageViewport::FitMode::FitWidth:
-    case ImageViewport::FitMode::FitHeight:
-    case ImageViewport::FitMode::Manual:
-        return true;
-    }
-    return false;
-}
-
 }
 
 ViewportEngine::ViewportEngine()
@@ -229,21 +217,6 @@ ViewportEngine::CommandResult ViewportEngine::rejectInvalidCommand()
 {
     return rejected(
         ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
-}
-
-ViewportEngine::CommandResult ViewportEngine::rejectMalformedEnumCommand()
-{
-    return rejectInvalidCommand();
-}
-
-ViewportEngine::CommandResult ViewportEngine::clearFromEmpty() { return accepted(); }
-
-ViewportEngine::CommandResult ViewportEngine::validatePresentationNoop(ImageViewport::FitMode mode)
-{
-    if (!fitModeValid(mode)) {
-        return rejectMalformedEnumCommand();
-    }
-    return accepted();
 }
 
 ViewportEngine::CommandResult ViewportEngine::rejected(

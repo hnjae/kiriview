@@ -71,6 +71,22 @@ template <typename Access, typename = void> struct HasPresentationStateAccess : 
 template <typename Engine, typename = void> struct HasPlaybackScheduleEffect : std::false_type
 {
 };
+template <typename Engine, typename = void> struct HasPublicRejectInvalidCommand : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicRejectInvalidCommand<Engine,
+    std::void_t<decltype(std::declval<Engine&>().rejectInvalidCommand())>> : std::true_type
+{
+};
+template <typename Engine, typename = void> struct HasPublicRevisionAllocator : std::false_type
+{
+};
+template <typename Engine>
+struct HasPublicRevisionAllocator<Engine,
+    std::void_t<decltype(std::declval<Engine&>().allocateRevisionValue())>> : std::true_type
+{
+};
 template <typename Engine>
 struct HasPlaybackScheduleEffect<Engine,
     std::void_t<decltype(std::declval<const Engine&>().playbackScheduleEffect())>> : std::true_type
@@ -360,6 +376,8 @@ static_assert(!HasProviderRequestAccess<ViewportEnginePlaybackScheduleAccess>::v
 static_assert(std::is_same_v<decltype(&projectViewportPlaybackSchedule),
     ViewportPlaybackScheduleEffect (*)(ViewportEnginePlaybackScheduleAccess)>);
 static_assert(!HasPlaybackScheduleEffect<ViewportEngine>::value);
+static_assert(!HasPublicRejectInvalidCommand<ViewportEngine>::value);
+static_assert(!HasPublicRevisionAllocator<ViewportEngine>::value);
 static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackPauseAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackPauseAccess>);
 static_assert(!std::is_const_v<std::remove_reference_t<

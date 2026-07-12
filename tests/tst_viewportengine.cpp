@@ -185,10 +185,6 @@ private slots:
     void providerTerminalReducerClosesMetadataGeneration();
     void providerFrameQueueFlushesOnlyCurrentLoadingRequest();
     void providerFrameQueueFlushRejectsStaleRequest();
-    void invalidCommandUpdatesOnlyCommandDiagnostics();
-    void malformedEnumRejectionMatchesInvalidCommand();
-    void clearFromEmptyIsAcceptedNoop();
-    void presentationNoopValidatesEnumShape();
     void defaultPresentationStateMatchesPublicDefaults();
     void geometryProjectionUsesEnginePresentationState();
     void renderSnapshotUsesEnginePresentationAndPayloadState();
@@ -226,8 +222,9 @@ void ViewportEngineTest::defaultSnapshotMatchesPublicDefaultProjection()
     QCOMPARE(engineSnapshot.secondary().sequence(), itemSnapshot.secondary().sequence());
     QCOMPARE(engineSnapshot.diagnostics(), itemSnapshot.diagnostics());
     QCOMPARE(engineSnapshot.revisions(), itemSnapshot.revisions());
-    QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::NoCommand);
-    QCOMPARE(engine.commandDiagnostics().revision.isValid(), false);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).reason,
+        ImageViewport::CommandReason::NoCommand);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).revision.isValid(), false);
 }
 
 void ViewportEngineTest::snapshotProjectsCanonicalEngineState()
@@ -976,93 +973,27 @@ void ViewportEngineTest::providerFrameQueueFlushRejectsStaleRequest()
         ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary));
 }
 
-void ViewportEngineTest::invalidCommandUpdatesOnlyCommandDiagnostics()
-{
-    ViewportEngine engine;
-    const ImageViewportStateSnapshot snapshot = engine.snapshot();
-
-    const ViewportEngine::CommandResult result = engine.rejectInvalidCommand();
-
-    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(result.reason, ImageViewport::CommandReason::InvalidRequest);
-    QCOMPARE(result.commandRevisionChanged, true);
-    QVERIFY(result.commandRevision.isValid());
-    QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::InvalidRequest);
-    QCOMPARE(engine.commandDiagnostics().revision, result.commandRevision);
-    const ImageViewportStateSnapshot rejectedSnapshot = engine.snapshot();
-    QCOMPARE(rejectedSnapshot.request(), snapshot.request());
-    QCOMPARE(rejectedSnapshot.display(), snapshot.display());
-    QCOMPARE(rejectedSnapshot.presentation(), snapshot.presentation());
-    QCOMPARE(rejectedSnapshot.diagnostics().commandReason(),
-        ImageViewport::CommandReason::InvalidRequest);
-    QVERIFY(rejectedSnapshot.revisions().command().isValid());
-    QVERIFY(rejectedSnapshot.revisions().snapshot().isValid());
-}
-
-void ViewportEngineTest::malformedEnumRejectionMatchesInvalidCommand()
-{
-    ViewportEngine engine;
-
-    const ViewportEngine::CommandResult result = engine.rejectMalformedEnumCommand();
-
-    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(result.reason, ImageViewport::CommandReason::InvalidRequest);
-    QCOMPARE(result.commandRevisionChanged, true);
-    QVERIFY(result.commandRevision.isValid());
-}
-
-void ViewportEngineTest::clearFromEmptyIsAcceptedNoop()
-{
-    ViewportEngine engine;
-    const ImageViewportStateSnapshot snapshot = engine.snapshot();
-
-    const ViewportEngine::CommandResult result = engine.clearFromEmpty();
-
-    QCOMPARE(result.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(result.reason, ImageViewport::CommandReason::NoCommand);
-    QCOMPARE(result.commandRevisionChanged, false);
-    QCOMPARE(result.commandRevision.isValid(), false);
-    QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::NoCommand);
-    QCOMPARE(engine.snapshot(), snapshot);
-}
-
-void ViewportEngineTest::presentationNoopValidatesEnumShape()
-{
-    ViewportEngine engine;
-
-    const ViewportEngine::CommandResult accepted
-        = engine.validatePresentationNoop(ImageViewport::FitMode::Contain);
-    QCOMPARE(accepted.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(accepted.commandRevisionChanged, false);
-
-    const ViewportEngine::CommandResult rejected
-        = engine.validatePresentationNoop(static_cast<ImageViewport::FitMode>(-1));
-    QCOMPARE(rejected.outcome, ImageViewport::CommandOutcome::Invalid);
-    QCOMPARE(rejected.reason, ImageViewport::CommandReason::InvalidRequest);
-    QCOMPARE(rejected.commandRevisionChanged, true);
-    QVERIFY(rejected.commandRevision.isValid());
-}
-
 void ViewportEngineTest::defaultPresentationStateMatchesPublicDefaults()
 {
     ViewportEngine engine;
     ImageViewport item;
 
     const ImageViewportPresentationSnapshot presentation = item.state().presentation();
-    QCOMPARE(engine.presentationState().fitMode, presentation.fitMode());
-    QCOMPARE(engine.presentationState().manualZoom * 100.0, presentation.zoomPercent());
-    QCOMPARE(engine.presentationState().rotationDegrees, presentation.rotationDegrees());
-    QCOMPARE(engine.presentationState().mirrorHorizontally, presentation.mirrorHorizontally());
-    QCOMPARE(engine.presentationState().mirrorVertically, presentation.mirrorVertically());
-    QCOMPARE(engine.presentationState().spreadDirection, presentation.spreadDirection());
-    QCOMPARE(engine.presentationState().pageGap, presentation.pageGap());
-    QCOMPARE(engine.presentationState().backgroundMode, presentation.backgroundMode());
-    QCOMPARE(engine.presentationState().backgroundColor, presentation.backgroundColor());
-    QCOMPARE(engine.presentationState().smoothing, presentation.smoothing());
-    QCOMPARE(engine.presentationState().mipmap, presentation.mipmap());
+    const auto& enginePresentation = ViewportEngineTestAccess::presentation(engine);
+    QCOMPARE(enginePresentation.fitMode, presentation.fitMode());
+    QCOMPARE(enginePresentation.manualZoom * 100.0, presentation.zoomPercent());
+    QCOMPARE(enginePresentation.rotationDegrees, presentation.rotationDegrees());
+    QCOMPARE(enginePresentation.mirrorHorizontally, presentation.mirrorHorizontally());
+    QCOMPARE(enginePresentation.mirrorVertically, presentation.mirrorVertically());
+    QCOMPARE(enginePresentation.spreadDirection, presentation.spreadDirection());
+    QCOMPARE(enginePresentation.pageGap, presentation.pageGap());
+    QCOMPARE(enginePresentation.backgroundMode, presentation.backgroundMode());
+    QCOMPARE(enginePresentation.backgroundColor, presentation.backgroundColor());
+    QCOMPARE(enginePresentation.smoothing, presentation.smoothing());
+    QCOMPARE(enginePresentation.mipmap, presentation.mipmap());
     QCOMPARE(
-        engine.presentationState().qualityPreference, ImageViewport::QualityPreference::Default);
-    QCOMPARE(engine.presentationState().exactnessPreference,
+        enginePresentation.qualityPreference, ImageViewport::QualityPreference::Default);
+    QCOMPARE(enginePresentation.exactnessPreference,
         ImageViewport::ExactnessPreference::Default);
 }
 
@@ -1144,7 +1075,7 @@ void ViewportEngineTest::renderSnapshotUsesEnginePresentationAndPayloadState()
     input.geometryState = engine.geometryState(
         { true, QRectF(0.0, 0.0, 100.0, 80.0), QSizeF(20.0, 10.0), QSizeF(8.0, 10.0), 2.0 });
 
-    const ViewportRenderSnapshot snapshot = engine.renderSnapshot(input);
+    const ViewportRenderSnapshot snapshot = ViewportEngineTestAccess::renderSnapshot(engine, input);
 
     QCOMPARE(snapshot.itemSize, QSizeF(100.0, 80.0));
     QCOMPARE(snapshot.backgroundMode, ImageViewport::BackgroundMode::SolidColor);
@@ -1205,7 +1136,8 @@ void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAnd
     QCOMPARE(result.presentationTargetState.activeRoleValid, true);
     QCOMPARE(result.presentationTargetState.activeRole, ImageViewport::PageRole::Primary);
     QCOMPARE(
-        engine.presentationTargetState().generation, result.presentationTargetState.generation);
+        ViewportEngineTestAccess::presentationTargetState(engine).generation,
+        result.presentationTargetState.generation);
     QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].sequence, sequence->sequence());
     QCOMPARE(ViewportEngineTestAccess::request(engine).sequenceGeneration, 1);
     QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].activeRequest.identity.id, 1);
@@ -1296,7 +1228,8 @@ void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDi
     QVERIFY(engine
             .assignPresentationTarget({ ImageViewportPresentationTarget(primary->sequence()), {} })
             .presentationTargetChanged);
-    const ViewportEngine::PresentationTargetState previousState = engine.presentationTargetState();
+    const ViewportEngine::PresentationTargetState previousState
+        = ViewportEngineTestAccess::presentationTargetState(engine);
     ImageViewportPresentationTarget secondaryOnly;
     secondaryOnly.setSecondary(secondary->sequence());
 
@@ -1308,10 +1241,12 @@ void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDi
     QCOMPARE(result.command.commandRevisionChanged, true);
     QVERIFY(result.command.commandRevision.isValid());
     QCOMPARE(result.presentationTargetChanged, false);
-    QCOMPARE(engine.presentationTargetState().presentationTarget, previousState.presentationTarget);
-    QCOMPARE(engine.presentationTargetState().acceptedRoleSet, previousState.acceptedRoleSet);
-    QCOMPARE(engine.presentationTargetState().generation, previousState.generation);
-    QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::InvalidRequest);
+    const auto& currentState = ViewportEngineTestAccess::presentationTargetState(engine);
+    QCOMPARE(currentState.presentationTarget, previousState.presentationTarget);
+    QCOMPARE(currentState.acceptedRoleSet, previousState.acceptedRoleSet);
+    QCOMPARE(currentState.generation, previousState.generation);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).reason,
+        ImageViewport::CommandReason::InvalidRequest);
 }
 
 void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
@@ -1330,7 +1265,8 @@ void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
     QVERIFY(engine
             .assignPresentationTarget({ ImageViewportPresentationTarget(primary->sequence()), {} })
             .presentationTargetChanged);
-    const ViewportEngine::PresentationTargetState previousState = engine.presentationTargetState();
+    const ViewportEngine::PresentationTargetState previousState
+        = ViewportEngineTestAccess::presentationTargetState(engine);
     PresentationTargetTransitionPolicy invalidPolicy;
     invalidPolicy.setPageGapTransition(
         PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
@@ -1342,9 +1278,10 @@ void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(result.presentationTargetChanged, false);
-    QCOMPARE(engine.presentationTargetState().presentationTarget, previousState.presentationTarget);
-    QCOMPARE(engine.presentationTargetState().acceptedRoleSet, previousState.acceptedRoleSet);
-    QCOMPARE(engine.presentationTargetState().generation, previousState.generation);
+    const auto& currentState = ViewportEngineTestAccess::presentationTargetState(engine);
+    QCOMPARE(currentState.presentationTarget, previousState.presentationTarget);
+    QCOMPARE(currentState.acceptedRoleSet, previousState.acceptedRoleSet);
+    QCOMPARE(currentState.generation, previousState.generation);
 }
 
 void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops()
@@ -1403,8 +1340,12 @@ void ViewportEngineTest::presentationTargetAssignmentPreservesPreviousCommandDia
     QVERIFY(sequence->sequence());
 
     ViewportEngine engine;
-    QVERIFY(engine.rejectInvalidCommand().commandRevisionChanged);
-    const RevisionToken rejectedRevision = engine.commandDiagnostics().revision;
+    ImageViewportPresentationTarget secondaryOnly;
+    secondaryOnly.setSecondary(sequence->sequence());
+    const auto rejected = engine.assignPresentationTarget({ secondaryOnly, {} });
+    QVERIFY(rejected.command.commandRevisionChanged);
+    const RevisionToken rejectedRevision
+        = ViewportEngineTestAccess::commandDiagnostics(engine).revision;
 
     const ViewportEngine::PresentationTargetAssignmentResult accepted
         = engine.assignPresentationTarget(
@@ -1414,8 +1355,9 @@ void ViewportEngineTest::presentationTargetAssignmentPreservesPreviousCommandDia
     QCOMPARE(accepted.command.reason, ImageViewport::CommandReason::InvalidRequest);
     QCOMPARE(accepted.command.commandRevisionChanged, false);
     QCOMPARE(accepted.command.commandRevision, rejectedRevision);
-    QCOMPARE(engine.commandDiagnostics().reason, ImageViewport::CommandReason::InvalidRequest);
-    QCOMPARE(engine.commandDiagnostics().revision, rejectedRevision);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).reason,
+        ImageViewport::CommandReason::InvalidRequest);
+    QCOMPARE(ViewportEngineTestAccess::commandDiagnostics(engine).revision, rejectedRevision);
 }
 
 void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()

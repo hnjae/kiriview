@@ -26,9 +26,6 @@
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
 class ViewportController;
-#define VIEWPORT_ENGINE_TEST_VISIBILITY public
-#else
-#define VIEWPORT_ENGINE_TEST_VISIBILITY private
 #endif
 struct ViewportEngineCanonicalState;
 struct ViewportEngineSnapshotStateAccess;
@@ -144,20 +141,23 @@ public:
     ImageViewportStateSnapshot snapshot() const;
     ImageViewportStateSnapshot snapshot(const GeometryInput& input) const;
     ImageViewportStateSnapshot snapshot(const SnapshotInput& input) const;
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
+
+private:
     CommandDiagnostics commandDiagnostics() const;
     PresentationTargetState presentationTargetState() const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     const ImageViewportInternal::PresentationState& presentationState() const;
 #endif
+
 public:
     PresentationGeometry::State geometryState(const GeometryInput& input) const;
     GeometryInput projectedGeometryInput(const QRectF& itemBounds, double devicePixelRatio = 1.0,
         GeometryProjectionTarget target = GeometryProjectionTarget::CurrentDisplay) const;
     GeometryInput acceptedGeometryInput(
         const QRectF& itemBounds, double devicePixelRatio = 1.0) const;
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
+private:
     ViewportRenderSnapshot renderSnapshot(const ViewportRenderSnapshotInput& input) const;
+
 public:
     ViewportRenderSynchronization beginRenderSynchronization(
         const RenderSynchronizationInput& input);
@@ -169,44 +169,31 @@ public:
         const ViewportEngineGeometryChangeInput& input);
     std::array<ViewportProviderFrameTransportEffect, 2> restageProviderDemands(
         const GeometryInput& geometry);
-public:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, const GeometryInput& geometry);
-public:
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
         ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(
         ImageViewport::PageRole role, const GeometryInput& geometry);
-public:
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewport::PageRole role, const QString& diagnostic);
-public:
     ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
-public:
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewport::PageRole role, const GeometryInput& geometry);
-public:
     PlaybackCommandResult applyPlaybackCommand(const PlaybackCommandInput& input);
     PlaybackTickResult advancePlayback(const PlaybackTickInput& input);
-public:
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);
     PresentationCommandResult applyPresentationCommand(
         const ViewportEnginePresentationCommandInput& input);
-    VIEWPORT_ENGINE_TEST_VISIBILITY:
+private:
     CommandResult rejectInvalidCommand();
-    CommandResult rejectMalformedEnumCommand();
-    CommandResult clearFromEmpty();
-    CommandResult validatePresentationNoop(ImageViewport::FitMode mode);
     quint64 allocateRevisionValue();
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
-public:
     void setNextRevisionValueForTest(quint64 token);
 #endif
-
-private:
     friend class ViewportController;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
@@ -237,5 +224,3 @@ private:
 
     std::unique_ptr<ViewportEngineCanonicalState> m_state;
 };
-
-#undef VIEWPORT_ENGINE_TEST_VISIBILITY

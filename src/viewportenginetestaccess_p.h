@@ -9,6 +9,25 @@
 class ViewportEngineTestAccess
 {
 public:
+    static ViewportEngine::CommandDiagnostics commandDiagnostics(const ViewportEngine& engine)
+    {
+        return engine.commandDiagnostics();
+    }
+    static ViewportEngine::PresentationTargetState presentationTargetState(
+        const ViewportEngine& engine)
+    {
+        return engine.presentationTargetState();
+    }
+    static const ImageViewportInternal::PresentationState& presentation(
+        const ViewportEngine& engine)
+    {
+        return engine.presentationState();
+    }
+    static ViewportRenderSnapshot renderSnapshot(
+        const ViewportEngine& engine, const ViewportRenderSnapshotInput& input)
+    {
+        return engine.renderSnapshot(input);
+    }
     static ImageViewportInternal::DisplayState& display(ViewportEngine& engine)
     {
         return engine.displayState();

@@ -66,6 +66,8 @@ add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)
 add_imageviewport_core_qt_test(viewportengine tst_viewportengine.cpp)
 add_executable(viewportengine_capability_contract tst_viewportengine_capability_contract.cpp)
 target_link_libraries(viewportengine_capability_contract PRIVATE ImageViewport)
+target_compile_definitions(viewportengine_capability_contract
+                           PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 add_test(NAME viewportengine_capability_contract COMMAND viewportengine_capability_contract)
 add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
 add_imageviewport_core_qt_test(viewportcontroller_presentation
