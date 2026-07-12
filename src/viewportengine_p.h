@@ -9,6 +9,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportengineproviderrequesttokenoperations_p.h"
+#include "viewportengineprovidersessionoperations_p.h"
 #include "viewportenginerenderoperations_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportrendercontract_p.h"
@@ -101,8 +102,7 @@ public:
         bool closeProviderSessions = false;
         ImageViewportInternal::ViewportChangeSet changes;
         std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-        bool openPrimaryProviderSession = false;
-        bool openSecondaryProviderSession = false;
+        std::array<ViewportEngineProviderSessionOpenEffect, 2> providerSessionOpenEffects;
         ViewportPlaybackScheduleEffect schedule;
     };
     struct ProviderEventAdmissionInput
@@ -110,16 +110,6 @@ public:
         ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
         ImageSequenceProviderRequestToken token;
     };
-    struct ProviderSessionBinding
-    {
-        std::shared_ptr<ImageSequenceProviderSessionFactory> factory;
-        ImageSequenceProviderThreadingContract threadingContract
-            = ImageSequenceProviderThreadingContract::AffinityBound;
-        quint64 generation = 0;
-        quint64 sessionSerial = 0;
-        bool sessionActive = false;
-    };
-
     struct ProviderFrameEventAdmission
     {
         bool accepted = false;
@@ -236,11 +226,8 @@ public:
     ViewportProviderMetadataTargetPolicyResult applyProviderMetadataTargetPolicy(
         ImageViewport::PageRole role, const ViewportProviderAcceptedMetadataFacts& facts,
         const GeometryInput& geometry);
-    quint64 activateProviderSession(ImageViewport::PageRole role);
-    void retireProviderSession(ImageViewport::PageRole role);
     bool acceptsProviderSessionEvent(
         ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const;
-    ProviderSessionBinding providerSessionBinding(ImageViewport::PageRole role) const;
     ViewportProviderRequestTokenAllocationAccess providerRequestTokenAllocationAccess();
     ViewportProviderTerminalEventResult reduceProviderTerminalEvent(
         ImageViewport::PageRole role, const ViewportProviderTerminalEvent& event);

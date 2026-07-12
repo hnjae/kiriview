@@ -447,40 +447,14 @@ ViewportEngine::ProviderMetadataEventAdmission ViewportEngine::admitProviderMeta
     return { true };
 }
 
-quint64 ViewportEngine::activateProviderSession(ImageViewport::PageRole role)
-{
-    ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    provider.session.sessionActive = true;
-    return ++provider.session.sessionSerial;
-}
-
-void ViewportEngine::retireProviderSession(ImageViewport::PageRole role)
-{
-    m_state->providerState.roles[roleIndex(role)].provider.session.sessionActive = false;
-}
-
 bool ViewportEngine::acceptsProviderSessionEvent(
     ImageViewport::PageRole role, quint64 sessionSerial, quint64 generation) const
 {
-    const ImageViewportInternal::ProviderRoleState& provider
-        = m_state->providerState.roles[roleIndex(role)].provider;
-    return generation != 0 && generation == m_state->requestState.request.sequenceGeneration
-        && provider.session.sessionActive && provider.session.sessionSerial == sessionSerial;
-}
-
-ViewportEngine::ProviderSessionBinding ViewportEngine::providerSessionBinding(
-    ImageViewport::PageRole role) const
-{
-    const auto& source = role == ImageViewport::PageRole::Secondary
-        ? m_state->requestState.request.roles[1].source
-        : m_state->requestState.request.roles[0].source;
-    const auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
-    const quint64 generation = role == ImageViewport::PageRole::Secondary
-        ? m_state->requestState.presentationTarget.secondaryRoleGeneration
-        : m_state->requestState.presentationTarget.primaryRoleGeneration;
-    return { source.providerSessionFactory, source.facts.providerThreadingContract, generation,
-        provider.session.sessionSerial, provider.session.sessionActive };
+    ViewportEngineProviderSessionAdmissionAccess access(
+        m_state->requestState.request.sequenceGeneration,
+        m_state->providerState.roles[roleIndex(role)].provider.session);
+    return acceptsViewportEngineProviderSessionEvent(
+        { generation, sessionSerial }, std::move(access));
 }
 
 void ViewportEngine::clearQueuedProviderFrameRequest(ImageViewport::PageRole role)
@@ -732,8 +706,12 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             m_state->requestState.request.reason = ImageViewport::RequestReason::ProviderWaiting;
             m_state->displayState.display.status
                 = retainedOrEmptyDisplayStatus(m_state->displayState.display);
-            activateProviderSession(ImageViewport::PageRole::Primary);
-            result.openPrimaryProviderSession = true;
+            ViewportEngineProviderSessionOpenAccess access(
+                m_state->requestState.request.roles[0].source, provider.session);
+            result.providerSessionOpenEffects[0] = beginViewportEngineProviderSession(
+                { ImageViewport::PageRole::Primary,
+                    m_state->requestState.presentationTarget.primaryRoleGeneration },
+                std::move(access));
         } else if (m_state->requestState.request.roles[0].source.facts.present) {
             const auto target = initialBuiltInTarget(m_state->requestState.request.roles[0].source);
             m_state->requestState.request.beginDisplayRequest(
@@ -767,8 +745,13 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             m_state->requestState.request.reason = ImageViewport::RequestReason::ProviderWaiting;
             m_state->displayState.display.status
                 = retainedOrEmptyDisplayStatus(m_state->displayState.display);
-            activateProviderSession(ImageViewport::PageRole::Secondary);
-            result.openSecondaryProviderSession = true;
+            ViewportEngineProviderSessionOpenAccess access(
+                m_state->requestState.request.roles[1].source,
+                m_state->providerState.roles[1].provider.session);
+            result.providerSessionOpenEffects[1] = beginViewportEngineProviderSession(
+                { ImageViewport::PageRole::Secondary,
+                    m_state->requestState.presentationTarget.secondaryRoleGeneration },
+                std::move(access));
         }
     }
 

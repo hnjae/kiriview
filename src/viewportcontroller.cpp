@@ -106,22 +106,11 @@ ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignm
         engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
         engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
-    const auto appendOpen = [&](ImageViewport::PageRole role, bool open) {
-        if (!open) {
-            return;
+    for (auto& effect : engineResult.providerSessionOpenEffects) {
+        if (effect.openSession) {
+            result.transition.providerAfterPublication.append(std::move(effect.command));
         }
-        const auto binding = engine.providerSessionBinding(role);
-        ViewportProviderTransportCommand effect;
-        effect.kind = ViewportProviderTransportCommand::Kind::OpenSession;
-        effect.role = role;
-        effect.sessionFactory = binding.factory;
-        effect.threadingContract = binding.threadingContract;
-        effect.generation = binding.generation;
-        effect.sessionSerial = binding.sessionSerial;
-        result.transition.providerAfterPublication.append(std::move(effect));
-    };
-    appendOpen(ImageViewport::PageRole::Primary, engineResult.openPrimaryProviderSession);
-    appendOpen(ImageViewport::PageRole::Secondary, engineResult.openSecondaryProviderSession);
+    }
     result.transition.playbackSchedule = engineResult.schedule;
     return result;
 }

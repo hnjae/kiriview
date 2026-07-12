@@ -238,20 +238,9 @@ void ViewportEngine::recordProviderTerminal(ImageViewport::PageRole role,
 ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
     ImageViewport::PageRole role)
 {
-    ViewportProviderFrameTransportEffect effect;
-    auto& provider = providerFor(providerAccess().roles(), role);
-    effect.closeSession = provider.session.sessionActive;
-    clearQueuedProviderFrameRequest(role);
-    if (!provider.session.sessionActive) {
-        return effect;
-    }
-    effect.sessionClose.metadataToken = provider.requests.activeMetadataToken;
-    effect.sessionClose.frameToken = provider.requests.activeFrameToken;
-    provider.session.sessionActive = false;
-    provider.requests.activeMetadataToken = {};
-    provider.requests.activeFrameToken = {};
-    provider.requests.nextRequestToken = 0;
-    return effect;
+    auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
+    ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
+    return closeViewportEngineProviderSession(std::move(access));
 }
 
 ViewportProviderMetadataRequestStartResult ViewportEngine::startProviderMetadataRequest(

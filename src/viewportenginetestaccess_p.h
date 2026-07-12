@@ -65,6 +65,12 @@ public:
             .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
             .provider.session;
     }
+    static void activateProviderSession(ViewportEngine& engine, ImageViewport::PageRole role)
+    {
+        auto& session = providerSession(engine, role);
+        session.sessionActive = true;
+        ++session.sessionSerial;
+    }
     static ImageViewportInternal::ProviderRequestState& providerRequests(
         ViewportEngine& engine, ImageViewport::PageRole role)
     {

@@ -60,6 +60,8 @@ qt_add_qml_module(
     viewportengineprovider.cpp
     viewportengineproviderrequesttokenoperations.cpp
     viewportengineproviderprojection.cpp
+    viewportengineprovidersessionoperations.cpp
+    viewportengineprovidersessionoperations_p.h
     viewportengine_p.h
     viewportenginestate_p.h
     viewportenginetestaccess_p.h

@@ -4,6 +4,7 @@
 #include "viewportenginepresentationoperations_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
+#include "viewportengineprovidersessionoperations_p.h"
 
 #include <type_traits>
 
@@ -86,6 +87,32 @@ struct HasProviderRequestAccess<Access,
 
 static_assert(!std::is_copy_constructible_v<ViewportEngineProviderStateAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineSnapshotStateAccess>);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionOpenAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionOpenAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderSessionOpenAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderSessionOpenAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionOpenAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderSessionOpenAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionCloseAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionCloseAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderSessionCloseAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderSessionCloseAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionCloseAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderSessionCloseAccess>::value);
+static_assert(!std::is_default_constructible_v<ViewportEngineProviderSessionAdmissionAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineProviderSessionAdmissionAccess>);
+static_assert(!HasRequestAccess<ViewportEngineProviderSessionAdmissionAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineProviderSessionAdmissionAccess>::value);
+static_assert(!HasPlaybackAccess<ViewportEngineProviderSessionAdmissionAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineProviderSessionAdmissionAccess>::value);
+static_assert(std::is_same_v<decltype(&beginViewportEngineProviderSession),
+    ViewportEngineProviderSessionOpenEffect (*)(
+        ViewportEngineProviderSessionOpenInput, ViewportEngineProviderSessionOpenAccess)>);
+static_assert(std::is_same_v<decltype(&closeViewportEngineProviderSession),
+    ViewportProviderFrameTransportEffect (*)(ViewportEngineProviderSessionCloseAccess)>);
+static_assert(std::is_same_v<decltype(&acceptsViewportEngineProviderSessionEvent),
+    bool (*)(ViewportEngineProviderSessionAdmissionInput,
+        ViewportEngineProviderSessionAdmissionAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(!std::is_copy_constructible_v<ViewportEngine::PendingPublication>);
 static_assert(std::is_move_constructible_v<ViewportEngine::PendingPublication>);

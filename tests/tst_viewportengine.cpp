@@ -908,7 +908,7 @@ void ViewportEngineTest::providerTerminalReducerRejectsStaleFrameToken()
     request.sequenceGeneration = 7;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
-    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewport::PageRole::Primary);
     ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
         .activeFrameToken
         = providerRequestTokenForTest(3);
@@ -938,7 +938,7 @@ void ViewportEngineTest::providerTerminalReducerCommitsFrameFailureAtomically()
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { 0, -1, ImageViewportInternal::ProviderRequestTargetKind::Frame }, false);
     ViewportEngineTestAccess::playback(engine).phase = ImageViewport::PlaybackPhase::Waiting;
-    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewport::PageRole::Primary);
     ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
         .activeFrameToken
         = providerRequestTokenForTest(3);
@@ -975,7 +975,7 @@ void ViewportEngineTest::providerTerminalReducerClosesMetadataGeneration()
     request.sequenceGeneration = 9;
     request.beginDisplayRequest(ImageViewportInternal::DisplayRequestOrigin::Initial,
         { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Unknown }, false);
-    engine.activateProviderSession(ImageViewport::PageRole::Primary);
+    ViewportEngineTestAccess::activateProviderSession(engine, ImageViewport::PageRole::Primary);
     ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Primary)
         .activeMetadataToken
         = providerRequestTokenForTest(5);
@@ -1322,13 +1322,15 @@ void ViewportEngineTest::providerAssignmentRegistersSessionIdentityBeforeHostOpe
     ViewportEngine engine;
     const auto result = engine.assignPresentationTarget(
         { ImageViewportPresentationTarget(sequence->sequence()), {} });
-    const auto binding = engine.providerSessionBinding(ImageViewport::PageRole::Primary);
+    const auto& open = result.providerSessionOpenEffects[0];
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(result.openPrimaryProviderSession, true);
-    QCOMPARE(binding.generation, result.presentationTargetState.primaryRoleGeneration);
-    QVERIFY(binding.sessionSerial != 0);
-    QCOMPARE(binding.sessionActive, true);
+    QCOMPARE(open.openSession, true);
+    QCOMPARE(open.command.generation, result.presentationTargetState.primaryRoleGeneration);
+    QVERIFY(open.command.sessionSerial != 0);
+    QCOMPARE(ViewportEngineTestAccess::providerSession(engine, ImageViewport::PageRole::Primary)
+                 .sessionActive,
+        true);
 }
 
 void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDiagnostics()
