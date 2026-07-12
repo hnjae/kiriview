@@ -3,7 +3,7 @@
 #include "imageviewporttoken_p.h"
 namespace ImageViewportInternal::CommandOutcome {
 
-ViewportCommandResult fromEngineCommand(const ViewportEngine::CommandResult& command)
+ViewportCommandResult fromEngineCommand(const ViewportEngineCommandResult& command)
 {
     ViewportCommandResult result;
     result.outcome = command.outcome;

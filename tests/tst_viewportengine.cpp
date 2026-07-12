@@ -1138,7 +1138,7 @@ void ViewportEngineTest::validPresentationTargetAssignmentAllocatesGenerationAnd
     QVERIFY(sequence->sequence());
 
     ViewportEngine engine;
-    const ViewportEngine::PresentationTargetAssignmentResult result
+    const ViewportEnginePresentationTargetAssignmentResult result
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(sequence->sequence()), {} });
 
@@ -1188,7 +1188,7 @@ void ViewportEngineTest::twoRoleAssignmentIsAcceptedAtomically()
     QVERIFY(secondary->sequence());
 
     ViewportEngine engine;
-    const ViewportEngine::PresentationTargetAssignmentResult result
+    const ViewportEnginePresentationTargetAssignmentResult result
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(primary->sequence(), secondary->sequence()), {} });
 
@@ -1249,12 +1249,12 @@ void ViewportEngineTest::invalidPresentationTargetAssignmentMutatesOnlyCommandDi
     QVERIFY(engine
             .assignPresentationTarget({ ImageViewportPresentationTarget(primary->sequence()), {} })
             .presentationTargetChanged);
-    const ViewportEngine::PresentationTargetState previousState
+    const ViewportEnginePresentationTargetState previousState
         = ViewportEngineTestAccess::presentationTargetState(engine);
     ImageViewportPresentationTarget secondaryOnly;
     secondaryOnly.setSecondary(secondary->sequence());
 
-    const ViewportEngine::PresentationTargetAssignmentResult result
+    const ViewportEnginePresentationTargetAssignmentResult result
         = engine.assignPresentationTarget({ secondaryOnly, {} });
 
     QCOMPARE(result.command.outcome, ImageViewport::CommandOutcome::Invalid);
@@ -1286,14 +1286,14 @@ void ViewportEngineTest::invalidTransitionPolicyMutatesOnlyCommandDiagnostics()
     QVERIFY(engine
             .assignPresentationTarget({ ImageViewportPresentationTarget(primary->sequence()), {} })
             .presentationTargetChanged);
-    const ViewportEngine::PresentationTargetState previousState
+    const ViewportEnginePresentationTargetState previousState
         = ViewportEngineTestAccess::presentationTargetState(engine);
     PresentationTargetTransitionPolicy invalidPolicy;
     invalidPolicy.setPageGapTransition(
         PresentationTargetTransitionPolicy::PageGapTransition::SetExplicit);
     invalidPolicy.setPageGap(-1.0);
 
-    const ViewportEngine::PresentationTargetAssignmentResult result
+    const ViewportEnginePresentationTargetAssignmentResult result
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(replacement->sequence()), invalidPolicy });
 
@@ -1319,7 +1319,7 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
             .assignPresentationTarget({ ImageViewportPresentationTarget(sequence->sequence()), {} })
             .presentationTargetChanged);
 
-    const ViewportEngine::PresentationTargetAssignmentResult clearResult
+    const ViewportEnginePresentationTargetAssignmentResult clearResult
         = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });
 
     QCOMPARE(clearResult.command.outcome, ImageViewport::CommandOutcome::Accepted);
@@ -1340,7 +1340,7 @@ void ViewportEngineTest::clearPresentationTargetAllocatesTransactionAndThenNoops
     QCOMPARE(ViewportEngineTestAccess::request(engine).roles[0].sequence, nullptr);
     QCOMPARE(ViewportEngineTestAccess::display(engine).roles[0].displayedImageSize, QSizeF());
 
-    const ViewportEngine::PresentationTargetAssignmentResult noopClear
+    const ViewportEnginePresentationTargetAssignmentResult noopClear
         = engine.assignPresentationTarget({ ImageViewportPresentationTarget::clear(), {} });
 
     QCOMPARE(noopClear.command.outcome, ImageViewport::CommandOutcome::Accepted);
@@ -1368,7 +1368,7 @@ void ViewportEngineTest::presentationTargetAssignmentPreservesPreviousCommandDia
     const RevisionToken rejectedRevision
         = ViewportEngineTestAccess::commandDiagnostics(engine).revision;
 
-    const ViewportEngine::PresentationTargetAssignmentResult accepted
+    const ViewportEnginePresentationTargetAssignmentResult accepted
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(sequence->sequence()), {} });
 
@@ -1396,7 +1396,7 @@ void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()
     QVERIFY(second->sequence());
 
     ViewportEngine engine;
-    const ViewportEngine::PresentationTargetAssignmentResult retained
+    const ViewportEnginePresentationTargetAssignmentResult retained
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(first->sequence()), {} });
     QCOMPARE(retained.retainPreviousDisplay, true);
@@ -1407,7 +1407,7 @@ void ViewportEngineTest::assignmentEffectFlagsFollowTransitionPolicy()
     PresentationTargetTransitionPolicy policy;
     policy.setDisplayTransition(
         PresentationTargetTransitionPolicy::DisplayTransition::ClearBeforeLoad);
-    const ViewportEngine::PresentationTargetAssignmentResult cleared
+    const ViewportEnginePresentationTargetAssignmentResult cleared
         = engine.assignPresentationTarget(
             { ImageViewportPresentationTarget(second->sequence()), policy });
     QCOMPARE(cleared.retainPreviousDisplay, false);

@@ -13,6 +13,7 @@
 #include "viewportengineprovidermetadataoperations_p.h"
 #include "viewportengineproviderterminaloperations_p.h"
 #include "viewportengineprovidereventcompletionoperations_p.h"
+#include "viewportenginerenderoperations_p.h"
 
 #include <type_traits>
 
@@ -432,24 +433,24 @@ static_assert(!HasPublicProviderRestaging<ViewportEngine>::value);
 static_assert(!HasPublicProviderSessionClose<ViewportEngine>::value);
 static_assert(std::is_same_v<decltype(&ViewportEngine::handleProviderHostEvent),
     ViewportEngineTransition (ViewportEngine::*)(
-        const ViewportEngine::ProviderHostEventInput&)>);
+        const ViewportEngineProviderHostEventRequest&)>);
 static_assert(std::is_same_v<decltype(&ViewportEngine::handleDevicePixelRatioChanged),
     ViewportEngineTransition (ViewportEngine::*)(ViewportEngineViewportInput)>);
 static_assert(std::is_same_v<ViewportControllerTransition, ViewportEngineTransition>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PresentationTargetAssignmentInput>()
+static_assert(std::is_same_v<decltype(std::declval<ViewportEnginePresentationTargetAssignmentRequest>()
                                           .viewport),
     ViewportEngineViewportInput>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PlaybackCommandInput>().viewport),
+static_assert(std::is_same_v<decltype(std::declval<ViewportEnginePlaybackCommandRequest>().viewport),
     ViewportEngineViewportInput>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PlaybackTickInput>().viewport),
+static_assert(std::is_same_v<decltype(std::declval<ViewportEnginePlaybackTickRequest>().viewport),
     ViewportEngineViewportInput>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::PresentationCommandInput>()
+static_assert(std::is_same_v<decltype(std::declval<ViewportEnginePresentationCommandRequest>()
                                           .viewport),
     ViewportEngineViewportInput>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::RenderSynchronizationInput>()
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngineRenderSynchronizationRequest>()
                                           .viewport),
     ViewportEngineViewportInput>);
-static_assert(std::is_same_v<decltype(std::declval<ViewportEngine::GeometryChangeInput>().viewport),
+static_assert(std::is_same_v<decltype(std::declval<ViewportEngineGeometryChangeRequest>().viewport),
     ViewportEngineViewportInput>);
 static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackPauseAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackPauseAccess>);

@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportengineassignmentoperations_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineprojection_p.h"
 #include "viewportengineproviderprojection_p.h"
@@ -42,12 +43,12 @@ ViewportEngine::PendingPublication& ViewportEngine::PendingPublication::operator
     return *this;
 }
 
-ViewportEngine::CommandDiagnostics ViewportEngine::commandDiagnostics() const
+ViewportEngineCommandDiagnostics ViewportEngine::commandDiagnostics() const
 {
     return { m_state->commandState.reason, m_state->commandState.revision };
 }
 
-ViewportEngine::PresentationTargetState ViewportEngine::presentationTargetState() const
+ViewportEnginePresentationTargetState ViewportEngine::presentationTargetState() const
 {
     return m_state->requestState.presentationTarget;
 }
@@ -155,26 +156,26 @@ PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& i
     return projectViewportGeometryState(input, m_state->presentationState.presentation);
 }
 
-ViewportEngine::GeometryInput ViewportEngine::currentGeometry(ViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::currentGeometry(ViewportEngineViewportInput input) const
 {
     return projectViewportCurrentGeometry({ input.itemBounds, input.devicePixelRatio },
         { m_state->requestState.request, m_state->displayState.display });
 }
 
-ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(ViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::pendingGeometry(ViewportEngineViewportInput input) const
 {
     return projectViewportPendingGeometry({ input.itemBounds, input.devicePixelRatio },
         { m_state->requestState.request, m_state->displayState.display, providerFactsView() });
 }
 
-ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(ViewportInput input) const
+ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(ViewportEngineViewportInput input) const
 {
     return projectViewportAcceptedGeometry(
         { input.itemBounds, input.devicePixelRatio },
         { m_state->requestState.request, providerFactsView() });
 }
 
-PresentationGeometry::State ViewportEngine::geometryState(ViewportInput input) const
+PresentationGeometry::State ViewportEngine::geometryState(ViewportEngineViewportInput input) const
 {
     return geometryState(currentGeometry(input));
 }
@@ -187,13 +188,13 @@ ViewportRenderSnapshot ViewportEngine::renderSnapshot(
             m_state->presentationState.presentation });
 }
 
-ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
-    const PresentationTargetAssignmentInput& input)
+ViewportEnginePresentationTargetAssignmentResult ViewportEngine::assignPresentationTarget(
+    const ViewportEnginePresentationTargetAssignmentRequest& input)
 {
     if (!input.presentationTarget.isValid() || !input.transitionPolicy.isValid()) {
         return { rejectInvalidCommand(), m_state->requestState.presentationTarget };
     }
-    PresentationTargetAssignmentResult result;
+    ViewportEnginePresentationTargetAssignmentResult result;
     result.command = input.presentationTarget.isClear() ? accepted()
                                                         : acceptedPreservingCommandDiagnostics();
     ViewportEnginePresentationTargetAssignmentAccess access(
@@ -219,13 +220,13 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
     result.schedule = currentPlaybackSchedule();
     return result;
 }
-ViewportEngine::CommandResult ViewportEngine::rejectInvalidCommand()
+ViewportEngineCommandResult ViewportEngine::rejectInvalidCommand()
 {
     return rejected(
         ImageViewport::CommandOutcome::Invalid, ImageViewport::CommandReason::InvalidRequest);
 }
 
-ViewportEngine::CommandResult ViewportEngine::rejected(
+ViewportEngineCommandResult ViewportEngine::rejected(
     ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason)
 {
     m_state->commandState.reason = reason;
@@ -233,7 +234,7 @@ ViewportEngine::CommandResult ViewportEngine::rejected(
     return { outcome, reason, m_state->commandState.revision, true };
 }
 
-ViewportEngine::CommandResult ViewportEngine::accepted()
+ViewportEngineCommandResult ViewportEngine::accepted()
 {
     const bool hadDiagnostic
         = m_state->commandState.reason != ImageViewport::CommandReason::NoCommand;
@@ -247,7 +248,7 @@ ViewportEngine::CommandResult ViewportEngine::accepted()
         m_state->commandState.revision, false };
 }
 
-ViewportEngine::CommandResult ViewportEngine::acceptedPreservingCommandDiagnostics() const
+ViewportEngineCommandResult ViewportEngine::acceptedPreservingCommandDiagnostics() const
 {
     return { ImageViewport::CommandOutcome::Accepted, m_state->commandState.reason,
         m_state->commandState.revision, false };

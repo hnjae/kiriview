@@ -77,6 +77,7 @@ qt_add_qml_module(
     viewportengineproviderterminaloperations.cpp
     viewportengineproviderterminaloperations_p.h
     viewportengine_p.h
+    viewportenginefacadecontract_p.h
     viewportenginestate_p.h
     viewportenginetestaccess_p.h
     viewportenginetransition_p.h

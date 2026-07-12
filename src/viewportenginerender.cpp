@@ -1,10 +1,22 @@
 #include "viewportengine_p.h"
+#include "viewportenginerenderoperations_p.h"
 #include "viewportenginestate_p.h"
 
 #include <utility>
 
+namespace {
+ViewportEngineRenderAcknowledgementInput operationInput(
+    const ViewportEngineRenderAcknowledgementRequest& input)
+{
+    return { input.acknowledgement, input.renderedImagePresent, input.synchronizationAttempt,
+        input.pendingTargetCommit, input.pendingSecondaryProviderCommit, input.preparedPayload,
+        input.oldDisplayStatus, input.oldContentRect, input.oldVisibleImageRect,
+        input.geometryState };
+}
+}
+
 ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
-    const RenderSynchronizationInput& input)
+    const ViewportEngineRenderSynchronizationRequest& input)
 {
     const GeometryInput current = currentGeometry(input.viewport);
     const PresentationGeometry::State currentState = geometryState(current);
@@ -18,9 +30,9 @@ ViewportRenderSynchronization ViewportEngine::beginRenderSynchronization(
 }
 
 ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
-    const RenderAcknowledgementInput& input)
+    const ViewportEngineRenderAcknowledgementRequest& input)
 {
-    auto reduction = reduceViewportEngineRenderCommit(input,
+    auto reduction = reduceViewportEngineRenderCommit(operationInput(input),
         { m_state->requestState.request, m_state->displayState.display,
             m_state->playbackState.playback, providerFactsView(), m_state->renderCoordination });
     return { reduction.changes,
@@ -29,9 +41,9 @@ ViewportEngineRenderCommitTransition ViewportEngine::acknowledgeRenderCommit(
 }
 
 ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
-    const RenderAcknowledgementInput& input)
+    const ViewportEngineRenderAcknowledgementRequest& input)
 {
-    auto reduction = reduceViewportEngineRenderFailure(input,
+    auto reduction = reduceViewportEngineRenderFailure(operationInput(input),
         { m_state->requestState.request, m_state->displayState.display,
             m_state->playbackState.playback, m_state->renderCoordination });
     return { reduction.changes,
@@ -41,7 +53,7 @@ ViewportEngineRenderFailureTransition ViewportEngine::acknowledgeRenderFailure(
 }
 
 ViewportEngineGeometryChangeTransition ViewportEngine::handleGeometryChanged(
-    const GeometryChangeInput& input)
+    const ViewportEngineGeometryChangeRequest& input)
 {
     const ViewportEngineGeometryChangeInput operationInput { input.viewport.itemBounds,
         input.oldContentRect, input.oldVisibleImageRect, geometryState(input.viewport) };

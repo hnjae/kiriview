@@ -325,10 +325,10 @@ ViewportEnginePresentationCommandReduction reduceViewportEnginePresentationComma
     return result;
 }
 
-ViewportEngine::PresentationCommandResult ViewportEngine::applyPresentationCommand(
-    const PresentationCommandInput& input)
+ViewportEnginePresentationCommandResult ViewportEngine::applyPresentationCommand(
+    const ViewportEnginePresentationCommandRequest& input)
 {
-    PresentationCommandResult result;
+    ViewportEnginePresentationCommandResult result;
     const ViewportEnginePresentationCommandInput operationInput { input.command,
         currentGeometry(input.viewport), input.anchor, input.quarterTurnDelta };
     if (!validateViewportEnginePresentationCommand(operationInput)) {

@@ -89,6 +89,12 @@ struct ViewportProviderTransportCommand
     quint64 sessionSerial = 0;
 };
 
+struct ViewportEngineProviderSessionOpenEffect
+{
+    bool openSession = false;
+    ViewportProviderTransportCommand command;
+};
+
 using ViewportProviderTransportBatch = QVector<ViewportProviderTransportCommand>;
 
 enum class ViewportProviderEventTransportPhase {

@@ -1,5 +1,11 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
+#include "viewportengineprovidereventcompletionoperations_p.h"
+#include "viewportengineproviderfailureoperations_p.h"
+#include "viewportengineproviderframeoperations_p.h"
+#include "viewportengineprovidermetadataoperations_p.h"
+#include "viewportengineproviderrequestoperations_p.h"
+#include "viewportengineprovidersessionoperations_p.h"
 
 #include "viewportcontrollerprovidercontract_p.h"
 #include "viewportprovidertransporteffects_p.h"
@@ -25,7 +31,7 @@ ViewportEngineProviderTerminalEventInput terminalEvent(const ViewportProviderEve
 }
 
 ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
-    const ProviderHostEventInput& input)
+    const ViewportEngineProviderHostEventRequest& input)
 {
     const auto& event = input.event;
     ViewportEngineTransition result;
@@ -92,7 +98,8 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
     return result;
 }
 
-ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(ViewportInput input)
+ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(
+    ViewportEngineViewportInput input)
 {
     ViewportEngineTransition result;
     result.changes.displayRevision = true;
@@ -115,7 +122,7 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
 }
 
 ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
-    ImageViewport::PageRole role, ViewportInput input)
+    ImageViewport::PageRole role, ViewportEngineViewportInput input)
 {
     const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderSessionOpenedAccess access(m_state->requestState.request,
@@ -128,7 +135,7 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
 }
 
 ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameRequest(
-    ImageViewport::PageRole role, ViewportInput input)
+    ImageViewport::PageRole role, ViewportEngineViewportInput input)
 {
     const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderQueueFlushAccess access(m_state->requestState.request,
@@ -145,7 +152,7 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
 }
 
 std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProviderDemands(
-    ViewportInput input)
+    ViewportEngineViewportInput input)
 {
     return restageProviderDemands(acceptedGeometry(input));
 }
@@ -162,7 +169,7 @@ std::array<ViewportProviderFrameTransportEffect, 2> ViewportEngine::restageProvi
 }
 
 ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
-    const ViewportProviderEvent& event, ViewportInput input)
+    const ViewportProviderEvent& event, ViewportEngineViewportInput input)
 {
     const GeometryInput geometry = acceptedGeometry(input);
     auto& eventProvider = m_state->providerState.roles[roleIndex(event.role)].provider;

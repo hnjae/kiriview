@@ -7,7 +7,7 @@
 ViewportCommandResult ViewportController::setPresentation(
     const ViewportPresentationCommandInput& input)
 {
-    const ViewportEngine::PresentationCommandResult engineResult
+    const ViewportEnginePresentationCommandResult engineResult
         = engine.applyPresentationCommand(
             { input.command, { itemBounds(), input.devicePixelRatio }, input.anchor });
     ViewportCommandResult result

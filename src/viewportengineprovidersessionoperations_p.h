@@ -9,12 +9,6 @@ struct ViewportEngineProviderSessionOpenInput
     quint64 generation = 0;
 };
 
-struct ViewportEngineProviderSessionOpenEffect
-{
-    bool openSession = false;
-    ViewportProviderTransportCommand command;
-};
-
 class ViewportEngineProviderSessionOpenAccess
 {
     friend class ViewportEngine;

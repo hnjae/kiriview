@@ -53,7 +53,7 @@ const ImageViewportInternal::PlaybackState& ViewportController::playbackState() 
     return ViewportEngineTestAccess::playback(engine);
 }
 
-ViewportEngine::CommandDiagnostics ViewportController::commandDiagnostics() const
+ViewportEngineCommandDiagnostics ViewportController::commandDiagnostics() const
 {
     return engine.commandDiagnostics();
 }

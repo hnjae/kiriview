@@ -21,12 +21,6 @@ struct ViewportEngineGeometryChangeReduction
     std::optional<ViewportEngineGeometryInput> providerDemandGeometry;
 };
 
-struct ViewportEngineGeometryChangeTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    std::array<ViewportProviderFrameTransportEffect, 2> providerEffects;
-};
-
 struct ViewportEngineRenderSynchronizationInput
 {
     QSizeF itemSize;
@@ -56,22 +50,9 @@ struct ViewportEngineRenderCommitReduction
     ImageViewportInternal::ViewportChangeSet changes;
 };
 
-struct ViewportEngineRenderCommitTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportPlaybackScheduleEffect playbackSchedule;
-};
-
 struct ViewportEngineRenderFailureReduction
 {
     ImageViewportInternal::ViewportChangeSet changes;
-    ImageViewportInternal::RenderFailureDiagnostic diagnostic;
-};
-
-struct ViewportEngineRenderFailureTransition
-{
-    ImageViewportInternal::ViewportChangeSet changes;
-    ViewportPlaybackScheduleEffect playbackSchedule;
     ImageViewportInternal::RenderFailureDiagnostic diagnostic;
 };
 

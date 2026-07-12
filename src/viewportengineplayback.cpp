@@ -1,5 +1,6 @@
 #include "viewportengine_p.h"
 #include "viewportenginecapabilities_p.h"
+#include "viewportengineplaybackoperations_p.h"
 
 #include "imageviewporttoken_p.h"
 #include "viewportplaybackcontract_p.h"
@@ -32,7 +33,7 @@ bool rolePresent(const ImageViewportInternal::RequestState& request, ImageViewpo
 }
 
 void appendCommandChanges(
-    const ViewportEngine::CommandResult& command, ImageViewportInternal::ViewportChangeSet& changes)
+    const ViewportEngineCommandResult& command, ImageViewportInternal::ViewportChangeSet& changes)
 {
     if (!command.commandRevisionChanged) {
         return;
@@ -45,10 +46,10 @@ void appendCommandChanges(
 
 }
 
-ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
-    const PlaybackCommandInput& input)
+ViewportEnginePlaybackCommandResult ViewportEngine::applyPlaybackCommand(
+    const ViewportEnginePlaybackCommandRequest& input)
 {
-    PlaybackCommandResult result;
+    ViewportEnginePlaybackCommandResult result;
     const GeometryInput geometry = acceptedGeometry(input.viewport);
     if (!validateViewportPlaybackCommand(input.command)) {
         result.command = rejectInvalidCommand();
@@ -129,9 +130,10 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
     return result;
 }
 
-ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const PlaybackTickInput& input)
+ViewportEnginePlaybackTickResult ViewportEngine::advancePlayback(
+    const ViewportEnginePlaybackTickRequest& input)
 {
-    PlaybackTickResult result;
+    ViewportEnginePlaybackTickResult result;
     const GeometryInput geometry = acceptedGeometry(input.viewport);
     ViewportEnginePlaybackTickAccess access(m_state->requestState.request,
         m_state->playbackState.playback, m_state->displayState.display,

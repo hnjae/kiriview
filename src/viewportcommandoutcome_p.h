@@ -7,6 +7,6 @@
 
 namespace ImageViewportInternal::CommandOutcome {
 
-ViewportCommandResult fromEngineCommand(const ViewportEngine::CommandResult& command);
+ViewportCommandResult fromEngineCommand(const ViewportEngineCommandResult& command);
 
 }

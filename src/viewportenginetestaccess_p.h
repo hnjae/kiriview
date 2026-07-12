@@ -1,6 +1,7 @@
 #pragma once
 
 #include "viewportengine_p.h"
+#include "viewportengineplaybackoperations_p.h"
 #include "viewportenginestate_p.h"
 
 #include <utility>
@@ -9,11 +10,11 @@
 class ViewportEngineTestAccess
 {
 public:
-    static ViewportEngine::CommandDiagnostics commandDiagnostics(const ViewportEngine& engine)
+    static ViewportEngineCommandDiagnostics commandDiagnostics(const ViewportEngine& engine)
     {
         return engine.commandDiagnostics();
     }
-    static ViewportEngine::PresentationTargetState presentationTargetState(
+    static ViewportEnginePresentationTargetState presentationTargetState(
         const ViewportEngine& engine)
     {
         return engine.presentationTargetState();

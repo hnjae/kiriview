@@ -69,6 +69,9 @@ target_link_libraries(viewportengine_capability_contract PRIVATE ImageViewport)
 target_compile_definitions(viewportengine_capability_contract
                            PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 add_test(NAME viewportengine_capability_contract COMMAND viewportengine_capability_contract)
+add_executable(viewportengine_facade_contract tst_viewportengine_facade_contract.cpp)
+target_link_libraries(viewportengine_facade_contract PRIVATE ImageViewport)
+add_test(NAME viewportengine_facade_contract COMMAND viewportengine_facade_contract)
 add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
 add_imageviewport_core_qt_test(viewportcontroller_presentation
                                tst_viewportcontroller_presentation.cpp)
