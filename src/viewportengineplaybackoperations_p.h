@@ -1,6 +1,8 @@
 #pragma once
 
 #include "viewportenginestate_p.h"
+#include "viewportengineproviderrequesttokenoperations_p.h"
+#include "viewportengineproviderprojection_p.h"
 #include "viewportplaybackcontract_p.h"
 
 class ViewportEngineTestAccess;
@@ -66,6 +68,62 @@ struct ViewportEnginePlaybackPauseReduction
     bool playbackPhaseChanged = false;
 };
 
+struct ViewportEnginePlaybackStopInput
+{
+    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ViewportEngineGeometryInput geometry;
+};
+
+struct ViewportEnginePlaybackStopReduction
+{
+    ImageViewportInternal::ViewportChangeSet changes;
+    std::array<ViewportProviderFrameTransportEffect, 2> providerFrameTransport;
+};
+
+class ViewportEnginePlaybackStopAccess
+{
+    friend class ViewportEngine;
+    friend ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
+        ViewportEnginePlaybackStopInput, ViewportEnginePlaybackStopAccess);
+
+    ViewportEnginePlaybackStopAccess(ImageViewportInternal::RequestState& request,
+        ImageViewportInternal::PlaybackState& playback,
+        ImageViewportInternal::DisplayState& display,
+        std::array<ViewportEngineRoleState, 2>& roles,
+        const ImageViewportInternal::PresentationState& presentation,
+        quint64& nextRevision, quint64 presentationRevision, quint64 presentationTargetGeneration)
+        : m_request(request)
+        , m_playback(playback)
+        , m_display(display)
+        , m_roles(roles)
+        , m_presentation(presentation)
+        , m_nextRevision(nextRevision)
+        , m_presentationRevision(presentationRevision)
+        , m_presentationTargetGeneration(presentationTargetGeneration)
+    {
+    }
+
+public:
+    ViewportEnginePlaybackStopAccess(const ViewportEnginePlaybackStopAccess&) = delete;
+    ViewportEnginePlaybackStopAccess(ViewportEnginePlaybackStopAccess&&) noexcept = default;
+    ViewportEnginePlaybackStopAccess& operator=(const ViewportEnginePlaybackStopAccess&) = delete;
+
+private:
+    ImageSequenceProviderDisplayDemand providerDemand(
+        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+    ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
+        ImageViewport::PageRole role);
+
+    ImageViewportInternal::RequestState& m_request;
+    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewportInternal::DisplayState& m_display;
+    std::array<ViewportEngineRoleState, 2>& m_roles;
+    const ImageViewportInternal::PresentationState& m_presentation;
+    quint64& m_nextRevision;
+    quint64 m_presentationRevision = 0;
+    quint64 m_presentationTargetGeneration = 0;
+};
+
 class ViewportEnginePlaybackPauseAccess
 {
     friend class ViewportEngine;
@@ -118,5 +176,7 @@ ViewportPlaybackScheduleEffect projectViewportPlaybackSchedule(
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand);
 ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
     ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess);
+ViewportEnginePlaybackStopReduction reduceViewportEnginePlaybackStop(
+    ViewportEnginePlaybackStopInput, ViewportEnginePlaybackStopAccess);
 ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
     ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess);

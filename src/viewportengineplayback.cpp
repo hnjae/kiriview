@@ -98,6 +98,21 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         result.schedule = currentPlaybackSchedule();
         return result;
     }
+    if (input.command.kind == ViewportPlaybackCommand::Kind::Stop) {
+        result.command = accepted();
+        appendCommandChanges(result.command, result.changes);
+        ViewportEnginePlaybackStopAccess access(m_state->requestState.request,
+            m_state->playbackState.playback, m_state->displayState.display,
+            m_state->providerState.roles, m_state->presentationState.presentation,
+            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+            m_state->requestState.presentationTarget.generation);
+        auto reduction = reduceViewportEnginePlaybackStop(
+            { input.command.role, input.geometry }, std::move(access));
+        mergeChanges(result.changes, reduction.changes);
+        result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+        result.schedule = currentPlaybackSchedule();
+        return result;
+    }
     const auto& terminal = playbackAccess().request().targetSpreadTerminal;
     const auto generationTerminal = terminal.sealed
         && terminal.generation == playbackAccess().request().sequenceGeneration
@@ -339,103 +354,6 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             : ImageViewport::PlaybackPhase::Playing;
         if (playbackAccess().playback().phase != phase) {
             playbackAccess().playback().phase = phase;
-            result.changes.playbackPhase = true;
-        }
-    } else if (input.command.kind == ViewportPlaybackCommand::Kind::Stop) {
-        result.command = accepted();
-        appendCommandChanges(result.command, result.changes);
-        if (playbackAccess().playback().phase != ImageViewport::PlaybackPhase::Stopped
-            && playbackAccess().playback().role != input.command.role) {
-            result.schedule = currentPlaybackSchedule();
-            return result;
-        }
-        playbackAccess().playback().stopWhenRequestReady = false;
-        auto& roleState = requestRole(playbackAccess().request(), input.command.role);
-        const bool providerSource = roleState.source.facts.provider;
-        auto& stopProvider = playbackAccess().roles()[roleIndex(input.command.role)].provider;
-        if (providerSource && stopProvider.requests.activeFrameToken.isValid()
-            && playbackAccess().playback().phase != ImageViewport::PlaybackPhase::Stopped
-            && playbackAccess().playback().role == input.command.role) {
-            const std::size_t index
-                = input.command.role == ImageViewport::PageRole::Secondary ? 1U : 0U;
-            result.effects.providerFrameTransport[index].cancelToken
-                = stopProvider.requests.activeFrameToken;
-            stopProvider.requests.activeFrameToken = {};
-            roleState.activeRequest.providerFrameToken = {};
-        }
-        auto restore = roleState.latestNonPlaybackRequest;
-        if (providerSource && restore.identity.id == 0 && stopProvider.facts.metadataReady) {
-            restore = roleState.activeRequest;
-            restore.identity.origin = ImageViewportInternal::DisplayRequestOrigin::Initial;
-            restore.target.providerTargetKind
-                = ImageViewportInternal::ProviderRequestTargetKind::Frame;
-        }
-        if (providerSource && restore.identity.id != 0 && restore.target.frame < 0
-            && stopProvider.facts.metadataReady && stopProvider.facts.timedMetadata) {
-            restore.target.frame = 0;
-            restore.target.position = stopProvider.facts.timingIntervals.frameStartPosition(0);
-            restore.target.providerTargetKind
-                = ImageViewportInternal::ProviderRequestTargetKind::Frame;
-            restore.resolvedFrame = { 0, stopProvider.facts.timingIntervals.frameStartPosition(0) };
-        }
-        if (providerSource && restore.target.frame >= 0 && !restore.resolvedFrame.isValid()
-            && stopProvider.facts.metadataReady && stopProvider.facts.timedMetadata) {
-            const int position
-                = stopProvider.facts.timingIntervals.frameStartPosition(restore.target.frame);
-            restore.resolvedFrame = { restore.target.frame, position };
-            if (restore.target.providerTargetKind
-                != ImageViewportInternal::ProviderRequestTargetKind::Position) {
-                restore.target.position = position;
-            }
-        }
-        if (playbackAccess().playback().phase != ImageViewport::PlaybackPhase::Stopped
-            && restore.identity.id != 0
-            && (roleState.activeRequest.identity.origin
-                    == ImageViewportInternal::DisplayRequestOrigin::Playback
-                || roleState.activeRequest.target.providerTargetKind
-                    == ImageViewportInternal::ProviderRequestTargetKind::Playback)) {
-            beginRoleRequest(input.command.role,
-                ImageViewportInternal::DisplayRequestOrigin::StopRestore, restore.target,
-                restore.resolvedFrame, true);
-            playbackAccess().playback().position = restore.target.position;
-            const auto& displayed = input.command.role == ImageViewport::PageRole::Primary
-                ? playbackAccess().display().roles[0].displayedRequest
-                : playbackAccess().display().roles[1].displayedRequest;
-            const QSizeF displayedSize = input.command.role == ImageViewport::PageRole::Primary
-                ? playbackAccess().display().roles[0].displayedImageSize
-                : playbackAccess().display().roles[1].displayedImageSize;
-            if (displayed.generation == playbackAccess().request().sequenceGeneration
-                && displayed.request.resolvedFrame.frame == restore.resolvedFrame.frame
-                && displayed.request.resolvedFrame.position == restore.resolvedFrame.position
-                && displayedSize.isValid()
-                && (!providerSource || restore.resolvedFrame.isValid())) {
-                playbackAccess().request().status = ImageViewport::RequestStatus::Ready;
-                playbackAccess().request().reason = ImageViewport::RequestReason::Ready;
-                playbackAccess().display().status = ImageViewport::DisplayStatus::Ready;
-                result.changes.requestState = true;
-                result.changes.requestRevision = true;
-                result.changes.displayState = true;
-                result.changes.displayRevision = true;
-            } else {
-                if (providerSource && restore.target.frame >= 0
-                    && stopProvider.facts.metadataReady) {
-                    dispatchProvider(input.command.role, restore.target);
-                } else if (providerSource) {
-                    playbackAccess().request().status = ImageViewport::RequestStatus::Loading;
-                    playbackAccess().request().reason
-                        = ImageViewport::RequestReason::ProviderWaiting;
-                    playbackAccess().display().status
-                        = playbackAccess().display().roles[0].displayedImageSize.isValid()
-                        ? ImageViewport::DisplayStatus::Retained
-                        : ImageViewport::DisplayStatus::Empty;
-                } else {
-                    stageBuiltIn();
-                }
-                markRequest();
-            }
-        }
-        if (playbackAccess().playback().phase != ImageViewport::PlaybackPhase::Stopped) {
-            playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Stopped;
             result.changes.playbackPhase = true;
         }
     } else {

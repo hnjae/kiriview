@@ -15,6 +15,7 @@ struct ViewportEngineProviderDemandInput
 class ViewportEngineProviderDemandProjectionAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePlaybackStopAccess;
     ViewportEngineProviderDemandProjectionAccess(const ImageViewportInternal::RequestState& request,
         const ImageViewportInternal::DisplayState& display,
         ViewportEngineProviderFactsView providerFacts,

@@ -20,6 +20,7 @@ struct ViewportProviderRequestTokenAllocationResult
 class ViewportProviderRequestTokenAllocationAccess
 {
     friend class ViewportEngine;
+    friend class ViewportEnginePlaybackStopAccess;
     ViewportProviderRequestTokenAllocationAccess(std::array<ViewportEngineRoleState, 2>& roles,
         ImageViewportInternal::RequestState& request,
         ImageViewportInternal::PlaybackState& playback,
