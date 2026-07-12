@@ -130,6 +130,7 @@ private slots:
     void playbackScheduleUsesProviderFrameRemainderByRole();
     void playbackPauseCommandMutatesEngineAtomically();
     void malformedPlaybackCommandKindIsRejectedBeforeStateMutation();
+    void authoredAutoplayReducerUsesBoundedState();
     void playbackTickAdvancesBuiltInTargetInEngine();
     void defaultProviderStateMatchesEmptyGeneration();
     void providerStateOwnsTokensQueuesAndMetadataByRole();
@@ -506,6 +507,96 @@ void ViewportEngineTest::malformedPlaybackCommandKindIsRejectedBeforeStateMutati
     QCOMPARE(result.changes.playbackPhase, false);
     QCOMPARE(result.effects.providerFrameTransport[0].sendCommand, false);
     QCOMPARE(result.effects.providerFrameTransport[1].sendCommand, false);
+}
+
+void ViewportEngineTest::authoredAutoplayReducerUsesBoundedState()
+{
+    ImageSequenceAuthoredAnimationFacts autoplay;
+    autoplay.setAutoplay(true);
+
+    {
+        ViewportEngine engine;
+        const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
+        QCOMPARE(result.armed, false);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).phase,
+            ImageViewport::PlaybackPhase::Stopped);
+    }
+
+    {
+        ViewportEngine engine;
+        auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.timed = true;
+        request.roles[0].source.facts.timingIntervals
+            = TimingIntervals::fromFrameDurations({ 100, 250 });
+        request.roles[0].source.facts.authoredAnimationFacts = autoplay;
+        request.roles[0].activeRequest.target.frame = 1;
+        request.status = ImageViewport::RequestStatus::Ready;
+
+        const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
+        QCOMPARE(result.armed, true);
+        QCOMPARE(result.activeRequestChanged, false);
+        QCOMPARE(result.playbackPhaseChanged, true);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).position, 100);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).phase,
+            ImageViewport::PlaybackPhase::Playing);
+    }
+
+    {
+        ViewportEngine engine;
+        auto& source = ViewportEngineTestAccess::request(engine).roles[0].source;
+        source.facts.provider = true;
+        source.facts.providerTimedPlaybackCapability
+            = ImageSequenceProviderCapabilitySupport::KnownFalse;
+        ViewportEngineTestAccess::providerFacts(engine, ImageViewport::PageRole::Primary)
+            .authoredAnimationFacts
+            = autoplay;
+
+        const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
+        QCOMPARE(result.armed, false);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).phase,
+            ImageViewport::PlaybackPhase::Stopped);
+    }
+
+    {
+        ViewportEngine engine;
+        auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.provider = true;
+        auto& provider
+            = ViewportEngineTestAccess::providerFacts(engine, ImageViewport::PageRole::Primary);
+        provider.authoredAnimationFacts = autoplay;
+
+        const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
+        QCOMPARE(result.armed, true);
+        QCOMPARE(result.activeRequestChanged, true);
+        QCOMPARE(request.roles[0].activeRequest.target.providerTargetKind,
+            ImageViewportInternal::ProviderRequestTargetKind::Playback);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).providerStartPending, true);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).position, -1);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).phase,
+            ImageViewport::PlaybackPhase::Waiting);
+    }
+
+    {
+        ViewportEngine engine;
+        auto& request = ViewportEngineTestAccess::request(engine);
+        request.roles[0].source.facts.provider = true;
+        request.roles[0].activeRequest.target.frame = 1;
+        request.status = ImageViewport::RequestStatus::Ready;
+        auto& provider
+            = ViewportEngineTestAccess::providerFacts(engine, ImageViewport::PageRole::Primary);
+        provider.authoredAnimationFacts = autoplay;
+        provider.metadataReady = true;
+        provider.timedMetadata = true;
+        provider.timedPlaybackSupport = true;
+        provider.timingIntervals = TimingIntervals::fromFrameDurations({ 100, 250 });
+
+        const auto result = ViewportEngineTestAccess::reduceAuthoredAutoplay(engine);
+        QCOMPARE(result.armed, true);
+        QCOMPARE(result.activeRequestChanged, false);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).position, 100);
+        QCOMPARE(ViewportEngineTestAccess::playback(engine).phase,
+            ImageViewport::PlaybackPhase::Playing);
+    }
 }
 
 void ViewportEngineTest::playbackTickAdvancesBuiltInTargetInEngine()

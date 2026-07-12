@@ -595,55 +595,6 @@ void ViewportEngine::setPlaybackPhase(
     changes.playbackPhase = true;
 }
 
-void ViewportEngine::armAuthoredAutoplayIfEligible()
-{
-    const auto& source = playbackAccess().request().roles[0].source;
-    const auto& provider = playbackAccess().roles()[0].provider;
-    const auto facts = source.facts.provider ? provider.facts.authoredAnimationFacts
-                                             : source.facts.authoredAnimationFacts;
-    if (!facts.autoplay()) {
-        return;
-    }
-    if (source.facts.provider) {
-        if (ImageViewportInternal::providerCapabilityKnownFalse(
-                source.facts.providerTimedPlaybackCapability)) {
-            return;
-        }
-        playbackAccess().playback().role = ImageViewport::PageRole::Primary;
-        playbackAccess().playback().stopWhenRequestReady = false;
-        playbackAccess().playback().loopIterationsCompleted = 0;
-        if (!provider.facts.metadataReady) {
-            playbackAccess().playback().providerStartPending = true;
-            playbackAccess().request().roles[0].activeRequest.target
-                = { -1, -1, ImageViewportInternal::ProviderRequestTargetKind::Playback };
-            playbackAccess().request().roles[0].activeRequest.resolvedFrame = { -1, -1 };
-            playbackAccess().playback().position = -1;
-            playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
-        } else if (provider.facts.timedMetadata && provider.facts.timedPlaybackSupport) {
-            const int frame = playbackAccess().request().roles[0].activeRequest.target.frame;
-            playbackAccess().playback().position
-                = provider.facts.timingIntervals.frameStartPosition(frame);
-            playbackAccess().playback().phase
-                = playbackAccess().request().status == ImageViewport::RequestStatus::Loading
-                ? ImageViewport::PlaybackPhase::Waiting
-                : ImageViewport::PlaybackPhase::Playing;
-        }
-        return;
-    }
-    if (!source.facts.timed || !source.facts.timingIntervals.isValid()) {
-        return;
-    }
-    playbackAccess().playback().role = ImageViewport::PageRole::Primary;
-    playbackAccess().playback().stopWhenRequestReady = false;
-    playbackAccess().playback().loopIterationsCompleted = 0;
-    playbackAccess().playback().position = source.facts.timingIntervals.frameStartPosition(
-        playbackAccess().request().roles[0].activeRequest.target.frame);
-    playbackAccess().playback().phase
-        = playbackAccess().request().status == ImageViewport::RequestStatus::Loading
-        ? ImageViewport::PlaybackPhase::Waiting
-        : ImageViewport::PlaybackPhase::Playing;
-}
-
 ViewportEngine::PlaybackTickResult ViewportEngine::advancePlayback(const PlaybackTickInput& input)
 {
     PlaybackTickResult result;

@@ -816,7 +816,12 @@ ViewportEngine::PresentationTargetAssignmentResult ViewportEngine::assignPresent
             m_state->presentationState.presentation = *presentationTransition.presentation;
         }
     }
-    armAuthoredAutoplayIfEligible();
+    ViewportEngineAuthoredAutoplayAccess autoplayAccess(
+        m_state->requestState.request.roles[0].source,
+        m_state->providerState.roles[0].provider.facts,
+        m_state->requestState.request.roles[0].activeRequest,
+        m_state->playbackState.playback, m_state->requestState.request.status);
+    reduceViewportEngineAuthoredAutoplay({}, std::move(autoplayAccess));
     result.changes = presentationTransition.changes;
     result.changes.requestState = true;
     result.changes.requestRevision = true;

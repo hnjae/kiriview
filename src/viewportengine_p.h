@@ -286,7 +286,6 @@ public:
     VIEWPORT_ENGINE_TEST_VISIBILITY:
     void setPlaybackPhase(
         ImageViewport::PlaybackPhase phase, ImageViewportInternal::ViewportChangeSet& changes);
-    void armAuthoredAutoplayIfEligible();
 public:
     PresentationTargetAssignmentResult assignPresentationTarget(
         const PresentationTargetAssignmentInput& input);

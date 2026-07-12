@@ -237,5 +237,24 @@ static_assert(
 static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackPause),
     ViewportEnginePlaybackPauseReduction (*)(
         ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().source())>>);
+static_assert(std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().providerFacts())>>);
+static_assert(!std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().activeRequest())>>);
+static_assert(!std::is_const_v<std::remove_reference_t<
+        decltype(std::declval<ViewportEngineAuthoredAutoplayAccess&>().playback())>>);
+static_assert(!HasRequestAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(!HasRolesAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(!HasProviderSessionAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(!HasProviderRequestAccess<ViewportEngineAuthoredAutoplayAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEngineAuthoredAutoplay),
+    ViewportEngineAuthoredAutoplayReduction (*)(
+        ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess)>);
 
 int main() { }

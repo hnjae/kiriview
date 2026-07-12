@@ -3,6 +3,8 @@
 #include "viewportengine_p.h"
 #include "viewportenginestate_p.h"
 
+#include <utility>
+
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess
 {
@@ -34,6 +36,15 @@ public:
     static ViewportPlaybackScheduleEffect playbackSchedule(const ViewportEngine& engine)
     {
         return engine.currentPlaybackSchedule();
+    }
+    static ViewportEngineAuthoredAutoplayReduction reduceAuthoredAutoplay(ViewportEngine& engine)
+    {
+        ViewportEngineAuthoredAutoplayAccess access(
+            engine.m_state->requestState.request.roles[0].source,
+            engine.m_state->providerState.roles[0].provider.facts,
+            engine.m_state->requestState.request.roles[0].activeRequest,
+            engine.m_state->playbackState.playback, engine.m_state->requestState.request.status);
+        return reduceViewportEngineAuthoredAutoplay({}, std::move(access));
     }
     static ImageViewport::CommandReason& commandReason(ViewportEngine& engine)
     {

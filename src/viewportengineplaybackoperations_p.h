@@ -3,6 +3,59 @@
 #include "viewportenginestate_p.h"
 #include "viewportplaybackcontract_p.h"
 
+class ViewportEngineTestAccess;
+
+struct ViewportEngineAuthoredAutoplayInput
+{
+};
+
+struct ViewportEngineAuthoredAutoplayReduction
+{
+    bool armed = false;
+    bool activeRequestChanged = false;
+    bool playbackChanged = false;
+    bool playbackPhaseChanged = false;
+};
+
+class ViewportEngineAuthoredAutoplayAccess
+{
+    friend class ViewportEngine;
+    friend class ViewportEngineTestAccess;
+    ViewportEngineAuthoredAutoplayAccess(const ImageViewportInternal::ImageSequenceSource& source,
+        const ImageViewportInternal::ProviderFactsState& providerFacts,
+        ImageViewportInternal::DisplayRequest& activeRequest,
+        ImageViewportInternal::PlaybackState& playback, ImageViewport::RequestStatus requestStatus)
+        : m_source(source)
+        , m_providerFacts(providerFacts)
+        , m_activeRequest(activeRequest)
+        , m_playback(playback)
+        , m_requestStatus(requestStatus)
+    {
+    }
+
+public:
+    ViewportEngineAuthoredAutoplayAccess(const ViewportEngineAuthoredAutoplayAccess&) = delete;
+    ViewportEngineAuthoredAutoplayAccess(ViewportEngineAuthoredAutoplayAccess&&) noexcept = default;
+    ViewportEngineAuthoredAutoplayAccess& operator=(const ViewportEngineAuthoredAutoplayAccess&)
+        = delete;
+
+    const ImageViewportInternal::ImageSequenceSource& source() const { return m_source; }
+    const ImageViewportInternal::ProviderFactsState& providerFacts() const
+    {
+        return m_providerFacts;
+    }
+    ImageViewportInternal::DisplayRequest& activeRequest() const { return m_activeRequest; }
+    ImageViewportInternal::PlaybackState& playback() const { return m_playback; }
+    ImageViewport::RequestStatus requestStatus() const { return m_requestStatus; }
+
+private:
+    const ImageViewportInternal::ImageSequenceSource& m_source;
+    const ImageViewportInternal::ProviderFactsState& m_providerFacts;
+    ImageViewportInternal::DisplayRequest& m_activeRequest;
+    ImageViewportInternal::PlaybackState& m_playback;
+    ImageViewport::RequestStatus m_requestStatus = ImageViewport::RequestStatus::NoRequest;
+};
+
 struct ViewportEnginePlaybackPauseInput
 {
     ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
@@ -65,3 +118,5 @@ ViewportPlaybackScheduleEffect projectViewportPlaybackSchedule(
 bool validateViewportPlaybackCommand(ViewportPlaybackCommand);
 ViewportEnginePlaybackPauseReduction reduceViewportEnginePlaybackPause(
     ViewportEnginePlaybackPauseInput, ViewportEnginePlaybackPauseAccess);
+ViewportEngineAuthoredAutoplayReduction reduceViewportEngineAuthoredAutoplay(
+    ViewportEngineAuthoredAutoplayInput, ViewportEngineAuthoredAutoplayAccess);
