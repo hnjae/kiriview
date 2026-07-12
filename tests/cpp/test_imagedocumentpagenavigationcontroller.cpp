@@ -97,15 +97,18 @@ private:
 };
 
 ImageDocumentPageNavigationController::Callbacks controllerCallbacks(
-    std::function<void(const QUrl&)> openUrl = {},
-    ImageDocumentPageNavigationController::PageNavigationChangedCallback pageNavigationChanged = {},
+    std::function<void(const QUrl&)> openUrl = {}, std::function<void()> pageNavigationChanged = {},
     std::function<void()> clearCurrentImage = {},
     ImageDocumentPageNavigationController::DeletionInProgressCallback deletionInProgress = {})
 {
     return ImageDocumentPageNavigationController::Callbacks {
-        [openUrl = std::move(openUrl), clearCurrentImage = std::move(clearCurrentImage)](
-            kiriview::ImageDocumentPageNavigationPlan plan) mutable {
-            for (const kiriview::ImageDocumentPageNavigationEffect& effect : plan) {
+        [openUrl = std::move(openUrl), pageNavigationChanged = std::move(pageNavigationChanged),
+            clearCurrentImage = std::move(clearCurrentImage)](
+            kiriview::ImageDocumentPageNavigationCommit commit) mutable {
+            if (commit.pageNavigationChanged) {
+                kiriview::invokeIfSet(pageNavigationChanged);
+            }
+            for (const kiriview::ImageDocumentPageNavigationEffect& effect : commit.effects) {
                 if (const auto* openEffect
                     = std::get_if<kiriview::OpenImageDocumentPageUrlEffect>(&effect)) {
                     kiriview::invokeIfSet(openUrl, openEffect->target.url);
@@ -115,7 +118,6 @@ ImageDocumentPageNavigationController::Callbacks controllerCallbacks(
                 }
             }
         },
-        std::move(pageNavigationChanged),
         std::move(deletionInProgress),
     };
 }

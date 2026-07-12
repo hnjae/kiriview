@@ -46,6 +46,7 @@ ImageDocumentRuntimeGraph::ImageDocumentRuntimeGraph(QObject* documentObject,
     ImageDocumentState& state, ImageDocumentRuntimeDependencyOverrides dependencies,
     ImageDocumentRuntimeGraphCallbacks callbacks)
     : m_callbacks(std::move(callbacks))
+    , m_state(state)
 {
     ImageDocumentRuntimeDependencies runtimeDependencies
         = resolveImageDocumentRuntimeDependencies(std::move(dependencies), documentObject);
@@ -88,9 +89,13 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
             [this](ImageDocumentPageNavigationPlan plan) {
                 dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(plan));
             },
-            [this]() {
-                invokeIfSet(m_callbacks.notify,
-                    std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation });
+            [this](ImageDocumentPageNavigationCommit commit) {
+                dispatchTransaction(ImageDocumentRuntimeTransaction {
+                    commit.pageNavigationChanged
+                        ? std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation }
+                        : std::vector<ImageDocumentChange> {},
+                    imageDocumentRuntimePlanForNavigationPlan(commit.effects),
+                });
             },
             [this]() {
                 return m_deletionProgressPort != nullptr && m_deletionProgressPort->inProgress();
@@ -179,7 +184,7 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
     m_animationLoadErrorPort->setOpenController(m_openController.get());
     m_navigationController = std::make_unique<ImageDocumentNavigationController>(state,
         *m_pageSurfaceController, *m_navigationService, *m_spreadController,
-        [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); });
+        [this](ImageDocumentRuntimeTransaction transaction) { dispatchTransaction(transaction); });
 }
 
 void ImageDocumentRuntimeGraph::composeWorkflowDispatch(ImageDocumentState& state)
@@ -248,6 +253,14 @@ void ImageDocumentRuntimeGraph::dispatchPlan(const ImageDocumentRuntimePlan& pla
     if (m_runtimeWorkflow != nullptr) {
         m_runtimeWorkflow->dispatchPlan(plan);
     }
+}
+
+void ImageDocumentRuntimeGraph::dispatchTransaction(
+    const ImageDocumentRuntimeTransaction& transaction)
+{
+    [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+    invokeIfSet(m_callbacks.notify, transaction.changes);
+    dispatchPlan(transaction.plan);
 }
 
 void ImageDocumentRuntimeGraph::shutdownRuntime()

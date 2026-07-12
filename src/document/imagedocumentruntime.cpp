@@ -677,7 +677,11 @@ void ImageDocumentRuntime::acknowledgeDisplayImageLoad(DisplayedPageRole role,
 
 void ImageDocumentRuntime::notify(const std::vector<ImageDocumentChange>& changes)
 {
+    [[maybe_unused]] auto batch = state.beginChangeBatch();
     changeBatcher.notifyAll(changes);
+    for (ImageDocumentChange change : changes) {
+        runtimeGraph->spreadController().handleDocumentChange(change);
+    }
 }
 
 void ImageDocumentRuntime::setRenderContextProvider(RenderContextProvider provider)
@@ -772,9 +776,6 @@ void ImageDocumentRuntime::loadSource(const ImageDocumentSourceLoadRequest& requ
 
 void ImageDocumentRuntime::publishChanges(const std::vector<ImageDocumentChange>& changes)
 {
-    for (ImageDocumentChange change : changes) {
-        runtimeGraph->spreadController().handleDocumentChange(change);
-    }
     updateViewportInteractionForPublishedChanges(changes);
     invokeIfSet(changeCallback, changes);
 }

@@ -9,6 +9,7 @@
 
 #include <QString>
 #include <QUrl>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -53,6 +54,18 @@ using ImageDocumentPageNavigationEffect
         ReportContainerNavigationListErrorEffect, ClearCurrentImageDocumentPageNavigationEffect>;
 
 using ImageDocumentPageNavigationPlan = std::vector<ImageDocumentPageNavigationEffect>;
+
+struct ImageDocumentPageNavigationCommit
+{
+    bool pageNavigationChanged = false;
+    ImageDocumentPageNavigationPlan effects;
+};
+
+struct ImageDocumentPageSelectionResult
+{
+    std::optional<ImageDocumentPageTarget> target;
+    bool pageNavigationChanged = false;
+};
 }
 
 #endif

@@ -33,25 +33,18 @@ kiriview::ImageDocumentPageNavigationService::Callbacks navigationCallbacks(
     std::function<void(const QUrl&, kiriview::ContainerNavigationError, const QString&)>
         containerNavigationError
     = {},
-    kiriview::ImageDocumentPageNavigationService::PageNavigationChangedCallback
-        pageNavigationChanged
-    = {},
-    std::function<void()> clearCurrentImage = {},
+    std::function<void()> pageNavigationChanged = {}, std::function<void()> clearCurrentImage = {},
     kiriview::ImageDocumentPageNavigationService::DeletionInProgressCallback deletionInProgress
     = {},
     std::function<void(kiriview::NavigationDirection)> containerNavigationBoundary = {})
 {
     return kiriview::ImageDocumentPageNavigationService::Callbacks {
-        [openUrl = std::move(openUrl), openContainerImage = std::move(openContainerImage),
+        [openContainerImage = std::move(openContainerImage),
             containerNavigationError = std::move(containerNavigationError),
-            clearCurrentImage = std::move(clearCurrentImage),
             containerNavigationBoundary = std::move(containerNavigationBoundary)](
             kiriview::ImageDocumentPageNavigationPlan plan) mutable {
             for (const kiriview::ImageDocumentPageNavigationEffect& effect : plan) {
-                if (const auto* openEffect
-                    = std::get_if<kiriview::OpenImageDocumentPageUrlEffect>(&effect)) {
-                    kiriview::invokeIfSet(openUrl, openEffect->target.url);
-                } else if (const auto* containerEffect
+                if (const auto* containerEffect
                     = std::get_if<kiriview::OpenContainerImageDocumentPageNavigationEffect>(
                         &effect)) {
                     kiriview::invokeIfSet(openContainerImage, containerEffect->target.url,
@@ -60,16 +53,29 @@ kiriview::ImageDocumentPageNavigationService::Callbacks navigationCallbacks(
                     = std::get_if<kiriview::ReportContainerNavigationErrorEffect>(&effect)) {
                     kiriview::invokeIfSet(containerNavigationError, errorEffect->containerUrl,
                         errorEffect->error, errorEffect->errorString);
-                } else if (std::holds_alternative<
-                               kiriview::ClearCurrentImageDocumentPageNavigationEffect>(effect)) {
-                    kiriview::invokeIfSet(clearCurrentImage);
                 } else if (const auto* boundaryEffect
                     = std::get_if<kiriview::ReportContainerNavigationBoundaryEffect>(&effect)) {
                     kiriview::invokeIfSet(containerNavigationBoundary, boundaryEffect->direction);
                 }
             }
         },
-        std::move(pageNavigationChanged), std::move(deletionInProgress)
+        [openUrl = std::move(openUrl), pageNavigationChanged = std::move(pageNavigationChanged),
+            clearCurrentImage = std::move(clearCurrentImage)](
+            kiriview::ImageDocumentPageNavigationCommit commit) mutable {
+            if (commit.pageNavigationChanged) {
+                kiriview::invokeIfSet(pageNavigationChanged);
+            }
+            for (const kiriview::ImageDocumentPageNavigationEffect& effect : commit.effects) {
+                if (const auto* openEffect
+                    = std::get_if<kiriview::OpenImageDocumentPageUrlEffect>(&effect)) {
+                    kiriview::invokeIfSet(openUrl, openEffect->target.url);
+                } else if (std::holds_alternative<
+                               kiriview::ClearCurrentImageDocumentPageNavigationEffect>(effect)) {
+                    kiriview::invokeIfSet(clearCurrentImage);
+                }
+            }
+        },
+        std::move(deletionInProgress)
     };
 }
 
@@ -299,14 +305,14 @@ void TestImageDocumentPageNavigationService::archivePageUpdatePreservesConfirmed
     QCOMPARE(fakeProvider.openedCollectionCandidateLoadCount(archiveCollection->rootUrl()), 1);
 
     observedSnapshots.clear();
-    const std::optional<kiriview::ImageDocumentPageTarget> selectedTarget = service.selectPage(2);
-    QVERIFY(selectedTarget.has_value());
-    QCOMPARE(selectedTarget->url, secondUrl);
+    const kiriview::ImageDocumentPageSelectionResult selectedTarget = service.selectPage(2);
+    QVERIFY(selectedTarget.target.has_value());
+    QCOMPARE(selectedTarget.target->url, secondUrl);
     service.updatePageNavigation(secondContext);
 
     QCOMPARE(service.currentPageNumber(), 2);
     QCOMPARE(service.pageCount(), 2);
-    QCOMPARE(observedSnapshots.size(), std::size_t(2));
+    QCOMPARE(observedSnapshots.size(), std::size_t(1));
     for (const kiriview::ImageDocumentPageCandidateListSnapshot& snapshot : observedSnapshots) {
         QVERIFY(snapshot.known);
         QVERIFY(kiriview::imageDocumentPageCandidateListSnapshotMatchesSource(
@@ -494,23 +500,26 @@ void TestImageDocumentPageNavigationService::selectPageUpdatesCurrentPageImmedia
         navigationContext(kiriview::DisplayedImageLocation::fromUrl(firstUrl)));
 
     pageNavigationChangeCount = 0;
-    const std::optional<kiriview::ImageDocumentPageTarget> selectedUrl = service.selectPage(3);
+    const kiriview::ImageDocumentPageSelectionResult selectedUrl = service.selectPage(3);
 
-    QVERIFY(selectedUrl.has_value());
-    QCOMPARE(selectedUrl->url, thirdUrl);
+    QVERIFY(selectedUrl.target.has_value());
+    QVERIFY(selectedUrl.pageNavigationChanged);
+    QCOMPARE(selectedUrl.target->url, thirdUrl);
     QCOMPARE(service.currentPageNumber(), 3);
     QCOMPARE(service.pageCount(), 3);
-    QCOMPARE(pageNavigationChangeCount, 1);
+    QCOMPARE(pageNavigationChangeCount, 0);
 
-    const std::optional<kiriview::ImageDocumentPageTarget> samePageUrl = service.selectPage(3);
-    QVERIFY(!samePageUrl.has_value());
+    const kiriview::ImageDocumentPageSelectionResult samePageUrl = service.selectPage(3);
+    QVERIFY(!samePageUrl.target.has_value());
+    QVERIFY(!samePageUrl.pageNavigationChanged);
     QCOMPARE(service.currentPageNumber(), 3);
-    QCOMPARE(pageNavigationChangeCount, 1);
+    QCOMPARE(pageNavigationChangeCount, 0);
 
-    const std::optional<kiriview::ImageDocumentPageTarget> invalidUrl = service.selectPage(4);
-    QVERIFY(!invalidUrl.has_value());
+    const kiriview::ImageDocumentPageSelectionResult invalidUrl = service.selectPage(4);
+    QVERIFY(!invalidUrl.target.has_value());
+    QVERIFY(!invalidUrl.pageNavigationChanged);
     QCOMPARE(service.currentPageNumber(), 3);
-    QCOMPARE(pageNavigationChangeCount, 1);
+    QCOMPARE(pageNavigationChangeCount, 0);
 }
 
 void TestImageDocumentPageNavigationService::snapshotFollowsCanonicalPageNavigation()
@@ -537,7 +546,7 @@ void TestImageDocumentPageNavigationService::snapshotFollowsCanonicalPageNavigat
     QVERIFY(firstSnapshot.urlAtPage(2).has_value());
     QCOMPARE(*firstSnapshot.urlAtPage(2), secondUrl);
 
-    QVERIFY(service.selectPage(2).has_value());
+    QVERIFY(service.selectPage(2).target.has_value());
     const kiriview::ImageDocumentPageNavigationSnapshot secondSnapshot
         = service.pageNavigationSnapshot();
     QCOMPARE(secondSnapshot.currentPageNumber(), 2);

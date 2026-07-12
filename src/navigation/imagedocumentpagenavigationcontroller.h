@@ -21,14 +21,12 @@ class ImageDocumentPageNavigationController final : public QObject
 {
     Q_OBJECT
 public:
-    using NavigationPlanCallback = std::function<void(ImageDocumentPageNavigationPlan)>;
-    using PageNavigationChangedCallback = std::function<void()>;
+    using PageNavigationCommitCallback = std::function<void(ImageDocumentPageNavigationCommit)>;
     using DeletionInProgressCallback = std::function<bool()>;
 
     struct Callbacks
     {
-        NavigationPlanCallback navigationPlan;
-        PageNavigationChangedCallback pageNavigationChanged;
+        PageNavigationCommitCallback pageNavigationCommit;
         DeletionInProgressCallback deletionInProgress;
     };
 
@@ -42,7 +40,7 @@ public:
     const ImageDocumentPageCandidateListSnapshot& confirmedCandidateSnapshot() const;
     std::optional<QUrl> urlAtPage(int pageNumber) const;
     std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
-    std::optional<ImageDocumentPageTarget> selectPage(int pageNumber);
+    ImageDocumentPageSelectionResult selectPage(int pageNumber);
 
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,
         NavigationDirection direction);
@@ -59,8 +57,9 @@ private:
     void updateFromChangedCandidates(std::vector<ImageDocumentPageCandidate> candidates,
         ImageDocumentPageCandidateListSource source);
     void notifyChanged();
-    void reportNavigationPlan(ImageDocumentPageNavigationPlan plan);
-    void recoverFromCurrentPageRemoved(std::vector<ImageDocumentPageCandidate> candidates,
+    void reportCommit(ImageDocumentPageNavigationCommit commit);
+    ImageDocumentPageNavigationPlan recoveryPlanFromCurrentPageRemoved(
+        std::vector<ImageDocumentPageCandidate> candidates,
         ImageDocumentPageCandidateListContext context);
     bool deletionInProgress() const;
 

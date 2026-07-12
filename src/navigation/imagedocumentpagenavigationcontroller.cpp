@@ -93,14 +93,11 @@ std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationController::ta
     return m_model.targetAtPage(pageNumber);
 }
 
-std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationController::selectPage(
-    int pageNumber)
+ImageDocumentPageSelectionResult ImageDocumentPageNavigationController::selectPage(int pageNumber)
 {
-    const std::optional<ImageDocumentPageTarget> target = m_model.selectPage(pageNumber);
-    if (target.has_value()) {
-        notifyChanged();
-    }
-    return target;
+    std::optional<ImageDocumentPageTarget> target = m_model.selectPage(pageNumber);
+    const bool changed = target.has_value();
+    return ImageDocumentPageSelectionResult { std::move(target), changed };
 }
 
 void ImageDocumentPageNavigationController::openAdjacentPage(
@@ -120,10 +117,10 @@ void ImageDocumentPageNavigationController::openAdjacentPage(
                 << "direction" << static_cast<int>(direction) << "targetUrl" << target->url
                 << "targetKind" << static_cast<int>(target->kind) << "currentPage"
                 << m_model.currentPageNumber() << "pageCount" << m_model.pageCount();
-            notifyChanged();
-            reportNavigationPlan(ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect {
-                *target,
-            } });
+            reportCommit(ImageDocumentPageNavigationCommit {
+                true,
+                ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect { *target } },
+            });
         } else {
             qCDebug(kiriviewNavigationLog)
                 << "image document page adjacent navigation hit known boundary"
@@ -251,11 +248,12 @@ void ImageDocumentPageNavigationController::finishNavigation(
         << static_cast<qsizetype>(candidates.size()) << "sourceKind"
         << pageCandidateSourceKind(candidateSource) << "sourceRoot"
         << pageCandidateSourceRoot(candidateSource);
-    if (m_model.completeRefresh(candidates, target.url, std::move(candidateSource))) {
-        notifyChanged();
-    }
-    reportNavigationPlan(
-        ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect { target } });
+    const bool changed
+        = m_model.completeRefresh(candidates, target.url, std::move(candidateSource));
+    reportCommit(ImageDocumentPageNavigationCommit {
+        changed,
+        ImageDocumentPageNavigationPlan { OpenImageDocumentPageUrlEffect { target } },
+    });
 }
 
 void ImageDocumentPageNavigationController::watchChanges(
@@ -284,32 +282,32 @@ void ImageDocumentPageNavigationController::updateFromChangedCandidates(
         return;
     }
 
-    if (refresh.changed) {
-        notifyChanged();
-    }
-
+    ImageDocumentPageNavigationPlan effects;
     if (refresh.currentPageRemoved && refresh.context.has_value()) {
-        recoverFromCurrentPageRemoved(std::move(candidates), *refresh.context);
+        effects = recoveryPlanFromCurrentPageRemoved(std::move(candidates), *refresh.context);
+    }
+    if (refresh.changed || !effects.empty()) {
+        reportCommit(ImageDocumentPageNavigationCommit { refresh.changed, std::move(effects) });
     }
 }
 
 void ImageDocumentPageNavigationController::notifyChanged()
 {
-    invokeIfSet(m_callbacks.pageNavigationChanged);
+    reportCommit(ImageDocumentPageNavigationCommit { true, {} });
 }
 
-void ImageDocumentPageNavigationController::reportNavigationPlan(
-    ImageDocumentPageNavigationPlan plan)
+void ImageDocumentPageNavigationController::reportCommit(ImageDocumentPageNavigationCommit commit)
 {
-    invokeIfSet(m_callbacks.navigationPlan, std::move(plan));
+    invokeIfSet(m_callbacks.pageNavigationCommit, std::move(commit));
 }
 
-void ImageDocumentPageNavigationController::recoverFromCurrentPageRemoved(
+ImageDocumentPageNavigationPlan
+ImageDocumentPageNavigationController::recoveryPlanFromCurrentPageRemoved(
     std::vector<ImageDocumentPageCandidate> candidates,
     ImageDocumentPageCandidateListContext context)
 {
     if (deletionInProgress()) {
-        return;
+        return {};
     }
 
     const ImageRemovalFallback fallback = imageRemovalFallbackForImageContext(context);
@@ -319,7 +317,7 @@ void ImageDocumentPageNavigationController::recoverFromCurrentPageRemoved(
     if (fallbackTarget.has_value()) {
         plan.push_back(OpenImageDocumentPageUrlEffect { *fallbackTarget });
     }
-    reportNavigationPlan(std::move(plan));
+    return plan;
 }
 
 bool ImageDocumentPageNavigationController::deletionInProgress() const

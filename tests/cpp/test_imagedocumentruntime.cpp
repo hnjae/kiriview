@@ -996,15 +996,63 @@ void TestImageDocumentRuntime::pageSelectionStartsTrackedLoadThroughEffectExecut
             imageDocumentPageCandidate(secondImageUrl),
         });
 
-    RuntimeHandle runtime = createRuntime(this, candidateProvider, dataLoader);
+    struct Publication
+    {
+        std::vector<kiriview::ImageDocumentChange> changes;
+        int currentPageNumber = 0;
+        QUrl sourceUrl;
+        QUrl displayedUrl;
+        kiriview::ImageDocumentStatus status = kiriview::ImageDocumentStatus::Null;
+        kiriview::ImageDisplaySourceProjection displaySource;
+    };
+    std::vector<Publication> publications;
+    kiriview::ImageDocumentRuntime* observedRuntime = nullptr;
+    kiriview::ImageDocumentRuntimeDependencyOverrides dependencies
+        = imageDocumentRuntimeDependencyOverridesFor(
+            candidateProvider, dataLoader, staticImageDataDecoder(testImage(2)));
+    RuntimeHandle runtime(
+        this,
+        []() {
+            return kiriview::ImageDocumentRenderContext {
+                1.0,
+                kiriview::fallbackTextureSizeMax,
+            };
+        },
+        [&publications, &observedRuntime](
+            const std::vector<kiriview::ImageDocumentChange>& changes) {
+            if (observedRuntime == nullptr) {
+                return;
+            }
+            publications.push_back(Publication {
+                changes,
+                observedRuntime->currentPageNumber(),
+                observedRuntime->sourceUrl(),
+                observedRuntime->displayedUrl(),
+                observedRuntime->status(),
+                observedRuntime->displaySourceProjection(kiriview::DisplayedPageRole::Primary),
+            });
+        },
+        std::move(dependencies));
+    observedRuntime = &*runtime;
     runtime->setViewportSize(QSizeF(400.0, 300.0));
     runtime->setSourceUrl(archiveUrl);
     finishLoad(dataLoader);
     QTRY_COMPARE(runtime->status(), kiriview::ImageDocumentStatus::Ready);
+    const kiriview::ImageDisplaySourceProjection committed
+        = runtime->displaySourceProjection(kiriview::DisplayedPageRole::Primary);
+    publications.clear();
 
     const std::size_t loadCountBeforeSelection = dataLoader.loadCount();
     runtime->openImageAtPage(2);
 
+    QCOMPARE(publications.size(), std::size_t(1));
+    QVERIFY(containsChange(
+        publications.front().changes, kiriview::ImageDocumentChange::PageNavigation));
+    QCOMPARE(publications.front().currentPageNumber, 2);
+    QCOMPARE(publications.front().sourceUrl, secondImageUrl);
+    QCOMPARE(publications.front().displayedUrl, firstImageUrl);
+    QCOMPARE(publications.front().status, kiriview::ImageDocumentStatus::Loading);
+    QCOMPARE(publications.front().displaySource.providerUrl, committed.providerUrl);
     QTRY_VERIFY(dataLoader.loadCount() >= loadCountBeforeSelection + std::size_t(1));
     QCOMPARE(dataLoader.backLoad().url, secondImageUrl);
     QCOMPARE(runtime->sourceUrl(), secondImageUrl);
@@ -1013,6 +1061,12 @@ void TestImageDocumentRuntime::pageSelectionStartsTrackedLoadThroughEffectExecut
 
     QVERIFY(finishNewestActiveLoadForUrl(dataLoader, secondImageUrl));
 
+    QTRY_COMPARE(publications.size(), std::size_t(2));
+    QCOMPARE(publications.back().currentPageNumber, 2);
+    QCOMPARE(publications.back().sourceUrl, secondImageUrl);
+    QCOMPARE(publications.back().displayedUrl, secondImageUrl);
+    QCOMPARE(publications.back().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(publications.back().displaySource.providerUrl != committed.providerUrl);
     QTRY_COMPARE(runtime->displayedUrl(), secondImageUrl);
     QCOMPARE(runtime->sourceUrl(), secondImageUrl);
     QCOMPARE(runtime->currentPageNumber(), 2);
@@ -1164,6 +1218,17 @@ void TestImageDocumentRuntime::
     dependencies.predecodeTimerScheduler = predecodeTimerScheduler.scheduler();
     dependencies.imageDecode.workerScheduler = immediateWorkerScheduler();
 
+    struct Publication
+    {
+        std::vector<kiriview::ImageDocumentChange> changes;
+        int currentPageNumber = 0;
+        QUrl sourceUrl;
+        QUrl displayedUrl;
+        kiriview::ImageDocumentStatus status = kiriview::ImageDocumentStatus::Null;
+        kiriview::ImageDisplaySourceProjection displaySource;
+    };
+    std::vector<Publication> publications;
+    kiriview::ImageDocumentRuntime* observedRuntime = nullptr;
     RuntimeHandle runtime(
         this,
         []() {
@@ -1172,7 +1237,22 @@ void TestImageDocumentRuntime::
                 kiriview::fallbackTextureSizeMax,
             };
         },
-        {}, std::move(dependencies));
+        [&publications, &observedRuntime](
+            const std::vector<kiriview::ImageDocumentChange>& changes) {
+            if (observedRuntime == nullptr) {
+                return;
+            }
+            publications.push_back(Publication {
+                changes,
+                observedRuntime->currentPageNumber(),
+                observedRuntime->sourceUrl(),
+                observedRuntime->displayedUrl(),
+                observedRuntime->status(),
+                observedRuntime->displaySourceProjection(kiriview::DisplayedPageRole::Primary),
+            });
+        },
+        std::move(dependencies));
+    observedRuntime = &*runtime;
     runtime->setViewportSize(QSizeF(400.0, 300.0));
     runtime->setSourceUrl(archiveUrl);
 
@@ -1210,8 +1290,19 @@ void TestImageDocumentRuntime::
     const int openedCollectionLoadCountBeforeRepeatedNavigation
         = candidateProvider.openedCollectionCandidateLoadCount(archiveCollection->rootUrl());
 
+    publications.clear();
     runtime->openNextPage();
 
+    QCOMPARE(publications.size(), std::size_t(1));
+    QVERIFY(containsChange(
+        publications.front().changes, kiriview::ImageDocumentChange::PageNavigation));
+    QCOMPARE(publications.front().currentPageNumber, 2);
+    QCOMPARE(publications.front().sourceUrl, secondImageUrl);
+    QCOMPARE(publications.front().displayedUrl, secondImageUrl);
+    QCOMPARE(publications.front().status, kiriview::ImageDocumentStatus::Ready);
+    QVERIFY(publications.front().displaySource.visible);
+    QCOMPARE(publications.front().displaySource.status, kiriview::ImageDisplaySourceStatus::Ready);
+    QVERIFY(publications.front().displaySource.providerUrl != firstProjection.providerUrl);
     QTRY_COMPARE(runtime->status(), kiriview::ImageDocumentStatus::Ready);
     QCOMPARE(runtime->displayedUrl(), secondImageUrl);
     QCOMPARE(runtime->currentPageNumber(), 2);

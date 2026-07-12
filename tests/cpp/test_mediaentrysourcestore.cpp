@@ -54,21 +54,22 @@ kiriview::ImageDocumentPageCandidateProvider openedCollectionOnlyProvider()
 }
 
 kiriview::ImageDocumentPageNavigationService::Callbacks navigationCallbacks(
-    std::function<void(const QUrl&)> openUrl = {},
-    kiriview::ImageDocumentPageNavigationService::PageNavigationChangedCallback
-        pageNavigationChanged
-    = {})
+    std::function<void(const QUrl&)> openUrl = {}, std::function<void()> pageNavigationChanged = {})
 {
     return kiriview::ImageDocumentPageNavigationService::Callbacks {
-        [openUrl = std::move(openUrl)](kiriview::ImageDocumentPageNavigationPlan plan) mutable {
-            for (const kiriview::ImageDocumentPageNavigationEffect& effect : plan) {
+        {},
+        [openUrl = std::move(openUrl), pageNavigationChanged = std::move(pageNavigationChanged)](
+            kiriview::ImageDocumentPageNavigationCommit commit) mutable {
+            if (commit.pageNavigationChanged) {
+                kiriview::invokeIfSet(pageNavigationChanged);
+            }
+            for (const kiriview::ImageDocumentPageNavigationEffect& effect : commit.effects) {
                 if (const auto* openEffect
                     = std::get_if<kiriview::OpenImageDocumentPageUrlEffect>(&effect)) {
                     kiriview::invokeIfSet(openUrl, openEffect->target.url);
                 }
             }
         },
-        std::move(pageNavigationChanged),
         {},
     };
 }

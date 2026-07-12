@@ -1966,11 +1966,14 @@ void TestKiriDocumentSession::activeNavigationNumberDispatchRoutesImageDocumentP
     QTRY_COMPARE(session->imageDocument()->status(), KiriImageDocument::Status::Ready);
     QCOMPARE(session->activeNavigationCurrentNumber(), 1);
     QCOMPARE(session->activeNavigationCount(), 2);
+    QSignalSpy leafSnapshotSpy(session->imageDocument(), SIGNAL(documentSessionSnapshotChanged()));
 
     session->openActiveNavigationAtNumber(2);
 
+    QCOMPARE(leafSnapshotSpy.count(), 1);
     QTRY_COMPARE(dataLoader.backLoad().url, secondPage);
     dataLoader.finishBackLoad(QByteArrayLiteral("second"));
+    QTRY_COMPARE(leafSnapshotSpy.count(), 2);
     QTRY_COMPARE(session->imageDocument()->currentPageNumber(), 2);
     QCOMPARE(session->activeNavigationCurrentNumber(), 2);
 }
@@ -2013,6 +2016,29 @@ void TestKiriDocumentSession::archiveCollectionThumbnailModelUsesPageCandidateNa
         QStringLiteral("image-x-generic-symbolic"), true);
     compareThumbnailRow(*session, 1, 2, secondPage, QStringLiteral("extras/clip.mp4"),
         QStringLiteral("video-x-generic-symbolic"), false);
+    const quint64 navigationGeneration = thumbnailData(
+        *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
+                                             .toULongLong();
+    QSignalSpy modelResetSpy(model, &QAbstractItemModel::modelReset);
+    QSignalSpy dataChangedSpy(model, &QAbstractItemModel::dataChanged);
+
+    session->openActiveNavigationAtNumber(2);
+
+    QCOMPARE(modelResetSpy.count(), 0);
+    QCOMPARE(dataChangedSpy.count(), 2);
+    for (const QList<QVariant>& arguments : dataChangedSpy) {
+        QCOMPARE(arguments.at(2).value<QList<int>>(),
+            QList<int> { kiriview::ActiveNavigationThumbnailModel::CurrentRole });
+    }
+    QCOMPARE(model->rowCount(), 2);
+    QCOMPARE(thumbnailData(
+                 *session, 0, kiriview::ActiveNavigationThumbnailModel::NavigationGenerationRole)
+                 .toULongLong(),
+        navigationGeneration);
+    compareThumbnailRow(*session, 0, 1, firstPage, QStringLiteral("chapter/01.png"),
+        QStringLiteral("image-x-generic-symbolic"), false);
+    compareThumbnailRow(*session, 1, 2, secondPage, QStringLiteral("extras/clip.mp4"),
+        QStringLiteral("video-x-generic-symbolic"), true);
 }
 
 void TestKiriDocumentSession::activeNavigationRequestReportsDispatchAndBoundaryResults()

@@ -19,13 +19,13 @@ class ImageSpreadPresentationController;
 class ImageDocumentNavigationController final
 {
 public:
-    using RuntimePlanCallback = std::function<void(ImageDocumentRuntimePlan)>;
+    using RuntimeTransactionCallback = std::function<void(ImageDocumentRuntimeTransaction)>;
 
     ImageDocumentNavigationController(ImageDocumentState& state,
         ImagePageSurfaceController& pageSurfaceController,
         ImageDocumentPageNavigationService& navigationService,
         ImageSpreadPresentationController& spreadController,
-        RuntimePlanCallback runtimePlanCallback);
+        RuntimeTransactionCallback runtimeTransactionCallback);
 
     int currentPageNumber() const;
     int pageCount() const;
@@ -49,7 +49,7 @@ private:
     ImagePageSurfaceController& m_pageSurfaceController;
     ImageDocumentPageNavigationService& m_navigationService;
     ImageSpreadPresentationController& m_spreadController;
-    RuntimePlanCallback m_runtimePlanCallback;
+    RuntimeTransactionCallback m_runtimeTransactionCallback;
 };
 }
 

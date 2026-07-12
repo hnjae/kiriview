@@ -23,13 +23,13 @@ class ImageDocumentPageNavigationService final : public QObject
     Q_OBJECT
 public:
     using NavigationPlanCallback = std::function<void(ImageDocumentPageNavigationPlan)>;
-    using PageNavigationChangedCallback = std::function<void()>;
+    using PageNavigationCommitCallback = std::function<void(ImageDocumentPageNavigationCommit)>;
     using DeletionInProgressCallback = std::function<bool()>;
 
     struct Callbacks
     {
         NavigationPlanCallback navigationPlan;
-        PageNavigationChangedCallback pageNavigationChanged;
+        PageNavigationCommitCallback pageNavigationCommit;
         DeletionInProgressCallback deletionInProgress;
     };
 
@@ -43,7 +43,7 @@ public:
     const ImageDocumentPageCandidateListSnapshot& confirmedPageCandidateSnapshot() const;
     std::optional<QUrl> urlAtPage(int pageNumber) const;
     std::optional<ImageDocumentPageTarget> targetAtPage(int pageNumber) const;
-    std::optional<ImageDocumentPageTarget> selectPage(int pageNumber);
+    ImageDocumentPageSelectionResult selectPage(int pageNumber);
 
     void openAdjacentPage(std::optional<ImageDocumentPageCandidateListContext> context,
         NavigationDirection direction);

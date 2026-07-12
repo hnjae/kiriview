@@ -73,6 +73,13 @@ public:
                       runtimePlans.push_back(
                           kiriview::imageDocumentRuntimePlanForNavigationPlan(plan));
                   },
+                  [this](kiriview::ImageDocumentPageNavigationCommit commit) {
+                      if (commit.effects.empty()) {
+                          return;
+                      }
+                      runtimePlans.push_back(
+                          kiriview::imageDocumentRuntimePlanForNavigationPlan(commit.effects));
+                  },
                   {},
               })
         , spread(&context, renderContext, state, pageSurface, presentationRuntime,
@@ -86,8 +93,8 @@ public:
               imageDecodeDependenciesFor(dataLoader, staticImageDataDecoder(testImage())),
               testCacheBudgets())
         , controller(state, pageSurface, navigation, spread,
-              [this](kiriview::ImageDocumentRuntimePlan plan) {
-                  runtimePlans.push_back(std::move(plan));
+              [this](kiriview::ImageDocumentRuntimeTransaction transaction) {
+                  runtimePlans.push_back(std::move(transaction.plan));
               })
     {
     }

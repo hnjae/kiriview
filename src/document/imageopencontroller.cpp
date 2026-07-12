@@ -88,18 +88,23 @@ ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& st
         std::move(decodeDependencies),
         ImageLoader::Callbacks {
             [this](ImageLoadSession session, ImageLoadFailure failure) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishLoadWithError(session, std::move(failure));
             },
             [this](ImageLoadSession session, DecodedImage image) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishDecodedImageLoad(std::move(session), std::move(image));
             },
             [this](ImageLoadSession session, PredecodedImage image) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishPredecodedImageLoad(std::move(session), std::move(image));
             },
             [this](ImageLoadSession session, StaticDisplayImagePayload preview) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishThumbnailPreviewLoad(std::move(session), std::move(preview));
             },
             [this](ImageLoadSession session) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
                 finishUnsupportedOpenedCollectionVideoLoad(std::move(session));
             },
             [this](const QUrl& url) {
@@ -109,7 +114,10 @@ ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& st
 
                 return m_callbacks.findPredecodedImage(url);
             },
-            [this](ImageLoadSession session) { finishSourceResolved(std::move(session)); },
+            [this](ImageLoadSession session) {
+                [[maybe_unused]] auto batch = m_state.beginChangeBatch();
+                finishSourceResolved(std::move(session));
+            },
         });
 }
 

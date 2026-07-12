@@ -56,12 +56,13 @@ namespace kiriview {
 ImageDocumentNavigationController::ImageDocumentNavigationController(ImageDocumentState& state,
     ImagePageSurfaceController& pageSurfaceController,
     ImageDocumentPageNavigationService& navigationService,
-    ImageSpreadPresentationController& spreadController, RuntimePlanCallback runtimePlanCallback)
+    ImageSpreadPresentationController& spreadController,
+    RuntimeTransactionCallback runtimeTransactionCallback)
     : m_state(state)
     , m_pageSurfaceController(pageSurfaceController)
     , m_navigationService(navigationService)
     , m_spreadController(spreadController)
-    , m_runtimePlanCallback(std::move(runtimePlanCallback))
+    , m_runtimeTransactionCallback(std::move(runtimeTransactionCallback))
 {
 }
 
@@ -120,9 +121,8 @@ void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
     }
 
     const bool spreadTransition = m_spreadController.shouldBeginTransition(pageNumber);
-    const std::optional<ImageDocumentPageTarget> target
-        = m_navigationService.selectPage(pageNumber);
-    if (!target.has_value()) {
+    ImageDocumentPageSelectionResult selection = m_navigationService.selectPage(pageNumber);
+    if (!selection.target.has_value()) {
         return;
     }
 
@@ -130,10 +130,15 @@ void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
         m_spreadController.beginTransition();
     }
 
-    invokeIfSet(m_runtimePlanCallback,
-        ImageDocumentRuntimePlan {
-            ScheduleAdjacentImagePredecodeOperation { *target, pageNumber - 1 },
-            LoadPageNavigationUrlOperation { *target, spreadTransition },
+    invokeIfSet(m_runtimeTransactionCallback,
+        ImageDocumentRuntimeTransaction {
+            selection.pageNavigationChanged
+                ? std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation }
+                : std::vector<ImageDocumentChange> {},
+            ImageDocumentRuntimePlan {
+                ScheduleAdjacentImagePredecodeOperation { *selection.target, pageNumber - 1 },
+                LoadPageNavigationUrlOperation { *selection.target, spreadTransition },
+            },
         });
 }
 

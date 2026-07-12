@@ -20,8 +20,7 @@ ImageDocumentPageNavigationService::ImageDocumentPageNavigationService(
           })
     , m_pageNavigation(this, m_candidateRepository,
           ImageDocumentPageNavigationController::Callbacks {
-              m_callbacks.navigationPlan,
-              m_callbacks.pageNavigationChanged,
+              m_callbacks.pageNavigationCommit,
               m_callbacks.deletionInProgress,
           })
 {
@@ -63,8 +62,7 @@ std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationService::targe
     return m_pageNavigation.targetAtPage(pageNumber);
 }
 
-std::optional<ImageDocumentPageTarget> ImageDocumentPageNavigationService::selectPage(
-    int pageNumber)
+ImageDocumentPageSelectionResult ImageDocumentPageNavigationService::selectPage(int pageNumber)
 {
     return m_pageNavigation.selectPage(pageNumber);
 }

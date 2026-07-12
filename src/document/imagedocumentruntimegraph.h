@@ -66,6 +66,7 @@ public:
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
 
     void dispatchPlan(const ImageDocumentRuntimePlan& plan);
+    void dispatchTransaction(const ImageDocumentRuntimeTransaction& transaction);
     void shutdownRuntime();
 
 private:
@@ -79,6 +80,7 @@ private:
     void composeWorkflowDispatch(ImageDocumentState& state);
 
     ImageDocumentRuntimeGraphCallbacks m_callbacks;
+    ImageDocumentState& m_state;
     std::unique_ptr<MediaEntrySourceStore> m_mediaEntrySourceStore;
     std::unique_ptr<ImageDocumentAnimationLoadErrorPort> m_animationLoadErrorPort;
     std::unique_ptr<ImageDocumentDeletionController> m_deletionController;
