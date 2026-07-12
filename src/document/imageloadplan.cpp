@@ -86,9 +86,12 @@ ImageLoadPlan imageLoadPlan(quint64 id, ImageLoadRequest request,
         = openedCollectionScopeLoadPlan(request, resolvedSourceFacts);
     const ImageLoadStartEffect startEffect
         = imageLoadStartEffectForPageScopeEffect(pageScopePlan.effect);
+    const ResolvedNavigationSource source = resolvedSourceFacts.source.isEmpty()
+        ? ResolvedNavigationSource(sourceUrl, NavigationSourceFacts {}, sourceUrl)
+        : resolvedSourceFacts.source;
     ImageLoadSession session(id, std::move(request),
-        DisplayedImageLocation::fromUrl(
-            std::move(sourceUrl), std::move(pageScopePlan.openedCollectionScope)),
+        DisplayedImageLocation::fromResolvedSource(
+            source, std::move(pageScopePlan.openedCollectionScope)),
         firstDisplayContext);
 
     return ImageLoadPlan { std::move(session), startEffect };

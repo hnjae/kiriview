@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONMEDIAPREDECODERUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONMEDIAPREDECODERUNTIME_H
 
+#include "location/sourcekey.h"
 #include "predecode/mediapredecodedependencies.h"
 #include "predecode/predecodedimage.h"
 #include "session/directmedianavigationcandidatesnapshot.h"
@@ -29,6 +30,7 @@ struct DocumentSessionMediaPredecodeInput
     QUrl currentUrl;
     std::optional<DisplayedPredecodeImage> primaryDisplayedPredecodeImage;
     ImageFirstDisplayDecodeContext firstDisplayDecodeContext;
+    SourceKey parentSourceKey;
 };
 
 class DocumentSessionMediaPredecodeRuntime final

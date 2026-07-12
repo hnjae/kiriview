@@ -60,6 +60,7 @@ private Q_SLOTS:
     void startOwnsSessionIdAndFirstDisplayContext();
     void directlyOpenedArchiveFormatsStartOpenedCollectionCandidateLoad();
     void directlyOpenedDirectoryStartsOpenedCollectionCandidateLoad();
+    void openedCollectionScopeRetainsResolvedNavigationSourceFacts();
     void staleSessionsCannotResolveOrFinishCurrentLoad();
     void archiveResolutionUpdatesCanonicalCurrentSession();
     void archiveResolutionReportsUnsupportedOpenedCollectionVideo();
@@ -133,6 +134,27 @@ void TestImageLoadSessionTracker::directlyOpenedDirectoryStartsOpenedCollectionC
     QCOMPARE(scope.rootUrl(), kiriview::normalizedDirectoryContainerUrl(directoryUrl));
     QCOMPARE(scope.kind(), kiriview::OpenedCollectionScopeKind::Directory);
     QVERIFY(tracker.isCurrent(plan.session));
+}
+
+void TestImageLoadSessionTracker::openedCollectionScopeRetainsResolvedNavigationSourceFacts()
+{
+    int probeCount = 0;
+    kiriview::ImageLoadSessionTracker tracker([&probeCount](const QUrl&) {
+        ++probeCount;
+        return kiriview::NavigationSourceFacts {};
+    });
+    const QUrl archiveUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
+
+    const kiriview::ImageLoadPlan first
+        = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    QCOMPARE(probeCount, 1);
+    QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
+    QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
+    QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
+    QCOMPARE(probeCount, 1);
+
+    tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    QCOMPARE(probeCount, 2);
 }
 
 void TestImageLoadSessionTracker::staleSessionsCannotResolveOrFinishCurrentLoad()

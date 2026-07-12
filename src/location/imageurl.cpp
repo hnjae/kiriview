@@ -16,6 +16,7 @@
 #include <optional>
 #include <sys/types.h>
 #include <sys/xattr.h>
+#include <utility>
 
 namespace {
 constexpr const char* documentPortalHostPathAttribute = "user.document-portal.host-path";
@@ -92,6 +93,14 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
 }
 
 namespace kiriview {
+ResolvedNavigationSource::ResolvedNavigationSource(
+    QUrl requestedUrl, NavigationSourceFacts facts, QUrl navigationUrl)
+    : m_requestedUrl(std::move(requestedUrl))
+    , m_facts(std::move(facts))
+    , m_navigationUrl(std::move(navigationUrl))
+{
+}
+
 bool DirectoryNavigationLocation::isValid() const
 {
     return fileUrl.isValid() && !fileUrl.isEmpty() && directoryUrl.isValid()
@@ -189,27 +198,41 @@ QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& f
     return url;
 }
 
-QUrl navigationSourceUrl(const QUrl& url)
+QUrl navigationSourceUrl(const QUrl& url) { return resolveNavigationSource(url).navigationUrl(); }
+
+NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
 {
-    const NavigationSourceFacts facts {
+    return NavigationSourceFacts {
         documentPortalHostPath(url),
         runtimeDirForNavigationSource(),
     };
+}
+
+ResolvedNavigationSource resolveNavigationSource(
+    const QUrl& url, const NavigationSourceFactProvider& provider)
+{
+    NavigationSourceFacts facts = provider ? provider(url) : collectNavigationSourceFacts(url);
     const QUrl navigationUrl = navigationSourceUrlForFacts(url, facts);
     if (!sameNormalizedUrl(url, navigationUrl)) {
         qCDebug(kiriviewNavigationLog) << "navigation source url resolved"
                                        << "url" << url << "navigationUrl" << navigationUrl;
     }
-    return navigationUrl;
+    return ResolvedNavigationSource(url, std::move(facts), navigationUrl);
 }
 
-DirectoryNavigationLocation directoryNavigationLocationForFileUrl(const QUrl& url)
+DirectoryNavigationLocation directoryNavigationLocationForSource(
+    const ResolvedNavigationSource& source)
 {
-    QUrl fileUrl = navigationSourceUrl(url);
+    const QUrl& fileUrl = source.navigationUrl();
     return DirectoryNavigationLocation {
         fileUrl,
         parentDirectoryUrlForFileNavigation(fileUrl),
     };
+}
+
+DirectoryNavigationLocation directoryNavigationLocationForFileUrl(const QUrl& url)
+{
+    return directoryNavigationLocationForSource(resolveNavigationSource(url));
 }
 
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right)

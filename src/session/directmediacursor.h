@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DIRECTMEDIACURSOR_H
 #define KIRIVIEW_DIRECTMEDIACURSOR_H
 
+#include "location/imageurl.h"
 #include "location/sourcekey.h"
 
 #include <QUrl>
@@ -14,6 +15,8 @@ struct DirectMediaCursor
 {
     QUrl stableUrl;
     QUrl pendingUrl;
+    ResolvedNavigationSource stableSource;
+    ResolvedNavigationSource pendingSource;
     quint64 generation = 0;
 };
 
@@ -22,13 +25,25 @@ struct DirectMediaScope
     QUrl currentUrl;
     QUrl parentUrl;
     quint64 generation = 0;
+    SourceKey currentKey;
+    SourceKey parentKey;
+    QUrl navigationUrl;
 
     friend bool operator==(const DirectMediaScope& left, const DirectMediaScope& right)
     {
-        return sameSourceKey(sourceKeyForDirectMediaCurrentUrl(left.currentUrl),
-                   sourceKeyForDirectMediaCurrentUrl(right.currentUrl))
-            && sameSourceKey(sourceKeyForDirectMediaParentUrl(left.parentUrl),
-                sourceKeyForDirectMediaParentUrl(right.parentUrl))
+        const SourceKey leftCurrent = left.currentKey.valid
+            ? left.currentKey
+            : sourceKeyForDirectMediaCurrentUrl(left.currentUrl);
+        const SourceKey rightCurrent = right.currentKey.valid
+            ? right.currentKey
+            : sourceKeyForDirectMediaCurrentUrl(right.currentUrl);
+        const SourceKey leftParent = left.parentKey.valid
+            ? left.parentKey
+            : sourceKeyForDirectMediaParentUrl(left.parentUrl);
+        const SourceKey rightParent = right.parentKey.valid
+            ? right.parentKey
+            : sourceKeyForDirectMediaParentUrl(right.parentUrl);
+        return sameSourceKey(leftCurrent, rightCurrent) && sameSourceKey(leftParent, rightParent)
             && left.generation == right.generation;
     }
 };
@@ -38,9 +53,11 @@ DirectMediaScope directMediaScopeForCursor(const DirectMediaCursor& cursor);
 bool directMediaScopeMatchesCursor(const DirectMediaCursor& cursor, const DirectMediaScope& scope);
 bool clearDirectMediaCursor(DirectMediaCursor& cursor);
 bool requestDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url);
+bool requestDirectImageCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source);
 bool confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url);
 bool restoreDirectImageCursorAfterFailure(DirectMediaCursor& cursor);
 bool setDirectVideoCursor(DirectMediaCursor& cursor, const QUrl& url);
+bool setDirectVideoCursor(DirectMediaCursor& cursor, ResolvedNavigationSource source);
 }
 
 #endif

@@ -16,18 +16,25 @@ class ImageLocation
 public:
     ImageLocation() = default;
     explicit ImageLocation(QUrl url)
-        : m_url(normalizedUrlForIdentity(url))
+        : m_source(normalizedSource(std::move(url)))
     {
     }
 
     static ImageLocation fromUrl(QUrl url) { return ImageLocation(std::move(url)); }
+    static ImageLocation fromResolvedSource(ResolvedNavigationSource source)
+    {
+        ImageLocation location;
+        location.m_source = std::move(source);
+        return location;
+    }
 
-    const QUrl& url() const { return m_url; }
-    bool isEmpty() const { return m_url.isEmpty(); }
+    const QUrl& url() const { return m_source.requestedUrl(); }
+    const ResolvedNavigationSource& source() const { return m_source; }
+    bool isEmpty() const { return m_source.isEmpty(); }
 
     friend bool operator==(const ImageLocation& left, const ImageLocation& right)
     {
-        return left.m_url == right.m_url;
+        return left.url() == right.url();
     }
     friend bool operator!=(const ImageLocation& left, const ImageLocation& right)
     {
@@ -35,7 +42,13 @@ public:
     }
 
 private:
-    QUrl m_url;
+    static ResolvedNavigationSource normalizedSource(QUrl url)
+    {
+        const QUrl normalizedUrl = normalizedUrlForIdentity(url);
+        return ResolvedNavigationSource(normalizedUrl, NavigationSourceFacts {}, normalizedUrl);
+    }
+
+    ResolvedNavigationSource m_source;
 };
 
 class ContainerLocation
@@ -76,8 +89,9 @@ class OpenedCollectionScopeLocation
 {
 public:
     OpenedCollectionScopeLocation() = default;
-    OpenedCollectionScopeLocation(QUrl fileUrl, QUrl rootUrl, OpenedCollectionScopeKind kind)
-        : m_fileUrl(normalizedUrlForIdentity(fileUrl))
+    OpenedCollectionScopeLocation(
+        ResolvedNavigationSource source, QUrl rootUrl, OpenedCollectionScopeKind kind)
+        : m_source(std::move(source))
         , m_rootUrl(normalizedUrlForIdentity(rootUrl))
         , m_kind(kind)
     {
@@ -87,13 +101,25 @@ public:
     static OpenedCollectionScopeLocation fromUrls(
         QUrl fileUrl, QUrl rootUrl, OpenedCollectionScopeKind kind)
     {
-        return OpenedCollectionScopeLocation(std::move(fileUrl), std::move(rootUrl), kind);
+        NavigationSourceFacts facts;
+        const QUrl normalizedFileUrl = normalizedUrlForIdentity(fileUrl);
+        return OpenedCollectionScopeLocation(
+            ResolvedNavigationSource(normalizedFileUrl, std::move(facts), normalizedFileUrl),
+            std::move(rootUrl), kind);
     }
 
-    const QUrl& fileUrl() const { return m_fileUrl; }
+    static OpenedCollectionScopeLocation fromResolvedSource(
+        ResolvedNavigationSource source, QUrl rootUrl, OpenedCollectionScopeKind kind)
+    {
+        return OpenedCollectionScopeLocation(std::move(source), std::move(rootUrl), kind);
+    }
+
+    const QUrl& fileUrl() const { return m_source.requestedUrl(); }
+    const ResolvedNavigationSource& source() const { return m_source; }
+    const QUrl& navigationSourceUrl() const { return m_source.navigationUrl(); }
     const QUrl& rootUrl() const { return m_rootUrl; }
     OpenedCollectionScopeKind kind() const { return m_kind; }
-    bool isEmpty() const { return m_fileUrl.isEmpty() || m_rootUrl.isEmpty(); }
+    bool isEmpty() const { return m_source.isEmpty() || m_rootUrl.isEmpty(); }
     bool isComicBook() const
     {
         return !isEmpty() && m_kind == OpenedCollectionScopeKind::ComicBookArchive;
@@ -106,7 +132,7 @@ public:
     friend bool operator==(
         const OpenedCollectionScopeLocation& left, const OpenedCollectionScopeLocation& right)
     {
-        return left.m_fileUrl == right.m_fileUrl && left.m_rootUrl == right.m_rootUrl
+        return left.fileUrl() == right.fileUrl() && left.m_rootUrl == right.m_rootUrl
             && left.m_kind == right.m_kind;
     }
     friend bool operator!=(
@@ -116,7 +142,7 @@ public:
     }
 
 private:
-    QUrl m_fileUrl;
+    ResolvedNavigationSource m_source;
     QUrl m_rootUrl;
     OpenedCollectionScopeKind m_kind = OpenedCollectionScopeKind::GeneralArchive;
 };
@@ -147,6 +173,13 @@ public:
             std::move(openedCollectionScope) };
     }
 
+    static DisplayedImageLocation fromResolvedSource(ResolvedNavigationSource source,
+        OpenedCollectionScopeLocation openedCollectionScope = OpenedCollectionScopeLocation::none())
+    {
+        return DisplayedImageLocation { ImageLocation::fromResolvedSource(std::move(source)),
+            std::move(openedCollectionScope) };
+    }
+
     static DisplayedImageLocation fromOpenedCollectionScope(
         QUrl imageUrl, OpenedCollectionScopeLocation openedCollectionScope)
     {
@@ -154,6 +187,7 @@ public:
     }
 
     const QUrl& imageUrl() const { return m_image.url(); }
+    const ResolvedNavigationSource& imageSource() const { return m_image.source(); }
     const OpenedCollectionScopeLocation& openedCollectionScope() const
     {
         return m_openedCollectionScope;

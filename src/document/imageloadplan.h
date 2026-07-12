@@ -35,6 +35,7 @@ struct ImageLoadPlan
 struct ImageLoadResolvedSourceFacts
 {
     std::optional<OpenedCollectionScopeLocation> directlyOpenedCollectionScope;
+    ResolvedNavigationSource source;
 };
 
 OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(

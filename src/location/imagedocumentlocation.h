@@ -15,8 +15,12 @@ std::optional<QUrl> comicBookArchiveRootUrl(const QUrl& url);
 std::optional<QUrl> directArchiveOpenRootUrl(const QUrl& url);
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveUrl(
     const QUrl& url);
+std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveSource(
+    const ResolvedNavigationSource& source);
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForDirectlyOpenedLocalUrl(
     const QUrl& url);
+std::optional<OpenedCollectionScopeLocation>
+openedCollectionScopeLocationForDirectlyOpenedLocalSource(const ResolvedNavigationSource& source);
 bool isUrlInsideArchiveRoot(const QUrl& url, const QUrl& archiveRootUrl);
 bool openedCollectionScopeContainsUrl(
     const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url);

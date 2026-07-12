@@ -25,8 +25,9 @@ namespace {
             return {};
         }
 
-        const SourceKey parentKey
-            = sourceKeyForDirectMediaParentUrl(directMediaNavigationParentUrl(input.currentUrl));
+        const SourceKey parentKey = input.parentSourceKey.valid
+            ? input.parentSourceKey
+            : sourceKeyForDirectMediaParentUrl(directMediaNavigationParentUrl(input.currentUrl));
         if (!parentKey.valid) {
             return {};
         }

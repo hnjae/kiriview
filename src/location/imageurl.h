@@ -6,6 +6,7 @@
 
 #include <QString>
 #include <QUrl>
+#include <functional>
 #include <optional>
 
 namespace kiriview {
@@ -23,6 +24,25 @@ struct NavigationSourceFacts
     QString runtimeDir;
 };
 
+using NavigationSourceFactProvider = std::function<NavigationSourceFacts(const QUrl&)>;
+
+class ResolvedNavigationSource
+{
+public:
+    ResolvedNavigationSource() = default;
+    ResolvedNavigationSource(QUrl requestedUrl, NavigationSourceFacts facts, QUrl navigationUrl);
+
+    const QUrl& requestedUrl() const { return m_requestedUrl; }
+    const NavigationSourceFacts& facts() const { return m_facts; }
+    const QUrl& navigationUrl() const { return m_navigationUrl; }
+    bool isEmpty() const { return m_requestedUrl.isEmpty(); }
+
+private:
+    QUrl m_requestedUrl;
+    NavigationSourceFacts m_facts;
+    QUrl m_navigationUrl;
+};
+
 QUrl normalizedUrlForIdentity(const QUrl& url);
 QString normalizedUrlIdentityKey(
     const QUrl& url, QUrl::ComponentFormattingOptions options = QUrl::PrettyDecoded);
@@ -37,7 +57,12 @@ QUrl normalizedDirectoryContainerUrl(const QUrl& url);
 QUrl parentDirectoryUrlForFileNavigation(const QUrl& url);
 QUrl parentUrlForContainerNavigation(const QUrl& containerUrl);
 QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& facts);
+NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url);
+ResolvedNavigationSource resolveNavigationSource(
+    const QUrl& url, const NavigationSourceFactProvider& provider = {});
 QUrl navigationSourceUrl(const QUrl& url);
+DirectoryNavigationLocation directoryNavigationLocationForSource(
+    const ResolvedNavigationSource& source);
 DirectoryNavigationLocation directoryNavigationLocationForFileUrl(const QUrl& url);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);
 bool sameNormalizedUrlOrEmpty(const QUrl& left, const QUrl& right);

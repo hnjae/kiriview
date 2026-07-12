@@ -86,8 +86,10 @@ std::optional<ArchiveCollectionRoot> directArchiveCollectionRootForLocalArchive(
 }
 
 std::optional<kiriview::OpenedCollectionScopeLocation>
-directoryOpenedCollectionScopeLocationForLocalUrl(const QUrl& url)
+directoryOpenedCollectionScopeLocationForLocalSource(
+    const kiriview::ResolvedNavigationSource& source)
 {
+    const QUrl& url = source.requestedUrl();
     if (!url.isLocalFile()) {
         return std::nullopt;
     }
@@ -98,7 +100,7 @@ directoryOpenedCollectionScopeLocationForLocalUrl(const QUrl& url)
         return std::nullopt;
     }
 
-    return kiriview::OpenedCollectionScopeLocation::fromUrls(fileUrl,
+    return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(source,
         kiriview::normalizedDirectoryContainerUrl(fileUrl),
         kiriview::OpenedCollectionScopeKind::Directory);
 }
@@ -128,7 +130,7 @@ std::optional<QUrl> containingArchiveRootUrl(
 QUrl openedCollectionScopeSourceNavigationUrl(const kiriview::DisplayedImageLocation& location)
 {
     return kiriview::normalizedFileContainerUrl(
-        kiriview::navigationSourceUrl(location.openedCollectionScopeSourceUrl()));
+        location.openedCollectionScope().navigationSourceUrl());
 }
 
 bool openedCollectionScopeContainsUrlInRust(
@@ -170,27 +172,38 @@ std::optional<QUrl> directArchiveOpenRootUrl(const QUrl& url)
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveUrl(
     const QUrl& url)
 {
+    return openedCollectionScopeLocationForLocalArchiveSource(resolveNavigationSource(url));
+}
+
+std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveSource(
+    const ResolvedNavigationSource& source)
+{
     const std::optional<ArchiveCollectionRoot> root
-        = directArchiveCollectionRootForLocalArchive(url);
+        = directArchiveCollectionRootForLocalArchive(source.requestedUrl());
     if (!root.has_value()) {
         return std::nullopt;
     }
 
-    return OpenedCollectionScopeLocation::fromUrls(
-        normalizedFileContainerUrl(url), root->rootUrl, root->kind);
+    return OpenedCollectionScopeLocation::fromResolvedSource(source, root->rootUrl, root->kind);
 }
 
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForDirectlyOpenedLocalUrl(
     const QUrl& url)
 {
+    return openedCollectionScopeLocationForDirectlyOpenedLocalSource(resolveNavigationSource(url));
+}
+
+std::optional<OpenedCollectionScopeLocation>
+openedCollectionScopeLocationForDirectlyOpenedLocalSource(const ResolvedNavigationSource& source)
+{
     const std::optional<OpenedCollectionScopeLocation> directoryCollection
-        = directoryOpenedCollectionScopeLocationForLocalUrl(url);
+        = directoryOpenedCollectionScopeLocationForLocalSource(source);
     if (directoryCollection.has_value()) {
         return directoryCollection;
     }
 
     const std::optional<OpenedCollectionScopeLocation> archiveCollection
-        = openedCollectionScopeLocationForLocalArchiveUrl(url);
+        = openedCollectionScopeLocationForLocalArchiveSource(source);
     if (archiveCollection.has_value()) {
         return archiveCollection;
     }

@@ -178,7 +178,7 @@ imageDocumentPageCandidateListContextForDisplayedImage(const DisplayedImageLocat
     }
 
     const DirectoryNavigationLocation navigationLocation
-        = directoryNavigationLocationForFileUrl(displayedUrl);
+        = directoryNavigationLocationForSource(location.imageSource());
     if (!navigationLocation.isValid()) {
         return std::nullopt;
     }

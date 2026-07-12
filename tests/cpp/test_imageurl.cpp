@@ -47,6 +47,8 @@ private Q_SLOTS:
     void parentUrlForContainerNavigationHandlesContainers();
     void navigationSourceFactsResolveDocumentPortalHostWithoutXattr();
     void navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment();
+    void resolvedNavigationSourceCollectsFactsOncePerSnapshot();
+    void resolvedNavigationSourceRetainsNegativeFactsUntilReplacement();
     void documentPortalHostPathOwnsNavigationScope();
     void kioFuseArchivePathsRestoreSupportedArchiveSchemes();
     void imageLocationTypesExposeExplicitState();
@@ -181,6 +183,51 @@ void TestImageUrl::navigationSourceFactsRestoreKioFuseArchivesWithoutEnvironment
         archiveUrl(QStringLiteral("tar"), QStringLiteral("/books/book.cbt/page.png")));
     QCOMPARE(kiriview::navigationSourceUrlForFacts(QUrl::fromLocalFile(cb7FusePath), facts),
         archiveUrl(QStringLiteral("sevenz"), QStringLiteral("/books/book.cb7/page.png")));
+}
+
+void TestImageUrl::resolvedNavigationSourceCollectsFactsOncePerSnapshot()
+{
+    const QUrl portalUrl = QUrl::fromLocalFile(QStringLiteral("/run/user/1000/doc/book.cbz"));
+    const QUrl hostUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
+    int probeCount = 0;
+    const kiriview::NavigationSourceFactProvider provider = [&probeCount, &hostUrl](const QUrl&) {
+        ++probeCount;
+        return kiriview::NavigationSourceFacts {
+            hostUrl.toLocalFile(),
+            QStringLiteral("/run/user/1000"),
+        };
+    };
+
+    const kiriview::ResolvedNavigationSource source
+        = kiriview::resolveNavigationSource(portalUrl, provider);
+    QCOMPARE(probeCount, 1);
+    QCOMPARE(source.requestedUrl(), portalUrl);
+    QCOMPARE(source.navigationUrl(), hostUrl);
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(source).fileUrl, hostUrl);
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(source).fileUrl, hostUrl);
+    QCOMPARE(probeCount, 1);
+}
+
+void TestImageUrl::resolvedNavigationSourceRetainsNegativeFactsUntilReplacement()
+{
+    const QUrl sourceUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
+    int probeCount = 0;
+    const kiriview::NavigationSourceFactProvider provider = [&probeCount](const QUrl&) {
+        ++probeCount;
+        return kiriview::NavigationSourceFacts {};
+    };
+
+    const kiriview::ResolvedNavigationSource first
+        = kiriview::resolveNavigationSource(sourceUrl, provider);
+    QVERIFY(!first.facts().documentPortalHostPath.has_value());
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
+    QCOMPARE(kiriview::directoryNavigationLocationForSource(first).fileUrl, sourceUrl);
+    QCOMPARE(probeCount, 1);
+
+    const kiriview::ResolvedNavigationSource replacement
+        = kiriview::resolveNavigationSource(sourceUrl, provider);
+    QCOMPARE(replacement.navigationUrl(), sourceUrl);
+    QCOMPARE(probeCount, 2);
 }
 
 void TestImageUrl::documentPortalHostPathOwnsNavigationScope()

@@ -32,7 +32,8 @@ void DocumentSessionDirectMediaNavigationRuntime::refresh(QObject* receiver,
     const DirectMediaScope& scope, ScopeAccepted scopeAccepted, RefreshCallback callback)
 {
     startLoad(receiver, scope, std::move(scopeAccepted),
-        [callback = std::move(callback), currentUrl = scope.currentUrl](
+        [callback = std::move(callback),
+            currentUrl = scope.navigationUrl.isEmpty() ? scope.currentUrl : scope.navigationUrl](
             DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
             if (!result.succeeded) {
                 invokeIfSet(callback,
@@ -54,8 +55,9 @@ void DocumentSessionDirectMediaNavigationRuntime::open(QObject* receiver,
     ScopeAccepted scopeAccepted, OpenCallback callback)
 {
     startLoad(receiver, scope, std::move(scopeAccepted),
-        [callback = std::move(callback), currentUrl = scope.currentUrl, request](
-            DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
+        [callback = std::move(callback),
+            currentUrl = scope.navigationUrl.isEmpty() ? scope.currentUrl : scope.navigationUrl,
+            request](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
             if (!result.succeeded) {
                 invokeIfSet(callback,
                     DocumentSessionDirectMediaNavigationOpenResult {
