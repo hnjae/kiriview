@@ -1,4 +1,5 @@
 #include "viewportengine_p.h"
+#include "viewportenginecapabilities_p.h"
 #include "viewportenginestate_p.h"
 
 #include "imageviewporttoken_p.h"

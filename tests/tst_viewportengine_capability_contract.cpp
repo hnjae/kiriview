@@ -1,4 +1,5 @@
 #include "viewportenginecapabilities_p.h"
+#include "viewportengine_p.h"
 
 #include <type_traits>
 

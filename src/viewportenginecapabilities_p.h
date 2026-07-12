@@ -1,11 +1,6 @@
 #pragma once
 
-#include "viewportengine_p.h"
-
-struct ViewportEngineRoleState
-{
-    ImageViewportInternal::ProviderGenerationState provider;
-};
+#include "viewportenginestate_p.h"
 
 class ViewportEngineProviderStateAccess
 {
@@ -158,7 +153,7 @@ private:
         const ImageViewportInternal::DisplayState& display,
         const std::array<ViewportEngineRoleState, 2>& roles,
         const ImageViewportInternal::PresentationState& presentation,
-        const ViewportEngine::PresentationTargetState& presentationTarget,
+        const ViewportEnginePresentationTargetState& presentationTarget,
         ImageViewport::CommandReason commandReason, const RevisionToken& commandRevision,
         quint64 publishedCommandRevision, quint64 presentationRevision,
         quint64 snapshotRevision)
@@ -184,7 +179,7 @@ public:
     const ImageViewportInternal::DisplayState& display() const { return m_display; }
     const std::array<ViewportEngineRoleState, 2>& roles() const { return m_roles; }
     const ImageViewportInternal::PresentationState& presentation() const { return m_presentation; }
-    const ViewportEngine::PresentationTargetState& presentationTarget() const
+    const ViewportEnginePresentationTargetState& presentationTarget() const
     {
         return m_presentationTarget;
     }
@@ -200,7 +195,7 @@ private:
     const ImageViewportInternal::DisplayState& m_display;
     const std::array<ViewportEngineRoleState, 2>& m_roles;
     const ImageViewportInternal::PresentationState& m_presentation;
-    const ViewportEngine::PresentationTargetState& m_presentationTarget;
+    const ViewportEnginePresentationTargetState& m_presentationTarget;
     const RevisionToken& m_commandRevision;
     ImageViewport::CommandReason m_commandReason = ImageViewport::CommandReason::NoCommand;
     quint64 m_publishedCommandRevision = 0;

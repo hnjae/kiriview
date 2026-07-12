@@ -5,6 +5,7 @@
 #include "imageviewportstate_p.h"
 #include "presentationgeometry_p.h"
 #include "viewportcontrollerprovidercontract_p.h"
+#include "viewportenginecontracts_p.h"
 #include "viewportplaybackcontract_p.h"
 #include "viewportrendercontract_p.h"
 
@@ -70,18 +71,7 @@ public:
         GeometryInput displayedGeometry;
     };
 
-    struct PresentationTargetState
-    {
-        ImageViewportPresentationTarget presentationTarget
-            = ImageViewportPresentationTarget::clear();
-        ImageViewportRoleSet acceptedRoleSet;
-        ImageViewportRoleSet targetRoleSet;
-        quint64 generation = 0;
-        quint64 primaryRoleGeneration = 0;
-        quint64 secondaryRoleGeneration = 0;
-        ImageViewport::PageRole activeRole = ImageViewport::PageRole::Primary;
-        bool activeRoleValid = false;
-    };
+    using PresentationTargetState = ViewportEnginePresentationTargetState;
 
     struct PresentationTargetAssignmentInput
     {

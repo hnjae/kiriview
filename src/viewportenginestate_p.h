@@ -1,11 +1,20 @@
 #pragma once
 
-#include "viewportenginecapabilities_p.h"
+#include "imageviewportstate_p.h"
+#include "viewportenginecontracts_p.h"
+#include "viewportrendercontract_p.h"
+
+#include <array>
+
+struct ViewportEngineRoleState
+{
+    ImageViewportInternal::ProviderGenerationState provider;
+};
 
 struct ViewportEngineRequestState
 {
     quint64 nextPresentationTargetGeneration = 0;
-    ViewportEngine::PresentationTargetState presentationTarget;
+    ViewportEnginePresentationTargetState presentationTarget;
     ImageViewportInternal::RequestState request;
 };
 
