@@ -246,6 +246,15 @@ static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackStopAccess>::val
 static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackStop),
     ViewportEnginePlaybackStopReduction (*)(
         ViewportEnginePlaybackStopInput, ViewportEnginePlaybackStopAccess)>);
+static_assert(!std::is_default_constructible_v<ViewportEnginePlaybackSeekAccess>);
+static_assert(!std::is_copy_constructible_v<ViewportEnginePlaybackSeekAccess>);
+static_assert(!HasRequestAccess<ViewportEnginePlaybackSeekAccess>::value);
+static_assert(!HasDisplayStateAccess<ViewportEnginePlaybackSeekAccess>::value);
+static_assert(!HasRolesAccess<ViewportEnginePlaybackSeekAccess>::value);
+static_assert(!HasPresentationStateAccess<ViewportEnginePlaybackSeekAccess>::value);
+static_assert(std::is_same_v<decltype(&reduceViewportEnginePlaybackSeek),
+    ViewportEnginePlaybackSeekReduction (*)(
+        ViewportEnginePlaybackSeekInput, ViewportEnginePlaybackSeekAccess)>);
 static_assert(!std::is_default_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
 static_assert(!std::is_copy_constructible_v<ViewportEngineAuthoredAutoplayAccess>);
 static_assert(std::is_const_v<std::remove_reference_t<

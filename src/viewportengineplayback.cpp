@@ -113,6 +113,28 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         result.schedule = currentPlaybackSchedule();
         return result;
     }
+    if (input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
+        || input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition) {
+        ViewportEnginePlaybackSeekAccess access(m_state->requestState.request,
+            m_state->playbackState.playback, m_state->displayState.display,
+            m_state->providerState.roles, m_state->presentationState.presentation,
+            m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
+            m_state->requestState.presentationTarget.generation);
+        auto reduction = reduceViewportEnginePlaybackSeek(
+            { input.command.kind, input.command.role, input.command.value, input.geometry },
+            std::move(access));
+        result.command = reduction.outcome == ImageViewport::CommandOutcome::Accepted
+            ? accepted()
+            : rejected(reduction.outcome, reduction.reason);
+        appendCommandChanges(result.command, result.changes);
+        mergeChanges(result.changes, reduction.changes);
+        result.effects.providerFrameTransport = std::move(reduction.providerFrameTransport);
+        result.schedule = reduction.outcome == ImageViewport::CommandOutcome::Accepted
+            ? currentPlaybackSchedule()
+            : ViewportPlaybackScheduleEffect {
+                  ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
+        return result;
+    }
     const auto& terminal = playbackAccess().request().targetSpreadTerminal;
     const auto generationTerminal = terminal.sealed
         && terminal.generation == playbackAccess().request().sequenceGeneration
@@ -128,11 +150,7 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
         && !commandProvider.session.sessionActive
         && (playbackAccess().request().status == ImageViewport::RequestStatus::Unsupported
             || playbackAccess().request().status == ImageViewport::RequestStatus::Error);
-    if ((generationTerminal || providerTransportUnavailableTerminal)
-        && (input.command.kind == ViewportPlaybackCommand::Kind::Play
-            || ((input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
-                    || input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition)
-                && input.command.value >= 0))) {
+    if (generationTerminal || providerTransportUnavailableTerminal) {
         result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
             ImageViewport::CommandReason::UnsupportedRequest);
         appendCommandChanges(result.command, result.changes);
@@ -354,148 +372,6 @@ ViewportEngine::PlaybackCommandResult ViewportEngine::applyPlaybackCommand(
             : ImageViewport::PlaybackPhase::Playing;
         if (playbackAccess().playback().phase != phase) {
             playbackAccess().playback().phase = phase;
-            result.changes.playbackPhase = true;
-        }
-    } else {
-        const auto& source = requestRole(playbackAccess().request(), input.command.role).source;
-        auto& provider = playbackAccess().roles()[roleIndex(input.command.role)].provider;
-        if (source.facts.provider && !provider.facts.metadataReady) {
-            const auto capability
-                = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-                ? source.facts.providerPositionSeekCapability
-                : source.facts.providerFrameSeekCapability;
-            if (input.command.value < 0) {
-                result.command = rejected(ImageViewport::CommandOutcome::Invalid,
-                    ImageViewport::CommandReason::InvalidRequest);
-            } else if (ImageViewportInternal::providerCapabilityKnownFalse(capability)) {
-                result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
-                    ImageViewport::CommandReason::UnsupportedRequest);
-            } else {
-                result.command = accepted();
-                const auto kind = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-                    ? ImageViewportInternal::ProviderRequestTargetKind::Position
-                    : ImageViewportInternal::ProviderRequestTargetKind::Frame;
-                beginRoleRequest(input.command.role,
-                    ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
-                    { input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
-                            ? input.command.value
-                            : -1,
-                        input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-                            ? input.command.value
-                            : -1,
-                        kind },
-                    { -1, -1 }, true);
-                markRequest();
-                if (playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Playing) {
-                    playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
-                    result.changes.playbackPhase = true;
-                }
-            }
-            appendCommandChanges(result.command, result.changes);
-            result.schedule = result.command.outcome == ImageViewport::CommandOutcome::Accepted
-                ? currentPlaybackSchedule()
-                : ViewportPlaybackScheduleEffect { ViewportPlaybackScheduleEffect::Action::NoChange,
-                      -1 };
-            return result;
-        }
-        if (source.facts.provider) {
-            const bool supported = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-                ? provider.facts.positionSeekSupport
-                : provider.facts.frameSeekSupport;
-            if (!supported) {
-                result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
-                    ImageViewport::CommandReason::UnsupportedRequest);
-                appendCommandChanges(result.command, result.changes);
-                result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-                return result;
-            }
-            const int providerFrameCount
-                = provider.facts.timedMetadata ? provider.facts.timingIntervals.frameCount() : 1;
-            int frame = input.command.value;
-            int position = -1;
-            if (input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition) {
-                frame = !provider.facts.timedMetadata || input.command.value < 0
-                    ? -1
-                    : provider.facts.timingIntervals.frameIndexForPosition(input.command.value);
-                position = input.command.value;
-            } else if (provider.facts.timedMetadata && frame >= 0 && frame < providerFrameCount) {
-                position = provider.facts.timingIntervals.frameStartPosition(frame);
-            }
-            if (frame < 0 || frame >= providerFrameCount) {
-                result.command = rejected(ImageViewport::CommandOutcome::Invalid,
-                    ImageViewport::CommandReason::InvalidRequest);
-                appendCommandChanges(result.command, result.changes);
-                result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-                return result;
-            }
-            result.command = accepted();
-            appendCommandChanges(result.command, result.changes);
-            const auto kind = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-                ? ImageViewportInternal::ProviderRequestTargetKind::Position
-                : ImageViewportInternal::ProviderRequestTargetKind::Frame;
-            beginRoleRequest(input.command.role,
-                ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
-                { frame, position, kind },
-                { frame,
-                    provider.facts.timedMetadata
-                        ? provider.facts.timingIntervals.frameStartPosition(frame)
-                        : -1 },
-                true);
-            result.changes.diagnostics = playbackAccess().request().clearDiagnostics();
-            dispatchProvider(input.command.role,
-                requestRole(playbackAccess().request(), input.command.role).activeRequest.target);
-            markRequest();
-            if (playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Playing) {
-                playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
-                result.changes.playbackPhase = true;
-            }
-            result.schedule = currentPlaybackSchedule();
-            return result;
-        }
-        const bool frameSeekOnStill = input.command.kind == ViewportPlaybackCommand::Kind::SeekFrame
-            && !source.facts.timed && source.facts.frameCount == 1;
-        if (!frameSeekOnStill && (!source.facts.timed || !source.facts.timingIntervals.isValid())) {
-            result.command = rejected(ImageViewport::CommandOutcome::Unsupported,
-                ImageViewport::CommandReason::UnsupportedRequest);
-            appendCommandChanges(result.command, result.changes);
-            result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-            return result;
-        }
-        int frame = input.command.value;
-        int position = -1;
-        if (input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition) {
-            if (input.command.value < 0) {
-                frame = -1;
-            } else {
-                frame = source.facts.timingIntervals.frameIndexForPosition(input.command.value);
-                position = input.command.value;
-            }
-        } else if (frame >= 0 && frame < source.facts.frameCount && source.facts.timed) {
-            position = source.facts.timingIntervals.frameStartPosition(frame);
-        }
-        if (frame < 0 || frame >= source.facts.frameCount) {
-            result.command = rejected(ImageViewport::CommandOutcome::Invalid,
-                ImageViewport::CommandReason::InvalidRequest);
-            appendCommandChanges(result.command, result.changes);
-            result.schedule = { ViewportPlaybackScheduleEffect::Action::NoChange, -1 };
-            return result;
-        }
-        result.command = accepted();
-        appendCommandChanges(result.command, result.changes);
-        const auto targetKind = input.command.kind == ViewportPlaybackCommand::Kind::SeekPosition
-            ? ImageViewportInternal::ProviderRequestTargetKind::Position
-            : ImageViewportInternal::ProviderRequestTargetKind::Frame;
-        beginRoleRequest(input.command.role,
-            ImageViewportInternal::DisplayRequestOrigin::ExplicitSeek,
-            { frame, position, targetKind },
-            { frame,
-                source.facts.timed ? source.facts.timingIntervals.frameStartPosition(frame) : -1 },
-            true);
-        result.changes.diagnostics = playbackAccess().request().clearDiagnostics();
-        stageBuiltIn();
-        markRequest();
-        if (playbackAccess().playback().phase == ImageViewport::PlaybackPhase::Playing) {
-            playbackAccess().playback().phase = ImageViewport::PlaybackPhase::Waiting;
             result.changes.playbackPhase = true;
         }
     }
