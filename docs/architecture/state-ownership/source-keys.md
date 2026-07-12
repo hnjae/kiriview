@@ -6,7 +6,7 @@ Top-level route keys normalize `QUrl` path segments, preserve query and fragment
 
 Local file keys additionally clean local path syntax and make relative local paths absolute for identity only. The public `sourceUrl` remains the requested URL rather than the identity URL.
 
-Direct-media scope identity is `{ current key, parent key, generation }`. The current and parent keys use the defined navigation-source rules, including document-portal host paths and platform archive-entry restoration facts, before applying source-key normalization. Platform probes for those navigation-source rules are adapter work; pure identity helpers consume resolved facts and do not read xattrs or process environment directly.
+Direct-media scope identity is `{ current key, parent key, generation }`. The current and parent keys use the navigation URL and parent location sealed into the active navigation-source snapshot before applying source-key normalization. Platform probes for document-portal host paths and platform archive-entry restoration are source-entry adapter work performed once per accepted source snapshot; source-key construction and equality consume that snapshot and never trigger platform probes. Replacing or discarding the active source snapshot is the invalidation boundary for both positive and negative platform facts.
 
 Direct-media freshness changes only when the effective current key or parent scope key changes. Resolving pending direct-image confirmation to an equivalent displayed URL is a phase change within the same freshness generation.
 
