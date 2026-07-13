@@ -5,104 +5,51 @@
 
 #include "location/imagedocumentlocation.h"
 
-#include <QUrl>
-#include <optional>
 #include <utility>
 
-namespace {
-using kiriview::ImageLoadStartEffect;
-using kiriview::openedCollectionScopeContainsUrl;
-using kiriview::OpenedCollectionScopeLoadEffect;
-using kiriview::OpenedCollectionScopeLocation;
-using kiriview::openedCollectionScopeLocationForLocalArchiveUrl;
-
-std::optional<OpenedCollectionScopeLocation> containerOpenedCollectionScopeForImageLoadRequest(
-    const kiriview::ImageLoadRequest& request)
-{
-    if (!request.isContainerNavigation()) {
-        return std::nullopt;
-    }
-
-    if (!request.openedCollectionScope().isEmpty()
-        && kiriview::sameNormalizedUrl(
-            request.openedCollectionScope().fileUrl(), request.containerNavigationUrl())
-        && openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.sourceUrl())) {
-        return request.openedCollectionScope();
-    }
-
-    const std::optional<OpenedCollectionScopeLocation> containerOpenedCollectionScope
-        = openedCollectionScopeLocationForLocalArchiveUrl(request.containerNavigationUrl());
-    if (containerOpenedCollectionScope.has_value()
-        && openedCollectionScopeContainsUrl(*containerOpenedCollectionScope, request.sourceUrl())) {
-        return containerOpenedCollectionScope;
-    }
-
-    return std::nullopt;
-}
-
-ImageLoadStartEffect imageLoadStartEffectForPageScopeEffect(OpenedCollectionScopeLoadEffect effect)
-{
-    switch (effect) {
-    case OpenedCollectionScopeLoadEffect::ReadImage:
-        return ImageLoadStartEffect::DecodeImage;
-    case OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates:
-        return ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates;
-    }
-
-    return ImageLoadStartEffect::DecodeImage;
-}
-}
-
 namespace kiriview {
-OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(
-    const ImageLoadRequest& request, const ImageLoadResolvedSourceFacts& resolvedSourceFacts)
+OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(const ImageLoadRequest& request)
 {
-    const std::optional<OpenedCollectionScopeLocation> sourceOpenedCollectionScope
-        = resolvedSourceFacts.directlyOpenedCollectionScope;
-    if (sourceOpenedCollectionScope.has_value()) {
-        return { *sourceOpenedCollectionScope,
-            OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };
+    if (const ResolvedNavigationSource* source = request.externalSource()) {
+        const std::optional<OpenedCollectionScopeLocation> openedCollectionScope
+            = openedCollectionScopeLocationForDirectlyOpenedLocalSource(*source);
+        if (openedCollectionScope.has_value()) {
+            return { *openedCollectionScope,
+                OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };
+        }
+        return { OpenedCollectionScopeLocation::none(),
+            OpenedCollectionScopeLoadEffect::ReadImage };
     }
 
-    const std::optional<OpenedCollectionScopeLocation> archiveOpenedCollectionScope
-        = resolvedSourceFacts.source.isEmpty()
-        ? openedCollectionScopeLocationForLocalArchiveUrl(request.sourceUrl())
-        : openedCollectionScopeLocationForLocalArchiveSource(resolvedSourceFacts.source);
-    if (archiveOpenedCollectionScope.has_value()) {
-        return { *archiveOpenedCollectionScope,
-            OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };
+    const OpenedCollectionScopeLocation scope = request.openedCollectionScope();
+    if (request.sameScopePageNavigation() && !scope.isEmpty()
+        && sameNormalizedUrl(request.sourceUrl(), scope.fileUrl())) {
+        return { scope, OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates };
     }
 
-    const std::optional<OpenedCollectionScopeLocation> containerOpenedCollectionScope
-        = containerOpenedCollectionScopeForImageLoadRequest(request);
-    if (containerOpenedCollectionScope.has_value()) {
-        return { *containerOpenedCollectionScope, OpenedCollectionScopeLoadEffect::ReadImage };
-    }
-
-    if (openedCollectionScopeContainsUrl(request.openedCollectionScope(), request.sourceUrl())) {
-        return { request.openedCollectionScope(), OpenedCollectionScopeLoadEffect::ReadImage };
-    }
-
-    return { OpenedCollectionScopeLocation::none(), OpenedCollectionScopeLoadEffect::ReadImage };
+    return { scope, OpenedCollectionScopeLoadEffect::ReadImage };
 }
 
-ImageLoadPlan imageLoadPlan(quint64 id, ImageLoadRequest request,
-    ImageFirstDisplayDecodeContext firstDisplayContext,
-    ImageLoadResolvedSourceFacts resolvedSourceFacts)
+ImageLoadPlan imageLoadPlan(
+    quint64 id, ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext)
 {
-    QUrl sourceUrl = request.sourceUrl();
-    OpenedCollectionScopeLoadPlan pageScopePlan
-        = openedCollectionScopeLoadPlan(request, resolvedSourceFacts);
+    OpenedCollectionScopeLoadPlan scopePlan = openedCollectionScopeLoadPlan(request);
     const ImageLoadStartEffect startEffect
-        = imageLoadStartEffectForPageScopeEffect(pageScopePlan.effect);
-    const ResolvedNavigationSource source = resolvedSourceFacts.source.isEmpty()
-        ? ResolvedNavigationSource(sourceUrl, NavigationSourceFacts {}, sourceUrl)
-        : resolvedSourceFacts.source;
-    ImageLoadSession session(id, std::move(request),
-        DisplayedImageLocation::fromResolvedSource(
-            source, std::move(pageScopePlan.openedCollectionScope)),
-        firstDisplayContext);
+        = scopePlan.effect == OpenedCollectionScopeLoadEffect::LoadImageDocumentPageCandidates
+        ? ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates
+        : ImageLoadStartEffect::DecodeImage;
+    DisplayedImageLocation location;
+    if (const ResolvedNavigationSource* source = request.externalSource()) {
+        location
+            = DisplayedImageLocation::fromResolvedSource(*source, scopePlan.openedCollectionScope);
+    } else {
+        location = DisplayedImageLocation::fromOpenedCollectionScope(
+            request.sourceUrl(), scopePlan.openedCollectionScope);
+    }
 
-    return ImageLoadPlan { std::move(session), startEffect };
+    return ImageLoadPlan {
+        ImageLoadSession(id, std::move(request), std::move(location), firstDisplayContext),
+        startEffect,
+    };
 }
 }

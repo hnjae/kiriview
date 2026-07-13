@@ -12,7 +12,7 @@ DocumentSessionDirectMediaScopePort::DocumentSessionDirectMediaScopePort(
 {
 }
 
-DirectMediaScope DocumentSessionDirectMediaScopePort::currentScope() const
+std::optional<DirectMediaScope> DocumentSessionDirectMediaScopePort::currentScope() const
 {
     return m_state->directMediaScope();
 }

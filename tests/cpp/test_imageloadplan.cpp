@@ -35,9 +35,10 @@ private Q_SLOTS:
 void TestImageLoadPlan::localFilePlansDirectImageLoad()
 {
     const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
-    const kiriview::ImageLoadPlan plan
-        = kiriview::imageLoadPlan(7, kiriview::ImageLoadRequest::fromUrl(imageUrl),
-            kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) });
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(7,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(imageUrl, {})),
+        kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) });
 
     QCOMPARE(plan.session.id(), quint64(7));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
@@ -50,11 +51,13 @@ void TestImageLoadPlan::localComicBookArchivePlansArchiveListing()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
 
-    const kiriview::ImageLoadPlan plan
-        = kiriview::imageLoadPlan(8, kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(8,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {})));
 
     QCOMPARE(plan.session.id(), quint64(8));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
@@ -69,8 +72,9 @@ void TestImageLoadPlan::localComicBookArchivePlansArchiveListing()
 void TestImageLoadPlan::unresolvedLocalDirectoryUrlPlansDirectImageLoad()
 {
     const QUrl directoryUrl = localUrl(QStringLiteral("/synthetic/album"));
-    const kiriview::ImageLoadPlan plan
-        = kiriview::imageLoadPlan(12, kiriview::ImageLoadRequest::fromUrl(directoryUrl));
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(12,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {})));
 
     QCOMPARE(plan.session.id(), quint64(12));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
@@ -86,9 +90,10 @@ void TestImageLoadPlan::resolvedLocalDirectoryScopePlansDocumentListing()
             kiriview::normalizedDirectoryContainerUrl(directoryUrl),
             kiriview::OpenedCollectionScopeKind::Directory);
 
-    const kiriview::ImageLoadPlan plan
-        = kiriview::imageLoadPlan(13, kiriview::ImageLoadRequest::fromUrl(directoryUrl), {},
-            kiriview::ImageLoadResolvedSourceFacts { directoryCollection });
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(13,
+        kiriview::ImageLoadRequest::fromSameScopePageTarget(
+            kiriview::ImageDocumentPageTarget(directoryUrl, kiriview::ImageDocumentPageKind::Image),
+            directoryCollection, false));
 
     QCOMPARE(plan.session.id(), quint64(13));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
@@ -104,16 +109,17 @@ void TestImageLoadPlan::containerNavigationRestoresArchiveCollectionForInteriorI
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page.png"));
 
-    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(9,
-        kiriview::ImageLoadRequest::fromLocation(
-            imageUrl, kiriview::OpenedCollectionScopeLocation::none(), archiveUrl));
+    const kiriview::ImageLoadRequest request = kiriview::ImageLoadRequest::fromContainerTarget(
+        kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+        *archiveCollection);
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(9, request);
     const kiriview::OpenedCollectionScopeLoadPlan archivePlan
-        = kiriview::openedCollectionScopeLoadPlan(kiriview::ImageLoadRequest::fromLocation(
-            imageUrl, kiriview::OpenedCollectionScopeLocation::none(), archiveUrl));
+        = kiriview::openedCollectionScopeLoadPlan(request);
 
     QCOMPARE(plan.session.id(), quint64(9));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
@@ -128,15 +134,17 @@ void TestImageLoadPlan::displayedArchiveContextIsKeptForInteriorImage()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page.png"));
 
-    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(
-        10, kiriview::ImageLoadRequest::fromLocation(imageUrl, *archiveCollection));
+    const kiriview::ImageLoadRequest request = kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+        *archiveCollection, false);
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(10, request);
     const kiriview::OpenedCollectionScopeLoadPlan archivePlan
-        = kiriview::openedCollectionScopeLoadPlan(
-            kiriview::ImageLoadRequest::fromLocation(imageUrl, *archiveCollection));
+        = kiriview::openedCollectionScopeLoadPlan(request);
 
     QCOMPARE(plan.session.id(), quint64(10));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);
@@ -152,8 +160,9 @@ void TestImageLoadPlan::displayedArchiveContextIsKeptForInteriorImage()
 void TestImageLoadPlan::explicitKioArchiveImagePlansDirectLoad()
 {
     const QUrl imageUrl(QStringLiteral("zip:///books/book.cbz/page.png"));
-    const kiriview::ImageLoadPlan plan
-        = kiriview::imageLoadPlan(11, kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    const kiriview::ImageLoadPlan plan = kiriview::imageLoadPlan(11,
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(imageUrl, {})));
 
     QCOMPARE(plan.session.id(), quint64(11));
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::DecodeImage);

@@ -54,63 +54,80 @@ std::optional<QString> documentPortalHostPath(const QUrl& url)
         return std::nullopt;
     }
 
-    // File dialogs can return document-portal URLs; navigation needs the real directory.
-    const ssize_t valueSize
-        = getxattr(encodedLocalPath.constData(), documentPortalHostPathAttribute, nullptr, 0);
-    const int sizeErrno = errno;
-    if (valueSize <= 0) {
-        if (valueSize < 0 && sizeErrno != ENODATA
+    auto isNegativeErrno = [](int error) {
+        return error == ENODATA
 #ifdef ENOATTR
-            && sizeErrno != ENOATTR
+            || error == ENOATTR
 #endif
-            && sizeErrno != ENOTSUP
+            || error == ENOTSUP
 #if EOPNOTSUPP != ENOTSUP
-            && sizeErrno != EOPNOTSUPP
+            || error == EOPNOTSUPP
 #endif
-        ) {
-            qCDebug(kiriviewNavigationLog) << "document portal host path probe failed"
-                                           << "url" << url << "errno" << sizeErrno;
+            ;
+    };
+
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        // File dialogs can return document-portal URLs; navigation needs the real directory.
+        const ssize_t valueSize
+            = getxattr(encodedLocalPath.constData(), documentPortalHostPathAttribute, nullptr, 0);
+        const int sizeErrno = errno;
+        if (valueSize <= 0) {
+            if (valueSize < 0 && !isNegativeErrno(sizeErrno)) {
+                qCDebug(kiriviewNavigationLog) << "document portal host path probe failed"
+                                               << "url" << url << "errno" << sizeErrno;
+            }
+            return std::nullopt;
         }
-        return std::nullopt;
-    }
 
-    QByteArray value;
-    value.resize(valueSize);
-
-    const ssize_t bytesRead = getxattr(encodedLocalPath.constData(),
-        documentPortalHostPathAttribute, value.data(), static_cast<std::size_t>(value.size()));
-    const int readErrno = errno;
-    if (bytesRead <= 0) {
-        if (bytesRead < 0 && readErrno != ENODATA
-#ifdef ENOATTR
-            && readErrno != ENOATTR
-#endif
-            && readErrno != ENOTSUP
-#if EOPNOTSUPP != ENOTSUP
-            && readErrno != EOPNOTSUPP
-#endif
-        ) {
+        QByteArray value;
+        value.resize(valueSize);
+        const ssize_t bytesRead = getxattr(encodedLocalPath.constData(),
+            documentPortalHostPathAttribute, value.data(), static_cast<std::size_t>(value.size()));
+        const int readErrno = errno;
+        if (bytesRead < 0 && readErrno == ERANGE && attempt == 0) {
+            continue;
+        }
+        if (bytesRead <= 0) {
+            if (bytesRead < 0 && !isNegativeErrno(readErrno)) {
+                qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
+                                               << "url" << url << "errno" << readErrno;
+            }
+            return std::nullopt;
+        }
+        if (bytesRead > valueSize) {
+            if (attempt == 0) {
+                continue;
+            }
             qCDebug(kiriviewNavigationLog) << "document portal host path read failed"
-                                           << "url" << url << "errno" << readErrno;
+                                           << "url" << url << "reason"
+                                           << "attribute-grew-during-read";
+            return std::nullopt;
         }
-        return std::nullopt;
-    }
 
-    value.resize(bytesRead);
-    if (value.endsWith('\0')) {
-        value.chop(1);
-    }
+        value.resize(bytesRead);
+        if (value.endsWith('\0')) {
+            value.chop(1);
+        }
 
-    const QString hostPath = QFile::decodeName(value);
-    if (hostPath.isEmpty() || hostPath == localPath) {
-        qCDebug(kiriviewNavigationLog) << "document portal host path ignored"
+        const QString hostPath = QFile::decodeName(value);
+        if (hostPath.isEmpty() || hostPath == localPath) {
+            return std::nullopt;
+        }
+
+        qCDebug(kiriviewNavigationLog) << "document portal host path resolved"
                                        << "url" << url << "hostPath" << hostPath;
-        return std::nullopt;
+        return hostPath;
     }
 
-    qCDebug(kiriviewNavigationLog) << "document portal host path resolved"
-                                   << "url" << url << "hostPath" << hostPath;
-    return hostPath;
+    return std::nullopt;
+}
+
+kiriview::NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
+{
+    return kiriview::NavigationSourceFacts {
+        documentPortalHostPath(url),
+        runtimeDirForNavigationSource(),
+    };
 }
 }
 
@@ -199,33 +216,25 @@ QUrl parentUrlForContainerNavigation(const QUrl& containerUrl)
     return parentSourceUrl.adjusted(QUrl::RemoveFilename | QUrl::NormalizePathSegments);
 }
 
-QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& facts)
+ResolvedNavigationSource resolvedNavigationSource(
+    const QUrl& requestedUrl, const NavigationSourceFacts& facts)
 {
-    if (url.isLocalFile() && facts.documentPortalHostPath.has_value()) {
-        const QString localPath = url.toLocalFile();
+    QUrl navigationUrl = requestedUrl;
+    if (requestedUrl.isLocalFile() && facts.documentPortalHostPath.has_value()) {
+        const QString localPath = requestedUrl.toLocalFile();
         const QString& hostPath = facts.documentPortalHostPath.value();
         if (!hostPath.isEmpty() && hostPath != localPath) {
-            return navigationUrlForLocalPath(hostPath, facts.runtimeDir);
+            navigationUrl = navigationUrlForLocalPath(hostPath, facts.runtimeDir);
         }
-    }
-
-    if (url.isLocalFile()) {
+    } else if (requestedUrl.isLocalFile()) {
         const std::optional<QUrl> kioUrl
-            = kioFuseArchiveUrlForLocalPath(url.toLocalFile(), facts.runtimeDir);
+            = kioFuseArchiveUrlForLocalPath(requestedUrl.toLocalFile(), facts.runtimeDir);
         if (kioUrl.has_value()) {
-            return kioUrl.value();
+            navigationUrl = *kioUrl;
         }
     }
 
-    return url;
-}
-
-NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url)
-{
-    return NavigationSourceFacts {
-        documentPortalHostPath(url),
-        runtimeDirForNavigationSource(),
-    };
+    return ResolvedNavigationSource(requestedUrl, facts, navigationUrl);
 }
 
 NavigationSourceResolver::NavigationSourceResolver()
@@ -234,20 +243,23 @@ NavigationSourceResolver::NavigationSourceResolver()
 }
 
 NavigationSourceResolver::NavigationSourceResolver(NavigationSourceFactProvider provider)
-    : m_provider(provider ? std::move(provider)
-                          : NavigationSourceFactProvider(collectNavigationSourceFacts))
+    : m_provider(std::move(provider))
 {
 }
 
-ResolvedNavigationSource NavigationSourceResolver::resolve(const QUrl& url) const
+ResolvedNavigationSource NavigationSourceResolver::resolveExternalSource(const QUrl& url) const
 {
-    NavigationSourceFacts facts = m_provider(url);
-    const QUrl navigationUrl = navigationSourceUrlForFacts(url, facts);
-    if (!sameNormalizedUrl(url, navigationUrl)) {
-        qCDebug(kiriviewNavigationLog) << "navigation source url resolved"
-                                       << "url" << url << "navigationUrl" << navigationUrl;
+    if (url.isEmpty()) {
+        return {};
     }
-    return ResolvedNavigationSource(url, std::move(facts), navigationUrl);
+
+    const NavigationSourceFacts facts = m_provider ? m_provider(url) : NavigationSourceFacts {};
+    ResolvedNavigationSource source = resolvedNavigationSource(url, facts);
+    if (!sameNormalizedUrl(url, source.navigationUrl())) {
+        qCDebug(kiriviewNavigationLog) << "navigation source url resolved"
+                                       << "url" << url << "navigationUrl" << source.navigationUrl();
+    }
+    return source;
 }
 
 DirectoryNavigationLocation directoryNavigationLocationForSource(

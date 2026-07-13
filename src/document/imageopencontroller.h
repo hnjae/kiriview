@@ -69,7 +69,7 @@ public:
 
 private:
     void beginSourceLoad();
-    void finishSourceResolved(ImageLoadSession session);
+    void finishSourcePrepared(ImageLoadSession session);
     void finishUnsupportedOpenedCollectionVideoLoad(ImageLoadSession session);
     void finishPlayableOpenedCollectionVideoLoad(ImageLoadSession session);
     void finishThumbnailPreviewLoad(ImageLoadSession session, StaticDisplayImagePayload preview);

@@ -45,7 +45,7 @@ public:
     const DocumentSessionPublicSnapshot& publicSnapshot() const;
     const DirectMediaCursor& directMediaCursor() const;
     QUrl directMediaCursorUrl() const;
-    DirectMediaScope directMediaScope() const;
+    std::optional<DirectMediaScope> directMediaScope() const;
 
     void setSourceIdentity(const QUrl& url);
     void setDocumentKind(DocumentSessionKind kind);
@@ -64,7 +64,7 @@ public:
     void setSessionErrorString(const QString& errorString);
     bool clearDirectMediaCursor();
     bool requestDirectImageCursor(ResolvedNavigationSource source);
-    bool confirmDirectImageCursor(const QUrl& url);
+    DirectMediaConfirmation confirmDirectImageCursor(const QUrl& url);
     bool restoreDirectImageCursorAfterFailure();
     bool setDirectVideoCursor(ResolvedNavigationSource source);
 

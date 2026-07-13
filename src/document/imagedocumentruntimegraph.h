@@ -8,6 +8,7 @@
 #include "imagedocumentruntimedependencies.h"
 #include "imagedocumentruntimeplan.h"
 #include "imagedocumenttypes.h"
+#include "location/imageurl.h"
 #include "rendering/imagerendercontext.h"
 
 #include <QString>
@@ -32,7 +33,7 @@ class ImageDocumentRuntimeWorkflow;
 class ImageDocumentNavigationController;
 class ImageDocumentPredecodeController;
 class ImageDocumentState;
-struct ImageDocumentSourceLoadRequest;
+class ImageDocumentSourceLoadRequest;
 class ImageDocumentPageNavigationService;
 class ImageOpenController;
 class ImagePageSurfaceController;
@@ -44,6 +45,7 @@ struct ImageDocumentRuntimeGraphCallbacks
     std::function<ImageDocumentRenderContext()> renderContext;
     std::function<void(const std::vector<ImageDocumentChange>&)> notify;
     std::function<void(const ImageDocumentSourceLoadRequest&)> loadSource;
+    std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource;
     std::function<void(const QString&)> fileDeletionFailed;
     std::function<void(const QString&)> unsupportedOpenedCollectionVideoEntered;
     std::function<void(const QString&)> containerNavigationBoundaryReached;

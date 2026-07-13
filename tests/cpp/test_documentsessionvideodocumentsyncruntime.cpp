@@ -16,7 +16,7 @@ private Q_SLOTS:
     void ignoresInactiveDocumentKind();
     void emptyVideoSourceClearsSessionDirectMedia();
     void directVideoSourceCommitsCursorAndRefreshesWhenScopeChanged();
-    void unchangedDirectVideoCursorSkipsRefresh();
+    void staleDirectVideoConfirmationPreservesSourceIdentity();
     void openedCollectionVideoSourceDoesNotCommitDirectCursor();
 };
 
@@ -39,7 +39,7 @@ struct VideoSyncFixture
     QUrl sourceIdentity;
     kiriview::DocumentSessionKind documentKind = kiriview::DocumentSessionKind::Video;
     QUrl directVideoCursorUrl;
-    bool directVideoCursorChanged = true;
+    kiriview::DirectMediaConfirmation confirmation = kiriview::DirectMediaConfirmation::Committed;
     kiriview::DocumentSessionVideoDocumentSyncRuntime runtime {
         kiriview::DocumentSessionVideoDocumentSyncRuntimePorts {
             [this]() { events.push_back(Event::ClearCursor); },
@@ -55,7 +55,7 @@ struct VideoSyncFixture
             [this](const QUrl& url) {
                 events.push_back(Event::SetDirectVideoCursor);
                 directVideoCursorUrl = url;
-                return directVideoCursorChanged;
+                return confirmation;
             },
             [this]() { events.push_back(Event::RefreshNavigation); },
             [this]() { events.push_back(Event::Publish); },
@@ -107,23 +107,22 @@ void TestDocumentSessionVideoDocumentSyncRuntime::
     QCOMPARE(fixture.sourceIdentity, clipUrl);
     QCOMPARE(fixture.events,
         (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDirectVideoCursor,
-            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::RefreshNavigation,
-            VideoSyncFixture::Event::Publish }));
+            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::Publish }));
 }
 
-void TestDocumentSessionVideoDocumentSyncRuntime::unchangedDirectVideoCursorSkipsRefresh()
+void TestDocumentSessionVideoDocumentSyncRuntime::
+    staleDirectVideoConfirmationPreservesSourceIdentity()
 {
     VideoSyncFixture fixture;
-    fixture.directVideoCursorChanged = false;
+    fixture.confirmation = kiriview::DirectMediaConfirmation::Stale;
     const QUrl clipUrl = localUrl(QStringLiteral("/media/clip.mkv"));
 
     fixture.runtime.sync(kiriview::DocumentSessionKind::Video, videoSnapshot(clipUrl));
 
     QCOMPARE(fixture.directVideoCursorUrl, clipUrl);
-    QCOMPARE(fixture.sourceIdentity, clipUrl);
+    QVERIFY(fixture.sourceIdentity.isEmpty());
     QCOMPARE(fixture.events,
-        (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDirectVideoCursor,
-            VideoSyncFixture::Event::SetSourceIdentity, VideoSyncFixture::Event::Publish }));
+        (std::vector<VideoSyncFixture::Event> { VideoSyncFixture::Event::SetDirectVideoCursor }));
 }
 
 void TestDocumentSessionVideoDocumentSyncRuntime::

@@ -34,8 +34,6 @@ class ImageLoadSessionTracker final
 {
 public:
     explicit ImageLoadSessionTracker(quint64 nextSessionId = 0);
-    ImageLoadSessionTracker(
-        NavigationSourceFactProvider sourceFactProvider, quint64 nextSessionId = 0);
 
     ImageLoadPlan start(
         ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
@@ -56,7 +54,6 @@ private:
 
     std::optional<ImageLoadSession> m_session;
     ImageAsyncTicket m_sessionIds;
-    NavigationSourceFactProvider m_sourceFactProvider;
 };
 }
 

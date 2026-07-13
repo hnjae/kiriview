@@ -31,6 +31,7 @@ public:
         NavigationPlanCallback navigationPlan;
         PageNavigationCommitCallback pageNavigationCommit;
         DeletionInProgressCallback deletionInProgress;
+        std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource;
     };
 
     ImageDocumentPageNavigationService(

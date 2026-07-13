@@ -9,6 +9,7 @@
 #include "async/timerscheduler.h"
 #include "cache/imagecachepolicy.h"
 #include "decoding/imagedecodedependencies.h"
+#include "location/imageurl.h"
 #include "navigation/imagedocumentpagecandidateprovider.h"
 #include "predecode/predecodedimage.h"
 #include "predecode/predecoderuntimefacts.h"
@@ -42,6 +43,7 @@ struct ImageDocumentRuntimeDependencyOverrides
     ImageCacheBudgetRequest cacheBudgetRequest;
     std::optional<SystemMemorySnapshot> systemMemorySnapshot;
     bool ordinaryDirectMediaPredecodeEnabled = true;
+    std::optional<NavigationSourceResolver> navigationSourceResolver;
 };
 
 struct ImageDocumentRuntimeDependencies

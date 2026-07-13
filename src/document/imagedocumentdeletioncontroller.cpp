@@ -33,14 +33,16 @@ namespace kiriview {
 ImageDocumentDeletionController::ImageDocumentDeletionController(QObject* parent,
     ImageDocumentState& state, ImagePageSurfaceController& pageSurfaceController,
     ImageDocumentPageCandidateProvider candidateProvider, FileDeletionProvider fileDeletionProvider,
-    Callbacks callbacks)
+    Callbacks callbacks, std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource)
     : m_parent(parent)
     , m_state(state)
     , m_pageSurfaceController(pageSurfaceController)
     , m_callbacks(std::move(callbacks))
     , m_fileDeletionProvider(fileDeletionProviderWithDefault(std::move(fileDeletionProvider)))
-    , m_fallbackController(m_parent, std::move(candidateProvider),
-          [this](ImageDocumentRuntimePlan plan) { reportRuntimePlan(std::move(plan)); })
+    , m_fallbackController(
+          m_parent, std::move(candidateProvider),
+          [this](ImageDocumentRuntimePlan plan) { reportRuntimePlan(std::move(plan)); },
+          std::move(resolveExternalSource))
 {
 }
 

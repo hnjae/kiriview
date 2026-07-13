@@ -21,11 +21,11 @@ DocumentSessionMediaDeletionRuntime::~DocumentSessionMediaDeletionRuntime() { ca
 
 DocumentSessionMediaDeletionStartPlan DocumentSessionMediaDeletionRuntime::start(QObject* receiver,
     FileDeletionMode mode, std::vector<DirectMediaNavigationCandidate> candidates,
-    const QUrl& targetUrl, const QUrl& navigationIdentityUrl, DocumentSessionKind documentKind,
-    CompletionCallback callback)
+    const QUrl& actualTargetUrl, const QUrl& navigationIdentityUrl,
+    DocumentSessionKind documentKind, CompletionCallback callback)
 {
     const DocumentSessionMediaDeletionStartPlan plan = documentSessionMediaDeletionStartPlan(
-        mode, std::move(candidates), targetUrl, navigationIdentityUrl);
+        mode, std::move(candidates), actualTargetUrl, navigationIdentityUrl);
     if (!plan.shouldStartDeletion) {
         return plan;
     }
@@ -47,17 +47,18 @@ bool DocumentSessionMediaDeletionRuntime::startForDirectMedia(QObject* receiver,
     DocumentSessionKind documentKind, CompletionCallback callback)
 {
     cancel();
-    if (scope.currentUrl.isEmpty() || scope.parentUrl.isEmpty() || !scope.parentUrl.isValid()) {
+    if (scope.currentUrl().isEmpty() || scope.parentUrl().isEmpty()
+        || !scope.parentUrl().isValid()) {
         return false;
     }
 
     auto sharedCallback = std::make_shared<CompletionCallback>(std::move(callback));
     m_candidateRuntime.loadCandidates(receiver, scope, std::move(scopeAccepted),
-        [this, receiver, mode, targetUrl = scope.currentUrl,
-            navigationIdentityUrl = scope.navigationUrl, documentKind,
+        [this, receiver, mode, actualTargetUrl = scope.currentUrl(),
+            navigationIdentityUrl = scope.navigationUrl(), documentKind,
             sharedCallback](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
-            start(receiver, mode, std::move(result.candidates), targetUrl, navigationIdentityUrl,
-                documentKind, std::move(*sharedCallback));
+            start(receiver, mode, std::move(result.candidates), actualTargetUrl,
+                navigationIdentityUrl, documentKind, std::move(*sharedCallback));
         });
     return true;
 }

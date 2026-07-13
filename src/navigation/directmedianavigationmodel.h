@@ -49,8 +49,6 @@ struct DirectMediaNavigationOpenPlan
 DirectMediaNavigationOpenRequest previousDirectMediaNavigationOpenRequest();
 DirectMediaNavigationOpenRequest nextDirectMediaNavigationOpenRequest();
 DirectMediaNavigationOpenRequest numberedDirectMediaNavigationOpenRequest(int mediaNumber);
-QUrl directMediaNavigationSourceUrl(const QUrl& url);
-QUrl directMediaNavigationParentUrl(const QUrl& url);
 std::optional<std::size_t> directMediaNavigationCandidateIndex(
     const std::vector<DirectMediaNavigationCandidate>& candidates, const QUrl& currentUrl);
 std::optional<QUrl> adjacentDirectMediaNavigationUrl(

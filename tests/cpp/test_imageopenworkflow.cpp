@@ -27,10 +27,16 @@ kiriview::ImageLoadSession loadSession(const QUrl& sourceUrl, const QUrl& imageU
     = kiriview::OpenedCollectionScopeLocation::none(),
     const QUrl& containerNavigationUrl = QUrl())
 {
-    return kiriview::ImageLoadSession(1,
-        kiriview::ImageLoadRequest::fromLocation(
-            sourceUrl, archiveCollection, containerNavigationUrl),
-        kiriview::DisplayedImageLocation::fromUrl(imageUrl, archiveCollection));
+    const kiriview::ImageDocumentPageTarget target(
+        sourceUrl, kiriview::ImageDocumentPageKind::Image);
+    const kiriview::ImageLoadRequest request = !containerNavigationUrl.isEmpty()
+        ? kiriview::ImageLoadRequest::fromContainerTarget(target, archiveCollection)
+        : (!archiveCollection.isEmpty() ? kiriview::ImageLoadRequest::fromSameScopePageTarget(
+                                              target, archiveCollection, false)
+                                        : kiriview::ImageLoadRequest::fromExternalSource(
+                                              kiriview::resolvedNavigationSource(sourceUrl, {})));
+    return kiriview::ImageLoadSession(
+        1, request, kiriview::DisplayedImageLocation::fromUrl(imageUrl, archiveCollection));
 }
 
 template <typename Operation>
@@ -215,7 +221,8 @@ void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
     kiriview::ImageDocumentState state;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     state.setSourceUrl(archiveUrl);
@@ -241,9 +248,9 @@ void TestImageOpenWorkflow::sourceResolutionTracksSessionSourceKind()
     state.setStatus(kiriview::ImageDocumentStatus::Loading);
 
     const kiriview::ImageLoadSession session(1,
-        kiriview::ImageLoadRequest::fromTarget(
+        kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            kiriview::OpenedCollectionScopeLocation::none()),
+            kiriview::OpenedCollectionScopeLocation::none(), false),
         kiriview::DisplayedImageLocation::fromUrl(videoUrl));
 
     const kiriview::ImageDocumentRuntimePlan plan = resolveSourceImage(state, session);
@@ -260,7 +267,8 @@ void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesR
     kiriview::ImageDocumentState state;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl videoUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.mp4"));
     const kiriview::DisplayedImageLocation location
@@ -273,9 +281,9 @@ void TestImageOpenWorkflow::unsupportedOpenedCollectionVideoTransitionPublishesR
     state.setEmbeddedMetadata(metadata);
 
     const kiriview::ImageLoadSession session(8,
-        kiriview::ImageLoadRequest::fromTarget(
+        kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            *archiveCollection),
+            *archiveCollection, false),
         location);
 
     const kiriview::ImageDocumentRuntimePlan plan
@@ -302,7 +310,8 @@ void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHand
     kiriview::ImageDocumentState state;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl videoUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.mp4"));
     const kiriview::DisplayedImageLocation location
@@ -312,9 +321,9 @@ void TestImageOpenWorkflow::playableOpenedCollectionVideoTransitionPublishesHand
     state.setUnsupportedOpenedCollectionVideo(true);
 
     const kiriview::ImageLoadSession session(9,
-        kiriview::ImageLoadRequest::fromTarget(
+        kiriview::ImageLoadRequest::fromSameScopePageTarget(
             kiriview::ImageDocumentPageTarget { videoUrl, kiriview::ImageDocumentPageKind::Video },
-            *archiveCollection),
+            *archiveCollection, false),
         location);
 
     const kiriview::ImageDocumentRuntimePlan plan
@@ -368,7 +377,8 @@ void TestImageOpenWorkflow::directArchiveImageLoadSuccessDisablesContainerNaviga
     kiriview::ImageDocumentState state;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
 
@@ -451,8 +461,12 @@ void TestImageOpenWorkflow::routedLoadFailureAppliesErrorTransitions()
 {
     const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
     const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    const kiriview::ImageLoadSession containerNavigationSession = loadSession(
-        containerUrl, imageUrl, kiriview::OpenedCollectionScopeLocation::none(), containerUrl);
+    const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(containerUrl, {}));
+    QVERIFY(archiveCollection.has_value());
+    const kiriview::ImageLoadSession containerNavigationSession
+        = loadSession(imageUrl, imageUrl, *archiveCollection, containerUrl);
     const kiriview::ImageLoadSession imageSession = loadSession(imageUrl, imageUrl);
 
     {

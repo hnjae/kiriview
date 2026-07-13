@@ -229,7 +229,8 @@ void assignDecodedSourceIdentity(kiriview::DecodedImage& decoded, const QString&
 
 kiriview::ImageLoadSession loadSession(const QUrl& url)
 {
-    return kiriview::ImageLoadSession(1, kiriview::ImageLoadRequest::fromUrl(url),
+    return kiriview::ImageLoadSession(1,
+        kiriview::ImageLoadRequest::fromExternalSource(kiriview::resolvedNavigationSource(url, {})),
         kiriview::DisplayedImageLocation::fromUrl(url));
 }
 

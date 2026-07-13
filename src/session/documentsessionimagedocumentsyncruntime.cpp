@@ -43,8 +43,10 @@ bool DocumentSessionImageDocumentSyncRuntime::syncDirectImageCursor(
     case DocumentSessionDirectImageCursorSyncOperation::None:
         return false;
     case DocumentSessionDirectImageCursorSyncOperation::ConfirmDirectImageCursor:
-        return m_ports.confirmDirectImageCursor ? m_ports.confirmDirectImageCursor(plan.url)
-                                                : false;
+        if (m_ports.confirmDirectImageCursor) {
+            m_ports.confirmDirectImageCursor(plan.url);
+        }
+        return false;
     case DocumentSessionDirectImageCursorSyncOperation::RestoreDirectImageCursorAfterFailure:
         return m_ports.restoreDirectImageCursorAfterFailure
             ? m_ports.restoreDirectImageCursorAfterFailure()

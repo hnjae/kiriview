@@ -81,11 +81,12 @@ struct UpdatePageNavigationOperation
 struct LoadUrlOperation
 {
     ImageDocumentPageTarget target;
+    OpenedCollectionScopeLocation openedCollectionScope;
 };
 struct LoadContainerImageOperation
 {
     ImageDocumentPageTarget target;
-    QUrl containerUrl;
+    OpenedCollectionScopeLocation openedCollectionScope;
 };
 struct FinishEmptyContainerNavigationOperation
 {
@@ -107,6 +108,7 @@ struct ReportContainerNavigationListFailureOperation
 struct LoadPageNavigationUrlOperation
 {
     ImageDocumentPageTarget target;
+    OpenedCollectionScopeLocation openedCollectionScope;
     bool preserveTwoPageSpreadTransition = false;
 };
 struct CancelOpenOperation

@@ -45,10 +45,13 @@ const char* routeKindName(kiriview::DocumentSessionRouteKind kind)
     return "Unknown";
 }
 
-void logDirectMediaScope(const char* message, const kiriview::DirectMediaScope& scope)
+void logDirectMediaScope(
+    const char* message, const std::optional<kiriview::DirectMediaScope>& scope)
 {
-    qCDebug(kiriviewNavigationLog) << message << "currentUrl" << scope.currentUrl << "parentUrl"
-                                   << scope.parentUrl << "generation" << scope.generation;
+    qCDebug(kiriviewNavigationLog)
+        << message << "currentUrl" << (scope.has_value() ? scope->currentUrl() : QUrl())
+        << "parentUrl" << (scope.has_value() ? scope->parentUrl() : QUrl()) << "generation"
+        << (scope.has_value() ? scope->generation() : 0);
 }
 
 void appendConnection(std::vector<QMetaObject::Connection>& connections,
@@ -81,13 +84,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
     , m_imageDocument(ports.imageDocument)
     , m_imageDocumentCommandRuntime(std::move(imageCommands))
     , m_imageDocumentSyncRuntime(DocumentSessionImageDocumentSyncRuntimePorts {
-          [this](const QUrl& url) {
-              const bool changed = m_state.confirmDirectImageCursor(url);
-              if (changed) {
-                  syncMediaPredecodeScope();
-              }
-              return changed;
-          },
+          [this](const QUrl& url) { return m_state.confirmDirectImageCursor(url); },
           [this]() {
               const bool changed = m_state.restoreDirectImageCursorAfterFailure();
               if (changed) {
@@ -108,7 +105,9 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               m_videoOutputRuntime.clearAttachment(attachmentPort);
           })
     , m_state(ports.state)
-    , m_navigationSourceFacts(std::move(dependencies.navigationSourceFacts))
+    , m_navigationSourceResolver(dependencies.navigationSourceResolver.has_value()
+              ? std::move(*dependencies.navigationSourceResolver)
+              : NavigationSourceResolver())
     , m_videoDocumentSyncRuntime(DocumentSessionVideoDocumentSyncRuntimePorts {
           [this]() {
               const bool changed = m_state.clearDirectMediaCursor();
@@ -120,12 +119,7 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
           [this](DocumentSessionKind kind) { setDocumentKind(kind); },
           [this]() { m_state.setDirectMediaNavigation({}, false, {}); },
           [this](const QUrl& url) {
-              const bool changed = m_state.setDirectVideoCursor(
-                  NavigationSourceResolver(m_navigationSourceFacts).resolve(url));
-              if (changed) {
-                  syncMediaPredecodeScope();
-              }
-              return changed;
+              return confirmDirectVideoCursor(m_state.directMediaCursor(), url);
           },
           [this]() { m_directMediaNavigationCoordinator.refresh(m_owner); },
           [this]() { recomputePublicProjection(); },
@@ -215,14 +209,14 @@ DocumentSessionRuntimeGraph::DocumentSessionRuntimeGraph(QObject* owner,
               },
               [this](const QUrl&) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_imageDocumentCommandRuntime.setSameScopeImageNavigationSource(
+                  m_imageDocumentCommandRuntime.setExternalSourcePreservingPresentation(
                       m_routeNavigationSource);
                   refreshImagePublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Image);
               },
-              [this](const QUrl& url) {
+              [this](const QUrl&) {
                   m_state.setOpenedCollectionVideoActive(false);
-                  m_videoDocumentCommandRuntime.setSourceUrl(url);
+                  m_videoDocumentCommandRuntime.setSource(m_routeNavigationSource);
                   refreshVideoPublicSnapshot();
                   setDocumentKind(DocumentSessionKind::Video);
               },
@@ -663,14 +657,17 @@ void DocumentSessionRuntimeGraph::deleteDisplayedFile(FileDeletionMode mode)
 
     m_state.setFileDeletionInProgress(true);
     recomputePublicProjection();
-    const bool started = m_mediaDeletionRuntime.startForDirectMedia(
-        m_owner, mode, m_directMediaScopePort.currentScope(),
-        [this](
-            const DirectMediaScope& scope) { return m_directMediaScopePort.cursorMatches(scope); },
-        m_state.documentKind(),
-        [this](DocumentSessionMediaDeletionCompletion completion) {
-            finishMediaDeletion(std::move(completion));
-        });
+    const std::optional<DirectMediaScope> scope = m_directMediaScopePort.currentScope();
+    const bool started = scope.has_value()
+        && m_mediaDeletionRuntime.startForDirectMedia(
+            m_owner, mode, *scope,
+            [this](const DirectMediaScope& scope) {
+                return m_directMediaScopePort.cursorMatches(scope);
+            },
+            m_state.documentKind(),
+            [this](DocumentSessionMediaDeletionCompletion completion) {
+                finishMediaDeletion(std::move(completion));
+            });
     if (!started) {
         m_state.setFileDeletionInProgress(false);
         recomputePublicProjection();
@@ -891,7 +888,7 @@ void DocumentSessionRuntimeGraph::executeRoutePlan(const DocumentSessionRoutePla
 {
     m_routeNavigationSource = plan.sourceUrl.isEmpty()
         ? ResolvedNavigationSource {}
-        : NavigationSourceResolver(m_navigationSourceFacts).resolve(plan.sourceUrl);
+        : m_navigationSourceResolver.resolveExternalSource(plan.sourceUrl);
     qCDebug(kiriviewNavigationLog)
         << "execute route plan"
         << "routeKind" << routeKindName(plan.kind) << "sourceUrl" << plan.sourceUrl

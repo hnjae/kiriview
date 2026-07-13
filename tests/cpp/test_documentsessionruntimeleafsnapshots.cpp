@@ -59,16 +59,19 @@ void TestDocumentSessionRuntimeLeafSnapshots::directImageRoutePublishesImageLeaf
     kiriview::DocumentSessionImageDocumentSnapshotPort imagePort;
     imagePort.snapshot = [&imageSnapshot]() { return imageSnapshot; };
     kiriview::DocumentSessionImageDocumentCommandPort imageCommands;
-    imageCommands.source.setSourceUrl = [&imageSnapshot](const QUrl& url) {
-        imageSnapshot.sourceUrl = url;
-        imageSnapshot.displayedUrl = url;
-        imageSnapshot.windowTitleFileName = url.fileName();
-        imageSnapshot.primaryImageSize = QSize(320, 200);
-        imageSnapshot.ready = !url.isEmpty();
-        imageSnapshot.ordinaryDirectMediaScopeActive = !url.isEmpty();
-        imageSnapshot.zoomPercentKnown = true;
-        imageSnapshot.zoomPercent = 100.0;
-    };
+    imageCommands.source.setSource
+        = [&imageSnapshot](const kiriview::ResolvedNavigationSource& source) {
+              const QUrl url = source.requestedUrl();
+              imageSnapshot.sourceUrl = url;
+              imageSnapshot.displayedUrl = url;
+              imageSnapshot.windowTitleFileName = url.fileName();
+              imageSnapshot.primaryImageSize = QSize(320, 200);
+              imageSnapshot.ready = !url.isEmpty();
+              imageSnapshot.ordinaryDirectMediaScopeActive = !url.isEmpty();
+              imageSnapshot.zoomPercentKnown = true;
+              imageSnapshot.zoomPercent = 100.0;
+          };
+    imageCommands.source.clearSource = [&imageSnapshot]() { imageSnapshot = {}; };
     imageCommands.pageNavigation.openPreviousPage = []() { };
     imageCommands.pageNavigation.openNextPage = []() { };
     imageCommands.pageNavigation.openImageAtPage = [](int) { };
@@ -77,8 +80,11 @@ void TestDocumentSessionRuntimeLeafSnapshots::directImageRoutePublishesImageLeaf
     kiriview::DocumentSessionVideoDocumentSnapshotPort videoPort;
     videoPort.snapshot = [&videoSnapshot]() { return videoSnapshot; };
     kiriview::DocumentSessionVideoDocumentCommandPort videoCommands;
-    videoCommands.source.setSourceUrl
-        = [&videoSnapshot](const QUrl& url) { videoSnapshot.sourceUrl = url; };
+    videoCommands.source.setSource
+        = [&videoSnapshot](const kiriview::ResolvedNavigationSource& source) {
+              videoSnapshot.sourceUrl = source.requestedUrl();
+          };
+    videoCommands.source.clearSource = [&videoSnapshot]() { videoSnapshot.sourceUrl = QUrl(); };
     videoCommands.output.videoOutput = []() -> QObject* { return nullptr; };
     videoCommands.playback.stop = []() { };
     videoCommands.output.setVideoOutput = [](QObject*) { };
@@ -111,14 +117,17 @@ void TestDocumentSessionRuntimeLeafSnapshots::imageSnapshotChangeRefreshesPublic
     imagePort.snapshot = [&imageSnapshot]() { return imageSnapshot; };
     imagePort.snapshotChanged = imageSnapshotChangedConnector(emitter);
     kiriview::DocumentSessionImageDocumentCommandPort imageCommands;
-    imageCommands.source.setSourceUrl = [&imageSnapshot](const QUrl& url) {
-        imageSnapshot.sourceUrl = url;
-        imageSnapshot.displayedUrl = url;
-        imageSnapshot.windowTitleFileName = url.fileName();
-        imageSnapshot.primaryImageSize = QSize(320, 200);
-        imageSnapshot.ready = !url.isEmpty();
-        imageSnapshot.ordinaryDirectMediaScopeActive = !url.isEmpty();
-    };
+    imageCommands.source.setSource
+        = [&imageSnapshot](const kiriview::ResolvedNavigationSource& source) {
+              const QUrl url = source.requestedUrl();
+              imageSnapshot.sourceUrl = url;
+              imageSnapshot.displayedUrl = url;
+              imageSnapshot.windowTitleFileName = url.fileName();
+              imageSnapshot.primaryImageSize = QSize(320, 200);
+              imageSnapshot.ready = !url.isEmpty();
+              imageSnapshot.ordinaryDirectMediaScopeActive = !url.isEmpty();
+          };
+    imageCommands.source.clearSource = [&imageSnapshot]() { imageSnapshot = {}; };
     imageCommands.pageNavigation.openPreviousPage = []() { };
     imageCommands.pageNavigation.openNextPage = []() { };
     imageCommands.pageNavigation.openImageAtPage = [](int) { };
@@ -127,8 +136,11 @@ void TestDocumentSessionRuntimeLeafSnapshots::imageSnapshotChangeRefreshesPublic
     kiriview::DocumentSessionVideoDocumentSnapshotPort videoPort;
     videoPort.snapshot = [&videoSnapshot]() { return videoSnapshot; };
     kiriview::DocumentSessionVideoDocumentCommandPort videoCommands;
-    videoCommands.source.setSourceUrl
-        = [&videoSnapshot](const QUrl& url) { videoSnapshot.sourceUrl = url; };
+    videoCommands.source.setSource
+        = [&videoSnapshot](const kiriview::ResolvedNavigationSource& source) {
+              videoSnapshot.sourceUrl = source.requestedUrl();
+          };
+    videoCommands.source.clearSource = [&videoSnapshot]() { videoSnapshot.sourceUrl = QUrl(); };
     videoCommands.output.videoOutput = []() -> QObject* { return nullptr; };
     videoCommands.playback.stop = []() { };
     videoCommands.output.setVideoOutput = [](QObject*) { };
@@ -200,10 +212,13 @@ void TestDocumentSessionRuntimeLeafSnapshots::
     imagePort.snapshot = [&imageSnapshot]() { return imageSnapshot; };
     imagePort.snapshotChanged = imageSnapshotChangedConnector(emitter);
     kiriview::DocumentSessionImageDocumentCommandPort imageCommands;
-    imageCommands.source.setSourceUrl = [&imageSnapshot](const QUrl& url) {
-        imageSnapshot.sourceUrl = url;
-        imageSnapshot.displayedUrl = url;
-    };
+    imageCommands.source.setSource
+        = [&imageSnapshot](const kiriview::ResolvedNavigationSource& source) {
+              const QUrl url = source.requestedUrl();
+              imageSnapshot.sourceUrl = url;
+              imageSnapshot.displayedUrl = url;
+          };
+    imageCommands.source.clearSource = [&imageSnapshot]() { imageSnapshot = {}; };
     imageCommands.source.loadOpenedCollectionVideoPlaybackDevice =
         [&playbackDeviceLoadCount, &loadedPlaybackScopeRootUrl, &loadedPlaybackVideoUrl](
             const kiriview::OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& url) {
@@ -230,10 +245,12 @@ void TestDocumentSessionRuntimeLeafSnapshots::
     kiriview::DocumentSessionVideoDocumentSnapshotPort videoPort;
     videoPort.snapshot = [&videoSnapshot]() { return videoSnapshot; };
     kiriview::DocumentSessionVideoDocumentCommandPort videoCommands;
-    videoCommands.source.setSourceUrl = [&videoSnapshot, &setSourceUrlCount](const QUrl& url) {
-        ++setSourceUrlCount;
-        videoSnapshot.sourceUrl = url;
-    };
+    videoCommands.source.setSource
+        = [&videoSnapshot, &setSourceUrlCount](const kiriview::ResolvedNavigationSource& source) {
+              ++setSourceUrlCount;
+              videoSnapshot.sourceUrl = source.requestedUrl();
+          };
+    videoCommands.source.clearSource = [&videoSnapshot]() { videoSnapshot.sourceUrl = QUrl(); };
     videoCommands.source.setSourceDevice
         = [&videoSnapshot, &setSourceDeviceCount, &videoSourceUrl, &videoDeviceBytes](
               const QUrl& url, kiriview::VideoPlaybackSourceDevice sourceDevice) {

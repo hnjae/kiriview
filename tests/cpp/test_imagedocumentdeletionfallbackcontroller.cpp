@@ -105,7 +105,12 @@ bool planLoadsContainerImage(
 {
     const auto* operation = findOperation<kiriview::LoadContainerImageOperation>(plan);
     return operation != nullptr && operation->target.url == imageUrl
-        && operation->containerUrl == containerUrl;
+        && operation->openedCollectionScope.fileUrl() == containerUrl;
+}
+
+kiriview::ResolvedNavigationSource resolveExternalSource(const QUrl& url)
+{
+    return kiriview::resolvedNavigationSource(url, {});
 }
 }
 
@@ -133,9 +138,10 @@ void TestImageDocumentDeletionFallbackController::imageFallbackOpensNextSibling(
         });
 
     kiriview::ImageDocumentDeletionFallbackController controller(
-        &parent, provider.provider(), [&runtimePlans](kiriview::ImageDocumentRuntimePlan plan) {
-            runtimePlans.push_back(std::move(plan));
-        });
+        &parent, provider.provider(),
+        [&runtimePlans](
+            kiriview::ImageDocumentRuntimePlan plan) { runtimePlans.push_back(std::move(plan)); },
+        resolveExternalSource);
 
     controller.open(kiriview::ImageRemovalFallback {
         kiriview::ImageDocumentPageCandidateListContext::forDirectory(
@@ -157,9 +163,10 @@ void TestImageDocumentDeletionFallbackController::canceledImageFallbackCompletio
     const QUrl nextUrl = localUrl(QStringLiteral("/images/03.png"));
 
     kiriview::ImageDocumentDeletionFallbackController controller(
-        &parent, provider.provider(), [&runtimePlans](kiriview::ImageDocumentRuntimePlan plan) {
-            runtimePlans.push_back(std::move(plan));
-        });
+        &parent, provider.provider(),
+        [&runtimePlans](
+            kiriview::ImageDocumentRuntimePlan plan) { runtimePlans.push_back(std::move(plan)); },
+        resolveExternalSource);
 
     controller.open(kiriview::ImageRemovalFallback {
         kiriview::ImageDocumentPageCandidateListContext::forDirectory(
@@ -195,10 +202,12 @@ void TestImageDocumentDeletionFallbackController::
         });
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> previousArchive
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(previousContainerUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(previousContainerUrl, {}));
     QVERIFY(previousArchive.has_value());
     const std::optional<kiriview::OpenedCollectionScopeLocation> nextArchive
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(nextContainerUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(nextContainerUrl, {}));
     QVERIFY(nextArchive.has_value());
     const QUrl previousPageUrl
         = archivePageUrl(previousArchive->rootUrl(), QStringLiteral("page.png"));
@@ -207,9 +216,10 @@ void TestImageDocumentDeletionFallbackController::
         previousArchive->rootUrl(), { imageDocumentPageCandidate(previousPageUrl) });
 
     kiriview::ImageDocumentDeletionFallbackController controller(
-        &parent, provider.provider(), [&runtimePlans](kiriview::ImageDocumentRuntimePlan plan) {
-            runtimePlans.push_back(std::move(plan));
-        });
+        &parent, provider.provider(),
+        [&runtimePlans](
+            kiriview::ImageDocumentRuntimePlan plan) { runtimePlans.push_back(std::move(plan)); },
+        resolveExternalSource);
 
     controller.open(kiriview::ComicBookRemovalFallback {
         currentContainerUrl,

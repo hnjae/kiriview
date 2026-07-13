@@ -16,11 +16,11 @@
 namespace kiriview {
 struct DocumentSessionMediaDeletionFallbackPlan
 {
-    QUrl targetUrl;
+    QUrl actualTargetUrl;
     std::optional<QUrl> preferredFallbackUrl;
     std::optional<QUrl> fallbackUrl;
 
-    bool hasTarget() const { return !targetUrl.isEmpty(); }
+    bool hasTarget() const { return !actualTargetUrl.isEmpty(); }
 };
 
 struct DocumentSessionMediaDeletionStartPlan
@@ -43,10 +43,10 @@ struct DocumentSessionMediaDeletionCompletionPlan
 };
 
 DocumentSessionMediaDeletionStartPlan documentSessionMediaDeletionStartPlan(FileDeletionMode mode,
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& actualTargetUrl,
     const QUrl& navigationIdentityUrl);
 DocumentSessionMediaDeletionFallbackPlan documentSessionMediaDeletionFallbackPlan(
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& actualTargetUrl,
     const QUrl& navigationIdentityUrl);
 DocumentSessionMediaDeletionCompletionPlan documentSessionMediaDeletionCompletionPlan(
     DocumentSessionKind currentKind, const DocumentSessionMediaDeletionFallbackPlan& fallbackPlan,

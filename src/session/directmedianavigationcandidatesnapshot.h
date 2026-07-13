@@ -9,6 +9,7 @@
 
 #include <QtGlobal>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace kiriview {
@@ -16,7 +17,7 @@ using DirectMediaNavigationCandidateRows = std::vector<DirectMediaNavigationCand
 
 struct DirectMediaNavigationCandidateSnapshot
 {
-    DirectMediaScope source;
+    std::optional<DirectMediaScope> source;
     quint64 revision = 0;
     std::shared_ptr<const DirectMediaNavigationCandidateRows> candidates
         = std::make_shared<const DirectMediaNavigationCandidateRows>();

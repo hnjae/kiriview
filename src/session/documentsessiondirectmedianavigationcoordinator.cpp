@@ -11,8 +11,8 @@
 namespace {
 void logDirectMediaScope(const char* message, const kiriview::DirectMediaScope& scope)
 {
-    qCDebug(kiriviewNavigationLog) << message << "currentUrl" << scope.currentUrl << "parentUrl"
-                                   << scope.parentUrl << "generation" << scope.generation;
+    qCDebug(kiriviewNavigationLog) << message << "currentUrl" << scope.currentUrl() << "parentUrl"
+                                   << scope.parentUrl() << "generation" << scope.generation();
 }
 }
 
@@ -71,10 +71,14 @@ void DocumentSessionDirectMediaNavigationCoordinator::refresh(QObject* receiver)
         return;
     }
 
-    const DirectMediaScope scope = currentScope();
-    logDirectMediaScope("direct media navigation refresh requested", scope);
+    const std::optional<DirectMediaScope> scope = currentScope();
+    if (!scope.has_value()) {
+        m_applicationRuntime.applyInactiveRefresh();
+        return;
+    }
+    logDirectMediaScope("direct media navigation refresh requested", *scope);
     m_navigationRuntime.refresh(
-        receiver, scope,
+        receiver, *scope,
         [this](const DirectMediaScope& acceptedScope) { return cursorMatches(acceptedScope); },
         [this](DocumentSessionDirectMediaNavigationRefreshResult result) {
             m_applicationRuntime.applyRefresh(
@@ -105,8 +109,12 @@ void DocumentSessionDirectMediaNavigationCoordinator::open(
         return;
     }
 
+    const std::optional<DirectMediaScope> scope = currentScope();
+    if (!scope.has_value()) {
+        return;
+    }
     m_navigationRuntime.open(
-        receiver, currentScope(), request,
+        receiver, *scope, request,
         [this](const DirectMediaScope& acceptedScope) { return cursorMatches(acceptedScope); },
         [this](DocumentSessionDirectMediaNavigationOpenResult result) {
             m_applicationRuntime.applyOpen(activeCursorUrl(), std::move(result));
@@ -123,13 +131,14 @@ bool DocumentSessionDirectMediaNavigationCoordinator::directImageSourceScopeElig
     return m_ports.directImageSourceScopeEligible && m_ports.directImageSourceScopeEligible();
 }
 
-DirectMediaScope DocumentSessionDirectMediaNavigationCoordinator::currentScope() const
+std::optional<DirectMediaScope>
+DocumentSessionDirectMediaNavigationCoordinator::currentScope() const
 {
     if (m_ports.currentScope) {
         return m_ports.currentScope();
     }
 
-    return {};
+    return std::nullopt;
 }
 
 bool DocumentSessionDirectMediaNavigationCoordinator::cursorMatches(

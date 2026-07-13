@@ -25,7 +25,8 @@ public:
 
     ImageDocumentDeletionFallbackController(QObject* parent,
         ImageDocumentPageCandidateProvider candidateProvider,
-        RuntimePlanCallback runtimePlanCallback);
+        RuntimePlanCallback runtimePlanCallback,
+        std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
     ~ImageDocumentDeletionFallbackController();
 
     void open(const ImageRemovalFallbackPlan& fallbackPlan);
@@ -41,7 +42,8 @@ private:
     void loadComicBookFallbackImage(quint64 operationId,
         const ContainerNavigationCandidate& candidate,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate);
-    void finishComicBookFallbackImageLoad(quint64 operationId, const QUrl& containerUrl,
+    void finishComicBookFallbackImageLoad(quint64 operationId,
+        OpenedCollectionScopeLocation openedCollectionScope,
         const std::optional<ContainerNavigationCandidate>& fallbackCandidate,
         std::vector<ImageDocumentPageCandidate> candidates);
     void failComicBookFallbackImageLoad(
@@ -51,6 +53,7 @@ private:
     QObject* m_parent = nullptr;
     ImageDocumentPageCandidateRepository m_candidateRepository;
     RuntimePlanCallback m_runtimePlanCallback;
+    std::function<ResolvedNavigationSource(const QUrl&)> m_resolveExternalSource;
     ImageIoJob m_job;
     ImageAsyncOperationState m_operation;
 };

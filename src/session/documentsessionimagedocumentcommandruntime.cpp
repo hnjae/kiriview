@@ -13,41 +13,27 @@ DocumentSessionImageDocumentCommandRuntime::DocumentSessionImageDocumentCommandR
 {
 }
 
-void DocumentSessionImageDocumentCommandRuntime::setSourceUrl(const QUrl& sourceUrl)
-{
-    if (m_commands.source.setSourceUrl) {
-        m_commands.source.setSourceUrl(sourceUrl);
-    }
-}
-
-void DocumentSessionImageDocumentCommandRuntime::setSameScopeImageNavigationSourceUrl(
-    const QUrl& sourceUrl)
-{
-    if (m_commands.source.setSameScopeImageNavigationSourceUrl) {
-        m_commands.source.setSameScopeImageNavigationSourceUrl(sourceUrl);
-    }
-}
-
 void DocumentSessionImageDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
 {
     if (m_commands.source.setSource) {
         m_commands.source.setSource(source);
-        return;
     }
-    setSourceUrl(source.requestedUrl());
 }
 
-void DocumentSessionImageDocumentCommandRuntime::setSameScopeImageNavigationSource(
+void DocumentSessionImageDocumentCommandRuntime::setExternalSourcePreservingPresentation(
     const ResolvedNavigationSource& source)
 {
-    if (m_commands.source.setSameScopeImageNavigationSource) {
-        m_commands.source.setSameScopeImageNavigationSource(source);
-        return;
+    if (m_commands.source.setExternalSourcePreservingPresentation) {
+        m_commands.source.setExternalSourcePreservingPresentation(source);
     }
-    setSameScopeImageNavigationSourceUrl(source.requestedUrl());
 }
 
-void DocumentSessionImageDocumentCommandRuntime::clearSourceUrl() { setSourceUrl(QUrl()); }
+void DocumentSessionImageDocumentCommandRuntime::clearSourceUrl()
+{
+    if (m_commands.source.clearSource) {
+        m_commands.source.clearSource();
+    }
+}
 
 MediaEntrySourceVideoPlaybackDeviceResult
 DocumentSessionImageDocumentCommandRuntime::loadOpenedCollectionVideoPlaybackDevice(

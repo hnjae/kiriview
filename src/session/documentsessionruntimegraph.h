@@ -170,7 +170,7 @@ private:
     const DocumentSessionVideoDocumentSnapshotPort& m_videoDocument;
     DocumentSessionVideoDocumentCommandRuntime m_videoDocumentCommandRuntime;
     DocumentSessionState& m_state;
-    NavigationSourceFactProvider m_navigationSourceFacts;
+    NavigationSourceResolver m_navigationSourceResolver;
     ResolvedNavigationSource m_routeNavigationSource;
     DocumentSessionVideoDocumentSyncRuntime m_videoDocumentSyncRuntime;
     DocumentSessionDirectMediaScopePort m_directMediaScopePort;

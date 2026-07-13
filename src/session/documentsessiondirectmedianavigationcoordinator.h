@@ -11,6 +11,7 @@
 
 #include <QUrl>
 #include <functional>
+#include <optional>
 #include <vector>
 
 class QObject;
@@ -20,7 +21,7 @@ struct DocumentSessionDirectMediaNavigationCoordinatorPorts
 {
     std::function<bool()> navigationActive;
     std::function<bool()> directImageSourceScopeEligible;
-    std::function<DirectMediaScope()> currentScope;
+    std::function<std::optional<DirectMediaScope>()> currentScope;
     std::function<bool(const DirectMediaScope&)> cursorMatches;
     std::function<QUrl()> activeCursorUrl;
     std::function<ActiveNavigationSourceKind()> activeNavigationSourceKind;
@@ -52,7 +53,7 @@ public:
 private:
     bool navigationActive() const;
     bool directImageSourceScopeEligible() const;
-    DirectMediaScope currentScope() const;
+    std::optional<DirectMediaScope> currentScope() const;
     bool cursorMatches(const DirectMediaScope& scope) const;
     QUrl activeCursorUrl() const;
     ActiveNavigationSourceKind activeNavigationSourceKind() const;

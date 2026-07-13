@@ -45,9 +45,11 @@ kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateS
     std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
 {
     kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
-    snapshot.source.currentUrl = candidates.empty() ? QUrl() : candidates.front().url;
-    snapshot.source.parentUrl = localUrl(QStringLiteral("/media"));
-    snapshot.source.generation = 4;
+    if (!candidates.empty()) {
+        snapshot.source = kiriview::DirectMediaScope::fromSource(
+            kiriview::ResolvedNavigationSource(candidates.front().url, {}, candidates.front().url),
+            4);
+    }
     snapshot.revision = 1;
     snapshot.candidates
         = std::make_shared<const std::vector<kiriview::DirectMediaNavigationCandidate>>(

@@ -162,6 +162,7 @@ std::optional<ActiveNavigationThumbnailRowSetIdentity> activeNavigationThumbnail
         const DirectMediaNavigationCandidateRows& rows
             = directMediaNavigationCandidateRows(directMediaNavigationCandidateSnapshot);
         if (!directMediaNavigationCandidateSnapshot.known
+            || !directMediaNavigationCandidateSnapshot.source.has_value()
             || static_cast<int>(rows.size()) != navigation.count) {
             return std::nullopt;
         }

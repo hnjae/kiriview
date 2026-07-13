@@ -11,10 +11,12 @@
 #include "session/mediaopenwith.h"
 #include "system/filedeletion.h"
 
+#include <optional>
+
 namespace kiriview {
 struct DocumentSessionRuntimeDependencies
 {
-    NavigationSourceFactProvider navigationSourceFacts;
+    std::optional<NavigationSourceResolver> navigationSourceResolver;
     DirectMediaNavigationCandidateProvider directMediaNavigationCandidateProvider;
     FileDeletionProvider fileDeletionProvider;
     MediaOpenWithProvider mediaOpenWithProvider;

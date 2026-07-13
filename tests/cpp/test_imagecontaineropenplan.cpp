@@ -7,6 +7,7 @@
 #include "location/imagedocumentlocation.h"
 
 #include <QObject>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 #include <optional>
@@ -46,10 +47,15 @@ private Q_SLOTS:
 
 void TestImageContainerOpenPlan::directoryContainerPlansDirectoryListing()
 {
-    const QUrl containerUrl = localUrl(QStringLiteral("/books/a/"));
-    const kiriview::ImageContainerOpenPlan plan
-        = kiriview::imageContainerOpenPlanForCandidate(kiriview::ContainerNavigationCandidate {
-            containerUrl, QStringLiteral("a"), ContainerNavigationCandidateType::Directory });
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    const QUrl containerUrl = localUrl(temporaryDirectory.path());
+    const kiriview::ResolvedNavigationSource source
+        = kiriview::resolvedNavigationSource(containerUrl, {});
+    const kiriview::ImageContainerOpenPlan plan = kiriview::imageContainerOpenPlanForCandidate(
+        kiriview::ContainerNavigationCandidate {
+            containerUrl, QStringLiteral("a"), ContainerNavigationCandidateType::Directory },
+        source);
 
     QVERIFY(plan.shouldLoadCandidates());
     const auto* directory
@@ -62,12 +68,14 @@ void TestImageContainerOpenPlan::comicBookArchiveContainerPlansArchiveListing()
 {
     const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(containerUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(containerUrl, {}));
     QVERIFY(openedCollectionScope.has_value());
 
     const kiriview::ImageContainerOpenPlan plan = kiriview::imageContainerOpenPlanForCandidate(
         kiriview::ContainerNavigationCandidate { containerUrl, QStringLiteral("book.cbz"),
-            ContainerNavigationCandidateType::ComicBookArchive });
+            ContainerNavigationCandidateType::ComicBookArchive },
+        kiriview::resolvedNavigationSource(containerUrl, {}));
 
     QVERIFY(plan.shouldLoadCandidates());
     const auto* archive
@@ -82,7 +90,8 @@ void TestImageContainerOpenPlan::invalidArchiveContainerReportsTypedError()
     const QUrl containerUrl = localUrl(QStringLiteral("/books/not-an-archive.png"));
     const kiriview::ImageContainerOpenPlan plan = kiriview::imageContainerOpenPlanForCandidate(
         kiriview::ContainerNavigationCandidate { containerUrl, QStringLiteral("not-an-archive.png"),
-            ContainerNavigationCandidateType::ComicBookArchive });
+            ContainerNavigationCandidateType::ComicBookArchive },
+        kiriview::resolvedNavigationSource(containerUrl, {}));
 
     QVERIFY(!plan.shouldLoadCandidates());
     QCOMPARE(plan.error, ImageContainerOpenError::InvalidComicBookArchive);

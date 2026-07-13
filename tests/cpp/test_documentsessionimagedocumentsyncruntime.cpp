@@ -14,7 +14,7 @@ class TestDocumentSessionImageDocumentSyncRuntime : public QObject
 
 private Q_SLOTS:
     void ignoresRoutingAndInactiveDocumentKind();
-    void confirmsDirectImageCursorBeforeRefreshingNavigation();
+    void confirmsDirectImageCursorWithoutRefreshingNavigation();
     void mirrorsDeletionProgressWhenImageDocumentOwnsSourceScope();
     void syncsCollectionScopeWithoutInactiveDirectMediaRefresh();
     void publishesImagePageNavigationWhenTheLeafNavigationChanges();
@@ -38,7 +38,6 @@ struct ImageSyncFixture
 
     std::vector<Event> events;
     QUrl confirmedCursorUrl;
-    bool confirmedCursorChanged = true;
     bool restoredCursorChanged = true;
     QUrl sourceIdentity;
     bool fileDeletionInProgress = false;
@@ -47,7 +46,7 @@ struct ImageSyncFixture
             [this](const QUrl& url) {
                 events.push_back(Event::ConfirmDirectImageCursor);
                 confirmedCursorUrl = url;
-                return confirmedCursorChanged;
+                return kiriview::DirectMediaConfirmation::Committed;
             },
             [this]() {
                 events.push_back(Event::RestoreDirectImageCursorAfterFailure);
@@ -102,7 +101,7 @@ void TestDocumentSessionImageDocumentSyncRuntime::ignoresRoutingAndInactiveDocum
 }
 
 void TestDocumentSessionImageDocumentSyncRuntime::
-    confirmsDirectImageCursorBeforeRefreshingNavigation()
+    confirmsDirectImageCursorWithoutRefreshingNavigation()
 {
     ImageSyncFixture fixture;
     const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
@@ -118,7 +117,7 @@ void TestDocumentSessionImageDocumentSyncRuntime::
         (std::vector<ImageSyncFixture::Event> {
             ImageSyncFixture::Event::ConfirmDirectImageCursor,
             ImageSyncFixture::Event::SetSourceIdentity,
-            ImageSyncFixture::Event::RefreshNavigation,
+            ImageSyncFixture::Event::CacheDisplayedPredecode,
             ImageSyncFixture::Event::Publish,
         }));
 }
@@ -174,7 +173,6 @@ void TestDocumentSessionImageDocumentSyncRuntime::
     publishesImagePageNavigationWhenTheLeafNavigationChanges()
 {
     ImageSyncFixture fixture;
-    fixture.confirmedCursorChanged = false;
     const QUrl imageUrl = localUrl(QStringLiteral("/media/01.png"));
     kiriview::DocumentSessionImageDocumentSyncRuntimeInput input = activeInput(imageUrl);
     input.directImageLoadMayUseImageDocumentSourceScope = true;

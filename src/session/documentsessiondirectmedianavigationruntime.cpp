@@ -33,7 +33,8 @@ void DocumentSessionDirectMediaNavigationRuntime::refresh(QObject* receiver,
 {
     startLoad(receiver, scope, std::move(scopeAccepted),
         [callback = std::move(callback),
-            currentUrl = scope.navigationUrl.isEmpty() ? scope.currentUrl : scope.navigationUrl](
+            currentUrl
+            = scope.navigationUrl().isEmpty() ? scope.currentUrl() : scope.navigationUrl()](
             DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
             if (!result.succeeded) {
                 invokeIfSet(callback,
@@ -56,7 +57,8 @@ void DocumentSessionDirectMediaNavigationRuntime::open(QObject* receiver,
 {
     startLoad(receiver, scope, std::move(scopeAccepted),
         [callback = std::move(callback),
-            currentUrl = scope.navigationUrl.isEmpty() ? scope.currentUrl : scope.navigationUrl,
+            currentUrl
+            = scope.navigationUrl().isEmpty() ? scope.currentUrl() : scope.navigationUrl(),
             request](DocumentSessionDirectMediaNavigationCandidatesResult result) mutable {
             if (!result.succeeded) {
                 invokeIfSet(callback,
@@ -78,14 +80,14 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
 {
     cancel();
 
-    if (scope.currentUrl.isEmpty() || scope.parentUrl.isEmpty() || !scope.parentUrl.isValid()
+    if (scope.currentUrl().isEmpty() || scope.parentUrl().isEmpty() || !scope.parentUrl().isValid()
         || !m_provider.directoryCandidateLoader) {
         qCDebug(kiriviewNavigationLog)
             << "direct media navigation candidate load skipped"
             << "reason"
             << "invalid-scope"
-            << "currentUrl" << scope.currentUrl << "parentUrl" << scope.parentUrl << "generation"
-            << scope.generation << "providerPresent"
+            << "currentUrl" << scope.currentUrl() << "parentUrl" << scope.parentUrl()
+            << "generation" << scope.generation() << "providerPresent"
             << static_cast<bool>(m_provider.directoryCandidateLoader);
         invokeIfSet(callback, DocumentSessionDirectMediaNavigationCandidatesResult {});
         return;
@@ -94,13 +96,13 @@ void DocumentSessionDirectMediaNavigationRuntime::startLoad(QObject* receiver,
     const DocumentSessionDirectMediaNavigationLoad load = m_loadState.start(scope);
     qCDebug(kiriviewNavigationLog)
         << "direct media navigation candidate load started"
-        << "operationId" << load.operationId << "currentUrl" << scope.currentUrl << "parentUrl"
-        << scope.parentUrl << "generation" << scope.generation;
+        << "operationId" << load.operationId << "currentUrl" << scope.currentUrl() << "parentUrl"
+        << scope.parentUrl() << "generation" << scope.generation();
     auto sharedScopeAccepted = std::make_shared<ScopeAccepted>(std::move(scopeAccepted));
     auto sharedCallback = std::make_shared<CandidatesCallback>(std::move(callback));
 
     m_job = m_provider.directoryCandidateLoader(
-        receiver, scope.parentUrl,
+        receiver, scope.parentUrl(),
         [this, load, sharedScopeAccepted, sharedCallback](
             std::vector<DirectMediaNavigationCandidate> candidates) mutable {
             finish(load,
@@ -131,8 +133,8 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
             << "direct media navigation candidate load ignored"
             << "reason"
             << "stale-load"
-            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl
-            << "parentUrl" << load.scope.parentUrl << "generation" << load.scope.generation;
+            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl()
+            << "parentUrl" << load.scope.parentUrl() << "generation" << load.scope.generation();
         return;
     }
 
@@ -141,8 +143,8 @@ void DocumentSessionDirectMediaNavigationRuntime::finish(
             << "direct media navigation candidate load ignored"
             << "reason"
             << "scope-rejected"
-            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl
-            << "parentUrl" << load.scope.parentUrl << "generation" << load.scope.generation;
+            << "operationId" << load.operationId << "currentUrl" << load.scope.currentUrl()
+            << "parentUrl" << load.scope.parentUrl() << "generation" << load.scope.generation();
         return;
     }
 

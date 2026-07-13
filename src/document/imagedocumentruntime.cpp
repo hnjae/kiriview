@@ -54,6 +54,9 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
     , state(changeBatcher)
     , changeCallback(std::move(changeCallback))
     , renderContextProvider(std::move(renderContextProvider))
+    , navigationSourceResolver(dependencies.navigationSourceResolver.has_value()
+              ? std::move(*dependencies.navigationSourceResolver)
+              : NavigationSourceResolver())
 {
     runtimeGraph = std::make_unique<ImageDocumentRuntimeGraph>(documentObject, state,
         std::move(dependencies),
@@ -61,6 +64,7 @@ ImageDocumentRuntime::ImageDocumentRuntime(QObject* documentObject,
             [this]() { return renderContext(); },
             [this](const std::vector<ImageDocumentChange>& changes) { notify(changes); },
             [this](const ImageDocumentSourceLoadRequest& request) { loadSource(request); },
+            [this](const QUrl& url) { return navigationSourceResolver.resolveExternalSource(url); },
             std::move(fileDeletionFailedCallback),
             std::move(unsupportedOpenedCollectionVideoEnteredCallback),
             std::move(containerNavigationBoundaryReachedCallback),
@@ -75,22 +79,19 @@ ImageDocumentPageKind ImageDocumentRuntime::sourceKind() const { return state.so
 
 void ImageDocumentRuntime::setSourceUrl(const QUrl& sourceUrl)
 {
-    loadSource(ImageDocumentSourceLoadRequest::fromUrl(sourceUrl));
-}
-
-void ImageDocumentRuntime::setSameScopeImageNavigationSourceUrl(const QUrl& sourceUrl)
-{
-    loadSource(ImageDocumentSourceLoadRequest::fromSameScopeImageNavigationUrl(sourceUrl));
+    setSource(navigationSourceResolver.resolveExternalSource(sourceUrl));
 }
 
 void ImageDocumentRuntime::setSource(const ResolvedNavigationSource& source)
 {
-    loadSource(ImageDocumentSourceLoadRequest::fromSource(source));
+    loadSource(ImageDocumentSourceLoadRequest::fromExternalSource(source));
 }
 
-void ImageDocumentRuntime::setSameScopeImageNavigationSource(const ResolvedNavigationSource& source)
+void ImageDocumentRuntime::setExternalSourcePreservingPresentation(
+    const ResolvedNavigationSource& source)
 {
-    loadSource(ImageDocumentSourceLoadRequest::fromSameScopeImageNavigationSource(source));
+    loadSource(ImageDocumentSourceLoadRequest::fromExternalSource(
+        source, ImageDocumentPageKind::Image, true));
 }
 
 MediaEntrySourceVideoPlaybackDeviceResult

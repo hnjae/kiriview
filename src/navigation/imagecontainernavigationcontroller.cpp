@@ -119,38 +119,48 @@ void ImageContainerNavigationController::finishContainerNavigationListWithError(
 void ImageContainerNavigationController::loadFirstImageFromContainerNavigation(
     quint64 operationId, const ContainerNavigationCandidate& container)
 {
-    const ImageContainerOpenPlan plan = imageContainerOpenPlanForCandidate(container);
+    if (!m_callbacks.resolveExternalSource) {
+        finishContainerNavigationLoadWithError(
+            operationId, container.url, ImageContainerOpenError::Generic, QString());
+        return;
+    }
+    const ImageContainerOpenPlan plan = imageContainerOpenPlanForCandidate(
+        container, m_callbacks.resolveExternalSource(container.url));
     if (!plan.shouldLoadCandidates()) {
         finishContainerNavigationLoadWithError(operationId, container.url, plan.error, QString());
         return;
     }
 
-    const QUrl containerUrl = container.url;
     m_firstImageJob = m_candidateRepository.loadImages(
         this, *plan.source,
-        [this, operationId, containerUrl](std::vector<ImageDocumentPageCandidate> candidates) {
-            finishContainerNavigationImageLoad(operationId, containerUrl, std::move(candidates));
+        [this, operationId, scope = plan.openedCollectionScope](
+            std::vector<ImageDocumentPageCandidate> candidates) mutable {
+            finishContainerNavigationImageLoad(
+                operationId, std::move(scope), std::move(candidates));
         },
-        [this, operationId, containerUrl](const QString& errorString) {
+        [this, operationId, containerUrl = container.url](const QString& errorString) {
             finishContainerNavigationLoadWithError(
                 operationId, containerUrl, ImageContainerOpenError::Generic, errorString);
         });
 }
 
 void ImageContainerNavigationController::finishContainerNavigationImageLoad(quint64 operationId,
-    const QUrl& containerUrl, std::vector<ImageDocumentPageCandidate> candidates)
+    OpenedCollectionScopeLocation openedCollectionScope,
+    std::vector<ImageDocumentPageCandidate> candidates)
 {
     const ImageContainerOpenResult result = imageContainerOpenResultForCandidates(candidates);
     if (result.openedImage()) {
-        openImageFromContainerNavigation(operationId, *result.target, containerUrl);
+        openImageFromContainerNavigation(
+            operationId, *result.target, std::move(openedCollectionScope));
         return;
     }
 
-    finishContainerNavigationLoadWithError(operationId, containerUrl, result.error, QString());
+    finishContainerNavigationLoadWithError(
+        operationId, openedCollectionScope.fileUrl(), result.error, QString());
 }
 
-void ImageContainerNavigationController::openImageFromContainerNavigation(
-    quint64 operationId, const ImageDocumentPageTarget& target, const QUrl& containerUrl)
+void ImageContainerNavigationController::openImageFromContainerNavigation(quint64 operationId,
+    const ImageDocumentPageTarget& target, OpenedCollectionScopeLocation openedCollectionScope)
 {
     if (!m_navigationState.finishNavigation(operationId)) {
         return;
@@ -159,7 +169,7 @@ void ImageContainerNavigationController::openImageFromContainerNavigation(
     reportNavigationPlan(
         ImageDocumentPageNavigationPlan { OpenContainerImageDocumentPageNavigationEffect {
             target,
-            containerUrl,
+            std::move(openedCollectionScope),
         } });
 }
 

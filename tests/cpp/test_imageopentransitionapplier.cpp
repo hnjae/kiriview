@@ -75,14 +75,17 @@ void TestImageOpenTransitionApplier::applicationPlanResolvesRuntimeTargetsBefore
 {
     const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(containerUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(containerUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     const kiriview::DisplayedImageLocation location
         = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(imageUrl, *archiveCollection);
     const kiriview::ImageLoadSession session {
         5,
-        kiriview::ImageLoadRequest::fromUrl(imageUrl, containerUrl),
+        kiriview::ImageLoadRequest::fromContainerTarget(
+            kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+            *archiveCollection),
         location,
     };
     kiriview::ImageOpenTransition transition;
@@ -124,14 +127,16 @@ void TestImageOpenTransitionApplier::successfulTransitionAppliesSessionStateAndE
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     const kiriview::DisplayedImageLocation location
         = kiriview::DisplayedImageLocation::fromOpenedCollectionScope(imageUrl, *archiveCollection);
     const kiriview::ImageLoadSession session {
         7,
-        kiriview::ImageLoadRequest::fromUrl(archiveUrl),
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {})),
         location,
     };
     kiriview::ImageOpenTransition transition;
@@ -173,7 +178,8 @@ void TestImageOpenTransitionApplier::successfulTransitionPublishesEmbeddedMetada
     const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
     const kiriview::ImageLoadSession session {
         11,
-        kiriview::ImageLoadRequest::fromUrl(imageUrl),
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(imageUrl, {})),
         kiriview::DisplayedImageLocation::fromUrl(imageUrl),
     };
     kiriview::EmbeddedMetadata metadata;
@@ -211,7 +217,8 @@ void TestImageOpenTransitionApplier::errorTransitionUsesDisplayedFallbackAndProv
 
     const kiriview::ImageLoadSession session {
         9,
-        kiriview::ImageLoadRequest::fromUrl(failedImageUrl),
+        kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(failedImageUrl, {})),
         kiriview::DisplayedImageLocation::fromUrl(failedImageUrl),
     };
     kiriview::ImageOpenTransition transition;

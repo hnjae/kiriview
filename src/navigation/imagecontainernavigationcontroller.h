@@ -28,6 +28,7 @@ public:
     struct Callbacks
     {
         NavigationPlanCallback navigationPlan;
+        std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource;
     };
 
     ImageContainerNavigationController(QObject* parent,
@@ -47,10 +48,11 @@ private:
         const QString& errorString);
     void loadFirstImageFromContainerNavigation(
         quint64 operationId, const ContainerNavigationCandidate& container);
-    void finishContainerNavigationImageLoad(quint64 operationId, const QUrl& containerUrl,
+    void finishContainerNavigationImageLoad(quint64 operationId,
+        OpenedCollectionScopeLocation openedCollectionScope,
         std::vector<ImageDocumentPageCandidate> candidates);
-    void openImageFromContainerNavigation(
-        quint64 operationId, const ImageDocumentPageTarget& target, const QUrl& containerUrl);
+    void openImageFromContainerNavigation(quint64 operationId,
+        const ImageDocumentPageTarget& target, OpenedCollectionScopeLocation openedCollectionScope);
     void finishContainerNavigationLoadWithError(quint64 operationId, const QUrl& containerUrl,
         ContainerNavigationError error, const QString& errorString);
     void reportNavigationPlan(ImageDocumentPageNavigationPlan plan);

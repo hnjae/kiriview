@@ -21,6 +21,7 @@ private Q_SLOTS:
     void emptyTargetDoesNotStartFileOperation();
     void startRunsFileOperationAndPublishesCompletionPlan();
     void directMediaStartLoadsCandidatesBeforeFileOperation();
+    void directMediaStartKeepsActualTargetSeparateFromNavigationIdentity();
     void directMediaCandidateLoadCancelRejectsLateCompletion();
     void cancelRejectsLateCompletion();
     void replacementStartRejectsStaleCompletion();
@@ -89,14 +90,8 @@ private:
 
 kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
 {
-    return kiriview::DirectMediaScope {
-        currentUrl,
-        localUrl(QStringLiteral("/media/")),
-        7,
-        kiriview::sourceKeyForUrl(currentUrl),
-        kiriview::sourceKeyForUrl(localUrl(QStringLiteral("/media/"))),
-        currentUrl,
-    };
+    return *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(currentUrl, {}, currentUrl), 7);
 }
 
 template <typename Operation>
@@ -221,6 +216,29 @@ void TestDocumentSessionMediaDeletionRuntime::directMediaStartLoadsCandidatesBef
 
     QCOMPARE(fixture.completionCount, 1);
     QVERIFY(fixture.completion.plan.hasRoutePlan());
+    QCOMPARE(fixture.completion.plan.routePlan.sourceUrl, nextUrl);
+}
+
+void TestDocumentSessionMediaDeletionRuntime::
+    directMediaStartKeepsActualTargetSeparateFromNavigationIdentity()
+{
+    RuntimeFixture fixture;
+    const QUrl actualTargetUrl = localUrl(QStringLiteral("/portal/02.mp4"));
+    const QUrl navigationIdentityUrl = localUrl(QStringLiteral("/media/02.mp4"));
+    const QUrl previousUrl = localUrl(QStringLiteral("/media/01.jpg"));
+    const QUrl nextUrl = localUrl(QStringLiteral("/media/03.png"));
+    const kiriview::DirectMediaScope scope = *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(actualTargetUrl, {}, navigationIdentityUrl), 7);
+
+    QVERIFY(fixture.startDirectMedia(kiriview::FileDeletionMode::MoveToTrash, scope));
+    QCOMPARE(fixture.candidateProvider.loadAt(0).parentUrl, localUrl(QStringLiteral("/media/")));
+    fixture.candidateProvider.deliverIgnoringCancellation(0,
+        { directMediaNavigationCandidate(previousUrl),
+            directMediaNavigationCandidate(navigationIdentityUrl),
+            directMediaNavigationCandidate(nextUrl) });
+
+    QCOMPARE(fixture.fileDeletionProvider.backOperation().request.targetUrl, actualTargetUrl);
+    fixture.fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);
     QCOMPARE(fixture.completion.plan.routePlan.sourceUrl, nextUrl);
 }
 

@@ -231,7 +231,7 @@ QUrl DocumentSessionState::directMediaCursorUrl() const
     return effectiveDirectMediaCursorUrl(m_directMediaCursor);
 }
 
-DirectMediaScope DocumentSessionState::directMediaScope() const
+std::optional<DirectMediaScope> DocumentSessionState::directMediaScope() const
 {
     return directMediaScopeForCursor(m_directMediaCursor);
 }
@@ -286,7 +286,7 @@ void DocumentSessionState::setActiveNavigationRevealDirection(
 void DocumentSessionState::setDirectMediaNavigation(DirectMediaNavigationBoundaryState state,
     bool known, std::vector<DirectMediaNavigationCandidate> candidates)
 {
-    const DirectMediaScope source = directMediaScope();
+    const std::optional<DirectMediaScope> source = directMediaScope();
     const bool sameSource = m_directMediaNavigationCandidateSnapshot.source == source;
     const bool sameCandidates = sameDirectMediaNavigationCandidates(
         directMediaNavigationCandidateRows(m_directMediaNavigationCandidateSnapshot), candidates);
@@ -433,7 +433,7 @@ bool DocumentSessionState::requestDirectImageCursor(ResolvedNavigationSource sou
     return kiriview::requestDirectImageCursor(m_directMediaCursor, std::move(source));
 }
 
-bool DocumentSessionState::confirmDirectImageCursor(const QUrl& url)
+DirectMediaConfirmation DocumentSessionState::confirmDirectImageCursor(const QUrl& url)
 {
     return kiriview::confirmDirectImageCursor(m_directMediaCursor, url);
 }

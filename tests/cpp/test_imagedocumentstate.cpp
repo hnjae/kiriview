@@ -50,7 +50,8 @@ void TestImageDocumentState::displayedUrlAndWindowTitleFollowDisplayedImageLocat
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl firstArchivePageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page001.png"));

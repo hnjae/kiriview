@@ -10,10 +10,7 @@ OpenedCollectionScopeLocation openedCollectionScopeForImageDocumentSourceLoad(
     const ImageDocumentSourceLoadRequest& request,
     const OpenedCollectionScopeLocation& displayedOpenedCollectionScope)
 {
-    return openedCollectionScopeLoadPlan(
-        ImageLoadRequest::fromTarget(
-            ImageDocumentPageTarget { request.sourceUrl, request.sourceKind },
-            displayedOpenedCollectionScope, request.containerNavigationUrl))
-        .openedCollectionScope;
+    Q_UNUSED(displayedOpenedCollectionScope);
+    return openedCollectionScopeLoadPlan(request).openedCollectionScope;
 }
 }

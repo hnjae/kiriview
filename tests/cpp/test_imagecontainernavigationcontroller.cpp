@@ -170,8 +170,8 @@ kiriview::ImageContainerNavigationController::Callbacks controllerCallbacks(
                 if (const auto* openEffect
                     = std::get_if<kiriview::OpenContainerImageDocumentPageNavigationEffect>(
                         &effect)) {
-                    kiriview::invokeIfSet(
-                        openContainerImage, openEffect->target.url, openEffect->containerUrl);
+                    kiriview::invokeIfSet(openContainerImage, openEffect->target.url,
+                        openEffect->openedCollectionScope.fileUrl());
                 } else if (const auto* errorEffect
                     = std::get_if<kiriview::ReportContainerNavigationErrorEffect>(&effect)) {
                     kiriview::invokeIfSet(containerNavigationError, errorEffect->containerUrl,
@@ -185,6 +185,7 @@ kiriview::ImageContainerNavigationController::Callbacks controllerCallbacks(
                 }
             }
         },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); },
     };
 }
 }
@@ -248,7 +249,8 @@ void TestImageContainerNavigationController::opensFirstImageFromAdjacentArchiveC
     const QUrl currentContainerUrl = localUrl(QStringLiteral("/books/a/"));
     const QUrl targetContainerUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(targetContainerUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(targetContainerUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl targetImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));

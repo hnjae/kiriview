@@ -80,7 +80,8 @@ void TestImageRemovalFallback::directArchiveCollectionPlanTargetsArchiveFile()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page.png"));
 
@@ -98,7 +99,8 @@ void TestImageRemovalFallback::directoryCollectionPlanTargetsDirectory()
 
     const QUrl directoryUrl = QUrl::fromLocalFile(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalUrl(directoryUrl);
+        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {}));
     QVERIFY(directoryCollection.has_value());
     QUrl pageUrl = directoryCollection->rootUrl();
     pageUrl.setPath(directoryCollection->rootUrl().path() + QStringLiteral("page.png"));
@@ -128,7 +130,8 @@ void TestImageRemovalFallback::comicBookPagePlanUsesArchiveContainer()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page.png"));
 
@@ -146,7 +149,8 @@ void TestImageRemovalFallback::generalArchivePageHasNoFallbackPlan()
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/archives/document.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("page.png"));
 

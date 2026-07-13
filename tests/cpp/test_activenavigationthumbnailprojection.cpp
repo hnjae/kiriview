@@ -23,6 +23,10 @@ kiriview::DirectMediaNavigationCandidateSnapshot directMediaNavigationCandidateS
     std::vector<kiriview::DirectMediaNavigationCandidate> candidates)
 {
     kiriview::DirectMediaNavigationCandidateSnapshot snapshot;
+    if (!candidates.empty()) {
+        snapshot.source = kiriview::DirectMediaScope::fromSource(
+            kiriview::resolvedNavigationSource(candidates.front().url, {}), 1);
+    }
     snapshot.revision = 1;
     snapshot.candidates
         = std::make_shared<const std::vector<kiriview::DirectMediaNavigationCandidate>>(

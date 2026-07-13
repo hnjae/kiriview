@@ -264,20 +264,15 @@ kiriview::ImageDocumentPageKind KiriImageDocument::sourceKind() const
 
 void KiriImageDocument::setSourceUrl(const QUrl& sourceUrl) { m_runtime->setSourceUrl(sourceUrl); }
 
-void KiriImageDocument::setSameScopeImageNavigationSourceUrl(const QUrl& sourceUrl)
-{
-    m_runtime->setSameScopeImageNavigationSourceUrl(sourceUrl);
-}
-
 void KiriImageDocument::setSource(const kiriview::ResolvedNavigationSource& source)
 {
     m_runtime->setSource(source);
 }
 
-void KiriImageDocument::setSameScopeImageNavigationSource(
+void KiriImageDocument::setExternalSourcePreservingPresentation(
     const kiriview::ResolvedNavigationSource& source)
 {
-    m_runtime->setSameScopeImageNavigationSource(source);
+    m_runtime->setExternalSourcePreservingPresentation(source);
 }
 
 kiriview::MediaEntrySourceVideoPlaybackDeviceResult

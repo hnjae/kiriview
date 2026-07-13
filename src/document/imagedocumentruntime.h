@@ -35,7 +35,7 @@ class QObject;
 
 namespace kiriview {
 class ImageDocumentRuntimeGraph;
-struct ImageDocumentSourceLoadRequest;
+class ImageDocumentSourceLoadRequest;
 
 class ImageDocumentRuntime final
 {
@@ -58,9 +58,8 @@ public:
     QUrl sourceUrl() const;
     ImageDocumentPageKind sourceKind() const;
     void setSourceUrl(const QUrl& sourceUrl);
-    void setSameScopeImageNavigationSourceUrl(const QUrl& sourceUrl);
     void setSource(const ResolvedNavigationSource& source);
-    void setSameScopeImageNavigationSource(const ResolvedNavigationSource& source);
+    void setExternalSourcePreservingPresentation(const ResolvedNavigationSource& source);
     MediaEntrySourceVideoPlaybackDeviceResult loadOpenedCollectionVideoPlaybackDevice(
         const OpenedCollectionScopeLocation& openedCollectionScope, const QUrl& videoUrl) const;
     ImageDocumentStatus status() const;
@@ -179,6 +178,7 @@ private:
     ImageDocumentState state;
     ChangeCallback changeCallback;
     RenderContextProvider renderContextProvider;
+    NavigationSourceResolver navigationSourceResolver;
     std::unique_ptr<ImageDocumentRuntimeGraph> runtimeGraph;
     ImageViewportInteraction viewportInteraction;
 };

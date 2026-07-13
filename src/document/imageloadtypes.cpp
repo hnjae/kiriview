@@ -10,7 +10,7 @@ ImageLoadSession::ImageLoadSession(quint64 id, ImageLoadRequest request,
     DisplayedImageLocation location, ImageFirstDisplayDecodeContext firstDisplay)
     : m_id(id)
     , m_request(std::move(request))
-    , m_kind(m_request.kind())
+    , m_kind(m_request->sourceKind())
     , m_location(std::move(location))
     , m_firstDisplay(firstDisplay)
 {
@@ -18,7 +18,7 @@ ImageLoadSession::ImageLoadSession(quint64 id, ImageLoadRequest request,
 
 quint64 ImageLoadSession::id() const { return m_id; }
 
-const ImageLoadRequest& ImageLoadSession::request() const { return m_request; }
+const ImageLoadRequest& ImageLoadSession::request() const { return *m_request; }
 
 const DisplayedImageLocation& ImageLoadSession::location() const { return m_location; }
 
@@ -36,9 +36,9 @@ const OpenedCollectionScopeLocation& ImageLoadSession::openedCollectionScope() c
     return m_location.openedCollectionScope();
 }
 
-const QUrl& ImageLoadSession::containerNavigationUrl() const
+QUrl ImageLoadSession::containerNavigationUrl() const
 {
-    return m_request.containerNavigationUrl();
+    return m_request.has_value() ? m_request->containerNavigationUrl() : QUrl();
 }
 
 bool ImageLoadSession::hasContainerNavigationTarget() const

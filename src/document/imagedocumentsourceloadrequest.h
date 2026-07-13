@@ -4,88 +4,132 @@
 #ifndef KIRIVIEW_IMAGEDOCUMENTSOURCELOADREQUEST_H
 #define KIRIVIEW_IMAGEDOCUMENTSOURCELOADREQUEST_H
 
-#include "location/imageurl.h"
+#include "location/imagelocation.h"
 #include "navigation/imagedocumentpagenavigationtypes.h"
 
-#include <QUrl>
-#include <optional>
+#include <type_traits>
+#include <utility>
+#include <variant>
 
 namespace kiriview {
-struct ImageDocumentSourceLoadRequest
+struct ExternalResolvedSource
 {
-    QUrl sourceUrl;
-    ImageDocumentPageKind sourceKind = ImageDocumentPageKind::Image;
-    QUrl containerNavigationUrl;
-    bool preserveTwoPageSpreadTransition = false;
-    bool sameScopeImageNavigation = false;
-    std::optional<ResolvedNavigationSource> resolvedSource;
+    ResolvedNavigationSource source;
+    ImageDocumentPageKind kind = ImageDocumentPageKind::Image;
+};
 
-    static ImageDocumentSourceLoadRequest fromUrl(const QUrl& sourceUrl)
+struct SameScopePageTarget
+{
+    OpenedCollectionScopeLocation scope;
+    ImageDocumentPageTarget target;
+};
+
+struct ContainerTarget
+{
+    OpenedCollectionScopeLocation scope;
+    ImageDocumentPageTarget target;
+};
+
+using ImageDocumentSourceAssignment
+    = std::variant<ExternalResolvedSource, SameScopePageTarget, ContainerTarget>;
+
+class ImageDocumentSourceLoadRequest
+{
+public:
+    static ImageDocumentSourceLoadRequest fromExternalSource(ResolvedNavigationSource source,
+        ImageDocumentPageKind kind = ImageDocumentPageKind::Image,
+        bool preserveTwoPageSpreadTransition = false)
     {
-        return fromTarget(ImageDocumentPageTarget { sourceUrl, ImageDocumentPageKind::Image });
+        return ImageDocumentSourceLoadRequest(
+            ExternalResolvedSource { std::move(source), kind }, preserveTwoPageSpreadTransition);
     }
 
-    static ImageDocumentSourceLoadRequest fromSource(const ResolvedNavigationSource& source)
+    static ImageDocumentSourceLoadRequest fromSameScopePageTarget(ImageDocumentPageTarget target,
+        OpenedCollectionScopeLocation scope, bool preserveTwoPageSpreadTransition)
     {
-        ImageDocumentSourceLoadRequest request = fromUrl(source.requestedUrl());
-        request.resolvedSource = source;
-        return request;
-    }
-
-    static ImageDocumentSourceLoadRequest fromTarget(const ImageDocumentPageTarget& target)
-    {
-        return ImageDocumentSourceLoadRequest { target.url, target.kind, QUrl(), false, false,
-            std::nullopt };
-    }
-
-    static ImageDocumentSourceLoadRequest fromContainerImage(
-        const QUrl& imageUrl, const QUrl& containerUrl)
-    {
-        return fromContainerTarget(
-            ImageDocumentPageTarget { imageUrl, ImageDocumentPageKind::Image }, containerUrl);
-    }
-
-    static ImageDocumentSourceLoadRequest fromContainerTarget(
-        const ImageDocumentPageTarget& target, const QUrl& containerUrl)
-    {
-        return ImageDocumentSourceLoadRequest { target.url, target.kind, containerUrl, false, false,
-            std::nullopt };
-    }
-
-    static ImageDocumentSourceLoadRequest fromPageNavigation(
-        const QUrl& sourceUrl, bool preserveTwoPageSpreadTransition)
-    {
-        return fromPageNavigationTarget(
-            ImageDocumentPageTarget { sourceUrl, ImageDocumentPageKind::Image },
+        return ImageDocumentSourceLoadRequest(
+            SameScopePageTarget { std::move(scope), std::move(target) },
             preserveTwoPageSpreadTransition);
     }
 
-    static ImageDocumentSourceLoadRequest fromPageNavigationTarget(
-        const ImageDocumentPageTarget& target, bool preserveTwoPageSpreadTransition)
+    static ImageDocumentSourceLoadRequest fromContainerTarget(
+        ImageDocumentPageTarget target, OpenedCollectionScopeLocation scope)
     {
-        return ImageDocumentSourceLoadRequest {
-            target.url,
-            target.kind,
-            QUrl(),
-            preserveTwoPageSpreadTransition,
-            true,
-            std::nullopt,
-        };
+        return ImageDocumentSourceLoadRequest(
+            ContainerTarget { std::move(scope), std::move(target) }, false);
     }
 
-    static ImageDocumentSourceLoadRequest fromSameScopeImageNavigationUrl(const QUrl& sourceUrl)
+    const ImageDocumentSourceAssignment& assignment() const { return m_assignment; }
+    const QUrl& sourceUrl() const
     {
-        return fromPageNavigation(sourceUrl, true);
+        return std::visit(
+            [](const auto& assignment) -> const QUrl& {
+                using Assignment = std::decay_t<decltype(assignment)>;
+                if constexpr (std::is_same_v<Assignment, ExternalResolvedSource>) {
+                    return assignment.source.requestedUrl();
+                } else {
+                    return assignment.target.url;
+                }
+            },
+            m_assignment);
+    }
+    ImageDocumentPageKind sourceKind() const
+    {
+        return std::visit(
+            [](const auto& assignment) {
+                using Assignment = std::decay_t<decltype(assignment)>;
+                if constexpr (std::is_same_v<Assignment, ExternalResolvedSource>) {
+                    return assignment.kind;
+                } else {
+                    return assignment.target.kind;
+                }
+            },
+            m_assignment);
+    }
+    OpenedCollectionScopeLocation openedCollectionScope() const
+    {
+        return std::visit(
+            [](const auto& assignment) {
+                using Assignment = std::decay_t<decltype(assignment)>;
+                if constexpr (std::is_same_v<Assignment, ExternalResolvedSource>) {
+                    return OpenedCollectionScopeLocation::none();
+                } else {
+                    return assignment.scope;
+                }
+            },
+            m_assignment);
+    }
+    QUrl containerNavigationUrl() const
+    {
+        const auto* target = std::get_if<ContainerTarget>(&m_assignment);
+        return target == nullptr ? QUrl() : target->scope.fileUrl();
+    }
+    const ResolvedNavigationSource* externalSource() const
+    {
+        const auto* source = std::get_if<ExternalResolvedSource>(&m_assignment);
+        return source == nullptr ? nullptr : &source->source;
+    }
+    bool preserveTwoPageSpreadTransition() const { return m_preserveTwoPageSpreadTransition; }
+    bool sameScopePageNavigation() const
+    {
+        return std::holds_alternative<SameScopePageTarget>(m_assignment);
+    }
+    bool isContainerNavigation() const
+    {
+        return std::holds_alternative<ContainerTarget>(m_assignment);
+    }
+    bool isEmpty() const { return sourceUrl().isEmpty(); }
+
+private:
+    explicit ImageDocumentSourceLoadRequest(
+        ImageDocumentSourceAssignment assignment, bool preserveTwoPageSpreadTransition)
+        : m_assignment(std::move(assignment))
+        , m_preserveTwoPageSpreadTransition(preserveTwoPageSpreadTransition)
+    {
     }
 
-    static ImageDocumentSourceLoadRequest fromSameScopeImageNavigationSource(
-        const ResolvedNavigationSource& source)
-    {
-        ImageDocumentSourceLoadRequest request
-            = fromSameScopeImageNavigationUrl(source.requestedUrl());
-        request.resolvedSource = source;
-        return request;
-    }
+    ImageDocumentSourceAssignment m_assignment;
+    bool m_preserveTwoPageSpreadTransition = false;
 };
 }
 

@@ -24,13 +24,17 @@ struct ImageCommandProbe
     kiriview::DocumentSessionImageDocumentCommandPort port()
     {
         return kiriview::DocumentSessionImageDocumentCommandPort {
-            { [this](const QUrl& url) {
-                 sourceUrl = url;
-                 events.push_back(
-                     url.isEmpty() ? QStringLiteral("clear-source") : QStringLiteral("set-source"));
+            { [this]() {
+                 sourceUrl = QUrl();
+                 events.push_back(QStringLiteral("clear-source"));
              },
-                [this](const QUrl& url) {
-                    sourceUrl = url;
+                {},
+                [this](const kiriview::ResolvedNavigationSource& source) {
+                    sourceUrl = source.requestedUrl();
+                    events.push_back(QStringLiteral("set-source"));
+                },
+                [this](const kiriview::ResolvedNavigationSource& source) {
+                    sourceUrl = source.requestedUrl();
                     events.push_back(QStringLiteral("same-scope-source"));
                 } },
             { [this]() { events.push_back(QStringLiteral("previous-page")); },
@@ -59,7 +63,7 @@ void TestDocumentSessionImageDocumentCommandRuntime::forwardsSourceRoutingThroug
     kiriview::DocumentSessionImageDocumentCommandRuntime runtime(probe.port());
     const QUrl imageUrl(QStringLiteral("file:///tmp/image.png"));
 
-    runtime.setSourceUrl(imageUrl);
+    runtime.setSource(kiriview::resolvedNavigationSource(imageUrl, {}));
     runtime.clearSourceUrl();
 
     QCOMPARE(probe.sourceUrl, QUrl());
@@ -73,7 +77,8 @@ void TestDocumentSessionImageDocumentCommandRuntime::forwardsSameScopeImageNavig
     kiriview::DocumentSessionImageDocumentCommandRuntime runtime(probe.port());
     const QUrl imageUrl(QStringLiteral("file:///tmp/next.png"));
 
-    runtime.setSameScopeImageNavigationSourceUrl(imageUrl);
+    runtime.setExternalSourcePreservingPresentation(
+        kiriview::resolvedNavigationSource(imageUrl, {}));
 
     QCOMPARE(probe.sourceUrl, imageUrl);
     QCOMPARE(probe.events, QStringList({ QStringLiteral("same-scope-source") }));

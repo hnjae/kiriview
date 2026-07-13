@@ -25,11 +25,15 @@ struct VideoCommandProbe
     kiriview::DocumentSessionVideoDocumentCommandPort port()
     {
         return kiriview::DocumentSessionVideoDocumentCommandPort {
-            { [this](const QUrl& url) {
-                sourceUrl = url;
-                events.push_back(
-                    url.isEmpty() ? QStringLiteral("clear-source") : QStringLiteral("set-source"));
-            } },
+            { [this]() {
+                 sourceUrl = QUrl();
+                 events.push_back(QStringLiteral("clear-source"));
+             },
+                [this](const kiriview::ResolvedNavigationSource& source) {
+                    sourceUrl = source.requestedUrl();
+                    events.push_back(QStringLiteral("set-source"));
+                },
+                {} },
             { [this]() { events.push_back(QStringLiteral("stop")); } },
             { [this]() -> QObject* { return attachedVideoOutput; },
                 [this](QObject* videoOutput) {
@@ -59,7 +63,7 @@ void TestDocumentSessionVideoDocumentCommandRuntime::forwardsRouteSourceThroughP
     kiriview::DocumentSessionVideoDocumentCommandRuntime runtime(probe.port());
     const QUrl videoUrl(QStringLiteral("file:///tmp/movie.mp4"));
 
-    runtime.setSourceUrl(videoUrl);
+    runtime.setSource(kiriview::resolvedNavigationSource(videoUrl, {}));
 
     QCOMPARE(probe.sourceUrl, videoUrl);
     QCOMPARE(probe.events, QStringList({ QStringLiteral("set-source") }));

@@ -4,6 +4,7 @@
 #ifndef KIRIVIEW_DOCUMENTSESSIONVIDEODOCUMENTSYNCRUNTIME_H
 #define KIRIVIEW_DOCUMENTSESSIONVIDEODOCUMENTSYNCRUNTIME_H
 
+#include "session/directmediacursor.h"
 #include "session/documentsessionvideodocumentsync.h"
 
 #include <functional>
@@ -17,7 +18,7 @@ struct DocumentSessionVideoDocumentSyncRuntimePorts
     std::function<void(const QUrl&)> setSourceIdentity;
     std::function<void(DocumentSessionKind)> setDocumentKind;
     std::function<void()> clearDirectMediaNavigation;
-    std::function<bool(const QUrl&)> setDirectVideoCursor;
+    std::function<DirectMediaConfirmation(const QUrl&)> confirmDirectVideoCursor;
     std::function<void()> refreshDirectMediaNavigation;
     std::function<void()> recomputePublicProjection;
 };

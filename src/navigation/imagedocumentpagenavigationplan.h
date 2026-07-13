@@ -24,7 +24,7 @@ struct OpenImageDocumentPageUrlEffect
 struct OpenContainerImageDocumentPageNavigationEffect
 {
     ImageDocumentPageTarget target;
-    QUrl containerUrl;
+    OpenedCollectionScopeLocation openedCollectionScope;
 };
 
 struct ReportContainerNavigationErrorEffect

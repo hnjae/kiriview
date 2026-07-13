@@ -17,7 +17,6 @@ class TestDocumentSessionDirectMediaNavigationRuntime : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void invalidScopeCompletesWithoutStartingProvider();
     void successfulLoadPublishesCandidates();
     void refreshPublishesBoundaryPlanAndCandidates();
     void openPublishesTargetPlanAndCandidates();
@@ -118,27 +117,9 @@ struct RuntimeFixture
 
 kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
 {
-    return kiriview::DirectMediaScope {
-        currentUrl,
-        localUrl(QStringLiteral("/media/")),
-        7,
-        kiriview::sourceKeyForUrl(currentUrl),
-        kiriview::sourceKeyForUrl(localUrl(QStringLiteral("/media/"))),
-        currentUrl,
-    };
+    return *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(currentUrl, {}, currentUrl), 7);
 }
-}
-
-void TestDocumentSessionDirectMediaNavigationRuntime::invalidScopeCompletesWithoutStartingProvider()
-{
-    RuntimeFixture fixture;
-
-    fixture.load(kiriview::DirectMediaScope {});
-
-    QCOMPARE(fixture.provider.loadCount(), std::size_t(0));
-    QCOMPARE(fixture.completionCount, 1);
-    QVERIFY(!fixture.result.succeeded);
-    QVERIFY(fixture.result.candidates.empty());
 }
 
 void TestDocumentSessionDirectMediaNavigationRuntime::successfulLoadPublishesCandidates()
@@ -283,8 +264,8 @@ void TestDocumentSessionDirectMediaNavigationRuntime::
     fixture.runtime.loadCandidates(
         &fixture.receiver, directMediaScope(currentUrl),
         [confirmedUrl](const kiriview::DirectMediaScope& scope) {
-            return kiriview::sameNormalizedUrl(scope.currentUrl, confirmedUrl)
-                && scope.generation == 7;
+            return kiriview::sameNormalizedUrl(scope.currentUrl(), confirmedUrl)
+                && scope.generation() == 7;
         },
         [&fixture](kiriview::DocumentSessionDirectMediaNavigationCandidatesResult loadResult) {
             ++fixture.completionCount;

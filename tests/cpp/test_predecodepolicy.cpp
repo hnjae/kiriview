@@ -52,8 +52,8 @@ void TestPredecodePolicy::schedulePlanUsesCppCandidateSnapshot()
     QVERIFY(directBiasedPlan.targetIndices == std::vector<std::size_t>({ 5, 6, 4, 7, 8 }));
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(
-            localUrl(QStringLiteral("/book.cbz")));
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/book.cbz")), {}));
     QVERIFY(openedCollectionScope.has_value());
     const PredecodeSourceProfile archiveProfile
         = kiriview::predecodeSourceProfileForOpenedCollectionScope(*openedCollectionScope, 8);
@@ -83,8 +83,8 @@ void TestPredecodePolicy::openedCollectionSourceProfilesPreserveRuntimeTuning()
     QCOMPARE(directoryProfile.parallelLimit, std::size_t(2));
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(
-            localUrl(QStringLiteral("/book.cbz")));
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/book.cbz")), {}));
     QVERIFY(openedCollectionScope.has_value());
     const PredecodeSourceProfile archiveProfile
         = kiriview::predecodeSourceProfileForOpenedCollectionScope(*openedCollectionScope, 8);

@@ -184,7 +184,8 @@ void TestPredecodeWindowPlan::archiveWindowPreservesOpenedCollectionScopeContext
 {
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(openedCollectionScope.has_value());
 
     const QUrl displayedUrl

@@ -72,7 +72,8 @@ void TestImageDocumentPageCandidateRepository::loadImagesRoutesArchiveSources()
     FakeImageDocumentPageCandidateProvider fakeProvider;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> openedCollectionScope
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(openedCollectionScope.has_value());
     const QUrl imageUrl
         = archivePageUrl(openedCollectionScope->rootUrl(), QStringLiteral("01.png"));

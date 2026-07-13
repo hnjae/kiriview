@@ -21,6 +21,7 @@ enum class ImageContainerOpenError {
 struct ImageContainerOpenPlan
 {
     std::optional<ImageDocumentPageCandidateListSource> source;
+    OpenedCollectionScopeLocation openedCollectionScope;
     ImageContainerOpenError error = ImageContainerOpenError::Generic;
 
     bool shouldLoadCandidates() const;
@@ -35,7 +36,7 @@ struct ImageContainerOpenResult
 };
 
 ImageContainerOpenPlan imageContainerOpenPlanForCandidate(
-    const ContainerNavigationCandidate& container);
+    const ContainerNavigationCandidate& container, const ResolvedNavigationSource& source);
 ImageContainerOpenResult imageContainerOpenResultForCandidates(
     const std::vector<ImageDocumentPageCandidate>& candidates);
 }

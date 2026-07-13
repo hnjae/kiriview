@@ -181,7 +181,8 @@ void TestImageLoader::imageLoadDeliversDecodedResult()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl),
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+                     kiriview::resolvedNavigationSource(imageUrl, {})),
         kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) });
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, imageUrl);
@@ -212,7 +213,8 @@ void TestImageLoader::decodeFailureUsesErrorCallback()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/bad.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(imageUrl, {})));
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     dataLoader.finishFrontLoad(QByteArrayLiteral("bad"));
 
@@ -230,7 +232,8 @@ void TestImageLoader::predecodedImageBypassesDataLoad()
     ManualImageDataLoader dataLoader;
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl imageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.png"));
     std::optional<kiriview::ImageLoadSession> predecodedSession;
@@ -255,7 +258,9 @@ void TestImageLoader::predecodedImageBypassesDataLoad()
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromLocation(imageUrl, *archiveCollection));
+    loader.start(kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+        *archiveCollection, false));
 
     QVERIFY(predecodedSession.has_value());
     QCOMPARE(predecodedSession->imageUrl(), imageUrl);
@@ -272,7 +277,8 @@ void TestImageLoader::mismatchedPredecodedImageFallsBackToDecode()
     const QUrl imageUrl = localUrl(QStringLiteral("/images/02.png"));
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     int predecodedCount = 0;
     std::optional<kiriview::ImageLoadSession> decodedSession;
@@ -295,7 +301,8 @@ void TestImageLoader::mismatchedPredecodedImageFallsBackToDecode()
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(imageUrl, {})));
 
     QCOMPARE(predecodedCount, 0);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
@@ -324,13 +331,14 @@ void TestImageLoader::comicBookArchiveResolvesFirstImage()
 
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl),
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+                     kiriview::resolvedNavigationSource(archiveUrl, {})),
         kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) });
 
     QVERIFY(resolvedSession.has_value());
@@ -357,7 +365,7 @@ void TestImageLoader::directArchiveResolvesFirstVideoAsUnsupportedOpenedCollecti
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     std::optional<kiriview::ImageLoadSession> unsupportedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     callbacks.unsupportedOpenedCollectionVideo
@@ -366,7 +374,8 @@ void TestImageLoader::directArchiveResolvesFirstVideoAsUnsupportedOpenedCollecti
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), firstVideoUrl);
@@ -393,7 +402,7 @@ void TestImageLoader::directArchiveResolvesFirstImage()
     std::optional<kiriview::ImageLoadSession> decodedSession;
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     callbacks.decodedImage = [&decodedSession](kiriview::ImageLoadSession session, auto) {
@@ -402,7 +411,8 @@ void TestImageLoader::directArchiveResolvesFirstImage()
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), firstImageUrl);
@@ -426,7 +436,8 @@ void TestImageLoader::directoryCollectionResolvesFirstImage()
 
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalUrl(directoryUrl);
+        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {}));
     QVERIFY(directoryCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.png"));
@@ -438,7 +449,7 @@ void TestImageLoader::directoryCollectionResolvesFirstImage()
     std::optional<kiriview::ImageLoadSession> decodedSession;
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     callbacks.decodedImage = [&decodedSession](kiriview::ImageLoadSession session, auto) {
@@ -447,7 +458,8 @@ void TestImageLoader::directoryCollectionResolvesFirstImage()
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(directoryUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(directoryUrl, {})));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), firstImageUrl);
@@ -472,7 +484,8 @@ void TestImageLoader::directoryCollectionVideoReportsUnsupportedOpenedCollection
 
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalUrl(directoryUrl);
+        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {}));
     QVERIFY(directoryCollection.has_value());
     const QUrl videoUrl = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.mp4"));
     candidateProvider.setOpenedCollectionCandidates(directoryCollection->rootUrl(),
@@ -483,7 +496,7 @@ void TestImageLoader::directoryCollectionVideoReportsUnsupportedOpenedCollection
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     std::optional<kiriview::ImageLoadSession> unsupportedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     callbacks.unsupportedOpenedCollectionVideo
@@ -492,7 +505,8 @@ void TestImageLoader::directoryCollectionVideoReportsUnsupportedOpenedCollection
     kiriview::ImageLoader loader
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(directoryUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(directoryUrl, {})));
 
     QVERIFY(resolvedSession.has_value());
     QCOMPARE(resolvedSession->imageUrl(), videoUrl);
@@ -512,7 +526,8 @@ void TestImageLoader::openedCollectionSnapshotResolvesFirstImageWithoutListing()
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
@@ -525,14 +540,15 @@ void TestImageLoader::openedCollectionSnapshotResolvesFirstImageWithoutListing()
 
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     kiriview::ImageLoader loader(this, candidateProvider.provider(),
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl),
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+                     kiriview::resolvedNavigationSource(archiveUrl, {})),
         kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) }, snapshot);
 
     QCOMPARE(candidateProvider.loadCount(), std::size_t(0));
@@ -550,13 +566,15 @@ void TestImageLoader::staleOpenedCollectionSnapshotFallsBackToListing()
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
     const QUrl staleArchiveUrl = localUrl(QStringLiteral("/books/stale.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> staleArchiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(staleArchiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(staleArchiveUrl, {}));
     QVERIFY(staleArchiveCollection.has_value());
     const QUrl staleImageUrl
         = archivePageUrl(staleArchiveCollection->rootUrl(), QStringLiteral("stale.png"));
@@ -570,14 +588,16 @@ void TestImageLoader::staleOpenedCollectionSnapshotFallsBackToListing()
 
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     kiriview::ImageLoader loader(this, candidateProvider.provider(),
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl), {}, staleSnapshot);
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+                     kiriview::resolvedNavigationSource(archiveUrl, {})),
+        {}, staleSnapshot);
     QCOMPARE(candidateProvider.loadCount(), std::size_t(1));
     QCOMPARE(
         candidateProvider.frontLoad().archiveCollection.rootUrl(), archiveCollection->rootUrl());
@@ -597,7 +617,8 @@ void TestImageLoader::unconfirmedOpenedCollectionSnapshotFallsBackToListing()
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
@@ -614,14 +635,16 @@ void TestImageLoader::unconfirmedOpenedCollectionSnapshotFallsBackToListing()
 
     std::optional<kiriview::ImageLoadSession> resolvedSession;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&resolvedSession](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&resolvedSession](kiriview::ImageLoadSession session) {
         resolvedSession = std::move(session);
     };
     kiriview::ImageLoader loader(this, candidateProvider.provider(),
         imageDecodeDependenciesFor(dataLoader, staticImageDataDecoderRejectingBadData()),
         std::move(callbacks));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl), {}, unconfirmedSnapshot);
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+                     kiriview::resolvedNavigationSource(archiveUrl, {})),
+        {}, unconfirmedSnapshot);
     QCOMPARE(candidateProvider.loadCount(), std::size_t(1));
     QCOMPARE(
         candidateProvider.frontLoad().archiveCollection.rootUrl(), archiveCollection->rootUrl());
@@ -647,7 +670,8 @@ void TestImageLoader::explicitKioArchiveImageStaysImageUrlMode()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     const QUrl imageUrl(QStringLiteral("zip:///books/book.cbz/02.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(imageUrl, {})));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, imageUrl);
@@ -673,16 +697,17 @@ void TestImageLoader::archiveInteriorVideoReportsUnsupportedOpenedCollectionVide
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl videoUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("02.bin"));
 
-    loader.start(kiriview::ImageLoadRequest::fromTarget(
+    loader.start(kiriview::ImageLoadRequest::fromSameScopePageTarget(
         kiriview::ImageDocumentPageTarget {
             videoUrl,
             kiriview::ImageDocumentPageKind::Video,
         },
-        *archiveCollection));
+        *archiveCollection, false));
 
     QVERIFY(unsupportedSession.has_value());
     QCOMPARE(unsupportedSession->imageUrl(), videoUrl);
@@ -710,9 +735,12 @@ void TestImageLoader::archiveInteriorImageKeepsComicBookRoot()
     const QUrl imageUrl = archivePageUrl(*archiveRootUrl, QStringLiteral("02.png"));
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
-    loader.start(kiriview::ImageLoadRequest::fromLocation(imageUrl, *archiveCollection));
+    loader.start(kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+        *archiveCollection, false));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, imageUrl);
@@ -739,7 +767,8 @@ void TestImageLoader::loadErrorPreservesTypedFailureMetadata()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/missing.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(imageUrl, {})));
     dataLoader.failBackLoad(QStringLiteral("KIO data load failed"));
 
     QTRY_VERIFY(failure.has_value());
@@ -770,7 +799,8 @@ void TestImageLoader::decodeFailurePreservesTypedFailureMetadata()
         = createLoader(this, candidateProvider, dataLoader, std::move(callbacks));
 
     const QUrl imageUrl = localUrl(QStringLiteral("/images/bad.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(imageUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(imageUrl, {})));
     dataLoader.finishBackLoad(QByteArrayLiteral("bad"));
 
     QTRY_VERIFY(failure.has_value());
@@ -802,7 +832,8 @@ void TestImageLoader::openedCollectionCandidateFailurePreservesTypedFailureMetad
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/missing.cbz"));
     const QString diagnosticDetail = QStringLiteral("opened collection listing failed");
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
     QCOMPARE(candidateProvider.loadCount(), std::size_t(1));
     candidateProvider.failFrontLoad(diagnosticDetail);
 
@@ -837,7 +868,8 @@ void TestImageLoader::emptyOpenedCollectionPreservesTypedFailureMetadata()
     QVERIFY(archiveRootUrl.has_value());
     candidateProvider.setOpenedCollectionCandidates(*archiveRootUrl, {});
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
 
     QVERIFY(failure.has_value());
     QVERIFY(errorSession.has_value());
@@ -864,8 +896,10 @@ void TestImageLoader::staleLoadResultIsIgnored()
 
     const QUrl firstUrl = localUrl(QStringLiteral("/images/01.png"));
     const QUrl secondUrl = localUrl(QStringLiteral("/images/02.png"));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(firstUrl));
-    loader.start(kiriview::ImageLoadRequest::fromUrl(secondUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(firstUrl, {})));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(secondUrl, {})));
 
     QCOMPARE(dataLoader.loadCount(), std::size_t(2));
     QVERIFY(dataLoader.frontLoad().canceled);
@@ -882,7 +916,7 @@ void TestImageLoader::staleArchiveListingResultIsIgnored()
     ManualImageDataLoader dataLoader;
     std::vector<QUrl> decodedUrls;
     kiriview::ImageLoader::Callbacks callbacks;
-    callbacks.sourceResolved = [&decodedUrls](kiriview::ImageLoadSession session) {
+    callbacks.sourcePrepared = [&decodedUrls](kiriview::ImageLoadSession session) {
         decodedUrls.push_back(session.imageUrl());
     };
     callbacks.decodedImage = [&decodedUrls](kiriview::ImageLoadSession session, auto) {
@@ -898,10 +932,12 @@ void TestImageLoader::staleArchiveListingResultIsIgnored()
     const QUrl staleImageUrl = archivePageUrl(*archiveRootUrl, QStringLiteral("01.png"));
     const QUrl replacementUrl = localUrl(QStringLiteral("/images/replacement.png"));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {})));
     QCOMPARE(candidateProvider.loadCount(), std::size_t(1));
 
-    loader.start(kiriview::ImageLoadRequest::fromUrl(replacementUrl));
+    loader.start(kiriview::ImageLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(replacementUrl, {})));
     QVERIFY(candidateProvider.frontLoad().canceled);
     QCOMPARE(dataLoader.loadCount(), std::size_t(1));
     QCOMPARE(dataLoader.frontLoad().url, replacementUrl);

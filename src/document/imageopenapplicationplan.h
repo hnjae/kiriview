@@ -46,7 +46,7 @@ struct ImageOpenTransitionContext
     std::optional<ImageLoadFailure> loadFailure;
     std::optional<EmbeddedMetadata> embeddedMetadata;
 
-    static ImageOpenTransitionContext sourceResolved(const ImageLoadSession& session);
+    static ImageOpenTransitionContext sourcePrepared(const ImageLoadSession& session);
     static ImageOpenTransitionContext successfulImageLoad(const ImageLoadSession& session);
     static ImageOpenTransitionContext successfulImageLoad(
         const ImageLoadSession& session, EmbeddedMetadata metadata);

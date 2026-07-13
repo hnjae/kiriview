@@ -7,6 +7,7 @@
 #include "async/imageasyncticket.h"
 
 #include <QtGlobal>
+#include <optional>
 #include <utility>
 
 namespace kiriview {
@@ -45,7 +46,7 @@ public:
         m_scope = std::move(scope);
         return ImageAsyncScopedOperation<Scope> {
             m_operation.start(),
-            m_scope,
+            *m_scope,
         };
     }
 
@@ -56,7 +57,7 @@ public:
 
     bool accepts(quint64 operationId, const Scope& scope) const
     {
-        return m_operation.accepts(operationId) && m_scope == scope;
+        return m_operation.accepts(operationId) && m_scope.has_value() && *m_scope == scope;
     }
 
     bool finish(const ImageAsyncScopedOperation<Scope>& operation)
@@ -70,13 +71,13 @@ public:
             return false;
         }
 
-        m_scope = Scope();
+        m_scope.reset();
         return m_operation.finish(operationId);
     }
 
     void cancel()
     {
-        m_scope = Scope();
+        m_scope.reset();
         m_operation.cancel();
     }
 
@@ -84,7 +85,7 @@ public:
 
 private:
     ImageAsyncOperationState m_operation;
-    Scope m_scope;
+    std::optional<Scope> m_scope;
 };
 }
 

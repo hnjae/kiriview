@@ -24,7 +24,7 @@ struct DocumentSessionImageDocumentSyncRuntimeInput
 
 struct DocumentSessionImageDocumentSyncRuntimePorts
 {
-    std::function<bool(const QUrl&)> confirmDirectImageCursor;
+    std::function<DirectMediaConfirmation(const QUrl&)> confirmDirectImageCursor;
     std::function<bool()> restoreDirectImageCursorAfterFailure;
     std::function<void(const QUrl&)> setSourceIdentity;
     std::function<void(bool)> setFileDeletionInProgress;

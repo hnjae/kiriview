@@ -17,6 +17,7 @@ ImageDocumentPageNavigationService::ImageDocumentPageNavigationService(
     , m_containerNavigation(this, m_candidateRepository,
           ImageContainerNavigationController::Callbacks {
               m_callbacks.navigationPlan,
+              m_callbacks.resolveExternalSource,
           })
     , m_pageNavigation(this, m_candidateRepository,
           ImageDocumentPageNavigationController::Callbacks {

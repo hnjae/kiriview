@@ -137,7 +137,8 @@ void ImageDocumentNavigationController::openImageAtPage(int pageNumber)
                 : std::vector<ImageDocumentChange> {},
             ImageDocumentRuntimePlan {
                 ScheduleAdjacentImagePredecodeOperation { *selection.target, pageNumber - 1 },
-                LoadPageNavigationUrlOperation { *selection.target, spreadTransition },
+                LoadPageNavigationUrlOperation {
+                    *selection.target, m_state.displayedOpenedCollectionScope(), spreadTransition },
             },
         });
 }

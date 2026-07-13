@@ -145,16 +145,19 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
             ports.navigationController->updatePageNavigation();
         }
     };
-    operations.navigation.loadUrl = [ports](const kiriview::ImageDocumentPageTarget& target) {
+    operations.navigation.loadUrl = [ports](const kiriview::ImageDocumentPageTarget& target,
+                                        const kiriview::OpenedCollectionScopeLocation& scope) {
         if (ports.loadSource) {
-            ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromTarget(target));
+            ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+                target, scope, false));
         }
     };
     operations.navigation.loadContainerImage
-        = [ports](const kiriview::ImageDocumentPageTarget& target, const QUrl& containerUrl) {
-              if (ports.loadSource) {
-                  ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromContainerTarget(
-                      target, containerUrl));
+        = [ports](const kiriview::ImageDocumentPageTarget& target,
+              const kiriview::OpenedCollectionScopeLocation& scope) {
+              if (ports.loadSource && !scope.isEmpty()) {
+                  ports.loadSource(
+                      kiriview::ImageDocumentSourceLoadRequest::fromContainerTarget(target, scope));
               }
           };
     operations.navigation.finishEmptyContainerNavigation = [ports](const QUrl& containerUrl) {
@@ -185,15 +188,16 @@ kiriview::ImageDocumentRuntimeOperations runtimeOperations(
                   << failure.diagnosticDetail;
           };
     operations.navigation.loadPageNavigationUrl =
-        [ports](
-            const kiriview::ImageDocumentPageTarget& target, bool preserveTwoPageSpreadTransition) {
+        [ports](const kiriview::ImageDocumentPageTarget& target,
+            const kiriview::OpenedCollectionScopeLocation& scope,
+            bool preserveTwoPageSpreadTransition) {
             qCDebug(kiriviewNavigationLog)
                 << "runtime loading page navigation target"
                 << "targetUrl" << target.url << "targetKind" << static_cast<int>(target.kind)
                 << "preserveTwoPageSpreadTransition" << preserveTwoPageSpreadTransition;
             if (ports.loadSource) {
-                ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromPageNavigationTarget(
-                    target, preserveTwoPageSpreadTransition));
+                ports.loadSource(kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+                    target, scope, preserveTwoPageSpreadTransition));
             }
         };
     operations.open.cancelOpen = [ports]() {

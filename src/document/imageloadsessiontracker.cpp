@@ -13,27 +13,12 @@ ImageLoadSessionTracker::ImageLoadSessionTracker(quint64 nextSessionId)
 {
 }
 
-ImageLoadSessionTracker::ImageLoadSessionTracker(
-    NavigationSourceFactProvider sourceFactProvider, quint64 nextSessionId)
-    : m_sessionIds(nextSessionId)
-    , m_sourceFactProvider(std::move(sourceFactProvider))
-{
-}
-
 ImageLoadPlan ImageLoadSessionTracker::start(
     ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext)
 {
     cancel();
 
-    const ResolvedNavigationSource source = request.sourceResolved
-        ? request.source.source()
-        : NavigationSourceResolver(m_sourceFactProvider).resolve(request.sourceUrl());
-    ImageLoadResolvedSourceFacts resolvedSourceFacts {
-        openedCollectionScopeLocationForDirectlyOpenedLocalSource(source),
-        source,
-    };
-    ImageLoadPlan plan = imageLoadPlan(
-        nextSessionId(), std::move(request), firstDisplayContext, std::move(resolvedSourceFacts));
+    ImageLoadPlan plan = imageLoadPlan(nextSessionId(), std::move(request), firstDisplayContext);
     m_session = plan.session;
     return plan;
 }

@@ -116,7 +116,7 @@ ImageOpenController::ImageOpenController(QObject* parent, ImageDocumentState& st
             },
             [this](ImageLoadSession session) {
                 [[maybe_unused]] auto batch = m_state.beginChangeBatch();
-                finishSourceResolved(std::move(session));
+                finishSourcePrepared(std::move(session));
             },
         });
 }
@@ -132,17 +132,13 @@ void ImageOpenController::open()
         return;
     }
 
-    const std::optional<ResolvedNavigationSource> source
-        = m_sourceLoadRequest.has_value() ? m_sourceLoadRequest->resolvedSource : std::nullopt;
+    if (!m_sourceLoadRequest.has_value()) {
+        return;
+    }
+    ImageLoadRequest request = std::move(*m_sourceLoadRequest);
     m_sourceLoadRequest.reset();
-    const ImageLoadRequest request = source.has_value()
-        ? ImageLoadRequest::fromResolvedTarget(*source, m_state.sourceKind(),
-              m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl())
-        : ImageLoadRequest::fromTarget(
-              ImageDocumentPageTarget { m_state.sourceUrl(), m_state.sourceKind() },
-              m_state.displayedOpenedCollectionScope(), m_state.loadingContainerNavigationUrl());
     beginSourceLoad();
-    m_imageLoader->start(request, m_presentationRuntime.firstDisplayDecodeContext(),
+    m_imageLoader->start(std::move(request), m_presentationRuntime.firstDisplayDecodeContext(),
         m_callbacks.pageCandidateSnapshot ? m_callbacks.pageCandidateSnapshot()
                                           : ImageDocumentPageCandidateListSnapshot {});
 }
@@ -192,7 +188,7 @@ void ImageOpenController::finishContainerNavigationLoadWithError(
         ImageOpenWorkflow::finishContainerNavigationLoadWithErrorPlan(containerUrl, message)));
 }
 
-void ImageOpenController::finishSourceResolved(ImageLoadSession session)
+void ImageOpenController::finishSourcePrepared(ImageLoadSession session)
 {
     reportRuntimePlan(
         applyImageOpenApplicationPlan(m_state, ImageOpenWorkflow::resolveSourceImagePlan(session)));

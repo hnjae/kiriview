@@ -5,6 +5,7 @@
 
 #include "image_document_plan_test_support.h"
 #include "localization/imageerrortext.h"
+#include "location/imagedocumentlocation.h"
 
 #include <QObject>
 #include <QTest>
@@ -18,6 +19,31 @@ using kiriview::TestSupport::operationAt;
 using kiriview::TestSupport::operationTypes;
 
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
+
+kiriview::OpenedCollectionScopeLocation directoryScope(const QUrl& url)
+{
+    const kiriview::ResolvedNavigationSource source
+        = kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {});
+    const kiriview::DirectoryNavigationLocation location
+        = kiriview::directoryNavigationLocationForSource(source);
+    return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+        source, location.directoryUrl, kiriview::OpenedCollectionScopeKind::Directory);
+}
+
+kiriview::OpenedCollectionScopeLocation archiveScope(const QUrl& url)
+{
+    return kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {}))
+        .value();
+}
+
+ImageDocumentRuntimePlan runtimePlan(
+    const kiriview::ImageDocumentPageNavigationPlan& navigationPlan,
+    const kiriview::OpenedCollectionScopeLocation& scope
+    = kiriview::OpenedCollectionScopeLocation::none())
+{
+    return kiriview::imageDocumentRuntimePlanForNavigationPlan(navigationPlan, scope);
+}
 }
 
 class TestImageDocumentNavigationRuntimePlan : public QObject
@@ -40,11 +66,14 @@ void TestImageDocumentNavigationRuntimePlan::
     openImageDocumentPageNavigationMapsToPageNavigationLoad()
 {
     const QUrl url = localUrl(QStringLiteral("/images/02.png"));
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
-        kiriview::OpenImageDocumentPageUrlEffect {
-            kiriview::ImageDocumentPageTarget { url, kiriview::ImageDocumentPageKind::Video },
+    const kiriview::OpenedCollectionScopeLocation scope = directoryScope(url);
+    const ImageDocumentRuntimePlan plan = runtimePlan(
+        {
+            kiriview::OpenImageDocumentPageUrlEffect {
+                kiriview::ImageDocumentPageTarget { url, kiriview::ImageDocumentPageKind::Video },
+            },
         },
-    });
+        scope);
 
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::ScheduleAdjacentImagePredecodeOperation,
@@ -58,6 +87,8 @@ void TestImageDocumentNavigationRuntimePlan::
         kiriview::ImageDocumentPageKind::Video);
     QVERIFY(!operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1)
             .preserveTwoPageSpreadTransition);
+    QCOMPARE(operationAt<kiriview::LoadPageNavigationUrlOperation>(plan, 1).openedCollectionScope,
+        scope);
 }
 
 void TestImageDocumentNavigationRuntimePlan::
@@ -65,13 +96,14 @@ void TestImageDocumentNavigationRuntimePlan::
 {
     const QUrl imageUrl = localUrl(QStringLiteral("/books/book/01.png"));
     const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const kiriview::OpenedCollectionScopeLocation scope = archiveScope(containerUrl);
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::OpenContainerImageDocumentPageNavigationEffect {
             kiriview::ImageDocumentPageTarget {
                 imageUrl,
                 kiriview::ImageDocumentPageKind::Video,
             },
-            containerUrl,
+            scope,
         },
     });
 
@@ -80,13 +112,13 @@ void TestImageDocumentNavigationRuntimePlan::
     QCOMPARE(operationAt<kiriview::LoadContainerImageOperation>(plan, 0).target.kind,
         kiriview::ImageDocumentPageKind::Video);
     QCOMPARE(
-        operationAt<kiriview::LoadContainerImageOperation>(plan, 0).containerUrl, containerUrl);
+        operationAt<kiriview::LoadContainerImageOperation>(plan, 0).openedCollectionScope, scope);
 }
 
 void TestImageDocumentNavigationRuntimePlan::emptyContainerErrorMapsToEmptyContainerCompletion()
 {
     const QUrl containerUrl = localUrl(QStringLiteral("/books/empty.cbz"));
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationErrorEffect {
             containerUrl,
             kiriview::ContainerNavigationError::EmptyContainer,
@@ -104,7 +136,7 @@ void TestImageDocumentNavigationRuntimePlan::
     invalidComicMediaEntrySourceErrorMapsToLocalizedOpenError()
 {
     const QUrl containerUrl = localUrl(QStringLiteral("/books/broken.cbz"));
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationErrorEffect {
             containerUrl,
             kiriview::ContainerNavigationError::InvalidComicBookArchive,
@@ -126,7 +158,7 @@ void TestImageDocumentNavigationRuntimePlan::genericContainerErrorKeepsReportedE
 {
     const QUrl containerUrl = localUrl(QStringLiteral("/books/broken.zip"));
     const QString errorString = QStringLiteral("provider failure");
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationErrorEffect {
             containerUrl,
             kiriview::ContainerNavigationError::Generic,
@@ -146,7 +178,7 @@ void TestImageDocumentNavigationRuntimePlan::genericContainerErrorKeepsReportedE
 
 void TestImageDocumentNavigationRuntimePlan::containerBoundaryMapsToBoundaryOperation()
 {
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationBoundaryEffect {
             kiriview::NavigationDirection::Previous,
         },
@@ -163,7 +195,7 @@ void TestImageDocumentNavigationRuntimePlan::containerListErrorIsDiagnosticOnly(
     const QUrl currentContainerUrl = localUrl(QStringLiteral("/books/a/"));
     const QUrl parentUrl = localUrl(QStringLiteral("/books/"));
     const QString diagnostic = QStringLiteral("provider failure");
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ReportContainerNavigationListErrorEffect {
             kiriview::ContainerNavigationListFailure {
                 currentContainerUrl,
@@ -191,7 +223,7 @@ void TestImageDocumentNavigationRuntimePlan::containerListErrorIsDiagnosticOnly(
 void TestImageDocumentNavigationRuntimePlan::
     clearCurrentImageDocumentPageNavigationExpandsDeletedImageClearPlan()
 {
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
+    const ImageDocumentRuntimePlan plan = runtimePlan({
         kiriview::ClearCurrentImageDocumentPageNavigationEffect {},
     });
     const ImageDocumentRuntimePlan expected = kiriview::imageDocumentClearDeletedImagePlan();
@@ -207,29 +239,33 @@ void TestImageDocumentNavigationRuntimePlan::mixedNavigationPlanPreservesOperati
     const QUrl firstUrl = localUrl(QStringLiteral("/images/01.png"));
     const QUrl imageUrl = localUrl(QStringLiteral("/books/book/01.png"));
     const QUrl containerUrl = localUrl(QStringLiteral("/books/book.cbz"));
-    const ImageDocumentRuntimePlan plan = kiriview::imageDocumentRuntimePlanForNavigationPlan({
-        kiriview::OpenImageDocumentPageUrlEffect {
-            kiriview::ImageDocumentPageTarget {
-                firstUrl,
-                kiriview::ImageDocumentPageKind::Image,
+    const kiriview::OpenedCollectionScopeLocation currentScope = directoryScope(firstUrl);
+    const kiriview::OpenedCollectionScopeLocation containerScope = archiveScope(containerUrl);
+    const ImageDocumentRuntimePlan plan = runtimePlan(
+        {
+            kiriview::OpenImageDocumentPageUrlEffect {
+                kiriview::ImageDocumentPageTarget {
+                    firstUrl,
+                    kiriview::ImageDocumentPageKind::Image,
+                },
+            },
+            kiriview::OpenContainerImageDocumentPageNavigationEffect {
+                kiriview::ImageDocumentPageTarget {
+                    imageUrl,
+                    kiriview::ImageDocumentPageKind::Image,
+                },
+                containerScope,
+            },
+            kiriview::ReportContainerNavigationErrorEffect {
+                containerUrl,
+                kiriview::ContainerNavigationError::EmptyContainer,
+                QString(),
+            },
+            kiriview::ReportContainerNavigationBoundaryEffect {
+                kiriview::NavigationDirection::Next,
             },
         },
-        kiriview::OpenContainerImageDocumentPageNavigationEffect {
-            kiriview::ImageDocumentPageTarget {
-                imageUrl,
-                kiriview::ImageDocumentPageKind::Image,
-            },
-            containerUrl,
-        },
-        kiriview::ReportContainerNavigationErrorEffect {
-            containerUrl,
-            kiriview::ContainerNavigationError::EmptyContainer,
-            QString(),
-        },
-        kiriview::ReportContainerNavigationBoundaryEffect {
-            kiriview::NavigationDirection::Next,
-        },
-    });
+        currentScope);
 
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::ScheduleAdjacentImagePredecodeOperation,

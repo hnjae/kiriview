@@ -14,11 +14,11 @@ kiriview::Bridge::ImageDocumentSourceLoadKind sourceLoadKind(
     const kiriview::ImageDocumentSourceLoadSnapshot& snapshot,
     const kiriview::ImageDocumentSourceLoadRequest& request)
 {
-    if (snapshot.currentSourceUrl == request.sourceUrl) {
+    if (snapshot.currentSourceUrl == request.sourceUrl()) {
         return kiriview::Bridge::ImageDocumentSourceLoadKind::CurrentSource;
     }
 
-    if (request.sameScopeImageNavigation) {
+    if (request.sameScopePageNavigation()) {
         return kiriview::Bridge::ImageDocumentSourceLoadKind::SameScopeImageNavigation;
     }
 
@@ -31,7 +31,7 @@ bool sourceWithinDisplayedComicBookArchive(
 {
     return snapshot.displayedOpenedCollectionScope.isComicBook()
         && kiriview::openedCollectionScopeContainsUrl(
-            snapshot.displayedOpenedCollectionScope, request.sourceUrl);
+            snapshot.displayedOpenedCollectionScope, request.sourceUrl());
 }
 
 kiriview::Bridge::ImageDocumentSourceLoadPolicyInput sourceLoadPolicyInput(
@@ -40,10 +40,10 @@ kiriview::Bridge::ImageDocumentSourceLoadPolicyInput sourceLoadPolicyInput(
 {
     return kiriview::Bridge::ImageDocumentSourceLoadPolicyInput {
         sourceLoadKind(snapshot, request),
-        request.preserveTwoPageSpreadTransition,
+        request.preserveTwoPageSpreadTransition(),
         snapshot.rightToLeftReadingEnabled,
         sourceWithinDisplayedComicBookArchive(snapshot, request),
-        !request.containerNavigationUrl.isEmpty(),
+        !request.containerNavigationUrl().isEmpty(),
     };
 }
 
@@ -83,12 +83,12 @@ void appendSourceLoadRuntimeOperation(kiriview::ImageDocumentRuntimePlan& runtim
         return;
     case Effect::SetLoadingContainerNavigationUrlToRequested:
         runtimePlan.push_back(kiriview::SetLoadingContainerNavigationUrlOperation {
-            request.containerNavigationUrl,
+            request.containerNavigationUrl(),
         });
         return;
     case Effect::SetContainerNavigationUrlToRequested:
         runtimePlan.push_back(kiriview::SetContainerNavigationUrlOperation {
-            request.containerNavigationUrl,
+            request.containerNavigationUrl(),
         });
         return;
     case Effect::PrepareSourceLoad:
@@ -96,7 +96,7 @@ void appendSourceLoadRuntimeOperation(kiriview::ImageDocumentRuntimePlan& runtim
         return;
     case Effect::SetSourceUrlToRequested:
         runtimePlan.push_back(kiriview::SetSourceUrlOperation {
-            kiriview::ImageDocumentPageTarget { request.sourceUrl, request.sourceKind },
+            kiriview::ImageDocumentPageTarget { request.sourceUrl(), request.sourceKind() },
         });
         return;
     case Effect::BeginOpen:
@@ -142,7 +142,7 @@ ImageOpenApplicationPlan finishEmptySourceLoadPlan()
 ImageOpenApplicationPlan resolveSourceImagePlan(const ImageLoadSession& session)
 {
     return imageOpenApplicationPlan(
-        resolveSourceImageTransition(), ImageOpenTransitionContext::sourceResolved(session));
+        resolveSourceImageTransition(), ImageOpenTransitionContext::sourcePrepared(session));
 }
 
 ImageOpenApplicationPlan finishUnsupportedOpenedCollectionVideoLoadPlan(

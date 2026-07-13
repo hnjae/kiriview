@@ -4,7 +4,6 @@
 #include "documentsessionmediapredecoderuntime.h"
 
 #include "location/sourcekey.h"
-#include "navigation/directmedianavigationmodel.h"
 #include "predecode/mediapredecodecoordinator.h"
 
 #include <QObject>
@@ -25,16 +24,13 @@ namespace {
             return {};
         }
 
-        const SourceKey parentKey = input.parentSourceKey.valid
-            ? input.parentSourceKey
-            : sourceKeyForDirectMediaParentUrl(directMediaNavigationParentUrl(input.currentUrl));
-        if (!parentKey.valid) {
+        if (!input.parentSourceKey.valid) {
             return {};
         }
 
         return MediaPredecodeScopeIdentity {
             true,
-            parentKey.identity,
+            input.parentSourceKey.identity,
         };
     }
 }

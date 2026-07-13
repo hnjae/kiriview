@@ -444,7 +444,7 @@ private:
 }
 
 namespace kiriview {
-ImageOpenTransitionContext ImageOpenTransitionContext::sourceResolved(
+ImageOpenTransitionContext ImageOpenTransitionContext::sourcePrepared(
     const ImageLoadSession& session)
 {
     ImageOpenTransitionContext context;

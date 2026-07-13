@@ -11,26 +11,34 @@ bool ImageContainerOpenPlan::shouldLoadCandidates() const { return source.has_va
 bool ImageContainerOpenResult::openedImage() const { return target.has_value(); }
 
 ImageContainerOpenPlan imageContainerOpenPlanForCandidate(
-    const ContainerNavigationCandidate& container)
+    const ContainerNavigationCandidate& container, const ResolvedNavigationSource& source)
 {
     switch (container.type) {
-    case ContainerNavigationCandidateType::Directory:
+    case ContainerNavigationCandidateType::Directory: {
+        const OpenedCollectionScopeLocation openedCollectionScope
+            = OpenedCollectionScopeLocation::fromResolvedSource(source,
+                normalizedDirectoryContainerUrl(source.navigationUrl()),
+                OpenedCollectionScopeKind::Directory);
         return { ImageDocumentPageCandidateListSource::forDirectory(container.url),
-            ImageContainerOpenError::Generic };
+            openedCollectionScope, ImageContainerOpenError::Generic };
+    }
     case ContainerNavigationCandidateType::ComicBookArchive: {
         const std::optional<OpenedCollectionScopeLocation> openedCollectionScope
-            = openedCollectionScopeLocationForLocalArchiveUrl(container.url);
-        if (openedCollectionScope.has_value() && openedCollectionScope->isComicBook()) {
+            = openedCollectionScopeLocationForLocalArchiveSource(source);
+        if (!openedCollectionScope.has_value()) {
+            return { std::nullopt, {}, ImageContainerOpenError::InvalidComicBookArchive };
+        }
+        if (openedCollectionScope->isComicBook()) {
             return { ImageDocumentPageCandidateListSource::forOpenedCollectionScope(
                          *openedCollectionScope),
-                ImageContainerOpenError::Generic };
+                *openedCollectionScope, ImageContainerOpenError::Generic };
         }
 
-        return { std::nullopt, ImageContainerOpenError::InvalidComicBookArchive };
+        return { std::nullopt, {}, ImageContainerOpenError::InvalidComicBookArchive };
     }
     }
 
-    return { std::nullopt, ImageContainerOpenError::Generic };
+    return { std::nullopt, {}, ImageContainerOpenError::Generic };
 }
 
 ImageContainerOpenResult imageContainerOpenResultForCandidates(

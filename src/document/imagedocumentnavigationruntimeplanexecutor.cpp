@@ -51,11 +51,11 @@ bool ImageDocumentNavigationRuntimePlanExecutor::dispatchOperation(
         return true;
     }
     if (const auto* payload = std::get_if<LoadUrlOperation>(&operation)) {
-        run(m_operations.loadUrl, payload->target);
+        run(m_operations.loadUrl, payload->target, payload->openedCollectionScope);
         return true;
     }
     if (const auto* payload = std::get_if<LoadContainerImageOperation>(&operation)) {
-        run(m_operations.loadContainerImage, payload->target, payload->containerUrl);
+        run(m_operations.loadContainerImage, payload->target, payload->openedCollectionScope);
         return true;
     }
     if (const auto* payload = std::get_if<FinishEmptyContainerNavigationOperation>(&operation)) {
@@ -78,7 +78,7 @@ bool ImageDocumentNavigationRuntimePlanExecutor::dispatchOperation(
         return true;
     }
     if (const auto* payload = std::get_if<LoadPageNavigationUrlOperation>(&operation)) {
-        run(m_operations.loadPageNavigationUrl, payload->target,
+        run(m_operations.loadPageNavigationUrl, payload->target, payload->openedCollectionScope,
             payload->preserveTwoPageSpreadTransition);
         return true;
     }

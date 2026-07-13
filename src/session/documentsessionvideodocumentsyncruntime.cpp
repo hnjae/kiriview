@@ -46,15 +46,14 @@ void DocumentSessionVideoDocumentSyncRuntime::apply(
         }
         break;
     case DocumentSessionVideoDocumentSyncOperation::CommitDirectVideoCursor: {
-        bool directMediaScopeChanged = false;
-        if (m_ports.setDirectVideoCursor) {
-            directMediaScopeChanged = m_ports.setDirectVideoCursor(plan.url);
+        const DirectMediaConfirmation confirmation = m_ports.confirmDirectVideoCursor
+            ? m_ports.confirmDirectVideoCursor(plan.url)
+            : DirectMediaConfirmation::Bypassed;
+        if (confirmation != DirectMediaConfirmation::Committed) {
+            return;
         }
         if (m_ports.setSourceIdentity) {
             m_ports.setSourceIdentity(plan.url);
-        }
-        if (directMediaScopeChanged && m_ports.refreshDirectMediaNavigation) {
-            m_ports.refreshDirectMediaNavigation();
         }
         break;
     }

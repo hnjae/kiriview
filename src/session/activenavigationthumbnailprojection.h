@@ -48,7 +48,7 @@ struct ActiveNavigationThumbnailRow
 struct ActiveNavigationThumbnailRowSetIdentity
 {
     ActiveNavigationSourceKind sourceKind = ActiveNavigationSourceKind::None;
-    DirectMediaScope directMediaSource;
+    std::optional<DirectMediaScope> directMediaSource;
     std::optional<ImageDocumentPageCandidateListSource> imageDocumentPageSource;
     quint64 candidateRevision = 0;
     int count = 0;

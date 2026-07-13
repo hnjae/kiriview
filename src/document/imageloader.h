@@ -29,7 +29,7 @@ class ImageLoader final : public QObject
 {
     Q_OBJECT
 public:
-    using SourceResolvedCallback = std::function<void(ImageLoadSession)>;
+    using SourcePreparedCallback = std::function<void(ImageLoadSession)>;
     using ErrorCallback = std::function<void(ImageLoadSession, ImageLoadFailure)>;
     using DecodedImageCallback = std::function<void(ImageLoadSession, DecodedImage)>;
     using PredecodedImageCallback = std::function<void(ImageLoadSession, PredecodedImage)>;
@@ -46,7 +46,7 @@ public:
         ThumbnailPreviewCallback thumbnailPreview;
         UnsupportedOpenedCollectionVideoCallback unsupportedOpenedCollectionVideo;
         FindPredecodedImageCallback findPredecodedImage;
-        SourceResolvedCallback sourceResolved;
+        SourcePreparedCallback sourcePrepared;
     };
 
     explicit ImageLoader(QObject* parent = nullptr);

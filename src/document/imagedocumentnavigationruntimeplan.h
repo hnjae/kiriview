@@ -9,7 +9,8 @@
 
 namespace kiriview {
 ImageDocumentRuntimePlan imageDocumentRuntimePlanForNavigationPlan(
-    const ImageDocumentPageNavigationPlan& navigationPlan);
+    const ImageDocumentPageNavigationPlan& navigationPlan,
+    const OpenedCollectionScopeLocation& openedCollectionScope);
 }
 
 #endif

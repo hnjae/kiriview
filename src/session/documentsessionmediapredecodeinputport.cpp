@@ -22,7 +22,7 @@ DocumentSessionMediaPredecodeInputPort::DocumentSessionMediaPredecodeInputPort(
 
 DocumentSessionMediaPredecodeInput DocumentSessionMediaPredecodeInputPort::currentInput() const
 {
-    const DirectMediaScope scope = m_scope->currentScope();
+    const std::optional<DirectMediaScope> scope = m_scope->currentScope();
     return DocumentSessionMediaPredecodeInput {
         m_activity->navigationActive(),
         m_state->documentKind(),
@@ -31,7 +31,7 @@ DocumentSessionMediaPredecodeInput DocumentSessionMediaPredecodeInputPort::curre
         m_scope->activeCursorUrl(),
         m_image->primaryDisplayedPredecodeImage,
         m_image->firstDisplayDecodeContext,
-        scope.parentKey,
+        scope.has_value() ? scope->parentKey() : SourceKey {},
     };
 }
 }

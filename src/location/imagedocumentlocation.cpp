@@ -169,13 +169,6 @@ std::optional<QUrl> directArchiveOpenRootUrl(const QUrl& url)
     return root->rootUrl;
 }
 
-std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveUrl(
-    const QUrl& url)
-{
-    return openedCollectionScopeLocationForLocalArchiveSource(
-        NavigationSourceResolver {}.resolve(url));
-}
-
 std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLocalArchiveSource(
     const ResolvedNavigationSource& source)
 {
@@ -186,13 +179,6 @@ std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForLoc
     }
 
     return OpenedCollectionScopeLocation::fromResolvedSource(source, root->rootUrl, root->kind);
-}
-
-std::optional<OpenedCollectionScopeLocation> openedCollectionScopeLocationForDirectlyOpenedLocalUrl(
-    const QUrl& url)
-{
-    return openedCollectionScopeLocationForDirectlyOpenedLocalSource(
-        NavigationSourceResolver {}.resolve(url));
 }
 
 std::optional<OpenedCollectionScopeLocation>

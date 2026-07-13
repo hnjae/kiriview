@@ -158,8 +158,8 @@ void TestRuntimeProviderDefaults::
     QVERIFY(resolved.openedCollectionCandidates);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(
-            localUrl(QStringLiteral("/books/book.cbz")));
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/books/book.cbz")), {}));
     QVERIFY(archiveCollection.has_value());
 
     int callbackCount = 0;
@@ -262,8 +262,8 @@ void TestRuntimeProviderDefaults::
     QVERIFY(resolved.candidateProvider.openedCollectionCandidates);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(
-            localUrl(QStringLiteral("/books/book.cbz")));
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/books/book.cbz")), {}));
     QVERIFY(archiveCollection.has_value());
 
     int callbackCount = 0;
@@ -318,8 +318,8 @@ void TestRuntimeProviderDefaults::decodeDependencyDefaultsBindDataLoaderToWorker
     QVERIFY(resolved.dataLoader);
 
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(
-            localUrl(QStringLiteral("/books/book.cbz")));
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/books/book.cbz")), {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl pageUrl = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));
 

@@ -5,6 +5,7 @@
 #define KIRIVIEW_IMAGEDOCUMENTRUNTIMEWORKFLOW_H
 
 #include "imagedocumentruntimeplanexecutor.h"
+#include "location/imageurl.h"
 
 #include <QString>
 #include <functional>
@@ -17,7 +18,7 @@ class ImageDocumentDeletionController;
 class ImageDocumentNavigationController;
 class ImageDocumentPredecodeController;
 class ImageDocumentState;
-struct ImageDocumentSourceLoadRequest;
+class ImageDocumentSourceLoadRequest;
 class ImageOpenController;
 class ImagePageSurfaceController;
 class ImageSpreadPresentationController;

@@ -23,15 +23,9 @@ kiriview::DirectMediaScope directMediaScope(
     const QString& currentPath, const QString& parentPath, quint64 generation)
 {
     const QUrl currentUrl = QUrl::fromLocalFile(currentPath);
-    const QUrl parentUrl = QUrl::fromLocalFile(parentPath);
-    return kiriview::DirectMediaScope {
-        currentUrl,
-        parentUrl,
-        generation,
-        kiriview::sourceKeyForUrl(currentUrl),
-        kiriview::sourceKeyForUrl(parentUrl),
-        currentUrl,
-    };
+    Q_UNUSED(parentPath);
+    return *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(currentUrl, {}, currentUrl), generation);
 }
 }
 
@@ -63,14 +57,18 @@ void TestDocumentSessionDirectMediaNavigationLoadState::cursorScopeMustMatchCurr
     const kiriview::DocumentSessionDirectMediaNavigationLoad second = state.start(
         directMediaScope(QStringLiteral("/second/01.mp4"), QStringLiteral("/second/"), 2));
 
-    kiriview::DocumentSessionDirectMediaNavigationLoad wrongScope = second;
-    wrongScope.scope.parentUrl = first.scope.parentUrl;
-    wrongScope.scope.parentKey = first.scope.parentKey;
-    kiriview::DocumentSessionDirectMediaNavigationLoad wrongCurrent = second;
-    wrongCurrent.scope.currentUrl = first.scope.currentUrl;
-    wrongCurrent.scope.currentKey = first.scope.currentKey;
-    kiriview::DocumentSessionDirectMediaNavigationLoad wrongGeneration = second;
-    wrongGeneration.scope.generation = first.scope.generation;
+    const kiriview::DocumentSessionDirectMediaNavigationLoad wrongScope {
+        second.operationId,
+        first.scope,
+    };
+    const kiriview::DocumentSessionDirectMediaNavigationLoad wrongCurrent {
+        second.operationId,
+        directMediaScope(QStringLiteral("/second/02.mp4"), QStringLiteral("/second/"), 2),
+    };
+    const kiriview::DocumentSessionDirectMediaNavigationLoad wrongGeneration {
+        second.operationId,
+        directMediaScope(QStringLiteral("/second/01.mp4"), QStringLiteral("/second/"), 1),
+    };
 
     QVERIFY(!state.accepts(first));
     QVERIFY(!state.finish(first));
@@ -89,23 +87,28 @@ void TestDocumentSessionDirectMediaNavigationLoadState::sourceKeyEquivalentScope
     kiriview::DocumentSessionDirectMediaNavigationLoadState state;
 
     kiriview::DocumentSessionDirectMediaNavigationLoad load
-        = state.start(kiriview::DirectMediaScope {
-            QUrl(QStringLiteral("file:///media/chapter/../01.mp4")),
-            QUrl(QStringLiteral("file:///media/chapter/..")),
-            3,
-            kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.mp4"))),
-            kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/"))),
-            QUrl(QStringLiteral("file:///media/01.mp4")),
-        });
+        = state.start(*kiriview::DirectMediaScope::fromSource(
+            kiriview::ResolvedNavigationSource(
+                QUrl(QStringLiteral("file:///media/chapter/../01.mp4")), {},
+                QUrl(QStringLiteral("file:///media/01.mp4"))),
+            3));
 
-    load.scope.currentUrl = QUrl(QStringLiteral("file:///media/01.mp4"));
-    load.scope.parentUrl = QUrl(QStringLiteral("file:///media/"));
-    QVERIFY(state.accepts(load));
+    const kiriview::DocumentSessionDirectMediaNavigationLoad equivalent {
+        load.operationId,
+        *kiriview::DirectMediaScope::fromSource(
+            kiriview::resolvedNavigationSource(QUrl(QStringLiteral("file:///media/01.mp4")), {}),
+            3),
+    };
+    QVERIFY(state.accepts(equivalent));
 
-    kiriview::DocumentSessionDirectMediaNavigationLoad wrongGeneration = load;
-    wrongGeneration.scope.generation = 4;
+    const kiriview::DocumentSessionDirectMediaNavigationLoad wrongGeneration {
+        load.operationId,
+        *kiriview::DirectMediaScope::fromSource(
+            kiriview::resolvedNavigationSource(QUrl(QStringLiteral("file:///media/01.mp4")), {}),
+            4),
+    };
     QVERIFY(!state.accepts(wrongGeneration));
-    QVERIFY(state.finish(load));
+    QVERIFY(state.finish(equivalent));
 }
 
 void TestDocumentSessionDirectMediaNavigationLoadState::cancelRejectsPendingLoad()

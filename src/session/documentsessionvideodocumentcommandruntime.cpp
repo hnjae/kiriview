@@ -15,10 +15,10 @@ DocumentSessionVideoDocumentCommandRuntime::DocumentSessionVideoDocumentCommandR
 {
 }
 
-void DocumentSessionVideoDocumentCommandRuntime::setSourceUrl(const QUrl& sourceUrl)
+void DocumentSessionVideoDocumentCommandRuntime::setSource(const ResolvedNavigationSource& source)
 {
-    if (m_commands.source.setSourceUrl) {
-        m_commands.source.setSourceUrl(sourceUrl);
+    if (m_commands.source.setSource) {
+        m_commands.source.setSource(source);
     }
 }
 
@@ -40,7 +40,9 @@ void DocumentSessionVideoDocumentCommandRuntime::leaveMode(const QUrl& currentSo
     if (m_commands.playback.stop) {
         m_commands.playback.stop();
     }
-    setSourceUrl(QUrl());
+    if (m_commands.source.clearSource) {
+        m_commands.source.clearSource();
+    }
 }
 
 DocumentSessionVideoOutputAttachmentPort

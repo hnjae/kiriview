@@ -199,14 +199,14 @@ void ImageLoader::finishOpenedCollectionCandidates(
                 QString(), QString()));
         return;
     case OpenedCollectionCandidateCompletionAction::ReportUnsupportedOpenedCollectionVideo:
-        invokeIfSet(m_callbacks.sourceResolved, completion.session);
+        invokeIfSet(m_callbacks.sourcePrepared, completion.session);
         invokeIfSet(m_callbacks.unsupportedOpenedCollectionVideo, std::move(completion.session));
         return;
     case OpenedCollectionCandidateCompletionAction::StartImageDecode:
         break;
     }
 
-    invokeIfSet(m_callbacks.sourceResolved, completion.session);
+    invokeIfSet(m_callbacks.sourcePrepared, completion.session);
     startImageLoad(std::move(completion.session));
 }
 

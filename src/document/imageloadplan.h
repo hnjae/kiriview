@@ -32,17 +32,9 @@ struct ImageLoadPlan
     ImageLoadStartEffect startEffect = ImageLoadStartEffect::DecodeImage;
 };
 
-struct ImageLoadResolvedSourceFacts
-{
-    std::optional<OpenedCollectionScopeLocation> directlyOpenedCollectionScope;
-    ResolvedNavigationSource source;
-};
-
-OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(
-    const ImageLoadRequest& request, const ImageLoadResolvedSourceFacts& resolvedSourceFacts = {});
-ImageLoadPlan imageLoadPlan(quint64 id, ImageLoadRequest request,
-    ImageFirstDisplayDecodeContext firstDisplayContext = {},
-    ImageLoadResolvedSourceFacts resolvedSourceFacts = {});
+OpenedCollectionScopeLoadPlan openedCollectionScopeLoadPlan(const ImageLoadRequest& request);
+ImageLoadPlan imageLoadPlan(
+    quint64 id, ImageLoadRequest request, ImageFirstDisplayDecodeContext firstDisplayContext = {});
 }
 
 #endif

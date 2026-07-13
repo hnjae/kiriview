@@ -20,23 +20,11 @@ class TestDirectMediaNavigationModel : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void parentUrlUsesDirectImageDocumentPageCandidateContextRule();
     void navigatesMixedMediaWithoutWrapping();
     void openPlanUpdatesBoundaryStateAndSelectsTargets();
     void sortingAndMatchingNormalizePathSegmentsAndPercentEncoding();
     void boundaryStateIsUnknownWhenCurrentMediaIsMissing();
 };
-
-void TestDirectMediaNavigationModel::parentUrlUsesDirectImageDocumentPageCandidateContextRule()
-{
-    QCOMPARE(kiriview::directMediaNavigationParentUrl(
-                 localUrl(QStringLiteral("/media/a/../b/clip.mp4"))),
-        localUrl(QStringLiteral("/media/b/")));
-
-    const QUrl archiveEntry(QStringLiteral("zip:///path/archive.zip!/chapter/clip.mp4"));
-    QCOMPARE(kiriview::directMediaNavigationParentUrl(archiveEntry),
-        QUrl(QStringLiteral("zip:///path/archive.zip!/chapter/")));
-}
 
 void TestDirectMediaNavigationModel::navigatesMixedMediaWithoutWrapping()
 {

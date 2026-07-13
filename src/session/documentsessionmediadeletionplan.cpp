@@ -27,25 +27,25 @@ std::optional<QUrl> preferredMediaDeletionFallback(
 
 namespace kiriview {
 DocumentSessionMediaDeletionStartPlan documentSessionMediaDeletionStartPlan(FileDeletionMode mode,
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& actualTargetUrl,
     const QUrl& navigationIdentityUrl)
 {
     const DocumentSessionMediaDeletionFallbackPlan fallbackPlan
         = documentSessionMediaDeletionFallbackPlan(
-            std::move(candidates), targetUrl, navigationIdentityUrl);
+            std::move(candidates), actualTargetUrl, navigationIdentityUrl);
     if (!fallbackPlan.hasTarget()) {
         return {};
     }
 
     return DocumentSessionMediaDeletionStartPlan {
         true,
-        FileDeletionRequest { fallbackPlan.targetUrl, mode },
+        FileDeletionRequest { fallbackPlan.actualTargetUrl, mode },
         fallbackPlan,
     };
 }
 
 DocumentSessionMediaDeletionFallbackPlan documentSessionMediaDeletionFallbackPlan(
-    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& targetUrl,
+    std::vector<DirectMediaNavigationCandidate> candidates, const QUrl& actualTargetUrl,
     const QUrl& navigationIdentityUrl)
 {
     const QUrl& identityUrl = navigationIdentityUrl;
@@ -59,7 +59,7 @@ DocumentSessionMediaDeletionFallbackPlan documentSessionMediaDeletionFallbackPla
     }
 
     return DocumentSessionMediaDeletionFallbackPlan {
-        targetUrl,
+        actualTargetUrl,
         adjacentDirectMediaNavigationUrl(candidates, identityUrl, NavigationDirection::Next),
         adjacentDirectMediaNavigationUrl(candidates, identityUrl, NavigationDirection::Previous),
     };

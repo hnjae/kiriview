@@ -9,6 +9,13 @@
 
 namespace {
 kiriview::ResolvedNavigationSource resolved(const QUrl& url) { return { url, {}, url }; }
+
+kiriview::DirectMediaScope scopeFor(
+    const QUrl& requestedUrl, const QUrl& navigationUrl, quint64 generation)
+{
+    return *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(requestedUrl, {}, navigationUrl), generation);
+}
 }
 
 class TestDirectMediaCursor : public QObject
@@ -23,6 +30,7 @@ private Q_SLOTS:
     void scopeEqualityIncludesParentSourceKey();
     void scopeMatchingAcceptsNormalizedConfirmation();
     void mismatchedConfirmationPreservesPendingSnapshot();
+    void mismatchedVideoConfirmationPreservesStableSnapshot();
 };
 
 void TestDirectMediaCursor::generationChangesOnlyWithEffectiveIdentity()
@@ -111,12 +119,29 @@ void TestDirectMediaCursor::mismatchedConfirmationPreservesPendingSnapshot()
     kiriview::requestDirectImageCursor(cursor, source);
     const kiriview::DirectMediaCursor pending = cursor;
 
-    QVERIFY(!kiriview::confirmDirectImageCursor(cursor, staleConfirmation));
+    QCOMPARE(kiriview::confirmDirectImageCursor(cursor, staleConfirmation),
+        kiriview::DirectMediaConfirmation::Stale);
     QCOMPARE(cursor.pendingSource.requestedUrl(), pending.pendingSource.requestedUrl());
     QCOMPARE(cursor.pendingSource.navigationUrl(), pending.pendingSource.navigationUrl());
     QCOMPARE(cursor.pendingSource.requestedUrl(), pending.pendingSource.requestedUrl());
     QCOMPARE(cursor.stableSource.requestedUrl(), pending.stableSource.requestedUrl());
     QCOMPARE(cursor.generation, pending.generation);
+}
+
+void TestDirectMediaCursor::mismatchedVideoConfirmationPreservesStableSnapshot()
+{
+    kiriview::DirectMediaCursor cursor;
+    const kiriview::ResolvedNavigationSource source
+        = resolved(QUrl(QStringLiteral("file:///media/01.mp4")));
+    kiriview::setDirectVideoCursor(cursor, source);
+    const kiriview::DirectMediaCursor stable = cursor;
+
+    QCOMPARE(
+        kiriview::confirmDirectVideoCursor(cursor, QUrl(QStringLiteral("file:///media/02.mp4"))),
+        kiriview::DirectMediaConfirmation::Stale);
+    QCOMPARE(cursor.stableSource.requestedUrl(), stable.stableSource.requestedUrl());
+    QCOMPARE(cursor.stableSource.navigationUrl(), stable.stableSource.navigationUrl());
+    QCOMPARE(cursor.generation, stable.generation);
 }
 
 void TestDirectMediaCursor::generationUsesNormalizedEffectiveIdentity()
@@ -144,58 +169,43 @@ void TestDirectMediaCursor::scopeUsesEffectiveUrlParentAndGeneration()
 
     kiriview::requestDirectImageCursor(cursor, resolved(requestedImage));
 
-    const kiriview::DirectMediaScope scope = kiriview::directMediaScopeForCursor(cursor);
-    QCOMPARE(scope.currentUrl, requestedImage);
-    QCOMPARE(scope.parentUrl, QUrl(QStringLiteral("file:///media/b/")));
-    QCOMPARE(scope.generation, cursor.generation);
+    const std::optional<kiriview::DirectMediaScope> scope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(scope.has_value());
+    QCOMPARE(scope->currentUrl(), requestedImage);
+    QCOMPARE(scope->parentUrl(), QUrl(QStringLiteral("file:///media/b/")));
+    QCOMPARE(scope->generation(), cursor.generation);
 }
 
 void TestDirectMediaCursor::scopeEqualityUsesSourceKeysAndGeneration()
 {
-    const kiriview::DirectMediaScope requestedScope {
-        QUrl(QStringLiteral("file:///media/chapter/../01.png")),
-        QUrl(QStringLiteral("file:///media/chapter/..")),
-        7,
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.png"))),
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/"))),
-        QUrl(QStringLiteral("file:///media/01.png")),
-    };
-    kiriview::DirectMediaScope equivalentScope {
-        QUrl(QStringLiteral("file:///media/01.png")),
-        QUrl(QStringLiteral("file:///media/")),
-        7,
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.png"))),
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/"))),
-        QUrl(QStringLiteral("file:///media/01.png")),
-    };
+    const kiriview::DirectMediaScope requestedScope
+        = scopeFor(QUrl(QStringLiteral("file:///media/chapter/../01.png")),
+            QUrl(QStringLiteral("file:///media/01.png")), 7);
+    const kiriview::DirectMediaScope equivalentScope
+        = scopeFor(QUrl(QStringLiteral("file:///media/01.png")),
+            QUrl(QStringLiteral("file:///media/01.png")), 7);
     QVERIFY(requestedScope == equivalentScope);
 
-    equivalentScope.generation = 8;
-    QVERIFY(!(requestedScope == equivalentScope));
+    const kiriview::DirectMediaScope newerScope
+        = scopeFor(QUrl(QStringLiteral("file:///media/01.png")),
+            QUrl(QStringLiteral("file:///media/01.png")), 8);
+    QVERIFY(!(requestedScope == newerScope));
 
-    equivalentScope = requestedScope;
-    equivalentScope.currentUrl = QUrl(QStringLiteral("file:///media/01.PNG"));
-    QVERIFY(requestedScope == equivalentScope);
+    const kiriview::DirectMediaScope differentlyRequestedScope
+        = scopeFor(QUrl(QStringLiteral("file:///media/01.PNG")),
+            QUrl(QStringLiteral("file:///media/01.png")), 7);
+    QVERIFY(requestedScope == differentlyRequestedScope);
 }
 
 void TestDirectMediaCursor::scopeEqualityIncludesParentSourceKey()
 {
-    const kiriview::DirectMediaScope firstScope {
-        QUrl(QStringLiteral("file:///media/01.png")),
-        QUrl(QStringLiteral("file:///media/")),
-        7,
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.png"))),
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/"))),
-        QUrl(QStringLiteral("file:///media/01.png")),
-    };
-    const kiriview::DirectMediaScope otherParentScope {
-        QUrl(QStringLiteral("file:///media/01.png")),
-        QUrl(QStringLiteral("file:///other/")),
-        7,
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///media/01.png"))),
-        kiriview::sourceKeyForUrl(QUrl(QStringLiteral("file:///other/"))),
-        QUrl(QStringLiteral("file:///media/01.png")),
-    };
+    const kiriview::DirectMediaScope firstScope
+        = scopeFor(QUrl(QStringLiteral("file:///media/01.png")),
+            QUrl(QStringLiteral("file:///media/01.png")), 7);
+    const kiriview::DirectMediaScope otherParentScope
+        = scopeFor(QUrl(QStringLiteral("file:///other/01.png")),
+            QUrl(QStringLiteral("file:///other/01.png")), 7);
 
     QVERIFY(!(firstScope == otherParentScope));
 }
@@ -207,15 +217,17 @@ void TestDirectMediaCursor::scopeMatchingAcceptsNormalizedConfirmation()
     const QUrl confirmedImage(QStringLiteral("file:///media/01.png"));
 
     kiriview::requestDirectImageCursor(cursor, resolved(requestedImage));
-    const kiriview::DirectMediaScope requestedScope = kiriview::directMediaScopeForCursor(cursor);
-    QVERIFY(kiriview::directMediaScopeMatchesCursor(cursor, requestedScope));
+    const std::optional<kiriview::DirectMediaScope> requestedScope
+        = kiriview::directMediaScopeForCursor(cursor);
+    QVERIFY(requestedScope.has_value());
+    QVERIFY(kiriview::directMediaScopeMatchesCursor(cursor, *requestedScope));
 
     kiriview::confirmDirectImageCursor(cursor, confirmedImage);
-    QVERIFY(kiriview::directMediaScopeMatchesCursor(cursor, requestedScope));
+    QVERIFY(kiriview::directMediaScopeMatchesCursor(cursor, *requestedScope));
 
     kiriview::requestDirectImageCursor(
         cursor, resolved(QUrl(QStringLiteral("file:///media/02.png"))));
-    QVERIFY(!kiriview::directMediaScopeMatchesCursor(cursor, requestedScope));
+    QVERIFY(!kiriview::directMediaScopeMatchesCursor(cursor, *requestedScope));
 }
 
 QTEST_GUILESS_MAIN(TestDirectMediaCursor)

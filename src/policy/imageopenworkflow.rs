@@ -310,6 +310,10 @@ fn same_scope_image_navigation_load_plan(
     );
     push_source_load_operation(
         &mut plan,
+        RustImageDocumentSourceLoadOperation::PrepareSourceLoad,
+    );
+    push_source_load_operation(
+        &mut plan,
         RustImageDocumentSourceLoadOperation::SetSourceUrlToRequested,
     );
     push_source_load_operation(&mut plan, RustImageDocumentSourceLoadOperation::BeginOpen);
@@ -1038,6 +1042,7 @@ mod tests {
                     RustImageDocumentSourceLoadOperation::CancelFileDeletion,
                     RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
                     RustImageDocumentSourceLoadOperation::BeginSameScopeImageNavigationPresentation,
+                    RustImageDocumentSourceLoadOperation::PrepareSourceLoad,
                     RustImageDocumentSourceLoadOperation::SetSourceUrlToRequested,
                     RustImageDocumentSourceLoadOperation::BeginOpen,
                 ],
@@ -1060,6 +1065,7 @@ mod tests {
                 RustImageDocumentSourceLoadOperation::NotifyRightToLeftReadingChanged,
                 RustImageDocumentSourceLoadOperation::ClearLoadingContainerNavigationUrl,
                 RustImageDocumentSourceLoadOperation::BeginSameScopeImageNavigationPresentation,
+                RustImageDocumentSourceLoadOperation::PrepareSourceLoad,
                 RustImageDocumentSourceLoadOperation::SetSourceUrlToRequested,
                 RustImageDocumentSourceLoadOperation::BeginOpen,
             ]

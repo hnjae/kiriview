@@ -89,7 +89,7 @@ void TestDocumentSessionMediaDeletionPlan::fallbackPlanUsesOriginalDirectMediaUr
     const kiriview::DocumentSessionMediaDeletionFallbackPlan plan
         = kiriview::documentSessionMediaDeletionFallbackPlan(candidates, deletedUrl, identityUrl);
 
-    QCOMPARE(plan.targetUrl, deletedUrl);
+    QCOMPARE(plan.actualTargetUrl, deletedUrl);
     QCOMPARE(plan.preferredFallbackUrl.value(), localUrl(QStringLiteral("/media/03.png")));
     QCOMPARE(plan.fallbackUrl.value(), localUrl(QStringLiteral("/media/01.jpg")));
 }
@@ -109,7 +109,7 @@ void TestDocumentSessionMediaDeletionPlan::startPlanUsesDirectMediaTargetAndFall
     QVERIFY(plan.shouldStartDeletion);
     QCOMPARE(plan.request.targetUrl, localUrl(QStringLiteral("/media/02.mp4")));
     QCOMPARE(plan.request.mode, kiriview::FileDeletionMode::DeletePermanently);
-    QCOMPARE(plan.fallbackPlan.targetUrl, localUrl(QStringLiteral("/media/02.mp4")));
+    QCOMPARE(plan.fallbackPlan.actualTargetUrl, localUrl(QStringLiteral("/media/02.mp4")));
     QCOMPARE(
         plan.fallbackPlan.preferredFallbackUrl.value(), localUrl(QStringLiteral("/media/03.png")));
     QCOMPARE(plan.fallbackPlan.fallbackUrl.value(), localUrl(QStringLiteral("/media/01.jpg")));

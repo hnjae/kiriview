@@ -7,6 +7,7 @@
 #include "session/directmediacursor.h"
 
 #include <QUrl>
+#include <optional>
 
 namespace kiriview {
 class DocumentSessionState;
@@ -16,7 +17,7 @@ class DocumentSessionDirectMediaScopePort final
 public:
     explicit DocumentSessionDirectMediaScopePort(const DocumentSessionState* state);
 
-    DirectMediaScope currentScope() const;
+    std::optional<DirectMediaScope> currentScope() const;
     QUrl activeCursorUrl() const;
     bool cursorMatches(const DirectMediaScope& scope) const;
 

@@ -61,6 +61,7 @@ private Q_SLOTS:
     void directlyOpenedArchiveFormatsStartOpenedCollectionCandidateLoad();
     void directlyOpenedDirectoryStartsOpenedCollectionCandidateLoad();
     void openedCollectionScopeRetainsResolvedNavigationSourceFacts();
+    void sameScopePageLoadDoesNotProbeAgain();
     void staleSessionsCannotResolveOrFinishCurrentLoad();
     void archiveResolutionUpdatesCanonicalCurrentSession();
     void archiveResolutionReportsUnsupportedOpenedCollectionVideo();
@@ -79,10 +80,12 @@ void TestImageLoadSessionTracker::startOwnsSessionIdAndFirstDisplayContext()
     const QUrl secondUrl = localUrl(QStringLiteral("/images/02.png"));
 
     const kiriview::ImageLoadPlan firstPlan
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(firstUrl),
+        = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+                            kiriview::resolvedNavigationSource(firstUrl, {})),
             kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) });
     const kiriview::ImageLoadPlan secondPlan
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(secondUrl));
+        = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(secondUrl, {})));
 
     QCOMPARE(firstPlan.session.id(), quint64(1));
     QCOMPARE(secondPlan.session.id(), quint64(2));
@@ -99,7 +102,8 @@ void TestImageLoadSessionTracker::directlyOpenedArchiveFormatsStartOpenedCollect
         const QUrl archiveUrl = localUrl(QStringLiteral("/books/") + archiveCase.fileName);
 
         const kiriview::ImageLoadPlan plan
-            = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+            = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+                kiriview::resolvedNavigationSource(archiveUrl, {})));
         const kiriview::OpenedCollectionScopeLocation& scope = plan.session.openedCollectionScope();
 
         QCOMPARE(
@@ -123,7 +127,8 @@ void TestImageLoadSessionTracker::directlyOpenedDirectoryStartsOpenedCollectionC
 
     kiriview::ImageLoadSessionTracker tracker;
     const kiriview::ImageLoadPlan plan
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(directoryUrl));
+        = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {})));
     const kiriview::OpenedCollectionScopeLocation& scope = plan.session.openedCollectionScope();
 
     QCOMPARE(plan.startEffect, kiriview::ImageLoadStartEffect::LoadOpenedCollectionScopeCandidates);
@@ -139,22 +144,48 @@ void TestImageLoadSessionTracker::directlyOpenedDirectoryStartsOpenedCollectionC
 void TestImageLoadSessionTracker::openedCollectionScopeRetainsResolvedNavigationSourceFacts()
 {
     int probeCount = 0;
-    kiriview::ImageLoadSessionTracker tracker([&probeCount](const QUrl&) {
+    const kiriview::NavigationSourceResolver resolver([&probeCount](const QUrl&) {
         ++probeCount;
         return kiriview::NavigationSourceFacts {};
     });
+    kiriview::ImageLoadSessionTracker tracker;
     const QUrl archiveUrl = QUrl::fromLocalFile(QStringLiteral("/books/book.cbz"));
 
-    const kiriview::ImageLoadPlan first
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    const kiriview::ImageLoadPlan first = tracker.start(
+        kiriview::ImageLoadRequest::fromExternalSource(resolver.resolveExternalSource(archiveUrl)));
     QCOMPARE(probeCount, 1);
     QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
     QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
     QCOMPARE(first.session.openedCollectionScope().navigationSourceUrl(), archiveUrl);
     QCOMPARE(probeCount, 1);
 
-    tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl));
+    tracker.start(
+        kiriview::ImageLoadRequest::fromExternalSource(resolver.resolveExternalSource(archiveUrl)));
     QCOMPARE(probeCount, 2);
+}
+
+void TestImageLoadSessionTracker::sameScopePageLoadDoesNotProbeAgain()
+{
+    int probeCount = 0;
+    const kiriview::NavigationSourceFactProvider provider = [&probeCount](const QUrl&) {
+        ++probeCount;
+        return kiriview::NavigationSourceFacts {};
+    };
+    kiriview::ImageLoadSessionTracker tracker;
+    const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
+    const kiriview::ResolvedNavigationSource source
+        = kiriview::NavigationSourceResolver(provider).resolveExternalSource(archiveUrl);
+    const std::optional<kiriview::OpenedCollectionScopeLocation> scope
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(source);
+    QVERIFY(scope.has_value());
+    const QUrl pageUrl = archivePageUrl(scope->rootUrl(), QStringLiteral("02.png"));
+    QCOMPARE(probeCount, 1);
+
+    tracker.start(kiriview::ImageLoadRequest::fromSameScopePageTarget(
+        kiriview::ImageDocumentPageTarget(pageUrl, kiriview::ImageDocumentPageKind::Image), *scope,
+        false));
+
+    QCOMPARE(probeCount, 1);
 }
 
 void TestImageLoadSessionTracker::staleSessionsCannotResolveOrFinishCurrentLoad()
@@ -164,9 +195,15 @@ void TestImageLoadSessionTracker::staleSessionsCannotResolveOrFinishCurrentLoad(
     const QUrl secondUrl = localUrl(QStringLiteral("/images/02.png"));
 
     const kiriview::ImageLoadSession staleSession
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(firstUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(firstUrl, {})))
+              .session;
     const kiriview::ImageLoadSession currentSession
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(secondUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(secondUrl, {})))
+              .session;
 
     const kiriview::OpenedCollectionCandidateCompletion staleArchiveCompletion
         = tracker.completeOpenedCollectionCandidates(
@@ -197,7 +234,8 @@ void TestImageLoadSessionTracker::archiveResolutionUpdatesCanonicalCurrentSessio
 
     const kiriview::ImageLoadSession session
         = tracker
-              .start(kiriview::ImageLoadRequest::fromUrl(archiveUrl),
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                         kiriview::resolvedNavigationSource(archiveUrl, {})),
                   kiriview::ImageFirstDisplayDecodeContext { QSize(320, 240) })
               .session;
     const kiriview::OpenedCollectionCandidateCompletion completion
@@ -227,7 +265,10 @@ void TestImageLoadSessionTracker::archiveResolutionReportsUnsupportedOpenedColle
     const QUrl videoUrl = archivePageUrl(*archiveRootUrl, QStringLiteral("01.bin"));
 
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(archiveUrl, {})))
+              .session;
     const kiriview::OpenedCollectionCandidateCompletion completion
         = tracker.completeOpenedCollectionCandidates(session, { videoCandidate(videoUrl) });
 
@@ -248,7 +289,10 @@ void TestImageLoadSessionTracker::archiveResolutionUsesCandidateKindInsteadOfExt
     const QUrl imageUrl = archivePageUrl(*archiveRootUrl, QStringLiteral("01.mp4"));
 
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(archiveUrl, {})))
+              .session;
     const kiriview::OpenedCollectionCandidateCompletion completion
         = tracker.completeOpenedCollectionCandidates(
             session, { imageDocumentPageCandidate(imageUrl) });
@@ -265,7 +309,10 @@ void TestImageLoadSessionTracker::emptyOpenedCollectionResolutionClaimsCurrentSe
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
 
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(archiveUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(archiveUrl, {})))
+              .session;
 
     const kiriview::OpenedCollectionCandidateCompletion completion
         = tracker.completeOpenedCollectionCandidates(session, {});
@@ -282,11 +329,15 @@ void TestImageLoadSessionTracker::predecodedLocationReplacementUpdatesCanonicalC
     const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
 
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(imageUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(imageUrl, {})))
+              .session;
     const std::optional<kiriview::ImageLoadSession> replacedSession = tracker.claimPredecodedImage(
         session,
         kiriview::DisplayedImageLocation::fromOpenedCollectionScope(imageUrl, *archiveCollection));
@@ -303,7 +354,10 @@ void TestImageLoadSessionTracker::decodeRequestClaimClearsTheActiveSession()
     kiriview::ImageLoadSessionTracker tracker;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(imageUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(imageUrl, {})))
+              .session;
     const kiriview::ImageDecodeRequest request = session.decodeRequest();
 
     const std::optional<kiriview::ImageLoadSession> claimedSession
@@ -319,7 +373,10 @@ void TestImageLoadSessionTracker::claimCurrentClearsTheActiveSession()
     kiriview::ImageLoadSessionTracker tracker;
     const QUrl imageUrl = localUrl(QStringLiteral("/images/01.png"));
     const kiriview::ImageLoadSession session
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(imageUrl)).session;
+        = tracker
+              .start(kiriview::ImageLoadRequest::fromExternalSource(
+                  kiriview::resolvedNavigationSource(imageUrl, {})))
+              .session;
 
     const std::optional<kiriview::ImageLoadSession> takenSession = tracker.claimCurrent(session);
 
@@ -333,9 +390,11 @@ void TestImageLoadSessionTracker::sessionIdsStayNonZeroAfterWrap()
     kiriview::ImageLoadSessionTracker tracker(std::numeric_limits<quint64>::max());
 
     const kiriview::ImageLoadPlan firstPlan
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(localUrl(QStringLiteral("/1.png"))));
+        = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/1.png")), {})));
     const kiriview::ImageLoadPlan secondPlan
-        = tracker.start(kiriview::ImageLoadRequest::fromUrl(localUrl(QStringLiteral("/2.png"))));
+        = tracker.start(kiriview::ImageLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(localUrl(QStringLiteral("/2.png")), {})));
 
     QCOMPARE(firstPlan.session.id(), quint64(1));
     QCOMPARE(secondPlan.session.id(), quint64(2));

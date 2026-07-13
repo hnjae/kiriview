@@ -87,19 +87,22 @@ void ImageDocumentRuntimeGraph::composeNavigationAndCandidatePorts(
         dependencies.candidateProvider,
         ImageDocumentPageNavigationService::Callbacks {
             [this](ImageDocumentPageNavigationPlan plan) {
-                dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(plan));
+                dispatchPlan(imageDocumentRuntimePlanForNavigationPlan(
+                    plan, m_state.displayedOpenedCollectionScope()));
             },
             [this](ImageDocumentPageNavigationCommit commit) {
                 dispatchTransaction(ImageDocumentRuntimeTransaction {
                     commit.pageNavigationChanged
                         ? std::vector<ImageDocumentChange> { ImageDocumentChange::PageNavigation }
                         : std::vector<ImageDocumentChange> {},
-                    imageDocumentRuntimePlanForNavigationPlan(commit.effects),
+                    imageDocumentRuntimePlanForNavigationPlan(
+                        commit.effects, m_state.displayedOpenedCollectionScope()),
                 });
             },
             [this]() {
                 return m_deletionProgressPort != nullptr && m_deletionProgressPort->inProgress();
             },
+            m_callbacks.resolveExternalSource,
         });
     m_navigationSnapshotPort
         = std::make_unique<ImageDocumentNavigationSnapshotPort>(m_navigationService.get());
@@ -128,7 +131,8 @@ void ImageDocumentRuntimeGraph::composeWorkflowOwners(QObject* documentObject,
             },
             [this](ImageDocumentRuntimePlan plan) { dispatchPlan(plan); },
             std::move(m_callbacks.fileDeletionFailed),
-        });
+        },
+        m_callbacks.resolveExternalSource);
     m_deletionProgressPort
         = std::make_unique<ImageDocumentDeletionProgressPort>(m_deletionController.get());
     m_predecodeController = std::make_unique<ImageDocumentPredecodeController>(

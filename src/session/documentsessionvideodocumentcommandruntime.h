@@ -21,7 +21,7 @@ public:
         DocumentSessionVideoDocumentCommandPort commands = {},
         DocumentSessionVideoOutputClearPort clearVideoOutput = {});
 
-    void setSourceUrl(const QUrl& sourceUrl);
+    void setSource(const ResolvedNavigationSource& source);
     void setSourceDevice(const QUrl& sourceUrl, VideoPlaybackSourceDevice sourceDevice);
     void leaveMode(const QUrl& currentSourceUrl);
     DocumentSessionVideoOutputAttachmentPort outputAttachmentPort() const;

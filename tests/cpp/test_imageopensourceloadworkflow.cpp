@@ -17,6 +17,13 @@ using kiriview::TestSupport::operationAt;
 using kiriview::TestSupport::operationTypes;
 
 QUrl localUrl(const QString& path) { return QUrl::fromLocalFile(path); }
+
+kiriview::OpenedCollectionScopeLocation testScope(const QUrl& url)
+{
+    return kiriview::OpenedCollectionScopeLocation::fromResolvedSource(
+        kiriview::resolvedNavigationSource(url, kiriview::NavigationSourceFacts {}), url,
+        kiriview::OpenedCollectionScopeKind::GeneralArchive);
+}
 }
 
 class TestImageOpenSourceLoadWorkflow : public QObject
@@ -46,7 +53,7 @@ void TestImageOpenSourceLoadWorkflow::currentSourceLoadUsesRuntimeSnapshotAndReq
                 sourceUrl,
                 kiriview::ImageDocumentPageKind::Video,
             },
-            containerUrl);
+            testScope(containerUrl));
     const kiriview::ImageDocumentRuntimePlan plan
         = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, request);
 
@@ -66,7 +73,8 @@ void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLe
     const QUrl imageUrl(QStringLiteral("%1/01.png").arg(archiveRootUrl->toString()));
     const QUrl replacementUrl = localUrl(QStringLiteral("/images/page.png"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
 
     const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
@@ -76,17 +84,21 @@ void TestImageOpenSourceLoadWorkflow::displayedComicBookScopeSuppressesRightToLe
     };
 
     kiriview::ImageDocumentSourceLoadRequest request
-        = kiriview::ImageDocumentSourceLoadRequest::fromPageNavigation(imageUrl, true);
+        = kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+            kiriview::ImageDocumentPageTarget(imageUrl, kiriview::ImageDocumentPageKind::Image),
+            *archiveCollection, true);
     kiriview::ImageDocumentRuntimePlan plan
         = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, request);
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
             kiriview::BeginSameScopeImageNavigationPresentationOperation,
-            kiriview::SetSourceUrlOperation, kiriview::BeginOpenOperation>()));
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.url, imageUrl);
+            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::BeginOpenOperation>()));
+    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 4).target.url, imageUrl);
 
-    request = kiriview::ImageDocumentSourceLoadRequest::fromUrl(replacementUrl);
+    request = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
+        kiriview::resolvedNavigationSource(replacementUrl, {}));
     plan = kiriview::ImageOpenWorkflow::sourceLoadPlan(snapshot, request);
     QVERIFY(hasOperationTypes(plan,
         operationTypes<kiriview::CancelFileDeletionOperation,
@@ -100,7 +112,9 @@ void TestImageOpenSourceLoadWorkflow::sameScopeImageNavigationStartsOpenWithoutR
     const QUrl currentUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl targetUrl = localUrl(QStringLiteral("/images/target.png"));
     const kiriview::ImageDocumentSourceLoadRequest request
-        = kiriview::ImageDocumentSourceLoadRequest::fromPageNavigation(targetUrl, true);
+        = kiriview::ImageDocumentSourceLoadRequest::fromSameScopePageTarget(
+            kiriview::ImageDocumentPageTarget(targetUrl, kiriview::ImageDocumentPageKind::Image),
+            kiriview::OpenedCollectionScopeLocation::none(), true);
     const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
         currentUrl,
         {},
@@ -113,9 +127,10 @@ void TestImageOpenSourceLoadWorkflow::sameScopeImageNavigationStartsOpenWithoutR
         operationTypes<kiriview::CancelFileDeletionOperation,
             kiriview::ClearLoadingContainerNavigationUrlOperation,
             kiriview::BeginSameScopeImageNavigationPresentationOperation,
-            kiriview::SetSourceUrlOperation, kiriview::BeginOpenOperation>()));
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.url, targetUrl);
-    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 3).target.kind,
+            kiriview::PrepareSourceLoadOperation, kiriview::SetSourceUrlOperation,
+            kiriview::BeginOpenOperation>()));
+    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 4).target.url, targetUrl);
+    QCOMPARE(operationAt<kiriview::SetSourceUrlOperation>(plan, 4).target.kind,
         kiriview::ImageDocumentPageKind::Image);
 }
 
@@ -124,7 +139,8 @@ void TestImageOpenSourceLoadWorkflow::replacementSourceLoadStartsFreshRuntimeWor
     const QUrl currentUrl = localUrl(QStringLiteral("/images/current.png"));
     const QUrl replacementUrl = localUrl(QStringLiteral("/images/replacement.png"));
     const kiriview::ImageDocumentSourceLoadRequest request
-        = kiriview::ImageDocumentSourceLoadRequest::fromUrl(replacementUrl);
+        = kiriview::ImageDocumentSourceLoadRequest::fromExternalSource(
+            kiriview::resolvedNavigationSource(replacementUrl, {}));
     const kiriview::ImageDocumentSourceLoadSnapshot snapshot {
         currentUrl,
         {},
@@ -153,7 +169,7 @@ void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayl
                 sourceUrl,
                 kiriview::ImageDocumentPageKind::Video,
             },
-            containerUrl);
+            testScope(containerUrl));
     const kiriview::ImageDocumentSourceLoadSnapshot replacementSnapshot {
         localUrl(QStringLiteral("/images/current.png")),
         {},
@@ -173,13 +189,13 @@ void TestImageOpenSourceLoadWorkflow::sourceLoadPlanResolvesRequestedRuntimePayl
         operationAt<kiriview::SetLoadingContainerNavigationUrlOperation>(replacementPlan, 5).url,
         containerUrl);
     QCOMPARE(
-        operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 6).request.sourceUrl,
+        operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 6).request.sourceUrl(),
         sourceUrl);
     QCOMPARE(
-        operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 6).request.sourceKind,
+        operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 6).request.sourceKind(),
         kiriview::ImageDocumentPageKind::Video);
     QCOMPARE(operationAt<kiriview::PrepareSourceLoadOperation>(replacementPlan, 6)
-                 .request.containerNavigationUrl,
+                 .request.containerNavigationUrl(),
         containerUrl);
     QCOMPARE(
         operationAt<kiriview::SetSourceUrlOperation>(replacementPlan, 7).target.url, sourceUrl);

@@ -39,7 +39,8 @@ public:
     ImageDocumentDeletionController(QObject* parent, ImageDocumentState& state,
         ImagePageSurfaceController& pageSurfaceController,
         ImageDocumentPageCandidateProvider candidateProvider,
-        FileDeletionProvider fileDeletionProvider, Callbacks callbacks);
+        FileDeletionProvider fileDeletionProvider, Callbacks callbacks,
+        std::function<ResolvedNavigationSource(const QUrl&)> resolveExternalSource);
     ~ImageDocumentDeletionController();
 
     bool inProgress() const;

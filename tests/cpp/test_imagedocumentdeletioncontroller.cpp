@@ -138,7 +138,8 @@ void TestImageDocumentDeletionController::
                 runtimePlans.push_back(std::move(plan));
             },
             [&failures](const QString& errorString) { failures.push_back(errorString); },
-        });
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
 
     controller.deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
 
@@ -175,7 +176,8 @@ void TestImageDocumentDeletionController::
                 runtimePlans.push_back(std::move(plan));
             },
             [&failures](const QString& errorString) { failures.push_back(errorString); },
-        });
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
 
     controller.deleteDisplayedFile(kiriview::FileDeletionMode::DeletePermanently);
 
@@ -210,7 +212,8 @@ void TestImageDocumentDeletionController::canceledFileDeletionCompletionIsIgnore
                 runtimePlans.push_back(std::move(plan));
             },
             [&failures](const QString& errorString) { failures.push_back(errorString); },
-        });
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
 
     controller.deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
     QCOMPARE(fileDeletionProvider.operationCount(), std::size_t(1));
@@ -254,7 +257,8 @@ void TestImageDocumentDeletionController::canceledFallbackCandidateCompletionIsI
                 runtimePlans.push_back(std::move(plan));
             },
             [&failures](const QString& errorString) { failures.push_back(errorString); },
-        });
+        },
+        [](const QUrl& url) { return kiriview::resolvedNavigationSource(url, {}); });
 
     controller.deleteDisplayedFile(kiriview::FileDeletionMode::MoveToTrash);
     fileDeletionProvider.finishBackOperation(kiriview::FileDeletionResult::Succeeded);

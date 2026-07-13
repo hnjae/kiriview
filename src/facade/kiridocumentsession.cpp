@@ -360,8 +360,7 @@ kiriview::DocumentSessionImageDocumentCommandPort KiriDocumentSession::imageDocu
     KiriImageDocument& document)
 {
     return kiriview::DocumentSessionImageDocumentCommandPort {
-        { [&document](const QUrl& url) { document.setSourceUrl(url); },
-            [&document](const QUrl& url) { document.setSameScopeImageNavigationSourceUrl(url); },
+        { [&document]() { document.setSourceUrl(QUrl()); },
             [&document](const kiriview::OpenedCollectionScopeLocation& openedCollectionScope,
                 const QUrl& videoUrl) {
                 return document.loadOpenedCollectionVideoPlaybackDevice(
@@ -370,7 +369,7 @@ kiriview::DocumentSessionImageDocumentCommandPort KiriDocumentSession::imageDocu
             [&document](
                 const kiriview::ResolvedNavigationSource& source) { document.setSource(source); },
             [&document](const kiriview::ResolvedNavigationSource& source) {
-                document.setSameScopeImageNavigationSource(source);
+                document.setExternalSourcePreservingPresentation(source);
             } },
         { [&document]() { document.openPreviousPage(); },
             [&document]() { document.openNextPage(); },
@@ -394,7 +393,10 @@ kiriview::DocumentSessionVideoDocumentCommandPort KiriDocumentSession::videoDocu
     KiriVideoDocument& document)
 {
     return kiriview::DocumentSessionVideoDocumentCommandPort {
-        { [&document](const QUrl& url) { document.setSourceUrl(url); },
+        { [&document]() { document.setSourceUrl(QUrl()); },
+            [&document](const kiriview::ResolvedNavigationSource& source) {
+                document.setSourceUrl(source.requestedUrl());
+            },
             [&document](const QUrl& url, kiriview::VideoPlaybackSourceDevice sourceDevice) {
                 document.setSourceDevice(url, std::move(sourceDevice));
             } },

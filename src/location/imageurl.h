@@ -33,7 +33,7 @@ class NavigationSourceResolver
 public:
     NavigationSourceResolver();
     explicit NavigationSourceResolver(NavigationSourceFactProvider provider);
-    ResolvedNavigationSource resolve(const QUrl& url) const;
+    ResolvedNavigationSource resolveExternalSource(const QUrl& url) const;
 
 private:
     NavigationSourceFactProvider m_provider;
@@ -69,8 +69,8 @@ QUrl normalizedFileContainerUrl(const QUrl& url);
 QUrl normalizedDirectoryContainerUrl(const QUrl& url);
 QUrl parentDirectoryUrlForFileNavigation(const QUrl& url);
 QUrl parentUrlForContainerNavigation(const QUrl& containerUrl);
-QUrl navigationSourceUrlForFacts(const QUrl& url, const NavigationSourceFacts& facts);
-NavigationSourceFacts collectNavigationSourceFacts(const QUrl& url);
+ResolvedNavigationSource resolvedNavigationSource(
+    const QUrl& requestedUrl, const NavigationSourceFacts& facts);
 DirectoryNavigationLocation directoryNavigationLocationForSource(
     const ResolvedNavigationSource& source);
 bool sameNormalizedUrl(const QUrl& left, const QUrl& right);

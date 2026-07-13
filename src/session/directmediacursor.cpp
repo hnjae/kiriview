@@ -19,10 +19,15 @@ const kiriview::ResolvedNavigationSource& effectiveDirectMediaCursorSource(
 bool sameEffectiveDirectMediaCursorUrl(
     const kiriview::DirectMediaCursor& left, const kiriview::DirectMediaCursor& right)
 {
-    const kiriview::DirectMediaScope leftScope = kiriview::directMediaScopeForCursor(left);
-    const kiriview::DirectMediaScope rightScope = kiriview::directMediaScopeForCursor(right);
-    return kiriview::sameSourceKey(leftScope.currentKey, rightScope.currentKey)
-        && kiriview::sameSourceKey(leftScope.parentKey, rightScope.parentKey);
+    const std::optional<kiriview::DirectMediaScope> leftScope
+        = kiriview::directMediaScopeForCursor(left);
+    const std::optional<kiriview::DirectMediaScope> rightScope
+        = kiriview::directMediaScopeForCursor(right);
+    if (!leftScope.has_value() || !rightScope.has_value()) {
+        return !leftScope.has_value() && !rightScope.has_value();
+    }
+    return kiriview::sameSourceKey(leftScope->currentKey(), rightScope->currentKey())
+        && kiriview::sameSourceKey(leftScope->parentKey(), rightScope->parentKey());
 }
 
 bool replaceDirectMediaCursor(
@@ -44,43 +49,61 @@ bool replaceDirectMediaCursor(
 void logCursorOperation(
     const char* operation, const kiriview::DirectMediaCursor& cursor, bool effectiveUrlChanged)
 {
-    const kiriview::DirectMediaScope scope = kiriview::directMediaScopeForCursor(cursor);
+    const std::optional<kiriview::DirectMediaScope> scope
+        = kiriview::directMediaScopeForCursor(cursor);
     qCDebug(kiriviewNavigationLog)
         << "direct media cursor operation"
         << "operation" << operation << "effectiveUrlChanged" << effectiveUrlChanged << "stableUrl"
         << cursor.stableSource.requestedUrl() << "pendingUrl" << cursor.pendingSource.requestedUrl()
-        << "currentUrl" << scope.currentUrl << "parentUrl" << scope.parentUrl << "generation"
-        << scope.generation;
+        << "currentUrl" << (scope.has_value() ? scope->currentUrl() : QUrl()) << "parentUrl"
+        << (scope.has_value() ? scope->parentUrl() : QUrl()) << "generation" << cursor.generation;
 }
 }
 
 namespace kiriview {
+DirectMediaScope::DirectMediaScope(QUrl currentUrlValue, QUrl parentUrlValue,
+    quint64 generationValue, SourceKey currentKeyValue, SourceKey parentKeyValue,
+    QUrl navigationUrlValue)
+    : m_currentUrl(std::move(currentUrlValue))
+    , m_parentUrl(std::move(parentUrlValue))
+    , m_generation(generationValue)
+    , m_currentKey(std::move(currentKeyValue))
+    , m_parentKey(std::move(parentKeyValue))
+    , m_navigationUrl(std::move(navigationUrlValue))
+{
+}
+
+std::optional<DirectMediaScope> DirectMediaScope::fromSource(
+    const ResolvedNavigationSource& source, quint64 generation)
+{
+    if (source.isEmpty()) {
+        return std::nullopt;
+    }
+    const DirectoryNavigationLocation location = directoryNavigationLocationForSource(source);
+    const SourceKey currentKey = sourceKeyForUrl(location.fileUrl);
+    const SourceKey parentKey = sourceKeyForUrl(location.directoryUrl);
+    if (!location.isValid() || !currentKey.valid || !parentKey.valid) {
+        return std::nullopt;
+    }
+    return DirectMediaScope(source.requestedUrl(), location.directoryUrl, generation, currentKey,
+        parentKey, location.fileUrl);
+}
+
 QUrl effectiveDirectMediaCursorUrl(const DirectMediaCursor& cursor)
 {
     return effectiveDirectMediaCursorSource(cursor).requestedUrl();
 }
 
-DirectMediaScope directMediaScopeForCursor(const DirectMediaCursor& cursor)
+std::optional<DirectMediaScope> directMediaScopeForCursor(const DirectMediaCursor& cursor)
 {
-    const QUrl currentUrl = effectiveDirectMediaCursorUrl(cursor);
     const ResolvedNavigationSource& source = effectiveDirectMediaCursorSource(cursor);
-    const DirectoryNavigationLocation location = source.isEmpty()
-        ? DirectoryNavigationLocation {}
-        : directoryNavigationLocationForSource(source);
-    return DirectMediaScope {
-        currentUrl,
-        location.directoryUrl,
-        cursor.generation,
-        sourceKeyForUrl(location.fileUrl),
-        sourceKeyForUrl(location.directoryUrl),
-        location.fileUrl,
-    };
+    return DirectMediaScope::fromSource(source, cursor.generation);
 }
 
 bool directMediaScopeMatchesCursor(const DirectMediaCursor& cursor, const DirectMediaScope& scope)
 {
-    const DirectMediaScope currentScope = directMediaScopeForCursor(cursor);
-    return currentScope == scope;
+    const std::optional<DirectMediaScope> currentScope = directMediaScopeForCursor(cursor);
+    return currentScope.has_value() && *currentScope == scope;
 }
 
 bool clearDirectMediaCursor(DirectMediaCursor& cursor)
@@ -101,18 +124,35 @@ bool requestDirectImageCursor(DirectMediaCursor& cursor, ResolvedNavigationSourc
     return effectiveUrlChanged;
 }
 
-bool confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url)
+DirectMediaConfirmation confirmDirectImageCursor(DirectMediaCursor& cursor, const QUrl& url)
 {
+    if (cursor.pendingSource.isEmpty()) {
+        return cursor.stableSource.isEmpty()
+            ? DirectMediaConfirmation::Bypassed
+            : (sameNormalizedUrl(cursor.stableSource.requestedUrl(), url)
+                      ? DirectMediaConfirmation::Committed
+                      : DirectMediaConfirmation::Stale);
+    }
     DirectMediaCursor next = cursor;
-    if (cursor.pendingSource.isEmpty()
-        || !sameNormalizedUrl(cursor.pendingSource.requestedUrl(), url)) {
-        return false;
+    if (!sameNormalizedUrl(cursor.pendingSource.requestedUrl(), url)) {
+        return DirectMediaConfirmation::Stale;
     }
     next.stableSource = cursor.pendingSource;
     next.pendingSource = {};
     const bool effectiveUrlChanged = replaceDirectMediaCursor(cursor, std::move(next));
     logCursorOperation("confirm-direct-image", cursor, effectiveUrlChanged);
-    return effectiveUrlChanged;
+    Q_UNUSED(effectiveUrlChanged);
+    return DirectMediaConfirmation::Committed;
+}
+
+DirectMediaConfirmation confirmDirectVideoCursor(const DirectMediaCursor& cursor, const QUrl& url)
+{
+    if (cursor.stableSource.isEmpty()) {
+        return DirectMediaConfirmation::Bypassed;
+    }
+    return sameNormalizedUrl(cursor.stableSource.requestedUrl(), url)
+        ? DirectMediaConfirmation::Committed
+        : DirectMediaConfirmation::Stale;
 }
 
 bool restoreDirectImageCursorAfterFailure(DirectMediaCursor& cursor)

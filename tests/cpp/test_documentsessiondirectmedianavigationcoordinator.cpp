@@ -31,14 +31,8 @@ kiriview::DirectMediaNavigationCandidate directMediaNavigationCandidate(const QU
 
 kiriview::DirectMediaScope directMediaScope(const QUrl& currentUrl)
 {
-    return kiriview::DirectMediaScope {
-        currentUrl,
-        localUrl(QStringLiteral("/media/")),
-        7,
-        kiriview::sourceKeyForUrl(currentUrl),
-        kiriview::sourceKeyForUrl(localUrl(QStringLiteral("/media/"))),
-        currentUrl,
-    };
+    return *kiriview::DirectMediaScope::fromSource(
+        kiriview::ResolvedNavigationSource(currentUrl, {}, currentUrl), 7);
 }
 
 kiriview::ActiveNavigationSnapshot knownActiveNavigation(int currentNumber, int count)
@@ -146,9 +140,9 @@ struct CoordinatorFixture
         ports.directImageSourceScopeEligible = [this]() { return directImageSourceScopeEligible; };
         ports.currentScope = [this]() { return scope; };
         ports.cursorMatches = [this](const kiriview::DirectMediaScope& candidateScope) {
-            return candidateScope.currentUrl == scope.currentUrl
-                && candidateScope.parentUrl == scope.parentUrl
-                && candidateScope.generation == scope.generation;
+            return candidateScope.currentUrl() == scope.currentUrl()
+                && candidateScope.parentUrl() == scope.parentUrl()
+                && candidateScope.generation() == scope.generation();
         };
         ports.activeCursorUrl = [this]() { return activeCursorUrl; };
         ports.activeNavigationSourceKind = [this]() { return activeNavigationSourceKind; };

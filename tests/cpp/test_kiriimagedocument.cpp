@@ -226,7 +226,8 @@ void TestKiriImageDocument::openedCollectionScopeActiveFollowsDisplayedLocation(
 
     const QUrl comicArchiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> comicArchiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(comicArchiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(comicArchiveUrl, {}));
     QVERIFY(comicArchiveCollection.has_value());
     const QUrl comicArchivePage
         = archivePageUrl(comicArchiveCollection->rootUrl(), QStringLiteral("01.png"));
@@ -240,7 +241,8 @@ void TestKiriImageDocument::openedCollectionScopeActiveFollowsDisplayedLocation(
 
     const QUrl generalArchiveUrl = localUrl(QStringLiteral("/books/book.zip"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> generalArchiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(generalArchiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(generalArchiveUrl, {}));
     QVERIFY(generalArchiveCollection.has_value());
     const QUrl generalArchivePage
         = archivePageUrl(generalArchiveCollection->rootUrl(), QStringLiteral("01.png"));
@@ -256,7 +258,8 @@ void TestKiriImageDocument::openedCollectionScopeActiveFollowsDisplayedLocation(
     QVERIFY(directory.isValid());
     const QUrl directoryUrl = localUrl(directory.path());
     const std::optional<kiriview::OpenedCollectionScopeLocation> directoryCollection
-        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalUrl(directoryUrl);
+        = kiriview::openedCollectionScopeLocationForDirectlyOpenedLocalSource(
+            kiriview::resolvedNavigationSource(directoryUrl, {}));
     QVERIFY(directoryCollection.has_value());
     const QUrl directoryPage
         = archivePageUrl(directoryCollection->rootUrl(), QStringLiteral("01.png"));
@@ -329,7 +332,8 @@ void TestKiriImageDocument::nextDisplayedImageCanStartAtFinalScanPosition()
 
     const QUrl archiveUrl = localUrl(QStringLiteral("/books/book.cbz"));
     const std::optional<kiriview::OpenedCollectionScopeLocation> archiveCollection
-        = kiriview::openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+        = kiriview::openedCollectionScopeLocationForLocalArchiveSource(
+            kiriview::resolvedNavigationSource(archiveUrl, {}));
     QVERIFY(archiveCollection.has_value());
     const QUrl firstImageUrl
         = archivePageUrl(archiveCollection->rootUrl(), QStringLiteral("01.png"));

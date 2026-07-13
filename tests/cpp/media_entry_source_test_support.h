@@ -186,7 +186,8 @@ inline void releaseInstrumentedMediaEntrySourceLoads(
 inline std::optional<OpenedCollectionScopeLocation> archiveCollectionForLocalArchiveUrl(
     const QUrl& archiveUrl)
 {
-    return openedCollectionScopeLocationForLocalArchiveUrl(archiveUrl);
+    return openedCollectionScopeLocationForLocalArchiveSource(
+        kiriview::resolvedNavigationSource(archiveUrl, {}));
 }
 
 inline void addInstrumentedMediaEntrySourceFixture(
