@@ -11,7 +11,7 @@ struct ViewportEngineProviderTerminalEventInput
         Cancellation,
     };
 
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     Kind kind = Kind::Failure;
     ImageSequenceProviderSession::UnsupportedCause unsupportedCause
@@ -28,14 +28,14 @@ struct ViewportEngineProviderTerminalEventReduction
 
 struct ViewportEngineProviderDispatchFailureInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     QString diagnostic;
 };
 
 struct ViewportEngineProviderSessionOpenFailureInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     QString diagnostic;
 };
 
@@ -46,7 +46,7 @@ struct ViewportEngineProviderSessionOpenFailureReduction
 
 struct ViewportEngineProviderQueueFailureInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     QString diagnostic;
 };
 

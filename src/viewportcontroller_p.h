@@ -50,13 +50,13 @@ public:
     double steppedManualZoomPercent(int stepCount, double devicePixelRatio = 1.0) const;
 
     ViewportCommandResult assignSequence(ViewportSequenceAssignment assignment);
-    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
     ViewportCommandResult clear();
-    ViewportCommandResult play(ImageViewport::PageRole role);
-    ViewportCommandResult pause(ImageViewport::PageRole role);
-    ViewportCommandResult stop(ImageViewport::PageRole role);
-    ViewportCommandResult seek(ImageViewport::PageRole role, int frame);
-    ViewportCommandResult seekToPosition(ImageViewport::PageRole role, int milliseconds);
+    ViewportCommandResult play(ImageViewportPageRole role);
+    ViewportCommandResult pause(ImageViewportPageRole role);
+    ViewportCommandResult stop(ImageViewportPageRole role);
+    ViewportCommandResult seek(ImageViewportPageRole role, int frame);
+    ViewportCommandResult seekToPosition(ImageViewportPageRole role, int milliseconds);
     ViewportCommandResult applyPlaybackCommand(ViewportPlaybackCommand command);
     ViewportCommandResult setPresentation(const ViewportPresentationCommandInput& input);
     ViewportCommandResult setSpreadDirection(ImageViewport::SpreadDirection direction);
@@ -88,7 +88,7 @@ public:
     ViewportControllerTransition advancePlayback(int elapsedMilliseconds);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextProviderRequestTokenForTest(quint64 token);
-    void setNextProviderRequestTokenForTest(ImageViewport::PageRole role, quint64 token);
+    void setNextProviderRequestTokenForTest(ImageViewportPageRole role, quint64 token);
     void setNextRevisionTokenForTest(quint64 token);
     bool hasPendingRenderCommitForTest() const;
     quint64 activeRequestIdForTest() const;

@@ -11,35 +11,35 @@ ViewportCommandResult ViewportController::applyPlaybackCommand(ViewportPlaybackC
     result.outcome = engineResult.command.outcome;
     result.transition.changes = engineResult.changes;
     appendProviderTransport(result.transition.providerBeforePublication,
-        engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
+        engineResult.effects.providerFrameTransport[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.transition.providerBeforePublication,
-        engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
+        engineResult.effects.providerFrameTransport[1], ImageViewportPageRole::Secondary);
     result.transition.playbackSchedule = engineResult.schedule;
     return result;
 }
 
-ViewportCommandResult ViewportController::play(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::play(ImageViewportPageRole role)
 {
     return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Play, role });
 }
 
-ViewportCommandResult ViewportController::pause(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::pause(ImageViewportPageRole role)
 {
     return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Pause, role });
 }
 
-ViewportCommandResult ViewportController::stop(ImageViewport::PageRole role)
+ViewportCommandResult ViewportController::stop(ImageViewportPageRole role)
 {
     return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::Stop, role });
 }
 
-ViewportCommandResult ViewportController::seek(ImageViewport::PageRole role, int frame)
+ViewportCommandResult ViewportController::seek(ImageViewportPageRole role, int frame)
 {
     return applyPlaybackCommand({ ViewportPlaybackCommand::Kind::SeekFrame, role, frame });
 }
 
 ViewportCommandResult ViewportController::seekToPosition(
-    ImageViewport::PageRole role, int milliseconds)
+    ImageViewportPageRole role, int milliseconds)
 {
     return applyPlaybackCommand(
         { ViewportPlaybackCommand::Kind::SeekPosition, role, milliseconds });
@@ -52,9 +52,9 @@ ViewportControllerTransition ViewportController::advancePlayback(int elapsedMill
     ViewportControllerTransition result;
     result.changes = engineResult.changes;
     appendProviderTransport(result.providerBeforePublication,
-        engineResult.effects.providerFrameTransport[0], ImageViewport::PageRole::Primary);
+        engineResult.effects.providerFrameTransport[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.providerBeforePublication,
-        engineResult.effects.providerFrameTransport[1], ImageViewport::PageRole::Secondary);
+        engineResult.effects.providerFrameTransport[1], ImageViewportPageRole::Secondary);
     result.playbackSchedule = engineResult.schedule;
     return result;
 }

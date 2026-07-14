@@ -4,7 +4,7 @@
 
 struct ViewportEngineProviderDemandInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
     ImageViewportDemandRevisionToken demandRevision;
     ImageViewportRevisionToken requestRevision;

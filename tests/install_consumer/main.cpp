@@ -31,7 +31,7 @@ public:
             QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
             image.fill(Qt::transparent);
             auto payload = std::make_unique<ImageFrame>(image);
-            ImageSequenceProviderFrameEnvelope envelope = payload->envelope();
+            ImageSequenceProviderFrameEnvelope envelope;
             envelope.setFrame(request.frame());
             envelope.setFrameStartPosition(0);
             envelope.setFrameDuration(100);
@@ -103,10 +103,10 @@ private:
     int m_frameRequestCount = 0;
 };
 
-class ConsumerSessionFactory final : public ImageSequenceProviderSessionFactory
+class ConsumerSessionFactory final
 {
 public:
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new ConsumerSession(parent);
     }
@@ -119,15 +119,12 @@ public:
     {
         const ImageSequenceProviderMetadata metadata
             = ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(2.0, 2.0), 2, 100);
-        ImageSequenceProviderDescriptor descriptor;
-        descriptor.setSessionFactory(std::make_shared<ConsumerSessionFactory>());
-        descriptor.setKnownMetadata(metadata);
-        descriptor.setKnownFacts(ImageSequenceProviderKnownFacts::timedFrameList(
-            metadata.logicalSize(), metadata.frameDurations()));
-        descriptor.setTimedPlaybackCapability(CapabilitySupport::KnownTrue);
-        descriptor.setFrameSeekCapability(CapabilitySupport::KnownTrue);
-        descriptor.setPositionSeekCapability(CapabilitySupport::KnownTrue);
-        return descriptor;
+        auto factory = std::make_shared<ConsumerSessionFactory>();
+        return ImageSequenceProviderDescriptor(
+            metadata, ImageSequenceProviderThreadingContract::AffinityBound, [factory]() {
+                return ImageSequenceProviderSessionFactoryResult::created(
+                    factory->createSession(nullptr));
+            });
     }
 };
 
@@ -154,7 +151,7 @@ private:
     std::shared_ptr<ImageSequenceProviderRequestToken> m_capturedToken;
 };
 
-class TokenCaptureSessionFactory final : public ImageSequenceProviderSessionFactory
+class TokenCaptureSessionFactory final
 {
 public:
     explicit TokenCaptureSessionFactory(
@@ -163,7 +160,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new TokenCaptureSession(m_capturedToken, parent);
     }
@@ -182,9 +179,12 @@ public:
 
     ImageSequenceProviderDescriptor descriptor() const override
     {
-        ImageSequenceProviderDescriptor descriptor;
-        descriptor.setSessionFactory(std::make_shared<TokenCaptureSessionFactory>(m_capturedToken));
-        return descriptor;
+        auto factory = std::make_shared<TokenCaptureSessionFactory>(m_capturedToken);
+        return ImageSequenceProviderDescriptor(
+            {}, ImageSequenceProviderThreadingContract::AffinityBound, [factory]() {
+                return ImageSequenceProviderSessionFactoryResult::created(
+                    factory->createSession(nullptr));
+            });
     }
 
 private:
@@ -240,14 +240,17 @@ import QtQml
 import ImageViewport 1.0
 
 QtObject {
-    property var maximumLogicalWidth: ImageSequenceLimits.maximumLogicalWidth
-    property var maximumLogicalHeight: ImageSequenceLimits.maximumLogicalHeight
-    property var maximumPixelsPerFrame: ImageSequenceLimits.maximumPixelsPerFrame
-    property var maximumPayloadBytesPerFrame: ImageSequenceLimits.maximumPayloadBytesPerFrame
-    property var maximumTimedListFrameCount: ImageSequenceLimits.maximumTimedListFrameCount
-    property var maximumFrameDuration: ImageSequenceLimits.maximumFrameDuration
-    property var maximumTotalSequenceDuration: ImageSequenceLimits.maximumTotalSequenceDuration
-    property var maximumDiagnosticStringLength: ImageSequenceLimits.maximumDiagnosticStringLength
+    property var maximumSourceLogicalWidth: ImageSequenceLimits.maximumSourceLogicalWidth
+    property var maximumSourceLogicalHeight: ImageSequenceLimits.maximumSourceLogicalHeight
+    property var maximumSourceLogicalPixels: ImageSequenceLimits.maximumSourceLogicalPixels
+    property var maximumPayloadRasterWidth: ImageSequenceLimits.maximumPayloadRasterWidth
+    property var maximumPayloadRasterHeight: ImageSequenceLimits.maximumPayloadRasterHeight
+    property var maximumPayloadBytes: ImageSequenceLimits.maximumPayloadBytes
+    property var maximumFrameCount: ImageSequenceLimits.maximumFrameCount
+    property var maximumFrameDurationMilliseconds: ImageSequenceLimits.maximumFrameDurationMilliseconds
+    property var maximumTotalDurationMilliseconds: ImageSequenceLimits.maximumTotalDurationMilliseconds
+    property var maximumDiagnosticCharacters: ImageSequenceLimits.maximumDiagnosticCharacters
+    property var maximumFormatIdentifierCharacters: ImageSequenceLimits.maximumFormatIdentifierCharacters
     property var maximumManualZoomPercent: ImageViewportDisplayLimits.maximumManualZoomPercent
 }
 )",
@@ -263,35 +266,43 @@ QtObject {
         return false;
     }
 
-    if (object->property("maximumLogicalWidth").toInt()
-            != ImageSequenceLimits::maximumLogicalWidth()
-        || object->property("maximumLogicalHeight").toInt()
-            != ImageSequenceLimits::maximumLogicalHeight()
-        || object->property("maximumPixelsPerFrame").toLongLong()
-            != ImageSequenceLimits::maximumPixelsPerFrame()
-        || object->property("maximumPayloadBytesPerFrame").toLongLong()
-            != ImageSequenceLimits::maximumPayloadBytesPerFrame()
-        || object->property("maximumTimedListFrameCount").toInt()
-            != ImageSequenceLimits::maximumTimedListFrameCount()
-        || object->property("maximumFrameDuration").toInt()
-            != ImageSequenceLimits::maximumFrameDuration()
-        || object->property("maximumTotalSequenceDuration").toInt()
-            != ImageSequenceLimits::maximumTotalSequenceDuration()
-        || object->property("maximumDiagnosticStringLength").toInt()
-            != ImageSequenceLimits::maximumDiagnosticStringLength()
+    if (object->property("maximumSourceLogicalWidth").toInt()
+            != ImageSequenceLimits::maximumSourceLogicalWidth()
+        || object->property("maximumSourceLogicalHeight").toInt()
+            != ImageSequenceLimits::maximumSourceLogicalHeight()
+        || object->property("maximumSourceLogicalPixels").toLongLong()
+            != ImageSequenceLimits::maximumSourceLogicalPixels()
+        || object->property("maximumPayloadRasterWidth").toInt()
+            != ImageSequenceLimits::maximumPayloadRasterWidth()
+        || object->property("maximumPayloadRasterHeight").toInt()
+            != ImageSequenceLimits::maximumPayloadRasterHeight()
+        || object->property("maximumPayloadBytes").toLongLong()
+            != ImageSequenceLimits::maximumPayloadBytes()
+        || object->property("maximumFrameCount").toInt() != ImageSequenceLimits::maximumFrameCount()
+        || object->property("maximumFrameDurationMilliseconds").toInt()
+            != ImageSequenceLimits::maximumFrameDurationMilliseconds()
+        || object->property("maximumTotalDurationMilliseconds").toInt()
+            != ImageSequenceLimits::maximumTotalDurationMilliseconds()
+        || object->property("maximumDiagnosticCharacters").toInt()
+            != ImageSequenceLimits::maximumDiagnosticCharacters()
+        || object->property("maximumFormatIdentifierCharacters").toInt()
+            != ImageSequenceLimits::maximumFormatIdentifierCharacters()
         || object->property("maximumManualZoomPercent").toDouble()
             != ImageViewportDisplayLimits::maximumManualZoomPercent()) {
         return false;
     }
 
-    return ImageSequenceLimits::maximumLogicalWidth() >= 8192
-        && ImageSequenceLimits::maximumLogicalHeight() >= 8192
-        && ImageSequenceLimits::maximumPixelsPerFrame() >= 67108864LL
-        && ImageSequenceLimits::maximumPayloadBytesPerFrame() >= 268435456LL
-        && ImageSequenceLimits::maximumTimedListFrameCount() >= 10000
-        && ImageSequenceLimits::maximumFrameDuration() >= 86400000
-        && ImageSequenceLimits::maximumTotalSequenceDuration() >= 86400000
-        && ImageSequenceLimits::maximumDiagnosticStringLength() >= 4096
+    return ImageSequenceLimits::maximumSourceLogicalWidth() >= 8192
+        && ImageSequenceLimits::maximumSourceLogicalHeight() >= 8192
+        && ImageSequenceLimits::maximumSourceLogicalPixels() >= 67108864LL
+        && ImageSequenceLimits::maximumPayloadRasterWidth() >= 8192
+        && ImageSequenceLimits::maximumPayloadRasterHeight() >= 8192
+        && ImageSequenceLimits::maximumPayloadBytes() >= 268435456LL
+        && ImageSequenceLimits::maximumFrameCount() >= 10000
+        && ImageSequenceLimits::maximumFrameDurationMilliseconds() >= 86400000
+        && ImageSequenceLimits::maximumTotalDurationMilliseconds() >= 86400000
+        && ImageSequenceLimits::maximumDiagnosticCharacters() >= 4096
+        && ImageSequenceLimits::maximumFormatIdentifierCharacters() > 0
         && ImageViewportDisplayLimits::maximumManualZoomPercent() >= 100.0;
 }
 
@@ -310,17 +321,17 @@ QtObject {
     readonly property var listResult: ImageSequenceFactory.fromTimedFrameList(null)
     readonly property var providerResult: ImageSequenceFactory.fromProvider(null)
     property bool factorySurfaceAvailable: frameResult.sequence === null
-        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && frameResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidFrame
         && frameResult.errorString.length > 0
-        && frameResult.warningString === ""
         && listResult.sequence === null
-        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && listResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidTiming
         && listResult.errorString.length > 0
-        && listResult.warningString === ""
         && providerResult.sequence === null
-        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && providerResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidProviderDescriptor
         && providerResult.errorString.length > 0
-        && providerResult.warningString === ""
 }
 )",
         QUrl());
@@ -574,8 +585,8 @@ bool canUseInstalledProviderSessionSurface()
             }
         });
 
-    session.request(ImageSequenceProviderRequest::playback(
-        token, ImageViewport::PageRole::Primary, 1, 100, {}));
+    session.request(
+        ImageSequenceProviderRequest::playback(token, ImageViewportPageRole::Primary, 1, 100, {}));
     session.request(ImageSequenceProviderRequest::cancel({ token }));
     session.request(ImageSequenceProviderRequest::close());
 
@@ -592,8 +603,8 @@ bool canUseInstalledProviderPlaybackFallbackSurface()
         return false;
     }
 
-    session.request(ImageSequenceProviderRequest::playback(
-        token, ImageViewport::PageRole::Primary, 3, 250, {}));
+    session.request(
+        ImageSequenceProviderRequest::playback(token, ImageViewportPageRole::Primary, 3, 250, {}));
 
     return session.frameRequestCount() == 1 && session.lastFrameToken() == token
         && session.lastFrame() == 3;
@@ -609,7 +620,7 @@ bool canUseInstalledProviderTypedEventSurface()
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     ImageFrame frame(image);
-    ImageSequenceProviderFrameEnvelope envelope = frame.envelope();
+    ImageSequenceProviderFrameEnvelope envelope;
     envelope.setFrame(1);
     envelope.setFrameStartPosition(100);
     envelope.setFrameDuration(100);
@@ -634,10 +645,8 @@ int main(int argc, char** argv)
 {
     QGuiApplication app(argc, argv);
 
-    [[maybe_unused]] const auto knownTrue
-        = ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue;
-    [[maybe_unused]] const auto knownFalse
-        = ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse;
+    [[maybe_unused]] const auto knownTrue = ImageViewportCapabilitySupport::True;
+    [[maybe_unused]] const auto knownFalse = ImageViewportCapabilitySupport::False;
     ImageSequenceProviderRequestToken defaultToken;
     if (defaultToken.isValid() || defaultToken != ImageSequenceProviderRequestToken()) {
         return 1;
@@ -653,7 +662,7 @@ int main(int argc, char** argv)
         || !metadata.isTimedFrameList()) {
         return 1;
     }
-    if (metadata.logicalSize() != QSizeF(2.0, 2.0)
+    if (metadata.sourceLogicalSize() != QSizeF(2.0, 2.0)
         || metadata.frameDurations() != QVector<int>({ 100, 200 })) {
         return 1;
     }
@@ -664,7 +673,7 @@ int main(int argc, char** argv)
         || !fixedMetadata.isTimedFrameList()) {
         return 1;
     }
-    if (fixedMetadata.logicalSize() != QSizeF(2.0, 2.0)
+    if (fixedMetadata.sourceLogicalSize() != QSizeF(2.0, 2.0)
         || fixedMetadata.frameDurations() != QVector<int>({ 50, 50, 50 })) {
         return 1;
     }
@@ -675,7 +684,7 @@ int main(int argc, char** argv)
         || stillMetadata.isTimedFrameList()) {
         return 1;
     }
-    if (stillMetadata.logicalSize() != QSizeF(2.0, 2.0)
+    if (stillMetadata.sourceLogicalSize() != QSizeF(2.0, 2.0)
         || !stillMetadata.frameDurations().isEmpty()) {
         return 1;
     }
@@ -698,8 +707,8 @@ int main(int argc, char** argv)
 
     ImageSequenceFactory factory;
     const ImageFrame emptyFrame;
-    if (emptyFrame.isValid() || emptyFrame.logicalSize() != QSizeF()
-        || emptyFrame.payloadByteSize() != 0 || emptyFrame.hasAlphaChannel()
+    if (emptyFrame.isValid() || emptyFrame.sourceLogicalSize() != QSizeF()
+        || emptyFrame.payloadByteSize() != 0 || emptyFrame.hasAlpha()
         || emptyFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
@@ -707,54 +716,47 @@ int main(int argc, char** argv)
     QImage image(2, 2, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     const ImageFrame imageFrame(image);
-    if (!imageFrame.isValid() || imageFrame.logicalSize() != QSizeF(2.0, 2.0)
-        || imageFrame.payloadByteSize() <= 0 || !imageFrame.hasAlphaChannel()
+    if (!imageFrame.isValid() || imageFrame.sourceLogicalSize() != QSizeF(2.0, 2.0)
+        || imageFrame.payloadByteSize() <= 0 || !imageFrame.hasAlpha()
         || imageFrame.orientationPolicy() != ImageFrame::OrientationPolicy::Identity) {
         return 1;
     }
-    const ImageSequenceProviderFrameEnvelope exactEnvelope = imageFrame.envelope();
-    if (!exactEnvelope.isValid() || exactEnvelope.sourceLogicalSize() != QSizeF(2.0, 2.0)
-        || exactEnvelope.payloadRasterSize() != QSizeF(2.0, 2.0)
-        || exactEnvelope.sourceToPayloadScale() != QSizeF(1.0, 1.0)
-        || exactEnvelope.quality() != ImageViewport::PayloadQuality::Exact
-        || exactEnvelope.exactness() != ImageViewport::PayloadExactness::ExactForSource) {
+    if (imageFrame.payloadRasterSize() != QSizeF(2.0, 2.0)
+        || imageFrame.sourceToPayloadScale() != QSizeF(1.0, 1.0)
+        || imageFrame.quality() != ImageViewportPayloadQuality::Exact
+        || imageFrame.exactness() != ImageViewportPayloadExactness::ExactForSource) {
         return 1;
     }
 
-    ImageSequenceProviderFrameEnvelope previewEnvelope;
-    previewEnvelope.setSourceLogicalSize(QSizeF(4.0, 4.0));
-    previewEnvelope.setPayloadRasterSize(QSizeF(2.0, 2.0));
-    previewEnvelope.setSourceToPayloadScale(QSizeF(0.5, 0.5));
-    previewEnvelope.setPayloadByteSize(image.sizeInBytes());
-    previewEnvelope.setQuality(ImageViewport::PayloadQuality::Preview);
-    previewEnvelope.setExactness(ImageViewport::PayloadExactness::NotExact);
-    previewEnvelope.setFrame(0);
-    previewEnvelope.setFrameStartPosition(-1);
-    previewEnvelope.setFrameDuration(-1);
-    previewEnvelope.setHasAlpha(true);
-    const ImageFrame previewFrame(image, previewEnvelope);
-    if (!previewEnvelope.isValid() || !previewFrame.isValid()
-        || previewFrame.logicalSize() != QSizeF(4.0, 4.0)
+    const ImageFrame previewFrame(image, QSizeF(4.0, 4.0), QSizeF(2.0, 2.0), QSizeF(0.5, 0.5),
+        image.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("argb32"));
+    if (!previewFrame.isValid() || previewFrame.sourceLogicalSize() != QSizeF(4.0, 4.0)
         || previewFrame.payloadRasterSize() != QSizeF(2.0, 2.0)
         || previewFrame.sourceToPayloadScale() != QSizeF(0.5, 0.5)
-        || previewFrame.envelope() != previewEnvelope) {
+        || previewFrame.quality() != ImageViewportPayloadQuality::Preview) {
         return 1;
     }
 
     ImageSequenceProviderDisplayDemand installedDemand;
-    installedDemand.setRole(ImageViewport::PageRole::Secondary);
+    installedDemand.setRole(ImageViewportPageRole::Secondary);
     installedDemand.setResolvedFrame(1);
     installedDemand.setRequestedPosition(100);
     const ImageSequenceProviderRequest installedRequest = ImageSequenceProviderRequest::position(
-        token, ImageViewport::PageRole::Secondary, 100, 1, installedDemand);
+        token, ImageViewportPageRole::Secondary, 100, 1, installedDemand);
     if (!installedRequest.isValid()
         || installedRequest.kind() != ImageSequenceProviderRequestKind::Position
-        || installedRequest.demand().role() != ImageViewport::PageRole::Secondary
+        || installedRequest.demand().role() != ImageViewportPageRole::Secondary
         || installedRequest.demand().demandRevision().isValid()) {
         return 1;
     }
     auto installedHandleFrame = std::make_unique<ImageFrame>(image);
     ImageSequenceProviderFrameHandle installedHandle(std::move(installedHandleFrame));
+    ImageSequenceProviderFrameEnvelope exactEnvelope;
+    exactEnvelope.setFrame(0);
+    exactEnvelope.setFrameStartPosition(-1);
+    exactEnvelope.setFrameDuration(-1);
     const ImageSequenceProviderEvent installedFrameEvent
         = ImageSequenceProviderEvent::frameReady(token, &installedHandle, exactEnvelope);
     if (!installedFrameEvent.isValid()
@@ -777,7 +779,7 @@ int main(int argc, char** argv)
     deviceIndependentImage.fill(Qt::transparent);
     const ImageFrame deviceIndependentFrame(deviceIndependentImage);
     if (!deviceIndependentFrame.isValid()
-        || deviceIndependentFrame.logicalSize() != QSizeF(2.0, 1.0)
+        || deviceIndependentFrame.sourceLogicalSize() != QSizeF(2.0, 1.0)
         || deviceIndependentFrame.payloadByteSize() != deviceIndependentImage.sizeInBytes()) {
         return 1;
     }
@@ -786,7 +788,7 @@ int main(int argc, char** argv)
     if (!stillResult || !stillResult->sequence()) {
         return 1;
     }
-    if (stillResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+    if (stillResult->outcome() != ImageSequenceFactoryOutcome::Created) {
         return 1;
     }
 
@@ -798,9 +800,8 @@ int main(int argc, char** argv)
 
     std::unique_ptr<ImageSequenceFactoryResult> invalidFrameResult(factory.fromFrame(QImage()));
     if (!invalidFrameResult || invalidFrameResult->sequence()
-        || invalidFrameResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
-        || invalidFrameResult->errorString().isEmpty()
-        || !invalidFrameResult->warningString().isEmpty()) {
+        || invalidFrameResult->outcome() != ImageSequenceFactoryOutcome::Rejected
+        || invalidFrameResult->errorString().isEmpty()) {
         return 1;
     }
 
@@ -813,15 +814,16 @@ int main(int argc, char** argv)
     if (!timedResult || !timedResult->sequence()) {
         return 1;
     }
-    if (timedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+    if (timedResult->outcome() != ImageSequenceFactoryOutcome::Created) {
         return 1;
     }
 
     ConsumerAdapter consumerAdapter;
     const ImageSequenceProviderDescriptor consumerDescriptor = consumerAdapter.descriptor();
-    if (!consumerDescriptor.isValid() || !consumerDescriptor.knownMetadata().isTimedFrameList()
-        || consumerDescriptor.timedPlaybackCapability()
-            != ImageSequenceProviderCapabilitySupport::KnownTrue) {
+    if (!consumerDescriptor.isValid()
+        || !consumerDescriptor.constructionMetadata().isTimedFrameList()
+        || consumerDescriptor.constructionMetadata().timedPlaybackSupport()
+            != ImageViewportCapabilitySupport::True) {
         return 1;
     }
 
@@ -885,7 +887,7 @@ int main(int argc, char** argv)
     ImageViewportCoordinateInput primaryPageCoordinate;
     primaryPageCoordinate.setSourceSpace(ImageViewport::CoordinateSpace::DisplayedPage);
     primaryPageCoordinate.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
-    primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
     if (minimumManualZoom <= 0.0
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
@@ -934,10 +936,9 @@ int main(int argc, char** argv)
     ImageViewportPresentationCommand installedPresentationCommand;
     installedPresentationCommand.setManualZoomPercent(125.0);
     installedPresentationCommand.setPageGap(3.0);
-    installedPresentationCommand.setQualityPreference(
-        ImageViewport::QualityPreference::ExactDetail);
+    installedPresentationCommand.setQualityPreference(ImageViewportQualityPreference::ExactDetail);
     installedPresentationCommand.setExactnessPreference(
-        ImageViewport::ExactnessPreference::RequireExact);
+        ImageViewportExactnessPreference::RequireExact);
     if (!installedPresentationCommand.hasManualZoomPercent()
         || !installedPresentationCommand.hasPageGap()
         || !installedPresentationCommand.hasQualityPreference()
@@ -948,24 +949,24 @@ int main(int argc, char** argv)
         || !nearlyEqual(helperViewport.state().presentation().zoomPercent(), 125.0)
         || helperViewport.state().presentation().pageGap() != 3.0
         || helperViewport.state().presentation().qualityPreference()
-            != ImageViewport::QualityPreference::ExactDetail
+            != ImageViewportQualityPreference::ExactDetail
         || helperViewport.state().presentation().exactnessPreference()
-            != ImageViewport::ExactnessPreference::RequireExact) {
+            != ImageViewportExactnessPreference::RequireExact) {
         return 1;
     }
     ImageViewportCoordinateInput installedCoordinateInput;
     installedCoordinateInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
     installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
-    installedCoordinateInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    installedCoordinateInput.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     installedCoordinateInput.setPoint(QPointF(1.0, 2.0));
     const ImageViewportCoordinateResult installedCoordinateResult(
         false, QPointF(), installedCoordinateInput.targetSpace(), installedCoordinateInput.role());
-    if (installedCoordinateInput.role().value<ImageViewport::PageRole>()
-            != ImageViewport::PageRole::Primary
+    if (installedCoordinateInput.role().value<ImageViewportPageRole>()
+            != ImageViewportPageRole::Primary
         || installedCoordinateResult.isValid()
         || installedCoordinateResult.space() != ImageViewport::CoordinateSpace::DisplayedPage
-        || installedCoordinateResult.role().value<ImageViewport::PageRole>()
-            != ImageViewport::PageRole::Primary
+        || installedCoordinateResult.role().value<ImageViewportPageRole>()
+            != ImageViewportPageRole::Primary
         || helperViewport.mapPoint(installedCoordinateInput).isValid()
         || helperViewport.containsPoint(installedCoordinateInput)) {
         return 1;
@@ -1008,9 +1009,8 @@ int main(int argc, char** argv)
     std::unique_ptr<ImageSequenceFactoryResult> mismatchedTimedResult(
         factory.fromTimedFrameList(timedImages, { 100 }));
     if (!mismatchedTimedResult || mismatchedTimedResult->sequence()
-        || mismatchedTimedResult->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Invalid
-        || !mismatchedTimedResult->errorString().contains(QStringLiteral("same count"))
-        || !mismatchedTimedResult->warningString().isEmpty()) {
+        || mismatchedTimedResult->outcome() != ImageSequenceFactoryOutcome::Rejected
+        || !mismatchedTimedResult->errorString().contains(QStringLiteral("same count"))) {
         return 1;
     }
 
@@ -1026,8 +1026,7 @@ int main(int argc, char** argv)
         return 1;
     }
     builder.clear();
-    if (builder.count() != 0 || !builder.errorString().isEmpty()
-        || !builder.warningString().isEmpty()) {
+    if (builder.count() != 0 || !builder.errorString().isEmpty()) {
         return 1;
     }
 
@@ -1036,7 +1035,7 @@ int main(int argc, char** argv)
     if (!result || !result->sequence()) {
         return 1;
     }
-    if (result->outcome() != ImageSequenceFactoryResult::FactoryOutcome::Created) {
+    if (result->outcome() != ImageSequenceFactoryOutcome::Created) {
         return 1;
     }
 

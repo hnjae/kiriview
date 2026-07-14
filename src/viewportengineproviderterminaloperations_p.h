@@ -4,7 +4,7 @@
 
 struct ViewportEngineProviderTerminalProjectionInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewport::RequestStatus status = ImageViewport::RequestStatus::Error;
     ImageViewport::RequestReason reason = ImageViewport::RequestReason::ProviderFailure;
     ImageViewportInternal::FailureScope scope = ImageViewportInternal::FailureScope::None;

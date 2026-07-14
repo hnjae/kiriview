@@ -801,7 +801,7 @@ void ImageViewportRenderSceneGraphTest::renderAdapterReportsInvalidRolePayloadFa
     QQuickWindow window;
     RenderAdapter::Input input;
     input.itemSize = QSizeF(10.0, 10.0);
-    input.imageLayers.append({ ImageViewport::PageRole::Primary, renderAdapterPayload({}),
+    input.imageLayers.append({ ImageViewportPageRole::Primary, renderAdapterPayload({}),
         QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
 
     RenderAdapter adapter;
@@ -865,7 +865,7 @@ void ImageViewportRenderSceneGraphTest::retainedRenderFailureKeepsOldPaintNode()
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Ready"));
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "UploadPending"));
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Retained"));
@@ -919,9 +919,9 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
 
     RenderAdapter::Input input;
     input.itemSize = QSizeF(30.0, 20.0);
-    input.imageLayers.append({ ImageViewport::PageRole::Secondary, secondaryPayload,
+    input.imageLayers.append({ ImageViewportPageRole::Secondary, secondaryPayload,
         QRectF(10.0, 0.0, 10.0, 20.0), QRectF(1.0, 2.0, 3.0, 4.0), 90, true, false });
-    input.imageLayers.append({ ImageViewport::PageRole::Primary, primaryPayload,
+    input.imageLayers.append({ ImageViewportPageRole::Primary, primaryPayload,
         QRectF(0.0, 0.0, 10.0, 20.0), QRectF(0.0, 0.0, 2.0, 2.0), 0, false, true });
 
     RenderAdapter adapter;
@@ -929,17 +929,17 @@ void ImageViewportRenderSceneGraphTest::renderPlanBuildsRoleLayerMappingWithoutS
 
     QCOMPARE(plan.result, RenderAdapter::CommitResult::Committed);
     QCOMPARE(plan.imageLayers.size(), 2);
-    QCOMPARE(plan.imageLayers.at(0).role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(plan.imageLayers.at(0).role, ImageViewportPageRole::Secondary);
     QCOMPARE(plan.imageLayers.at(0).preparedPayload.payloadId, quint64(7));
     QCOMPARE(plan.imageLayers.at(0).unrotatedTargetRect, QRectF(5.0, 5.0, 20.0, 10.0));
     QCOMPARE(plan.imageLayers.at(0).physicalSourceRect, QRectF(2.0, 4.0, 6.0, 8.0));
     QCOMPARE(plan.imageLayers.at(0).rotationDegrees, 90);
     QCOMPARE(plan.imageLayers.at(0).mirrorHorizontally, true);
     QCOMPARE(plan.imageLayers.at(0).mirrorVertically, false);
-    QCOMPARE(plan.imageLayers.at(1).role, ImageViewport::PageRole::Primary);
+    QCOMPARE(plan.imageLayers.at(1).role, ImageViewportPageRole::Primary);
     QCOMPARE(plan.imageLayers.at(1).preparedPayload.payloadId, quint64(8));
     QCOMPARE(plan.rolePayloads.size(), 2);
-    QCOMPARE(plan.rolePayloads.at(0).role, ImageViewport::PageRole::Secondary);
+    QCOMPARE(plan.rolePayloads.at(0).role, ImageViewportPageRole::Secondary);
     QCOMPARE(plan.rolePayloads.at(0).preparedPayload.payloadId, quint64(7));
     QCOMPARE(plan.preparedPayload.payloadId, quint64(7));
 }
@@ -950,12 +950,12 @@ void ImageViewportRenderSceneGraphTest::renderPlanReportsPreMaterializationFailu
 
     RenderAdapter::Input invalidPayload;
     invalidPayload.itemSize = QSizeF(10.0, 10.0);
-    invalidPayload.imageLayers.append({ ImageViewport::PageRole::Secondary,
+    invalidPayload.imageLayers.append({ ImageViewportPageRole::Secondary,
         renderAdapterPayload({}), QRectF(0.0, 0.0, 10.0, 10.0), QRectF(0.0, 0.0, 2.0, 2.0) });
     const RenderAdapter::RenderPlan invalidPayloadPlan = adapter.createPlan(invalidPayload);
     QCOMPARE(invalidPayloadPlan.result, RenderAdapter::CommitResult::Failed);
     QCOMPARE(invalidPayloadPlan.failureCause, RenderFailureCause::InvalidRolePayload);
-    QCOMPARE(invalidPayloadPlan.failedRole, ImageViewport::PageRole::Secondary);
+    QCOMPARE(invalidPayloadPlan.failedRole, ImageViewportPageRole::Secondary);
 }
 
 void ImageViewportRenderSceneGraphTest::coverImageTextureNodeUsesVisibleSourceRect()
@@ -1138,7 +1138,7 @@ void ImageViewportRenderSceneGraphTest::providerRetainedFrameWaitingForGeometryI
     QCOMPARE(primaryDisplayedFrame(item), 0);
 
     item.setSize(QSizeF(0.0, 20.0));
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*lastRequestedFrame, 1);
 
     QImage secondImage(4, 2, QImage::Format_ARGB32_Premultiplied);

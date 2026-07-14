@@ -4,31 +4,71 @@
 
 namespace ImageViewportInternal {
 
-inline ImageViewport::CapabilitySupport providerCapabilitySupport(
+enum class ImageSequenceProviderCapabilitySupport {
+    Unavailable,
+    KnownFalse,
+    KnownTrue,
+};
+
+class ImageSequenceProviderKnownFacts
+{
+public:
+    enum class Kind {
+        Unknown,
+        LogicalSize,
+        Still,
+        TimedFrameCount,
+        TimedFrameList,
+    };
+
+    ImageSequenceProviderKnownFacts() = default;
+    static ImageSequenceProviderKnownFacts logicalSize(QSizeF logicalSize);
+    static ImageSequenceProviderKnownFacts still(QSizeF logicalSize);
+    static ImageSequenceProviderKnownFacts timedFrameCount(QSizeF logicalSize, int frameCount);
+    static ImageSequenceProviderKnownFacts fixedDurationFrames(
+        QSizeF logicalSize, int frameCount, int frameDuration);
+    static ImageSequenceProviderKnownFacts timedFrameList(
+        QSizeF logicalSize, QVector<int> frameDurations);
+
+    bool isSpecified() const;
+    bool isValid() const;
+    bool isComplete() const;
+    bool isLogicalSizeOnly() const;
+    bool isStill() const;
+    bool isTimedFrameCount() const;
+    bool isTimedFrameList() const;
+    QSizeF logicalSize() const;
+    int frameCount() const;
+    QVector<int> frameDurations() const;
+
+private:
+    Kind m_kind = Kind::Unknown;
+    QSizeF m_logicalSize;
+    int m_frameCount = -1;
+    QVector<int> m_frameDurations;
+};
+
+inline ImageViewportCapabilitySupport providerCapabilitySupport(
     ImageSequenceProviderCapabilitySupport support)
 {
     switch (support) {
-    case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
     case ImageSequenceProviderCapabilitySupport::KnownFalse:
-        return ImageViewport::CapabilitySupport::False;
-    case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
+        return ImageViewportCapabilitySupport::False;
     case ImageSequenceProviderCapabilitySupport::KnownTrue:
-        return ImageViewport::CapabilitySupport::True;
+        return ImageViewportCapabilitySupport::True;
     case ImageSequenceProviderCapabilitySupport::Unavailable:
-        return ImageViewport::CapabilitySupport::Unavailable;
+        return ImageViewportCapabilitySupport::Unavailable;
     }
 
-    return ImageViewport::CapabilitySupport::Unavailable;
+    return ImageViewportCapabilitySupport::Unavailable;
 }
 
 inline bool providerCapabilityContradictsMetadata(
     ImageSequenceProviderCapabilitySupport support, bool metadataCapability)
 {
     switch (support) {
-    case ImageSequenceProviderCapabilitySupport::DeclaredFalse:
     case ImageSequenceProviderCapabilitySupport::KnownFalse:
         return metadataCapability;
-    case ImageSequenceProviderCapabilitySupport::DeclaredTrue:
     case ImageSequenceProviderCapabilitySupport::KnownTrue:
         return !metadataCapability;
     case ImageSequenceProviderCapabilitySupport::Unavailable:
@@ -40,14 +80,12 @@ inline bool providerCapabilityContradictsMetadata(
 
 inline bool providerCapabilityKnownFalse(ImageSequenceProviderCapabilitySupport support)
 {
-    return support == ImageSequenceProviderCapabilitySupport::DeclaredFalse
-        || support == ImageSequenceProviderCapabilitySupport::KnownFalse;
+    return support == ImageSequenceProviderCapabilitySupport::KnownFalse;
 }
 
 inline bool providerCapabilityKnownTrue(ImageSequenceProviderCapabilitySupport support)
 {
-    return support == ImageSequenceProviderCapabilitySupport::DeclaredTrue
-        || support == ImageSequenceProviderCapabilitySupport::KnownTrue;
+    return support == ImageSequenceProviderCapabilitySupport::KnownTrue;
 }
 
 inline bool providerResolvedCapability(
@@ -85,7 +123,7 @@ inline bool providerFactsContradictMetadata(
     if (!facts.isSpecified()) {
         return false;
     }
-    if (metadata.logicalSize() != facts.logicalSize()) {
+    if (metadata.sourceLogicalSize() != facts.logicalSize()) {
         return true;
     }
     if (facts.isLogicalSizeOnly()) {

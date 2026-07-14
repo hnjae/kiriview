@@ -13,7 +13,7 @@ ViewportControllerTransition ViewportController::handleDevicePixelRatioChanged(
 }
 
 ViewportProviderFrameTransportEffect ViewportController::closeProviderSession(
-    ImageViewport::PageRole role)
+    ImageViewportPageRole role)
 {
     return engine.closeProviderSession(role);
 }

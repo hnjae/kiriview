@@ -6,21 +6,21 @@
 namespace {
 using namespace ImageViewportInternal;
 
-DisplayRequest& requestForRole(RequestState& request, ImageViewport::PageRole role)
+DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
+                                                    : request.roles[0].activeRequest;
 }
 
-const DisplayRequest& requestForRole(const RequestState& request, ImageViewport::PageRole role)
+const DisplayRequest& requestForRole(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
+                                                    : request.roles[0].activeRequest;
 }
 
-bool providerPresent(const RequestState& request, ImageViewport::PageRole role)
+bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary
+    return role == ImageViewportPageRole::Primary
         ? request.roles[0].source.facts.provider
         : request.roles[1].sequence && request.roles[1].provider;
 }
@@ -33,7 +33,7 @@ bool terminalMatchesActiveRequest(const RequestState& request)
 }
 
 bool activeTokenMatches(const ProviderRoleState& provider, const RequestState& request,
-    ImageViewport::PageRole role, ImageSequenceProviderRequestToken token)
+    ImageViewportPageRole role, ImageSequenceProviderRequestToken token)
 {
     const auto& active = requestForRole(request, role);
     return provider.requests.activeFrameToken.isValid()
@@ -55,11 +55,11 @@ bool displayedPrimaryPayloadMatchesActiveTarget(
 
 FramePreparation::ProviderFrameState preparationState(const RequestState& request,
     const DisplayState& display, const ProviderRoleState& provider,
-    const PresentationState& presentation, ImageViewport::PageRole role)
+    const PresentationState& presentation, ImageViewportPageRole role)
 {
     const auto& active = requestForRole(request, role);
     PreparedPayload preparedPayload = display.roles[0].pendingRenderPayload;
-    if (role == ImageViewport::PageRole::Primary && !preparedPayload.identity().isValid()) {
+    if (role == ImageViewportPageRole::Primary && !preparedPayload.identity().isValid()) {
         preparedPayload.generation = request.sequenceGeneration;
         preparedPayload.requestId = active.identity.id;
         preparedPayload.payloadId
@@ -137,7 +137,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
         return result;
     }
 
-    if (input.role == ImageViewport::PageRole::Secondary) {
+    if (input.role == ImageViewportPageRole::Secondary) {
         auto& preparedPayload = access.m_display.roles[0].pendingRenderPayload;
         auto& primaryRequest = access.m_request.roles[0].activeRequest;
         if (!preparedPayload.identity().isValid()) {
@@ -155,8 +155,8 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
 
     const auto frameState = preparationState(
         access.m_request, access.m_display, access.m_provider, access.m_presentation, input.role);
-    const auto admission
-        = FramePreparation::admitProviderFrame(input.frame, input.metadata, frameState);
+    const auto admission = FramePreparation::admitProviderFrame(
+        input.frame, input.metadata, input.envelope, frameState);
     if (!admission.accepted()) {
         clearQueue(access.m_provider.requests);
         access.m_provider.requests.activeFrameToken = {};
@@ -173,7 +173,7 @@ ViewportEngineProviderFrameReadyReduction reduceViewportEngineProviderFrameReady
     const bool diagnosticsChanged = access.m_request.clearDiagnostics();
     access.m_provider.requests.activeFrameToken = {};
 
-    if (input.role == ImageViewport::PageRole::Secondary) {
+    if (input.role == ImageViewportPageRole::Secondary) {
         access.m_display.roles[1].pendingRenderPayload = admission.preparedPayload;
         const bool primaryReady = access.m_display.roles[0].pendingRenderPayload.commitPending
             && !access.m_display.roles[0].pendingRenderPayload.image.isNull();

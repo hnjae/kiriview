@@ -10,9 +10,9 @@ ViewportControllerTransition ViewportController::handleGeometryChanged(
     ViewportControllerTransition result;
     result.changes = engineResult.changes;
     appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[0],
-        ImageViewport::PageRole::Primary);
+        ImageViewportPageRole::Primary);
     appendProviderTransport(result.providerAfterPublication, engineResult.providerEffects[1],
-        ImageViewport::PageRole::Secondary);
+        ImageViewportPageRole::Secondary);
     return result;
 }
 

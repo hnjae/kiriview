@@ -73,7 +73,7 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
             rolePayloads.append({ payload.role, payload.preparedPayload });
         }
         auto transition = viewport.controller.acknowledgeRenderCommit(
-            { render.preparedPayload, rolePayloads, ImageViewport::PageRole::Primary,
+            { render.preparedPayload, rolePayloads, ImageViewportPageRole::Primary,
                 RenderFailureCause::None, synchronization.attempt },
             imagePresent, synchronization);
         viewport.applyControllerTransition(std::move(transition));

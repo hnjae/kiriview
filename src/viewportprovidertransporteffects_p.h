@@ -3,7 +3,7 @@
 #include "viewportcontrollerprovidercontract_p.h"
 
 inline ImageSequenceProviderRequest providerRequestForTransport(
-    ImageViewport::PageRole role, const ViewportProviderFrameCommand& command)
+    ImageViewportPageRole role, const ViewportProviderFrameCommand& command)
 {
     if (command.targetKind == ImageViewportInternal::ProviderRequestTargetKind::Playback) {
         return ImageSequenceProviderRequest::playback(command.token, role, command.frame,
@@ -18,7 +18,7 @@ inline ImageSequenceProviderRequest providerRequestForTransport(
 }
 
 inline void appendProviderTransport(ViewportProviderTransportBatch& batch,
-    const ViewportProviderMetadataTransportEffect& effect, ImageViewport::PageRole role)
+    const ViewportProviderMetadataTransportEffect& effect, ImageViewportPageRole role)
 {
     if (effect.closeSession) {
         batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
@@ -31,7 +31,7 @@ inline void appendProviderTransport(ViewportProviderTransportBatch& batch,
 }
 
 inline void appendProviderTransport(ViewportProviderTransportBatch& batch,
-    const ViewportProviderFrameTransportEffect& effect, ImageViewport::PageRole role)
+    const ViewportProviderFrameTransportEffect& effect, ImageViewportPageRole role)
 {
     if (effect.cancelToken.isValid()) {
         batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,

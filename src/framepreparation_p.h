@@ -45,8 +45,7 @@ public:
         };
 
         Cause cause = Cause::Accepted;
-        ImageSequenceFactoryResult::FactoryOutcome outcome
-            = ImageSequenceFactoryResult::FactoryOutcome::Created;
+        ImageSequenceFactoryOutcome outcome = ImageSequenceFactoryOutcome::Created;
         QString diagnostic;
         QSizeF logicalSize;
         int frameCount = -1;
@@ -64,8 +63,8 @@ public:
         ImageViewportInternal::ResolvedFrameIdentity resolvedFrame;
         ImageViewportInternal::PreparedPayload preparedPayload;
         ImageViewportDemandRevisionToken demandRevision;
-        ImageViewport::ExactnessPreference exactnessPreference
-            = ImageViewport::ExactnessPreference::Default;
+        ImageViewportExactnessPreference exactnessPreference
+            = ImageViewportExactnessPreference::Default;
     };
 
     struct ProviderFrameAdmissionResult
@@ -113,9 +112,10 @@ public:
     static ProviderMetadataAdmissionResult admitProviderMetadata(
         const ImageSequenceProviderMetadata& metadata);
     static ProviderKnownFactsAdmissionResult admitProviderKnownFacts(
-        const ImageSequenceProviderKnownFacts& facts);
+        const ImageViewportInternal::ImageSequenceProviderKnownFacts& facts);
     static ProviderFrameAdmissionResult admitProviderFrame(ImageFrame* frame,
-        ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state);
+        ImageSequenceProviderFrameMetadata metadata,
+        const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state);
     static BuiltInFrameAdmissionResult admitBuiltInFrame(
         const ImageViewportInternal::ImageSequenceSource& source, int frame,
         const ImageViewportInternal::PreparedPayload& preparedPayload);

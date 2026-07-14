@@ -28,7 +28,7 @@ FramePreparation::ProviderKnownFactsAdmissionResult providerKnownFactsRejection(
 {
     return {
         cause,
-        ImageSequenceFactoryResult::FactoryOutcome::Invalid,
+        ImageSequenceFactoryOutcome::Rejected,
         std::move(diagnostic),
     };
 }
@@ -90,34 +90,37 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
 {
     using Cause = ProviderMetadataAdmissionResult::Cause;
 
-    if (!metadata.isSpecified() || (!metadata.isStill() && !metadata.isTimedFrameList())) {
+    if (!metadata.isSpecified() || (!metadata.isStill() && !metadata.isTimedFrameList())
+        || (metadata.hasAuthoredAnimationFacts() && !metadata.authoredAnimationFacts().isValid())) {
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-    if (metadata.isStill() && (metadata.timedPlaybackSupport() || metadata.positionSeekSupport())) {
+    if (metadata.isStill()
+        && (metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True
+            || metadata.positionSeekSupport() == ImageViewportCapabilitySupport::True)) {
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
 
-    const QSizeF size = metadata.logicalSize();
+    const QSizeF size = metadata.sourceLogicalSize();
     if (!isPositiveFiniteInteger(size.width()) || !isPositiveFiniteInteger(size.height())) {
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+    if (size.width() > ImageSequenceLimits::maximumSourceLogicalWidth()) {
         return providerMetadataRejection(Cause::LogicalWidthTooLarge,
-            QStringLiteral("provider metadata logical width exceeds maximumLogicalWidth"));
+            QStringLiteral("provider metadata logical width exceeds maximumSourceLogicalWidth"));
     }
-    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+    if (size.height() > ImageSequenceLimits::maximumSourceLogicalHeight()) {
         return providerMetadataRejection(Cause::LogicalHeightTooLarge,
-            QStringLiteral("provider metadata logical height exceeds maximumLogicalHeight"));
+            QStringLiteral("provider metadata logical height exceeds maximumSourceLogicalHeight"));
     }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+    if (width * height > ImageSequenceLimits::maximumSourceLogicalPixels()) {
         return providerMetadataRejection(Cause::PixelCountTooLarge,
-            QStringLiteral("provider metadata logical size exceeds maximumPixelsPerFrame"));
+            QStringLiteral("provider metadata logical size exceeds maximumSourceLogicalPixels"));
     }
 
     if (metadata.isStill()) {
@@ -136,9 +139,9 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
         return providerMetadataRejection(
             Cause::InvalidMetadata, QStringLiteral("provider metadata is invalid"));
     }
-    if (durations.size() > ImageSequenceLimits::maximumTimedListFrameCount()) {
+    if (durations.size() > ImageSequenceLimits::maximumFrameCount()) {
         return providerMetadataRejection(Cause::FrameCountTooLarge,
-            QStringLiteral("provider metadata frame count exceeds maximumTimedListFrameCount"));
+            QStringLiteral("provider metadata frame count exceeds maximumFrameCount"));
     }
 
     qint64 totalDuration = 0;
@@ -147,15 +150,16 @@ FramePreparation::ProviderMetadataAdmissionResult FramePreparation::admitProvide
             return providerMetadataRejection(Cause::InvalidFrameDuration,
                 QStringLiteral("provider metadata frame duration must be positive"));
         }
-        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+        if (duration > ImageSequenceLimits::maximumFrameDurationMilliseconds()) {
             return providerMetadataRejection(Cause::FrameDurationTooLarge,
-                QStringLiteral("provider metadata frame duration exceeds maximumFrameDuration"));
+                QStringLiteral(
+                    "provider metadata frame duration exceeds maximumFrameDurationMilliseconds"));
         }
         totalDuration += duration;
-        if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+        if (totalDuration > ImageSequenceLimits::maximumTotalDurationMilliseconds()) {
             return providerMetadataRejection(Cause::TotalDurationTooLarge,
                 QStringLiteral(
-                    "provider metadata total duration exceeds maximumTotalSequenceDuration"));
+                    "provider metadata total duration exceeds maximumTotalDurationMilliseconds"));
         }
     }
 
@@ -184,32 +188,33 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
     }
 
     const QSizeF size = facts.logicalSize();
-    if (size.width() > ImageSequenceLimits::maximumLogicalWidth()) {
+    if (size.width() > ImageSequenceLimits::maximumSourceLogicalWidth()) {
         return providerKnownFactsRejection(Cause::LogicalWidthTooLarge,
-            QStringLiteral("provider known facts logical width exceeds maximumLogicalWidth"));
+            QStringLiteral("provider known facts logical width exceeds maximumSourceLogicalWidth"));
     }
-    if (size.height() > ImageSequenceLimits::maximumLogicalHeight()) {
+    if (size.height() > ImageSequenceLimits::maximumSourceLogicalHeight()) {
         return providerKnownFactsRejection(Cause::LogicalHeightTooLarge,
-            QStringLiteral("provider known facts logical height exceeds maximumLogicalHeight"));
+            QStringLiteral(
+                "provider known facts logical height exceeds maximumSourceLogicalHeight"));
     }
 
     const qint64 width = static_cast<qint64>(size.width());
     const qint64 height = static_cast<qint64>(size.height());
-    if (width * height > ImageSequenceLimits::maximumPixelsPerFrame()) {
+    if (width * height > ImageSequenceLimits::maximumSourceLogicalPixels()) {
         return providerKnownFactsRejection(Cause::PixelCountTooLarge,
-            QStringLiteral("provider known facts logical size exceeds maximumPixelsPerFrame"));
+            QStringLiteral("provider known facts logical size exceeds maximumSourceLogicalPixels"));
     }
 
     const int frameCount = facts.frameCount();
-    if (frameCount > ImageSequenceLimits::maximumTimedListFrameCount()) {
+    if (frameCount > ImageSequenceLimits::maximumFrameCount()) {
         return providerKnownFactsRejection(Cause::FrameCountTooLarge,
-            QStringLiteral("provider known facts frame count exceeds maximumTimedListFrameCount"));
+            QStringLiteral("provider known facts frame count exceeds maximumFrameCount"));
     }
 
     if (!facts.isTimedFrameList()) {
         return {
             Cause::Accepted,
-            ImageSequenceFactoryResult::FactoryOutcome::Created,
+            ImageSequenceFactoryOutcome::Created,
             {},
             size,
             frameCount,
@@ -219,21 +224,22 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
     const QVector<int> durations = facts.frameDurations();
     qint64 totalDuration = 0;
     for (int duration : durations) {
-        if (duration > ImageSequenceLimits::maximumFrameDuration()) {
+        if (duration > ImageSequenceLimits::maximumFrameDurationMilliseconds()) {
             return providerKnownFactsRejection(Cause::FrameDurationTooLarge,
-                QStringLiteral("provider known facts frame duration exceeds maximumFrameDuration"));
+                QStringLiteral("provider known facts frame duration exceeds "
+                               "maximumFrameDurationMilliseconds"));
         }
         totalDuration += duration;
-        if (totalDuration > ImageSequenceLimits::maximumTotalSequenceDuration()) {
+        if (totalDuration > ImageSequenceLimits::maximumTotalDurationMilliseconds()) {
             return providerKnownFactsRejection(Cause::TotalDurationTooLarge,
-                QStringLiteral(
-                    "provider known facts total duration exceeds maximumTotalSequenceDuration"));
+                QStringLiteral("provider known facts total duration exceeds "
+                               "maximumTotalDurationMilliseconds"));
         }
     }
 
     return {
         Cause::Accepted,
-        ImageSequenceFactoryResult::FactoryOutcome::Created,
+        ImageSequenceFactoryOutcome::Created,
         {},
         size,
         frameCount,
@@ -242,7 +248,8 @@ FramePreparation::ProviderKnownFactsAdmissionResult FramePreparation::admitProvi
 }
 
 FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFrame(
-    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata, const ProviderFrameState& state)
+    ImageFrame* frame, ImageSequenceProviderFrameMetadata metadata,
+    const ImageSequenceProviderFrameEnvelope& envelope, const ProviderFrameState& state)
 {
     using Cause = ProviderFrameAdmissionResult::Cause;
 
@@ -254,7 +261,7 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(
             Cause::MetadataNotReady, QStringLiteral("provider frame metadata is not ready"));
     }
-    if (frame->logicalSize() != state.logicalSize) {
+    if (frame->sourceLogicalSize() != state.logicalSize) {
         return providerFrameError(
             Cause::LogicalSizeMismatch, QStringLiteral("provider frame logical size mismatch"));
     }
@@ -262,23 +269,37 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         return providerFrameError(Cause::InvalidPayloadByteSize,
             QStringLiteral("provider frame payload byte size is invalid"));
     }
-    if (frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+    if (frame->payloadByteSize() > ImageSequenceLimits::maximumPayloadBytes()) {
         return providerFrameRejection(Cause::PayloadTooLarge,
             ImageViewport::RequestStatus::Unsupported,
-            QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame"));
+            QStringLiteral("provider frame payload exceeds maximumPayloadBytes"));
+    }
+    if (frame->payloadRasterSize().width() > ImageSequenceLimits::maximumPayloadRasterWidth()
+        || frame->payloadRasterSize().height()
+            > ImageSequenceLimits::maximumPayloadRasterHeight()) {
+        return providerFrameRejection(Cause::PayloadTooLarge,
+            ImageViewport::RequestStatus::Unsupported,
+            QStringLiteral("provider frame payload exceeds maximumPayloadRaster size"));
+    }
+    if (frame->formatIdentifier().toUcs4().size()
+        > ImageSequenceLimits::maximumFormatIdentifierCharacters()) {
+        return providerFrameRejection(Cause::PayloadTooLarge,
+            ImageViewport::RequestStatus::Unsupported,
+            QStringLiteral(
+                "provider frame format identifier exceeds maximumFormatIdentifierCharacters"));
     }
     if (!metadata.isValid()) {
         return providerFrameError(
             Cause::InvalidFrameMetadata, QStringLiteral("provider frame metadata is invalid"));
     }
-    const ImageViewportDemandRevisionToken payloadDemand = frame->envelope().demandRevision();
+    const ImageViewportDemandRevisionToken payloadDemand = envelope.demandRevision();
     if (state.demandRevision.isValid() && payloadDemand.isValid()
         && payloadDemand != state.demandRevision) {
         return providerFrameError(Cause::DemandRevisionMismatch,
             QStringLiteral("provider frame demand revision mismatch"));
     }
-    if (state.exactnessPreference == ImageViewport::ExactnessPreference::RequireExact
-        && frame->envelope().exactness() != ImageViewport::PayloadExactness::ExactForSource) {
+    if (state.exactnessPreference == ImageViewportExactnessPreference::RequireExact
+        && frame->exactness() != ImageViewportPayloadExactness::ExactForSource) {
         return providerFrameRejection(Cause::ExactnessMismatch,
             ImageViewport::RequestStatus::Unsupported,
             QStringLiteral("provider frame does not satisfy exactness preference"));
@@ -305,12 +326,12 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
         }
         ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
         admitted.image = ImageFramePrivateAccess::image(*frame);
-        admitted.sourceLogicalSize = frame->logicalSize();
+        admitted.sourceLogicalSize = frame->sourceLogicalSize();
         admitted.payloadRasterSize = frame->payloadRasterSize();
         admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
-        admitted.quality = frame->envelope().quality();
-        admitted.exactness = frame->envelope().exactness();
-        admitted.demandRevision = frame->envelope().demandRevision();
+        admitted.quality = frame->quality();
+        admitted.exactness = frame->exactness();
+        admitted.demandRevision = envelope.demandRevision();
         return {
             Cause::Accepted,
             ImageViewport::RequestStatus::Ready,
@@ -330,12 +351,12 @@ FramePreparation::ProviderFrameAdmissionResult FramePreparation::admitProviderFr
     }
     ImageViewportInternal::PreparedPayload admitted = state.preparedPayload;
     admitted.image = ImageFramePrivateAccess::image(*frame);
-    admitted.sourceLogicalSize = frame->logicalSize();
+    admitted.sourceLogicalSize = frame->sourceLogicalSize();
     admitted.payloadRasterSize = frame->payloadRasterSize();
     admitted.sourceToPayloadScale = frame->sourceToPayloadScale();
-    admitted.quality = frame->envelope().quality();
-    admitted.exactness = frame->envelope().exactness();
-    admitted.demandRevision = frame->envelope().demandRevision();
+    admitted.quality = frame->quality();
+    admitted.exactness = frame->exactness();
+    admitted.demandRevision = envelope.demandRevision();
     return {
         Cause::Accepted,
         ImageViewport::RequestStatus::Ready,
@@ -380,7 +401,7 @@ QString FramePreparation::boundedDiagnostic(QString diagnostic, QString fallback
     QString selected = plainTextDiagnostic(redactDiagnosticDetails(
         diagnostic.isEmpty() ? std::move(fallback) : std::move(diagnostic)));
     const auto scalars = selected.toUcs4();
-    const int maximumLength = ImageSequenceLimits::maximumDiagnosticStringLength();
+    const int maximumLength = ImageSequenceLimits::maximumDiagnosticCharacters();
     if (scalars.size() <= maximumLength) {
         return selected;
     }

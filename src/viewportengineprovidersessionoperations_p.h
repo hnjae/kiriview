@@ -5,7 +5,7 @@
 
 struct ViewportEngineProviderSessionOpenInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 generation = 0;
 };
 

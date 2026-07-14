@@ -78,22 +78,26 @@ QRectF ImageViewportPrivate::secondaryPageRect() const
 
 QRectF ImageViewportPrivate::primaryItemRect() const
 {
-    return PresentationGeometry::pageItemRect(geometryState(*this), PageRole::Primary);
+    return PresentationGeometry::pageItemRect(
+        geometryState(*this), ImageViewportPageRole::Primary);
 }
 
 QRectF ImageViewportPrivate::secondaryItemRect() const
 {
-    return PresentationGeometry::pageItemRect(geometryState(*this), PageRole::Secondary);
+    return PresentationGeometry::pageItemRect(
+        geometryState(*this), ImageViewportPageRole::Secondary);
 }
 
 QRectF ImageViewportPrivate::visiblePrimaryPageRect() const
 {
-    return PresentationGeometry::visiblePageRect(geometryState(*this), PageRole::Primary);
+    return PresentationGeometry::visiblePageRect(
+        geometryState(*this), ImageViewportPageRole::Primary);
 }
 
 QRectF ImageViewportPrivate::visibleSecondaryPageRect() const
 {
-    return PresentationGeometry::visiblePageRect(geometryState(*this), PageRole::Secondary);
+    return PresentationGeometry::visiblePageRect(
+        geometryState(*this), ImageViewportPageRole::Secondary);
 }
 
 QSizeF ImageViewportPrivate::contentSize() const
@@ -215,36 +219,36 @@ bool coordinateUsesPage(const ImageViewportCoordinateInput& input)
         || input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage;
 }
 
-std::optional<ImageViewport::PageRole> coordinatePageRole(const ImageViewportCoordinateInput& input)
+std::optional<ImageViewportPageRole> coordinatePageRole(const ImageViewportCoordinateInput& input)
 {
-    if (input.role().isNull() || !input.role().canConvert<ImageViewport::PageRole>()) {
+    if (input.role().isNull() || !input.role().canConvert<ImageViewportPageRole>()) {
         return std::nullopt;
     }
-    const ImageViewport::PageRole role = input.role().value<ImageViewport::PageRole>();
+    const ImageViewportPageRole role = input.role().value<ImageViewportPageRole>();
     return ImageViewportInternal::isValidPageRole(role) ? std::optional(role) : std::nullopt;
 }
 
-bool roleIsDisplayed(ImageViewport::PageRole role, ImageViewportRoleSet displayedRoleSet)
+bool roleIsDisplayed(ImageViewportPageRole role, ImageViewportRoleSet displayedRoleSet)
 {
-    return role == ImageViewport::PageRole::Primary ? displayedRoleSet.primary()
+    return role == ImageViewportPageRole::Primary ? displayedRoleSet.primary()
                                                     : displayedRoleSet.secondary();
 }
 
 QVariant coordinateResultRole(
-    const ImageViewportCoordinateInput& input, std::optional<ImageViewport::PageRole> role)
+    const ImageViewportCoordinateInput& input, std::optional<ImageViewportPageRole> role)
 {
     return coordinateUsesPage(input) && role ? QVariant::fromValue(*role) : QVariant {};
 }
 
 ImageViewportCoordinateResult coordinateResultFor(const ImageViewportCoordinateInput& input,
-    CoordinateResult result, std::optional<ImageViewport::PageRole> role)
+    CoordinateResult result, std::optional<ImageViewportPageRole> role)
 {
     return ImageViewportCoordinateResult(result.isValid(), QPointF(result.x(), result.y()),
         input.targetSpace(), coordinateResultRole(input, role));
 }
 
 ImageViewportCoordinateResult invalidCoordinateResultFor(const ImageViewportCoordinateInput& input,
-    std::optional<ImageViewport::PageRole> role = std::nullopt)
+    std::optional<ImageViewportPageRole> role = std::nullopt)
 {
     const ImageViewport::CoordinateSpace space = coordinateSpaceValid(input.targetSpace())
         ? input.targetSpace()
@@ -263,7 +267,8 @@ ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
         return invalidCoordinateResultFor(input);
     }
     const bool usesPage = coordinateUsesPage(input);
-    const std::optional<PageRole> role = usesPage ? coordinatePageRole(input) : std::nullopt;
+    const std::optional<ImageViewportPageRole> role
+        = usesPage ? coordinatePageRole(input) : std::nullopt;
     if ((!usesPage && !input.role().isNull()) || (usesPage && !role)) {
         return invalidCoordinateResultFor(input);
     }

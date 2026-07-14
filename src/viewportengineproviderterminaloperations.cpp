@@ -3,20 +3,20 @@
 namespace {
 using namespace ImageViewportInternal;
 
-TargetSpreadRoleTerminalState& terminalForRole(RequestState& request, ImageViewport::PageRole role)
+TargetSpreadRoleTerminalState& terminalForRole(RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.targetSpreadTerminal.secondary
+    return role == ImageViewportPageRole::Secondary ? request.targetSpreadTerminal.secondary
                                                       : request.targetSpreadTerminal.primary;
 }
 
-bool roleRequired(const RequestState& request, ImageViewport::PageRole role)
+bool roleRequired(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.roles[0].source.facts.present
+    return role == ImageViewportPageRole::Primary ? request.roles[0].source.facts.present
                                                     : request.roles[1].sequence;
 }
 
 const TargetSpreadRoleTerminalState* currentTerminal(
-    const RequestState& request, ImageViewport::PageRole role)
+    const RequestState& request, ImageViewportPageRole role)
 {
     const auto& terminal = request.targetSpreadTerminal;
     if (!terminal.sealed || terminal.generation != request.sequenceGeneration
@@ -25,14 +25,14 @@ const TargetSpreadRoleTerminalState* currentTerminal(
         return nullptr;
     }
     const auto& roleTerminal
-        = role == ImageViewport::PageRole::Secondary ? terminal.secondary : terminal.primary;
+        = role == ImageViewportPageRole::Secondary ? terminal.secondary : terminal.primary;
     return roleTerminal.terminal ? &roleTerminal : nullptr;
 }
 
 const TargetSpreadRoleTerminalState* projectedTerminal(const RequestState& request)
 {
-    const auto* primary = currentTerminal(request, ImageViewport::PageRole::Primary);
-    const auto* secondary = currentTerminal(request, ImageViewport::PageRole::Secondary);
+    const auto* primary = currentTerminal(request, ImageViewportPageRole::Primary);
+    const auto* secondary = currentTerminal(request, ImageViewportPageRole::Secondary);
     if (!primary) {
         return secondary;
     }

@@ -58,10 +58,9 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QCOMPARE(
         snapshot.presentation().spreadDirection(), ImageViewport::SpreadDirection::LeftToRight);
     QCOMPARE(snapshot.presentation().pageGap(), 0.0);
+    QCOMPARE(snapshot.presentation().qualityPreference(), ImageViewportQualityPreference::Default);
     QCOMPARE(
-        snapshot.presentation().qualityPreference(), ImageViewport::QualityPreference::Default);
-    QCOMPARE(
-        snapshot.presentation().exactnessPreference(), ImageViewport::ExactnessPreference::Default);
+        snapshot.presentation().exactnessPreference(), ImageViewportExactnessPreference::Default);
 
     QCOMPARE(snapshot.primary().present(), false);
     QCOMPARE(snapshot.primary().sequence(), nullptr);
@@ -69,7 +68,7 @@ void ImageViewportStateSnapshotTest::defaultSnapshotValuesAndCopySemantics()
     QCOMPARE(snapshot.primary().display().frame(), -1);
     QCOMPARE(snapshot.primary().metadata().available(), false);
     QCOMPARE(snapshot.primary().metadata().frameSeekSupport(),
-        ImageViewport::CapabilitySupport::Unavailable);
+        ImageViewportCapabilitySupport::Unavailable);
     QCOMPARE(snapshot.secondary().present(), false);
 
     QCOMPARE(snapshot.diagnostics().errorString(), QString());
@@ -113,8 +112,8 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     QCOMPARE(snapshot.request().acceptedRoleSet(), ImageViewportRoleSet(true, false));
     QCOMPARE(snapshot.request().targetRoleSet(), ImageViewportRoleSet(true, false));
     QVERIFY(snapshot.request().acceptedPresentationTargetGeneration().isValid());
-    QCOMPARE(snapshot.request().activeRole().value<ImageViewport::PageRole>(),
-        ImageViewport::PageRole::Primary);
+    QCOMPARE(snapshot.request().activeRole().value<ImageViewportPageRole>(),
+        ImageViewportPageRole::Primary);
 
     QCOMPARE(snapshot.display().status(), ImageViewport::DisplayStatus::Ready);
     QCOMPARE(snapshot.display().phase(), ImageViewport::DisplayPhase::CommittedActive);
@@ -142,9 +141,9 @@ void ImageViewportStateSnapshotTest::readyStillSnapshotMatchesFlatProperties()
     QCOMPARE(snapshot.primary().display().sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().payloadRasterSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().display().sourceToPayloadScale(), QSizeF(1.0, 1.0));
-    QCOMPARE(snapshot.primary().display().quality(), ImageViewport::PayloadQuality::Exact);
+    QCOMPARE(snapshot.primary().display().quality(), ImageViewportPayloadQuality::Exact);
     QCOMPARE(
-        snapshot.primary().display().exactness(), ImageViewport::PayloadExactness::ExactForSource);
+        snapshot.primary().display().exactness(), ImageViewportPayloadExactness::ExactForSource);
     QCOMPARE(snapshot.primary().metadata().available(), true);
     QCOMPARE(snapshot.primary().metadata().sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(snapshot.primary().metadata().frameCount(), 1);
@@ -267,18 +266,10 @@ void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame
 {
     QImage payload(8, 4, QImage::Format_ARGB32_Premultiplied);
     payload.fill(Qt::transparent);
-    ImageSequenceProviderFrameEnvelope envelope;
-    envelope.setSourceLogicalSize(QSizeF(16.0, 8.0));
-    envelope.setPayloadRasterSize(QSizeF(8.0, 4.0));
-    envelope.setSourceToPayloadScale(QSizeF(0.5, 0.5));
-    envelope.setPayloadByteSize(payload.sizeInBytes());
-    envelope.setQuality(ImageViewport::PayloadQuality::Preview);
-    envelope.setExactness(ImageViewport::PayloadExactness::NotExact);
-    envelope.setFrame(0);
-    envelope.setFrameStartPosition(-1);
-    envelope.setFrameDuration(-1);
-    envelope.setHasAlpha(true);
-    ImageFrame frame(payload, envelope);
+    ImageFrame frame(payload, QSizeF(16.0, 8.0), QSizeF(8.0, 4.0), QSizeF(0.5, 0.5),
+        payload.sizeInBytes(), ImageViewportPayloadQuality::Preview,
+        ImageViewportPayloadExactness::NotExact, true, ImageFrame::OrientationPolicy::Identity,
+        QStringLiteral("argb32"));
     ImageSequenceFactory factory;
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result->sequence());
@@ -292,8 +283,8 @@ void ImageViewportStateSnapshotTest::displayedPayloadFactsComeFromCommittedFrame
     QCOMPARE(display.sourceLogicalSize(), QSizeF(16.0, 8.0));
     QCOMPARE(display.payloadRasterSize(), QSizeF(8.0, 4.0));
     QCOMPARE(display.sourceToPayloadScale(), QSizeF(0.5, 0.5));
-    QCOMPARE(display.quality(), ImageViewport::PayloadQuality::Preview);
-    QCOMPARE(display.exactness(), ImageViewport::PayloadExactness::NotExact);
+    QCOMPARE(display.quality(), ImageViewportPayloadQuality::Preview);
+    QCOMPARE(display.exactness(), ImageViewportPayloadExactness::NotExact);
 }
 
 void ImageViewportStateSnapshotTest::terminalProviderFailureProjectsDiagnostics()
@@ -360,23 +351,23 @@ void ImageViewportStateSnapshotTest::timedPlaybackSnapshotTracksRequestState()
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Playing);
-    QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
-        ImageViewport::PageRole::Primary);
+    QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
+        ImageViewportPageRole::Primary);
     QCOMPARE(snapshot.primary().request().frame(), 0);
     QCOMPARE(snapshot.primary().request().position(), 0);
 
-    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Paused);
-    QCOMPARE(snapshot.request().playbackRole().value<ImageViewport::PageRole>(),
-        ImageViewport::PageRole::Primary);
+    QCOMPARE(snapshot.request().playbackRole().value<ImageViewportPageRole>(),
+        ImageViewportPageRole::Primary);
 
-    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
     snapshot = item.state();
     QCOMPARE(snapshot.request().playbackPhase(), ImageViewport::PlaybackPhase::Stopped);
@@ -432,17 +423,17 @@ void ImageViewportStateSnapshotTest::presentationCommandUpdatesSnapshotGeometry(
 
     command = {};
     command.setManualZoomPercent(200.0);
-    command.setQualityPreference(ImageViewport::QualityPreference::BalancedDetail);
-    command.setExactnessPreference(ImageViewport::ExactnessPreference::PreferExact);
+    command.setQualityPreference(ImageViewportQualityPreference::BalancedDetail);
+    command.setExactnessPreference(ImageViewportExactnessPreference::PreferExact);
     QCOMPARE(item.setPresentation(command).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportStateSnapshot snapshot = item.state();
     QCOMPARE(snapshot.presentation().fitMode(), ImageViewport::FitMode::Manual);
     QCOMPARE(snapshot.presentation().zoomPercent(), 200.0);
     QCOMPARE(snapshot.presentation().qualityPreference(),
-        ImageViewport::QualityPreference::BalancedDetail);
+        ImageViewportQualityPreference::BalancedDetail);
     QCOMPARE(snapshot.presentation().exactnessPreference(),
-        ImageViewport::ExactnessPreference::PreferExact);
+        ImageViewportExactnessPreference::PreferExact);
     QCOMPARE(snapshot.display().contentRect(), contentRect(item));
     QCOMPARE(snapshot.display().visibleSpreadRect(), QRectF(0.0, 0.0, 16.0, 8.0));
     QCOMPARE(snapshot.primary().geometry().acceptedItemRect(), snapshot.display().contentRect());

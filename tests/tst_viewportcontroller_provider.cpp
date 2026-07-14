@@ -18,10 +18,10 @@ public:
     void request(const ImageSequenceProviderRequest&) override { }
 };
 
-class StubProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class StubProviderSessionFactory final
 {
 public:
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new StubProviderSession(parent);
     }
@@ -42,21 +42,16 @@ public:
 
     ImageSequenceProviderDescriptor descriptor() const override
     {
-        ImageSequenceProviderDescriptor descriptor;
-        descriptor.setSessionFactory(factory);
-        descriptor.setKnownMetadata(knownMetadata);
-        if (knownMetadata.isStill()) {
-            descriptor.setKnownFacts(
-                ImageSequenceProviderKnownFacts::still(knownMetadata.logicalSize()));
-        } else if (knownMetadata.isTimedFrameList()) {
-            descriptor.setKnownFacts(ImageSequenceProviderKnownFacts::timedFrameList(
-                knownMetadata.logicalSize(), knownMetadata.frameDurations()));
-        }
-        return descriptor;
+        const auto retainedFactory = factory;
+        return ImageSequenceProviderDescriptor(knownMetadata,
+            ImageSequenceProviderThreadingContract::AffinityBound, [retainedFactory]() {
+                return ImageSequenceProviderSessionFactoryResult::created(
+                    retainedFactory->createSession(nullptr));
+            });
     }
 
 private:
-    std::shared_ptr<ImageSequenceProviderSessionFactory> factory;
+    std::shared_ptr<StubProviderSessionFactory> factory;
     ImageSequenceProviderMetadata knownMetadata;
 };
 
@@ -68,7 +63,7 @@ std::unique_ptr<ImageSequenceFactoryResult> makeProviderSequence(
 }
 
 const ViewportProviderTransportCommand* findTransport(const ViewportProviderTransportBatch& batch,
-    ViewportProviderTransportCommand::Kind kind, ImageViewport::PageRole role)
+    ViewportProviderTransportCommand::Kind kind, ImageViewportPageRole role)
 {
     for (const auto& effect : batch) {
         if (effect.kind == kind && effect.role == role) {
@@ -80,13 +75,13 @@ const ViewportProviderTransportCommand* findTransport(const ViewportProviderTran
 
 struct ProviderSessionIdentity
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 generation = 0;
     quint64 sessionSerial = 0;
 };
 
 ProviderSessionIdentity sessionIdentity(const ViewportCommandResult& assignment,
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary)
+    ImageViewportPageRole role = ImageViewportPageRole::Primary)
 {
     const auto* open = findTransport(assignment.transition.providerAfterPublication,
         ViewportProviderTransportCommand::Kind::OpenSession, role);
@@ -273,8 +268,8 @@ void ViewportControllerProviderTest::secondaryMetadataReadyUsesRoleIdentity()
     ViewportSequenceAssignment assignment;
     assignment.sequence = primary->sequence();
     assignment.secondarySequence = secondary->sequence();
-    const auto identity = sessionIdentity(
-        controller.assignSequence(assignment), ImageViewport::PageRole::Secondary);
+    const auto identity
+        = sessionIdentity(controller.assignSequence(assignment), ImageViewportPageRole::Secondary);
     QVERIFY(identity.generation != 0);
     const auto opened = controller.handleProviderHostEvent(
         { ViewportProviderHostEvent::Kind::SessionOpened, identity.role });
@@ -355,7 +350,7 @@ void ViewportControllerProviderTest::sessionOpenFailureIsReducedThroughHostEvent
 
     ViewportProviderHostEvent failure;
     failure.kind = ViewportProviderHostEvent::Kind::SessionOpenFailed;
-    failure.role = ImageViewport::PageRole::Primary;
+    failure.role = ImageViewportPageRole::Primary;
     failure.diagnostic = QStringLiteral("session failed");
     const auto result = controller.handleProviderHostEvent(failure);
     QCOMPARE(result.changes.requestState, true);

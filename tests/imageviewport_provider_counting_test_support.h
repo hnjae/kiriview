@@ -130,7 +130,7 @@ private:
     ImageSequenceProviderRequestToken m_lastCancelledToken;
 };
 
-class CountingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class CountingProviderSessionFactory final
 {
 public:
     explicit CountingProviderSessionFactory(const std::shared_ptr<int>& sessionCount,
@@ -161,7 +161,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         ++*m_sessionCount;
         CountingProviderSession* session = new CountingProviderSession(m_metadataRequestCount,
@@ -198,35 +198,26 @@ private:
 class CountingProviderAdapter final : public ImageSequenceProviderAdapter
 {
 public:
-    explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
+    template <typename Factory>
+    explicit CountingProviderAdapter(std::shared_ptr<Factory> factory,
         ImageSequenceProviderMetadata knownMetadata = {},
-        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
-        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
-        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport timedPlaybackSupport
+        = ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport frameSeekSupport
+        = ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport positionSeekSupport
+        = ImageViewportCapabilitySupport::Unavailable,
         ImageSequenceProviderThreadingContract threadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound,
         QObject* parent = nullptr)
         : ImageSequenceProviderAdapter(parent)
-        , m_factory(std::move(factory))
+        , m_sessionFactory([factory = std::move(factory)]() {
+            ImageSequenceProviderSession* session = factory->createSession(nullptr);
+            return session ? ImageSequenceProviderSessionFactoryResult::created(session)
+                           : ImageSequenceProviderSessionFactoryResult::failed(
+                                 QStringLiteral("session creation failed"));
+        })
         , m_knownMetadata(std::move(knownMetadata))
-        , m_timedPlaybackSupport(timedPlaybackSupport)
-        , m_frameSeekSupport(frameSeekSupport)
-        , m_positionSeekSupport(positionSeekSupport)
-        , m_threadingContract(threadingContract)
-    {
-    }
-
-    explicit CountingProviderAdapter(std::shared_ptr<ImageSequenceProviderSessionFactory> factory,
-        ImageSequenceProviderKnownFacts knownFacts,
-        CapabilitySupport timedPlaybackSupport = CapabilitySupport::Unavailable,
-        CapabilitySupport frameSeekSupport = CapabilitySupport::Unavailable,
-        CapabilitySupport positionSeekSupport = CapabilitySupport::Unavailable,
-        ImageSequenceProviderThreadingContract threadingContract
-        = ImageSequenceProviderThreadingContract::AffinityBound,
-        QObject* parent = nullptr)
-        : ImageSequenceProviderAdapter(parent)
-        , m_factory(std::move(factory))
-        , m_knownFacts(std::move(knownFacts))
         , m_timedPlaybackSupport(timedPlaybackSupport)
         , m_frameSeekSupport(frameSeekSupport)
         , m_positionSeekSupport(positionSeekSupport)
@@ -236,17 +227,16 @@ public:
 
     ImageSequenceProviderDescriptor descriptor() const override
     {
-        ImageSequenceProviderDescriptor descriptor;
-        descriptor.setSessionFactory(m_factory);
-        descriptor.setKnownMetadata(m_knownMetadata);
-        descriptor.setKnownFacts(m_knownFacts.isSpecified() ? m_knownFacts
-                                                            : knownFactsForMetadata(m_knownMetadata));
-        descriptor.setTimedPlaybackCapability(m_timedPlaybackSupport);
-        descriptor.setFrameSeekCapability(m_frameSeekSupport);
-        descriptor.setPositionSeekCapability(m_positionSeekSupport);
-        descriptor.setAuthoredAnimationFacts(m_authoredAnimationFacts);
-        descriptor.setThreadingContract(m_threadingContract);
-        return descriptor;
+        ImageSequenceProviderMetadata metadata = m_knownMetadata;
+        metadata.setTimedPlaybackSupport(m_timedPlaybackSupport);
+        metadata.setFrameSeekSupport(m_frameSeekSupport);
+        metadata.setPositionSeekSupport(m_positionSeekSupport);
+        if (m_authoredAnimationFacts.loopMode() != ImageSequenceAuthoredAnimationLoopMode::PlayOnce
+            || m_authoredAnimationFacts.autoplay()
+            || m_authoredAnimationFacts.progressiveAnimationReadiness()) {
+            metadata.setAuthoredAnimationFacts(m_authoredAnimationFacts);
+        }
+        return ImageSequenceProviderDescriptor(metadata, m_threadingContract, m_sessionFactory);
     }
 
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
@@ -255,28 +245,13 @@ public:
     }
 
 private:
-    static ImageSequenceProviderKnownFacts knownFactsForMetadata(
-        const ImageSequenceProviderMetadata& metadata)
-    {
-        if (!metadata.isSpecified()) {
-            return {};
-        }
-        if (metadata.isStill()) {
-            return ImageSequenceProviderKnownFacts::still(metadata.logicalSize());
-        }
-        if (metadata.isTimedFrameList()) {
-            return ImageSequenceProviderKnownFacts::timedFrameList(
-                metadata.logicalSize(), metadata.frameDurations());
-        }
-        return {};
-    }
-
-    std::shared_ptr<ImageSequenceProviderSessionFactory> m_factory;
+    ImageSequenceProviderSessionFactory m_sessionFactory;
     ImageSequenceProviderMetadata m_knownMetadata;
-    ImageSequenceProviderKnownFacts m_knownFacts;
-    CapabilitySupport m_timedPlaybackSupport = CapabilitySupport::Unavailable;
-    CapabilitySupport m_frameSeekSupport = CapabilitySupport::Unavailable;
-    CapabilitySupport m_positionSeekSupport = CapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_timedPlaybackSupport
+        = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_frameSeekSupport = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_positionSeekSupport
+        = ImageViewportCapabilitySupport::Unavailable;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     ImageSequenceProviderThreadingContract m_threadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;
@@ -297,16 +272,14 @@ void emitTimedProviderFrameReady(CountingProviderSession* session,
 {
     const int resolvedFrameDuration
         = frameDuration > 0 ? frameDuration : (frameStartPosition == 0 ? 100 : 250);
-    emitProviderFrameReady(
-        session, token, frame,
+    emitProviderFrameReady(session, token, frame,
         ImageSequenceProviderFrameMetadata::timedFrame(
             frameIndex, frameStartPosition, resolvedFrameDuration));
     drainQueuedProviderResults();
 }
 
-void emitTimedProviderFrameReady(
-    CountingProviderSession* session, ImageFrame* frame, int frameIndex, int frameStartPosition,
-    int frameDuration = -1)
+void emitTimedProviderFrameReady(CountingProviderSession* session, ImageFrame* frame,
+    int frameIndex, int frameStartPosition, int frameDuration = -1)
 {
     emitTimedProviderFrameReady(
         session, session->lastFrameToken(), frame, frameIndex, frameStartPosition, frameDuration);

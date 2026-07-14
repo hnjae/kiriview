@@ -9,9 +9,9 @@
 
 namespace {
 using namespace ImageViewportInternal;
-std::size_t idx(ImageViewport::PageRole r)
+std::size_t idx(ImageViewportPageRole r)
 {
-    return r == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    return r == ImageViewportPageRole::Secondary ? 1U : 0U;
 }
 ImageViewport::DisplayStatus retained(const DisplayState& d)
 {
@@ -97,14 +97,14 @@ ViewportEnginePresentationTargetState targetState(
     s.targetRoleSet = s.acceptedRoleSet;
     s.primaryRoleGeneration = g;
     s.secondaryRoleGeneration = t.secondary() ? g : 0;
-    s.activeRole = ImageViewport::PageRole::Primary;
+    s.activeRole = ImageViewportPageRole::Primary;
     s.activeRoleValid = true;
     return s;
 }
 }
 
 ViewportProviderFrameTransportEffect ViewportEnginePresentationTargetAssignmentAccess::closeSession(
-    ImageViewport::PageRole role)
+    ImageViewportPageRole role)
 {
     auto& p = m_roles[idx(role)].provider;
     ViewportEngineProviderSessionCloseAccess a(p.session, p.requests);
@@ -112,7 +112,7 @@ ViewportProviderFrameTransportEffect ViewportEnginePresentationTargetAssignmentA
 }
 ViewportEngineProviderSessionOpenEffect
 ViewportEnginePresentationTargetAssignmentAccess::openSession(
-    ImageViewport::PageRole role, const ImageViewportInternal::ImageSequenceSource& s, quint64 g)
+    ImageViewportPageRole role, const ImageViewportInternal::ImageSequenceSource& s, quint64 g)
 {
     auto& p = m_roles[idx(role)].provider;
     ViewportEngineProviderSessionOpenAccess a(s, p.session);
@@ -159,8 +159,8 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
     auto oldGeo = projectViewportGeometryState(in.geometry, a.m_presentation);
     auto oldPhase = a.m_playback.phase;
     QString oldE = a.m_request.errorString, oldW = a.m_request.warningString;
-    out.providerEffects[0] = a.closeSession(ImageViewport::PageRole::Primary);
-    out.providerEffects[1] = a.closeSession(ImageViewport::PageRole::Secondary);
+    out.providerEffects[0] = a.closeSession(ImageViewportPageRole::Primary);
+    out.providerEffects[1] = a.closeSession(ImageViewportPageRole::Secondary);
     auto primary = std::move(in.primarySource), secondarySource = std::move(in.secondarySource);
     if (!out.clear && !primary.sequence)
         primary = factorySequenceSource(in.presentationTarget.primary());
@@ -224,7 +224,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             a.m_request.status = ImageViewport::RequestStatus::Loading;
             a.m_request.reason = ImageViewport::RequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);
-            out.providerSessionOpenEffects[0] = a.openSession(ImageViewport::PageRole::Primary,
+            out.providerSessionOpenEffects[0] = a.openSession(ImageViewportPageRole::Primary,
                 a.m_request.roles[0].source, a.m_target.primaryRoleGeneration);
         } else if (a.m_request.roles[0].source.facts.present) {
             auto t = initial(a.m_request.roles[0].source);
@@ -253,7 +253,7 @@ reduceViewportEnginePresentationTargetAssignment(ViewportEnginePresentationTarge
             a.m_request.status = ImageViewport::RequestStatus::Loading;
             a.m_request.reason = ImageViewport::RequestReason::ProviderWaiting;
             a.m_display.status = retained(a.m_display);
-            out.providerSessionOpenEffects[1] = a.openSession(ImageViewport::PageRole::Secondary,
+            out.providerSessionOpenEffects[1] = a.openSession(ImageViewportPageRole::Secondary,
                 a.m_request.roles[1].source, a.m_target.secondaryRoleGeneration);
         }
     }

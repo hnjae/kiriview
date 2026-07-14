@@ -152,7 +152,7 @@ void ImageViewportPublicApiCommandsTest::presentationTargetAssignmentPreservesCo
     item.setSize(QSizeF(100.0, 100.0));
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(), ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));
     const ImageViewportRevisionToken commandRevision = revisionTokenProperty(item, "commandRevision");
@@ -195,7 +195,7 @@ void ImageViewportPublicApiCommandsTest::commandResultsExposeSnapshotRevisionsAn
         QCOMPARE(commandResult.snapshotRevision(), snapshot.revisions().snapshot());
     };
 
-    const ImageViewportCommandResult ignoredResult = item.play(ImageViewport::PageRole::Primary);
+    const ImageViewportCommandResult ignoredResult = item.play(ImageViewportPageRole::Primary);
     verifyResult(ignoredResult, ImageViewport::CommandOutcome::IgnoredNoRequest,
         ImageViewport::CommandReason::IgnoredNoRequest);
     QVERIFY(ignoredResult.commandRevision().isValid());
@@ -254,9 +254,9 @@ void ImageViewportPublicApiCommandsTest::setPresentationTargetAcceptsPrimaryAndS
     QCOMPARE(secondaryFrameCount(item), 1);
     QCOMPARE(primaryFrameSeekBounds(item).minimum(), 0);
     QCOMPARE(secondaryFrameSeekBounds(item).maximum(), 0);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(secondaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(secondaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
 }
 
 void ImageViewportPublicApiCommandsTest::cppTypedPresentationTargetOverloadsCompileAndReplaceSpread()
@@ -889,7 +889,7 @@ void ImageViewportPublicApiCommandsTest::roleCommandsWithInvalidRolePublishComma
     item.setPresentationTarget(ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    const auto invalidRole = static_cast<ImageViewport::PageRole>(
+    const auto invalidRole = static_cast<ImageViewportPageRole>(
         999); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
     const ImageViewportRevisionToken requestRevision = revisionTokenProperty(item, "requestRevision");
     const ImageViewportRevisionToken displayRevision = revisionTokenProperty(item, "displayRevision");
@@ -949,11 +949,11 @@ void ImageViewportPublicApiCommandsTest::
             enumValue(metaObject, "DisplayStatus", "Ready"));
     };
 
-    verifyIgnoredCommand(item.play(ImageViewport::PageRole::Secondary).outcome());
-    verifyIgnoredCommand(item.pause(ImageViewport::PageRole::Secondary).outcome());
-    verifyIgnoredCommand(item.stop(ImageViewport::PageRole::Secondary).outcome());
-    verifyIgnoredCommand(item.seek(ImageViewport::PageRole::Secondary, 0).outcome());
-    verifyIgnoredCommand(item.seekToPosition(ImageViewport::PageRole::Secondary, 0).outcome());
+    verifyIgnoredCommand(item.play(ImageViewportPageRole::Secondary).outcome());
+    verifyIgnoredCommand(item.pause(ImageViewportPageRole::Secondary).outcome());
+    verifyIgnoredCommand(item.stop(ImageViewportPageRole::Secondary).outcome());
+    verifyIgnoredCommand(item.seek(ImageViewportPageRole::Secondary, 0).outcome());
+    verifyIgnoredCommand(item.seekToPosition(ImageViewportPageRole::Secondary, 0).outcome());
 }
 
 void ImageViewportPublicApiCommandsTest::presentationTargetTransitionClearBeforeLoadClearsRetainedDisplay()
@@ -1037,8 +1037,8 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     command.setSmoothing(false);
     command.setMipmap(true);
     command.setLooping(true);
-    command.setQualityPreference(ImageViewport::QualityPreference::ExactDetail);
-    command.setExactnessPreference(ImageViewport::ExactnessPreference::RequireExact);
+    command.setQualityPreference(ImageViewportQualityPreference::ExactDetail);
+    command.setExactnessPreference(ImageViewportExactnessPreference::RequireExact);
 
     QSignalSpy acceptedCommandStateSpy(&item, &ImageViewport::stateChanged);
     QList<ImageViewportStateSnapshot> observedAcceptedSnapshots;
@@ -1062,9 +1062,9 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.state().presentation().mipmap(), true);
     QCOMPARE(item.state().presentation().looping(), true);
     QCOMPARE(item.state().presentation().qualityPreference(),
-        ImageViewport::QualityPreference::ExactDetail);
+        ImageViewportQualityPreference::ExactDetail);
     QCOMPARE(item.state().presentation().exactnessPreference(),
-        ImageViewport::ExactnessPreference::RequireExact);
+        ImageViewportExactnessPreference::RequireExact);
 
     QCOMPARE(setManualZoomPercentCommand(item, 1000.0), ImageViewport::CommandOutcome::Accepted);
     QVERIFY(maximumContentPosition(item).x() > 0.0 || maximumContentPosition(item).y() > 0.0);
@@ -1169,11 +1169,11 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportCoordinateInput pageInput = mapInput;
     pageInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
-    pageInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    pageInput.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     const ImageViewportCoordinateResult pageResult = item.mapPoint(pageInput);
     QVERIFY(pageResult.isValid());
     QCOMPARE(pageResult.space(), ImageViewport::CoordinateSpace::DisplayedPage);
-    QCOMPARE(pageResult.role().value<ImageViewport::PageRole>(), ImageViewport::PageRole::Primary);
+    QCOMPARE(pageResult.role().value<ImageViewportPageRole>(), ImageViewportPageRole::Primary);
 
     ImageViewportCoordinateInput rolelessPageInput = pageInput;
     rolelessPageInput.setRole({});
@@ -1181,7 +1181,7 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
     QCOMPARE(item.containsPoint(rolelessPageInput), false);
 
     ImageViewportCoordinateInput unnecessaryRoleInput = mapInput;
-    unnecessaryRoleInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    unnecessaryRoleInput.setRole(QVariant::fromValue(ImageViewportPageRole::Primary));
     QVERIFY(!item.mapPoint(unnecessaryRoleInput).isValid());
     QCOMPARE(item.containsPoint(unnecessaryRoleInput), false);
 }
@@ -1279,7 +1279,7 @@ void ImageViewportPublicApiCommandsTest::invalidPresentationCommandsPreserveDiag
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Secondary).outcome(),
+    QCOMPARE(item.play(ImageViewportPageRole::Secondary).outcome(),
         ImageViewport::CommandOutcome::IgnoredNoRequest);
     QCOMPARE(commandReasonValue(item),
         enumValue(metaObject, "CommandReason", "IgnoredNoRequest"));

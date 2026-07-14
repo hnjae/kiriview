@@ -54,9 +54,9 @@ void stageBuiltIn(RequestState& request, DisplayState& display)
     }
 }
 const ProviderFactsState& providerFor(
-    const ViewportEngineProviderFactsView& facts, ImageViewport::PageRole role)
+    const ViewportEngineProviderFactsView& facts, ImageViewportPageRole role)
 {
-    return facts[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
+    return facts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }
 void publishSecondary(
     RequestState& request, DisplayState& display, const ProviderFactsState& provider)
@@ -163,15 +163,15 @@ ViewportEngineRenderCommitReduction reduceViewportEngineRenderCommit(
     const auto oldStatus = access.display().status;
     if (input.pendingTargetCommit)
         publishReady(access.request(), access.display(),
-            providerFor(access.providerFacts(), ImageViewport::PageRole::Primary),
-            providerFor(access.providerFacts(), ImageViewport::PageRole::Secondary),
+            providerFor(access.providerFacts(), ImageViewportPageRole::Primary),
+            providerFor(access.providerFacts(), ImageViewportPageRole::Secondary),
             input.preparedPayload);
     if (input.pendingSecondaryProviderCommit) {
         access.display().roles[1].displayedImage
             = access.display().roles[1].pendingRenderPayload.image;
         access.display().roles[1].displayedPayload = access.display().roles[1].pendingRenderPayload;
         access.display().roles[1].displayedImageSize
-            = providerFor(access.providerFacts(), ImageViewport::PageRole::Secondary).logicalSize;
+            = providerFor(access.providerFacts(), ImageViewportPageRole::Secondary).logicalSize;
     }
     const bool resume = access.playback().phase == ImageViewport::PlaybackPhase::Waiting
         && access.request().status == ImageViewport::RequestStatus::Ready;
@@ -244,7 +244,7 @@ ViewportEngineRenderFailureReduction reduceViewportEngineRenderFailure(
     terminal.sealed = true;
     terminal.generation = access.request().sequenceGeneration;
     terminal.requestId = access.request().roles[0].activeRequest.identity.id;
-    auto& role = input.acknowledgement.failedRole == ImageViewport::PageRole::Primary
+    auto& role = input.acknowledgement.failedRole == ImageViewportPageRole::Primary
         ? terminal.primary
         : terminal.secondary;
     role.terminal = true;

@@ -9,7 +9,7 @@ class ImageViewportPrivate;
 class ImageViewportProviderHost
 {
 public:
-    using PageRole = ImageViewport::PageRole;
+    using PageRole = ImageViewportPageRole;
 
     explicit ImageViewportProviderHost(ImageViewportPrivate& viewport);
 

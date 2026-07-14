@@ -17,7 +17,7 @@ namespace ImageViewportInternal {
 struct RenderFailureDiagnostic
 {
     bool valid = false;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 generation = 0;
     quint64 requestId = 0;
     quint64 preparedPayloadId = 0;
@@ -49,7 +49,7 @@ enum class ProviderTransportOperation {
 struct ProviderTransportDiagnostic
 {
     bool valid = false;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ProviderTransportOperation operation = ProviderTransportOperation::None;
     bool metadataTokenValid = false;
     quint64 metadataTokenValue = 0;
@@ -74,7 +74,7 @@ enum class ProviderSchedulerOperation {
 struct ProviderSchedulerDiagnostic
 {
     bool valid = false;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 generation = 0;
     quint64 activeRequestId = 0;
     quint64 queuedRequestId = 0;
@@ -217,8 +217,8 @@ struct PreparedPayload
     QSizeF sourceLogicalSize;
     QSizeF payloadRasterSize;
     QSizeF sourceToPayloadScale;
-    ImageViewport::PayloadQuality quality = ImageViewport::PayloadQuality::Unknown;
-    ImageViewport::PayloadExactness exactness = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
+    ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
     ImageViewportDemandRevisionToken demandRevision;
 
     PreparedPayloadIdentity identity() const { return { generation, requestId, payloadId }; }
@@ -229,9 +229,9 @@ struct PresentationState
     ImageViewport::FitMode fitMode = ImageViewport::FitMode::Contain;
     ImageViewport::SpreadDirection spreadDirection = ImageViewport::SpreadDirection::LeftToRight;
     ImageViewport::BackgroundMode backgroundMode = ImageViewport::BackgroundMode::Transparent;
-    ImageViewport::QualityPreference qualityPreference = ImageViewport::QualityPreference::Default;
-    ImageViewport::ExactnessPreference exactnessPreference
-        = ImageViewport::ExactnessPreference::Default;
+    ImageViewportQualityPreference qualityPreference = ImageViewportQualityPreference::Default;
+    ImageViewportExactnessPreference exactnessPreference
+        = ImageViewportExactnessPreference::Default;
     QColor backgroundColor = Qt::transparent;
     double manualZoom = 1.0;
     double pageGap = 0.0;
@@ -380,7 +380,7 @@ struct PlaybackState
     void resetRequestIdentity()
     {
         position = -1;
-        role = ImageViewport::PageRole::Primary;
+        role = ImageViewportPageRole::Primary;
         loopIterationsCompleted = 0;
     }
 
@@ -389,7 +389,7 @@ struct PlaybackState
     bool stopWhenRequestReady = false;
     bool providerStartPending = false;
     int position = -1;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     int loopIterationsCompleted = 0;
 };
 

@@ -457,9 +457,7 @@ ImageViewport {
     property int invalid: ImageViewport.CommandOutcome.Invalid
     property int ignoredNoRequest: ImageViewport.CommandOutcome.IgnoredNoRequest
     property int factoryCreated: ImageSequenceFactoryResult.FactoryOutcome.Created
-    property int factoryInvalid: ImageSequenceFactoryResult.FactoryOutcome.Invalid
-    property int factoryUnsupported: ImageSequenceFactoryResult.FactoryOutcome.Unsupported
-    property int factoryError: ImageSequenceFactoryResult.FactoryOutcome.Error
+    property int factoryRejected: ImageSequenceFactoryResult.FactoryOutcome.Rejected
     property bool factoryReturnsNull: ImageSequenceFactory.fromFrame(null).sequence === null
     property imageViewportCoordinateInput mappingInput
     property bool mappingInvalid: mapPoint(mappingInput).valid === false
@@ -471,14 +469,17 @@ ImageViewport {
         && state.primary.metadata.positionSeekBounds.maximum === -1
         && state.display.contentRect.width === 0
         && state.primary.geometry.displayedVisiblePageRect.height === 0
-    property bool limitsAvailable: ImageSequenceLimits.maximumLogicalWidth >= 8192
-        && ImageSequenceLimits.maximumLogicalHeight >= 8192
-        && ImageSequenceLimits.maximumPixelsPerFrame >= 67108864
-        && ImageSequenceLimits.maximumPayloadBytesPerFrame >= 268435456
-        && ImageSequenceLimits.maximumTimedListFrameCount >= 10000
-        && ImageSequenceLimits.maximumFrameDuration >= 86400000
-        && ImageSequenceLimits.maximumTotalSequenceDuration >= 86400000
-        && ImageSequenceLimits.maximumDiagnosticStringLength >= 4096
+    property bool limitsAvailable: ImageSequenceLimits.maximumSourceLogicalWidth >= 8192
+        && ImageSequenceLimits.maximumSourceLogicalHeight >= 8192
+        && ImageSequenceLimits.maximumSourceLogicalPixels >= 67108864
+        && ImageSequenceLimits.maximumPayloadRasterWidth >= 8192
+        && ImageSequenceLimits.maximumPayloadRasterHeight >= 8192
+        && ImageSequenceLimits.maximumPayloadBytes >= 268435456
+        && ImageSequenceLimits.maximumFrameCount >= 10000
+        && ImageSequenceLimits.maximumFrameDurationMilliseconds >= 86400000
+        && ImageSequenceLimits.maximumTotalDurationMilliseconds >= 86400000
+        && ImageSequenceLimits.maximumDiagnosticCharacters >= 4096
+        && ImageSequenceLimits.maximumFormatIdentifierCharacters > 0
         && ImageViewportDisplayLimits.maximumManualZoomPercent >= 100
 }
 )",
@@ -505,16 +506,10 @@ ImageViewport {
         object->property("invalid").toInt(), enumValue(metaObject, "CommandOutcome", "Invalid"));
     QCOMPARE(object->property("ignoredNoRequest").toInt(),
         enumValue(metaObject, "CommandOutcome", "IgnoredNoRequest"));
-    ImageSequenceFactoryResult result(nullptr, ImageSequenceFactoryResult::FactoryOutcome::Invalid);
-    const QMetaObject* resultMetaObject = result.metaObject();
     QCOMPARE(object->property("factoryCreated").toInt(),
-        enumValue(resultMetaObject, "FactoryOutcome", "Created"));
-    QCOMPARE(object->property("factoryInvalid").toInt(),
-        enumValue(resultMetaObject, "FactoryOutcome", "Invalid"));
-    QCOMPARE(object->property("factoryUnsupported").toInt(),
-        enumValue(resultMetaObject, "FactoryOutcome", "Unsupported"));
-    QCOMPARE(object->property("factoryError").toInt(),
-        enumValue(resultMetaObject, "FactoryOutcome", "Error"));
+        enumValue(&ImageSequenceFactoryEnums::staticMetaObject, "FactoryOutcome", "Created"));
+    QCOMPARE(object->property("factoryRejected").toInt(),
+        enumValue(&ImageSequenceFactoryEnums::staticMetaObject, "FactoryOutcome", "Rejected"));
     QCOMPARE(object->property("factoryReturnsNull").toBool(), true);
     QCOMPARE(object->property("mappingInvalid").toBool(), true);
     QCOMPARE(object->property("mappingHasPointField").toBool(), true);
@@ -530,7 +525,7 @@ void ImageViewportPublicApiQmlTest::qmlReadyValuesExposeDocumentedFields()
     ImageFrame frame(image);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromFrame(&frame));
     QVERIFY(result);
-    QCOMPARE(result->outcome(), ImageSequenceFactoryResult::FactoryOutcome::Created);
+    QCOMPARE(result->outcome(), ImageSequenceFactoryOutcome::Created);
     QVERIFY(result->sequence());
 
     QQmlEngine engine;
@@ -664,17 +659,17 @@ QtObject {
     readonly property var listResult: ImageSequenceFactory.fromTimedFrameList(null)
     readonly property var providerResult: ImageSequenceFactory.fromProvider(null)
     property bool frameRejected: frameResult.sequence === null
-        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && frameResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && frameResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidFrame
         && frameResult.errorString.length > 0
-        && frameResult.warningString === ""
     property bool listRejected: listResult.sequence === null
-        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && listResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && listResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidTiming
         && listResult.errorString.length > 0
-        && listResult.warningString === ""
     property bool providerRejected: providerResult.sequence === null
-        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Invalid
+        && providerResult.outcome === ImageSequenceFactoryResult.FactoryOutcome.Rejected
+        && providerResult.reason === ImageSequenceFactoryResult.FactoryReason.InvalidProviderDescriptor
         && providerResult.errorString.length > 0
-        && providerResult.warningString === ""
 }
 )",
         QUrl());

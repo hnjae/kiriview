@@ -4,24 +4,24 @@
 
 namespace {
 using namespace ImageViewportInternal;
-std::size_t index(ImageViewport::PageRole r)
+std::size_t index(ImageViewportPageRole r)
 {
-    return r == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    return r == ImageViewportPageRole::Secondary ? 1U : 0U;
 }
-DisplayRequest& requestFor(RequestState& r, ImageViewport::PageRole role)
+DisplayRequest& requestFor(RequestState& r, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? r.roles[1].activeRequest
-                                                      : r.roles[0].activeRequest;
+    return role == ImageViewportPageRole::Secondary ? r.roles[1].activeRequest
+                                                    : r.roles[0].activeRequest;
 }
-const DisplayRequest& requestFor(const RequestState& r, ImageViewport::PageRole role)
+const DisplayRequest& requestFor(const RequestState& r, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? r.roles[1].activeRequest
-                                                      : r.roles[0].activeRequest;
+    return role == ImageViewportPageRole::Secondary ? r.roles[1].activeRequest
+                                                    : r.roles[0].activeRequest;
 }
-bool present(const RequestState& r, ImageViewport::PageRole role)
+bool present(const RequestState& r, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? r.roles[0].source.facts.provider
-                                                    : r.roles[1].sequence && r.roles[1].provider;
+    return role == ImageViewportPageRole::Primary ? r.roles[0].source.facts.provider
+                                                  : r.roles[1].sequence && r.roles[1].provider;
 }
 bool sealed(const RequestState& r)
 {
@@ -52,11 +52,13 @@ bool loops(const PlaybackState& p, ImageSequenceAuthoredAnimationFacts a)
     if (p.looping)
         return true;
     switch (a.loopMode()) {
-    case ImageSequenceAuthoredAnimationFacts::LoopMode::Infinite:
+    case ImageSequenceAuthoredAnimationLoopMode::Unavailable:
+        return false;
+    case ImageSequenceAuthoredAnimationLoopMode::Infinite:
         return true;
-    case ImageSequenceAuthoredAnimationFacts::LoopMode::Finite:
+    case ImageSequenceAuthoredAnimationLoopMode::Finite:
         return p.loopIterationsCompleted + 1 < a.loopCount();
-    case ImageSequenceAuthoredAnimationFacts::LoopMode::PlayOnce:
+    case ImageSequenceAuthoredAnimationLoopMode::PlayOnce:
         return false;
     }
     return false;
@@ -86,7 +88,7 @@ ViewportEngineProviderWaitingReduction reduceViewportEngineProviderWaiting(
 }
 
 ViewportProviderFrameRequestStartResult ViewportEngineProviderEndOfSequenceAccess::startFrame(
-    ImageViewport::PageRole role, ImageViewportInternal::DisplayRequestTarget target,
+    ImageViewportPageRole role, ImageViewportInternal::DisplayRequestTarget target,
     const ViewportEngineGeometryInput& g)
 {
     ViewportEngineProviderFrameRequestAccess a(m_request, m_playback, m_display, m_roles,
@@ -94,7 +96,7 @@ ViewportProviderFrameRequestStartResult ViewportEngineProviderEndOfSequenceAcces
     return startViewportEngineProviderFrameRequest({ role, target, g }, std::move(a));
 }
 ViewportProviderFrameTransportEffect ViewportEngineProviderEndOfSequenceAccess::closeSession(
-    ImageViewport::PageRole role)
+    ImageViewportPageRole role)
 {
     auto& p = m_roles[index(role)].provider;
     ViewportEngineProviderSessionCloseAccess a(p.session, p.requests);
@@ -147,7 +149,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
     a.m_playback.position = loop ? 0 : p.facts.timingIntervals.totalDuration();
     a.m_playback.stopWhenRequestReady = !loop;
     DisplayRequestTarget target { frame, pos, ProviderRequestTargetKind::Playback };
-    if (in.role == ImageViewport::PageRole::Secondary) {
+    if (in.role == ImageViewportPageRole::Secondary) {
         auto primary = a.m_request.roles[0].activeRequest;
         a.m_request.beginDisplayRequest(
             DisplayRequestOrigin::Playback, primary.target, primary.resolvedFrame, false);
@@ -161,7 +163,7 @@ ViewportEngineProviderEndOfSequenceReduction reduceViewportEngineProviderEndOfSe
         a.m_request.roles[0].activeRequest.target = target;
         a.m_request.roles[0].activeRequest.resolvedFrame = { frame, pos };
     }
-    bool same = in.role == ImageViewport::PageRole::Primary && !loop
+    bool same = in.role == ImageViewportPageRole::Primary && !loop
         && a.m_display.hasReadyDisplay(a.m_request.roles[0].source.facts.present)
         && a.m_display.roles[0].displayedRequest.generation == a.m_request.sequenceGeneration
         && a.m_display.roles[0].displayedRequest.request.resolvedFrame.frame == frame

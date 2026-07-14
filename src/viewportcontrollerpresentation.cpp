@@ -14,9 +14,9 @@ ViewportCommandResult ViewportController::setPresentation(
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+        engineResult.providerEffects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+        engineResult.providerEffects[1], ImageViewportPageRole::Secondary);
     return result;
 }
 
@@ -103,9 +103,9 @@ ViewportCommandResult ViewportController::rotateClockwise(QPointF anchor)
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+        engineResult.providerEffects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+        engineResult.providerEffects[1], ImageViewportPageRole::Secondary);
     return result;
 }
 
@@ -118,9 +118,9 @@ ViewportCommandResult ViewportController::rotateCounterClockwise(QPointF anchor)
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+        engineResult.providerEffects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+        engineResult.providerEffects[1], ImageViewportPageRole::Secondary);
     return result;
 }
 

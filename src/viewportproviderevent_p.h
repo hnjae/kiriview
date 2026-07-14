@@ -19,7 +19,7 @@ struct ViewportProviderEvent
     };
 
     Kind kind = Kind::Waiting;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     quint64 sessionSerial = 0;
     quint64 generation = 0;
     ImageSequenceProviderRequestToken token;
@@ -27,6 +27,7 @@ struct ViewportProviderEvent
     ImageFrame* imageFrame = nullptr;
     ImageSequenceProviderFrameHandle* frameHandle = nullptr;
     ImageSequenceProviderFrameMetadata frameMetadata;
+    ImageSequenceProviderFrameEnvelope frameEnvelope;
     double progress = 0.0;
     ImageSequenceProviderSession::UnsupportedCause unsupportedCause
         = ImageSequenceProviderSession::UnsupportedCause::PayloadRejection;

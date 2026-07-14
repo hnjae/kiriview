@@ -13,7 +13,7 @@ struct ViewportPlaybackCommand
     };
 
     Kind kind = Kind::Play;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     int value = 0;
 };
 

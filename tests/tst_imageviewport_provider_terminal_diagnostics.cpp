@@ -32,7 +32,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsUseUnicode
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
-    const int limit = ImageSequenceLimits::maximumDiagnosticStringLength();
+    const int limit = ImageSequenceLimits::maximumDiagnosticCharacters();
     const char32_t codePoint[] = { 0x1F642 };
     const QString scalar = QString::fromUcs4(codePoint, 1);
     QString diagnostic;
@@ -179,7 +179,7 @@ void ImageViewportProviderTerminalDiagnosticsTest::invalidUnsupportedCauseUsesPr
     QVERIFY(!errorString.contains(QStringLiteral("https://")));
     QVERIFY(!errorString.contains(QStringLiteral("user:secret")));
     QVERIFY(!errorString.contains(QStringLiteral("token=abc123")));
-    QVERIFY(errorString.size() <= ImageSequenceLimits::maximumDiagnosticStringLength());
+    QVERIFY(errorString.size() <= ImageSequenceLimits::maximumDiagnosticCharacters());
 }
 
 void ImageViewportProviderTerminalDiagnosticsTest::providerDiagnosticsArePlainText()

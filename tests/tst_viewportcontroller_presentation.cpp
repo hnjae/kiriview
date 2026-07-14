@@ -93,7 +93,7 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
         = controller.displayState().roles[0].pendingRenderPayload.identity().isValid()
         ? controller.displayState().roles[0].pendingRenderPayload.identity()
         : synchronization.preparedPayload.identity();
-    QVector<ViewportRenderRolePayload> rolePayloads { { ImageViewport::PageRole::Primary,
+    QVector<ViewportRenderRolePayload> rolePayloads { { ImageViewportPageRole::Primary,
         primaryPayload } };
     if (controller.requestState().roles[1].sequence
         && controller.requestState().roles[1].activeRequest.target.frame >= 0) {
@@ -101,7 +101,7 @@ void acknowledgePendingRenderCommit(ViewportController& controller)
             = controller.displayState().roles[1].pendingRenderPayload.identity().isValid()
             ? controller.displayState().roles[1].pendingRenderPayload.identity()
             : primaryPayload;
-        rolePayloads.append({ ImageViewport::PageRole::Secondary, secondaryPayload });
+        rolePayloads.append({ ImageViewportPageRole::Secondary, secondaryPayload });
     }
     controller.acknowledgeRenderCommit({ primaryPayload, rolePayloads }, true, synchronization);
 }
@@ -476,10 +476,10 @@ void ViewportControllerPresentationTest::manualZoomUsesDevicePixelRatioForTwoPag
     const PresentationGeometry::State geometry = controller.geometryState(2.0);
     QCOMPARE(geometry.devicePixelRatio, 2.0);
     QCOMPARE(PresentationGeometry::contentRect(geometry).size(), QSizeF(14.0, 4.0));
-    QCOMPARE(PresentationGeometry::pageItemRect(geometry, ImageViewport::PageRole::Primary).size(),
+    QCOMPARE(PresentationGeometry::pageItemRect(geometry, ImageViewportPageRole::Primary).size(),
         QSizeF(8.0, 4.0));
     QCOMPARE(
-        PresentationGeometry::pageItemRect(geometry, ImageViewport::PageRole::Secondary).size(),
+        PresentationGeometry::pageItemRect(geometry, ImageViewportPageRole::Secondary).size(),
         QSizeF(4.0, 4.0));
 
     const ViewportRenderSynchronization synchronization

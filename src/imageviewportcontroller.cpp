@@ -243,8 +243,8 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         {
             primaryPayload,
             {
-                { ImageViewport::PageRole::Primary, primaryPayload },
-                { ImageViewport::PageRole::Secondary, secondaryPayload },
+                { ImageViewportPageRole::Primary, primaryPayload },
+                { ImageViewportPageRole::Secondary, secondaryPayload },
             },
         },
         true, synchronization);

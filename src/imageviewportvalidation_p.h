@@ -50,11 +50,11 @@ inline bool isValidSpreadDirection(ImageViewport::SpreadDirection direction)
     return false;
 }
 
-inline bool isValidPageRole(ImageViewport::PageRole role)
+inline bool isValidPageRole(ImageViewportPageRole role)
 {
     switch (role) {
-    case ImageViewport::PageRole::Primary:
-    case ImageViewport::PageRole::Secondary:
+    case ImageViewportPageRole::Primary:
+    case ImageViewportPageRole::Secondary:
         return true;
     }
 
@@ -73,26 +73,26 @@ inline bool isValidBackgroundMode(ImageViewport::BackgroundMode mode)
     return false;
 }
 
-inline bool isValidQualityPreference(ImageViewport::QualityPreference preference)
+inline bool isValidQualityPreference(ImageViewportQualityPreference preference)
 {
     switch (preference) {
-    case ImageViewport::QualityPreference::Default:
-    case ImageViewport::QualityPreference::FastFirstDisplay:
-    case ImageViewport::QualityPreference::BalancedDetail:
-    case ImageViewport::QualityPreference::ExactDetail:
+    case ImageViewportQualityPreference::Default:
+    case ImageViewportQualityPreference::FastFirstDisplay:
+    case ImageViewportQualityPreference::BalancedDetail:
+    case ImageViewportQualityPreference::ExactDetail:
         return true;
     }
 
     return false;
 }
 
-inline bool isValidExactnessPreference(ImageViewport::ExactnessPreference preference)
+inline bool isValidExactnessPreference(ImageViewportExactnessPreference preference)
 {
     switch (preference) {
-    case ImageViewport::ExactnessPreference::Default:
-    case ImageViewport::ExactnessPreference::AllowInexact:
-    case ImageViewport::ExactnessPreference::PreferExact:
-    case ImageViewport::ExactnessPreference::RequireExact:
+    case ImageViewportExactnessPreference::Default:
+    case ImageViewportExactnessPreference::AllowInexact:
+    case ImageViewportExactnessPreference::PreferExact:
+    case ImageViewportExactnessPreference::RequireExact:
         return true;
     }
 

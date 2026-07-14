@@ -6,13 +6,13 @@
 
 struct ViewportEngineProviderSessionOpenedInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
 };
 
 struct ViewportEngineProviderQueueFlushInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
 };
 
@@ -23,7 +23,7 @@ struct ViewportEngineProviderDemandRestageInput
 
 struct ViewportEngineProviderFrameRequestInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewportInternal::DisplayRequestTarget target;
     ViewportEngineGeometryInput geometry;
 };
@@ -58,9 +58,9 @@ public:
     ViewportEngineProviderSessionOpenedAccess(const ViewportEngineProviderSessionOpenedAccess&) = delete;
     ViewportEngineProviderSessionOpenedAccess(ViewportEngineProviderSessionOpenedAccess&&) noexcept = default;
 private:
-    ViewportProviderRequestTokenAllocationResult allocate(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocationResult allocate(ImageViewportPageRole role);
     ImageSequenceProviderDisplayDemand demand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry);
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry);
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
@@ -83,9 +83,9 @@ public:
     ViewportEngineProviderQueueFlushAccess(const ViewportEngineProviderQueueFlushAccess&) = delete;
     ViewportEngineProviderQueueFlushAccess(ViewportEngineProviderQueueFlushAccess&&) noexcept = default;
 private:
-    ViewportProviderRequestTokenAllocationResult allocate(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocationResult allocate(ImageViewportPageRole role);
     ImageSequenceProviderDisplayDemand demand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry);
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry);
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
@@ -109,9 +109,9 @@ public:
     ViewportEngineProviderDemandRestageAccess(const ViewportEngineProviderDemandRestageAccess&) = delete;
     ViewportEngineProviderDemandRestageAccess(ViewportEngineProviderDemandRestageAccess&&) noexcept = default;
 private:
-    ViewportProviderRequestTokenAllocationResult allocate(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocationResult allocate(ImageViewportPageRole role);
     ImageSequenceProviderDisplayDemand demand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry);
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry);
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 
@@ -136,9 +136,9 @@ public:
     ViewportEngineProviderFrameRequestAccess(const ViewportEngineProviderFrameRequestAccess&) = delete;
     ViewportEngineProviderFrameRequestAccess(ViewportEngineProviderFrameRequestAccess&&) noexcept = default;
 private:
-    ViewportProviderRequestTokenAllocationResult allocate(ImageViewport::PageRole role);
+    ViewportProviderRequestTokenAllocationResult allocate(ImageViewportPageRole role);
     ImageSequenceProviderDisplayDemand demand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry);
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry);
     VIEWPORT_PROVIDER_REQUEST_ACCESS_MEMBERS;
 };
 

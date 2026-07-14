@@ -102,9 +102,9 @@ ViewportCommandResult ViewportController::assignSequence(ViewportSequenceAssignm
         = ImageViewportInternal::CommandOutcome::fromEngineCommand(engineResult.command);
     mergeChanges(result.transition.changes, engineResult.changes);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[0], ImageViewport::PageRole::Primary);
+        engineResult.providerEffects[0], ImageViewportPageRole::Primary);
     appendProviderTransport(result.transition.providerAfterPublication,
-        engineResult.providerEffects[1], ImageViewport::PageRole::Secondary);
+        engineResult.providerEffects[1], ImageViewportPageRole::Secondary);
     for (auto& effect : engineResult.providerSessionOpenEffects) {
         if (effect.openSession) {
             result.transition.providerAfterPublication.append(std::move(effect.command));
@@ -123,15 +123,15 @@ ViewportCommandResult ViewportController::clear()
 void ViewportController::setNextProviderRequestTokenForTest(quint64 token)
 {
     ViewportEngineTestAccess::providerRequests(
-        engine, ImageViewport::PageRole::Primary).nextRequestToken
+        engine, ImageViewportPageRole::Primary).nextRequestToken
         = token;
 }
 
 void ViewportController::setNextProviderRequestTokenForTest(
-    ImageViewport::PageRole role, quint64 token)
+    ImageViewportPageRole role, quint64 token)
 {
-    if (role == ImageViewport::PageRole::Secondary) {
-        ViewportEngineTestAccess::providerRequests(engine, ImageViewport::PageRole::Secondary)
+    if (role == ImageViewportPageRole::Secondary) {
+        ViewportEngineTestAccess::providerRequests(engine, ImageViewportPageRole::Secondary)
             .nextRequestToken
             = token;
         return;

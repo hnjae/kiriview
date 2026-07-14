@@ -61,9 +61,9 @@ public:
         = default;
 
 private:
-    ViewportProviderFrameTransportEffect closeSession(ImageViewport::PageRole);
+    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole);
     ViewportEngineProviderSessionOpenEffect openSession(
-        ImageViewport::PageRole, const ImageViewportInternal::ImageSequenceSource&, quint64);
+        ImageViewportPageRole, const ImageViewportInternal::ImageSequenceSource&, quint64);
     ViewportEnginePresentationTargetTransitionReduction transition(
         ViewportEnginePresentationTargetTransitionInput);
     void applyAutoplay();

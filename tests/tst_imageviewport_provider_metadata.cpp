@@ -136,13 +136,12 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
     QFETCH(QByteArray, expectedFrameSeekSupport);
     QFETCH(QByteArray, expectedPositionSeekSupport);
 
-    ImageSequenceProviderKnownFacts knownFacts;
-    ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport
-        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
-    ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport
-        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
-    ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport
-        = ImageSequenceProviderAdapter::CapabilitySupport::Unavailable;
+    ImageSequenceProviderMetadata knownFacts;
+    ImageViewportCapabilitySupport timedPlaybackSupport
+        = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport frameSeekSupport = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport positionSeekSupport
+        = ImageViewportCapabilitySupport::Unavailable;
 
     switch (static_cast<MetadataProjectionScenario>(scenario)) {
     case UnknownProviderFacts:
@@ -150,15 +149,14 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
     case RuntimeTimedMetadata:
         break;
     case PartialKnownFacts:
-        knownFacts = ImageSequenceProviderKnownFacts::timedFrameCount(QSizeF(16.0, 8.0), 3);
-        frameSeekSupport = ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue;
+        knownFacts = ImageSequenceProviderMetadata::timedFrameCount(QSizeF(16.0, 8.0), 3);
+        frameSeekSupport = ImageViewportCapabilitySupport::True;
         break;
     case CompleteStillFacts:
-        knownFacts = ImageSequenceProviderKnownFacts::still(QSizeF(16.0, 8.0));
+        knownFacts = ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0));
         break;
     case CompleteTimedFacts:
-        knownFacts
-            = ImageSequenceProviderKnownFacts::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
+        knownFacts = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
         break;
     }
 
@@ -219,13 +217,15 @@ void ImageViewportProviderMetadataTest::roleScopedMetadataProjectionUsesOnePath(
 
     const ImageViewportRoleMetadataSnapshot roleMetadata
         = secondaryRole ? item.state().secondary().metadata() : item.state().primary().metadata();
-    const QMetaObject* metaObject = item.metaObject();
-    const auto expectedTimedSupport = static_cast<ImageViewport::CapabilitySupport>(
-        enumValue(metaObject, "CapabilitySupport", expectedTimedPlaybackSupport.constData()));
-    const auto expectedFrameSupport = static_cast<ImageViewport::CapabilitySupport>(
-        enumValue(metaObject, "CapabilitySupport", expectedFrameSeekSupport.constData()));
-    const auto expectedPositionSupport = static_cast<ImageViewport::CapabilitySupport>(
-        enumValue(metaObject, "CapabilitySupport", expectedPositionSeekSupport.constData()));
+    const auto expectedTimedSupport = static_cast<ImageViewportCapabilitySupport>(
+        enumValue(&ImageViewportEnums::staticMetaObject, "CapabilitySupport",
+            expectedTimedPlaybackSupport.constData()));
+    const auto expectedFrameSupport = static_cast<ImageViewportCapabilitySupport>(
+        enumValue(&ImageViewportEnums::staticMetaObject, "CapabilitySupport",
+            expectedFrameSeekSupport.constData()));
+    const auto expectedPositionSupport = static_cast<ImageViewportCapabilitySupport>(
+        enumValue(&ImageViewportEnums::staticMetaObject, "CapabilitySupport",
+            expectedPositionSeekSupport.constData()));
     QCOMPARE(roleMetadata.frameCount(), expectedFrameCount);
     QCOMPARE(roleMetadata.totalDuration(), expectedTotalDuration);
     QCOMPARE(roleMetadata.frameSeekBounds().minimum(), expectedFrameMinimum);
@@ -261,9 +261,8 @@ void ImageViewportProviderMetadataTest::providerConstructionMetadataSelectsIniti
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory,
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue);
+        ImageViewportCapabilitySupport::True, ImageViewportCapabilitySupport::True,
+        ImageViewportCapabilitySupport::True);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
     QCOMPARE(*sessionCount, 0);
@@ -290,9 +289,9 @@ void ImageViewportProviderMetadataTest::providerConstructionMetadataSelectsIniti
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -308,9 +307,8 @@ void ImageViewportProviderMetadataTest::
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory,
         ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 3, 100),
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue);
+        ImageViewportCapabilitySupport::True, ImageViewportCapabilitySupport::True,
+        ImageViewportCapabilitySupport::True);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -334,9 +332,9 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 300);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -375,9 +373,9 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::
@@ -403,7 +401,8 @@ void ImageViewportProviderMetadataTest::
 
     const ImageViewportRevisionToken initialRequestRevision
         = revisionTokenProperty(item, "requestRevision");
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*metadataRequestCount, 0);
     QCOMPARE(*frameRequestCount, 1);
@@ -419,8 +418,8 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryFrameCount(item), 2);
     QCOMPARE(primaryTotalDuration(item), 350);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
     verifyRevisionChanged(item, "requestRevision", initialRequestRevision);
 }
 
@@ -461,11 +460,12 @@ void ImageViewportProviderMetadataTest::providerKnownStillConstructionMetadataCo
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::False);
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
@@ -475,7 +475,8 @@ void ImageViewportProviderMetadataTest::providerKnownStillConstructionMetadataCo
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 1);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -510,7 +511,8 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 2).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 2).outcome(),
+        ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -519,7 +521,8 @@ void ImageViewportProviderMetadataTest::
     QCOMPARE(revisionTokenProperty(item, "requestRevision"), requestRevision);
     QCOMPARE(*frameRequestCount, 1);
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 351).outcome(), ImageViewport::CommandOutcome::Invalid);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 351).outcome(),
+        ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
@@ -543,7 +546,7 @@ void ImageViewportProviderMetadataTest::providerLogicalSizeFactsWaitForRuntimeMe
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(
-        sessionFactory, ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0)));
+        sessionFactory, ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -589,10 +592,9 @@ void ImageViewportProviderMetadataTest::providerTimedFrameCountFactsProjectFrame
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderKnownFacts::timedFrameCount(QSizeF(16.0, 8.0), 3),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+        ImageSequenceProviderMetadata::timedFrameCount(QSizeF(16.0, 8.0), 3),
+        ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::True,
+        ImageViewportCapabilitySupport::Unavailable);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -609,8 +611,8 @@ void ImageViewportProviderMetadataTest::providerTimedFrameCountFactsProjectFrame
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
 }
 
 void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownLogicalSizeFacts()
@@ -624,7 +626,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownL
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(
-        sessionFactory, ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0)));
+        sessionFactory, ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -657,7 +659,7 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataContradictsKnownF
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(
-        sessionFactory, ImageSequenceProviderKnownFacts::timedFrameCount(QSizeF(16.0, 8.0), 2));
+        sessionFactory, ImageSequenceProviderMetadata::timedFrameCount(QSizeF(16.0, 8.0), 2));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -698,7 +700,8 @@ void ImageViewportProviderMetadataTest::
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount);
     CountingProviderAdapter secondaryAdapter(
-        secondarySessionFactory, ImageSequenceProviderKnownFacts::logicalSize(QSizeF(16.0, 8.0)));
+        secondarySessionFactory,
+        ImageSequenceProviderMetadata::withSourceLogicalSize(QSizeF(16.0, 8.0)));
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
     QVERIFY(secondaryResult->sequence());
@@ -744,10 +747,8 @@ void ImageViewportProviderMetadataTest::
         secondarySessionCount, secondaryMetadataRequestCount, secondaryFrameRequestCount,
         secondaryLastRequestedFrame, secondaryCloseCount);
     CountingProviderAdapter secondaryAdapter(secondarySessionFactory,
-        ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable);
+        ImageSequenceProviderMetadata(), ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport::False, ImageViewportCapabilitySupport::Unavailable);
     QScopedPointer<ImageSequenceFactoryResult> secondaryResult(
         factory.fromProvider(&secondaryAdapter));
     QVERIFY(secondaryResult->sequence());
@@ -806,7 +807,8 @@ void ImageViewportProviderMetadataTest::secondaryProviderMetadataDoesNotReviveSt
     QCOMPARE(*secondaryFrameRequestCount, 0);
     QCOMPARE(secondaryRequestedFrame(item), -1);
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(secondaryRequestedFrame(item), -1);
 
@@ -836,7 +838,7 @@ void ImageViewportProviderMetadataTest::
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderKnownFacts::fixedDurationFrames(QSizeF(16.0, 8.0), 2, 100));
+        ImageSequenceProviderMetadata::fixedDurationFrames(QSizeF(16.0, 8.0), 2, 100));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -869,7 +871,7 @@ void ImageViewportProviderMetadataTest::providerCompleteKnownFactsSelectInitialF
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory,
-        ImageSequenceProviderKnownFacts::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
+        ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -936,8 +938,10 @@ void ImageViewportProviderMetadataTest::providerMetadataLoadingPauseStopPreserve
     const ImageViewportRevisionToken commandRevision
         = revisionTokenProperty(item, "commandRevision");
 
-    QCOMPARE(item.pause(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
-    QCOMPARE(item.stop(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.pause(ImageViewportPageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
@@ -969,8 +973,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityProjectsBefore
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata(), ImageViewportCapabilitySupport::False);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -986,9 +990,9 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityProjectsBefore
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryFrameCount(item), -1);
     QCOMPARE(primaryTotalDuration(item), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityProjectsBeforeMetadata()
@@ -1002,9 +1006,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityProjectsBe
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue);
+        ImageViewportCapabilitySupport::True, ImageViewportCapabilitySupport::True,
+        ImageViewportCapabilitySupport::True);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1020,9 +1023,9 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityProjectsBe
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryFrameCount(item), -1);
     QCOMPARE(primaryTotalDuration(item), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerKnownCapabilityProjectsBeforeMetadata()
@@ -1036,9 +1039,8 @@ void ImageViewportProviderMetadataTest::providerKnownCapabilityProjectsBeforeMet
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse,
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownTrue);
+        ImageViewportCapabilitySupport::True, ImageViewportCapabilitySupport::False,
+        ImageViewportCapabilitySupport::True);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1051,19 +1053,19 @@ void ImageViewportProviderMetadataTest::providerKnownCapabilityProjectsBeforeMet
     QCOMPARE(*frameRequestCount, 0);
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::False);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::False);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionRejectsMetadata()
 {
     const auto verifyRejectedMetadata
         = [](const ImageSequenceProviderMetadata& metadata,
-              ImageSequenceProviderAdapter::CapabilitySupport timedPlaybackSupport,
-              ImageSequenceProviderAdapter::CapabilitySupport frameSeekSupport,
-              ImageSequenceProviderAdapter::CapabilitySupport positionSeekSupport,
-              ImageViewport::CapabilitySupport (*projectedSupport)(const ImageViewport&)) {
+              ImageViewportCapabilitySupport timedPlaybackSupport,
+              ImageViewportCapabilitySupport frameSeekSupport,
+              ImageViewportCapabilitySupport positionSeekSupport,
+              ImageViewportCapabilitySupport (*projectedSupport)(const ImageViewport&)) {
               ImageSequenceFactory factory;
               const auto sessionCount = std::make_shared<int>(0);
               const auto metadataRequestCount = std::make_shared<int>(0);
@@ -1093,23 +1095,20 @@ void ImageViewportProviderMetadataTest::providerDeclaredCapabilityContradictionR
               QCOMPARE(requestReasonValue(item),
                   enumValue(metaObject, "RequestReason", "PayloadRejection"));
               QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider metadata")));
-              QCOMPARE(projectedSupport(item), ImageViewport::CapabilitySupport::False);
+              QCOMPARE(projectedSupport(item), ImageViewportCapabilitySupport::False);
           };
 
     verifyRejectedMetadata(
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, primaryTimedPlaybackSupport);
+        ImageViewportCapabilitySupport::False, ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport::Unavailable, primaryTimedPlaybackSupport);
     verifyRejectedMetadata(ImageSequenceProviderMetadata::still(QSizeF(16.0, 8.0)),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable, primaryFrameSeekSupport);
+        ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::False,
+        ImageViewportCapabilitySupport::Unavailable, primaryFrameSeekSupport);
     verifyRejectedMetadata(
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse, primaryPositionSeekSupport);
+        ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport::False, primaryPositionSeekSupport);
 }
 
 void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradictionRejectsMetadata()
@@ -1123,9 +1122,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradict
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredTrue);
+        ImageViewportCapabilitySupport::True, ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport::True);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1145,8 +1143,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredTrueCapabilityContradict
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Error"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "PayloadRejection"));
     QVERIFY(viewportErrorString(item).contains(QStringLiteral("provider metadata")));
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
 }
 
 void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverrideTimingInference()
@@ -1179,29 +1177,32 @@ void ImageViewportProviderMetadataTest::providerRuntimeMetadataCapabilitiesOverr
 
     QVERIFY(sessionFactory->lastSession());
     auto metadata = ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 });
-    metadata.setTimedPlaybackSupport(false);
-    metadata.setPositionSeekSupport(false);
+    metadata.setTimedPlaybackSupport(ImageViewportCapabilitySupport::False);
+    metadata.setPositionSeekSupport(ImageViewportCapabilitySupport::False);
     emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(), metadata);
     drainQueuedProviderResults();
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(*lastRequestedFrame, 0);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::False);
     QCOMPARE(primaryFrameCount(item), 2);
     QCOMPARE(primaryTotalDuration(item), 350);
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(*playbackRequestCount, 0);
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 100).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 100).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(*positionRequestCount, 0);
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "NoCommand"));
     QCOMPARE(primaryRequestedFrame(item), 1);
     QCOMPARE(primaryRequestedPosition(item), 100);
@@ -1219,8 +1220,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoPlaybackRejectsPlayBef
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata(), ImageViewportCapabilitySupport::False);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1229,7 +1230,8 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoPlaybackRejectsPlayBef
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
@@ -1237,7 +1239,7 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoPlaybackRejectsPlayBef
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1252,8 +1254,8 @@ void ImageViewportProviderMetadataTest::providerKnownNoPlaybackRejectsPlayBefore
     const auto closeCount = std::make_shared<int>(0);
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
-    CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::KnownFalse);
+    CountingProviderAdapter adapter(
+        sessionFactory, ImageSequenceProviderMetadata(), ImageViewportCapabilitySupport::False);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1262,7 +1264,8 @@ void ImageViewportProviderMetadataTest::providerKnownNoPlaybackRejectsPlayBefore
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
@@ -1270,7 +1273,7 @@ void ImageViewportProviderMetadataTest::providerKnownNoPlaybackRejectsPlayBefore
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1286,8 +1289,7 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoFrameSeekRejectsSeekBe
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+        ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::False);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1296,14 +1298,15 @@ void ImageViewportProviderMetadataTest::providerDeclaredNoFrameSeekRejectsSeekBe
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 2).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 2).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedFrame(item), -1);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1320,9 +1323,8 @@ void ImageViewportProviderMetadataTest::
     auto sessionFactory = std::make_shared<CountingProviderSessionFactory>(
         sessionCount, metadataRequestCount, frameRequestCount, lastRequestedFrame, closeCount);
     CountingProviderAdapter adapter(sessionFactory, ImageSequenceProviderMetadata(),
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::Unavailable,
-        ImageSequenceProviderAdapter::CapabilitySupport::DeclaredFalse);
+        ImageViewportCapabilitySupport::Unavailable, ImageViewportCapabilitySupport::Unavailable,
+        ImageViewportCapabilitySupport::False);
     QScopedPointer<ImageSequenceFactoryResult> result(factory.fromProvider(&adapter));
     QVERIFY(result->sequence());
 
@@ -1331,14 +1333,15 @@ void ImageViewportProviderMetadataTest::
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 250).outcome(), ImageViewport::CommandOutcome::Unsupported);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 250).outcome(),
+        ImageViewport::CommandOutcome::Unsupported);
 
     QCOMPARE(
         commandReasonValue(item), enumValue(metaObject, "CommandReason", "UnsupportedRequest"));
     QCOMPARE(requestStatusValue(item), enumValue(metaObject, "RequestStatus", "Loading"));
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "ProviderWaiting"));
     QCOMPARE(primaryRequestedPosition(item), -1);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::False);
     QCOMPARE(*metadataRequestCount, 1);
     QCOMPARE(*frameRequestCount, 0);
 }
@@ -1410,7 +1413,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsHugeFiniteLogical
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumLogicalWidth")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumSourceLogicalWidth")));
 }
 
 void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCountLimit()
@@ -1432,7 +1435,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCou
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     const QMetaObject* metaObject = item.metaObject();
 
-    QVector<int> durations(ImageSequenceLimits::maximumTimedListFrameCount() + 1, 1);
+    QVector<int> durations(ImageSequenceLimits::maximumFrameCount() + 1, 1);
     QVERIFY(sessionFactory->lastSession());
     emitProviderMetadataReady(sessionFactory->lastSession(),
         sessionFactory->lastSession()->lastMetadataToken(),
@@ -1446,7 +1449,7 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedFrameCou
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryRequestedFrame(item), -1);
     QCOMPARE(primaryDisplayedFrame(item), -1);
-    QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumTimedListFrameCount")));
+    QVERIFY(viewportErrorString(item).contains(QStringLiteral("maximumFrameCount")));
 }
 
 void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedDurationLimits()
@@ -1490,10 +1493,10 @@ void ImageViewportProviderMetadataTest::providerMetadataRejectsPublishedDuration
     verifyRejectedDurations({}, QStringLiteral("provider metadata is invalid"));
     verifyRejectedDurations({ 0 }, QStringLiteral("positive"));
     verifyRejectedDurations({ 100, -1 }, QStringLiteral("positive"));
-    verifyRejectedDurations({ ImageSequenceLimits::maximumFrameDuration() + 1 },
-        QStringLiteral("maximumFrameDuration"));
-    verifyRejectedDurations({ ImageSequenceLimits::maximumTotalSequenceDuration(), 1 },
-        QStringLiteral("maximumTotalSequenceDuration"));
+    verifyRejectedDurations({ ImageSequenceLimits::maximumFrameDurationMilliseconds() + 1 },
+        QStringLiteral("maximumFrameDurationMilliseconds"));
+    verifyRejectedDurations({ ImageSequenceLimits::maximumTotalDurationMilliseconds(), 1 },
+        QStringLiteral("maximumTotalDurationMilliseconds"));
 }
 
 void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrameRequest()
@@ -1541,9 +1544,9 @@ void ImageViewportProviderMetadataTest::providerStillMetadataSelectsInitialFrame
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::False);
     verifyRevisionChanged(item, "requestRevision", metadataWaitingRequestRevision);
     QCOMPARE(stateSpy.count(), 1);
 }
@@ -1592,9 +1595,9 @@ void ImageViewportProviderMetadataTest::providerTimedMetadataSelectsInitialFrame
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 1);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), 0);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 350);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::True);
     verifyRevisionChanged(item, "requestRevision", metadataWaitingRequestRevision);
     QCOMPARE(stateSpy.count(), 1);
 }
@@ -1634,9 +1637,10 @@ void ImageViewportProviderMetadataTest::providerFixedDurationMetadataSelectsInit
     QCOMPARE(primaryTotalDuration(item), 300);
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), 2);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), 300);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::True);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::True);
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 250).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 250).outcome(),
+        ImageViewport::CommandOutcome::Accepted);
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RequestQueued"));
     drainQueuedProviderResults();

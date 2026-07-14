@@ -66,7 +66,7 @@ RenderAdapter::RenderPlan RenderAdapter::createPlan(const Input& input) const
 
     QVector<Input::ImageLayer> imageLayers = input.imageLayers;
     if (imageLayers.isEmpty() && !input.preparedPayload.image.isNull()) {
-        imageLayers.append({ ImageViewport::PageRole::Primary, input.preparedPayload,
+        imageLayers.append({ ImageViewportPageRole::Primary, input.preparedPayload,
             input.targetRect, input.sourceRect,
             input.rotationDegrees,
             input.mirrorHorizontally, input.mirrorVertically });
@@ -175,7 +175,7 @@ RenderAdapterSceneGraph::Output RenderAdapterSceneGraph::createNode(
     if (!input.window) {
         delete root;
         return { oldNode, RenderAdapter::CommitResult::Failed, plan.preparedPayload,
-            plan.rolePayloads, ImageViewport::PageRole::Primary,
+            plan.rolePayloads, ImageViewportPageRole::Primary,
             RenderFailureCause::MissingWindow };
     }
 

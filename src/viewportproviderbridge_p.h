@@ -46,15 +46,21 @@ struct ViewportProviderTransportResult
     ImageViewportInternal::ProviderTransportDiagnostic diagnostic;
 };
 
+struct ViewportProviderSessionOpenTransportResult
+{
+    bool opened = false;
+    QString diagnostic;
+};
+
 class ViewportProviderBridge
 {
 public:
-    explicit ViewportProviderBridge(
-        ImageViewport::PageRole role = ImageViewport::PageRole::Primary);
+    explicit ViewportProviderBridge(ImageViewportPageRole role = ImageViewportPageRole::Primary);
 
     ViewportProviderTransportResult closeSession(ImageSequenceProviderRequestToken metadataToken,
         ImageSequenceProviderRequestToken frameToken);
-    bool openSession(const ViewportProviderSessionOpenInput& input);
+    ViewportProviderSessionOpenTransportResult openSession(
+        const ViewportProviderSessionOpenInput& input);
     ViewportProviderTransportResult deliverRequest(const ImageSequenceProviderRequest& request);
     void setExecutor(ViewportProviderExecutor& executor);
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -68,7 +74,7 @@ private:
     ViewportProviderExecutor& executor() const;
     Qt::ConnectionType eventDeliveryConnectionType() const;
 
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderThreadingContract activeThreadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;
     ViewportProviderExecutor* providerExecutor = nullptr;

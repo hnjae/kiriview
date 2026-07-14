@@ -51,7 +51,7 @@ private:
     ImageSequenceProviderRequestToken m_lastMetadataToken;
 };
 
-class SlowCleanupProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class SlowCleanupProviderSessionFactory final
 {
 public:
     explicit SlowCleanupProviderSessionFactory(QThread* thread,
@@ -64,7 +64,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject*) override
+    ImageSequenceProviderSession* createSession(QObject*)
     {
         auto* session = new SlowCleanupProviderSession(
             m_cancelRequestCount, m_closeCount, m_cleanupDelayMilliseconds);
@@ -83,7 +83,7 @@ private:
     QPointer<SlowCleanupProviderSession> m_lastSession;
 };
 
-class FailingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class FailingProviderSessionFactory final
 {
 public:
     explicit FailingProviderSessionFactory(const std::shared_ptr<int>& sessionCount)
@@ -91,7 +91,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject*) override
+    ImageSequenceProviderSession* createSession(QObject*)
     {
         ++*m_sessionCount;
         return nullptr;
@@ -152,7 +152,6 @@ private:
 };
 
 class CancellingAcknowledgementProviderSessionFactory final
-    : public ImageSequenceProviderSessionFactory
 {
 public:
     explicit CancellingAcknowledgementProviderSessionFactory(
@@ -167,7 +166,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         ++*m_sessionCount;
         auto* session = new CancellingAcknowledgementProviderSession(m_metadataRequestCount,
@@ -196,7 +195,6 @@ public:
     }
 
     ImageSequenceProviderDescriptor descriptor() const override { return {}; }
-
 };
 
 }

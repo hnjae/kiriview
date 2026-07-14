@@ -79,30 +79,30 @@ public:
         return engine.m_state->commandState.publishedRevision;
     }
     static ImageViewportInternal::ProviderSessionState& providerSession(
-        ViewportEngine& engine, ImageViewport::PageRole role)
+        ViewportEngine& engine, ImageViewportPageRole role)
     {
         return engine.m_state->providerState
-            .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
+            .roles[role == ImageViewportPageRole::Secondary ? 1U : 0U]
             .provider.session;
     }
-    static void activateProviderSession(ViewportEngine& engine, ImageViewport::PageRole role)
+    static void activateProviderSession(ViewportEngine& engine, ImageViewportPageRole role)
     {
         auto& session = providerSession(engine, role);
         session.sessionActive = true;
         ++session.sessionSerial;
     }
     static ImageViewportInternal::ProviderRequestState& providerRequests(
-        ViewportEngine& engine, ImageViewport::PageRole role)
+        ViewportEngine& engine, ImageViewportPageRole role)
     {
         return engine.m_state->providerState
-            .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
+            .roles[role == ImageViewportPageRole::Secondary ? 1U : 0U]
             .provider.requests;
     }
     static ImageViewportInternal::ProviderFactsState& providerFacts(
-        ViewportEngine& engine, ImageViewport::PageRole role)
+        ViewportEngine& engine, ImageViewportPageRole role)
     {
         return engine.m_state->providerState
-            .roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U]
+            .roles[role == ImageViewportPageRole::Secondary ? 1U : 0U]
             .provider.facts;
     }
 };

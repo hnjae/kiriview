@@ -5,7 +5,7 @@
 
 struct ViewportEngineProviderMetadataReadyInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     ImageSequenceProviderMetadata metadata;
     ViewportEngineGeometryInput geometry;
@@ -46,10 +46,10 @@ public:
         = default;
 
 private:
-    ViewportProviderFrameRequestStartResult startFrameRequest(ImageViewport::PageRole role,
+    ViewportProviderFrameRequestStartResult startFrameRequest(ImageViewportPageRole role,
         ImageViewportInternal::DisplayRequestTarget target,
         const ViewportEngineGeometryInput& geometry);
-    ViewportProviderFrameTransportEffect closeSession(ImageViewport::PageRole role);
+    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole role);
     ImageViewportInternal::ViewportChangeSet recordTerminal(
         ViewportEngineProviderTerminalProjectionInput input);
 

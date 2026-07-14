@@ -16,23 +16,24 @@ ImageViewport::~ImageViewport() = default;
 
 ImageViewportStateSnapshot ImageViewport::state() const { return d->state(); }
 ImageViewportCommandResult ImageViewport::clear() { return d->commandResult(d->clear()); }
-ImageViewportCommandResult ImageViewport::play(PageRole role)
+ImageViewportCommandResult ImageViewport::play(ImageViewportPageRole role)
 {
     return d->commandResult(d->play(role));
 }
-ImageViewportCommandResult ImageViewport::pause(PageRole role)
+ImageViewportCommandResult ImageViewport::pause(ImageViewportPageRole role)
 {
     return d->commandResult(d->pause(role));
 }
-ImageViewportCommandResult ImageViewport::stop(PageRole role)
+ImageViewportCommandResult ImageViewport::stop(ImageViewportPageRole role)
 {
     return d->commandResult(d->stop(role));
 }
-ImageViewportCommandResult ImageViewport::seek(PageRole role, int frame)
+ImageViewportCommandResult ImageViewport::seek(ImageViewportPageRole role, int frame)
 {
     return d->commandResult(d->seek(role, frame));
 }
-ImageViewportCommandResult ImageViewport::seekToPosition(PageRole role, int milliseconds)
+ImageViewportCommandResult ImageViewport::seekToPosition(
+    ImageViewportPageRole role, int milliseconds)
 {
     return d->commandResult(d->seekToPosition(role, milliseconds));
 }
@@ -98,7 +99,7 @@ void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token)
 }
 
 void setNextProviderRequestTokenForTest(
-    ImageViewport& item, ImageViewport::PageRole role, quint64 token)
+    ImageViewport& item, ImageViewportPageRole role, quint64 token)
 {
     ImageViewportPrivate::get(item)->setNextProviderRequestTokenForTest(role, token);
 }
@@ -108,12 +109,12 @@ void setNextRevisionTokenForTest(ImageViewport& item, quint64 token)
     ImageViewportPrivate::get(item)->setNextRevisionTokenForTest(token);
 }
 
-void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role)
+void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewportPageRole role)
 {
     ImageViewportPrivate::get(item)->failNextProviderCommandDeliveryForTest(role);
 }
 
-void failNextProviderQueueFlushSchedulingForTest(ImageViewport& item, ImageViewport::PageRole role)
+void failNextProviderQueueFlushSchedulingForTest(ImageViewport& item, ImageViewportPageRole role)
 {
     ImageViewportPrivate::get(item)->failNextProviderQueueFlushSchedulingForTest(role);
 }
@@ -209,14 +210,14 @@ void acknowledgeRenderFailureForTest(
         generation, requestId, preparedPayloadId);
 }
 
-void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewportPageRole failedRole,
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
     ImageViewportPrivate::get(item)->acknowledgeRenderFailureForTest(
         failedRole, generation, requestId, preparedPayloadId);
 }
 
-void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewportPageRole failedRole,
     quint64 generation, quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause)
 {
     ImageViewportPrivate::get(item)->acknowledgeRenderFailureForTest(

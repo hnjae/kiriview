@@ -7,9 +7,9 @@
 namespace {
 using namespace ImageViewportInternal;
 
-DisplayRequest& requestForRole(RequestState& request, ImageViewport::PageRole role)
+DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
                                                       : request.roles[0].activeRequest;
 }
 
@@ -34,14 +34,14 @@ struct RequestContext
 
 template <typename Allocate, typename Demand>
 ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context,
-    ImageViewport::PageRole role, DisplayRequestTarget target,
+    ImageViewportPageRole role, DisplayRequestTarget target,
     const ViewportEngineGeometryInput& geometry, Allocate allocate, Demand demand)
 {
     ViewportProviderFrameRequestStartResult result;
-    auto& provider = context.roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
+    auto& provider = context.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
     clearQueue(provider.requests);
     TargetSpreadWaitState wait;
-    if (role == ImageViewport::PageRole::Secondary) {
+    if (role == ImageViewportPageRole::Secondary) {
         wait.requiresSecondary = true;
         wait.secondary.providerWaiting = true;
     } else {
@@ -60,7 +60,7 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
     if (!provider.requests.activeFrameToken.isValid()) {
         return result;
     }
-    if (role == ImageViewport::PageRole::Secondary) {
+    if (role == ImageViewportPageRole::Secondary) {
         const int position = provider.facts.timedMetadata
             ? provider.facts.timingIntervals.frameStartPosition(target.frame)
             : -1;
@@ -90,13 +90,13 @@ ViewportProviderFrameRequestStartResult startFrameRequest(RequestContext context
 }
 
 #define DEFINE_REQUEST_ACCESS(Type)                                                         \
-    ViewportProviderRequestTokenAllocationResult Type::allocate(ImageViewport::PageRole role) \
+    ViewportProviderRequestTokenAllocationResult Type::allocate(ImageViewportPageRole role) \
     {                                                                                       \
         return allocateViewportProviderRequestToken(                                        \
             { role }, { m_roles, m_request, m_playback, m_display });                       \
     }                                                                                       \
     ImageSequenceProviderDisplayDemand Type::demand(                                        \
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry)          \
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry)          \
     {                                                                                       \
         if (m_nextRevision == std::numeric_limits<quint64>::max()) {                         \
             qFatal("ImageViewport revision token allocator exhausted");                    \
@@ -134,7 +134,7 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
         return result;
     }
     auto& provider
-        = access.m_roles[input.role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
+        = access.m_roles[input.role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
     if (!provider.facts.metadataReady) {
         const auto allocation = access.allocate(input.role);
         provider.requests.activeMetadataToken = allocation.token;
@@ -150,8 +150,8 @@ ViewportProviderSessionOpenResult reduceViewportEngineProviderSessionOpened(
     const auto target = requestForRole(access.m_request, input.role).target;
     const auto start = startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, target, input.geometry,
-        [&access](ImageViewport::PageRole role) { return access.allocate(role); },
-        [&access](ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) {
+        [&access](ImageViewportPageRole role) { return access.allocate(role); },
+        [&access](ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) {
             return access.demand(role, geometry);
         });
     result.providerFrameTransport.closeSession = start.closeSession;
@@ -166,10 +166,10 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
 {
     ViewportProviderFrameQueueFlushResult result;
     auto& provider
-        = access.m_roles[input.role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
+        = access.m_roles[input.role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
     auto& queued = provider.requests;
     const auto& active = requestForRole(access.m_request, input.role);
-    const bool providerPresent = input.role == ImageViewport::PageRole::Primary
+    const bool providerPresent = input.role == ImageViewportPageRole::Primary
         ? access.m_request.roles[0].source.facts.provider
         : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
     const bool current = queued.queuedFrameRequest && providerPresent
@@ -192,8 +192,8 @@ ViewportProviderFrameQueueFlushResult reduceViewportEngineProviderQueueFlush(
     const DisplayRequestTarget target { frame, active.target.position, kind };
     const auto start = startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, target, input.geometry,
-        [&access](ImageViewport::PageRole role) { return access.allocate(role); },
-        [&access](ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) {
+        [&access](ImageViewportPageRole role) { return access.allocate(role); },
+        [&access](ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) {
             return access.demand(role, geometry);
         });
     result.providerFrameTransport.closeSession = start.closeSession;
@@ -211,11 +211,11 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
     ViewportEngineProviderDemandRestageInput input, ViewportEngineProviderDemandRestageAccess access)
 {
     std::array<ViewportProviderFrameTransportEffect, 2> effects;
-    for (const auto role : { ImageViewport::PageRole::Primary, ImageViewport::PageRole::Secondary }) {
-        const std::size_t index = role == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    for (const auto role : { ImageViewportPageRole::Primary, ImageViewportPageRole::Secondary }) {
+        const std::size_t index = role == ImageViewportPageRole::Secondary ? 1U : 0U;
         auto& provider = access.m_roles[index].provider;
         auto& request = requestForRole(access.m_request, role);
-        const bool present = role == ImageViewport::PageRole::Primary
+        const bool present = role == ImageViewportPageRole::Primary
             ? access.m_request.roles[0].source.facts.provider
             : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
         if (!present || !provider.session.sessionActive || !provider.facts.metadataReady
@@ -229,8 +229,8 @@ std::array<ViewportProviderFrameTransportEffect, 2> reduceViewportEngineProvider
         const auto start = startFrameRequest(
             { access.m_request, access.m_display, access.m_roles }, role, request.target,
             input.geometry,
-            [&access](ImageViewport::PageRole selected) { return access.allocate(selected); },
-            [&access](ImageViewport::PageRole selected,
+            [&access](ImageViewportPageRole selected) { return access.allocate(selected); },
+            [&access](ImageViewportPageRole selected,
                 const ViewportEngineGeometryInput& geometry) {
                 return access.demand(selected, geometry);
             });
@@ -248,8 +248,8 @@ ViewportProviderFrameRequestStartResult startViewportEngineProviderFrameRequest(
     return startFrameRequest(
         { access.m_request, access.m_display, access.m_roles }, input.role, input.target,
         input.geometry,
-        [&access](ImageViewport::PageRole role) { return access.allocate(role); },
-        [&access](ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) {
+        [&access](ImageViewportPageRole role) { return access.allocate(role); },
+        [&access](ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) {
             return access.demand(role, geometry);
         });
 }

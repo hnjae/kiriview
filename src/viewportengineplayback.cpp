@@ -22,12 +22,12 @@ void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
 }
 
 const ImageViewportInternal::RequestState::RoleState& requestRole(
-    const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+    const ImageViewportInternal::RequestState& request, ImageViewportPageRole role)
 {
-    return request.roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
+    return request.roles[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }
 
-bool rolePresent(const ImageViewportInternal::RequestState& request, ImageViewport::PageRole role)
+bool rolePresent(const ImageViewportInternal::RequestState& request, ImageViewportPageRole role)
 {
     return requestRole(request, role).source.facts.present;
 }

@@ -10,9 +10,9 @@ namespace {
 using namespace ImageViewportInternal;
 
 const ProviderFactsState& providerFor(
-    const ViewportEngineProviderFactsView& facts, ImageViewport::PageRole role)
+    const ViewportEngineProviderFactsView& facts, ImageViewportPageRole role)
 {
-    return facts[role == ImageViewport::PageRole::Secondary ? 1U : 0U];
+    return facts[role == ImageViewportPageRole::Secondary ? 1U : 0U];
 }
 
 bool positive(QSizeF size) { return size.isValid() && size.width() > 0.0 && size.height() > 0.0; }
@@ -62,35 +62,35 @@ quint64 snapshotRevision(const RequestState& request, const DisplayState& displa
     return seed == 0 ? 1 : seed;
 }
 
-const ImageSequenceSource& sourceForRole(const RequestState& request, ImageViewport::PageRole role)
+const ImageSequenceSource& sourceForRole(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.roles[0].source
+    return role == ImageViewportPageRole::Primary ? request.roles[0].source
                                                     : request.roles[1].source;
 }
 
-const DisplayRequest& requestForRole(const RequestState& request, ImageViewport::PageRole role)
+const DisplayRequest& requestForRole(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.roles[0].activeRequest
+    return role == ImageViewportPageRole::Primary ? request.roles[0].activeRequest
                                                     : request.roles[1].activeRequest;
 }
 
 const DisplayRequestSnapshot& displayedRequestForRole(
-    const DisplayState& display, ImageViewport::PageRole role)
+    const DisplayState& display, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedRequest
+    return role == ImageViewportPageRole::Primary ? display.roles[0].displayedRequest
                                                     : display.roles[1].displayedRequest;
 }
 
-QSizeF displayedSizeForRole(const DisplayState& display, ImageViewport::PageRole role)
+QSizeF displayedSizeForRole(const DisplayState& display, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedImageSize
+    return role == ImageViewportPageRole::Primary ? display.roles[0].displayedImageSize
                                                     : display.roles[1].displayedImageSize;
 }
 
 const PreparedPayload& displayedPayloadForRole(
-    const DisplayState& display, ImageViewport::PageRole role)
+    const DisplayState& display, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? display.roles[0].displayedPayload
+    return role == ImageViewportPageRole::Primary ? display.roles[0].displayedPayload
                                                     : display.roles[1].displayedPayload;
 }
 
@@ -100,18 +100,18 @@ struct Metadata
     int totalDuration = -1;
     ImageViewportRange frameBounds;
     ImageViewportRange positionBounds;
-    ImageViewport::CapabilitySupport frameSeek = ImageViewport::CapabilitySupport::Unavailable;
-    ImageViewport::CapabilitySupport positionSeek = ImageViewport::CapabilitySupport::Unavailable;
-    ImageViewport::CapabilitySupport playback = ImageViewport::CapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport frameSeek = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport positionSeek = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport playback = ImageViewportCapabilitySupport::Unavailable;
 };
 
-ImageViewport::CapabilitySupport support(bool value)
+ImageViewportCapabilitySupport support(bool value)
 {
-    return value ? ImageViewport::CapabilitySupport::True : ImageViewport::CapabilitySupport::False;
+    return value ? ImageViewportCapabilitySupport::True : ImageViewportCapabilitySupport::False;
 }
 
 Metadata metadataFor(const RequestState& request, const ProviderFactsState& primaryProvider,
-    const ProviderFactsState& secondaryProvider, ImageViewport::PageRole role)
+    const ProviderFactsState& secondaryProvider, ImageViewportPageRole role)
 {
     const auto& source = sourceForRole(request, role);
     if (!source.facts.present) {
@@ -126,13 +126,13 @@ Metadata metadataFor(const RequestState& request, const ProviderFactsState& prim
         result.positionBounds = source.facts.timed && result.totalDuration >= 0
             ? ImageViewportRange(0, result.totalDuration)
             : ImageViewportRange();
-        result.frameSeek = ImageViewport::CapabilitySupport::True;
+        result.frameSeek = ImageViewportCapabilitySupport::True;
         result.positionSeek = support(source.facts.timed);
         result.playback = support(source.facts.timed);
         return result;
     }
     const auto& provider
-        = role == ImageViewport::PageRole::Primary ? primaryProvider : secondaryProvider;
+        = role == ImageViewportPageRole::Primary ? primaryProvider : secondaryProvider;
     Metadata result;
     if (provider.metadataReady) {
         result.frameCount = provider.timedMetadata ? provider.timingIntervals.frameCount() : 1;
@@ -148,26 +148,26 @@ Metadata metadataFor(const RequestState& request, const ProviderFactsState& prim
         result.playback = providerCapabilitySupport(source.facts.providerTimedPlaybackCapability);
         if (source.facts.providerKnownFacts.isStill()) {
             result.frameCount = 1;
-            result.frameSeek = ImageViewport::CapabilitySupport::True;
-            result.positionSeek = ImageViewport::CapabilitySupport::False;
-            result.playback = ImageViewport::CapabilitySupport::False;
+            result.frameSeek = ImageViewportCapabilitySupport::True;
+            result.positionSeek = ImageViewportCapabilitySupport::False;
+            result.playback = ImageViewportCapabilitySupport::False;
         } else if (source.facts.providerKnownFacts.isTimedFrameList()) {
             const TimingIntervals timing = TimingIntervals::fromFrameDurations(
                 source.facts.providerKnownFacts.frameDurations());
             result.frameCount = timing.frameCount();
             result.totalDuration = timing.totalDuration();
-            result.frameSeek = ImageViewport::CapabilitySupport::True;
-            result.positionSeek = ImageViewport::CapabilitySupport::True;
-            result.playback = ImageViewport::CapabilitySupport::True;
+            result.frameSeek = ImageViewportCapabilitySupport::True;
+            result.positionSeek = ImageViewportCapabilitySupport::True;
+            result.playback = ImageViewportCapabilitySupport::True;
         } else if (source.facts.providerKnownFacts.isTimedFrameCount()) {
             result.frameCount = source.facts.providerKnownFacts.frameCount();
         }
     }
-    if (result.frameCount > 0 && result.frameSeek == ImageViewport::CapabilitySupport::True) {
+    if (result.frameCount > 0 && result.frameSeek == ImageViewportCapabilitySupport::True) {
         result.frameBounds = ImageViewportRange(0, result.frameCount - 1);
     }
     if (result.totalDuration >= 0
-        && result.positionSeek == ImageViewport::CapabilitySupport::True) {
+        && result.positionSeek == ImageViewportCapabilitySupport::True) {
         result.positionBounds = ImageViewportRange(0, result.totalDuration);
     }
     return result;
@@ -238,7 +238,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
 
     QVariant activeRole;
     if (primaryPresent) {
-        activeRole = QVariant::fromValue(ImageViewport::PageRole::Primary);
+        activeRole = QVariant::fromValue(ImageViewportPageRole::Primary);
     }
     QVariant playbackRole;
     if (access.playback().phase != ImageViewport::PlaybackPhase::Stopped && primaryPresent) {
@@ -276,7 +276,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         access.presentation().mipmap, access.playback().looping,
         access.presentation().qualityPreference, access.presentation().exactnessPreference);
 
-    const auto roleSnapshot = [&](ImageViewport::PageRole role) {
+    const auto roleSnapshot = [&](ImageViewportPageRole role) {
         const auto& source = sourceForRole(access.request(), role);
         const auto& active = requestForRole(access.request(), role);
         const auto& displayedRequest = displayedRequestForRole(access.display(), role);
@@ -286,8 +286,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             && positive(displayedSize);
         const bool belongs = displayed && displayedRequest.generation == acceptedGenerationValue;
         const Metadata metadata = metadataFor(access.request(),
-            providerFor(access.providerFacts(), ImageViewport::PageRole::Primary),
-            providerFor(access.providerFacts(), ImageViewport::PageRole::Secondary), role);
+            providerFor(access.providerFacts(), ImageViewportPageRole::Primary),
+            providerFor(access.providerFacts(), ImageViewportPageRole::Secondary), role);
         const QSizeF logicalSize = source.facts.provider
             ? (providerFor(access.providerFacts(), role).metadataReady
                       ? providerFor(access.providerFacts(), role).logicalSize
@@ -299,13 +299,13 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
         const QSizeF sourceScale = positive(payload.sourceToPayloadScale)
             ? payload.sourceToPayloadScale
             : (displayed ? QSizeF(1.0, 1.0) : QSizeF());
-        const QRectF acceptedPageRect = role == ImageViewport::PageRole::Primary
+        const QRectF acceptedPageRect = role == ImageViewportPageRole::Primary
             ? PresentationGeometry::primaryPageRect(acceptedGeometry)
             : PresentationGeometry::secondaryPageRect(acceptedGeometry);
         const QRectF acceptedItemRect = PresentationGeometry::pageItemRect(acceptedGeometry, role);
         const QRectF acceptedVisibleRect
             = PresentationGeometry::visiblePageRect(acceptedGeometry, role);
-        const QRectF displayedPageRect = role == ImageViewport::PageRole::Primary
+        const QRectF displayedPageRect = role == ImageViewportPageRole::Primary
             ? PresentationGeometry::primaryPageRect(displayedGeometry)
             : PresentationGeometry::secondaryPageRect(displayedGeometry);
         const QRectF displayedItemRect
@@ -321,7 +321,7 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
             ? providerFor(access.providerFacts(), role).authoredAnimationFacts
             : source.facts.authoredAnimationFacts;
         const int loopCount
-            = animation.loopMode() == ImageSequenceAuthoredAnimationFacts::LoopMode::Finite
+            = animation.loopMode() == ImageSequenceAuthoredAnimationLoopMode::Finite
             ? animation.loopCount()
             : -1;
         return ImageViewportRoleSnapshot(present, source.sequence,
@@ -335,14 +335,14 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
                 displayed ? displayedRequest.request.resolvedFrame.position : -1,
                 displayed ? displayedSize : QSizeF(), displayed ? payloadRaster : QSizeF(),
                 displayed ? sourceScale : QSizeF(),
-                displayed ? (payload.quality == ImageViewport::PayloadQuality::Unknown
-                                    ? ImageViewport::PayloadQuality::Exact
+                displayed ? (payload.quality == ImageViewportPayloadQuality::Unknown
+                                    ? ImageViewportPayloadQuality::Exact
                                     : payload.quality)
-                          : ImageViewport::PayloadQuality::Unknown,
-                displayed ? (payload.exactness == ImageViewport::PayloadExactness::Unknown
-                                    ? ImageViewport::PayloadExactness::ExactForSource
+                          : ImageViewportPayloadQuality::Unknown,
+                displayed ? (payload.exactness == ImageViewportPayloadExactness::Unknown
+                                    ? ImageViewportPayloadExactness::ExactForSource
                                     : payload.exactness)
-                          : ImageViewport::PayloadExactness::Unknown,
+                          : ImageViewportPayloadExactness::Unknown,
                 displayed && payload.demandRevision.isValid(), payload.demandRevision),
             ImageViewportRoleMetadataSnapshot(
                 present && metadata.frameCount >= 0 && positive(logicalSize), logicalSize,
@@ -360,8 +360,8 @@ ImageViewportStateSnapshot projectViewportStateSnapshot(
     };
 
     return ImageViewportStateSnapshot(requestSnapshot, displaySnapshot, presentationSnapshot,
-        roleSnapshot(ImageViewport::PageRole::Primary),
-        roleSnapshot(ImageViewport::PageRole::Secondary),
+        roleSnapshot(ImageViewportPageRole::Primary),
+        roleSnapshot(ImageViewportPageRole::Secondary),
         ImageViewportDiagnosticsSnapshot(
             access.request().errorString, access.request().warningString, access.commandReason()),
         ImageViewportRevisionsSnapshot(revision(access.request().requestRevision),
@@ -430,11 +430,11 @@ ViewportEngineGeometryInput projectViewportAcceptedGeometry(
 ViewportRenderSnapshot projectViewportRenderSnapshot(
     ViewportRenderSnapshotInput input, ViewportEngineRenderSnapshotProjectionAccess access)
 {
-    const auto target = [&](ImageViewport::PageRole role) {
+    const auto target = [&](ImageViewportPageRole role) {
         return PresentationGeometry::pageItemRect(input.geometryState, role)
             .intersected(input.geometryState.itemBounds);
     };
-    const auto source = [&](ImageViewport::PageRole role) {
+    const auto source = [&](ImageViewportPageRole role) {
         return PresentationGeometry::visiblePageRect(input.geometryState, role);
     };
     auto primary = input.preparedPayload;
@@ -456,9 +456,9 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
     snapshot.mirrorHorizontally = access.presentation().mirrorHorizontally;
     snapshot.mirrorVertically = access.presentation().mirrorVertically;
     snapshot.preparedPayload = primary;
-    snapshot.targetRect = target(ImageViewport::PageRole::Primary);
-    snapshot.sourceRect = source(ImageViewport::PageRole::Primary);
-    const auto append = [&](ImageViewport::PageRole role, const auto& payload, bool requireRects) {
+    snapshot.targetRect = target(ImageViewportPageRole::Primary);
+    snapshot.sourceRect = source(ImageViewportPageRole::Primary);
+    const auto append = [&](ImageViewportPageRole role, const auto& payload, bool requireRects) {
         const QRectF targetRect = target(role);
         const QRectF sourceRect = source(role);
         if (!payload.image.isNull()
@@ -467,7 +467,7 @@ ViewportRenderSnapshot projectViewportRenderSnapshot(
                 access.presentation().rotationDegrees, access.presentation().mirrorHorizontally,
                 access.presentation().mirrorVertically });
     };
-    append(ImageViewport::PageRole::Primary, primary, false);
-    append(ImageViewport::PageRole::Secondary, secondary, true);
+    append(ImageViewportPageRole::Primary, primary, false);
+    append(ImageViewportPageRole::Secondary, secondary, true);
     return snapshot;
 }

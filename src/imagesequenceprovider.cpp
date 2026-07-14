@@ -1,7 +1,9 @@
 #include "imageviewportlimits_p.h"
+#include "imageviewportproviderfacts_p.h"
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 using namespace ImageViewportInternal;
@@ -14,9 +16,9 @@ bool isPositiveFiniteSize(QSizeF size)
     return isPositiveFiniteValue(size.width()) && isPositiveFiniteValue(size.height());
 }
 
-bool isValidRole(ImageViewport::PageRole role)
+bool isValidRole(ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary || role == ImageViewport::PageRole::Secondary;
+    return role == ImageViewportPageRole::Primary || role == ImageViewportPageRole::Secondary;
 }
 
 bool isValidUnsupportedCause(ImageSequenceProviderUnsupportedCause cause)
@@ -29,6 +31,59 @@ bool isValidUnsupportedCause(ImageSequenceProviderUnsupportedCause cause)
 ImageSequenceProviderAdapter::ImageSequenceProviderAdapter(QObject* parent)
     : QObject(parent)
 {
+}
+
+ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::created(
+    ImageSequenceProviderSession* session)
+{
+    ImageSequenceProviderSessionFactoryResult result;
+    result.m_outcome = ImageSequenceProviderSessionFactoryOutcome::Created;
+    result.m_session = session;
+    return result;
+}
+
+ImageSequenceProviderSessionFactoryResult ImageSequenceProviderSessionFactoryResult::failed(
+    QString diagnostic)
+{
+    ImageSequenceProviderSessionFactoryResult result;
+    result.m_outcome = ImageSequenceProviderSessionFactoryOutcome::Failed;
+    result.m_diagnostic = std::move(diagnostic);
+    return result;
+}
+
+ImageSequenceProviderSessionFactoryOutcome
+ImageSequenceProviderSessionFactoryResult::outcome() const
+{
+    return m_outcome;
+}
+
+ImageSequenceProviderSession* ImageSequenceProviderSessionFactoryResult::session() const
+{
+    return m_session;
+}
+
+QString ImageSequenceProviderSessionFactoryResult::diagnostic() const { return m_diagnostic; }
+
+ImageSequenceProviderDescriptor::ImageSequenceProviderDescriptor(
+    ImageSequenceProviderMetadata constructionMetadata,
+    ImageSequenceProviderThreadingContract threadingContract, SessionFactory sessionFactory)
+    : m_constructionMetadata(std::move(constructionMetadata))
+    , m_threadingContract(threadingContract)
+    , m_sessionFactory(std::move(sessionFactory))
+{
+}
+
+bool ImageSequenceProviderDescriptor::isValid() const
+{
+    if (!m_sessionFactory) {
+        return false;
+    }
+    switch (m_threadingContract) {
+    case ImageSequenceProviderThreadingContract::AffinityBound:
+    case ImageSequenceProviderThreadingContract::ThreadSafe:
+        return true;
+    }
+    return false;
 }
 
 ImageSequenceProviderRequestToken::ImageSequenceProviderRequestToken(quint64 id)
@@ -74,7 +129,7 @@ ImageSequenceProviderKnownFacts ImageSequenceProviderKnownFacts::fixedDurationFr
     facts.m_frameCount = frameCount;
     if (frameCount > 0) {
         const int retainedFrameCount
-            = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+            = std::min(frameCount, ImageSequenceLimits::maximumFrameCount() + 1);
         facts.m_frameDurations = QVector<int>(retainedFrameCount, frameDuration);
     }
     return facts;
@@ -177,7 +232,7 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::fixedDurationFrames
     metadata.m_logicalSize = logicalSize;
     if (frameCount > 0) {
         const int retainedFrameCount
-            = std::min(frameCount, ImageSequenceLimits::maximumTimedListFrameCount() + 1);
+            = std::min(frameCount, ImageSequenceLimits::maximumFrameCount() + 1);
         metadata.m_frameDurations = QVector<int>(retainedFrameCount, frameDuration);
     }
     return metadata;
@@ -193,14 +248,46 @@ ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameList(
     return metadata;
 }
 
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::withSourceLogicalSize(
+    QSizeF sourceLogicalSize)
+{
+    ImageSequenceProviderMetadata metadata;
+    metadata.m_logicalSize = sourceLogicalSize;
+    return metadata;
+}
+
+ImageSequenceProviderMetadata ImageSequenceProviderMetadata::timedFrameCount(
+    QSizeF logicalSize, int frameCount)
+{
+    ImageSequenceProviderMetadata metadata;
+    metadata.m_logicalSize = logicalSize;
+    metadata.m_constructionFrameCount = frameCount;
+    return metadata;
+}
+
 bool ImageSequenceProviderMetadata::isValid() const
 {
+    if (!isSpecified()) {
+        return false;
+    }
+    if (m_hasAuthoredAnimationFacts && !m_authoredAnimationFacts.isValid()) {
+        return false;
+    }
+    if (!hasCompleteModel()) {
+        if (m_logicalSize.isEmpty()) {
+            return m_constructionFrameCount < 0;
+        }
+        return isPositiveFiniteInteger(m_logicalSize.width())
+            && isPositiveFiniteInteger(m_logicalSize.height())
+            && (m_constructionFrameCount == -1 || m_constructionFrameCount > 0);
+    }
     if (!isPositiveFiniteInteger(m_logicalSize.width())
         || !isPositiveFiniteInteger(m_logicalSize.height())) {
         return false;
     }
     if (isStill()) {
-        return !timedPlaybackSupport() && !positionSeekSupport();
+        return timedPlaybackSupport() != ImageViewportCapabilitySupport::True
+            && positionSeekSupport() != ImageViewportCapabilitySupport::True;
     }
     if (isTimedFrameList()) {
         if (m_frameDurations.isEmpty()) {
@@ -217,7 +304,14 @@ bool ImageSequenceProviderMetadata::isValid() const
     return false;
 }
 
-bool ImageSequenceProviderMetadata::isSpecified() const { return m_kind != Kind::Invalid; }
+bool ImageSequenceProviderMetadata::isSpecified() const
+{
+    return hasCompleteModel() || !m_logicalSize.isEmpty() || m_constructionFrameCount >= 0
+        || m_timedPlaybackSupport.has_value() || m_frameSeekSupport.has_value()
+        || m_positionSeekSupport.has_value() || m_hasAuthoredAnimationFacts;
+}
+
+bool ImageSequenceProviderMetadata::hasCompleteModel() const { return m_kind != Kind::Invalid; }
 
 bool ImageSequenceProviderMetadata::isStill() const { return m_kind == Kind::Still; }
 
@@ -226,7 +320,27 @@ bool ImageSequenceProviderMetadata::isTimedFrameList() const
     return m_kind == Kind::FixedDurationFrames || m_kind == Kind::TimedFrameList;
 }
 
-QSizeF ImageSequenceProviderMetadata::logicalSize() const { return m_logicalSize; }
+QSizeF ImageSequenceProviderMetadata::sourceLogicalSize() const { return m_logicalSize; }
+
+int ImageSequenceProviderMetadata::frameCount() const
+{
+    if (hasCompleteModel()) {
+        return isStill() ? 1 : m_frameDurations.size();
+    }
+    return m_constructionFrameCount;
+}
+
+int ImageSequenceProviderMetadata::totalDuration() const
+{
+    if (!hasCompleteModel() || !isTimedFrameList()) {
+        return -1;
+    }
+    qint64 total = 0;
+    for (int duration : m_frameDurations) {
+        total += duration;
+    }
+    return total <= std::numeric_limits<int>::max() ? static_cast<int>(total) : -1;
+}
 
 QVector<int> ImageSequenceProviderMetadata::frameDurations() const { return m_frameDurations; }
 
@@ -247,34 +361,101 @@ void ImageSequenceProviderMetadata::setAuthoredAnimationFacts(
     m_authoredAnimationFacts = authoredAnimationFacts;
 }
 
-void ImageSequenceProviderMetadata::setTimedPlaybackSupport(bool supported)
+void ImageSequenceProviderMetadata::setTimedPlaybackSupport(
+    ImageViewportCapabilitySupport support)
 {
-    m_timedPlaybackSupport = supported;
+    if (support == ImageViewportCapabilitySupport::Unavailable) {
+        m_timedPlaybackSupport.reset();
+    } else {
+        m_timedPlaybackSupport = support == ImageViewportCapabilitySupport::True;
+    }
 }
 
-void ImageSequenceProviderMetadata::setFrameSeekSupport(bool supported)
+void ImageSequenceProviderMetadata::setFrameSeekSupport(ImageViewportCapabilitySupport support)
 {
-    m_frameSeekSupport = supported;
+    if (support == ImageViewportCapabilitySupport::Unavailable) {
+        m_frameSeekSupport.reset();
+    } else {
+        m_frameSeekSupport = support == ImageViewportCapabilitySupport::True;
+    }
 }
 
-void ImageSequenceProviderMetadata::setPositionSeekSupport(bool supported)
+void ImageSequenceProviderMetadata::setPositionSeekSupport(
+    ImageViewportCapabilitySupport support)
 {
-    m_positionSeekSupport = supported;
+    if (support == ImageViewportCapabilitySupport::Unavailable) {
+        m_positionSeekSupport.reset();
+    } else {
+        m_positionSeekSupport = support == ImageViewportCapabilitySupport::True;
+    }
 }
 
-bool ImageSequenceProviderMetadata::timedPlaybackSupport() const
+ImageViewportCapabilitySupport ImageSequenceProviderMetadata::timedPlaybackSupport() const
 {
-    return m_timedPlaybackSupport.value_or(isTimedFrameList());
+    if (m_timedPlaybackSupport.has_value()) {
+        return *m_timedPlaybackSupport ? ImageViewportCapabilitySupport::True
+                                       : ImageViewportCapabilitySupport::False;
+    }
+    return hasCompleteModel() ? (isTimedFrameList() ? ImageViewportCapabilitySupport::True
+                                                    : ImageViewportCapabilitySupport::False)
+                              : ImageViewportCapabilitySupport::Unavailable;
 }
 
-bool ImageSequenceProviderMetadata::frameSeekSupport() const
+ImageViewportCapabilitySupport ImageSequenceProviderMetadata::frameSeekSupport() const
 {
-    return m_frameSeekSupport.value_or(isStill() || isTimedFrameList());
+    if (m_frameSeekSupport.has_value()) {
+        return *m_frameSeekSupport ? ImageViewportCapabilitySupport::True
+                                   : ImageViewportCapabilitySupport::False;
+    }
+    return hasCompleteModel() ? ImageViewportCapabilitySupport::True
+                              : ImageViewportCapabilitySupport::Unavailable;
 }
 
-bool ImageSequenceProviderMetadata::positionSeekSupport() const
+ImageViewportCapabilitySupport ImageSequenceProviderMetadata::positionSeekSupport() const
 {
-    return m_positionSeekSupport.value_or(isTimedFrameList());
+    if (m_positionSeekSupport.has_value()) {
+        return *m_positionSeekSupport ? ImageViewportCapabilitySupport::True
+                                      : ImageViewportCapabilitySupport::False;
+    }
+    return hasCompleteModel() ? (isTimedFrameList() ? ImageViewportCapabilitySupport::True
+                                                    : ImageViewportCapabilitySupport::False)
+                              : ImageViewportCapabilitySupport::Unavailable;
+}
+
+ImageViewportCapabilitySupport ImageSequenceProviderMetadata::autoplay() const
+{
+    if (!m_hasAuthoredAnimationFacts) {
+        return ImageViewportCapabilitySupport::Unavailable;
+    }
+    return m_authoredAnimationFacts.autoplay() ? ImageViewportCapabilitySupport::True
+                                               : ImageViewportCapabilitySupport::False;
+}
+
+ImageSequenceAuthoredAnimationLoopMode ImageSequenceProviderMetadata::authoredLoopMode() const
+{
+    return m_hasAuthoredAnimationFacts ? m_authoredAnimationFacts.loopMode()
+                                       : ImageSequenceAuthoredAnimationLoopMode::Unavailable;
+}
+
+int ImageSequenceProviderMetadata::authoredLoopCount() const
+{
+    return m_hasAuthoredAnimationFacts ? m_authoredAnimationFacts.loopCount() : -1;
+}
+
+ImageViewportRange ImageSequenceProviderMetadata::frameSeekBounds() const
+{
+    if (frameSeekSupport() != ImageViewportCapabilitySupport::True || frameCount() <= 0) {
+        return {};
+    }
+    return { 0, frameCount() - 1 };
+}
+
+ImageViewportRange ImageSequenceProviderMetadata::positionSeekBounds() const
+{
+    if (positionSeekSupport() != ImageViewportCapabilitySupport::True || totalDuration() < 0) {
+        return {};
+    }
+    return { 0, totalDuration() };
 }
 
 ImageSequenceProviderFrameMetadata ImageSequenceProviderFrameMetadata::stillFrame()
@@ -326,20 +507,6 @@ ImageSequenceProviderSession::ImageSequenceProviderSession(QObject* parent)
 
 bool ImageSequenceProviderFrameEnvelope::isValid() const
 {
-    if (!isPositiveFiniteSize(m_sourceLogicalSize) || !isPositiveFiniteSize(m_payloadRasterSize)
-        || !isPositiveFiniteSize(m_sourceToPayloadScale) || m_payloadByteSize <= 0) {
-        return false;
-    }
-    if (m_quality == ImageViewport::PayloadQuality::Unknown
-        || m_exactness == ImageViewport::PayloadExactness::Unknown) {
-        return false;
-    }
-    const QSizeF mapped(m_sourceLogicalSize.width() * m_sourceToPayloadScale.width(),
-        m_sourceLogicalSize.height() * m_sourceToPayloadScale.height());
-    if (std::abs(mapped.width() - m_payloadRasterSize.width()) > 0.01
-        || std::abs(mapped.height() - m_payloadRasterSize.height()) > 0.01) {
-        return false;
-    }
     if (m_frame < 0) {
         return false;
     }
@@ -359,7 +526,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::metadata(
 }
 
 ImageSequenceProviderRequest ImageSequenceProviderRequest::frame(
-    ImageSequenceProviderRequestToken token, ImageViewport::PageRole role, int frame,
+    ImageSequenceProviderRequestToken token, ImageViewportPageRole role, int frame,
     ImageSequenceProviderDisplayDemand demand)
 {
     ImageSequenceProviderRequest request;
@@ -374,7 +541,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::frame(
 }
 
 ImageSequenceProviderRequest ImageSequenceProviderRequest::position(
-    ImageSequenceProviderRequestToken token, ImageViewport::PageRole role, int requestedPosition,
+    ImageSequenceProviderRequestToken token, ImageViewportPageRole role, int requestedPosition,
     int resolvedFrame, ImageSequenceProviderDisplayDemand demand)
 {
     ImageSequenceProviderRequest request;
@@ -389,7 +556,7 @@ ImageSequenceProviderRequest ImageSequenceProviderRequest::position(
 }
 
 ImageSequenceProviderRequest ImageSequenceProviderRequest::playback(
-    ImageSequenceProviderRequestToken token, ImageViewport::PageRole role, int frame, int position,
+    ImageSequenceProviderRequestToken token, ImageViewportPageRole role, int frame, int position,
     ImageSequenceProviderDisplayDemand demand)
 {
     ImageSequenceProviderRequest request;

@@ -85,8 +85,7 @@ ViewportEngineTransition ViewportEngine::handleProviderHostEvent(
         return result;
     }
     case ViewportProviderHostEvent::Kind::QueueFlushSchedulingFailed: {
-        const auto reduced
-            = reduceProviderQueueSchedulingFailure(event.role, event.diagnostic);
+        const auto reduced = reduceProviderQueueSchedulingFailure(event.role, event.diagnostic);
         result.changes = reduced.changes;
         result.providerSchedulerDiagnostic = reduced.diagnostic;
         if (result.changes.playbackPhase) {
@@ -106,15 +105,15 @@ ViewportEngineTransition ViewportEngine::handleDevicePixelRatioChanged(
     result.changes.geometryState = true;
     result.changes.scheduleUpdate = true;
     const auto effects = restageProviderDemands(input);
-    appendProviderTransport(result.providerAfterPublication, effects[0],
-        ImageViewport::PageRole::Primary);
-    appendProviderTransport(result.providerAfterPublication, effects[1],
-        ImageViewport::PageRole::Secondary);
+    appendProviderTransport(
+        result.providerAfterPublication, effects[0], ImageViewportPageRole::Primary);
+    appendProviderTransport(
+        result.providerAfterPublication, effects[1], ImageViewportPageRole::Secondary);
     return result;
 }
 
 ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
-    ImageViewport::PageRole role)
+    ImageViewportPageRole role)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
@@ -122,7 +121,7 @@ ViewportProviderFrameTransportEffect ViewportEngine::closeProviderSession(
 }
 
 ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
-    ImageViewport::PageRole role, ViewportEngineViewportInput input)
+    ImageViewportPageRole role, ViewportEngineViewportInput input)
 {
     const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderSessionOpenedAccess access(m_state->requestState.request,
@@ -130,12 +129,11 @@ ViewportProviderSessionOpenResult ViewportEngine::reduceProviderSessionOpened(
         m_state->providerState.roles, m_state->presentationState.presentation,
         m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
         m_state->requestState.presentationTarget.generation);
-    return reduceViewportEngineProviderSessionOpened(
-        { role, geometry }, std::move(access));
+    return reduceViewportEngineProviderSessionOpened({ role, geometry }, std::move(access));
 }
 
 ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameRequest(
-    ImageViewport::PageRole role, ViewportEngineViewportInput input)
+    ImageViewportPageRole role, ViewportEngineViewportInput input)
 {
     const GeometryInput geometry = acceptedGeometry(input);
     ViewportEngineProviderQueueFlushAccess access(m_state->requestState.request,
@@ -143,8 +141,7 @@ ViewportProviderFrameQueueFlushResult ViewportEngine::reduceQueuedProviderFrameR
         m_state->providerState.roles, m_state->presentationState.presentation,
         m_state->revisions.nextRevision, m_state->revisions.presentationRevision,
         m_state->requestState.presentationTarget.generation);
-    auto result = reduceViewportEngineProviderQueueFlush(
-        { role, geometry }, std::move(access));
+    auto result = reduceViewportEngineProviderQueueFlush({ role, geometry }, std::move(access));
     if (result.changes.requestState) {
         result.schedule = currentPlaybackSchedule();
     }
@@ -206,7 +203,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
                 event.kind == ViewportProviderEvent::Kind::ImageFrameReady
                     ? ImageSequenceProviderFrameMetadata::stillFrame()
                     : event.frameMetadata,
-                geometry },
+                event.frameEnvelope, geometry },
             std::move(access))
                              .changes;
         break;
@@ -223,7 +220,7 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
                 event.kind == ViewportProviderEvent::Kind::FrameHandleReady
                     ? ImageSequenceProviderFrameMetadata::stillFrame()
                     : event.frameMetadata,
-                geometry },
+                event.frameEnvelope, geometry },
             std::move(access))
                              .changes;
         break;
@@ -236,7 +233,8 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
         result.changes = reduceViewportEngineProviderWaiting(
             { event.role, event.token, event.kind == ViewportProviderEvent::Kind::Progress,
                 event.progress },
-            std::move(access)).changes;
+            std::move(access))
+                             .changes;
         break;
     }
     case ViewportProviderEvent::Kind::EndOfSequence: {
@@ -273,13 +271,13 @@ ViewportProviderEventResult ViewportEngine::reduceProviderEvent(
 }
 
 ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOpenFailure(
-    ImageViewport::PageRole role, const QString& diagnostic)
+    ImageViewportPageRole role, const QString& diagnostic)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderSessionOpenFailureAccess access(m_state->requestState.request,
         m_state->playbackState.playback, provider.session, provider.requests);
-    const auto reduction = reduceViewportEngineProviderSessionOpenFailure(
-        { role, diagnostic }, std::move(access));
+    const auto reduction
+        = reduceViewportEngineProviderSessionOpenFailure({ role, diagnostic }, std::move(access));
     ViewportProviderSessionOpenFailureResult result;
     result.changes = reduction.changes;
     if (result.changes.playbackPhase) {
@@ -289,7 +287,7 @@ ViewportProviderSessionOpenFailureResult ViewportEngine::reduceProviderSessionOp
 }
 
 ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailure(
-    ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event)
+    ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderDispatchFailureAccess access(m_state->requestState.request,
@@ -304,7 +302,7 @@ ViewportProviderTerminalEventResult ViewportEngine::reduceProviderDispatchFailur
 }
 
 ViewportProviderSchedulerFailureResult ViewportEngine::reduceProviderQueueSchedulingFailure(
-    ImageViewport::PageRole role, const QString& diagnostic)
+    ImageViewportPageRole role, const QString& diagnostic)
 {
     auto& provider = m_state->providerState.roles[roleIndex(role)].provider;
     ViewportEngineProviderQueueFailureAccess access(

@@ -22,9 +22,7 @@ ImageSequenceProviderFrameEnvelope providerFrameEnvelopeForEvent(
     ImageFrame* frame, const ImageSequenceProviderFrameMetadata& metadata)
 {
     ImageSequenceProviderFrameEnvelope envelope;
-    if (frame) {
-        envelope = frame->envelope();
-    }
+    Q_UNUSED(frame);
     if (metadata.isTimedFrame()) {
         envelope.setFrame(metadata.frame());
         envelope.setFrameStartPosition(metadata.frameStartPosition());
@@ -59,7 +57,7 @@ void emitProviderFrameReady(ImageSequenceProviderSession* session,
     ImageSequenceProviderRequestToken token, ImageFrame* frame,
     ImageSequenceProviderFrameMetadata metadata = ImageSequenceProviderFrameMetadata::stillFrame())
 {
-    auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) {});
+    auto* handle = new ImageSequenceProviderFrameHandle(frame, [](ImageFrame*) { });
     emitProviderFrameHandleReady(session, token, handle, metadata);
 }
 

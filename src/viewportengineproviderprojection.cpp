@@ -7,7 +7,7 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     ViewportEngineProviderDemandInput input, ViewportEngineProviderDemandProjectionAccess access)
 {
     using namespace ImageViewportInternal;
-    const auto index = input.role == ImageViewport::PageRole::Secondary ? 1U : 0U;
+    const auto index = input.role == ImageViewportPageRole::Secondary ? 1U : 0U;
     const auto& request = access.request().roles[index].activeRequest;
     const auto& source = access.request().roles[index].source;
     const auto& provider = access.providerFacts()[index];
@@ -42,7 +42,7 @@ ImageSequenceProviderDisplayDemand projectViewportProviderDemand(
     demand.setMirrorVertically(access.presentation().mirrorVertically);
     demand.setQualityPreference(access.presentation().qualityPreference);
     demand.setExactnessPreference(access.presentation().exactnessPreference);
-    demand.setMaximumPayloadBytes(ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    demand.setMaximumPayloadBytes(ImageSequenceLimits::maximumPayloadBytes());
     demand.setAllocationGeneration(input.allocationGeneration);
     demand.setCurrentPayloadQuality(payload.quality);
     demand.setCurrentPayloadExactness(payload.exactness);

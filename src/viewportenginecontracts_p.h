@@ -35,6 +35,6 @@ struct ViewportEnginePresentationTargetState
     quint64 generation = 0;
     quint64 primaryRoleGeneration = 0;
     quint64 secondaryRoleGeneration = 0;
-    ImageViewport::PageRole activeRole = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole activeRole = ImageViewportPageRole::Primary;
     bool activeRoleValid = false;
 };

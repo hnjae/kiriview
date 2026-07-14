@@ -3,13 +3,44 @@
 #include "imageviewporttoken_p.h"
 
 #include <QtCore/QMetaObject>
+#include <QtCore/QMutex>
+#include <QtCore/QMutexLocker>
 #include <QtCore/QPointer>
+#include <QtCore/QSet>
 #include <QtCore/QThread>
 
 #include <memory>
 #include <utility>
 
 namespace {
+QMutex& providerSessionOwnershipMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QSet<const ImageSequenceProviderSession*>& ownedProviderSessions()
+{
+    static QSet<const ImageSequenceProviderSession*> sessions;
+    return sessions;
+}
+
+bool claimProviderSession(ImageSequenceProviderSession* session)
+{
+    QMutexLocker locker(&providerSessionOwnershipMutex());
+    if (ownedProviderSessions().contains(session)) {
+        return false;
+    }
+    ownedProviderSessions().insert(session);
+    return true;
+}
+
+void releaseProviderSession(const ImageSequenceProviderSession* session)
+{
+    QMutexLocker locker(&providerSessionOwnershipMutex());
+    ownedProviderSessions().remove(session);
+}
+
 QVector<ImageSequenceProviderRequestToken> cleanupTokens(
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken)
 {
@@ -112,7 +143,7 @@ public:
 
 ViewportProviderExecutor* defaultProviderExecutor() { return &qtViewportProviderExecutor(); }
 
-ViewportProviderEvent providerEvent(ImageViewport::PageRole role, quint64 sessionSerial,
+ViewportProviderEvent providerEvent(ImageViewportPageRole role, quint64 sessionSerial,
     quint64 generation, ViewportProviderEvent::Kind kind, ImageSequenceProviderRequestToken token)
 {
     ViewportProviderEvent event;
@@ -146,7 +177,7 @@ ImageSequenceProviderFrameMetadata frameMetadataFor(
         envelope.frame(), envelope.frameStartPosition(), envelope.frameDuration());
 }
 
-ViewportProviderEvent viewportProviderEventFromTyped(ImageViewport::PageRole role,
+ViewportProviderEvent viewportProviderEventFromTyped(ImageViewportPageRole role,
     quint64 sessionSerial, quint64 generation, const ImageSequenceProviderEvent& typedEvent)
 {
     if (!typedEvent.isValid()) {
@@ -157,9 +188,8 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewport::PageRole rol
             return event;
         }
         if (typedEvent.kind() == ImageSequenceProviderEventKind::Progress) {
-            ViewportProviderEvent event = providerEvent(
-                role, sessionSerial, generation, ViewportProviderEvent::Kind::Progress,
-                typedEvent.token());
+            ViewportProviderEvent event = providerEvent(role, sessionSerial, generation,
+                ViewportProviderEvent::Kind::Progress, typedEvent.token());
             event.progress = typedEvent.progress();
             return event;
         }
@@ -168,6 +198,7 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewport::PageRole rol
                 ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
             event.frameHandle = typedEvent.frameHandle();
             event.frameMetadata = frameMetadataFor(typedEvent.frameEnvelope());
+            event.frameEnvelope = typedEvent.frameEnvelope();
             return event;
         }
         if (typedEvent.kind() == ImageSequenceProviderEventKind::Unsupported
@@ -197,6 +228,7 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewport::PageRole rol
             ViewportProviderEvent::Kind::FrameHandleWithMetadataReady, typedEvent.token());
         event.frameHandle = typedEvent.frameHandle();
         event.frameMetadata = frameMetadataFor(typedEvent.frameEnvelope());
+        event.frameEnvelope = typedEvent.frameEnvelope();
         return event;
     }
     case ImageSequenceProviderEventKind::Waiting:
@@ -237,7 +269,7 @@ ViewportProviderEvent viewportProviderEventFromTyped(ImageViewport::PageRole rol
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
-    ImageViewport::PageRole role, ImageViewportInternal::ProviderTransportOperation operation,
+    ImageViewportPageRole role, ImageViewportInternal::ProviderTransportOperation operation,
     ImageSequenceProviderRequestToken metadataToken, ImageSequenceProviderRequestToken frameToken,
     bool queued, bool pendingCleanup)
 {
@@ -259,7 +291,7 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
 }
 
 ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
-    ImageViewport::PageRole role, const ImageSequenceProviderRequest& request)
+    ImageViewportPageRole role, const ImageSequenceProviderRequest& request)
 {
     if (request.kind() != ImageSequenceProviderRequestKind::Cancel) {
         return {};
@@ -271,7 +303,7 @@ ImageViewportInternal::ProviderTransportDiagnostic providerTransportDiagnostic(
 }
 }
 
-ViewportProviderBridge::ViewportProviderBridge(ImageViewport::PageRole role)
+ViewportProviderBridge::ViewportProviderBridge(ImageViewportPageRole role)
     : role(role)
     , providerExecutor(defaultProviderExecutor())
 {
@@ -343,16 +375,34 @@ ViewportProviderTransportResult ViewportProviderBridge::closeSession(
     return result;
 }
 
-bool ViewportProviderBridge::openSession(const ViewportProviderSessionOpenInput& input)
+ViewportProviderSessionOpenTransportResult ViewportProviderBridge::openSession(
+    const ViewportProviderSessionOpenInput& input)
 {
     if (!input.factory || !input.callbackTarget || !input.eventSink || input.generation == 0
         || input.sessionSerial == 0) {
-        return false;
+        return { false, QStringLiteral("provider session open input is invalid") };
     }
 
-    ImageSequenceProviderSession* session = input.factory->createSession(input.callbackTarget);
-    if (!session) {
-        return false;
+    const ImageSequenceProviderSessionFactoryResult factoryResult = (*input.factory)();
+    ImageSequenceProviderSession* session = factoryResult.session();
+    const bool validCreated
+        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Created && session
+        && factoryResult.diagnostic().isEmpty();
+    const bool validFailed
+        = factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed && !session;
+    if (!validCreated || validFailed) {
+        return { false,
+            factoryResult.outcome() == ImageSequenceProviderSessionFactoryOutcome::Failed
+                ? factoryResult.diagnostic()
+                : QStringLiteral("provider session factory returned a malformed result") };
+    }
+    if (!claimProviderSession(session)) {
+        return { false, QStringLiteral("provider session is already owned by another generation") };
+    }
+    QObject::connect(
+        session, &QObject::destroyed, [session]() { releaseProviderSession(session); });
+    if (!session->parent() && session->thread() == input.callbackTarget->thread()) {
+        session->setParent(input.callbackTarget);
     }
     activeSession = session;
     activeThreadingContract = input.threadingContract;
@@ -366,7 +416,7 @@ bool ViewportProviderBridge::openSession(const ViewportProviderSessionOpenInput&
         },
         eventDeliveryConnectionType);
 
-    return true;
+    return { true, {} };
 }
 
 ViewportProviderTransportResult ViewportProviderBridge::deliverRequest(

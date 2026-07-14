@@ -5,7 +5,7 @@
 
 struct ViewportProviderRequestTokenAllocationInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
 };
 
 struct ViewportProviderRequestTokenAllocationResult
@@ -46,13 +46,13 @@ public:
     ViewportProviderRequestTokenAllocationAccess& operator=(
         const ViewportProviderRequestTokenAllocationAccess&)
         = delete;
-    ImageViewportInternal::ProviderSessionState& session(ImageViewport::PageRole role) const
+    ImageViewportInternal::ProviderSessionState& session(ImageViewportPageRole role) const
     {
-        return m_roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider.session;
+        return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.session;
     }
-    ImageViewportInternal::ProviderRequestState& requests(ImageViewport::PageRole role) const
+    ImageViewportInternal::ProviderRequestState& requests(ImageViewportPageRole role) const
     {
-        return m_roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider.requests;
+        return m_roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider.requests;
     }
     ImageViewportInternal::RequestState& request() const { return m_request; }
     ImageViewportInternal::PlaybackState& playback() const { return m_playback; }

@@ -20,7 +20,7 @@ public:
 
     struct RolePayload
     {
-        ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+        ImageViewportPageRole role = ImageViewportPageRole::Primary;
         ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     };
 
@@ -28,7 +28,7 @@ public:
     {
         struct ImageLayer
         {
-            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+            ImageViewportPageRole role = ImageViewportPageRole::Primary;
             ImageViewportInternal::PreparedPayload preparedPayload;
             QRectF targetRect;
             QRectF sourceRect;
@@ -61,7 +61,7 @@ public:
 
         struct ImageLayer
         {
-            ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+            ImageViewportPageRole role = ImageViewportPageRole::Primary;
             ImageViewportInternal::PreparedPayload preparedPayload;
             ImageViewportInternal::PreparedPayloadIdentity preparedPayloadIdentity;
             QRectF targetRect;
@@ -76,7 +76,7 @@ public:
         CommitResult result = CommitResult::Empty;
         ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
         QVector<RolePayload> rolePayloads;
-        ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+        ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
         RenderFailureCause failureCause = RenderFailureCause::None;
         QVector<BackgroundRect> backgroundRects;
         QVector<ImageLayer> imageLayers;

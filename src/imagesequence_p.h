@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imageviewport.h"
+#include "imageviewportproviderfacts_p.h"
 #include "timingintervals_p.h"
 
 #include <memory>
@@ -12,8 +13,8 @@ struct FramePayloadFacts
     QSizeF sourceLogicalSize;
     QSizeF payloadRasterSize;
     QSizeF sourceToPayloadScale;
-    ImageViewport::PayloadQuality quality = ImageViewport::PayloadQuality::Unknown;
-    ImageViewport::PayloadExactness exactness = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportPayloadQuality quality = ImageViewportPayloadQuality::Unknown;
+    ImageViewportPayloadExactness exactness = ImageViewportPayloadExactness::Unknown;
     ImageViewportDemandRevisionToken demandRevision;
 };
 

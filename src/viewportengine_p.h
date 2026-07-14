@@ -107,20 +107,20 @@ private:
     ViewportProviderEventResult reduceProviderEvent(
         const ViewportProviderEvent& event, ViewportEngineViewportInput input);
     ViewportProviderTerminalEventResult reduceProviderDispatchFailure(
-        ImageViewport::PageRole role, const ViewportProviderDispatchFailureEvent& event);
+        ImageViewportPageRole role, const ViewportProviderDispatchFailureEvent& event);
     ViewportProviderSessionOpenFailureResult reduceProviderSessionOpenFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
+        ImageViewportPageRole role, const QString& diagnostic);
     ViewportProviderSessionOpenResult reduceProviderSessionOpened(
-        ImageViewport::PageRole role, ViewportEngineViewportInput input);
+        ImageViewportPageRole role, ViewportEngineViewportInput input);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
-        ImageViewport::PageRole role, const QString& diagnostic);
-    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewport::PageRole role);
+        ImageViewportPageRole role, const QString& diagnostic);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
-        ImageViewport::PageRole role, ViewportEngineViewportInput input);
+        ImageViewportPageRole role, ViewportEngineViewportInput input);
 
-    static constexpr std::size_t roleIndex(ImageViewport::PageRole role)
+    static constexpr std::size_t roleIndex(ImageViewportPageRole role)
     {
-        return role == ImageViewport::PageRole::Secondary ? 1U : 0U;
+        return role == ImageViewportPageRole::Secondary ? 1U : 0U;
     }
     ViewportEngineCommandResult rejected(
         ImageViewport::CommandOutcome outcome, ImageViewport::CommandReason reason);

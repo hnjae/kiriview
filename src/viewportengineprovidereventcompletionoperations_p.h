@@ -5,7 +5,7 @@
 
 struct ViewportEngineProviderWaitingInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     bool progress = false;
     double progressValue = 0.0;
@@ -16,7 +16,7 @@ struct ViewportEngineProviderWaitingReduction
 };
 struct ViewportEngineProviderEndOfSequenceInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequestToken token;
     ViewportEngineGeometryInput geometry;
 };
@@ -81,9 +81,9 @@ public:
         = default;
 
 private:
-    ViewportProviderFrameRequestStartResult startFrame(ImageViewport::PageRole,
+    ViewportProviderFrameRequestStartResult startFrame(ImageViewportPageRole,
         ImageViewportInternal::DisplayRequestTarget, const ViewportEngineGeometryInput&);
-    ViewportProviderFrameTransportEffect closeSession(ImageViewport::PageRole);
+    ViewportProviderFrameTransportEffect closeSession(ImageViewportPageRole);
     ImageViewportInternal::ViewportChangeSet recordTerminal(
         ViewportEngineProviderTerminalProjectionInput);
     ImageViewportInternal::RequestState& m_request;

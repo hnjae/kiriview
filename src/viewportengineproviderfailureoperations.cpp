@@ -14,15 +14,15 @@ struct TerminalProjection
     QString fallbackDiagnostic;
 };
 
-const DisplayRequest& requestForRole(const RequestState& request, ImageViewport::PageRole role)
+const DisplayRequest& requestForRole(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
                                                       : request.roles[0].activeRequest;
 }
 
-bool providerPresent(const RequestState& request, ImageViewport::PageRole role)
+bool providerPresent(const RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Primary ? request.roles[0].source.facts.provider
+    return role == ImageViewportPageRole::Primary ? request.roles[0].source.facts.provider
                                                     : request.roles[1].provider;
 }
 

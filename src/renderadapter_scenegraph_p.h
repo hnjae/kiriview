@@ -34,7 +34,7 @@ struct Output
     RenderAdapter::CommitResult result = RenderAdapter::CommitResult::Empty;
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     QVector<RenderAdapter::RolePayload> rolePayloads;
-    ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;
 };
 

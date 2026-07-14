@@ -37,22 +37,22 @@ public:
     static bool verticalPannable(const State& state);
     static QRectF visibleImageRect(const State& state);
     static QRectF visibleSpreadRect(const State& state);
-    static QRectF visiblePageRect(const State& state, ImageViewport::PageRole role);
-    static QRectF pageItemRect(const State& state, ImageViewport::PageRole role);
+    static QRectF visiblePageRect(const State& state, ImageViewportPageRole role);
+    static QRectF pageItemRect(const State& state, ImageViewportPageRole role);
     static CoordinateResult itemToSpread(const State& state, double x, double y);
     static CoordinateResult spreadToItem(const State& state, double x, double y);
     static CoordinateResult itemToPage(
-        const State& state, ImageViewport::PageRole role, double x, double y);
+        const State& state, ImageViewportPageRole role, double x, double y);
     static CoordinateResult pageToItem(
-        const State& state, ImageViewport::PageRole role, double x, double y);
+        const State& state, ImageViewportPageRole role, double x, double y);
     static CoordinateResult spreadToPage(
-        const State& state, ImageViewport::PageRole role, double x, double y);
+        const State& state, ImageViewportPageRole role, double x, double y);
     static CoordinateResult pageToSpread(
-        const State& state, ImageViewport::PageRole role, double x, double y);
+        const State& state, ImageViewportPageRole role, double x, double y);
     static bool containsItemPoint(const State& state, double x, double y);
     static bool containsSpreadPoint(const State& state, double x, double y);
     static bool containsPagePoint(
-        const State& state, ImageViewport::PageRole role, double x, double y);
+        const State& state, ImageViewportPageRole role, double x, double y);
     static bool containsVisibleSpreadPoint(const State& state, double x, double y);
     static CoordinateResult invalidCoordinateResult();
 };

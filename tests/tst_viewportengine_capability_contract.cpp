@@ -132,7 +132,7 @@ template <typename Engine, typename = void> struct HasPublicProviderSessionClose
 template <typename Engine>
 struct HasPublicProviderSessionClose<Engine,
     std::void_t<decltype(std::declval<Engine&>().closeProviderSession(
-        ImageViewport::PageRole::Primary))>> : std::true_type
+        ImageViewportPageRole::Primary))>> : std::true_type
 {
 };
 template <typename Engine>

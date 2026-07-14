@@ -12,7 +12,7 @@
 
 struct ViewportRenderRolePayload
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
 };
 
@@ -20,14 +20,14 @@ struct ViewportRenderAcknowledgement
 {
     ImageViewportInternal::PreparedPayloadIdentity preparedPayload;
     QVector<ViewportRenderRolePayload> rolePayloads;
-    ImageViewport::PageRole failedRole = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole failedRole = ImageViewportPageRole::Primary;
     RenderFailureCause failureCause = RenderFailureCause::None;
     quint64 synchronizationAttempt = 0;
 };
 
 struct ViewportRenderLayer
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageViewportInternal::PreparedPayload preparedPayload;
     QRectF targetRect;
     QRectF sourceRect;

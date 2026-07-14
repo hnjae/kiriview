@@ -88,8 +88,8 @@ void ImageViewportPublicApiProviderRolesTest::secondaryProviderMetadataUpdatesRo
     QCOMPARE(secondaryFrameCount(item), 1);
     QCOMPARE(secondaryFrameSeekBounds(item).minimum(), 0);
     QCOMPARE(secondaryFrameSeekBounds(item).maximum(), 0);
-    QCOMPARE(secondaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::True);
-    QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::False);
+    QCOMPARE(secondaryFrameSeekSupport(item), ImageViewportCapabilitySupport::True);
+    QCOMPARE(secondaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::False);
 }
 QTEST_MAIN(ImageViewportPublicApiProviderRolesTest)
 

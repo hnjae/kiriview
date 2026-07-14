@@ -76,7 +76,7 @@ struct ViewportProviderTransportCommand
     };
 
     Kind kind = Kind::SendRequest;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequest request;
     ViewportProviderSessionClose sessionClose;
     ViewportProviderDeferredControllerEvent deferredEvent
@@ -157,7 +157,7 @@ struct ViewportProviderHostEvent
     };
 
     Kind kind = Kind::ProviderEvent;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportProviderEvent providerEvent;
     ImageSequenceProviderRequestToken token;
     QString diagnostic;

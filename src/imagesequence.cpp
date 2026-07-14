@@ -50,30 +50,34 @@ QSizeF scaleFor(QSizeF sourceLogicalSize, QSize payloadRasterSize)
         payloadRasterSize.height() / sourceLogicalSize.height());
 }
 
-ImageSequenceProviderFrameEnvelope exactEnvelopeForImage(
-    const QImage& image, ImageFrame::OrientationPolicy orientationPolicy, qint64 payloadByteSize)
+bool payloadFactsMatchImage(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
+    QSizeF sourceToPayloadScale, qint64 payloadByteSize)
 {
-    ImageSequenceProviderFrameEnvelope envelope;
-    const QSizeF logicalSize = image.deviceIndependentSize();
-    envelope.setSourceLogicalSize(logicalSize);
-    envelope.setPayloadRasterSize(QSizeF(image.size()));
-    envelope.setSourceToPayloadScale(scaleFor(logicalSize, image.size()));
-    envelope.setPayloadByteSize(payloadByteSize);
-    envelope.setQuality(ImageViewport::PayloadQuality::Exact);
-    envelope.setExactness(ImageViewport::PayloadExactness::ExactForSource);
-    envelope.setFrame(0);
-    envelope.setFrameStartPosition(-1);
-    envelope.setFrameDuration(-1);
-    envelope.setHasAlpha(image.hasAlphaChannel());
-    envelope.setOrientationPolicy(orientationPolicy);
-    return envelope;
+    if (image.isNull() || !isPositiveFiniteSize(sourceLogicalSize)
+        || payloadRasterSize != QSizeF(image.size()) || !isPositiveFiniteSize(sourceToPayloadScale)
+        || payloadByteSize < image.sizeInBytes()) {
+        return false;
+    }
+    const QSizeF mapped(sourceLogicalSize.width() * sourceToPayloadScale.width(),
+        sourceLogicalSize.height() * sourceToPayloadScale.height());
+    return qAbs(mapped.width() - payloadRasterSize.width()) < 0.0001
+        && qAbs(mapped.height() - payloadRasterSize.height()) < 0.0001;
 }
 
-bool envelopeMatchesPayload(const QImage& image, const ImageSequenceProviderFrameEnvelope& envelope)
+bool isValidOrientationPolicy(ImageFrame::OrientationPolicy policy)
 {
-    return envelope.isValid() && !image.isNull()
-        && envelope.payloadRasterSize() == QSizeF(image.size())
-        && envelope.payloadByteSize() >= image.sizeInBytes();
+    switch (policy) {
+    case ImageFrame::OrientationPolicy::Identity:
+    case ImageFrame::OrientationPolicy::MirrorHorizontally:
+    case ImageFrame::OrientationPolicy::MirrorVertically:
+    case ImageFrame::OrientationPolicy::Rotate180:
+    case ImageFrame::OrientationPolicy::Rotate90:
+    case ImageFrame::OrientationPolicy::MirrorHorizontallyAndRotate90:
+    case ImageFrame::OrientationPolicy::MirrorVerticallyAndRotate90:
+    case ImageFrame::OrientationPolicy::Rotate270:
+        return true;
+    }
+    return false;
 }
 
 }
@@ -88,7 +92,7 @@ ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::finiteL
 ImageSequenceAuthoredAnimationFacts ImageSequenceAuthoredAnimationFacts::infiniteLoop()
 {
     ImageSequenceAuthoredAnimationFacts facts;
-    facts.m_loopMode = LoopMode::Infinite;
+    facts.m_loopMode = ImageSequenceAuthoredAnimationLoopMode::Infinite;
     facts.m_loopCount = -1;
     return facts;
 }
@@ -108,7 +112,7 @@ void ImageSequenceAuthoredAnimationFacts::setProgressiveAnimationReadiness(
     m_progressiveAnimationReadiness = progressiveAnimationReadiness;
 }
 
-ImageSequenceAuthoredAnimationFacts::LoopMode ImageSequenceAuthoredAnimationFacts::loopMode() const
+ImageSequenceAuthoredAnimationLoopMode ImageSequenceAuthoredAnimationFacts::loopMode() const
 {
     return m_loopMode;
 }
@@ -117,13 +121,28 @@ int ImageSequenceAuthoredAnimationFacts::loopCount() const { return m_loopCount;
 
 bool ImageSequenceAuthoredAnimationFacts::setFiniteLoopCount(int loopCount)
 {
-    if (loopCount < 1) {
+    if (loopCount < 2) {
         return false;
     }
 
-    m_loopMode = LoopMode::Finite;
+    m_loopMode = ImageSequenceAuthoredAnimationLoopMode::Finite;
     m_loopCount = loopCount;
     return true;
+}
+
+bool ImageSequenceAuthoredAnimationFacts::isValid() const
+{
+    switch (m_loopMode) {
+    case ImageSequenceAuthoredAnimationLoopMode::Unavailable:
+        return m_loopCount == -1;
+    case ImageSequenceAuthoredAnimationLoopMode::PlayOnce:
+        return m_loopCount == 1;
+    case ImageSequenceAuthoredAnimationLoopMode::Finite:
+        return m_loopCount >= 2;
+    case ImageSequenceAuthoredAnimationLoopMode::Infinite:
+        return m_loopCount == -1;
+    }
+    return false;
 }
 
 std::unique_ptr<ImageSequenceData> ImageSequenceData::still(
@@ -330,7 +349,7 @@ FramePayloadFacts ImageSequencePrivateAccess::framePayloadFacts(
     return { logicalSize, rasterSize,
         QSizeF(
             rasterSize.width() / logicalSize.width(), rasterSize.height() / logicalSize.height()),
-        ImageViewport::PayloadQuality::Exact, ImageViewport::PayloadExactness::ExactForSource, {} };
+        ImageViewportPayloadQuality::Exact, ImageViewportPayloadExactness::ExactForSource, {} };
 }
 
 TimingIntervals ImageSequencePrivateAccess::timingIntervals(const ImageSequence* sequence)
@@ -426,40 +445,47 @@ ImageFrame::ImageFrame(const QImage& image, OrientationPolicy orientationPolicy,
     : QObject(parent)
 {
     const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
-    const ImageSequenceProviderFrameEnvelope envelope
-        = exactEnvelopeForImage(normalizedImage, orientationPolicy, normalizedImage.sizeInBytes());
-    if (envelopeMatchesPayload(normalizedImage, envelope)
-        && isPositiveFiniteInteger(envelope.sourceLogicalSize().width())
-        && isPositiveFiniteInteger(envelope.sourceLogicalSize().height())) {
-        m_logicalSize = envelope.sourceLogicalSize();
-        m_payloadByteSize = envelope.payloadByteSize();
-        m_payloadRasterSize = envelope.payloadRasterSize();
-        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
-        m_hasAlphaChannel = envelope.hasAlpha();
-        m_orientationPolicy = envelope.orientationPolicy();
-        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
-        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
+    const QSizeF logicalSize = normalizedImage.deviceIndependentSize();
+    if (!normalizedImage.isNull() && isPositiveFiniteInteger(logicalSize.width())
+        && isPositiveFiniteInteger(logicalSize.height())) {
+        m_logicalSize = logicalSize;
+        m_payloadByteSize = normalizedImage.sizeInBytes();
+        m_payloadRasterSize = QSizeF(normalizedImage.size());
+        m_sourceToPayloadScale = scaleFor(logicalSize, normalizedImage.size());
+        m_quality = ImageViewportPayloadQuality::Exact;
+        m_exactness = ImageViewportPayloadExactness::ExactForSource;
+        m_hasAlpha = normalizedImage.hasAlphaChannel();
+        m_orientationPolicy = orientationPolicy;
+        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
             m_image = normalizedImage.copy();
         }
     }
 }
 
-ImageFrame::ImageFrame(
-    const QImage& image, const ImageSequenceProviderFrameEnvelope& envelope, QObject* parent)
+ImageFrame::ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
+    QSizeF sourceToPayloadScale, qint64 payloadByteSize, ImageViewportPayloadQuality quality,
+    ImageViewportPayloadExactness exactness, bool hasAlpha, OrientationPolicy orientationPolicy,
+    QString formatIdentifier, QObject* parent)
     : QObject(parent)
 {
-    if (envelopeMatchesPayload(image, envelope)
-        && isPositiveFiniteInteger(envelope.sourceLogicalSize().width())
-        && isPositiveFiniteInteger(envelope.sourceLogicalSize().height())) {
-        m_logicalSize = envelope.sourceLogicalSize();
-        m_payloadByteSize = envelope.payloadByteSize();
-        m_payloadRasterSize = envelope.payloadRasterSize();
-        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
-        m_hasAlphaChannel = envelope.hasAlpha();
-        m_orientationPolicy = envelope.orientationPolicy();
-        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
-        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytesPerFrame()) {
-            m_image = image.copy();
+    const QImage normalizedImage = normalizedImageForOrientation(image, orientationPolicy);
+    const bool exactPair = (quality == ImageViewportPayloadQuality::Exact)
+        == (exactness == ImageViewportPayloadExactness::ExactForSource);
+    if (payloadFactsMatchImage(normalizedImage, sourceLogicalSize, payloadRasterSize,
+            sourceToPayloadScale, payloadByteSize)
+        && exactPair && hasAlpha == normalizedImage.hasAlphaChannel()
+        && isValidOrientationPolicy(orientationPolicy)) {
+        m_logicalSize = sourceLogicalSize;
+        m_payloadByteSize = payloadByteSize;
+        m_payloadRasterSize = payloadRasterSize;
+        m_sourceToPayloadScale = sourceToPayloadScale;
+        m_quality = quality;
+        m_exactness = exactness;
+        m_hasAlpha = hasAlpha;
+        m_orientationPolicy = orientationPolicy;
+        m_formatIdentifier = std::move(formatIdentifier);
+        if (m_payloadByteSize <= ImageSequenceLimits::maximumPayloadBytes()) {
+            m_image = normalizedImage.copy();
         }
     }
 }
@@ -470,14 +496,13 @@ ImageFrame::ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, Q
     const QSizeF logicalSize = image.deviceIndependentSize();
     if (!image.isNull() && isPositiveFiniteInteger(logicalSize.width())
         && isPositiveFiniteInteger(logicalSize.height())) {
-        const ImageSequenceProviderFrameEnvelope envelope
-            = exactEnvelopeForImage(image, OrientationPolicy::Identity, payloadByteSizeOverride);
         m_logicalSize = logicalSize;
         m_payloadByteSize = payloadByteSizeOverride;
-        m_payloadRasterSize = envelope.payloadRasterSize();
-        m_sourceToPayloadScale = envelope.sourceToPayloadScale();
-        m_hasAlphaChannel = image.hasAlphaChannel();
-        m_envelope = std::make_shared<ImageSequenceProviderFrameEnvelope>(envelope);
+        m_payloadRasterSize = QSizeF(image.size());
+        m_sourceToPayloadScale = scaleFor(logicalSize, image.size());
+        m_quality = ImageViewportPayloadQuality::Exact;
+        m_exactness = ImageViewportPayloadExactness::ExactForSource;
+        m_hasAlpha = image.hasAlphaChannel();
         m_image = image.copy();
     }
 }
@@ -487,7 +512,7 @@ bool ImageFrame::isValid() const
     return m_logicalSize.isValid() && m_logicalSize.width() > 0.0 && m_logicalSize.height() > 0.0;
 }
 
-QSizeF ImageFrame::logicalSize() const { return m_logicalSize; }
+QSizeF ImageFrame::sourceLogicalSize() const { return m_logicalSize; }
 
 qint64 ImageFrame::payloadByteSize() const { return m_payloadByteSize; }
 
@@ -495,16 +520,48 @@ QSizeF ImageFrame::payloadRasterSize() const { return m_payloadRasterSize; }
 
 QSizeF ImageFrame::sourceToPayloadScale() const { return m_sourceToPayloadScale; }
 
-ImageSequenceProviderFrameEnvelope ImageFrame::envelope() const
-{
-    return m_envelope ? *m_envelope : ImageSequenceProviderFrameEnvelope {};
-}
+ImageViewportPayloadQuality ImageFrame::quality() const { return m_quality; }
 
-bool ImageFrame::hasAlphaChannel() const { return m_hasAlphaChannel; }
+ImageViewportPayloadExactness ImageFrame::exactness() const { return m_exactness; }
+
+bool ImageFrame::hasAlpha() const { return m_hasAlpha; }
 
 ImageFrame::OrientationPolicy ImageFrame::orientationPolicy() const { return m_orientationPolicy; }
 
+QString ImageFrame::formatIdentifier() const { return m_formatIdentifier; }
+
 const QImage& ImageFrame::imagePayload() const { return m_image; }
+
+TimedImageFrame::TimedImageFrame(ImageFrame* frame, int startPosition, int duration)
+    : m_startPosition(startPosition)
+    , m_duration(duration)
+{
+    if (!frame) {
+        return;
+    }
+    m_frame = std::make_shared<ImageFrame>();
+    m_frame->m_image = frame->m_image;
+    m_frame->m_logicalSize = frame->m_logicalSize;
+    m_frame->m_payloadByteSize = frame->m_payloadByteSize;
+    m_frame->m_payloadRasterSize = frame->m_payloadRasterSize;
+    m_frame->m_sourceToPayloadScale = frame->m_sourceToPayloadScale;
+    m_frame->m_quality = frame->m_quality;
+    m_frame->m_exactness = frame->m_exactness;
+    m_frame->m_hasAlpha = frame->m_hasAlpha;
+    m_frame->m_orientationPolicy = frame->m_orientationPolicy;
+    m_frame->m_formatIdentifier = frame->m_formatIdentifier;
+}
+
+ImageFrame* TimedImageFrame::frame() const { return m_frame.get(); }
+
+int TimedImageFrame::startPosition() const { return m_startPosition; }
+
+int TimedImageFrame::duration() const { return m_duration; }
+
+bool TimedImageFrame::isValid() const
+{
+    return m_frame && m_frame->isValid() && m_startPosition >= 0 && m_duration > 0;
+}
 
 ImageSequenceProviderFrameHandle::ImageSequenceProviderFrameHandle(
     std::unique_ptr<ImageFrame> frame, QObject* parent)
@@ -555,9 +612,27 @@ TimedImageFrameList::TimedImageFrameList(QObject* parent)
 
 int TimedImageFrameList::count() const { return m_frameDurations.size(); }
 
+QList<TimedImageFrame> TimedImageFrameList::frames() const { return m_frames; }
+
 QString TimedImageFrameList::errorString() const { return m_errorString; }
 
-QString TimedImageFrameList::warningString() const { return m_warningString; }
+bool TimedImageFrameList::autoplay() const { return m_authoredAnimationFacts.autoplay(); }
+
+void TimedImageFrameList::setAutoplay(bool autoplay)
+{
+    if (m_authoredAnimationFacts.autoplay() == autoplay) {
+        return;
+    }
+    m_authoredAnimationFacts.setAutoplay(autoplay);
+    emit animationFactsChanged();
+}
+
+ImageSequenceAuthoredAnimationLoopMode TimedImageFrameList::loopMode() const
+{
+    return m_authoredAnimationFacts.loopMode();
+}
+
+int TimedImageFrameList::loopCount() const { return m_authoredAnimationFacts.loopCount(); }
 
 ImageSequenceAuthoredAnimationFacts TimedImageFrameList::authoredAnimationFacts() const
 {
@@ -567,7 +642,15 @@ ImageSequenceAuthoredAnimationFacts TimedImageFrameList::authoredAnimationFacts(
 void TimedImageFrameList::setAuthoredAnimationFacts(
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts)
 {
+    if (m_authoredAnimationFacts.loopMode() == authoredAnimationFacts.loopMode()
+        && m_authoredAnimationFacts.loopCount() == authoredAnimationFacts.loopCount()
+        && m_authoredAnimationFacts.autoplay() == authoredAnimationFacts.autoplay()
+        && m_authoredAnimationFacts.progressiveAnimationReadiness()
+            == authoredAnimationFacts.progressiveAnimationReadiness()) {
+        return;
+    }
     m_authoredAnimationFacts = authoredAnimationFacts;
+    emit animationFactsChanged();
 }
 
 bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseconds)
@@ -578,6 +661,13 @@ bool TimedImageFrameList::appendFrame(const QImage& image, int durationMilliseco
 
 bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMilliseconds)
 {
+    return appendFrame(TimedImageFrame(frame, totalDuration(), durationMilliseconds));
+}
+
+bool TimedImageFrameList::appendFrame(const TimedImageFrame& timedFrame)
+{
+    ImageFrame* frame = timedFrame.frame();
+    const int durationMilliseconds = timedFrame.duration();
     if (!frame || !frame->isValid()) {
         setErrorString(QStringLiteral("ImageFrame is required"));
         return false;
@@ -586,12 +676,16 @@ bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMillisecond
         setErrorString(QStringLiteral("frame duration must be positive"));
         return false;
     }
-    if (durationMilliseconds > ImageSequenceLimits::maximumFrameDuration()) {
-        setErrorString(QStringLiteral("frame duration exceeds maximumFrameDuration"));
+    if (timedFrame.startPosition() != totalDuration()) {
+        setErrorString(QStringLiteral("timed frames must form contiguous intervals"));
         return false;
     }
-    if (m_frameDurations.size() >= ImageSequenceLimits::maximumTimedListFrameCount()) {
-        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTimedListFrameCount"));
+    if (durationMilliseconds > ImageSequenceLimits::maximumFrameDurationMilliseconds()) {
+        setErrorString(QStringLiteral("frame duration exceeds maximumFrameDurationMilliseconds"));
+        return false;
+    }
+    if (m_frameDurations.size() >= ImageSequenceLimits::maximumFrameCount()) {
+        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumFrameCount"));
         return false;
     }
 
@@ -602,20 +696,22 @@ bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMillisecond
     }
 
     if (!m_logicalSize.isValid()) {
-        m_logicalSize = frame->logicalSize();
-    } else if (m_logicalSize != frame->logicalSize()) {
+        m_logicalSize = frame->sourceLogicalSize();
+    } else if (m_logicalSize != frame->sourceLogicalSize()) {
         setErrorString(QStringLiteral("frame logical size must match the timed list logical size"));
         return false;
     }
 
     if (static_cast<qint64>(totalDuration()) + durationMilliseconds
-        > ImageSequenceLimits::maximumTotalSequenceDuration()) {
-        setErrorString(QStringLiteral("TimedImageFrameList exceeds maximumTotalSequenceDuration"));
+        > ImageSequenceLimits::maximumTotalDurationMilliseconds()) {
+        setErrorString(
+            QStringLiteral("TimedImageFrameList exceeds maximumTotalDurationMilliseconds"));
         return false;
     }
 
     m_frameDurations.append(durationMilliseconds);
     m_images.append(frame->imagePayload());
+    m_frames.append(timedFrame);
     if (!m_errorString.isEmpty()) {
         m_errorString.clear();
         emit diagnosticsChanged();
@@ -626,18 +722,17 @@ bool TimedImageFrameList::appendFrame(ImageFrame* frame, int durationMillisecond
 
 void TimedImageFrameList::clear()
 {
-    if (m_frameDurations.isEmpty() && m_errorString.isEmpty() && m_warningString.isEmpty()) {
+    if (m_frameDurations.isEmpty() && m_errorString.isEmpty()) {
         return;
     }
 
     const bool shouldEmitCountChanged = !m_frameDurations.isEmpty();
-    const bool shouldEmitDiagnosticsChanged
-        = !m_errorString.isEmpty() || !m_warningString.isEmpty();
+    const bool shouldEmitDiagnosticsChanged = !m_errorString.isEmpty();
     m_logicalSize = {};
     m_frameDurations.clear();
     m_images.clear();
+    m_frames.clear();
     m_errorString.clear();
-    m_warningString.clear();
     if (shouldEmitCountChanged) {
         emit countChanged();
     }

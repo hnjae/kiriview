@@ -193,14 +193,14 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "containsVisibleImagePoint(double,double)",
         "itemToSpread(double,double)",
         "spreadToItem(double,double)",
-        "itemToPage(ImageViewport::PageRole,double,double)",
-        "pageToItem(ImageViewport::PageRole,double,double)",
-        "pageGeometry(ImageViewport::PageRole)",
+        "itemToPage(ImageViewportPageRole,double,double)",
+        "pageToItem(ImageViewportPageRole,double,double)",
+        "pageGeometry(ImageViewportPageRole)",
         "nearestVisibleSpreadPoint(double,double)",
-        "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
+        "nearestVisiblePagePoint(ImageViewportPageRole,double,double)",
         "nearestVisiblePoint(ImageViewportCoordinateInput)",
         "containsVisibleSpreadPoint(double,double)",
-        "containsVisiblePagePoint(ImageViewport::PageRole,double,double)",
+        "containsVisiblePagePoint(ImageViewportPageRole,double,double)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
         "setPageGap(double)",
         "setFitMode(ImageViewport::FitMode,QPointF)",
@@ -254,7 +254,6 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "DisplayStatus",
         "DisplayPhase",
         "PlaybackPhase",
-        "CapabilitySupport",
         "CommandOutcome",
         "BackgroundMode",
         "CoordinateSpace",
@@ -264,6 +263,8 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         QVERIFY2(
             metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
     }
+
+    QVERIFY(ImageViewportEnums::staticMetaObject.indexOfEnumerator("CapabilitySupport") >= 0);
 
     verifyEnumValues(
         metaObject, "RequestStatus", { "NoRequest", "Loading", "Ready", "Unsupported", "Error" });
@@ -277,7 +278,8 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     verifyEnumValues(metaObject, "DisplayPhase",
         { "NoPresentation", "PreviousActive", "TransitioningPlaceholder", "CommittedActive" });
     verifyEnumValues(metaObject, "PlaybackPhase", { "Stopped", "Playing", "Waiting", "Paused" });
-    verifyEnumValues(metaObject, "CapabilitySupport", { "Unavailable", "False", "True" });
+    verifyEnumValues(&ImageViewportEnums::staticMetaObject, "CapabilitySupport",
+        { "Unavailable", "False", "True" });
     verifyEnumValues(
         metaObject, "CommandOutcome", { "Accepted", "Invalid", "Unsupported", "IgnoredNoRequest" });
     verifyEnumValues(metaObject, "BackgroundMode", { "Transparent", "SolidColor", "Checkerboard" });
@@ -300,11 +302,11 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     const QList<QByteArray> presentMethods = {
         "clear()",
         "resetView()",
-        "play(ImageViewport::PageRole)",
-        "pause(ImageViewport::PageRole)",
-        "stop(ImageViewport::PageRole)",
-        "seek(ImageViewport::PageRole,int)",
-        "seekToPosition(ImageViewport::PageRole,int)",
+        "play(ImageViewportPageRole)",
+        "pause(ImageViewportPageRole)",
+        "stop(ImageViewportPageRole)",
+        "seek(ImageViewportPageRole,int)",
+        "seekToPosition(ImageViewportPageRole,int)",
         "mapPoint(ImageViewportCoordinateInput)",
         "containsPoint(ImageViewportCoordinateInput)",
     };
@@ -347,7 +349,6 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
     }
 
     const QList<QByteArray> enumerators = {
-        "PageRole",
         "SpreadDirection",
         "FitMode",
         "ScanDirection",
@@ -358,7 +359,7 @@ void ImageViewportPublicApiTest::exposesFinalApiScaffold()
             metaObject->indexOfEnumerator(enumerator.constData()) >= 0, enumerator.constData());
     }
 
-    verifyEnumValues(metaObject, "PageRole", { "Primary", "Secondary" });
+    verifyEnumValues(&ImageViewportEnums::staticMetaObject, "PageRole", { "Primary", "Secondary" });
     verifyEnumValues(metaObject, "SpreadDirection", { "LeftToRight", "RightToLeft" });
     verifyEnumValues(metaObject, "FitMode", { "Contain", "FitWidth", "FitHeight", "Manual" });
     verifyEnumValues(metaObject, "ScanDirection", { "Start", "Previous", "Next", "End" });
@@ -509,17 +510,16 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(primaryFrameSeekBounds(item).maximum(), -1);
     QCOMPARE(primaryPositionSeekBounds(item).minimum(), -1);
     QCOMPARE(primaryPositionSeekBounds(item).maximum(), -1);
-    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewport::CapabilitySupport::Unavailable);
-    QCOMPARE(primaryFrameSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
-    QCOMPARE(primaryPositionSeekSupport(item), ImageViewport::CapabilitySupport::Unavailable);
+    QCOMPARE(primaryTimedPlaybackSupport(item), ImageViewportCapabilitySupport::Unavailable);
+    QCOMPARE(primaryFrameSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
+    QCOMPARE(primaryPositionSeekSupport(item), ImageViewportCapabilitySupport::Unavailable);
     QCOMPARE(item.state().primary().display().sourceLogicalSize(), QSizeF());
     QCOMPARE(item.state().display().contentRect(), QRectF());
     QCOMPARE(item.state().primary().geometry().displayedVisiblePageRect(), QRectF());
     verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(mapItemToSpread(item, 1.0, 1.0));
-    verifyInvalidCoordinateResult(
-        mapSpreadToPage(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
+    verifyInvalidCoordinateResult(mapSpreadToPage(item, ImageViewportPageRole::Primary, 1.0, 1.0));
     QCOMPARE(containsPrimaryPagePoint(item, 1.0, 1.0), false);
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());

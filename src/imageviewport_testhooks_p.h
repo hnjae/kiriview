@@ -16,10 +16,10 @@ using ProviderSchedulerDiagnosticForTest = ImageViewportInternal::ProviderSchedu
 void advancePlaybackForTest(ImageViewport& item, int elapsedMilliseconds);
 void setNextProviderRequestTokenForTest(ImageViewport& item, quint64 token);
 void setNextProviderRequestTokenForTest(
-    ImageViewport& item, ImageViewport::PageRole role, quint64 token);
+    ImageViewport& item, ImageViewportPageRole role, quint64 token);
 void setNextRevisionTokenForTest(ImageViewport& item, quint64 token);
-void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewport::PageRole role);
-void failNextProviderQueueFlushSchedulingForTest(ImageViewport& item, ImageViewport::PageRole role);
+void failNextProviderCommandDeliveryForTest(ImageViewport& item, ImageViewportPageRole role);
+void failNextProviderQueueFlushSchedulingForTest(ImageViewport& item, ImageViewportPageRole role);
 void useSynchronousProviderExecutorForTest(ImageViewport& item);
 void useSynchronousProviderEventDeliveryForTest(ImageViewport& item);
 void useSynchronousProviderQueueFlushSchedulerForTest(ImageViewport& item);
@@ -40,9 +40,9 @@ void acknowledgeRenderCommitForTest(ImageViewport& item, quint64 generation, qui
     quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId);
 void acknowledgeRenderFailureForTest(
     ImageViewport& item, quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewportPageRole failedRole,
     quint64 generation, quint64 requestId, quint64 preparedPayloadId);
-void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewport::PageRole failedRole,
+void acknowledgeRenderFailureForTest(ImageViewport& item, ImageViewportPageRole failedRole,
     quint64 generation, quint64 requestId, quint64 preparedPayloadId, RenderFailureCause cause);
 RenderFailureDiagnosticForTest lastAcceptedRenderFailureDiagnosticForTest(
     const ImageViewport& item);

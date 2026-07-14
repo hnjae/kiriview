@@ -15,17 +15,17 @@ inline bool payloadMatches(PreparedPayloadIdentity actual, PreparedPayloadIdenti
         && actual.requestId == expected.requestId && actual.payloadId == expected.payloadId;
 }
 inline PreparedPayloadIdentity acknowledgedPayload(
-    const ViewportRenderAcknowledgement& acknowledgement, ImageViewport::PageRole role)
+    const ViewportRenderAcknowledgement& acknowledgement, ImageViewportPageRole role)
 {
     for (const auto& payload : acknowledgement.rolePayloads)
         if (payload.role == role) return payload.preparedPayload;
-    return role == ImageViewport::PageRole::Primary ? acknowledgement.preparedPayload
+    return role == ImageViewportPageRole::Primary ? acknowledgement.preparedPayload
                                                     : PreparedPayloadIdentity {};
 }
 inline PreparedPayloadIdentity expectedPayload(
-    const DisplayState& display, const RequestState& request, ImageViewport::PageRole role)
+    const DisplayState& display, const RequestState& request, ImageViewportPageRole role)
 {
-    if (role == ImageViewport::PageRole::Primary) return display.roles[0].pendingRenderPayload.identity();
+    if (role == ImageViewportPageRole::Primary) return display.roles[0].pendingRenderPayload.identity();
     if (!hasSecondary(request)) return {};
     const auto secondary = display.roles[1].pendingRenderPayload.identity();
     return secondary.isValid() ? secondary : display.roles[0].pendingRenderPayload.identity();
@@ -33,7 +33,7 @@ inline PreparedPayloadIdentity expectedPayload(
 inline bool primaryMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
-    const auto actual = acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Primary);
+    const auto actual = acknowledgedPayload(acknowledgement, ImageViewportPageRole::Primary);
     return display.roles[0].pendingRenderPayload.commitPending
         && payloadMatches(actual, display.roles[0].pendingRenderPayload.identity())
         && request.activeRequestOwnsPreparedPayload(actual);
@@ -43,13 +43,13 @@ inline bool completeMatches(const DisplayState& display, const RequestState& req
 {
     return primaryMatches(display, request, acknowledgement)
         && (!hasSecondary(request) || payloadMatches(
-            acknowledgedPayload(acknowledgement, ImageViewport::PageRole::Secondary),
-            expectedPayload(display, request, ImageViewport::PageRole::Secondary)));
+            acknowledgedPayload(acknowledgement, ImageViewportPageRole::Secondary),
+            expectedPayload(display, request, ImageViewportPageRole::Secondary)));
 }
 inline bool failureMatches(const DisplayState& display, const RequestState& request,
     const ViewportRenderAcknowledgement& acknowledgement)
 {
-    if (acknowledgement.failedRole == ImageViewport::PageRole::Primary)
+    if (acknowledgement.failedRole == ImageViewportPageRole::Primary)
         return primaryMatches(display, request, acknowledgement);
     return hasSecondary(request)
         && payloadMatches(acknowledgedPayload(acknowledgement, acknowledgement.failedRole),

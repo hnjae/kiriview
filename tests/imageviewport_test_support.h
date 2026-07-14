@@ -173,28 +173,28 @@ ImageViewportCoordinateResult mapSpreadToItem(const ImageViewport& item, double 
 }
 
 ImageViewportCoordinateResult mapItemToPage(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+    const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
         ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapPageToItem(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+    const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
         ImageViewport::CoordinateSpace::Item, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapSpreadToPage(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+    const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
         ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapPageToSpread(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+    const ImageViewport& item, ImageViewportPageRole role, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
         ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(x, y), QVariant::fromValue(role)));
@@ -203,20 +203,20 @@ ImageViewportCoordinateResult mapPageToSpread(
 ImageViewportCoordinateResult mapItemToPrimaryPage(
     const ImageViewport& item, double x, double y)
 {
-    return mapItemToPage(item, ImageViewport::PageRole::Primary, x, y);
+    return mapItemToPage(item, ImageViewportPageRole::Primary, x, y);
 }
 
 ImageViewportCoordinateResult mapPrimaryPageToItem(
     const ImageViewport& item, double x, double y)
 {
-    return mapPageToItem(item, ImageViewport::PageRole::Primary, x, y);
+    return mapPageToItem(item, ImageViewportPageRole::Primary, x, y);
 }
 
 bool containsPrimaryPagePoint(const ImageViewport& item, double x, double y)
 {
     return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
         ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y),
-        QVariant::fromValue(ImageViewport::PageRole::Primary)));
+        QVariant::fromValue(ImageViewportPageRole::Primary)));
 }
 
 ImageViewportRevisionToken viewportRequestRevision(const ImageViewport& item)
@@ -377,32 +377,32 @@ ImageViewportRange secondaryPositionSeekBounds(const ImageViewport& item)
     return item.state().secondary().metadata().positionSeekBounds();
 }
 
-ImageViewport::CapabilitySupport primaryTimedPlaybackSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport primaryTimedPlaybackSupport(const ImageViewport& item)
 {
     return item.state().primary().metadata().timedPlaybackSupport();
 }
 
-ImageViewport::CapabilitySupport secondaryTimedPlaybackSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport secondaryTimedPlaybackSupport(const ImageViewport& item)
 {
     return item.state().secondary().metadata().timedPlaybackSupport();
 }
 
-ImageViewport::CapabilitySupport primaryFrameSeekSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport primaryFrameSeekSupport(const ImageViewport& item)
 {
     return item.state().primary().metadata().frameSeekSupport();
 }
 
-ImageViewport::CapabilitySupport secondaryFrameSeekSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport secondaryFrameSeekSupport(const ImageViewport& item)
 {
     return item.state().secondary().metadata().frameSeekSupport();
 }
 
-ImageViewport::CapabilitySupport primaryPositionSeekSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport primaryPositionSeekSupport(const ImageViewport& item)
 {
     return item.state().primary().metadata().positionSeekSupport();
 }
 
-ImageViewport::CapabilitySupport secondaryPositionSeekSupport(const ImageViewport& item)
+ImageViewportCapabilitySupport secondaryPositionSeekSupport(const ImageViewport& item)
 {
     return item.state().secondary().metadata().positionSeekSupport();
 }

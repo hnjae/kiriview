@@ -31,15 +31,15 @@ struct MetadataTargetRejection
 };
 
 ProviderRoleState& providerFor(
-    std::array<ViewportEngineRoleState, 2>& roles, ImageViewport::PageRole role)
+    std::array<ViewportEngineRoleState, 2>& roles, ImageViewportPageRole role)
 {
-    return roles[role == ImageViewport::PageRole::Secondary ? 1U : 0U].provider;
+    return roles[role == ImageViewportPageRole::Secondary ? 1U : 0U].provider;
 }
 
-DisplayRequest& requestForRole(RequestState& request, ImageViewport::PageRole role)
+DisplayRequest& requestForRole(RequestState& request, ImageViewportPageRole role)
 {
-    return role == ImageViewport::PageRole::Secondary ? request.roles[1].activeRequest
-                                                      : request.roles[0].activeRequest;
+    return role == ImageViewportPageRole::Secondary ? request.roles[1].activeRequest
+                                                    : request.roles[0].activeRequest;
 }
 
 bool terminalMatchesActiveRequest(const RequestState& request)
@@ -70,7 +70,7 @@ void updatePlaybackPhase(
 }
 
 ViewportProviderFrameRequestStartResult
-ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewport::PageRole role,
+ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewportPageRole role,
     ImageViewportInternal::DisplayRequestTarget target, const ViewportEngineGeometryInput& geometry)
 {
     ViewportEngineProviderFrameRequestAccess access(m_request, m_playback, m_display, m_roles,
@@ -79,7 +79,7 @@ ViewportEngineProviderMetadataReadyAccess::startFrameRequest(ImageViewport::Page
 }
 
 ViewportProviderFrameTransportEffect ViewportEngineProviderMetadataReadyAccess::closeSession(
-    ImageViewport::PageRole role)
+    ImageViewportPageRole role)
 {
     auto& provider = providerFor(m_roles, role);
     ViewportEngineProviderSessionCloseAccess access(provider.session, provider.requests);
@@ -104,7 +104,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     }
 
     auto& provider = providerFor(access.m_roles, input.role);
-    const bool providerPresent = input.role == ImageViewport::PageRole::Primary
+    const bool providerPresent = input.role == ImageViewportPageRole::Primary
         ? access.m_request.roles[0].source.facts.provider
         : access.m_request.roles[1].sequence && access.m_request.roles[1].provider;
     if (!providerPresent || !provider.session.sessionActive
@@ -129,16 +129,16 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         rejectMetadata(admission.diagnostic);
         return result;
     }
-    const auto& source = input.role == ImageViewport::PageRole::Secondary
+    const auto& source = input.role == ImageViewportPageRole::Secondary
         ? access.m_request.roles[1].source
         : access.m_request.roles[0].source;
     const auto& sourceFacts = source.facts;
-    if (providerCapabilityContradictsMetadata(
-            sourceFacts.providerTimedPlaybackCapability, input.metadata.timedPlaybackSupport())
-        || providerCapabilityContradictsMetadata(
-            sourceFacts.providerFrameSeekCapability, input.metadata.frameSeekSupport())
-        || providerCapabilityContradictsMetadata(
-            sourceFacts.providerPositionSeekCapability, input.metadata.positionSeekSupport())) {
+    if (providerCapabilityContradictsMetadata(sourceFacts.providerTimedPlaybackCapability,
+            input.metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True)
+        || providerCapabilityContradictsMetadata(sourceFacts.providerFrameSeekCapability,
+            input.metadata.frameSeekSupport() == ImageViewportCapabilitySupport::True)
+        || providerCapabilityContradictsMetadata(sourceFacts.providerPositionSeekCapability,
+            input.metadata.positionSeekSupport() == ImageViewportCapabilitySupport::True)) {
         rejectMetadata(
             QStringLiteral("provider metadata contradicts construction-time capabilities"));
         return result;
@@ -149,8 +149,10 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     }
 
     const AcceptedMetadataFacts facts { admission.timedMetadata,
-        input.metadata.timedPlaybackSupport(), input.metadata.frameSeekSupport(),
-        input.metadata.positionSeekSupport(), admission.logicalSize, admission.timingIntervals,
+        input.metadata.timedPlaybackSupport() == ImageViewportCapabilitySupport::True,
+        input.metadata.frameSeekSupport() == ImageViewportCapabilitySupport::True,
+        input.metadata.positionSeekSupport() == ImageViewportCapabilitySupport::True,
+        admission.logicalSize, admission.timingIntervals,
         input.metadata.hasAuthoredAnimationFacts() ? input.metadata.authoredAnimationFacts()
                                                    : sourceFacts.authoredAnimationFacts };
     provider.facts.metadataReady = true;
@@ -161,7 +163,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     provider.facts.logicalSize = facts.logicalSize;
     provider.facts.timingIntervals = facts.timingIntervals;
     provider.facts.authoredAnimationFacts = facts.authoredAnimationFacts;
-    if (input.role == ImageViewport::PageRole::Secondary) {
+    if (input.role == ImageViewportPageRole::Secondary) {
         result.changes.requestState = true;
         result.changes.requestRevision = true;
     }
@@ -188,7 +190,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
     };
 
     ViewportEngineGeometryInput acceptedGeometry = input.geometry;
-    if (input.role == ImageViewport::PageRole::Primary) {
+    if (input.role == ImageViewportPageRole::Primary) {
         acceptedGeometry.primaryPresent = true;
         acceptedGeometry.primarySize = facts.logicalSize;
     } else {
@@ -197,7 +199,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
 
     const int frameCount = facts.timedMetadata ? facts.timingIntervals.frameCount() : 1;
     DisplayRequestTarget target;
-    if (input.role == ImageViewport::PageRole::Primary) {
+    if (input.role == ImageViewportPageRole::Primary) {
         const auto request = access.m_request.roles[0].activeRequest;
         const bool playback = access.m_playback.providerStartPending
             && request.target.providerTargetKind == ProviderRequestTargetKind::Playback;
@@ -290,7 +292,7 @@ ViewportEngineProviderMetadataReadyReduction reduceViewportEngineProviderMetadat
         }
     }
 
-    if (input.role == ImageViewport::PageRole::Primary) {
+    if (input.role == ImageViewportPageRole::Primary) {
         access.m_display.clearPendingRenderPayload();
         access.m_display.clearRenderFailureRetainedDisplay();
     }

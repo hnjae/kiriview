@@ -85,12 +85,12 @@ QRectF secondaryPageRectForState(const PresentationGeometry::State& state)
         QPointF(state.primaryImageSize.width() + state.pageGap, 0.0), state.secondaryImageSize);
 }
 
-QRectF pageRectForRole(const PresentationGeometry::State& state, ImageViewport::PageRole role)
+QRectF pageRectForRole(const PresentationGeometry::State& state, ImageViewportPageRole role)
 {
     switch (role) {
-    case ImageViewport::PageRole::Primary:
+    case ImageViewportPageRole::Primary:
         return primaryPageRectForState(state);
-    case ImageViewport::PageRole::Secondary:
+    case ImageViewportPageRole::Secondary:
         return secondaryPageRectForState(state);
     }
     return {};
@@ -364,7 +364,7 @@ QRectF visibleSpreadRectForState(const PresentationGeometry::State& state)
 }
 
 QRectF visiblePageRectForState(
-    const PresentationGeometry::State& state, ImageViewport::PageRole role)
+    const PresentationGeometry::State& state, ImageViewportPageRole role)
 {
     const QRectF pageRect = pageRectForRole(state, role);
     const QRectF visibleSpreadRect = visibleSpreadRectForState(state);
@@ -432,7 +432,7 @@ bool PresentationGeometry::verticalPannable(const State& state)
 
 QRectF PresentationGeometry::visibleImageRect(const State& state)
 {
-    return visiblePageRectForState(state, ImageViewport::PageRole::Primary);
+    return visiblePageRectForState(state, ImageViewportPageRole::Primary);
 }
 
 QRectF PresentationGeometry::visibleSpreadRect(const State& state)
@@ -440,12 +440,12 @@ QRectF PresentationGeometry::visibleSpreadRect(const State& state)
     return visibleSpreadRectForState(state);
 }
 
-QRectF PresentationGeometry::visiblePageRect(const State& state, ImageViewport::PageRole role)
+QRectF PresentationGeometry::visiblePageRect(const State& state, ImageViewportPageRole role)
 {
     return visiblePageRectForState(state, role);
 }
 
-QRectF PresentationGeometry::pageItemRect(const State& state, ImageViewport::PageRole role)
+QRectF PresentationGeometry::pageItemRect(const State& state, ImageViewportPageRole role)
 {
     return itemRectForSpreadRect(state, pageRectForRole(state, role));
 }
@@ -487,7 +487,7 @@ CoordinateResult PresentationGeometry::spreadToItem(const State& state, double x
 }
 
 CoordinateResult PresentationGeometry::itemToPage(
-    const State& state, ImageViewport::PageRole role, double x, double y)
+    const State& state, ImageViewportPageRole role, double x, double y)
 {
     const CoordinateResult spreadPoint = itemToSpread(state, x, y);
     if (!spreadPoint.isValid()) {
@@ -504,7 +504,7 @@ CoordinateResult PresentationGeometry::itemToPage(
 }
 
 CoordinateResult PresentationGeometry::pageToItem(
-    const State& state, ImageViewport::PageRole role, double x, double y)
+    const State& state, ImageViewportPageRole role, double x, double y)
 {
     if (!std::isfinite(x) || !std::isfinite(y)) {
         return invalidCoordinateResult();
@@ -520,7 +520,7 @@ CoordinateResult PresentationGeometry::pageToItem(
 }
 
 CoordinateResult PresentationGeometry::spreadToPage(
-    const State& state, ImageViewport::PageRole role, double x, double y)
+    const State& state, ImageViewportPageRole role, double x, double y)
 {
     if (!containsSpreadPoint(state, x, y)) {
         return invalidCoordinateResult();
@@ -535,7 +535,7 @@ CoordinateResult PresentationGeometry::spreadToPage(
 }
 
 CoordinateResult PresentationGeometry::pageToSpread(
-    const State& state, ImageViewport::PageRole role, double x, double y)
+    const State& state, ImageViewportPageRole role, double x, double y)
 {
     if (!containsPagePoint(state, role, x, y)) {
         return invalidCoordinateResult();
@@ -561,7 +561,7 @@ bool PresentationGeometry::containsSpreadPoint(const State& state, double x, dou
 }
 
 bool PresentationGeometry::containsPagePoint(
-    const State& state, ImageViewport::PageRole role, double x, double y)
+    const State& state, ImageViewportPageRole role, double x, double y)
 {
     if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
         return false;

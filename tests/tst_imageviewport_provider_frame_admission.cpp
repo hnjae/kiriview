@@ -366,7 +366,7 @@ void ImageViewportProviderFrameAdmissionTest::
         ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
     drainQueuedProviderResults();
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 1);
     QCOMPARE(requestReasonValue(item), enumValue(metaObject, "RequestReason", "RequestQueued"));
@@ -453,7 +453,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QVERIFY(viewportErrorString(item).contains(
         QStringLiteral("provider frame resolved frame mismatch")));
 
-    QCOMPARE(item.seekToPosition(ImageViewport::PageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seekToPosition(ImageViewportPageRole::Primary, 350).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
@@ -624,9 +624,9 @@ void ImageViewportProviderFrameAdmissionTest::
     drainQueuedProviderResults();
 
     uchar pixel = 0;
-    const qsizetype excessiveStride = ImageSequenceLimits::maximumPayloadBytesPerFrame() / 8 + 1;
+    const qsizetype excessiveStride = ImageSequenceLimits::maximumPayloadBytes() / 8 + 1;
     QImage image(&pixel, 16, 8, excessiveStride, QImage::Format_ARGB32_Premultiplied);
-    QVERIFY(image.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    QVERIFY(image.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytes());
     ImageFrame frame(image);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &frame, 0, 0);
 
@@ -635,7 +635,7 @@ void ImageViewportProviderFrameAdmissionTest::
     QCOMPARE(displayStatusValue(item), enumValue(metaObject, "DisplayStatus", "Empty"));
     QCOMPARE(primaryDisplayedFrame(item), -1);
     QVERIFY(viewportErrorString(item).contains(
-        QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
+        QStringLiteral("provider frame payload exceeds maximumPayloadBytes")));
 }
 
 void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGenerationFrameSeekable()
@@ -665,9 +665,9 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     drainQueuedProviderResults();
 
     uchar pixel = 0;
-    const qsizetype excessiveStride = ImageSequenceLimits::maximumPayloadBytesPerFrame() / 8 + 1;
+    const qsizetype excessiveStride = ImageSequenceLimits::maximumPayloadBytes() / 8 + 1;
     QImage excessiveImage(&pixel, 16, 8, excessiveStride, QImage::Format_ARGB32_Premultiplied);
-    QVERIFY(excessiveImage.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytesPerFrame());
+    QVERIFY(excessiveImage.sizeInBytes() > ImageSequenceLimits::maximumPayloadBytes());
     ImageFrame excessiveFrame(excessiveImage);
     emitTimedProviderFrameReady(sessionFactory->lastSession(), &excessiveFrame, 0, 0);
 
@@ -678,9 +678,9 @@ void ImageViewportProviderFrameAdmissionTest::providerPayloadLimitKeepsGeneratio
     QCOMPARE(primaryRequestedFrame(item), 0);
     QCOMPARE(primaryRequestedPosition(item), 0);
     QVERIFY(viewportErrorString(item).contains(
-        QStringLiteral("provider frame payload exceeds maximumPayloadBytesPerFrame")));
+        QStringLiteral("provider frame payload exceeds maximumPayloadBytes")));
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 1).outcome(), ImageViewport::CommandOutcome::Accepted);
 
     QCOMPARE(*frameRequestCount, 2);
     QCOMPARE(*lastRequestedFrame, 1);
@@ -820,7 +820,7 @@ void ImageViewportProviderFrameAdmissionTest::providerStaleOwnedFramePayloadRele
     const ImageSequenceProviderRequestToken staleToken
         = sessionFactory->lastSession()->lastFrameToken();
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, 0).outcome(), ImageViewport::CommandOutcome::Accepted);
     drainQueuedProviderResults();
     QCOMPARE(*frameRequestCount, 2);
     QVERIFY(staleToken != sessionFactory->lastSession()->lastFrameToken());

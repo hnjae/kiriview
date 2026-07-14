@@ -69,7 +69,7 @@ private:
     ImageSequenceProviderRequestToken m_lastPlaybackToken;
 };
 
-class AffinityProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class AffinityProviderSessionFactory final
 {
 public:
     explicit AffinityProviderSessionFactory(QThread* thread,
@@ -87,7 +87,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject*) override
+    ImageSequenceProviderSession* createSession(QObject*)
     {
         auto* session = new AffinityProviderSession(m_metadataRequestThread, m_frameRequestThread,
             m_playbackRequestThread, m_cancelRequestThread, m_closeThread);

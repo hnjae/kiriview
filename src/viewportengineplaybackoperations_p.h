@@ -61,7 +61,7 @@ private:
 
 struct ViewportEnginePlaybackPauseInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
 };
 
 struct ViewportEnginePlaybackPauseReduction
@@ -71,7 +71,7 @@ struct ViewportEnginePlaybackPauseReduction
 
 struct ViewportEnginePlaybackStopInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
 };
 
@@ -111,9 +111,9 @@ public:
 
 private:
     ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
     ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewport::PageRole role);
+        ImageViewportPageRole role);
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
@@ -128,7 +128,7 @@ private:
 struct ViewportEnginePlaybackSeekInput
 {
     ViewportPlaybackCommand::Kind kind = ViewportPlaybackCommand::Kind::SeekFrame;
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     int value = -1;
     ViewportEngineGeometryInput geometry;
 };
@@ -171,9 +171,9 @@ public:
 
 private:
     ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
     ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewport::PageRole role);
+        ImageViewportPageRole role);
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
@@ -187,7 +187,7 @@ private:
 
 struct ViewportEnginePlaybackPlayInput
 {
-    ImageViewport::PageRole role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ViewportEngineGeometryInput geometry;
 };
 
@@ -229,9 +229,9 @@ public:
 
 private:
     ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
     ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewport::PageRole role);
+        ImageViewportPageRole role);
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;
@@ -286,9 +286,9 @@ public:
 
 private:
     ImageSequenceProviderDisplayDemand providerDemand(
-        ImageViewport::PageRole role, const ViewportEngineGeometryInput& geometry) const;
+        ImageViewportPageRole role, const ViewportEngineGeometryInput& geometry) const;
     ViewportProviderRequestTokenAllocationResult allocateProviderRequestToken(
-        ImageViewport::PageRole role);
+        ImageViewportPageRole role);
 
     ImageViewportInternal::RequestState& m_request;
     ImageViewportInternal::PlaybackState& m_playback;

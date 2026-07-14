@@ -59,7 +59,7 @@ private:
     std::shared_ptr<int> m_frameRequestCount;
 };
 
-class SynchronousMetadataProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class SynchronousMetadataProviderSessionFactory final
 {
 public:
     explicit SynchronousMetadataProviderSessionFactory(
@@ -70,7 +70,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new SynchronousMetadataProviderSession(
             m_metadataRequestCount, m_frameRequestCount, parent);
@@ -110,7 +110,7 @@ private:
     std::unique_ptr<ImageFrame> m_frame;
 };
 
-class SynchronousFrameProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class SynchronousFrameProviderSessionFactory final
 {
 public:
     explicit SynchronousFrameProviderSessionFactory(const std::shared_ptr<int>& frameRequestCount)
@@ -118,7 +118,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new SynchronousFrameProviderSession(m_frameRequestCount, parent);
     }
@@ -150,7 +150,7 @@ private:
     std::shared_ptr<int> m_metadataRequestCount;
 };
 
-class SynchronousFailureProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class SynchronousFailureProviderSessionFactory final
 {
 public:
     explicit SynchronousFailureProviderSessionFactory(
@@ -159,7 +159,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new SynchronousFailureProviderSession(m_metadataRequestCount, parent);
     }
@@ -193,7 +193,6 @@ private:
 };
 
 class SynchronousUnsupportedProviderSessionFactory final
-    : public ImageSequenceProviderSessionFactory
 {
 public:
     explicit SynchronousUnsupportedProviderSessionFactory(
@@ -202,7 +201,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new SynchronousUnsupportedProviderSession(m_metadataRequestCount, parent);
     }
@@ -228,7 +227,7 @@ private:
     std::function<void(const ImageSequenceProviderRequest&)> observer;
 };
 
-class PublicationObservingProviderSessionFactory final : public ImageSequenceProviderSessionFactory
+class PublicationObservingProviderSessionFactory final
 {
 public:
     explicit PublicationObservingProviderSessionFactory(
@@ -237,7 +236,7 @@ public:
     {
     }
 
-    ImageSequenceProviderSession* createSession(QObject* parent) override
+    ImageSequenceProviderSession* createSession(QObject* parent)
     {
         return new PublicationObservingProviderSession(observer, parent);
     }

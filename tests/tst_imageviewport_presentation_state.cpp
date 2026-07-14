@@ -205,7 +205,7 @@ void ImageViewportPresentationStateTest::backgroundPresentationDoesNotChangeRequ
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
@@ -256,7 +256,7 @@ void ImageViewportPresentationStateTest::qualityPresentationDoesNotChangeRequest
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
@@ -309,7 +309,7 @@ void ImageViewportPresentationStateTest::loopingDoesNotChangeRequestDisplayOrGeo
         ImageViewportPresentationTarget(result->sequence()), PresentationTargetTransitionPolicy {});
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
-    QCOMPARE(item.play(ImageViewport::PageRole::Primary).outcome(),
+    QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
         ImageViewport::CommandOutcome::Accepted);
 
     const ImageViewportRevisionToken requestRevision
@@ -554,7 +554,7 @@ void ImageViewportPresentationStateTest::twoPageNonPositiveItemGeometrySuppresse
     QCOMPARE(secondaryItemRect(item), QRectF());
     QCOMPARE(mapItemToSpread(item, 0.0, 0.0).isValid(), false);
     verifyInvalidCoordinateResult(
-        mapSpreadToPage(item, ImageViewport::PageRole::Primary, 0.0, 0.0));
+        mapSpreadToPage(item, ImageViewportPageRole::Primary, 0.0, 0.0));
 }
 
 void ImageViewportPresentationStateTest::retainedTwoPageGeometryUsesDisplayedSecondarySize()
@@ -624,14 +624,14 @@ void ImageViewportPresentationStateTest::retainedTwoPageGeometryUsesDisplayedSec
     QCOMPARE(secondaryItemRect(item), QRectF(28.0, 2.0, 60.0, 40.0));
 
     const ImageViewportCoordinateResult retainedSecondaryOrigin
-        = mapPageToSpread(item, ImageViewport::PageRole::Secondary, 0.0, 0.0);
+        = mapPageToSpread(item, ImageViewportPageRole::Secondary, 0.0, 0.0);
     QCOMPARE(retainedSecondaryOrigin.isValid(), true);
     QCOMPARE(retainedSecondaryOrigin.point(), QPointF(14.0, 0.0));
     QCOMPARE(retainedSecondaryOrigin.space(), ImageViewport::CoordinateSpace::DisplayedSpread);
-    QCOMPARE(retainedSecondaryOrigin.role().value<ImageViewport::PageRole>(),
-        ImageViewport::PageRole::Secondary);
+    QCOMPARE(retainedSecondaryOrigin.role().value<ImageViewportPageRole>(),
+        ImageViewportPageRole::Secondary);
     verifyInvalidCoordinateResult(
-        mapPageToSpread(item, ImageViewport::PageRole::Secondary, 30.0, 0.0));
+        mapPageToSpread(item, ImageViewportPageRole::Secondary, 30.0, 0.0));
 }
 
 void ImageViewportPresentationStateTest::
@@ -728,22 +728,22 @@ void ImageViewportPresentationStateTest::spreadCoordinateHelpersRejectGapAndEdge
     QCOMPARE(gapSpreadPoint.isValid(), true);
     QCOMPARE(gapSpreadPoint.point().x(), 11.0);
     QCOMPARE(gapSpreadPoint.point().y(), 10.0);
-    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Primary, 22.0, 22.0).isValid(), false);
-    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Secondary, 22.0, 22.0).isValid(), false);
+    QCOMPARE(mapItemToPage(item, ImageViewportPageRole::Primary, 22.0, 22.0).isValid(), false);
+    QCOMPARE(mapItemToPage(item, ImageViewportPageRole::Secondary, 22.0, 22.0).isValid(), false);
 
     const ImageViewportCoordinateResult primaryPoint
-        = mapItemToPage(item, ImageViewport::PageRole::Primary, 19.0, 22.0);
+        = mapItemToPage(item, ImageViewportPageRole::Primary, 19.0, 22.0);
     QCOMPARE(primaryPoint.isValid(), true);
     QCOMPARE(primaryPoint.point().x(), 9.5);
     QCOMPARE(primaryPoint.point().y(), 10.0);
-    QCOMPARE(mapItemToPage(item, ImageViewport::PageRole::Primary, 20.0, 22.0).isValid(), false);
+    QCOMPARE(mapItemToPage(item, ImageViewportPageRole::Primary, 20.0, 22.0).isValid(), false);
 
     const ImageViewportCoordinateResult secondaryOrigin
-        = mapPageToItem(item, ImageViewport::PageRole::Secondary, 0.0, 0.0);
+        = mapPageToItem(item, ImageViewportPageRole::Secondary, 0.0, 0.0);
     QCOMPARE(secondaryOrigin.isValid(), true);
     QCOMPARE(secondaryOrigin.point().x(), 28.0);
     QCOMPARE(secondaryOrigin.point().y(), 2.0);
-    QCOMPARE(mapPageToItem(item, ImageViewport::PageRole::Secondary, 30.0, 0.0).isValid(), false);
+    QCOMPARE(mapPageToItem(item, ImageViewportPageRole::Secondary, 30.0, 0.0).isValid(), false);
 }
 
 void ImageViewportPresentationStateTest::logicalCoordinateMappingsUseFullDisplayedDomains()
@@ -777,25 +777,25 @@ void ImageViewportPresentationStateTest::logicalCoordinateMappingsUseFullDisplay
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     const ImageViewportCoordinateResult offscreenSecondary
-        = mapPageToSpread(item, ImageViewport::PageRole::Secondary, 20.0, 10.0);
+        = mapPageToSpread(item, ImageViewportPageRole::Secondary, 20.0, 10.0);
     QCOMPARE(offscreenSecondary.isValid(), true);
     QCOMPARE(offscreenSecondary.point(), QPointF(34.0, 10.0));
     QCOMPARE(offscreenSecondary.space(), ImageViewport::CoordinateSpace::DisplayedSpread);
     verifyInvalidCoordinateResult(
-        mapPageToItem(item, ImageViewport::PageRole::Secondary, 20.0, 10.0));
+        mapPageToItem(item, ImageViewportPageRole::Secondary, 20.0, 10.0));
 
     const ImageViewportCoordinateResult secondaryLocal
-        = mapSpreadToPage(item, ImageViewport::PageRole::Secondary, 34.0, 10.0);
+        = mapSpreadToPage(item, ImageViewportPageRole::Secondary, 34.0, 10.0);
     QCOMPARE(secondaryLocal.isValid(), true);
     QCOMPARE(secondaryLocal.point(), QPointF(20.0, 10.0));
     QCOMPARE(secondaryLocal.space(), ImageViewport::CoordinateSpace::DisplayedPage);
 
     verifyInvalidCoordinateResult(
-        mapSpreadToPage(item, ImageViewport::PageRole::Primary, 11.0, 10.0));
+        mapSpreadToPage(item, ImageViewportPageRole::Primary, 11.0, 10.0));
     verifyInvalidCoordinateResult(
-        mapSpreadToPage(item, ImageViewport::PageRole::Secondary, 44.0, 10.0));
+        mapSpreadToPage(item, ImageViewportPageRole::Secondary, 44.0, 10.0));
     verifyInvalidCoordinateResult(
-        mapPageToSpread(item, ImageViewport::PageRole::Secondary, 30.0, 10.0));
+        mapPageToSpread(item, ImageViewportPageRole::Secondary, 30.0, 10.0));
 
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QCOMPARE(viewportRequestRevision(item), requestRevision);
@@ -1077,7 +1077,7 @@ void ImageViewportPresentationStateTest::presentationCommandsUpdateCommandDiagno
     acknowledgePendingRenderCommitForTest(item);
     const QMetaObject* metaObject = item.metaObject();
 
-    QCOMPARE(item.seek(ImageViewport::PageRole::Primary, -1).outcome(),
+    QCOMPARE(item.seek(ImageViewportPageRole::Primary, -1).outcome(),
         ImageViewport::CommandOutcome::Invalid);
     QCOMPARE(commandReasonValue(item), enumValue(metaObject, "CommandReason", "InvalidRequest"));
     const ImageViewportRevisionToken invalidSeekCommandRevision

@@ -18,7 +18,6 @@
 #include <optional>
 #include <utility>
 
-class ImageSequenceProviderSessionFactory;
 class ImageSequenceProviderDescriptor;
 class ImageSequenceProviderDisplayDemand;
 class ImageSequenceProviderEvent;
@@ -34,6 +33,7 @@ class ImageViewportDisplaySnapshot;
 class ImageViewportPresentationTarget;
 class ImageViewportPresentationCommand;
 class ImageViewportPresentationSnapshot;
+class ImageViewportRange;
 class ImageViewportRequestSnapshot;
 class ImageViewportRevisionsSnapshot;
 class ImageViewportRoleDisplaySnapshot;
@@ -54,17 +54,79 @@ class ProviderRequestTokenPrivateAccess;
 class RevisionTokenPrivateAccess;
 }
 
+namespace ImageViewportEnums {
+Q_NAMESPACE
+
+enum class PageRole {
+    Primary,
+    Secondary,
+};
+Q_ENUM_NS(PageRole)
+
+enum class CapabilitySupport {
+    Unavailable,
+    False,
+    True,
+};
+Q_ENUM_NS(CapabilitySupport)
+
+enum class QualityPreference {
+    Default,
+    FastFirstDisplay,
+    BalancedDetail,
+    ExactDetail,
+};
+Q_ENUM_NS(QualityPreference)
+
+enum class ExactnessPreference {
+    Default,
+    AllowInexact,
+    PreferExact,
+    RequireExact,
+};
+Q_ENUM_NS(ExactnessPreference)
+
+enum class PayloadQuality {
+    Unknown,
+    Preview,
+    FirstDisplay,
+    BoundedDetail,
+    Exact,
+};
+Q_ENUM_NS(PayloadQuality)
+
+enum class PayloadExactness {
+    Unknown,
+    NotExact,
+    ExactForSource,
+};
+Q_ENUM_NS(PayloadExactness)
+}
+
+using ImageViewportPageRole = ImageViewportEnums::PageRole;
+using ImageViewportCapabilitySupport = ImageViewportEnums::CapabilitySupport;
+using ImageViewportQualityPreference = ImageViewportEnums::QualityPreference;
+using ImageViewportExactnessPreference = ImageViewportEnums::ExactnessPreference;
+using ImageViewportPayloadQuality = ImageViewportEnums::PayloadQuality;
+using ImageViewportPayloadExactness = ImageViewportEnums::PayloadExactness;
+
+namespace ImageSequenceEnums {
+Q_NAMESPACE
+
+enum class AuthoredAnimationLoopMode {
+    Unavailable,
+    PlayOnce,
+    Finite,
+    Infinite,
+};
+Q_ENUM_NS(AuthoredAnimationLoopMode)
+}
+
+using ImageSequenceAuthoredAnimationLoopMode = ImageSequenceEnums::AuthoredAnimationLoopMode;
+
 enum class ImageSequenceProviderThreadingContract {
     AffinityBound,
     ThreadSafe,
-};
-
-enum class ImageSequenceProviderCapabilitySupport {
-    Unavailable,
-    DeclaredFalse,
-    DeclaredTrue,
-    KnownFalse,
-    KnownTrue,
 };
 
 class ImageSequenceAuthoredAnimationFacts
@@ -73,17 +135,10 @@ class ImageSequenceAuthoredAnimationFacts
     QML_VALUE_TYPE(imageSequenceAuthoredAnimationFacts)
     Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
     Q_PROPERTY(bool progressiveAnimationReadiness READ progressiveAnimationReadiness CONSTANT)
-    Q_PROPERTY(LoopMode loopMode READ loopMode CONSTANT)
+    Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
     Q_PROPERTY(int loopCount READ loopCount CONSTANT)
 
 public:
-    enum class LoopMode {
-        PlayOnce,
-        Finite,
-        Infinite,
-    };
-    Q_ENUM(LoopMode)
-
     ImageSequenceAuthoredAnimationFacts() = default;
     static ImageSequenceAuthoredAnimationFacts finiteLoop(int loopCount);
     static ImageSequenceAuthoredAnimationFacts infiniteLoop();
@@ -92,53 +147,17 @@ public:
     void setAutoplay(bool autoplay);
     bool progressiveAnimationReadiness() const;
     void setProgressiveAnimationReadiness(bool progressiveAnimationReadiness);
-    LoopMode loopMode() const;
+    ImageSequenceAuthoredAnimationLoopMode loopMode() const;
     int loopCount() const;
     bool setFiniteLoopCount(int loopCount);
+    bool isValid() const;
 
 private:
     bool m_autoplay = false;
     bool m_progressiveAnimationReadiness = false;
-    LoopMode m_loopMode = LoopMode::PlayOnce;
+    ImageSequenceAuthoredAnimationLoopMode m_loopMode
+        = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
     int m_loopCount = 1;
-};
-
-class ImageSequenceProviderKnownFacts
-{
-public:
-    enum class Kind {
-        Unknown,
-        LogicalSize,
-        Still,
-        TimedFrameCount,
-        TimedFrameList,
-    };
-
-    ImageSequenceProviderKnownFacts() = default;
-    static ImageSequenceProviderKnownFacts logicalSize(QSizeF logicalSize);
-    static ImageSequenceProviderKnownFacts still(QSizeF logicalSize);
-    static ImageSequenceProviderKnownFacts timedFrameCount(QSizeF logicalSize, int frameCount);
-    static ImageSequenceProviderKnownFacts fixedDurationFrames(
-        QSizeF logicalSize, int frameCount, int frameDuration);
-    static ImageSequenceProviderKnownFacts timedFrameList(
-        QSizeF logicalSize, QVector<int> frameDurations);
-
-    bool isSpecified() const;
-    bool isValid() const;
-    bool isComplete() const;
-    bool isLogicalSizeOnly() const;
-    bool isStill() const;
-    bool isTimedFrameCount() const;
-    bool isTimedFrameList() const;
-    QSizeF logicalSize() const;
-    int frameCount() const;
-    QVector<int> frameDurations() const;
-
-private:
-    Kind m_kind = Kind::Unknown;
-    QSizeF m_logicalSize;
-    int m_frameCount = -1;
-    QVector<int> m_frameDurations;
 };
 
 class ImageSequence : public QObject
@@ -165,13 +184,15 @@ class ImageFrame : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("ImageFrame objects are created by C++ helpers or provider adapters")
     Q_PROPERTY(bool valid READ isValid CONSTANT)
-    Q_PROPERTY(QSizeF logicalSize READ logicalSize CONSTANT)
+    Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
     Q_PROPERTY(qint64 payloadByteSize READ payloadByteSize CONSTANT)
     Q_PROPERTY(QSizeF payloadRasterSize READ payloadRasterSize CONSTANT)
     Q_PROPERTY(QSizeF sourceToPayloadScale READ sourceToPayloadScale CONSTANT)
-    Q_PROPERTY(ImageSequenceProviderFrameEnvelope envelope READ envelope CONSTANT)
-    Q_PROPERTY(bool hasAlphaChannel READ hasAlphaChannel CONSTANT)
+    Q_PROPERTY(ImageViewportPayloadQuality quality READ quality CONSTANT)
+    Q_PROPERTY(ImageViewportPayloadExactness exactness READ exactness CONSTANT)
+    Q_PROPERTY(bool hasAlpha READ hasAlpha CONSTANT)
     Q_PROPERTY(OrientationPolicy orientationPolicy READ orientationPolicy CONSTANT)
+    Q_PROPERTY(QString formatIdentifier READ formatIdentifier CONSTANT)
 
 public:
     enum class OrientationPolicy {
@@ -189,17 +210,21 @@ public:
     explicit ImageFrame(QObject* parent = nullptr);
     explicit ImageFrame(const QImage& image, QObject* parent = nullptr);
     ImageFrame(const QImage& image, OrientationPolicy orientationPolicy, QObject* parent = nullptr);
-    ImageFrame(const QImage& image, const ImageSequenceProviderFrameEnvelope& envelope,
-        QObject* parent = nullptr);
+    ImageFrame(const QImage& image, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
+        QSizeF sourceToPayloadScale, qint64 payloadByteSize, ImageViewportPayloadQuality quality,
+        ImageViewportPayloadExactness exactness, bool hasAlpha, OrientationPolicy orientationPolicy,
+        QString formatIdentifier, QObject* parent = nullptr);
 
     bool isValid() const;
-    QSizeF logicalSize() const;
+    QSizeF sourceLogicalSize() const;
     qint64 payloadByteSize() const;
     QSizeF payloadRasterSize() const;
     QSizeF sourceToPayloadScale() const;
-    ImageSequenceProviderFrameEnvelope envelope() const;
-    bool hasAlphaChannel() const;
+    ImageViewportPayloadQuality quality() const;
+    ImageViewportPayloadExactness exactness() const;
+    bool hasAlpha() const;
     OrientationPolicy orientationPolicy() const;
+    QString formatIdentifier() const;
 
 private:
     ImageFrame(const QImage& image, qsizetype payloadByteSizeOverride, QObject* parent = nullptr);
@@ -210,14 +235,40 @@ private:
     qint64 m_payloadByteSize = 0;
     QSizeF m_payloadRasterSize;
     QSizeF m_sourceToPayloadScale;
-    std::shared_ptr<ImageSequenceProviderFrameEnvelope> m_envelope;
-    bool m_hasAlphaChannel = false;
+    ImageViewportPayloadQuality m_quality = ImageViewportPayloadQuality::Unknown;
+    ImageViewportPayloadExactness m_exactness = ImageViewportPayloadExactness::Unknown;
+    bool m_hasAlpha = false;
     OrientationPolicy m_orientationPolicy = OrientationPolicy::Identity;
+    QString m_formatIdentifier;
 
     friend class ImageSequenceFactory;
+    friend class TimedImageFrame;
     friend class TimedImageFrameList;
     friend class ImageViewport;
     friend class ImageViewportInternal::ImageFramePrivateAccess;
+};
+
+class TimedImageFrame
+{
+    Q_GADGET
+    QML_VALUE_TYPE(timedImageFrame)
+    Q_PROPERTY(ImageFrame* frame READ frame CONSTANT)
+    Q_PROPERTY(int startPosition READ startPosition CONSTANT)
+    Q_PROPERTY(int duration READ duration CONSTANT)
+
+public:
+    TimedImageFrame() = default;
+    TimedImageFrame(ImageFrame* frame, int startPosition, int duration);
+
+    ImageFrame* frame() const;
+    int startPosition() const;
+    int duration() const;
+    bool isValid() const;
+
+private:
+    std::shared_ptr<ImageFrame> m_frame;
+    int m_startPosition = -1;
+    int m_duration = -1;
 };
 
 class ImageSequenceProviderFrameHandle : public QObject
@@ -249,23 +300,33 @@ class TimedImageFrameList : public QObject
     Q_OBJECT
     QML_ELEMENT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(QList<TimedImageFrame> frames READ frames NOTIFY countChanged)
+    Q_PROPERTY(bool autoplay READ autoplay WRITE setAutoplay NOTIFY animationFactsChanged)
+    Q_PROPERTY(
+        ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode NOTIFY animationFactsChanged)
+    Q_PROPERTY(int loopCount READ loopCount NOTIFY animationFactsChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY diagnosticsChanged)
-    Q_PROPERTY(QString warningString READ warningString NOTIFY diagnosticsChanged)
 
 public:
     explicit TimedImageFrameList(QObject* parent = nullptr);
 
     int count() const;
+    QList<TimedImageFrame> frames() const;
     QString errorString() const;
-    QString warningString() const;
+    bool autoplay() const;
+    void setAutoplay(bool autoplay);
+    ImageSequenceAuthoredAnimationLoopMode loopMode() const;
+    int loopCount() const;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
     bool appendFrame(const QImage& image, int durationMilliseconds);
     Q_INVOKABLE bool appendFrame(ImageFrame* frame, int durationMilliseconds);
+    Q_INVOKABLE bool appendFrame(const TimedImageFrame& frame);
     Q_INVOKABLE void clear();
 
 signals:
     void countChanged();
+    void animationFactsChanged();
     void diagnosticsChanged();
 
 private:
@@ -279,9 +340,9 @@ private:
     QSizeF m_logicalSize;
     QVector<int> m_frameDurations;
     QVector<QImage> m_images;
+    QList<TimedImageFrame> m_frames;
     ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
     QString m_errorString;
-    QString m_warningString;
 
     friend class ImageSequenceFactory;
 };
@@ -293,8 +354,6 @@ class ImageSequenceProviderAdapter : public QObject
     QML_UNCREATABLE("Use a concrete provider adapter supplied by C++ or module helpers")
 
 public:
-    using CapabilitySupport = ImageSequenceProviderCapabilitySupport;
-
     explicit ImageSequenceProviderAdapter(QObject* parent = nullptr);
     virtual ImageSequenceProviderDescriptor descriptor() const = 0;
 };
@@ -342,22 +401,32 @@ public:
         QSizeF logicalSize, int frameCount, int frameDuration);
     static ImageSequenceProviderMetadata timedFrameList(
         QSizeF logicalSize, QVector<int> frameDurations);
+    static ImageSequenceProviderMetadata withSourceLogicalSize(QSizeF sourceLogicalSize);
+    static ImageSequenceProviderMetadata timedFrameCount(QSizeF logicalSize, int frameCount);
 
     bool isSpecified() const;
+    bool hasCompleteModel() const;
     bool isValid() const;
     bool isStill() const;
     bool isTimedFrameList() const;
-    QSizeF logicalSize() const;
+    QSizeF sourceLogicalSize() const;
+    int frameCount() const;
+    int totalDuration() const;
+    ImageViewportRange frameSeekBounds() const;
+    ImageViewportRange positionSeekBounds() const;
     QVector<int> frameDurations() const;
     bool hasAuthoredAnimationFacts() const;
     ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const;
     void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts authoredAnimationFacts);
-    void setTimedPlaybackSupport(bool supported);
-    void setFrameSeekSupport(bool supported);
-    void setPositionSeekSupport(bool supported);
-    bool timedPlaybackSupport() const;
-    bool frameSeekSupport() const;
-    bool positionSeekSupport() const;
+    void setTimedPlaybackSupport(ImageViewportCapabilitySupport support);
+    void setFrameSeekSupport(ImageViewportCapabilitySupport support);
+    void setPositionSeekSupport(ImageViewportCapabilitySupport support);
+    ImageViewportCapabilitySupport timedPlaybackSupport() const;
+    ImageViewportCapabilitySupport frameSeekSupport() const;
+    ImageViewportCapabilitySupport positionSeekSupport() const;
+    ImageViewportCapabilitySupport autoplay() const;
+    ImageSequenceAuthoredAnimationLoopMode authoredLoopMode() const;
+    int authoredLoopCount() const;
 
 private:
     Kind m_kind = Kind::Invalid;
@@ -368,6 +437,7 @@ private:
     std::optional<bool> m_timedPlaybackSupport;
     std::optional<bool> m_frameSeekSupport;
     std::optional<bool> m_positionSeekSupport;
+    int m_constructionFrameCount = -1;
 };
 
 class ImageSequenceProviderFrameMetadata
@@ -418,58 +488,85 @@ signals:
     void providerEvent(const ImageSequenceProviderEvent& event);
 };
 
-class ImageSequenceProviderSessionFactory
+enum class ImageSequenceProviderSessionFactoryOutcome {
+    Created,
+    Failed,
+};
+
+class ImageSequenceProviderSessionFactoryResult
 {
 public:
-    virtual ~ImageSequenceProviderSessionFactory() = default;
-    ImageSequenceProviderSessionFactory(const ImageSequenceProviderSessionFactory&) = delete;
-    ImageSequenceProviderSessionFactory& operator=(const ImageSequenceProviderSessionFactory&)
-        = delete;
-    virtual ImageSequenceProviderSession* createSession(QObject* parent) = 0;
+    ImageSequenceProviderSessionFactoryResult() = default;
+    static ImageSequenceProviderSessionFactoryResult created(ImageSequenceProviderSession* session);
+    static ImageSequenceProviderSessionFactoryResult failed(QString diagnostic = {});
 
-protected:
-    ImageSequenceProviderSessionFactory() = default;
+    ImageSequenceProviderSessionFactoryOutcome outcome() const;
+    ImageSequenceProviderSession* session() const;
+    QString diagnostic() const;
+
+private:
+    ImageSequenceProviderSessionFactoryOutcome m_outcome
+        = ImageSequenceProviderSessionFactoryOutcome::Failed;
+    QPointer<ImageSequenceProviderSession> m_session;
+    QString m_diagnostic;
 };
+
+namespace ImageSequenceFactoryEnums {
+Q_NAMESPACE
+
+enum class FactoryOutcome {
+    Created,
+    Rejected,
+};
+Q_ENUM_NS(FactoryOutcome)
+
+enum class FactoryReason {
+    NoError,
+    InvalidFrame,
+    InvalidTiming,
+    InvalidAnimationMetadata,
+    InvalidProviderDescriptor,
+    LimitExceeded,
+};
+Q_ENUM_NS(FactoryReason)
+}
+
+using ImageSequenceFactoryOutcome = ImageSequenceFactoryEnums::FactoryOutcome;
+using ImageSequenceFactoryReason = ImageSequenceFactoryEnums::FactoryReason;
 
 class ImageSequenceFactoryResult : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     QML_UNCREATABLE("ImageSequenceFactoryResult objects are returned by ImageSequenceFactory")
+    QML_EXTENDED_NAMESPACE(ImageSequenceFactoryEnums)
     Q_PROPERTY(ImageSequence* sequence READ sequence CONSTANT)
-    Q_PROPERTY(FactoryOutcome outcome READ outcome CONSTANT)
+    Q_PROPERTY(ImageSequenceFactoryOutcome outcome READ outcome CONSTANT)
+    Q_PROPERTY(ImageSequenceFactoryReason reason READ reason CONSTANT)
     Q_PROPERTY(QString errorString READ errorString CONSTANT)
-    Q_PROPERTY(QString warningString READ warningString CONSTANT)
 
 public:
-    enum class FactoryOutcome {
-        Created,
-        Invalid,
-        Unsupported,
-        Error,
-    };
-    Q_ENUM(FactoryOutcome)
-
-    explicit ImageSequenceFactoryResult(ImageSequence* sequence, FactoryOutcome outcome,
-        QString errorString = {}, QString warningString = {}, QObject* parent = nullptr);
+    explicit ImageSequenceFactoryResult(ImageSequence* sequence,
+        ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason,
+        QString errorString = {}, QObject* parent = nullptr);
 
     ImageSequence* sequence() const;
-    FactoryOutcome outcome() const;
+    ImageSequenceFactoryOutcome outcome() const;
+    ImageSequenceFactoryReason reason() const;
     QString errorString() const;
-    QString warningString() const;
 
 private:
     friend class ImageSequenceFactory;
 
     explicit ImageSequenceFactoryResult(std::shared_ptr<ImageSequence> sequence,
-        FactoryOutcome outcome, QString errorString = {}, QString warningString = {},
-        QObject* parent = nullptr);
+        ImageSequenceFactoryOutcome outcome, ImageSequenceFactoryReason reason,
+        QString errorString = {}, QObject* parent = nullptr);
 
     QPointer<ImageSequence> m_sequence;
     std::shared_ptr<ImageSequence> m_sequenceOwner;
-    FactoryOutcome m_outcome;
+    ImageSequenceFactoryOutcome m_outcome = ImageSequenceFactoryOutcome::Rejected;
+    ImageSequenceFactoryReason m_reason = ImageSequenceFactoryReason::InvalidFrame;
     QString m_errorString;
-    QString m_warningString;
 };
 
 class ImageSequenceFactory : public QObject
@@ -494,35 +591,47 @@ class ImageSequenceLimits : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
-    Q_PROPERTY(int maximumLogicalWidth READ getMaximumLogicalWidth CONSTANT)
-    Q_PROPERTY(int maximumLogicalHeight READ getMaximumLogicalHeight CONSTANT)
-    Q_PROPERTY(qint64 maximumPixelsPerFrame READ getMaximumPixelsPerFrame CONSTANT)
-    Q_PROPERTY(qint64 maximumPayloadBytesPerFrame READ getMaximumPayloadBytesPerFrame CONSTANT)
-    Q_PROPERTY(int maximumTimedListFrameCount READ getMaximumTimedListFrameCount CONSTANT)
-    Q_PROPERTY(int maximumFrameDuration READ getMaximumFrameDuration CONSTANT)
-    Q_PROPERTY(int maximumTotalSequenceDuration READ getMaximumTotalSequenceDuration CONSTANT)
-    Q_PROPERTY(int maximumDiagnosticStringLength READ getMaximumDiagnosticStringLength CONSTANT)
+    Q_PROPERTY(int maximumSourceLogicalWidth READ getMaximumSourceLogicalWidth CONSTANT)
+    Q_PROPERTY(int maximumSourceLogicalHeight READ getMaximumSourceLogicalHeight CONSTANT)
+    Q_PROPERTY(qint64 maximumSourceLogicalPixels READ getMaximumSourceLogicalPixels CONSTANT)
+    Q_PROPERTY(int maximumPayloadRasterWidth READ getMaximumPayloadRasterWidth CONSTANT)
+    Q_PROPERTY(int maximumPayloadRasterHeight READ getMaximumPayloadRasterHeight CONSTANT)
+    Q_PROPERTY(qint64 maximumPayloadBytes READ getMaximumPayloadBytes CONSTANT)
+    Q_PROPERTY(int maximumFrameCount READ getMaximumFrameCount CONSTANT)
+    Q_PROPERTY(
+        int maximumFrameDurationMilliseconds READ getMaximumFrameDurationMilliseconds CONSTANT)
+    Q_PROPERTY(
+        int maximumTotalDurationMilliseconds READ getMaximumTotalDurationMilliseconds CONSTANT)
+    Q_PROPERTY(int maximumDiagnosticCharacters READ getMaximumDiagnosticCharacters CONSTANT)
+    Q_PROPERTY(
+        int maximumFormatIdentifierCharacters READ getMaximumFormatIdentifierCharacters CONSTANT)
 
 public:
     explicit ImageSequenceLimits(QObject* parent = nullptr);
 
-    int getMaximumLogicalWidth() const;
-    int getMaximumLogicalHeight() const;
-    qint64 getMaximumPixelsPerFrame() const;
-    qint64 getMaximumPayloadBytesPerFrame() const;
-    int getMaximumTimedListFrameCount() const;
-    int getMaximumFrameDuration() const;
-    int getMaximumTotalSequenceDuration() const;
-    int getMaximumDiagnosticStringLength() const;
+    int getMaximumSourceLogicalWidth() const;
+    int getMaximumSourceLogicalHeight() const;
+    qint64 getMaximumSourceLogicalPixels() const;
+    int getMaximumPayloadRasterWidth() const;
+    int getMaximumPayloadRasterHeight() const;
+    qint64 getMaximumPayloadBytes() const;
+    int getMaximumFrameCount() const;
+    int getMaximumFrameDurationMilliseconds() const;
+    int getMaximumTotalDurationMilliseconds() const;
+    int getMaximumDiagnosticCharacters() const;
+    int getMaximumFormatIdentifierCharacters() const;
 
-    static int maximumLogicalWidth();
-    static int maximumLogicalHeight();
-    static qint64 maximumPixelsPerFrame();
-    static qint64 maximumPayloadBytesPerFrame();
-    static int maximumTimedListFrameCount();
-    static int maximumFrameDuration();
-    static int maximumTotalSequenceDuration();
-    static int maximumDiagnosticStringLength();
+    static int maximumSourceLogicalWidth();
+    static int maximumSourceLogicalHeight();
+    static qint64 maximumSourceLogicalPixels();
+    static int maximumPayloadRasterWidth();
+    static int maximumPayloadRasterHeight();
+    static qint64 maximumPayloadBytes();
+    static int maximumFrameCount();
+    static int maximumFrameDurationMilliseconds();
+    static int maximumTotalDurationMilliseconds();
+    static int maximumDiagnosticCharacters();
+    static int maximumFormatIdentifierCharacters();
 };
 
 class ImageViewportDisplayLimits : public QObject
@@ -787,15 +896,10 @@ class ImageViewport : public QQuickItem
     Q_OBJECT
     Q_CLASSINFO("RegisterEnumClassesUnscoped", "false")
     QML_ELEMENT
+    QML_EXTENDED_NAMESPACE(ImageViewportEnums)
     Q_PROPERTY(ImageViewportStateSnapshot state READ state NOTIFY stateChanged)
 
 public:
-    enum class PageRole {
-        Primary,
-        Secondary,
-    };
-    Q_ENUM(PageRole)
-
     enum class SpreadDirection {
         LeftToRight,
         RightToLeft,
@@ -873,13 +977,6 @@ public:
     };
     Q_ENUM(PlaybackPhase)
 
-    enum class CapabilitySupport {
-        Unavailable,
-        False,
-        True,
-    };
-    Q_ENUM(CapabilitySupport)
-
     enum class CommandOutcome {
         Accepted,
         Invalid,
@@ -895,38 +992,6 @@ public:
     };
     Q_ENUM(BackgroundMode)
 
-    enum class QualityPreference {
-        Default,
-        FastFirstDisplay,
-        BalancedDetail,
-        ExactDetail,
-    };
-    Q_ENUM(QualityPreference)
-
-    enum class ExactnessPreference {
-        Default,
-        AllowInexact,
-        PreferExact,
-        RequireExact,
-    };
-    Q_ENUM(ExactnessPreference)
-
-    enum class PayloadQuality {
-        Unknown,
-        Preview,
-        FirstDisplay,
-        BoundedDetail,
-        Exact,
-    };
-    Q_ENUM(PayloadQuality)
-
-    enum class PayloadExactness {
-        Unknown,
-        NotExact,
-        ExactForSource,
-    };
-    Q_ENUM(PayloadExactness)
-
     enum class CoordinateSpace {
         Item,
         DisplayedSpread,
@@ -940,12 +1005,12 @@ public:
     ImageViewportStateSnapshot state() const;
 
     Q_INVOKABLE ImageViewportCommandResult clear();
-    Q_INVOKABLE ImageViewportCommandResult play(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult pause(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult stop(ImageViewport::PageRole role);
-    Q_INVOKABLE ImageViewportCommandResult seek(ImageViewport::PageRole role, int frame);
+    Q_INVOKABLE ImageViewportCommandResult play(ImageViewportPageRole role);
+    Q_INVOKABLE ImageViewportCommandResult pause(ImageViewportPageRole role);
+    Q_INVOKABLE ImageViewportCommandResult stop(ImageViewportPageRole role);
+    Q_INVOKABLE ImageViewportCommandResult seek(ImageViewportPageRole role, int frame);
     Q_INVOKABLE ImageViewportCommandResult seekToPosition(
-        ImageViewport::PageRole role, int milliseconds);
+        ImageViewportPageRole role, int milliseconds);
     Q_INVOKABLE ImageViewportCommandResult setPresentationTarget(
         ImageViewportPresentationTarget presentationTarget,
         PresentationTargetTransitionPolicy policy);
@@ -1009,10 +1074,10 @@ class ImageViewportPresentationCommand
     Q_PROPERTY(bool loopingSet READ hasLooping CONSTANT)
     Q_PROPERTY(bool looping READ looping WRITE setLooping)
     Q_PROPERTY(bool qualityPreferenceSet READ hasQualityPreference CONSTANT)
-    Q_PROPERTY(ImageViewport::QualityPreference qualityPreference READ qualityPreference WRITE
+    Q_PROPERTY(ImageViewportQualityPreference qualityPreference READ qualityPreference WRITE
             setQualityPreference)
     Q_PROPERTY(bool exactnessPreferenceSet READ hasExactnessPreference CONSTANT)
-    Q_PROPERTY(ImageViewport::ExactnessPreference exactnessPreference READ exactnessPreference WRITE
+    Q_PROPERTY(ImageViewportExactnessPreference exactnessPreference READ exactnessPreference WRITE
             setExactnessPreference)
 
 public:
@@ -1140,15 +1205,15 @@ public:
         m_hasLooping = true;
     }
     bool hasQualityPreference() const { return m_hasQualityPreference; }
-    ImageViewport::QualityPreference qualityPreference() const { return m_qualityPreference; }
-    void setQualityPreference(ImageViewport::QualityPreference preference)
+    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
+    void setQualityPreference(ImageViewportQualityPreference preference)
     {
         m_qualityPreference = preference;
         m_hasQualityPreference = true;
     }
     bool hasExactnessPreference() const { return m_hasExactnessPreference; }
-    ImageViewport::ExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
-    void setExactnessPreference(ImageViewport::ExactnessPreference preference)
+    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    void setExactnessPreference(ImageViewportExactnessPreference preference)
     {
         m_exactnessPreference = preference;
         m_hasExactnessPreference = true;
@@ -1189,11 +1254,10 @@ private:
     bool m_hasLooping = false;
     bool m_looping = false;
     bool m_hasQualityPreference = false;
-    ImageViewport::QualityPreference m_qualityPreference
-        = ImageViewport::QualityPreference::Default;
+    ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
     bool m_hasExactnessPreference = false;
-    ImageViewport::ExactnessPreference m_exactnessPreference
-        = ImageViewport::ExactnessPreference::Default;
+    ImageViewportExactnessPreference m_exactnessPreference
+        = ImageViewportExactnessPreference::Default;
 };
 
 enum class ImageSequenceProviderRequestKind {
@@ -1226,38 +1290,15 @@ class ImageSequenceProviderFrameEnvelope
     Q_GADGET
     QML_VALUE_TYPE(imageSequenceProviderFrameEnvelope)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
-    Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize WRITE setSourceLogicalSize)
-    Q_PROPERTY(QSizeF payloadRasterSize READ payloadRasterSize WRITE setPayloadRasterSize)
-    Q_PROPERTY(QSizeF sourceToPayloadScale READ sourceToPayloadScale WRITE setSourceToPayloadScale)
-    Q_PROPERTY(qint64 payloadByteSize READ payloadByteSize WRITE setPayloadByteSize)
-    Q_PROPERTY(ImageViewport::PayloadQuality quality READ quality WRITE setQuality)
-    Q_PROPERTY(ImageViewport::PayloadExactness exactness READ exactness WRITE setExactness)
     Q_PROPERTY(
         ImageViewportDemandRevisionToken demandRevision READ demandRevision WRITE setDemandRevision)
     Q_PROPERTY(int frame READ frame WRITE setFrame)
     Q_PROPERTY(int frameStartPosition READ frameStartPosition WRITE setFrameStartPosition)
     Q_PROPERTY(int frameDuration READ frameDuration WRITE setFrameDuration)
-    Q_PROPERTY(bool hasAlpha READ hasAlpha WRITE setHasAlpha)
-    Q_PROPERTY(ImageFrame::OrientationPolicy orientationPolicy READ orientationPolicy WRITE
-            setOrientationPolicy)
-    Q_PROPERTY(QString formatIdentifier READ formatIdentifier WRITE setFormatIdentifier)
-
 public:
     ImageSequenceProviderFrameEnvelope() = default;
 
     bool isValid() const;
-    QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
-    void setSourceLogicalSize(QSizeF size) { m_sourceLogicalSize = size; }
-    QSizeF payloadRasterSize() const { return m_payloadRasterSize; }
-    void setPayloadRasterSize(QSizeF size) { m_payloadRasterSize = size; }
-    QSizeF sourceToPayloadScale() const { return m_sourceToPayloadScale; }
-    void setSourceToPayloadScale(QSizeF scale) { m_sourceToPayloadScale = scale; }
-    qint64 payloadByteSize() const { return m_payloadByteSize; }
-    void setPayloadByteSize(qint64 bytes) { m_payloadByteSize = bytes; }
-    ImageViewport::PayloadQuality quality() const { return m_quality; }
-    void setQuality(ImageViewport::PayloadQuality quality) { m_quality = quality; }
-    ImageViewport::PayloadExactness exactness() const { return m_exactness; }
-    void setExactness(ImageViewport::PayloadExactness exactness) { m_exactness = exactness; }
     ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
     void setDemandRevision(ImageViewportDemandRevisionToken revision)
     {
@@ -1269,28 +1310,12 @@ public:
     void setFrameStartPosition(int position) { m_frameStartPosition = position; }
     int frameDuration() const { return m_frameDuration; }
     void setFrameDuration(int duration) { m_frameDuration = duration; }
-    bool hasAlpha() const { return m_hasAlpha; }
-    void setHasAlpha(bool hasAlpha) { m_hasAlpha = hasAlpha; }
-    ImageFrame::OrientationPolicy orientationPolicy() const { return m_orientationPolicy; }
-    void setOrientationPolicy(ImageFrame::OrientationPolicy policy)
-    {
-        m_orientationPolicy = policy;
-    }
-    QString formatIdentifier() const { return m_formatIdentifier; }
-    void setFormatIdentifier(QString identifier) { m_formatIdentifier = std::move(identifier); }
-
     friend bool operator==(const ImageSequenceProviderFrameEnvelope& lhs,
         const ImageSequenceProviderFrameEnvelope& rhs)
     {
-        return lhs.m_sourceLogicalSize == rhs.m_sourceLogicalSize
-            && lhs.m_payloadRasterSize == rhs.m_payloadRasterSize
-            && lhs.m_sourceToPayloadScale == rhs.m_sourceToPayloadScale
-            && lhs.m_payloadByteSize == rhs.m_payloadByteSize && lhs.m_quality == rhs.m_quality
-            && lhs.m_exactness == rhs.m_exactness && lhs.m_demandRevision == rhs.m_demandRevision
-            && lhs.m_frame == rhs.m_frame && lhs.m_frameStartPosition == rhs.m_frameStartPosition
-            && lhs.m_frameDuration == rhs.m_frameDuration && lhs.m_hasAlpha == rhs.m_hasAlpha
-            && lhs.m_orientationPolicy == rhs.m_orientationPolicy
-            && lhs.m_formatIdentifier == rhs.m_formatIdentifier;
+        return lhs.m_demandRevision == rhs.m_demandRevision && lhs.m_frame == rhs.m_frame
+            && lhs.m_frameStartPosition == rhs.m_frameStartPosition
+            && lhs.m_frameDuration == rhs.m_frameDuration;
     }
     friend bool operator!=(const ImageSequenceProviderFrameEnvelope& lhs,
         const ImageSequenceProviderFrameEnvelope& rhs)
@@ -1299,19 +1324,10 @@ public:
     }
 
 private:
-    QSizeF m_sourceLogicalSize;
-    QSizeF m_payloadRasterSize;
-    QSizeF m_sourceToPayloadScale;
-    qint64 m_payloadByteSize = 0;
-    ImageViewport::PayloadQuality m_quality = ImageViewport::PayloadQuality::Unknown;
-    ImageViewport::PayloadExactness m_exactness = ImageViewport::PayloadExactness::Unknown;
     ImageViewportDemandRevisionToken m_demandRevision;
     int m_frame = 0;
     int m_frameStartPosition = -1;
     int m_frameDuration = -1;
-    bool m_hasAlpha = false;
-    ImageFrame::OrientationPolicy m_orientationPolicy = ImageFrame::OrientationPolicy::Identity;
-    QString m_formatIdentifier;
 };
 
 class ImageSequenceProviderDisplayDemand
@@ -1324,7 +1340,7 @@ class ImageSequenceProviderDisplayDemand
         ImageViewportRevisionToken requestRevision READ requestRevision WRITE setRequestRevision)
     Q_PROPERTY(ImageViewportRevisionToken presentationRevision READ presentationRevision WRITE
             setPresentationRevision)
-    Q_PROPERTY(ImageViewport::PageRole role READ role WRITE setRole)
+    Q_PROPERTY(ImageViewportPageRole role READ role WRITE setRole)
     Q_PROPERTY(int resolvedFrame READ resolvedFrame WRITE setResolvedFrame)
     Q_PROPERTY(int requestedPosition READ requestedPosition WRITE setRequestedPosition)
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize WRITE setSourceLogicalSize)
@@ -1336,18 +1352,18 @@ class ImageSequenceProviderDisplayDemand
     Q_PROPERTY(int rotationDegrees READ rotationDegrees WRITE setRotationDegrees)
     Q_PROPERTY(bool mirrorHorizontally READ mirrorHorizontally WRITE setMirrorHorizontally)
     Q_PROPERTY(bool mirrorVertically READ mirrorVertically WRITE setMirrorVertically)
-    Q_PROPERTY(ImageViewport::QualityPreference qualityPreference READ qualityPreference WRITE
+    Q_PROPERTY(ImageViewportQualityPreference qualityPreference READ qualityPreference WRITE
             setQualityPreference)
-    Q_PROPERTY(ImageViewport::ExactnessPreference exactnessPreference READ exactnessPreference WRITE
+    Q_PROPERTY(ImageViewportExactnessPreference exactnessPreference READ exactnessPreference WRITE
             setExactnessPreference)
     Q_PROPERTY(qint64 maximumTextureSize READ maximumTextureSize WRITE setMaximumTextureSize)
     Q_PROPERTY(qint64 maximumPayloadBytes READ maximumPayloadBytes WRITE setMaximumPayloadBytes)
     Q_PROPERTY(qint64 displayByteBudget READ displayByteBudget WRITE setDisplayByteBudget)
     Q_PROPERTY(ImageViewportPresentationTargetGenerationToken allocationGeneration READ
             allocationGeneration WRITE setAllocationGeneration)
-    Q_PROPERTY(ImageViewport::PayloadQuality currentPayloadQuality READ currentPayloadQuality WRITE
+    Q_PROPERTY(ImageViewportPayloadQuality currentPayloadQuality READ currentPayloadQuality WRITE
             setCurrentPayloadQuality)
-    Q_PROPERTY(ImageViewport::PayloadExactness currentPayloadExactness READ currentPayloadExactness
+    Q_PROPERTY(ImageViewportPayloadExactness currentPayloadExactness READ currentPayloadExactness
             WRITE setCurrentPayloadExactness)
     Q_PROPERTY(QSizeF currentPayloadRasterSize READ currentPayloadRasterSize WRITE
             setCurrentPayloadRasterSize)
@@ -1369,8 +1385,8 @@ public:
     {
         m_presentationRevision = revision;
     }
-    ImageViewport::PageRole role() const { return m_role; }
-    void setRole(ImageViewport::PageRole role) { m_role = role; }
+    ImageViewportPageRole role() const { return m_role; }
+    void setRole(ImageViewportPageRole role) { m_role = role; }
     int resolvedFrame() const { return m_resolvedFrame; }
     void setResolvedFrame(int frame) { m_resolvedFrame = frame; }
     int requestedPosition() const { return m_requestedPosition; }
@@ -1389,13 +1405,13 @@ public:
     void setMirrorHorizontally(bool mirror) { m_mirrorHorizontally = mirror; }
     bool mirrorVertically() const { return m_mirrorVertically; }
     void setMirrorVertically(bool mirror) { m_mirrorVertically = mirror; }
-    ImageViewport::QualityPreference qualityPreference() const { return m_qualityPreference; }
-    void setQualityPreference(ImageViewport::QualityPreference preference)
+    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
+    void setQualityPreference(ImageViewportQualityPreference preference)
     {
         m_qualityPreference = preference;
     }
-    ImageViewport::ExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
-    void setExactnessPreference(ImageViewport::ExactnessPreference preference)
+    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    void setExactnessPreference(ImageViewportExactnessPreference preference)
     {
         m_exactnessPreference = preference;
     }
@@ -1413,16 +1429,16 @@ public:
     {
         m_allocationGeneration = generation;
     }
-    ImageViewport::PayloadQuality currentPayloadQuality() const { return m_currentPayloadQuality; }
-    void setCurrentPayloadQuality(ImageViewport::PayloadQuality quality)
+    ImageViewportPayloadQuality currentPayloadQuality() const { return m_currentPayloadQuality; }
+    void setCurrentPayloadQuality(ImageViewportPayloadQuality quality)
     {
         m_currentPayloadQuality = quality;
     }
-    ImageViewport::PayloadExactness currentPayloadExactness() const
+    ImageViewportPayloadExactness currentPayloadExactness() const
     {
         return m_currentPayloadExactness;
     }
-    void setCurrentPayloadExactness(ImageViewport::PayloadExactness exactness)
+    void setCurrentPayloadExactness(ImageViewportPayloadExactness exactness)
     {
         m_currentPayloadExactness = exactness;
     }
@@ -1435,7 +1451,7 @@ private:
     ImageViewportDemandRevisionToken m_demandRevision;
     ImageViewportRevisionToken m_requestRevision;
     ImageViewportRevisionToken m_presentationRevision;
-    ImageViewport::PageRole m_role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole m_role = ImageViewportPageRole::Primary;
     int m_resolvedFrame = -1;
     int m_requestedPosition = -1;
     QSizeF m_sourceLogicalSize;
@@ -1445,17 +1461,16 @@ private:
     int m_rotationDegrees = 0;
     bool m_mirrorHorizontally = false;
     bool m_mirrorVertically = false;
-    ImageViewport::QualityPreference m_qualityPreference
-        = ImageViewport::QualityPreference::Default;
-    ImageViewport::ExactnessPreference m_exactnessPreference
-        = ImageViewport::ExactnessPreference::Default;
+    ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
+    ImageViewportExactnessPreference m_exactnessPreference
+        = ImageViewportExactnessPreference::Default;
     qint64 m_maximumTextureSize = -1;
     qint64 m_maximumPayloadBytes = -1;
     qint64 m_displayByteBudget = -1;
     ImageViewportPresentationTargetGenerationToken m_allocationGeneration;
-    ImageViewport::PayloadQuality m_currentPayloadQuality = ImageViewport::PayloadQuality::Unknown;
-    ImageViewport::PayloadExactness m_currentPayloadExactness
-        = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportPayloadQuality m_currentPayloadQuality = ImageViewportPayloadQuality::Unknown;
+    ImageViewportPayloadExactness m_currentPayloadExactness
+        = ImageViewportPayloadExactness::Unknown;
     QSizeF m_currentPayloadRasterSize;
     QSizeF m_currentSourceToPayloadScale;
 };
@@ -1467,7 +1482,7 @@ class ImageSequenceProviderRequest
     Q_PROPERTY(bool valid READ isValid CONSTANT)
     Q_PROPERTY(ImageSequenceProviderRequestKind kind READ kind CONSTANT)
     Q_PROPERTY(ImageSequenceProviderRequestToken token READ token CONSTANT)
-    Q_PROPERTY(ImageViewport::PageRole role READ role CONSTANT)
+    Q_PROPERTY(ImageViewportPageRole role READ role CONSTANT)
     Q_PROPERTY(int frame READ frame CONSTANT)
     Q_PROPERTY(int requestedPosition READ requestedPosition CONSTANT)
     Q_PROPERTY(int resolvedFrame READ resolvedFrame CONSTANT)
@@ -1477,13 +1492,13 @@ public:
     ImageSequenceProviderRequest() = default;
     static ImageSequenceProviderRequest metadata(ImageSequenceProviderRequestToken token);
     static ImageSequenceProviderRequest frame( // clazy:exclude=qproperty-type-mismatch
-        ImageSequenceProviderRequestToken token, ImageViewport::PageRole role, int frame,
+        ImageSequenceProviderRequestToken token, ImageViewportPageRole role, int frame,
         ImageSequenceProviderDisplayDemand demand);
     static ImageSequenceProviderRequest position(ImageSequenceProviderRequestToken token,
-        ImageViewport::PageRole role, int requestedPosition, int resolvedFrame,
+        ImageViewportPageRole role, int requestedPosition, int resolvedFrame,
         ImageSequenceProviderDisplayDemand demand);
     static ImageSequenceProviderRequest playback(ImageSequenceProviderRequestToken token,
-        ImageViewport::PageRole role, int frame, int position,
+        ImageViewportPageRole role, int frame, int position,
         ImageSequenceProviderDisplayDemand demand);
     static ImageSequenceProviderRequest cancel(QVector<ImageSequenceProviderRequestToken> tokens);
     static ImageSequenceProviderRequest close();
@@ -1491,7 +1506,7 @@ public:
     bool isValid() const;
     ImageSequenceProviderRequestKind kind() const { return m_kind; }
     ImageSequenceProviderRequestToken token() const { return m_token; }
-    ImageViewport::PageRole role() const { return m_role; }
+    ImageViewportPageRole role() const { return m_role; }
     int frame() const { return m_frame; }
     int requestedPosition() const { return m_requestedPosition; }
     int resolvedFrame() const { return m_resolvedFrame; }
@@ -1501,7 +1516,7 @@ public:
 private:
     ImageSequenceProviderRequestKind m_kind = ImageSequenceProviderRequestKind::Metadata;
     ImageSequenceProviderRequestToken m_token;
-    ImageViewport::PageRole m_role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole m_role = ImageViewportPageRole::Primary;
     int m_frame = -1;
     int m_requestedPosition = -1;
     int m_resolvedFrame = -1;
@@ -1569,76 +1584,25 @@ class ImageSequenceProviderDescriptor
     Q_GADGET
 
 public:
-    ImageSequenceProviderDescriptor() = default;
+    using SessionFactory = std::function<ImageSequenceProviderSessionFactoryResult()>;
 
-    bool isValid() const { return static_cast<bool>(m_sessionFactory); }
-    std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory() const
-    {
-        return m_sessionFactory;
-    }
-    void setSessionFactory(std::shared_ptr<ImageSequenceProviderSessionFactory> factory)
-    {
-        m_sessionFactory = std::move(factory);
-    }
-    ImageSequenceProviderMetadata knownMetadata() const { return m_knownMetadata; }
-    void setKnownMetadata(ImageSequenceProviderMetadata metadata)
-    {
-        m_knownMetadata = std::move(metadata);
-    }
-    ImageSequenceProviderKnownFacts knownFacts() const { return m_knownFacts; }
-    void setKnownFacts(ImageSequenceProviderKnownFacts facts) { m_knownFacts = std::move(facts); }
-    ImageSequenceProviderCapabilitySupport timedPlaybackCapability() const
-    {
-        return m_timedPlaybackCapability;
-    }
-    void setTimedPlaybackCapability(ImageSequenceProviderCapabilitySupport support)
-    {
-        m_timedPlaybackCapability = support;
-    }
-    ImageSequenceProviderCapabilitySupport frameSeekCapability() const
-    {
-        return m_frameSeekCapability;
-    }
-    void setFrameSeekCapability(ImageSequenceProviderCapabilitySupport support)
-    {
-        m_frameSeekCapability = support;
-    }
-    ImageSequenceProviderCapabilitySupport positionSeekCapability() const
-    {
-        return m_positionSeekCapability;
-    }
-    void setPositionSeekCapability(ImageSequenceProviderCapabilitySupport support)
-    {
-        m_positionSeekCapability = support;
-    }
-    ImageSequenceAuthoredAnimationFacts authoredAnimationFacts() const
-    {
-        return m_authoredAnimationFacts;
-    }
-    void setAuthoredAnimationFacts(ImageSequenceAuthoredAnimationFacts facts)
-    {
-        m_authoredAnimationFacts = facts;
-    }
+    ImageSequenceProviderDescriptor() = default;
+    ImageSequenceProviderDescriptor(ImageSequenceProviderMetadata constructionMetadata,
+        ImageSequenceProviderThreadingContract threadingContract, SessionFactory sessionFactory);
+
+    bool isValid() const;
+    ImageSequenceProviderMetadata constructionMetadata() const { return m_constructionMetadata; }
     ImageSequenceProviderThreadingContract threadingContract() const { return m_threadingContract; }
-    void setThreadingContract(ImageSequenceProviderThreadingContract contract)
-    {
-        m_threadingContract = contract;
-    }
+    SessionFactory sessionFactory() const { return m_sessionFactory; }
 
 private:
-    std::shared_ptr<ImageSequenceProviderSessionFactory> m_sessionFactory;
-    ImageSequenceProviderMetadata m_knownMetadata;
-    ImageSequenceProviderKnownFacts m_knownFacts;
-    ImageSequenceProviderCapabilitySupport m_timedPlaybackCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_frameSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceProviderCapabilitySupport m_positionSeekCapability
-        = ImageSequenceProviderCapabilitySupport::Unavailable;
-    ImageSequenceAuthoredAnimationFacts m_authoredAnimationFacts;
+    ImageSequenceProviderMetadata m_constructionMetadata;
     ImageSequenceProviderThreadingContract m_threadingContract
         = ImageSequenceProviderThreadingContract::AffinityBound;
+    SessionFactory m_sessionFactory;
 };
+
+using ImageSequenceProviderSessionFactory = ImageSequenceProviderDescriptor::SessionFactory;
 
 class PresentationTargetTransitionPolicy
 {
@@ -2047,9 +2011,9 @@ class ImageViewportPresentationSnapshot
     Q_PROPERTY(bool smoothing READ smoothing CONSTANT)
     Q_PROPERTY(bool mipmap READ mipmap CONSTANT)
     Q_PROPERTY(bool looping READ looping CONSTANT)
-    Q_PROPERTY(ImageViewport::QualityPreference qualityPreference READ qualityPreference CONSTANT)
+    Q_PROPERTY(ImageViewportQualityPreference qualityPreference READ qualityPreference CONSTANT)
     Q_PROPERTY(
-        ImageViewport::ExactnessPreference exactnessPreference READ exactnessPreference CONSTANT)
+        ImageViewportExactnessPreference exactnessPreference READ exactnessPreference CONSTANT)
 
 public:
     ImageViewportPresentationSnapshot() = default;
@@ -2058,8 +2022,8 @@ public:
         double manualZoomStepFactor, int rotationDegrees, bool mirrorHorizontally,
         bool mirrorVertically, ImageViewport::SpreadDirection spreadDirection, double pageGap,
         ImageViewport::BackgroundMode backgroundMode, QColor backgroundColor, bool smoothing,
-        bool mipmap, bool looping, ImageViewport::QualityPreference qualityPreference,
-        ImageViewport::ExactnessPreference exactnessPreference)
+        bool mipmap, bool looping, ImageViewportQualityPreference qualityPreference,
+        ImageViewportExactnessPreference exactnessPreference)
         : m_fitMode(fitMode)
         , m_zoomPercent(zoomPercent)
         , m_minimumManualZoomPercent(minimumManualZoomPercent)
@@ -2095,8 +2059,8 @@ public:
     bool smoothing() const { return m_smoothing; }
     bool mipmap() const { return m_mipmap; }
     bool looping() const { return m_looping; }
-    ImageViewport::QualityPreference qualityPreference() const { return m_qualityPreference; }
-    ImageViewport::ExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
+    ImageViewportQualityPreference qualityPreference() const { return m_qualityPreference; }
+    ImageViewportExactnessPreference exactnessPreference() const { return m_exactnessPreference; }
 
     friend bool operator==(
         const ImageViewportPresentationSnapshot& lhs, const ImageViewportPresentationSnapshot& rhs)
@@ -2137,10 +2101,9 @@ private:
     bool m_smoothing = true;
     bool m_mipmap = false;
     bool m_looping = false;
-    ImageViewport::QualityPreference m_qualityPreference
-        = ImageViewport::QualityPreference::Default;
-    ImageViewport::ExactnessPreference m_exactnessPreference
-        = ImageViewport::ExactnessPreference::Default;
+    ImageViewportQualityPreference m_qualityPreference = ImageViewportQualityPreference::Default;
+    ImageViewportExactnessPreference m_exactnessPreference
+        = ImageViewportExactnessPreference::Default;
 };
 
 class ImageViewportRoleRequestSnapshot
@@ -2151,7 +2114,7 @@ class ImageViewportRoleRequestSnapshot
         bool belongsToAcceptedPresentationTarget READ belongsToAcceptedPresentationTarget CONSTANT)
     Q_PROPERTY(ImageViewportPresentationTargetGenerationToken presentationTargetGeneration READ
             presentationTargetGeneration CONSTANT)
-    Q_PROPERTY(ImageViewport::PageRole role READ role CONSTANT)
+    Q_PROPERTY(ImageViewportPageRole role READ role CONSTANT)
     Q_PROPERTY(int frame READ frame CONSTANT)
     Q_PROPERTY(int position READ position CONSTANT)
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
@@ -2161,7 +2124,7 @@ public:
     ImageViewportRoleRequestSnapshot() = default;
     ImageViewportRoleRequestSnapshot(bool belongsToAcceptedPresentationTarget,
         ImageViewportPresentationTargetGenerationToken presentationTargetGeneration,
-        ImageViewport::PageRole role, int frame, int position, QSizeF sourceLogicalSize,
+        ImageViewportPageRole role, int frame, int position, QSizeF sourceLogicalSize,
         ImageViewportDemandRevisionToken demandRevision)
         : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_presentationTargetGeneration(presentationTargetGeneration)
@@ -2181,7 +2144,7 @@ public:
     {
         return m_presentationTargetGeneration;
     }
-    ImageViewport::PageRole role() const { return m_role; }
+    ImageViewportPageRole role() const { return m_role; }
     int frame() const { return m_frame; }
     int position() const { return m_position; }
     QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
@@ -2207,7 +2170,7 @@ public:
 private:
     bool m_belongsToAcceptedPresentationTarget = false;
     ImageViewportPresentationTargetGenerationToken m_presentationTargetGeneration;
-    ImageViewport::PageRole m_role = ImageViewport::PageRole::Primary;
+    ImageViewportPageRole m_role = ImageViewportPageRole::Primary;
     int m_frame = -1;
     int m_position = -1;
     QSizeF m_sourceLogicalSize;
@@ -2226,8 +2189,8 @@ class ImageViewportRoleDisplaySnapshot
     Q_PROPERTY(QSizeF sourceLogicalSize READ sourceLogicalSize CONSTANT)
     Q_PROPERTY(QSizeF payloadRasterSize READ payloadRasterSize CONSTANT)
     Q_PROPERTY(QSizeF sourceToPayloadScale READ sourceToPayloadScale CONSTANT)
-    Q_PROPERTY(ImageViewport::PayloadQuality quality READ quality CONSTANT)
-    Q_PROPERTY(ImageViewport::PayloadExactness exactness READ exactness CONSTANT)
+    Q_PROPERTY(ImageViewportPayloadQuality quality READ quality CONSTANT)
+    Q_PROPERTY(ImageViewportPayloadExactness exactness READ exactness CONSTANT)
     Q_PROPERTY(bool currentForDemand READ currentForDemand CONSTANT)
     Q_PROPERTY(ImageViewportDemandRevisionToken demandRevision READ demandRevision CONSTANT)
 
@@ -2235,8 +2198,8 @@ public:
     ImageViewportRoleDisplaySnapshot() = default;
     ImageViewportRoleDisplaySnapshot(bool belongsToAcceptedPresentationTarget, bool retained,
         int frame, int position, QSizeF sourceLogicalSize, QSizeF payloadRasterSize,
-        QSizeF sourceToPayloadScale, ImageViewport::PayloadQuality quality,
-        ImageViewport::PayloadExactness exactness, bool currentForDemand,
+        QSizeF sourceToPayloadScale, ImageViewportPayloadQuality quality,
+        ImageViewportPayloadExactness exactness, bool currentForDemand,
         ImageViewportDemandRevisionToken demandRevision)
         : m_belongsToAcceptedPresentationTarget(belongsToAcceptedPresentationTarget)
         , m_retained(retained)
@@ -2262,8 +2225,8 @@ public:
     QSizeF sourceLogicalSize() const { return m_sourceLogicalSize; }
     QSizeF payloadRasterSize() const { return m_payloadRasterSize; }
     QSizeF sourceToPayloadScale() const { return m_sourceToPayloadScale; }
-    ImageViewport::PayloadQuality quality() const { return m_quality; }
-    ImageViewport::PayloadExactness exactness() const { return m_exactness; }
+    ImageViewportPayloadQuality quality() const { return m_quality; }
+    ImageViewportPayloadExactness exactness() const { return m_exactness; }
     bool currentForDemand() const { return m_currentForDemand; }
     ImageViewportDemandRevisionToken demandRevision() const { return m_demandRevision; }
 
@@ -2295,8 +2258,8 @@ private:
     QSizeF m_sourceLogicalSize;
     QSizeF m_payloadRasterSize;
     QSizeF m_sourceToPayloadScale;
-    ImageViewport::PayloadQuality m_quality = ImageViewport::PayloadQuality::Unknown;
-    ImageViewport::PayloadExactness m_exactness = ImageViewport::PayloadExactness::Unknown;
+    ImageViewportPayloadQuality m_quality = ImageViewportPayloadQuality::Unknown;
+    ImageViewportPayloadExactness m_exactness = ImageViewportPayloadExactness::Unknown;
     bool m_currentForDemand = false;
     ImageViewportDemandRevisionToken m_demandRevision;
 };
@@ -2311,24 +2274,23 @@ class ImageViewportRoleMetadataSnapshot
     Q_PROPERTY(int totalDuration READ totalDuration CONSTANT)
     Q_PROPERTY(ImageViewportRange frameSeekBounds READ frameSeekBounds CONSTANT)
     Q_PROPERTY(ImageViewportRange positionSeekBounds READ positionSeekBounds CONSTANT)
-    Q_PROPERTY(ImageViewport::CapabilitySupport frameSeekSupport READ frameSeekSupport CONSTANT)
+    Q_PROPERTY(ImageViewportCapabilitySupport frameSeekSupport READ frameSeekSupport CONSTANT)
+    Q_PROPERTY(ImageViewportCapabilitySupport positionSeekSupport READ positionSeekSupport CONSTANT)
     Q_PROPERTY(
-        ImageViewport::CapabilitySupport positionSeekSupport READ positionSeekSupport CONSTANT)
-    Q_PROPERTY(
-        ImageViewport::CapabilitySupport timedPlaybackSupport READ timedPlaybackSupport CONSTANT)
+        ImageViewportCapabilitySupport timedPlaybackSupport READ timedPlaybackSupport CONSTANT)
     Q_PROPERTY(bool autoplay READ autoplay CONSTANT)
     Q_PROPERTY(bool progressiveAnimationReadiness READ progressiveAnimationReadiness CONSTANT)
-    Q_PROPERTY(ImageSequenceAuthoredAnimationFacts::LoopMode loopMode READ loopMode CONSTANT)
+    Q_PROPERTY(ImageSequenceAuthoredAnimationLoopMode loopMode READ loopMode CONSTANT)
     Q_PROPERTY(int loopCount READ loopCount CONSTANT)
 
 public:
     ImageViewportRoleMetadataSnapshot() = default;
     ImageViewportRoleMetadataSnapshot(bool available, QSizeF sourceLogicalSize, int frameCount,
         int totalDuration, ImageViewportRange frameSeekBounds,
-        ImageViewportRange positionSeekBounds, ImageViewport::CapabilitySupport frameSeekSupport,
-        ImageViewport::CapabilitySupport positionSeekSupport,
-        ImageViewport::CapabilitySupport timedPlaybackSupport, bool autoplay,
-        bool progressiveAnimationReadiness, ImageSequenceAuthoredAnimationFacts::LoopMode loopMode,
+        ImageViewportRange positionSeekBounds, ImageViewportCapabilitySupport frameSeekSupport,
+        ImageViewportCapabilitySupport positionSeekSupport,
+        ImageViewportCapabilitySupport timedPlaybackSupport, bool autoplay,
+        bool progressiveAnimationReadiness, ImageSequenceAuthoredAnimationLoopMode loopMode,
         int loopCount)
         : m_available(available)
         , m_sourceLogicalSize(sourceLogicalSize)
@@ -2352,12 +2314,12 @@ public:
     int totalDuration() const { return m_totalDuration; }
     ImageViewportRange frameSeekBounds() const { return m_frameSeekBounds; }
     ImageViewportRange positionSeekBounds() const { return m_positionSeekBounds; }
-    ImageViewport::CapabilitySupport frameSeekSupport() const { return m_frameSeekSupport; }
-    ImageViewport::CapabilitySupport positionSeekSupport() const { return m_positionSeekSupport; }
-    ImageViewport::CapabilitySupport timedPlaybackSupport() const { return m_timedPlaybackSupport; }
+    ImageViewportCapabilitySupport frameSeekSupport() const { return m_frameSeekSupport; }
+    ImageViewportCapabilitySupport positionSeekSupport() const { return m_positionSeekSupport; }
+    ImageViewportCapabilitySupport timedPlaybackSupport() const { return m_timedPlaybackSupport; }
     bool autoplay() const { return m_autoplay; }
     bool progressiveAnimationReadiness() const { return m_progressiveAnimationReadiness; }
-    ImageSequenceAuthoredAnimationFacts::LoopMode loopMode() const { return m_loopMode; }
+    ImageSequenceAuthoredAnimationLoopMode loopMode() const { return m_loopMode; }
     int loopCount() const { return m_loopCount; }
 
     friend bool operator==(
@@ -2388,16 +2350,15 @@ private:
     int m_totalDuration = -1;
     ImageViewportRange m_frameSeekBounds;
     ImageViewportRange m_positionSeekBounds;
-    ImageViewport::CapabilitySupport m_frameSeekSupport
-        = ImageViewport::CapabilitySupport::Unavailable;
-    ImageViewport::CapabilitySupport m_positionSeekSupport
-        = ImageViewport::CapabilitySupport::Unavailable;
-    ImageViewport::CapabilitySupport m_timedPlaybackSupport
-        = ImageViewport::CapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_frameSeekSupport = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_positionSeekSupport
+        = ImageViewportCapabilitySupport::Unavailable;
+    ImageViewportCapabilitySupport m_timedPlaybackSupport
+        = ImageViewportCapabilitySupport::Unavailable;
     bool m_autoplay = false;
     bool m_progressiveAnimationReadiness = false;
-    ImageSequenceAuthoredAnimationFacts::LoopMode m_loopMode
-        = ImageSequenceAuthoredAnimationFacts::LoopMode::PlayOnce;
+    ImageSequenceAuthoredAnimationLoopMode m_loopMode
+        = ImageSequenceAuthoredAnimationLoopMode::PlayOnce;
     int m_loopCount = -1;
 };
 

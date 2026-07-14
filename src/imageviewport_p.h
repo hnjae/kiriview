@@ -17,7 +17,7 @@ public:
     using CommandReason = ImageViewport::CommandReason;
     using DisplayStatus = ImageViewport::DisplayStatus;
     using FitMode = ImageViewport::FitMode;
-    using PageRole = ImageViewport::PageRole;
+    using PageRole = ImageViewportPageRole;
     using PlaybackPhase = ImageViewport::PlaybackPhase;
     using RequestReason = ImageViewport::RequestReason;
     using RequestStatus = ImageViewport::RequestStatus;

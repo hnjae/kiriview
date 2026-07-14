@@ -64,17 +64,22 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
     for (const auto& effect : effects) {
         ViewportProviderBridge& bridge = bridgeForRole(effect.role);
         switch (effect.kind) {
-        case ViewportProviderTransportCommand::Kind::OpenSession:
-            if (!bridge.openSession({ effect.sessionFactory, effect.threadingContract,
-                    effect.generation, effect.sessionSerial, viewport.q,
-                    [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } })) {
-                applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role,
-                    {}, {}, QStringLiteral("provider session creation failed") });
+        case ViewportProviderTransportCommand::Kind::OpenSession: {
+            const auto openResult = bridge.openSession({ effect.sessionFactory,
+                effect.threadingContract, effect.generation, effect.sessionSerial, viewport.q,
+                [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
+            if (!openResult.opened) {
+                applyHostEvent(
+                    { ViewportProviderHostEvent::Kind::SessionOpenFailed, effect.role, {}, {},
+                        openResult.diagnostic.isEmpty()
+                            ? QStringLiteral("provider session creation failed")
+                            : openResult.diagnostic });
                 return;
             } else {
                 applyHostEvent({ ViewportProviderHostEvent::Kind::SessionOpened, effect.role });
             }
             break;
+        }
         case ViewportProviderTransportCommand::Kind::SendRequest: {
             const auto result = bridge.deliverRequest(effect.request);
             if (!result.delivered && effect.reportDispatchFailure) {
