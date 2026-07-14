@@ -4,7 +4,6 @@
 #ifndef KIRIVIEW_IMAGEOPENWORKFLOWCONVERSION_H
 #define KIRIVIEW_IMAGEOPENWORKFLOWCONVERSION_H
 
-#include "document/imageopenworkflow.h"
 #include "kiriview/src/policy/imageopenworkflow.cxx.h"
 
 namespace kiriview {
@@ -27,15 +26,12 @@ namespace Bridge {
 
 RustImageDocumentSourceLoadPolicyInput rustImageDocumentSourceLoadPolicyInput(
     Bridge::ImageDocumentSourceLoadPolicyInput input);
-ImageDocumentSourceLoadPlan imageDocumentSourceLoadPlanFromBridge(
-    const RustImageDocumentSourceLoadPlan& rustPlan);
 
 RustImageOpenWorkflowEvent rustImageOpenWorkflowEvent(RustImageOpenWorkflowEventKind kind);
-RustImageOpenWorkflowEvent rustBeginSourceLoadEvent(ImageOpenBeginSourceLoadSnapshot snapshot);
-RustImageOpenWorkflowEvent rustSuccessfulImageLoadEvent(
-    ImageOpenSuccessfulImageLoadSnapshot snapshot);
-RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(ImageOpenLoadFailureRoute route);
-ImageOpenTransition imageOpenTransitionFromBridge(const RustImageOpenTransition& rustTransition);
+RustImageOpenWorkflowEvent rustBeginSourceLoadEvent(
+    bool hasImage, bool hasLoadingContainerNavigationTarget);
+RustImageOpenWorkflowEvent rustSuccessfulImageLoadEvent(bool hasRequestContainerNavigationTarget);
+RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(bool hasContainerNavigationTarget);
 }
 
 #endif

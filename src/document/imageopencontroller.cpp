@@ -6,7 +6,7 @@
 #include "async/imagecallback.h"
 #include "imagedocumentstate.h"
 #include "imageloader.h"
-#include "imageopentransitionapplier.h"
+#include "imageopenapplicationplanapplier.h"
 #include "imageopenworkflow.h"
 #include "localization/imageerrortext.h"
 #include "location/imagedocumentlocation.h"

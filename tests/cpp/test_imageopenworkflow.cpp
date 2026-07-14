@@ -4,14 +4,13 @@
 #include "document/imageopenworkflow.h"
 
 #include "document/imagedocumentstate.h"
-#include "document/imageopentransitionapplier.h"
+#include "document/imageopenapplicationplanapplier.h"
 #include "image_test_support.h"
 #include "location/imagedocumentlocation.h"
 
 #include <QObject>
 #include <QTest>
 #include <QUrl>
-#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <utility>
@@ -64,13 +63,6 @@ bool operationAtType(const kiriview::ImageDocumentRuntimePlan& plan, std::size_t
     }
 
     return std::holds_alternative<Operation>(plan.at(index));
-}
-
-bool transitionHasEffect(
-    const kiriview::ImageOpenTransition& transition, kiriview::ImageOpenEffect effect)
-{
-    return std::find(transition.effects.cbegin(), transition.effects.cend(), effect)
-        != transition.effects.cend();
 }
 
 kiriview::ImageDocumentRuntimePlan beginSourceLoad(
@@ -160,12 +152,13 @@ class TestImageOpenWorkflow : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void transitionsUseExplicitSnapshotInputs();
+    void applicationPlansUseExplicitInputs();
     void sourceResolutionUsesCanonicalSessionImageUrl();
     void sourceResolutionTracksSessionSourceKind();
     void unsupportedOpenedCollectionVideoTransitionPublishesReadyVideoState();
     void playableOpenedCollectionVideoTransitionPublishesHandoffState();
     void firstImageLoadSuccessTransitionsToReady();
+    void successfulImageLoadPublishesEmbeddedMetadata();
     void directArchiveImageLoadSuccessDisablesContainerNavigation();
     void replacementLoadFailureSelectsTargetError();
     void emptyContainerFailureSelectsFailedContainer();
@@ -178,35 +171,42 @@ private Q_SLOTS:
     void stateChangesFollowWorkflowDeltaOrder();
 };
 
-void TestImageOpenWorkflow::transitionsUseExplicitSnapshotInputs()
+void TestImageOpenWorkflow::applicationPlansUseExplicitInputs()
 {
-    const kiriview::ImageOpenTransition initialLoad
-        = kiriview::ImageOpenWorkflow::beginSourceLoadTransition(
+    const kiriview::ImageOpenApplicationPlan initialLoad
+        = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { false, false });
-    QCOMPARE(initialLoad.stateDelta.containerNavigationUrl, kiriview::ImageOpenUrlTarget::Empty);
-    QCOMPARE(initialLoad.stateDelta.loading, kiriview::ImageOpenBoolTarget::True);
-    QCOMPARE(initialLoad.stateDelta.status, kiriview::ImageOpenStatusTarget::Loading);
-    QVERIFY(transitionHasEffect(initialLoad, kiriview::ImageOpenEffect::ClearImage));
-    QVERIFY(transitionHasEffect(initialLoad, kiriview::ImageOpenEffect::ResetZoom));
+    QVERIFY(initialLoad.stateDelta.containerNavigationUrl.has_value());
+    QVERIFY(initialLoad.stateDelta.containerNavigationUrl->isEmpty());
+    QCOMPARE(initialLoad.stateDelta.loading, std::optional<bool>(true));
+    QCOMPARE(initialLoad.stateDelta.status,
+        std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
+    QVERIFY(hasOperation<kiriview::ClearPresentationImageOperation>(initialLoad.runtimePlan));
+    QVERIFY(hasOperation<kiriview::ResetZoomOperation>(initialLoad.runtimePlan));
 
-    const kiriview::ImageOpenTransition routedLoad
-        = kiriview::ImageOpenWorkflow::beginSourceLoadTransition(
+    const kiriview::ImageOpenApplicationPlan routedLoad
+        = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { false, true });
-    QCOMPARE(routedLoad.stateDelta.containerNavigationUrl, kiriview::ImageOpenUrlTarget::Unchanged);
+    QVERIFY(!routedLoad.stateDelta.containerNavigationUrl.has_value());
 
-    const kiriview::ImageOpenTransition replacementLoad
-        = kiriview::ImageOpenWorkflow::beginSourceLoadTransition(
+    const kiriview::ImageOpenApplicationPlan replacementLoad
+        = kiriview::ImageOpenWorkflow::beginSourceLoadPlan(
             kiriview::ImageOpenBeginSourceLoadSnapshot { true, true });
-    QCOMPARE(replacementLoad.stateDelta.loading, kiriview::ImageOpenBoolTarget::True);
-    QCOMPARE(replacementLoad.stateDelta.status, kiriview::ImageOpenStatusTarget::Loading);
+    QCOMPARE(replacementLoad.stateDelta.loading, std::optional<bool>(true));
+    QCOMPARE(replacementLoad.stateDelta.status,
+        std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Loading));
 
-    const kiriview::ImageOpenTransition replacementFailure
-        = kiriview::ImageOpenWorkflow::finishLoadWithErrorTransition(
-            kiriview::ImageOpenLoadFailureRoute::Source);
-    QCOMPARE(replacementFailure.stateDelta.sourceUrl, kiriview::ImageOpenUrlTarget::Unchanged);
-    QCOMPARE(replacementFailure.stateDelta.status, kiriview::ImageOpenStatusTarget::Error);
-    QVERIFY(
-        !transitionHasEffect(replacementFailure, kiriview::ImageOpenEffect::UpdatePageNavigation));
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/missing.png"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl, imageUrl);
+    kiriview::ImageLoadFailure failure { imageUrl, session.id(),
+        kiriview::ImageLoadFailureKind::DataLoad, QStringLiteral("missing"),
+        QStringLiteral("missing"), kiriview::ImageLoadFailureSeverity::Error, false };
+    const kiriview::ImageOpenApplicationPlan replacementFailure
+        = kiriview::ImageOpenWorkflow::finishLoadWithErrorPlan(session, std::move(failure));
+    QVERIFY(!replacementFailure.stateDelta.sourceUrl.has_value());
+    QCOMPARE(replacementFailure.stateDelta.status,
+        std::optional<kiriview::ImageDocumentStatus>(kiriview::ImageDocumentStatus::Error));
+    QVERIFY(!hasOperation<kiriview::UpdatePageNavigationOperation>(replacementFailure.runtimePlan));
 }
 
 void TestImageOpenWorkflow::sourceResolutionUsesCanonicalSessionImageUrl()
@@ -363,6 +363,23 @@ void TestImageOpenWorkflow::firstImageLoadSuccessTransitionsToReady()
     QVERIFY(!state.loading());
     QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Ready);
     QVERIFY(state.errorString().isEmpty());
+}
+
+void TestImageOpenWorkflow::successfulImageLoadPublishesEmbeddedMetadata()
+{
+    kiriview::ImageDocumentState state;
+    const QUrl imageUrl = localUrl(QStringLiteral("/images/page.png"));
+    const kiriview::ImageLoadSession session = loadSession(imageUrl, imageUrl);
+    kiriview::EmbeddedMetadata metadata;
+    metadata.cameraMake = QStringLiteral("Kiri Camera");
+
+    const kiriview::ImageOpenApplicationPlan applicationPlan
+        = kiriview::ImageOpenWorkflow::finishSuccessfulImageLoadPlan(
+            kiriview::ImageOpenSuccessfulImageLoadSnapshot { false }, session, std::move(metadata));
+    kiriview::applyImageOpenApplicationPlan(state, applicationPlan);
+
+    QCOMPARE(state.sourceUrl(), imageUrl);
+    QCOMPARE(state.embeddedMetadata().cameraMake, QStringLiteral("Kiri Camera"));
 }
 
 void TestImageOpenWorkflow::directArchiveImageLoadSuccessDisablesContainerNavigation()

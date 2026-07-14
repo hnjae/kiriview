@@ -147,7 +147,7 @@ src/application/menuaccesskeyrouterruntime.cpp
 src/facade/menuaccesskeyrouter.cpp
 src/application/menuaccesskeysessionstate.cpp
 src/document/imageopencontroller.cpp
-src/document/imageopentransitionapplier.cpp
+src/document/imageopenapplicationplanapplier.cpp
 src/document/imageopenworkflow.cpp
 src/navigation/imagedocumentpagenavigationmodel.cpp
 src/navigation/mediaformatregistry.cpp

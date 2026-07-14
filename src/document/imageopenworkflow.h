@@ -6,12 +6,10 @@
 
 #include "imagedocumentruntimeplan.h"
 #include "imagedocumentsourceloadrequest.h"
+#include "imageloadtypes.h"
 #include "imageopenapplicationplan.h"
-#include "imageopentransition.h"
 #include "location/imagelocation.h"
 #include "metadata/embeddedmetadata.h"
-
-#include <vector>
 
 namespace kiriview {
 struct ImageDocumentSourceLoadSnapshot
@@ -31,30 +29,6 @@ struct ImageOpenSuccessfulImageLoadSnapshot
 {
     bool hasRequestContainerNavigationTarget = false;
 };
-
-enum class ImageOpenLoadFailureRoute {
-    Source,
-    ContainerNavigation,
-};
-
-enum class ImageDocumentSourceLoadEffect {
-    CancelFileDeletion,
-    CancelAllNavigation,
-    CancelPredecode,
-    FinishSpreadTransition,
-    ResetRightToLeftReading,
-    NotifyRightToLeftReadingChanged,
-    ClearSecondaryPage,
-    BeginSameScopeImageNavigationPresentation,
-    ClearLoadingContainerNavigationUrl,
-    SetLoadingContainerNavigationUrlToRequested,
-    SetContainerNavigationUrlToRequested,
-    PrepareSourceLoad,
-    SetSourceUrlToRequested,
-    BeginOpen,
-};
-
-using ImageDocumentSourceLoadPlan = std::vector<ImageDocumentSourceLoadEffect>;
 
 namespace ImageOpenWorkflow {
     ImageDocumentRuntimePlan sourceLoadPlan(const ImageDocumentSourceLoadSnapshot& snapshot,
@@ -76,16 +50,6 @@ namespace ImageOpenWorkflow {
     ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
         const QUrl& containerUrl, const QString& errorString);
     ImageOpenApplicationPlan finishAnimationLoadWithErrorPlan(const QString& errorString);
-    ImageOpenTransition beginSourceLoadTransition(ImageOpenBeginSourceLoadSnapshot snapshot);
-    ImageOpenTransition finishEmptySourceLoadTransition();
-    ImageOpenTransition resolveSourceImageTransition();
-    ImageOpenTransition finishUnsupportedOpenedCollectionVideoLoadTransition();
-    ImageOpenTransition finishPlayableOpenedCollectionVideoLoadTransition();
-    ImageOpenTransition finishSuccessfulImageLoadTransition(
-        ImageOpenSuccessfulImageLoadSnapshot snapshot);
-    ImageOpenTransition finishLoadWithErrorTransition(ImageOpenLoadFailureRoute route);
-    ImageOpenTransition finishContainerNavigationLoadWithErrorTransition();
-    ImageOpenTransition finishAnimationLoadWithErrorTransition();
 }
 }
 

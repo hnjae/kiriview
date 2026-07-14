@@ -12,7 +12,6 @@ class TestImageOpenWorkflowConversion : public QObject
 
 private Q_SLOTS:
     void sourceLoadPolicyInputMapsPlainFields();
-    void sourceLoadPlanMapsBridgeOperationsToDomainEffects();
     void loadFailureRouteMapsToBridgeEvent();
 };
 
@@ -35,58 +34,13 @@ void TestImageOpenWorkflowConversion::sourceLoadPolicyInputMapsPlainFields()
     QVERIFY(converted.has_requested_container_navigation_url);
 }
 
-void TestImageOpenWorkflowConversion::sourceLoadPlanMapsBridgeOperationsToDomainEffects()
-{
-    using Effect = kiriview::ImageDocumentSourceLoadEffect;
-    using RustOperation = kiriview::RustImageDocumentSourceLoadOperation;
-
-    kiriview::RustImageDocumentSourceLoadPlan rustPlan {};
-    rustPlan.operations.push_back(RustOperation::CancelFileDeletion);
-    rustPlan.operations.push_back(RustOperation::CancelAllNavigation);
-    rustPlan.operations.push_back(RustOperation::CancelPredecode);
-    rustPlan.operations.push_back(RustOperation::FinishSpreadTransition);
-    rustPlan.operations.push_back(RustOperation::ResetRightToLeftReading);
-    rustPlan.operations.push_back(RustOperation::NotifyRightToLeftReadingChanged);
-    rustPlan.operations.push_back(RustOperation::ClearSecondaryPage);
-    rustPlan.operations.push_back(RustOperation::BeginSameScopeImageNavigationPresentation);
-    rustPlan.operations.push_back(RustOperation::ClearLoadingContainerNavigationUrl);
-    rustPlan.operations.push_back(RustOperation::SetLoadingContainerNavigationUrlToRequested);
-    rustPlan.operations.push_back(RustOperation::SetContainerNavigationUrlToRequested);
-    rustPlan.operations.push_back(RustOperation::PrepareSourceLoad);
-    rustPlan.operations.push_back(RustOperation::SetSourceUrlToRequested);
-    rustPlan.operations.push_back(RustOperation::BeginOpen);
-
-    const kiriview::ImageDocumentSourceLoadPlan plan
-        = kiriview::imageDocumentSourceLoadPlanFromBridge(rustPlan);
-
-    const kiriview::ImageDocumentSourceLoadPlan expected {
-        Effect::CancelFileDeletion,
-        Effect::CancelAllNavigation,
-        Effect::CancelPredecode,
-        Effect::FinishSpreadTransition,
-        Effect::ResetRightToLeftReading,
-        Effect::NotifyRightToLeftReadingChanged,
-        Effect::ClearSecondaryPage,
-        Effect::BeginSameScopeImageNavigationPresentation,
-        Effect::ClearLoadingContainerNavigationUrl,
-        Effect::SetLoadingContainerNavigationUrlToRequested,
-        Effect::SetContainerNavigationUrlToRequested,
-        Effect::PrepareSourceLoad,
-        Effect::SetSourceUrlToRequested,
-        Effect::BeginOpen,
-    };
-    QVERIFY(plan == expected);
-}
-
 void TestImageOpenWorkflowConversion::loadFailureRouteMapsToBridgeEvent()
 {
-    const kiriview::RustImageOpenWorkflowEvent source
-        = kiriview::rustSourceLoadErrorEvent(kiriview::ImageOpenLoadFailureRoute::Source);
+    const kiriview::RustImageOpenWorkflowEvent source = kiriview::rustSourceLoadErrorEvent(false);
     QCOMPARE(source.kind, kiriview::RustImageOpenWorkflowEventKind::FinishSourceLoadWithError);
     QCOMPARE(source.load_failure_route, kiriview::RustImageOpenLoadFailureRoute::Source);
 
-    const kiriview::RustImageOpenWorkflowEvent container = kiriview::rustSourceLoadErrorEvent(
-        kiriview::ImageOpenLoadFailureRoute::ContainerNavigation);
+    const kiriview::RustImageOpenWorkflowEvent container = kiriview::rustSourceLoadErrorEvent(true);
     QCOMPARE(container.kind, kiriview::RustImageOpenWorkflowEventKind::FinishSourceLoadWithError);
     QCOMPARE(
         container.load_failure_route, kiriview::RustImageOpenLoadFailureRoute::ContainerNavigation);
