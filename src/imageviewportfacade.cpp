@@ -60,12 +60,6 @@ bool ImageViewport::containsPoint(
     return d->containsPoint(input);
 }
 
-ImageViewportCoordinateResult ImageViewport::nearestVisiblePoint(
-    ImageViewportCoordinateInput input) const // NOLINT(performance-unnecessary-value-param)
-{
-    return d->nearestVisiblePoint(input);
-}
-
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
     return d->renderHost.updatePaintNode(oldNode);

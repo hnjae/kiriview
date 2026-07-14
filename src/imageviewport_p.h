@@ -69,8 +69,6 @@ public:
     CommandOutcome setPresentation(ImageViewportPresentationCommand command);
     ImageViewportCoordinateResult mapPoint(const ImageViewportCoordinateInput& input) const;
     bool containsPoint(const ImageViewportCoordinateInput& input) const;
-    ImageViewportCoordinateResult nearestVisiblePoint(
-        const ImageViewportCoordinateInput& input) const;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void advancePlaybackForTest(int elapsedMilliseconds);
     void setNextProviderRequestTokenForTest(quint64 token);
@@ -131,15 +129,6 @@ public:
     BackgroundMode backgroundMode() const;
     QColor backgroundColor() const;
     bool looping() const;
-    CoordinateResult itemToSpread(double x, double y) const;
-    CoordinateResult spreadToItem(double x, double y) const;
-    CoordinateResult nearestVisibleSpreadPoint(double x, double y) const;
-    CoordinateResult itemToPage(PageRole role, double x, double y) const;
-    CoordinateResult pageToItem(PageRole role, double x, double y) const;
-    CoordinateResult nearestVisiblePagePoint(PageRole role, double x, double y) const;
-    bool containsVisibleSpreadPoint(double x, double y) const;
-    bool containsVisiblePagePoint(PageRole role, double x, double y) const;
-    static CoordinateResult invalidCoordinateResult();
     void applyControllerTransition(ViewportControllerTransition transition);
     void devicePixelRatioChanged();
     void refreshStateSnapshot();

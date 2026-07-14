@@ -128,7 +128,6 @@ private slots:
     void presentationTargetTransitionScanEndUsesReplacementSpreadGeometry();
     void presentationTargetTransitionClampUsesReplacementBounds();
     void manualZoomUsesDevicePixelRatioForTwoPageSpreadGeometry();
-    void nearestVisibleHelpersUseDevicePixelRatioAdjustedManualGeometry();
     void manualZoomHelpersUseControllerPresentationGeometry();
     void zoomByStepUsesControllerStepMathAndValidation();
 };
@@ -489,34 +488,6 @@ void ViewportControllerPresentationTest::manualZoomUsesDevicePixelRatioForTwoPag
     QCOMPARE(synchronization.renderSnapshot.imageLayers.size(), 2);
     QCOMPARE(synchronization.renderSnapshot.imageLayers.at(0).targetRect.size(), QSizeF(8.0, 4.0));
     QCOMPARE(synchronization.renderSnapshot.imageLayers.at(1).targetRect.size(), QSizeF(4.0, 4.0));
-}
-
-void ViewportControllerPresentationTest::
-    nearestVisibleHelpersUseDevicePixelRatioAdjustedManualGeometry()
-{
-    PresentationGeometry::State geometry;
-    geometry.hasReadyDisplay = true;
-    geometry.itemBounds = QRectF(0.0, 0.0, 100.0, 100.0);
-    geometry.primaryImageSize = QSizeF(100.0, 100.0);
-    geometry.fitMode = ImageViewport::FitMode::Manual;
-    geometry.manualZoom = 2.0;
-    geometry.devicePixelRatio = 1.0;
-
-    QCOMPARE(PresentationGeometry::visibleSpreadRect(geometry), QRectF(0.0, 0.0, 50.0, 50.0));
-    const CoordinateResult dprOneNearest
-        = PresentationGeometry::nearestVisibleSpreadPoint(geometry, 75.0, 75.0);
-    QCOMPARE(dprOneNearest.isValid(), true);
-    QCOMPARE(dprOneNearest.x(), std::nextafter(50.0, 0.0));
-    QCOMPARE(dprOneNearest.y(), std::nextafter(50.0, 0.0));
-
-    geometry.devicePixelRatio = 2.0;
-
-    QCOMPARE(PresentationGeometry::visibleSpreadRect(geometry), QRectF(0.0, 0.0, 100.0, 100.0));
-    const CoordinateResult dprTwoNearest
-        = PresentationGeometry::nearestVisibleSpreadPoint(geometry, 75.0, 75.0);
-    QCOMPARE(dprTwoNearest.isValid(), true);
-    QCOMPARE(dprTwoNearest.x(), 75.0);
-    QCOMPARE(dprTwoNearest.y(), 75.0);
 }
 
 void ViewportControllerPresentationTest::manualZoomHelpersUseControllerPresentationGeometry()

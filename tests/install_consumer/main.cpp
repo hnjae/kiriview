@@ -519,9 +519,8 @@ ImageViewport {
             && state.primary.metadata.positionSeekBounds.maximum === -1
             && mapPoint(coordinateInput).valid === false
             && mapPoint(coordinateInput).point.x === 0
-            && nearestVisiblePoint(coordinateInput).valid === false
-            && nearestVisiblePoint(coordinateInput).valid === false
             && containsPoint(coordinateInput) === false
+            && typeof nearestVisiblePoint === "undefined"
             && typeof itemToImage === "undefined"
             && typeof imageToItem === "undefined"
             && typeof nearestVisibleImagePoint === "undefined"
@@ -884,14 +883,15 @@ int main(int argc, char** argv)
     const double minimumManualZoom = helperPresentation.minimumManualZoomPercent();
     const double maximumManualZoom = helperPresentation.maximumManualZoomPercent();
     ImageViewportCoordinateInput primaryPageCoordinate;
-    primaryPageCoordinate.setSourceSpace(ImageViewport::CoordinateSpace::Page);
-    primaryPageCoordinate.setTargetSpace(ImageViewport::CoordinateSpace::Page);
-    primaryPageCoordinate.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    primaryPageCoordinate.setSourceSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    primaryPageCoordinate.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    primaryPageCoordinate.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
     primaryPageCoordinate.setPoint(QPointF(1.0, 1.0));
     if (minimumManualZoom <= 0.0
         || maximumManualZoom != ImageViewportDisplayLimits::maximumManualZoomPercent()
         || helperPresentation.manualZoomStepFactor() != 1.25
-        || helperViewport.nearestVisiblePoint(primaryPageCoordinate).isValid()) {
+        || helperViewport.mapPoint(primaryPageCoordinate).isValid()
+        || helperViewport.containsPoint(primaryPageCoordinate)) {
         return 1;
     }
 
@@ -955,19 +955,19 @@ int main(int argc, char** argv)
     }
     ImageViewportCoordinateInput installedCoordinateInput;
     installedCoordinateInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
-    installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::Page);
-    installedCoordinateInput.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    installedCoordinateInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    installedCoordinateInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
     installedCoordinateInput.setPoint(QPointF(1.0, 2.0));
-    const ImageViewportCoordinateResult installedCoordinateResult(false, QPointF(),
-        installedCoordinateInput.sourceSpace(), installedCoordinateInput.targetSpace(),
-        installedCoordinateInput.pageRole());
-    if (installedCoordinateInput.pageRole().value<ImageViewport::PageRole>()
+    const ImageViewportCoordinateResult installedCoordinateResult(
+        false, QPointF(), installedCoordinateInput.targetSpace(), installedCoordinateInput.role());
+    if (installedCoordinateInput.role().value<ImageViewport::PageRole>()
             != ImageViewport::PageRole::Primary
         || installedCoordinateResult.isValid()
-        || installedCoordinateResult.targetSpace() != ImageViewport::CoordinateSpace::Page
+        || installedCoordinateResult.space() != ImageViewport::CoordinateSpace::DisplayedPage
+        || installedCoordinateResult.role().value<ImageViewport::PageRole>()
+            != ImageViewport::PageRole::Primary
         || helperViewport.mapPoint(installedCoordinateInput).isValid()
-        || helperViewport.containsPoint(installedCoordinateInput)
-        || helperViewport.nearestVisiblePoint(installedCoordinateInput).isValid()) {
+        || helperViewport.containsPoint(installedCoordinateInput)) {
         return 1;
     }
 

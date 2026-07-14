@@ -27,24 +27,6 @@ CoordinateResult coordinateResult(QPointF point)
     return CoordinateResult(true, point.x(), point.y());
 }
 
-bool isFiniteRect(const QRectF& rect)
-{
-    return std::isfinite(rect.left()) && std::isfinite(rect.top()) && std::isfinite(rect.right())
-        && std::isfinite(rect.bottom());
-}
-
-CoordinateResult nearestCoordinateInHalfOpenRect(const QRectF& rect, double x, double y)
-{
-    if (rect.isEmpty() || !isFiniteRect(rect) || !std::isfinite(x) || !std::isfinite(y)) {
-        return {};
-    }
-
-    const double rightEdgeInside = std::nextafter(rect.right(), rect.left());
-    const double bottomEdgeInside = std::nextafter(rect.bottom(), rect.top());
-    return coordinateResult(QPointF(
-        std::clamp(x, rect.left(), rightEdgeInside), std::clamp(y, rect.top(), bottomEdgeInside)));
-}
-
 int normalizedRotation(int degrees)
 {
     int normalized = degrees % 360;
@@ -498,20 +480,10 @@ CoordinateResult PresentationGeometry::spreadToItem(const State& state, double x
     const QRectF content = contentRectForReadyState(state);
     const QPointF itemPoint
         = orientedToItemPoint(state, content, spreadToOrientedPoint(state, QPointF(x, y)));
-    if (!state.itemBounds.contains(itemPoint)) {
+    if (!containsHalfOpen(state.itemBounds, itemPoint)) {
         return invalidCoordinateResult();
     }
     return coordinateResult(itemPoint);
-}
-
-CoordinateResult PresentationGeometry::nearestVisibleSpreadPoint(
-    const State& state, double x, double y)
-{
-    if (!hasPresentableGeometry(state)) {
-        return invalidCoordinateResult();
-    }
-
-    return nearestCoordinateInHalfOpenRect(visibleSpreadRectForState(state), x, y);
 }
 
 CoordinateResult PresentationGeometry::itemToPage(
@@ -547,10 +519,56 @@ CoordinateResult PresentationGeometry::pageToItem(
     return spreadToItem(state, pageRect.x() + x, pageRect.y() + y);
 }
 
-CoordinateResult PresentationGeometry::nearestVisiblePagePoint(
+CoordinateResult PresentationGeometry::spreadToPage(
     const State& state, ImageViewport::PageRole role, double x, double y)
 {
-    return nearestCoordinateInHalfOpenRect(visiblePageRectForState(state, role), x, y);
+    if (!containsSpreadPoint(state, x, y)) {
+        return invalidCoordinateResult();
+    }
+
+    const QRectF pageRect = pageRectForRole(state, role);
+    const QPointF point(x, y);
+    if (!containsHalfOpen(pageRect, point)) {
+        return invalidCoordinateResult();
+    }
+    return coordinateResult(point - pageRect.topLeft());
+}
+
+CoordinateResult PresentationGeometry::pageToSpread(
+    const State& state, ImageViewport::PageRole role, double x, double y)
+{
+    if (!containsPagePoint(state, role, x, y)) {
+        return invalidCoordinateResult();
+    }
+
+    const QRectF pageRect = pageRectForRole(state, role);
+    return coordinateResult(pageRect.topLeft() + QPointF(x, y));
+}
+
+bool PresentationGeometry::containsItemPoint(const State& state, double x, double y)
+{
+    return hasPresentableGeometry(state) && std::isfinite(x) && std::isfinite(y)
+        && containsHalfOpen(state.itemBounds, QPointF(x, y));
+}
+
+bool PresentationGeometry::containsSpreadPoint(const State& state, double x, double y)
+{
+    if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
+        return false;
+    }
+
+    return containsHalfOpen(QRectF(QPointF(0.0, 0.0), spreadSizeForState(state)), QPointF(x, y));
+}
+
+bool PresentationGeometry::containsPagePoint(
+    const State& state, ImageViewport::PageRole role, double x, double y)
+{
+    if (!hasPresentableGeometry(state) || !std::isfinite(x) || !std::isfinite(y)) {
+        return false;
+    }
+
+    const QRectF pageRect = pageRectForRole(state, role);
+    return containsHalfOpen(QRectF(QPointF(0.0, 0.0), pageRect.size()), QPointF(x, y));
 }
 
 bool PresentationGeometry::containsVisibleSpreadPoint(const State& state, double x, double y)
@@ -565,22 +583,6 @@ bool PresentationGeometry::containsVisibleSpreadPoint(const State& state, double
     }
 
     return containsHalfOpen(visibleSpreadRectForState(state), QPointF(x, y));
-}
-
-bool PresentationGeometry::containsVisiblePagePoint(
-    const State& state, ImageViewport::PageRole role, double x, double y)
-{
-    if (!std::isfinite(x) || !std::isfinite(y)) {
-        return false;
-    }
-
-    const QRectF pageRect = pageRectForRole(state, role);
-    const QRectF pageLocalRect(QPointF(0.0, 0.0), pageRect.size());
-    if (!containsHalfOpen(pageLocalRect, QPointF(x, y))) {
-        return false;
-    }
-
-    return containsHalfOpen(visiblePageRectForState(state, role), QPointF(x, y));
 }
 
 CoordinateResult PresentationGeometry::invalidCoordinateResult() { return {}; }

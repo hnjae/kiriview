@@ -929,8 +929,8 @@ public:
 
     enum class CoordinateSpace {
         Item,
-        Spread,
-        Page,
+        DisplayedSpread,
+        DisplayedPage,
     };
     Q_ENUM(CoordinateSpace)
 
@@ -954,8 +954,6 @@ public:
         ImageViewportPresentationCommand command);
     Q_INVOKABLE ImageViewportCoordinateResult mapPoint(ImageViewportCoordinateInput input) const;
     Q_INVOKABLE bool containsPoint(ImageViewportCoordinateInput input) const;
-    Q_INVOKABLE ImageViewportCoordinateResult nearestVisiblePoint(
-        ImageViewportCoordinateInput input) const;
 
 signals:
     void stateChanged(); // clazy:exclude=overloaded-signal
@@ -2717,7 +2715,7 @@ class ImageViewportCoordinateInput
     QML_STRUCTURED_VALUE
     Q_PROPERTY(ImageViewport::CoordinateSpace sourceSpace READ sourceSpace WRITE setSourceSpace)
     Q_PROPERTY(ImageViewport::CoordinateSpace targetSpace READ targetSpace WRITE setTargetSpace)
-    Q_PROPERTY(QVariant pageRole READ pageRole WRITE setPageRole)
+    Q_PROPERTY(QVariant role READ role WRITE setRole)
     Q_PROPERTY(QPointF point READ point WRITE setPoint)
 
 public:
@@ -2727,8 +2725,8 @@ public:
     void setSourceSpace(ImageViewport::CoordinateSpace sourceSpace) { m_sourceSpace = sourceSpace; }
     ImageViewport::CoordinateSpace targetSpace() const { return m_targetSpace; }
     void setTargetSpace(ImageViewport::CoordinateSpace targetSpace) { m_targetSpace = targetSpace; }
-    QVariant pageRole() const { return m_pageRole; }
-    void setPageRole(QVariant pageRole) { m_pageRole = std::move(pageRole); }
+    QVariant role() const { return m_role; }
+    void setRole(QVariant role) { m_role = std::move(role); }
     QPointF point() const { return m_point; }
     void setPoint(QPointF point) { m_point = point; }
 
@@ -2736,7 +2734,7 @@ public:
         const ImageViewportCoordinateInput& lhs, const ImageViewportCoordinateInput& rhs)
     {
         return lhs.m_sourceSpace == rhs.m_sourceSpace && lhs.m_targetSpace == rhs.m_targetSpace
-            && lhs.m_pageRole == rhs.m_pageRole && lhs.m_point == rhs.m_point;
+            && lhs.m_role == rhs.m_role && lhs.m_point == rhs.m_point;
     }
     friend bool operator!=(
         const ImageViewportCoordinateInput& lhs, const ImageViewportCoordinateInput& rhs)
@@ -2746,8 +2744,8 @@ public:
 
 private:
     ImageViewport::CoordinateSpace m_sourceSpace = ImageViewport::CoordinateSpace::Item;
-    ImageViewport::CoordinateSpace m_targetSpace = ImageViewport::CoordinateSpace::Spread;
-    QVariant m_pageRole;
+    ImageViewport::CoordinateSpace m_targetSpace = ImageViewport::CoordinateSpace::DisplayedSpread;
+    QVariant m_role;
     QPointF m_point;
 };
 
@@ -2757,35 +2755,30 @@ class ImageViewportCoordinateResult
     QML_VALUE_TYPE(imageViewportCoordinateResult)
     Q_PROPERTY(bool valid READ isValid CONSTANT)
     Q_PROPERTY(QPointF point READ point CONSTANT)
-    Q_PROPERTY(ImageViewport::CoordinateSpace sourceSpace READ sourceSpace CONSTANT)
-    Q_PROPERTY(ImageViewport::CoordinateSpace targetSpace READ targetSpace CONSTANT)
-    Q_PROPERTY(QVariant pageRole READ pageRole CONSTANT)
+    Q_PROPERTY(ImageViewport::CoordinateSpace space READ space CONSTANT)
+    Q_PROPERTY(QVariant role READ role CONSTANT)
 
 public:
     ImageViewportCoordinateResult() = default;
-    ImageViewportCoordinateResult(bool valid, QPointF point,
-        ImageViewport::CoordinateSpace sourceSpace, ImageViewport::CoordinateSpace targetSpace,
-        QVariant pageRole = {})
+    ImageViewportCoordinateResult(
+        bool valid, QPointF point, ImageViewport::CoordinateSpace space, QVariant role = {})
         : m_valid(valid)
         , m_point(point)
-        , m_sourceSpace(sourceSpace)
-        , m_targetSpace(targetSpace)
-        , m_pageRole(std::move(pageRole))
+        , m_space(space)
+        , m_role(std::move(role))
     {
     }
 
     bool isValid() const { return m_valid; }
     QPointF point() const { return m_point; }
-    ImageViewport::CoordinateSpace sourceSpace() const { return m_sourceSpace; }
-    ImageViewport::CoordinateSpace targetSpace() const { return m_targetSpace; }
-    QVariant pageRole() const { return m_pageRole; }
+    ImageViewport::CoordinateSpace space() const { return m_space; }
+    QVariant role() const { return m_role; }
 
     friend bool operator==(
         const ImageViewportCoordinateResult& lhs, const ImageViewportCoordinateResult& rhs)
     {
         return lhs.m_valid == rhs.m_valid && lhs.m_point == rhs.m_point
-            && lhs.m_sourceSpace == rhs.m_sourceSpace && lhs.m_targetSpace == rhs.m_targetSpace
-            && lhs.m_pageRole == rhs.m_pageRole;
+            && lhs.m_space == rhs.m_space && lhs.m_role == rhs.m_role;
     }
     friend bool operator!=(
         const ImageViewportCoordinateResult& lhs, const ImageViewportCoordinateResult& rhs)
@@ -2796,9 +2789,8 @@ public:
 private:
     bool m_valid = false;
     QPointF m_point;
-    ImageViewport::CoordinateSpace m_sourceSpace = ImageViewport::CoordinateSpace::Item;
-    ImageViewport::CoordinateSpace m_targetSpace = ImageViewport::CoordinateSpace::Spread;
-    QVariant m_pageRole;
+    ImageViewport::CoordinateSpace m_space = ImageViewport::CoordinateSpace::Item;
+    QVariant m_role;
 };
 
 inline QDebug operator<<(QDebug debug, ImageViewportRange range)

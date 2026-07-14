@@ -41,15 +41,18 @@ public:
     static QRectF pageItemRect(const State& state, ImageViewport::PageRole role);
     static CoordinateResult itemToSpread(const State& state, double x, double y);
     static CoordinateResult spreadToItem(const State& state, double x, double y);
-    static CoordinateResult nearestVisibleSpreadPoint(const State& state, double x, double y);
     static CoordinateResult itemToPage(
         const State& state, ImageViewport::PageRole role, double x, double y);
     static CoordinateResult pageToItem(
         const State& state, ImageViewport::PageRole role, double x, double y);
-    static CoordinateResult nearestVisiblePagePoint(
+    static CoordinateResult spreadToPage(
+        const State& state, ImageViewport::PageRole role, double x, double y);
+    static CoordinateResult pageToSpread(
+        const State& state, ImageViewport::PageRole role, double x, double y);
+    static bool containsItemPoint(const State& state, double x, double y);
+    static bool containsSpreadPoint(const State& state, double x, double y);
+    static bool containsPagePoint(
         const State& state, ImageViewport::PageRole role, double x, double y);
     static bool containsVisibleSpreadPoint(const State& state, double x, double y);
-    static bool containsVisiblePagePoint(
-        const State& state, ImageViewport::PageRole role, double x, double y);
     static CoordinateResult invalidCoordinateResult();
 };

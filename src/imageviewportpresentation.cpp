@@ -202,8 +202,8 @@ bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
 {
     switch (space) {
     case ImageViewport::CoordinateSpace::Item:
-    case ImageViewport::CoordinateSpace::Spread:
-    case ImageViewport::CoordinateSpace::Page:
+    case ImageViewport::CoordinateSpace::DisplayedSpread:
+    case ImageViewport::CoordinateSpace::DisplayedPage:
         return true;
     }
     return false;
@@ -211,33 +211,46 @@ bool coordinateSpaceValid(ImageViewport::CoordinateSpace space)
 
 bool coordinateUsesPage(const ImageViewportCoordinateInput& input)
 {
-    return input.sourceSpace() == ImageViewport::CoordinateSpace::Page
-        || input.targetSpace() == ImageViewport::CoordinateSpace::Page;
+    return input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
+        || input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage;
 }
 
 std::optional<ImageViewport::PageRole> coordinatePageRole(const ImageViewportCoordinateInput& input)
 {
-    if (!coordinateUsesPage(input)) {
-        return ImageViewport::PageRole::Primary;
-    }
-    if (!input.pageRole().canConvert<ImageViewport::PageRole>()) {
+    if (input.role().isNull() || !input.role().canConvert<ImageViewport::PageRole>()) {
         return std::nullopt;
     }
-    const ImageViewport::PageRole role = input.pageRole().value<ImageViewport::PageRole>();
+    const ImageViewport::PageRole role = input.role().value<ImageViewport::PageRole>();
     return ImageViewportInternal::isValidPageRole(role) ? std::optional(role) : std::nullopt;
 }
 
-ImageViewportCoordinateResult coordinateResultFor(
-    const ImageViewportCoordinateInput& input, CoordinateResult result)
+bool roleIsDisplayed(ImageViewport::PageRole role, ImageViewportRoleSet displayedRoleSet)
 {
-    return ImageViewportCoordinateResult(result.isValid(), QPointF(result.x(), result.y()),
-        input.sourceSpace(), input.targetSpace(), input.pageRole());
+    return role == ImageViewport::PageRole::Primary ? displayedRoleSet.primary()
+                                                    : displayedRoleSet.secondary();
 }
 
-ImageViewportCoordinateResult invalidCoordinateResultFor(const ImageViewportCoordinateInput& input)
+QVariant coordinateResultRole(
+    const ImageViewportCoordinateInput& input, std::optional<ImageViewport::PageRole> role)
 {
+    return coordinateUsesPage(input) && role ? QVariant::fromValue(*role) : QVariant {};
+}
+
+ImageViewportCoordinateResult coordinateResultFor(const ImageViewportCoordinateInput& input,
+    CoordinateResult result, std::optional<ImageViewport::PageRole> role)
+{
+    return ImageViewportCoordinateResult(result.isValid(), QPointF(result.x(), result.y()),
+        input.targetSpace(), coordinateResultRole(input, role));
+}
+
+ImageViewportCoordinateResult invalidCoordinateResultFor(const ImageViewportCoordinateInput& input,
+    std::optional<ImageViewport::PageRole> role = std::nullopt)
+{
+    const ImageViewport::CoordinateSpace space = coordinateSpaceValid(input.targetSpace())
+        ? input.targetSpace()
+        : ImageViewport::CoordinateSpace::Item;
     return ImageViewportCoordinateResult(
-        false, QPointF(), input.sourceSpace(), input.targetSpace(), input.pageRole());
+        false, QPointF(), space, coordinateResultRole(input, role));
 }
 
 } // namespace
@@ -249,167 +262,58 @@ ImageViewportCoordinateResult ImageViewportPrivate::mapPoint(
         || !ImageViewportInternal::isFinitePoint(input.point())) {
         return invalidCoordinateResultFor(input);
     }
-    const std::optional<PageRole> role = coordinatePageRole(input);
-    if (!role) {
+    const bool usesPage = coordinateUsesPage(input);
+    const std::optional<PageRole> role = usesPage ? coordinatePageRole(input) : std::nullopt;
+    if ((!usesPage && !input.role().isNull()) || (usesPage && !role)) {
         return invalidCoordinateResultFor(input);
     }
-    if (input.sourceSpace() == input.targetSpace()) {
-        return ImageViewportCoordinateResult(
-            true, input.point(), input.sourceSpace(), input.targetSpace(), input.pageRole());
+    if (usesPage && !roleIsDisplayed(*role, lastStateSnapshot.display().displayedRoleSet())) {
+        return invalidCoordinateResultFor(input, role);
     }
 
     const QPointF point = input.point();
+    const PresentationGeometry::State state = geometryState(*this);
     CoordinateResult result;
-    if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Spread) {
-        result = itemToSpread(point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
-        result = spreadToItem(point.x(), point.y());
+    if (input.sourceSpace() == input.targetSpace()) {
+        bool valid = false;
+        switch (input.sourceSpace()) {
+        case ImageViewport::CoordinateSpace::Item:
+            valid = PresentationGeometry::containsItemPoint(state, point.x(), point.y());
+            break;
+        case ImageViewport::CoordinateSpace::DisplayedSpread:
+            valid = PresentationGeometry::containsSpreadPoint(state, point.x(), point.y());
+            break;
+        case ImageViewport::CoordinateSpace::DisplayedPage:
+            valid = PresentationGeometry::containsPagePoint(state, *role, point.x(), point.y());
+            break;
+        }
+        result = valid ? CoordinateResult(true, point.x(), point.y()) : CoordinateResult {};
     } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Page) {
-        result = itemToPage(*role, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page
+        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedSpread) {
+        result = PresentationGeometry::itemToSpread(state, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedSpread
         && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
-        result = pageToItem(*role, point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Page) {
-        const CoordinateResult itemPoint = spreadToItem(point.x(), point.y());
-        result = itemPoint.isValid() ? itemToPage(*role, itemPoint.x(), itemPoint.y())
-                                     : CoordinateResult {};
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page
-        && input.targetSpace() == ImageViewport::CoordinateSpace::Spread) {
-        const CoordinateResult itemPoint = pageToItem(*role, point.x(), point.y());
-        result = itemPoint.isValid() ? itemToSpread(itemPoint.x(), itemPoint.y())
-                                     : CoordinateResult {};
+        result = PresentationGeometry::spreadToItem(state, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Item
+        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage) {
+        result = PresentationGeometry::itemToPage(state, *role, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
+        && input.targetSpace() == ImageViewport::CoordinateSpace::Item) {
+        result = PresentationGeometry::pageToItem(state, *role, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedSpread
+        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedPage) {
+        result = PresentationGeometry::spreadToPage(state, *role, point.x(), point.y());
+    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::DisplayedPage
+        && input.targetSpace() == ImageViewport::CoordinateSpace::DisplayedSpread) {
+        result = PresentationGeometry::pageToSpread(state, *role, point.x(), point.y());
     }
 
-    return coordinateResultFor(input, result);
+    return coordinateResultFor(input, result, role);
 }
 
 bool ImageViewportPrivate::containsPoint(const ImageViewportCoordinateInput& input) const
 {
-    if (!coordinateSpaceValid(input.sourceSpace())
-        || !ImageViewportInternal::isFinitePoint(input.point())) {
-        return false;
-    }
-    const std::optional<PageRole> role = coordinatePageRole(input);
-    if (!role) {
-        return false;
-    }
-    const QPointF point = input.point();
-    switch (input.sourceSpace()) {
-    case ImageViewport::CoordinateSpace::Item:
-        return itemToSpread(point.x(), point.y()).isValid();
-    case ImageViewport::CoordinateSpace::Spread:
-        return containsVisibleSpreadPoint(point.x(), point.y());
-    case ImageViewport::CoordinateSpace::Page:
-        return containsVisiblePagePoint(*role, point.x(), point.y());
-    }
-    return false;
-}
-
-ImageViewportCoordinateResult ImageViewportPrivate::nearestVisiblePoint(
-    const ImageViewportCoordinateInput& input) const
-{
-    if (!coordinateSpaceValid(input.sourceSpace()) || !coordinateSpaceValid(input.targetSpace())
-        || !ImageViewportInternal::isFinitePoint(input.point())) {
-        return invalidCoordinateResultFor(input);
-    }
-    const std::optional<PageRole> role = coordinatePageRole(input);
-    if (!role) {
-        return invalidCoordinateResultFor(input);
-    }
-
-    const QPointF point = input.point();
-    CoordinateResult nearest;
-    if (input.sourceSpace() == ImageViewport::CoordinateSpace::Spread) {
-        nearest = nearestVisibleSpreadPoint(point.x(), point.y());
-    } else if (input.sourceSpace() == ImageViewport::CoordinateSpace::Page) {
-        nearest = nearestVisiblePagePoint(*role, point.x(), point.y());
-    } else {
-        const CoordinateResult spreadPoint = itemToSpread(point.x(), point.y());
-        nearest = spreadPoint.isValid()
-            ? nearestVisibleSpreadPoint(spreadPoint.x(), spreadPoint.y())
-            : CoordinateResult {};
-    }
-    if (!nearest.isValid()) {
-        return invalidCoordinateResultFor(input);
-    }
-    ImageViewportCoordinateInput mappedInput = input;
-    mappedInput.setSourceSpace(input.sourceSpace() == ImageViewport::CoordinateSpace::Item
-            ? ImageViewport::CoordinateSpace::Spread
-            : input.sourceSpace());
-    mappedInput.setTargetSpace(input.targetSpace());
-    mappedInput.setPoint(QPointF(nearest.x(), nearest.y()));
-    if (mappedInput.sourceSpace() == input.targetSpace()) {
-        return coordinateResultFor(input, nearest);
-    }
-    const ImageViewportCoordinateResult mapped = mapPoint(mappedInput);
-    return ImageViewportCoordinateResult(mapped.isValid(), mapped.point(), input.sourceSpace(),
-        input.targetSpace(), input.pageRole());
-}
-
-CoordinateResult ImageViewportPrivate::itemToSpread(double x, double y) const
-{
-    return PresentationGeometry::itemToSpread(geometryState(*this), x, y);
-}
-
-CoordinateResult ImageViewportPrivate::spreadToItem(double x, double y) const
-{
-    return PresentationGeometry::spreadToItem(geometryState(*this), x, y);
-}
-
-CoordinateResult ImageViewportPrivate::nearestVisibleSpreadPoint(double x, double y) const
-{
-    return PresentationGeometry::nearestVisibleSpreadPoint(geometryState(*this), x, y);
-}
-
-CoordinateResult ImageViewportPrivate::itemToPage(PageRole role, double x, double y) const
-{
-    if (!isValidPageRole(role)) {
-        return invalidCoordinateResult();
-    }
-
-    return PresentationGeometry::itemToPage(geometryState(*this), role, x, y);
-}
-
-CoordinateResult ImageViewportPrivate::pageToItem(PageRole role, double x, double y) const
-{
-    if (!isValidPageRole(role)) {
-        return invalidCoordinateResult();
-    }
-
-    return PresentationGeometry::pageToItem(geometryState(*this), role, x, y);
-}
-
-CoordinateResult ImageViewportPrivate::nearestVisiblePagePoint(
-    PageRole role, double x, double y) const
-{
-    if (!isValidPageRole(role)) {
-        return invalidCoordinateResult();
-    }
-
-    return PresentationGeometry::nearestVisiblePagePoint(geometryState(*this), role, x, y);
-}
-
-bool ImageViewportPrivate::containsVisibleSpreadPoint(double x, double y) const
-{
-    return PresentationGeometry::containsVisibleSpreadPoint(geometryState(*this), x, y);
-}
-
-bool ImageViewportPrivate::containsVisiblePagePoint(PageRole role, double x, double y) const
-{
-    if (!isValidPageRole(role)) {
-        return false;
-    }
-
-    return PresentationGeometry::containsVisiblePagePoint(geometryState(*this), role, x, y);
-}
-
-CoordinateResult ImageViewportPrivate::invalidCoordinateResult()
-{
-    return PresentationGeometry::invalidCoordinateResult();
+    return mapPoint(input).isValid();
 }
 
 QRectF ImageViewportPrivate::currentContentRect() const

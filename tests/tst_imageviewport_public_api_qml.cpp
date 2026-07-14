@@ -312,38 +312,38 @@ ImageViewport {
             && setPresentation(verticalMirrorCommand).outcome === ImageViewport.CommandOutcome.Accepted
             && resetView().outcome === ImageViewport.CommandOutcome.Accepted
 
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Spread
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedSpread
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedSpread
         coordinateInput.point = Qt.point(1, 1)
-        const spreadNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
+        const spreadMapInvalid = mapPoint(coordinateInput).valid === false
         const spreadContainsInvalid = containsPoint(coordinateInput) === false
         coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedSpread
         const itemToSpreadInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Spread
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedSpread
         coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
         const spreadToItemInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
-        coordinateInput.pageRole = ImageViewport.PageRole.Primary
-        const pageNearestInvalid = nearestVisiblePoint(coordinateInput).valid === false
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedPage
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedPage
+        coordinateInput.role = ImageViewport.PageRole.Primary
+        const pageMapInvalid = mapPoint(coordinateInput).valid === false
         const pageContainsInvalid = containsPoint(coordinateInput) === false
         coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Item
-        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Page
+        coordinateInput.targetSpace = ImageViewport.CoordinateSpace.DisplayedPage
         const itemToPageInvalid = mapPoint(coordinateInput).valid === false
-        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.Page
+        coordinateInput.sourceSpace = ImageViewport.CoordinateSpace.DisplayedPage
         coordinateInput.targetSpace = ImageViewport.CoordinateSpace.Item
         const pageToItemInvalid = mapPoint(coordinateInput).valid === false
         coordinateAliasesAvailable = itemToSpreadInvalid
             && spreadToItemInvalid
             && itemToPageInvalid
             && pageToItemInvalid
-            && spreadNearestInvalid
-            && pageNearestInvalid
+            && spreadMapInvalid
+            && pageMapInvalid
             && spreadContainsInvalid
             && pageContainsInvalid
-            && nearestVisiblePoint(coordinateInput).valid === false
             && containsPoint(coordinateInput) === false
+            && typeof viewport.nearestVisiblePoint === "undefined"
             && typeof viewport.itemToImage === "undefined"
             && typeof viewport.imageToItem === "undefined"
             && typeof viewport.nearestVisibleImagePoint === "undefined"

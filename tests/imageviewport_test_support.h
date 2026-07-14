@@ -150,25 +150,25 @@ void verifyInvalidCoordinateResult(const ImageViewportCoordinateResult& result)
 }
 
 ImageViewportCoordinateInput coordinateInput(ImageViewport::CoordinateSpace sourceSpace,
-    ImageViewport::CoordinateSpace targetSpace, QPointF point, QVariant pageRole = {})
+    ImageViewport::CoordinateSpace targetSpace, QPointF point, QVariant role = {})
 {
     ImageViewportCoordinateInput input;
     input.setSourceSpace(sourceSpace);
     input.setTargetSpace(targetSpace);
     input.setPoint(point);
-    input.setPageRole(std::move(pageRole));
+    input.setRole(std::move(role));
     return input;
 }
 
 ImageViewportCoordinateResult mapItemToSpread(const ImageViewport& item, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
-        ImageViewport::CoordinateSpace::Spread, QPointF(x, y)));
+        ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(x, y)));
 }
 
 ImageViewportCoordinateResult mapSpreadToItem(const ImageViewport& item, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Spread,
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
         ImageViewport::CoordinateSpace::Item, QPointF(x, y)));
 }
 
@@ -176,14 +176,28 @@ ImageViewportCoordinateResult mapItemToPage(
     const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
 {
     return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Item,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
+        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapPageToItem(
     const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
 {
-    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
         ImageViewport::CoordinateSpace::Item, QPointF(x, y), QVariant::fromValue(role)));
+}
+
+ImageViewportCoordinateResult mapSpreadToPage(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
+        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y), QVariant::fromValue(role)));
+}
+
+ImageViewportCoordinateResult mapPageToSpread(
+    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
+{
+    return item.mapPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
+        ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportCoordinateResult mapItemToPrimaryPage(
@@ -198,47 +212,11 @@ ImageViewportCoordinateResult mapPrimaryPageToItem(
     return mapPageToItem(item, ImageViewport::PageRole::Primary, x, y);
 }
 
-ImageViewportCoordinateResult nearestVisiblePrimaryPagePoint(
-    const ImageViewport& item, double x, double y)
+bool containsPrimaryPagePoint(const ImageViewport& item, double x, double y)
 {
-    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
+    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::DisplayedPage,
+        ImageViewport::CoordinateSpace::DisplayedPage, QPointF(x, y),
         QVariant::fromValue(ImageViewport::PageRole::Primary)));
-}
-
-ImageViewportCoordinateResult nearestVisibleSpreadCoordinate(
-    const ImageViewport& item, double x, double y)
-{
-    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Spread,
-        ImageViewport::CoordinateSpace::Spread, QPointF(x, y)));
-}
-
-ImageViewportCoordinateResult nearestVisiblePageCoordinate(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
-{
-    return item.nearestVisiblePoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
-}
-
-bool containsVisiblePrimaryPagePoint(const ImageViewport& item, double x, double y)
-{
-    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y),
-        QVariant::fromValue(ImageViewport::PageRole::Primary)));
-}
-
-bool containsVisibleSpreadCoordinate(const ImageViewport& item, double x, double y)
-{
-    return item.containsPoint(coordinateInput(
-        ImageViewport::CoordinateSpace::Spread, ImageViewport::CoordinateSpace::Spread,
-        QPointF(x, y)));
-}
-
-bool containsVisiblePageCoordinate(
-    const ImageViewport& item, ImageViewport::PageRole role, double x, double y)
-{
-    return item.containsPoint(coordinateInput(ImageViewport::CoordinateSpace::Page,
-        ImageViewport::CoordinateSpace::Page, QPointF(x, y), QVariant::fromValue(role)));
 }
 
 ImageViewportRevisionToken viewportRequestRevision(const ImageViewport& item)

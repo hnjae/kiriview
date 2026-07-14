@@ -1159,36 +1159,31 @@ void ImageViewportPublicApiCommandsTest::presentationCommandAppliesAndRejectsTra
 
     ImageViewportCoordinateInput mapInput;
     mapInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
-    mapInput.setTargetSpace(ImageViewport::CoordinateSpace::Spread);
+    mapInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedSpread);
     mapInput.setPoint(QPointF(50.0, 50.0));
     const ImageViewportCoordinateResult mapped = item.mapPoint(mapInput);
     QVERIFY(mapped.isValid());
-    QCOMPARE(mapped.sourceSpace(), ImageViewport::CoordinateSpace::Item);
-    QCOMPARE(mapped.targetSpace(), ImageViewport::CoordinateSpace::Spread);
+    QCOMPARE(mapped.space(), ImageViewport::CoordinateSpace::DisplayedSpread);
+    QVERIFY(mapped.role().isNull());
     QCOMPARE(item.containsPoint(mapInput), true);
 
     ImageViewportCoordinateInput pageInput = mapInput;
-    pageInput.setTargetSpace(ImageViewport::CoordinateSpace::Page);
-    pageInput.setPageRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
-    QVERIFY(item.mapPoint(pageInput).isValid());
+    pageInput.setTargetSpace(ImageViewport::CoordinateSpace::DisplayedPage);
+    pageInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    const ImageViewportCoordinateResult pageResult = item.mapPoint(pageInput);
+    QVERIFY(pageResult.isValid());
+    QCOMPARE(pageResult.space(), ImageViewport::CoordinateSpace::DisplayedPage);
+    QCOMPARE(pageResult.role().value<ImageViewport::PageRole>(), ImageViewport::PageRole::Primary);
 
-    ImageViewportCoordinateInput nearestInput;
-    nearestInput.setSourceSpace(ImageViewport::CoordinateSpace::Spread);
-    nearestInput.setTargetSpace(ImageViewport::CoordinateSpace::Item);
-    nearestInput.setPoint(QPointF(-10.0, -10.0));
-    QVERIFY(item.nearestVisiblePoint(nearestInput).isValid());
+    ImageViewportCoordinateInput rolelessPageInput = pageInput;
+    rolelessPageInput.setRole({});
+    QVERIFY(!item.mapPoint(rolelessPageInput).isValid());
+    QCOMPARE(item.containsPoint(rolelessPageInput), false);
 
-    ImageViewportCoordinateInput itemNearestInput;
-    itemNearestInput.setSourceSpace(ImageViewport::CoordinateSpace::Item);
-    itemNearestInput.setTargetSpace(ImageViewport::CoordinateSpace::Item);
-    itemNearestInput.setPoint(QPointF(50.0, 50.0));
-    const ImageViewportCoordinateResult itemNearest = item.nearestVisiblePoint(itemNearestInput);
-    QVERIFY(itemNearest.isValid());
-    QCOMPARE(itemNearest.sourceSpace(), ImageViewport::CoordinateSpace::Item);
-    QCOMPARE(itemNearest.targetSpace(), ImageViewport::CoordinateSpace::Item);
-    QVERIFY(contentRect(item).contains(itemNearest.point()));
-    QVERIFY(qAbs(itemNearest.point().x() - 50.0) < 0.001);
-    QVERIFY(qAbs(itemNearest.point().y() - 50.0) < 0.001);
+    ImageViewportCoordinateInput unnecessaryRoleInput = mapInput;
+    unnecessaryRoleInput.setRole(QVariant::fromValue(ImageViewport::PageRole::Primary));
+    QVERIFY(!item.mapPoint(unnecessaryRoleInput).isValid());
+    QCOMPARE(item.containsPoint(unnecessaryRoleInput), false);
 }
 
 void ImageViewportPublicApiCommandsTest::invalidPresentationTargetTransitionPolicyPreservesState()

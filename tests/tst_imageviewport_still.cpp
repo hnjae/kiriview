@@ -273,9 +273,9 @@ void ImageViewportStillTest::stillImageSequenceAssignmentPublishesReadyState()
     verifyInvalidCoordinateResult(rightEdgeImage);
     const ImageViewportCoordinateResult bottomEdgeImage = mapItemToPrimaryPage(item, 50.0, 75.0);
     verifyInvalidCoordinateResult(bottomEdgeImage);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 4.0), true);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 16.0, 4.0), false);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 8.0), false);
+    QCOMPARE(containsPrimaryPagePoint(item, 8.0, 4.0), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 16.0, 4.0), false);
+    QCOMPARE(containsPrimaryPagePoint(item, 8.0, 8.0), false);
 
     const ImageViewportCoordinateResult centerItem = mapPrimaryPageToItem(item, 8.0, 4.0);
     QCOMPARE(centerItem.isValid(), true);
@@ -773,8 +773,8 @@ void ImageViewportStillTest::coordinateHelpersRejectNonFiniteInputs()
     verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 50.0, nan));
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, infinity, 4.0));
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 8.0, nan));
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, infinity, 4.0), false);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, nan), false);
+    QCOMPARE(containsPrimaryPagePoint(item, infinity, 4.0), false);
+    QCOMPARE(containsPrimaryPagePoint(item, 8.0, nan), false);
 }
 
 void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect()
@@ -798,9 +798,9 @@ void ImageViewportStillTest::stillImageMirroredCoverUsesMirroredVisibleImageRect
 
     QCOMPARE(contentRect(item), QRectF(-100.0, 0.0, 200.0, 100.0));
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 0.0, 8.0, 8.0));
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 7.999, 4.0), true);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 4.0), false);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 15.999, 4.0), false);
+    QCOMPARE(containsPrimaryPagePoint(item, 7.999, 4.0), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 8.0, 4.0), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 15.999, 4.0), true);
 
     const ImageViewportCoordinateResult leftItem = mapItemToPrimaryPage(item, 0.001, 50.0);
     QCOMPARE(leftItem.isValid(), true);
@@ -836,9 +836,9 @@ void ImageViewportStillTest::stillImageCoverUsesBottomAlignmentAsCropFocus()
     QCOMPARE(visibleImageRect(item), QRectF(0.0, 8.0, 8.0, 8.0));
     QCOMPARE(mapItemToPrimaryPage(item, 50.0, 0.0).point().y(), 8.0);
     QVERIFY(mapItemToPrimaryPage(item, 50.0, 99.0).point().y() > 15.9);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 4.0, 7.999), false);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 4.0, 8.0), true);
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 4.0, 15.999), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 4.0, 7.999), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 4.0, 8.0), true);
+    QCOMPARE(containsPrimaryPagePoint(item, 4.0, 15.999), true);
 }
 
 void ImageViewportStillTest::stillImageAssignmentWaitsForPositiveGeometry()
@@ -885,7 +885,7 @@ void ImageViewportStillTest::stillImageAssignmentWaitsForPositiveGeometry()
     QCOMPARE(displayedImageSize(item), QSizeF(16.0, 8.0));
     QCOMPARE(contentRect(item), QRectF());
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 8.0, 4.0));
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 8.0, 4.0), false);
+    QCOMPARE(containsPrimaryPagePoint(item, 8.0, 4.0), false);
 }
 
 void ImageViewportStillTest::stillImageFactoryRejectsPublishedLimitViolations()

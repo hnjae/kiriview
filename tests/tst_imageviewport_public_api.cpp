@@ -28,7 +28,7 @@ private slots:
     void exposesTypedPublicValueSurfaces();
     void hasDocumentedDefaultState();
     void manualZoomLimitPropertiesExposeDefaultsAndDoNotAdvanceRevisions();
-    void nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions();
+    void coordinateHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions();
     void typedPublicValueDefaultsExposeDocumentedFields();
     void roleGeometrySnapshotFields();
     void revisionTokensExposeValidityAndEquality();
@@ -198,6 +198,7 @@ void ImageViewportPublicApiTest::doesNotExposeOutOfScopePublicState()
         "pageGeometry(ImageViewport::PageRole)",
         "nearestVisibleSpreadPoint(double,double)",
         "nearestVisiblePagePoint(ImageViewport::PageRole,double,double)",
+        "nearestVisiblePoint(ImageViewportCoordinateInput)",
         "containsVisibleSpreadPoint(double,double)",
         "containsVisiblePagePoint(ImageViewport::PageRole,double,double)",
         "setSpreadDirection(ImageViewport::SpreadDirection)",
@@ -256,6 +257,7 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "CapabilitySupport",
         "CommandOutcome",
         "BackgroundMode",
+        "CoordinateSpace",
     };
 
     for (const QByteArray& enumerator : enumerators) {
@@ -279,6 +281,7 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
     verifyEnumValues(
         metaObject, "CommandOutcome", { "Accepted", "Invalid", "Unsupported", "IgnoredNoRequest" });
     verifyEnumValues(metaObject, "BackgroundMode", { "Transparent", "SolidColor", "Checkerboard" });
+    verifyEnumValues(metaObject, "CoordinateSpace", { "Item", "DisplayedSpread", "DisplayedPage" });
 
     const QList<QByteArray> absentMethods = {
         "play()",
@@ -302,6 +305,8 @@ void ImageViewportPublicApiTest::exposesDocumentedQmlSurface()
         "stop(ImageViewport::PageRole)",
         "seek(ImageViewport::PageRole,int)",
         "seekToPosition(ImageViewport::PageRole,int)",
+        "mapPoint(ImageViewportCoordinateInput)",
+        "containsPoint(ImageViewportCoordinateInput)",
     };
 
     for (const QByteArray& method : presentMethods) {
@@ -452,6 +457,34 @@ void ImageViewportPublicApiTest::exposesTypedPublicValueSurfaces()
         QVERIFY2(presentationCommandMetaObject.indexOfProperty(propertyName.constData()) >= 0,
             propertyName.constData());
     }
+
+    const QMetaObject& coordinateInputMetaObject = ImageViewportCoordinateInput::staticMetaObject;
+    const QList<QByteArray> coordinateInputProperties = {
+        "sourceSpace",
+        "targetSpace",
+        "role",
+        "point",
+    };
+    for (const QByteArray& propertyName : coordinateInputProperties) {
+        QVERIFY2(coordinateInputMetaObject.indexOfProperty(propertyName.constData()) >= 0,
+            propertyName.constData());
+    }
+    QCOMPARE(coordinateInputMetaObject.indexOfProperty("pageRole"), -1);
+
+    const QMetaObject& coordinateResultMetaObject = ImageViewportCoordinateResult::staticMetaObject;
+    const QList<QByteArray> coordinateResultProperties = {
+        "valid",
+        "space",
+        "role",
+        "point",
+    };
+    for (const QByteArray& propertyName : coordinateResultProperties) {
+        QVERIFY2(coordinateResultMetaObject.indexOfProperty(propertyName.constData()) >= 0,
+            propertyName.constData());
+    }
+    QCOMPARE(coordinateResultMetaObject.indexOfProperty("sourceSpace"), -1);
+    QCOMPARE(coordinateResultMetaObject.indexOfProperty("targetSpace"), -1);
+    QCOMPARE(coordinateResultMetaObject.indexOfProperty("pageRole"), -1);
 }
 
 void ImageViewportPublicApiTest::hasDocumentedDefaultState()
@@ -484,11 +517,10 @@ void ImageViewportPublicApiTest::hasDocumentedDefaultState()
     QCOMPARE(item.state().primary().geometry().displayedVisiblePageRect(), QRectF());
     verifyInvalidCoordinateResult(mapItemToPrimaryPage(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(mapPrimaryPageToItem(item, 1.0, 1.0));
-    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, 1.0, 1.0));
+    verifyInvalidCoordinateResult(mapItemToSpread(item, 1.0, 1.0));
     verifyInvalidCoordinateResult(
-        nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
-    verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
-    QCOMPARE(containsVisiblePrimaryPagePoint(item, 1.0, 1.0), false);
+        mapSpreadToPage(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
+    QCOMPARE(containsPrimaryPagePoint(item, 1.0, 1.0), false);
     QVERIFY(!revisionTokenProperty(item, "displayRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "requestRevision").isValid());
     QVERIFY(!revisionTokenProperty(item, "commandRevision").isValid());
@@ -532,8 +564,7 @@ void ImageViewportPublicApiTest::manualZoomLimitPropertiesExposeDefaultsAndDoNot
     QCOMPARE(stateSpy.count(), 0);
 }
 
-void ImageViewportPublicApiTest::
-    nearestVisibleHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions()
+void ImageViewportPublicApiTest::coordinateHelpersExposeInvalidDefaultsAndDoNotAdvanceRevisions()
 {
     ImageViewport item;
     const ImageViewportRevisionToken displayRevision = viewportDisplayRevision(item);
@@ -542,13 +573,12 @@ void ImageViewportPublicApiTest::
     QSignalSpy stateSpy(&item, &ImageViewport::stateChanged);
 
     const double infinity = std::numeric_limits<double>::infinity();
-    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, 1.0, 1.0));
-    verifyInvalidCoordinateResult(nearestVisibleSpreadCoordinate(item, infinity, 1.0));
-    verifyInvalidCoordinateResult(
-        nearestVisiblePageCoordinate(item, ImageViewport::PageRole::Primary, 1.0, 1.0));
-    verifyInvalidCoordinateResult(
-        nearestVisiblePageCoordinate(item, static_cast<ImageViewport::PageRole>(-1), 1.0, 1.0));
-    verifyInvalidCoordinateResult(nearestVisiblePrimaryPagePoint(item, 1.0, 1.0));
+    verifyInvalidCoordinateResult(mapItemToSpread(item, 1.0, 1.0));
+    ImageViewportCoordinateInput nonFinite
+        = coordinateInput(ImageViewport::CoordinateSpace::DisplayedSpread,
+            ImageViewport::CoordinateSpace::DisplayedSpread, QPointF(infinity, 1.0));
+    verifyInvalidCoordinateResult(item.mapPoint(nonFinite));
+    QCOMPARE(item.containsPoint(nonFinite), false);
 
     QCOMPARE(viewportDisplayRevision(item), displayRevision);
     QCOMPARE(viewportRequestRevision(item), requestRevision);

@@ -177,7 +177,11 @@ ViewportEngine::GeometryInput ViewportEngine::acceptedGeometry(ViewportEngineVie
 
 PresentationGeometry::State ViewportEngine::geometryState(ViewportEngineViewportInput input) const
 {
-    return geometryState(currentGeometry(input));
+    const ImageViewportInternal::PresentationState& displayedPresentation
+        = m_state->displayState.display.status == ImageViewport::DisplayStatus::Retained
+        ? m_state->displayState.display.displayedPresentation
+        : m_state->presentationState.presentation;
+    return projectViewportGeometryState(currentGeometry(input), displayedPresentation);
 }
 
 ViewportRenderSnapshot ViewportEngine::renderSnapshot(
