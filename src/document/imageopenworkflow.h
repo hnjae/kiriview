@@ -32,11 +32,9 @@ struct ImageOpenSuccessfulImageLoadSnapshot
     bool hasRequestContainerNavigationTarget = false;
 };
 
-struct ImageOpenLoadErrorSnapshot
-{
-    bool hasContainerNavigationTarget = false;
-    bool hasImage = false;
-    bool hasDisplayedUrl = false;
+enum class ImageOpenLoadFailureRoute {
+    Source,
+    ContainerNavigation,
 };
 
 enum class ImageDocumentSourceLoadEffect {
@@ -73,8 +71,8 @@ namespace ImageOpenWorkflow {
     ImageOpenApplicationPlan finishSuccessfulImageLoadPlan(
         ImageOpenSuccessfulImageLoadSnapshot snapshot, const ImageLoadSession& session,
         EmbeddedMetadata metadata);
-    ImageOpenApplicationPlan finishLoadWithErrorPlan(ImageOpenLoadErrorSnapshot snapshot,
-        const ImageLoadSession& session, const QUrl& displayedUrl, ImageLoadFailure failure);
+    ImageOpenApplicationPlan finishLoadWithErrorPlan(
+        const ImageLoadSession& session, ImageLoadFailure failure);
     ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
         const QUrl& containerUrl, const QString& errorString);
     ImageOpenApplicationPlan finishAnimationLoadWithErrorPlan(const QString& errorString);
@@ -85,7 +83,7 @@ namespace ImageOpenWorkflow {
     ImageOpenTransition finishPlayableOpenedCollectionVideoLoadTransition();
     ImageOpenTransition finishSuccessfulImageLoadTransition(
         ImageOpenSuccessfulImageLoadSnapshot snapshot);
-    ImageOpenTransition finishLoadWithErrorTransition(ImageOpenLoadErrorSnapshot snapshot);
+    ImageOpenTransition finishLoadWithErrorTransition(ImageOpenLoadFailureRoute route);
     ImageOpenTransition finishContainerNavigationLoadWithErrorTransition();
     ImageOpenTransition finishAnimationLoadWithErrorTransition();
 }

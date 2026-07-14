@@ -124,8 +124,6 @@ kiriview::ImageOpenUrlTarget imageOpenUrlTarget(kiriview::RustImageOpenUrlTarget
         return kiriview::ImageOpenUrlTarget::DerivedContainerNavigation;
     case kiriview::RustImageOpenUrlTarget::Container:
         return kiriview::ImageOpenUrlTarget::Container;
-    case kiriview::RustImageOpenUrlTarget::Displayed:
-        return kiriview::ImageOpenUrlTarget::Displayed;
     case kiriview::RustImageOpenUrlTarget::Unchanged:
         return kiriview::ImageOpenUrlTarget::Unchanged;
     }
@@ -235,13 +233,13 @@ RustImageOpenWorkflowEvent rustSuccessfulImageLoadEvent(
     return event;
 }
 
-RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(ImageOpenLoadErrorSnapshot snapshot)
+RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(ImageOpenLoadFailureRoute route)
 {
     RustImageOpenWorkflowEvent event
         = rustImageOpenWorkflowEvent(RustImageOpenWorkflowEventKind::FinishSourceLoadWithError);
-    event.source_load_error.has_container_navigation_target = snapshot.hasContainerNavigationTarget;
-    event.source_load_error.has_image = snapshot.hasImage;
-    event.source_load_error.has_displayed_url = snapshot.hasDisplayedUrl;
+    event.load_failure_route = route == ImageOpenLoadFailureRoute::ContainerNavigation
+        ? RustImageOpenLoadFailureRoute::ContainerNavigation
+        : RustImageOpenLoadFailureRoute::Source;
     return event;
 }
 

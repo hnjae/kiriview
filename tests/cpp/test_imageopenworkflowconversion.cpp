@@ -13,6 +13,7 @@ class TestImageOpenWorkflowConversion : public QObject
 private Q_SLOTS:
     void sourceLoadPolicyInputMapsPlainFields();
     void sourceLoadPlanMapsBridgeOperationsToDomainEffects();
+    void loadFailureRouteMapsToBridgeEvent();
 };
 
 void TestImageOpenWorkflowConversion::sourceLoadPolicyInputMapsPlainFields()
@@ -75,6 +76,20 @@ void TestImageOpenWorkflowConversion::sourceLoadPlanMapsBridgeOperationsToDomain
         Effect::BeginOpen,
     };
     QVERIFY(plan == expected);
+}
+
+void TestImageOpenWorkflowConversion::loadFailureRouteMapsToBridgeEvent()
+{
+    const kiriview::RustImageOpenWorkflowEvent source
+        = kiriview::rustSourceLoadErrorEvent(kiriview::ImageOpenLoadFailureRoute::Source);
+    QCOMPARE(source.kind, kiriview::RustImageOpenWorkflowEventKind::FinishSourceLoadWithError);
+    QCOMPARE(source.load_failure_route, kiriview::RustImageOpenLoadFailureRoute::Source);
+
+    const kiriview::RustImageOpenWorkflowEvent container = kiriview::rustSourceLoadErrorEvent(
+        kiriview::ImageOpenLoadFailureRoute::ContainerNavigation);
+    QCOMPARE(container.kind, kiriview::RustImageOpenWorkflowEventKind::FinishSourceLoadWithError);
+    QCOMPARE(
+        container.load_failure_route, kiriview::RustImageOpenLoadFailureRoute::ContainerNavigation);
 }
 
 QTEST_GUILESS_MAIN(TestImageOpenWorkflowConversion)

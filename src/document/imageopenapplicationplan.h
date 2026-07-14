@@ -41,7 +41,6 @@ struct ImageOpenTransitionContext
 {
     const ImageLoadSession* session = nullptr;
     std::optional<QUrl> containerUrl;
-    std::optional<QUrl> displayedUrl;
     std::optional<QString> errorString;
     std::optional<ImageLoadFailure> loadFailure;
     std::optional<EmbeddedMetadata> embeddedMetadata;
@@ -51,7 +50,7 @@ struct ImageOpenTransitionContext
     static ImageOpenTransitionContext successfulImageLoad(
         const ImageLoadSession& session, EmbeddedMetadata metadata);
     static ImageOpenTransitionContext sourceLoadError(
-        const ImageLoadSession& session, const QUrl& displayedUrl, ImageLoadFailure failure);
+        const ImageLoadSession& session, ImageLoadFailure failure);
     static ImageOpenTransitionContext containerNavigationError(
         const QUrl& containerUrl, const QString& errorString);
     static ImageOpenTransitionContext animationError(const QString& errorString);

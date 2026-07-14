@@ -62,7 +62,6 @@ private Q_SLOTS:
     void applicationPlanResolvesRuntimeTargetsBeforeStateMutation();
     void successfulTransitionAppliesSessionStateAndEffects();
     void successfulTransitionPublishesEmbeddedMetadataFromContext();
-    void errorTransitionUsesDisplayedFallbackAndProvidedError();
     void invalidReadyWithErrorPlanDoesNotMutateStateOrRunEffects();
     void invalidReadyWithEmptySourcePlanDoesNotMutateStateOrRunEffects();
     void invalidReadyVideoSourceWithoutUnsupportedFlagDoesNotMutateStateOrRunEffects();
@@ -200,60 +199,6 @@ void TestImageOpenTransitionApplier::successfulTransitionPublishesEmbeddedMetada
     QVERIFY(plan.empty());
     QCOMPARE(state.sourceUrl(), imageUrl);
     QCOMPARE(state.embeddedMetadata().cameraMake, QStringLiteral("Kiri Camera"));
-}
-
-void TestImageOpenTransitionApplier::errorTransitionUsesDisplayedFallbackAndProvidedError()
-{
-    std::vector<kiriview::ImageDocumentChange> changes;
-    kiriview::ImageDocumentState state(
-        [&changes](kiriview::ImageDocumentChange change) { changes.push_back(change); });
-
-    const QUrl previousImageUrl = localUrl(QStringLiteral("/images/previous.png"));
-    const QUrl failedImageUrl = localUrl(QStringLiteral("/images/missing.png"));
-    state.setSourceUrl(failedImageUrl);
-    state.setDisplayedImageLocation(kiriview::DisplayedImageLocation::fromUrl(previousImageUrl));
-    state.setLoading(true);
-    changes.clear();
-
-    const kiriview::ImageLoadSession session {
-        9,
-        kiriview::ImageLoadRequest::fromExternalSource(
-            kiriview::resolvedNavigationSource(failedImageUrl, {})),
-        kiriview::DisplayedImageLocation::fromUrl(failedImageUrl),
-    };
-    kiriview::ImageOpenTransition transition;
-    transition.stateDelta = stateDelta(kiriview::ImageOpenUrlTarget::Displayed,
-        kiriview::ImageOpenDisplayedLocationTarget::Unchanged,
-        kiriview::ImageOpenUrlTarget::Unchanged, kiriview::ImageOpenBoolTarget::False,
-        kiriview::ImageOpenStatusTarget::Error, kiriview::ImageOpenErrorStringTarget::Provided,
-        true);
-    transition.effects.push_back(kiriview::ImageOpenEffect::UpdatePageNavigation);
-    transition.effects.push_back(kiriview::ImageOpenEffect::ScheduleAdjacentImagePredecode);
-
-    const kiriview::ImageOpenApplicationPlan applicationPlan
-        = kiriview::imageOpenApplicationPlan(transition,
-            kiriview::ImageOpenTransitionContext::sourceLoadError(session, previousImageUrl,
-                kiriview::ImageLoadFailure {
-                    session.imageUrl(),
-                    session.id(),
-                    kiriview::ImageLoadFailureKind::DataLoad,
-                    QStringLiteral("missing"),
-                    QStringLiteral("missing"),
-                    kiriview::ImageLoadFailureSeverity::Error,
-                    false,
-                }));
-    const kiriview::ImageDocumentRuntimePlan plan
-        = kiriview::applyImageOpenApplicationPlan(state, applicationPlan);
-
-    QCOMPARE(state.sourceUrl(), previousImageUrl);
-    QCOMPARE(state.displayedUrl(), previousImageUrl);
-    QVERIFY(!state.loading());
-    QCOMPARE(state.status(), kiriview::ImageDocumentStatus::Error);
-    QCOMPARE(state.errorString(), QStringLiteral("missing"));
-    QVERIFY(findOperation<kiriview::UpdatePageNavigationOperation>(plan) != nullptr);
-    QVERIFY(findOperation<kiriview::ScheduleAdjacentImagePredecodeOperation>(plan) != nullptr);
-    QVERIFY(!changes.empty());
-    QCOMPARE(changes.front(), kiriview::ImageDocumentChange::Loading);
 }
 
 void TestImageOpenTransitionApplier::invalidReadyWithErrorPlanDoesNotMutateStateOrRunEffects()

@@ -40,7 +40,6 @@ enum class ImageOpenUrlTarget {
     SessionContainerNavigation = 3,
     DerivedContainerNavigation = 4,
     Container = 5,
-    Displayed = 6,
 };
 
 enum class ImageOpenSourceKindTarget {

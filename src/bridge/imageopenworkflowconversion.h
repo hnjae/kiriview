@@ -34,7 +34,7 @@ RustImageOpenWorkflowEvent rustImageOpenWorkflowEvent(RustImageOpenWorkflowEvent
 RustImageOpenWorkflowEvent rustBeginSourceLoadEvent(ImageOpenBeginSourceLoadSnapshot snapshot);
 RustImageOpenWorkflowEvent rustSuccessfulImageLoadEvent(
     ImageOpenSuccessfulImageLoadSnapshot snapshot);
-RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(ImageOpenLoadErrorSnapshot snapshot);
+RustImageOpenWorkflowEvent rustSourceLoadErrorEvent(ImageOpenLoadFailureRoute route);
 ImageOpenTransition imageOpenTransitionFromBridge(const RustImageOpenTransition& rustTransition);
 }
 

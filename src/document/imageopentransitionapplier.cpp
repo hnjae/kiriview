@@ -176,8 +176,6 @@ std::optional<QUrl> resolvedUrlForTarget(
             : std::nullopt;
     case kiriview::ImageOpenUrlTarget::Container:
         return context.containerUrl;
-    case kiriview::ImageOpenUrlTarget::Displayed:
-        return context.displayedUrl;
     case kiriview::ImageOpenUrlTarget::Unchanged:
         break;
     }
@@ -469,12 +467,11 @@ ImageOpenTransitionContext ImageOpenTransitionContext::successfulImageLoad(
 }
 
 ImageOpenTransitionContext ImageOpenTransitionContext::sourceLoadError(
-    const ImageLoadSession& session, const QUrl& displayedUrl, ImageLoadFailure failure)
+    const ImageLoadSession& session, ImageLoadFailure failure)
 {
     ImageOpenTransitionContext context;
     context.session = &session;
     context.containerUrl = session.containerNavigationUrl();
-    context.displayedUrl = displayedUrl;
     context.errorString = failure.userMessage;
     context.loadFailure = std::move(failure);
     return context;

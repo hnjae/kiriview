@@ -116,6 +116,13 @@ kiriview::ImageDocumentRuntimePlan sourceLoadRuntimePlan(
     }
     return runtimePlan;
 }
+
+kiriview::ImageOpenLoadFailureRoute loadFailureRoute(const kiriview::ImageLoadSession& session)
+{
+    return session.hasContainerNavigationTarget()
+        ? kiriview::ImageOpenLoadFailureRoute::ContainerNavigation
+        : kiriview::ImageOpenLoadFailureRoute::Source;
+}
 }
 
 namespace kiriview::ImageOpenWorkflow {
@@ -176,11 +183,11 @@ ImageOpenApplicationPlan finishSuccessfulImageLoadPlan(
         transition, ImageOpenTransitionContext::successfulImageLoad(session, std::move(metadata)));
 }
 
-ImageOpenApplicationPlan finishLoadWithErrorPlan(ImageOpenLoadErrorSnapshot snapshot,
-    const ImageLoadSession& session, const QUrl& displayedUrl, ImageLoadFailure failure)
+ImageOpenApplicationPlan finishLoadWithErrorPlan(
+    const ImageLoadSession& session, ImageLoadFailure failure)
 {
-    return imageOpenApplicationPlan(finishLoadWithErrorTransition(snapshot),
-        ImageOpenTransitionContext::sourceLoadError(session, displayedUrl, std::move(failure)));
+    return imageOpenApplicationPlan(finishLoadWithErrorTransition(loadFailureRoute(session)),
+        ImageOpenTransitionContext::sourceLoadError(session, std::move(failure)));
 }
 
 ImageOpenApplicationPlan finishContainerNavigationLoadWithErrorPlan(
@@ -233,10 +240,9 @@ ImageOpenTransition finishSuccessfulImageLoadTransition(
         rustImageOpenTransition(rustSuccessfulImageLoadEvent(snapshot)));
 }
 
-ImageOpenTransition finishLoadWithErrorTransition(ImageOpenLoadErrorSnapshot snapshot)
+ImageOpenTransition finishLoadWithErrorTransition(ImageOpenLoadFailureRoute route)
 {
-    return imageOpenTransitionFromBridge(
-        rustImageOpenTransition(rustSourceLoadErrorEvent(snapshot)));
+    return imageOpenTransitionFromBridge(rustImageOpenTransition(rustSourceLoadErrorEvent(route)));
 }
 
 ImageOpenTransition finishContainerNavigationLoadWithErrorTransition()

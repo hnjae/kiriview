@@ -265,17 +265,10 @@ void ImageOpenController::finishLoadWithError(
 {
     m_pageSurfaceController.clearShadowDisplayImage();
     m_pageSurfaceController.clearSameScopeImageNavigationRetention();
-    const QUrl displayedUrl = m_state.displayedUrl();
     const QString userMessage = loadFailureUserMessage(failure);
     const ImageLoadFailure normalizedFailure = withUserMessage(std::move(failure), userMessage);
-    reportRuntimePlan(applyImageOpenApplicationPlan(m_state,
-        ImageOpenWorkflow::finishLoadWithErrorPlan(
-            ImageOpenLoadErrorSnapshot {
-                session.hasContainerNavigationTarget(),
-                m_pageSurfaceController.hasImage(),
-                !displayedUrl.isEmpty(),
-            },
-            session, displayedUrl, normalizedFailure)));
+    reportRuntimePlan(applyImageOpenApplicationPlan(
+        m_state, ImageOpenWorkflow::finishLoadWithErrorPlan(session, normalizedFailure)));
 }
 
 void ImageOpenController::finishSuccessfulImageLoad(
