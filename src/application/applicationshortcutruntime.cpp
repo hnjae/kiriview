@@ -5,7 +5,6 @@
 
 #include "imageactionavailabilitypolicy.h"
 #include "shortcuthelpmodel.h"
-#include "shortcutroutemodel.h"
 
 #include <KConfigGroup>
 #include <KLocalizedString>
@@ -137,7 +136,6 @@ ApplicationShortcutRuntime::ApplicationShortcutRuntime(ApplicationActionHost& ho
     , m_actionRegistry(actionRegistry)
     , m_changeCallback(std::move(changeCallback))
     , m_triggerCallbacks(std::move(triggerCallbacks))
-    , m_shortcutRouteModel(std::make_unique<ShortcutRouteModel>(m_host.actionContext()))
 {
 }
 
@@ -187,11 +185,6 @@ int ApplicationShortcutRuntime::shortcutRevision() const { return m_shortcutRevi
 QAbstractListModel* ApplicationShortcutRuntime::shortcutHelpModel() const
 {
     return m_shortcutHelpModel.get();
-}
-
-QAbstractListModel* ApplicationShortcutRuntime::shortcutRouteModel() const
-{
-    return m_shortcutRouteModel.get();
 }
 
 void ApplicationShortcutRuntime::loadViewerLocalShortcuts()

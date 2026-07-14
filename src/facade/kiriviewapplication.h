@@ -27,7 +27,6 @@ class ApplicationShortcutRuntime;
 }
 
 class KiriDocumentSession;
-class KiriImageDocument;
 
 class KiriViewApplication : public AbstractKirigamiApplication
 {
@@ -39,7 +38,6 @@ class KiriViewApplication : public AbstractKirigamiApplication
     Q_PROPERTY(int shortcutRevision READ shortcutRevision NOTIFY shortcutRevisionChanged)
     Q_PROPERTY(int actionStateRevision READ actionStateRevision NOTIFY actionStateRevisionChanged)
     Q_PROPERTY(QAbstractListModel* shortcutHelpModel READ shortcutHelpModel CONSTANT)
-    Q_PROPERTY(QAbstractListModel* shortcutRouteModel READ shortcutRouteModel CONSTANT)
 
 public:
     enum MenuPresentation {
@@ -109,7 +107,6 @@ public:
     int shortcutRevision() const;
     int actionStateRevision() const;
     QAbstractListModel* shortcutHelpModel() const;
-    QAbstractListModel* shortcutRouteModel() const;
 
     static kiriview::ApplicationActions::MenuPresentation domainMenuPresentation(
         KiriViewApplication::MenuPresentation presentation);
@@ -155,11 +152,6 @@ public:
         bool infoPanelVisible, bool thumbnailPanelVisible, bool fullscreen,
         bool applicationMenuShortcutEnabled, bool showMenubarActionEnabled);
     Q_INVOKABLE void setShortcutHost(QObject* host);
-    Q_INVOKABLE bool videoActionUnsupported(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE bool imageActionUnsupported(KiriViewApplication::ActionId actionId) const;
-    Q_INVOKABLE bool mediaHorizontalArrowShortcutsEnabled(bool videoMode,
-        bool imageReadyViewerShortcutsEnabled, bool videoViewerShortcutsEnabled,
-        bool videoDirectMediaNavigationActive, bool videoFileDeletionInProgress) const;
 
 Q_SIGNALS:
     void menuPresentationChanged();
@@ -185,17 +177,6 @@ private:
     KirigamiActionCollection* applicationMainActionCollection();
     QAction* inheritedApplicationAction(const QString& actionName);
     void readApplicationActionSettings();
-    KiriImageDocument* imageDocument() const;
-    void moveDisplayedFileToTrash();
-    void deleteDisplayedFilePermanently();
-    void requestImageFitMode();
-    void requestImageFitHeightMode();
-    void requestImageFitWidthMode();
-    void emitBoundaryText(const QString& message);
-    void requestPreviousActiveNavigationWithBoundary();
-    void requestNextActiveNavigationWithBoundary();
-    void handleScanForwardAction();
-    void handleScanBackwardAction();
 
     std::unique_ptr<kiriview::ApplicationActions::KiriViewApplicationActionHost> m_actionHost;
     std::unique_ptr<kiriview::ApplicationActions::KiriViewApplicationActionStateSource>

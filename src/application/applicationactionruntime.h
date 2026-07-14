@@ -77,7 +77,6 @@ public:
     void setMenuPresentation(MenuPresentation presentation);
     int shortcutRevision() const;
     QAbstractListModel* shortcutHelpModel() const;
-    QAbstractListModel* shortcutRouteModel() const;
 
     QAction* action(const QString& actionName);
     QAction* actionForId(ActionId actionId);
@@ -95,11 +94,6 @@ public:
     QString actionMenuText(ActionId actionId) const;
     QString actionToolbarText(ActionId actionId) const;
     QString actionToolbarTooltipText(ActionId actionId) const;
-    bool videoActionUnsupported(ActionId actionId) const;
-    bool imageActionUnsupported(ActionId actionId) const;
-    bool mediaHorizontalArrowShortcutsEnabled(bool videoMode, bool imageReadyViewerShortcutsEnabled,
-        bool videoViewerShortcutsEnabled, bool videoDirectMediaNavigationActive,
-        bool videoFileDeletionInProgress) const;
     void setActionStateSnapshot(const ApplicationActionStateSnapshot& snapshot);
     void setActionStateInput(const ApplicationActionStateInput& input);
     void setCommandPortSource(ApplicationCommandPortSource* source);
@@ -107,8 +101,6 @@ public:
     bool rightToLeftReadingActive() const;
     NavigationPresentationProjection navigationPresentationProjection() const;
     void handleActionTriggered(ActionId actionId) const;
-    void handleScanForwardAction() const;
-    void handleScanBackwardAction() const;
     bool executeHorizontalArrowShortcut(bool leftArrow) const;
     bool executeSinglePageArrowShortcut(bool leftArrow) const;
     bool executeVerticalPanShortcut(bool up) const;

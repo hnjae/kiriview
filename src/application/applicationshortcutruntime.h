@@ -25,7 +25,6 @@
 #include <vector>
 
 namespace kiriview::ApplicationActions {
-class ShortcutRouteModel;
 class ShortcutHelpModel;
 struct ShortcutHelpRow;
 
@@ -55,7 +54,6 @@ public:
 
     int shortcutRevision() const;
     QAbstractListModel* shortcutHelpModel() const;
-    QAbstractListModel* shortcutRouteModel() const;
     ApplicationShortcutProjection shortcutProjection(const QString& actionName) const;
     ApplicationShortcutProjection shortcutProjectionForId(ActionId actionId) const;
     QList<QKeySequence> programWideShortcuts(const QString& actionName) const;
@@ -102,7 +100,6 @@ private:
     ChangeCallback m_changeCallback;
     TriggerCallbacks m_triggerCallbacks;
     std::unique_ptr<ShortcutHelpModel> m_shortcutHelpModel;
-    std::unique_ptr<ShortcutRouteModel> m_shortcutRouteModel;
     std::unique_ptr<QObject> m_shortcutEventFilter;
     QPointer<QObject> m_shortcutHost;
     QPointer<QWindow> m_shortcutWindow;

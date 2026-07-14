@@ -3,7 +3,6 @@
 
 #include "application/applicationshortcutpolicy.h"
 #include "application/kiriviewapplicationactions.h"
-#include "application/shortcutroutemodel.h"
 #include "facade/kiriviewapplication.h"
 #include "kiriviewstate.h"
 
@@ -45,18 +44,6 @@ constexpr int shortcutHelpScopeTextRole = Qt::UserRole + 10;
 QKeySequence shortcut(const QString& sequence)
 {
     return QKeySequence::fromString(sequence, QKeySequence::PortableText);
-}
-
-QVariantList actionIdVariants(const QList<DomainActionId>& actionIds)
-{
-    QVariantList variants;
-    variants.reserve(actionIds.size());
-
-    for (DomainActionId actionId : actionIds) {
-        variants.push_back(static_cast<int>(actionId));
-    }
-
-    return variants;
 }
 
 QString nativeText(const QKeySequence& sequence)
@@ -157,8 +144,6 @@ private Q_SLOTS:
     void facadeActionIdsConvertAtApplicationBoundary();
     void actionIdsResolveActionNamesAndShortcuts();
     void navigationPresentationApiConvertsRuntimeProjection();
-    void shortcutRouteModelExposesApplicationPolicy();
-    void mediaShortcutPolicyApiExposesApplicationPolicy();
     void shortcutsApiReturnsCurrentShortcuts();
     void zoomPresetActionsUseNewDefaultShortcutMap();
     void shortcutScopeApisSeparateProgramWideAndViewerLocalShortcuts();
@@ -339,47 +324,6 @@ void TestKiriViewApplication::navigationPresentationApiConvertsRuntimeProjection
     QCOMPARE(application.navigationPresentationIconActionId(
                  static_cast<KiriViewApplication::NavigationPresentationSlot>(999)),
         KiriViewApplication::ActionCount);
-}
-
-void TestKiriViewApplication::shortcutRouteModelExposesApplicationPolicy()
-{
-    KiriViewApplication application;
-    QAbstractItemModel* model = application.shortcutRouteModel();
-    QVERIFY(model != nullptr);
-
-    const QList<Actions::ApplicationShortcutRoute>& routes = Actions::shortcutRoutes();
-    QCOMPARE(model->rowCount(), static_cast<int>(routes.size()));
-
-    for (int row = 0; row < model->rowCount(); ++row) {
-        const QModelIndex index = model->index(row, 0);
-        const Actions::ApplicationShortcutRoute& route = routes.at(row);
-        QCOMPARE(model->data(index, Actions::ShortcutRouteModel::ActionIdsRole).toList(),
-            actionIdVariants(route.actionIds));
-        QCOMPARE(model->data(index, Actions::ShortcutRouteModel::ActivationScopeRole).toInt(),
-            static_cast<int>(route.activationScope));
-        QCOMPARE(model->data(index, Actions::ShortcutRouteModel::ShortcutScopeRole).toInt(),
-            static_cast<int>(route.shortcutScope));
-    }
-}
-
-void TestKiriViewApplication::mediaShortcutPolicyApiExposesApplicationPolicy()
-{
-    KiriViewApplication application;
-
-    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoomInAction));
-    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom50PercentAction));
-    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom100PercentAction));
-    QVERIFY(application.videoActionUnsupported(KiriViewApplication::ViewZoom200PercentAction));
-    QVERIFY(!application.videoActionUnsupported(KiriViewApplication::WindowFullscreenAction));
-    QVERIFY(
-        !application.videoActionUnsupported(KiriViewApplication::ViewToggleVideoPlaybackAction));
-    QVERIFY(application.imageActionUnsupported(KiriViewApplication::ViewToggleVideoPlaybackAction));
-    QVERIFY(!application.imageActionUnsupported(KiriViewApplication::ViewZoomInAction));
-
-    QVERIFY(application.mediaHorizontalArrowShortcutsEnabled(false, true, false, false, false));
-    QVERIFY(!application.mediaHorizontalArrowShortcutsEnabled(false, false, true, true, false));
-    QVERIFY(application.mediaHorizontalArrowShortcutsEnabled(true, false, true, true, false));
-    QVERIFY(!application.mediaHorizontalArrowShortcutsEnabled(true, true, true, true, true));
 }
 
 void TestKiriViewApplication::shortcutsApiReturnsCurrentShortcuts()

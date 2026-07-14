@@ -15,18 +15,6 @@
 namespace {
 namespace Actions = kiriview::ApplicationActions;
 
-Actions::VideoShortcutAvailabilityInput videoShortcutInput(bool helpShortcutsEnabled,
-    bool viewerShortcutsEnabled, bool videoFileDeletionInProgress,
-    bool videoDirectMediaNavigationActive)
-{
-    return Actions::VideoShortcutAvailabilityInput {
-        helpShortcutsEnabled,
-        viewerShortcutsEnabled,
-        videoFileDeletionInProgress,
-        videoDirectMediaNavigationActive,
-    };
-}
-
 bool sharedImagePannabilityActionGate(
     kiriview::DocumentSessionActionAvailabilityFacts facts, bool viewportLocalPannable)
 {
@@ -166,11 +154,6 @@ QAbstractListModel* ApplicationActionRuntime::shortcutHelpModel() const
     return m_shortcutRuntime->shortcutHelpModel();
 }
 
-QAbstractListModel* ApplicationActionRuntime::shortcutRouteModel() const
-{
-    return m_shortcutRuntime->shortcutRouteModel();
-}
-
 QAction* ApplicationActionRuntime::action(const QString& actionName)
 {
     return m_actionRegistry.action(actionName);
@@ -252,26 +235,6 @@ QString ApplicationActionRuntime::actionToolbarTooltipText(ActionId actionId) co
     return applicationActionToolbarTooltipText(actionId);
 }
 
-bool ApplicationActionRuntime::videoActionUnsupported(ActionId actionId) const
-{
-    return ApplicationActions::videoActionUnsupported(actionId);
-}
-
-bool ApplicationActionRuntime::imageActionUnsupported(ActionId actionId) const
-{
-    return ApplicationActions::imageActionUnsupported(actionId);
-}
-
-bool ApplicationActionRuntime::mediaHorizontalArrowShortcutsEnabled(bool videoMode,
-    bool imageReadyViewerShortcutsEnabled, bool videoViewerShortcutsEnabled,
-    bool videoDirectMediaNavigationActive, bool videoFileDeletionInProgress) const
-{
-    return ApplicationActions::mediaHorizontalArrowShortcutsEnabled(videoMode,
-        imageReadyViewerShortcutsEnabled,
-        videoShortcutInput(false, videoViewerShortcutsEnabled, videoFileDeletionInProgress,
-            videoDirectMediaNavigationActive));
-}
-
 void ApplicationActionRuntime::setActionStateSnapshot(
     const ApplicationActionStateSnapshot& snapshot)
 {
@@ -316,16 +279,6 @@ NavigationPresentationProjection ApplicationActionRuntime::navigationPresentatio
 void ApplicationActionRuntime::handleActionTriggered(ActionId actionId) const
 {
     m_commandRouter.handleActionTriggered(actionId, commandRouterInput(), commandRouterPorts());
-}
-
-void ApplicationActionRuntime::handleScanForwardAction() const
-{
-    m_commandRouter.handleScanForwardAction(commandRouterInput(), commandRouterPorts());
-}
-
-void ApplicationActionRuntime::handleScanBackwardAction() const
-{
-    m_commandRouter.handleScanBackwardAction(commandRouterInput(), commandRouterPorts());
 }
 
 bool ApplicationActionRuntime::executeHorizontalArrowShortcut(bool leftArrow) const

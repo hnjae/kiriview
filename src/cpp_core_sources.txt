@@ -210,7 +210,6 @@ src/decoding/rawdecoder.cpp
 src/decoding/rawthumbnailpreview.cpp
 src/rendering/rasterdisplaybucketpolicy.cpp
 src/application/shortcuthelpmodel.cpp
-src/application/shortcutroutemodel.cpp
 src/session/activenavigationprojection.cpp
 src/session/activenavigationthumbnaildemand.cpp
 src/session/activenavigationthumbnailmodel.cpp

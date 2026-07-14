@@ -12,7 +12,6 @@ src/facade/kirimediainformation.h
 src/facade/kirivideodocument.h
 src/facade/kiriviewapplication.h
 src/application/shortcuthelpmodel.h
-src/application/shortcutroutemodel.h
 src/archive/mediaentrysourcestore.h
 src/decoding/imagedecodejob.h
 src/document/imageloader.h
