@@ -1,0 +1,73 @@
+# ImageViewport Presentation
+
+This document defines presentation-target replacement, transition policy, presentation mutation, and presentation preference behavior for `ImageViewport`. The item and common command-result surface is defined in [ImageViewport API](image-viewport-api.md), coherent presentation and display observations are defined in [ImageViewport State](image-viewport-state.md), and public display limits are defined in [ImageViewport Packaging](image-viewport-packaging.md).
+
+## Presentation-Target Replacement
+
+`setPresentationTarget(target, policy)` is the only public mutating API that creates or replaces an accepted presentation target. A two-page spread is accepted only when primary and secondary roles are supplied in the same command. A null primary with a non-null secondary is invalid; both null roles mean clear. The viewport must not expose a transient primary-only accepted presentation target for one accepted two-role replacement.
+
+`clear()` is equivalent to `setPresentationTarget(ImageViewportPresentationTarget.clear(), PresentationTargetTransitionPolicy.defaultClear())`; the canonical policy and its effects are defined below.
+
+A clear target is valid only when every transition-mode and replacement-intent field equals the corresponding field from `PresentationTargetTransitionPolicy.defaultClear()`. Ignored explicit value fields may differ but must still be well-formed. Any other clear-target policy is invalid, which prevents a retained display from existing without a non-empty accepted target and prevents clear from mutating presentation preferences.
+
+`PresentationTargetTransitionPolicy` expresses caller intent for retain versus clear-before-load, fit and zoom transition, content-position transition, rotation transition, mirror transition, spread direction, page gap, and replacement intent. The viewport computes the resulting presentation state from canonical state; callers do not repair zoom, pan, spread geometry, or visible rectangles through ordered follow-up commands.
+
+Invalid presentation target values or invalid transition policy fields reject the whole command before any target, presentation, display, playback, or provider-work changes. Only command diagnostics and the corresponding command and snapshot revisions change; every other diagnostic and revision domain remains unchanged.
+
+`PresentationTargetTransitionPolicy.DisplayTransition` values are `RetainPrevious` and `ClearBeforeLoad`.
+
+`PresentationTargetTransitionPolicy.ZoomTransition` values are `Preserve` and `ResetToContain`.
+
+`PresentationTargetTransitionPolicy.ContentPositionTransition` values are `Clamp`, `AnchorStart`, and `AnchorEnd`.
+
+`PresentationTargetTransitionPolicy.RotationTransition` values are `Preserve` and `Reset`.
+
+`PresentationTargetTransitionPolicy.MirrorTransition` values are `Preserve` and `Reset`.
+
+`PresentationTargetTransitionPolicy.FitModeTransition`, `PresentationTargetTransitionPolicy.SpreadDirectionTransition`, and `PresentationTargetTransitionPolicy.PageGapTransition` values are `Preserve` and `SetExplicit`. `SetExplicit` uses the corresponding `fitMode`, `spreadDirection`, or `pageGap` value in the same policy object.
+
+`PresentationTargetTransitionPolicy.ReplacementIntent` values are `NewTarget` and `SameTargetRefinement`.
+
+`PresentationTargetTransitionPolicy` contains `displayTransition`, `zoomTransition`, `contentPositionTransition`, `rotationTransition`, `mirrorTransition`, `fitModeTransition`, `fitMode`, `spreadDirectionTransition`, `spreadDirection`, `pageGapTransition`, `pageGap`, and `replacementIntent`. `fitMode` uses `ImageViewportFitMode`, `spreadDirection` uses `ImageViewportSpreadDirection`, and `pageGap` is a finite non-negative source-logical distance in spread space. When `fitModeTransition`, `spreadDirectionTransition`, or `pageGapTransition` is `SetExplicit`, the corresponding value field is required and validated; when the transition is `Preserve`, the corresponding value field is ignored for state mutation but still must be well-formed if present.
+
+`DisplayTransition.RetainPrevious` keeps the last complete committed display as fallback until the replacement commits, an explicit clear or later replacement removes it, or resource pressure discards it; `ClearBeforeLoad` removes prior display ownership as part of accepting the replacement. `ZoomTransition.Preserve` leaves the stored manual zoom demand unchanged, subject only to clamping when target geometry establishes a narrower valid range; active fit mode is determined independently by `fitModeTransition`. `ZoomTransition.ResetToContain` sets fit mode to `Contain` and resets manual zoom to `100` clamped to the target's valid range, so combining it with `fitModeTransition: SetExplicit` is invalid. `ContentPositionTransition.Clamp` carries the previous numeric content position into the target geometry and clamps it component-wise to the new bounds. `AnchorStart` and `AnchorEnd` resolve through the public content-anchor formulas after target geometry is known. `RotationTransition.Reset` sets rotation to `0`, and `MirrorTransition.Reset` clears both mirror flags. If target geometry is not yet available, the accepted transition remains authoritative and its position is resolved once for that target when geometry becomes available; no interim geometry-dependent value is guessed.
+
+`SameTargetRefinement` is the public carrier for caller-supplied replacements that keep the same application-owned source logical identity, selected target, role set, source logical size, and timing contract while replacing payload detail. Command admission requires authoritative metadata for every accepted and replacement role. Unavailable metadata, a role-set or logical-size difference, an incompatible selected frame or position, or a timing or authored-animation difference makes the command invalid and the caller must use `NewTarget`. The viewport trusts the caller's source-identity assertion but validates all public compatibility facts. `SameTargetRefinement` rejects presentation-transition mutations other than `displayTransition`: `zoomTransition` must be `Preserve`, `contentPositionTransition` must be `Clamp`, and rotation, mirror, fit-mode, spread-direction, and page-gap transitions must all be `Preserve`. It preserves playback intent; `NewTarget` does not.
+
+Default clear policy uses `displayTransition: ClearBeforeLoad`, `zoomTransition: Preserve`, `contentPositionTransition: Clamp`, `rotationTransition: Preserve`, `mirrorTransition: Preserve`, `fitModeTransition: Preserve`, `spreadDirectionTransition: Preserve`, `pageGapTransition: Preserve`, and `replacementIntent: NewTarget`; it resets playback to stopped, preserves presentation preferences, clears retained display content, and its ignored explicit `fitMode`, `spreadDirection`, and `pageGap` values default to `Contain`, `LeftToRight`, and `0`. Default non-clear replacement policy uses `displayTransition: RetainPrevious`, `zoomTransition: Preserve`, `contentPositionTransition: Clamp`, `rotationTransition: Preserve`, `mirrorTransition: Preserve`, `fitModeTransition: Preserve`, `spreadDirectionTransition: Preserve`, `pageGapTransition: Preserve`, and `replacementIntent: NewTarget`; its ignored explicit `fitMode`, `spreadDirection`, and `pageGap` values default to `Contain`, `LeftToRight`, and `0`.
+
+Initial presentation state uses `Contain`, manual zoom `100` clamped to the public range, anchor-start content position, rotation `0`, both mirror flags false, `LeftToRight`, page gap `0`, `Transparent`, smoothing true, mipmap false, looping false, `Default` quality, and `Default` exactness. Clear preserves these preferences after initialization.
+
+## Presentation Commands
+
+`ImageViewportPresentationCommand` is the only public value used for presentation mutations. It is a structured value whose operation fields are optional and whose field presence is explicit; omitted fields do not mutate their domains. It contains one or more explicit operation fields selected from `fitMode`, `manualZoomPercent`, `zoomStepDelta`, `contentPosition`, `panDelta`, `contentAnchor`, `rotationDegrees`, `mirrorHorizontally`, `mirrorVertically`, `spreadDirection`, `pageGap`, `backgroundMode`, `backgroundColor`, `checkerboardLightColor`, `checkerboardDarkColor`, `checkerboardCellSize`, `smoothing`, `mipmap`, `looping`, `qualityPreference`, `exactnessPreference`, and `resetView`. The command validates as one transaction before applying any operation; if any supplied operation is malformed, unsupported for the current accepted request, duplicates another operation for the same domain, or conflicts with another operation in the same command, the whole presentation command is rejected.
+
+An accepted presentation command whose supplied operations collectively produce no state change is a complete no-op. It preserves command diagnostics and every revision token, emits no `stateChanged` signal, and returns the current snapshot revision. This rule is independent of which presentation fields the command supplies.
+
+Presentation preferences that do not require presentable geometry may be changed before a target is accepted and persist for later targets. `contentPosition`, `panDelta`, and `contentAnchor` require accepted target geometry and are `Unsupported` while that geometry is unavailable; other well-formed presentation operations remain admissible subject to their public ranges and conflict rules.
+
+Presentation command numeric fields must be finite. `manualZoomPercent` is valid only within the current manual zoom range and replaces the stored manual zoom demand without changing fit mode. `zoomStepDelta` is a signed integer step count that multiplies the stored manual zoom demand by `manualZoomStepFactor` raised to that count and clamps the result to the current manual range without changing fit mode; callers may combine either zoom operation with `fitMode: Manual` to activate the resulting demand atomically. `contentPosition` replaces the item content-space position, and `panDelta` adds to it; both clamp to the current content bounds. `contentAnchor` uses `ImageViewportContentAnchor`; `rotationDegrees` is one of `0`, `90`, `180`, or `270`; `pageGap` is a finite non-negative source-logical distance in spread space; and `checkerboardCellSize` is a finite positive item-logical distance within the public display limits. Background color fields must contain valid colors and persist even when their corresponding background mode is inactive. The geometry-positioning conflict domain contains `manualZoomPercent`, `zoomStepDelta`, `contentPosition`, `panDelta`, and `contentAnchor`; at most one operation from that domain may be present in one command. `resetView` is mutually exclusive with `fitMode`, every geometry-positioning operation, `rotationDegrees`, `mirrorHorizontally`, `mirrorVertically`, `spreadDirection`, and `pageGap`, but may be combined with background, smoothing, mipmap, looping, quality, and exactness preference changes.
+
+`resetView()` is equivalent to `setPresentation(ImageViewportPresentationCommand.resetView())`. It resets fit mode to `Contain`, resets manual zoom percent to `100` clamped to the current manual range, moves content position to `Start` for the current spread direction, and clears display rotation and mirror flags. When accepted-target geometry is unavailable, the geometry-independent resets apply immediately and the next available target geometry starts at `Start`. It preserves spread direction, page gap, background, smoothing, mipmap, looping, quality, and exactness preferences, and leaves the accepted presentation target and playback state unchanged unless another accepted command changes them.
+
+`ImageViewportFitMode` values are `Contain`, `FitWidth`, `FitHeight`, and `Manual`.
+
+`ImageViewportSpreadDirection` values are `LeftToRight` and `RightToLeft`.
+
+`ImageViewportContentAnchor` values are `Start` and `End`. `Start` resolves to `(0, 0)` for `LeftToRight` and `(maximumContentPosition.x, 0)` for `RightToLeft`; `End` resolves to `(maximumContentPosition.x, maximumContentPosition.y)` for `LeftToRight` and `(0, maximumContentPosition.y)` for `RightToLeft`. A non-pannable axis has maximum position zero. Anchor resolution uses spread direction and canonical content bounds, independent of mirror flags.
+
+`ImageViewportBackgroundMode` values are `Transparent`, `SolidColor`, and `Checkerboard`.
+
+`backgroundColor` is the backing color for `SolidColor`. `checkerboardLightColor`, `checkerboardDarkColor`, and `checkerboardCellSize` define `Checkerboard`; checkerboard cells are axis-aligned in item space and do not scale, rotate, mirror, or pan with image content.
+
+`ImageViewportQualityPreference` values are `Default`, `FastFirstDisplay`, `BalancedDetail`, and `ExactDetail`. The preference is advisory unless paired with an exactness preference that rejects inexact payloads.
+
+`ImageViewportExactnessPreference` values are `Default`, `AllowInexact`, `PreferExact`, and `RequireExact`. `RequireExact` makes every newly offered inexact payload inadmissible, including a fixed in-memory frame, and reports unsupported with `PayloadRejection`; it does not retroactively invalidate committed pixels. Other values allow earlier complete-frame payloads when their frame and, for providers, envelope facts remain valid.
+
+Smoothing and mipmap are optional rendering preferences. If the active rendering backend cannot honor either preference, the accepted request and displayed payload remain valid; the viewport exposes any observable fallback through `state.diagnostics.warningString` and clears that warning when the fallback ends or its owning target is replaced.
+
+Background changes affect only item backing presentation. They do not change image request status, role frame or position, image geometry, coordinate validity, or playback phase, and background pixels alone never make `state.display` ready or retained.
+
+## Open Question
+
+- The exact default `backgroundColor`, checkerboard colors, and checkerboard cell size require a product visual-design decision not present in these documents. Their public fields, validation, geometry independence, and persistence semantics are fixed.
