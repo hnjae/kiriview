@@ -5,10 +5,7 @@
 #include <array>
 #include <memory>
 
-#ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
 class ViewportEngineTestAccess;
-class ViewportController;
-#endif
 struct ViewportEngineCanonicalState;
 struct ViewportEngineSnapshotStateAccess;
 struct ViewportEngineProviderFactsView;
@@ -64,6 +61,9 @@ public:
         const ViewportEnginePresentationTargetAssignmentRequest& input);
     ViewportEnginePresentationCommandResult applyPresentationCommand(
         const ViewportEnginePresentationCommandRequest& input);
+    ImageViewportInternal::ViewportChangeSet publishChanges(
+        ImageViewportInternal::ViewportChangeSet changes);
+    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
 
 private:
     using GeometryInput = ViewportEngineGeometryInput;
@@ -78,7 +78,6 @@ private:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     void setNextRevisionValueForTest(quint64 token);
 #endif
-    friend class ViewportController;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
     friend class ViewportEngineTestAccess;
 #endif
@@ -113,7 +112,6 @@ private:
         ImageViewportPageRole role, ViewportEngineViewportInput input);
     ViewportProviderSchedulerFailureResult reduceProviderQueueSchedulingFailure(
         ImageViewportPageRole role, const QString& diagnostic);
-    ViewportProviderFrameTransportEffect closeProviderSession(ImageViewportPageRole role);
     ViewportProviderFrameQueueFlushResult reduceQueuedProviderFrameRequest(
         ImageViewportPageRole role, ViewportEngineViewportInput input);
 

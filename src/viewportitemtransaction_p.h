@@ -1,6 +1,13 @@
 #pragma once
 
-#include "imageviewportstate_p.h"
+#include "viewportenginetransition_p.h"
+#include <ImageViewport/ImageViewport>
+
+struct ViewportCommandResult
+{
+    ImageViewportCommandOutcome outcome = ImageViewportCommandOutcome::Accepted;
+    ViewportEngineTransition transition;
+};
 
 inline void mergeChanges(ImageViewportInternal::ViewportChangeSet& target,
     ImageViewportInternal::ViewportChangeSet source)

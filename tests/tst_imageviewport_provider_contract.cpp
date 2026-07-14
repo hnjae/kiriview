@@ -112,7 +112,7 @@ private slots:
     void providerFactoryRejectsInvalidKnownMetadata();
     void providerFactoryRejectsPublishedKnownMetadataLimits();
     void providerSessionEntryPointsUseSessionAffinity();
-    void providerThreadSafeSessionEntryPointsUseControllerAffinity();
+    void providerThreadSafeSessionEntryPointsUseViewportAffinity();
     void providerSequenceOpensSessionAfterAdapterDestruction();
     void providerSharedSequenceUsesIndependentViewportSessions();
     void providerSessionOpenFailureKeepsReplacementObservable();
@@ -658,7 +658,7 @@ void ImageViewportProviderContractTest::providerSessionEntryPointsUseSessionAffi
     QTRY_COMPARE(*closeThread, &workerThread);
 }
 
-void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseControllerAffinity()
+void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseViewportAffinity()
 {
     QThread workerThread;
     workerThread.start();
@@ -667,7 +667,7 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         workerThread.wait(1000);
     });
 
-    QThread* controllerThread = QThread::currentThread();
+    QThread* viewportThread = QThread::currentThread();
     const auto metadataRequestThread = std::make_shared<QThread*>(nullptr);
     const auto frameRequestThread = std::make_shared<QThread*>(nullptr);
     const auto playbackRequestThread = std::make_shared<QThread*>(nullptr);
@@ -692,13 +692,13 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
 
         AffinityProviderSession* session = sessionFactory->lastSession();
         QVERIFY(session);
-        QCOMPARE(*metadataRequestThread, controllerThread);
+        QCOMPARE(*metadataRequestThread, viewportThread);
 
         emitProviderMetadataReady(session, session->lastMetadataToken(),
             ImageSequenceProviderMetadata::timedFrameList(QSizeF(16.0, 8.0), { 100, 250 }));
         QCOMPARE(*frameRequestThread, nullptr);
         drainQueuedProviderResults();
-        QCOMPARE(*frameRequestThread, controllerThread);
+        QCOMPARE(*frameRequestThread, viewportThread);
 
         QImage image(16, 8, QImage::Format_ARGB32_Premultiplied);
         image.fill(Qt::transparent);
@@ -711,12 +711,12 @@ void ImageViewportProviderContractTest::providerThreadSafeSessionEntryPointsUseC
         QCOMPARE(item.play(ImageViewportPageRole::Primary).outcome(),
             ImageViewportCommandOutcome::Accepted);
         advancePlaybackForTest(item, 100);
-        QCOMPARE(*playbackRequestThread, controllerThread);
+        QCOMPARE(*playbackRequestThread, viewportThread);
         QVERIFY(session->lastPlaybackToken().isValid());
 
         QCOMPARE(item.stop(ImageViewportPageRole::Primary).outcome(),
             ImageViewportCommandOutcome::Accepted);
-        QCOMPARE(*cancelRequestThread, controllerThread);
+        QCOMPARE(*cancelRequestThread, viewportThread);
     }
 
     QTRY_COMPARE(*closeThread, &workerThread);

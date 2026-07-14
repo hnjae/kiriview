@@ -2,6 +2,7 @@
 
 #include "imageviewport_p.h"
 #include "renderadapter_scenegraph_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QSGNode>
@@ -16,15 +17,9 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
 
 }
 
-ImageViewportRenderHost::ImageViewportRenderHost(ImageViewportPrivate& viewport)
-    : viewport(viewport)
+ImageViewportRenderHostResult ImageViewportRenderHost::synchronize(QSGNode* oldNode,
+    QQuickWindow* window, const ViewportRenderSynchronization& synchronization)
 {
-}
-
-QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
-{
-    const ViewportRenderSynchronization synchronization
-        = viewport.controller.beginRenderSynchronization(effectiveDevicePixelRatio(viewport));
     QVector<RenderAdapter::Input::ImageLayer> imageLayers;
     imageLayers.reserve(synchronization.renderSnapshot.imageLayers.size());
     for (const ViewportRenderLayer& layer : synchronization.renderSnapshot.imageLayers) {
@@ -47,49 +42,68 @@ QSGNode* ImageViewportRenderHost::updatePaintNode(QSGNode* oldNode)
         synchronization.renderSnapshot.mirrorVertically,
         imageLayers,
     };
-    const RenderAdapterSceneGraph::Output render = RenderAdapterSceneGraph::createNode(
-        renderAdapter, oldNode, { planInput, viewport.window() });
+    const RenderAdapterSceneGraph::Output render
+        = RenderAdapterSceneGraph::createNode(renderAdapter, oldNode, { planInput, window });
+    QVector<ViewportRenderRolePayload> rolePayloads;
+    rolePayloads.reserve(render.rolePayloads.size());
+    for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
+        rolePayloads.append({ payload.role, payload.preparedPayload });
+    }
+    return { render.node, render.result,
+        { render.preparedPayload, std::move(rolePayloads), render.failedRole,
+            render.failureCause, synchronization.attempt },
+        imagePresent };
+}
+
+QSGNode* ImageViewportPrivate::updatePaintNode(QSGNode* oldNode)
+{
+    const ViewportRenderSynchronization synchronization
+        = engine.beginRenderSynchronization(
+            { { itemBounds(), effectiveDevicePixelRatio(*this) } });
+    ImageViewportRenderHostResult render
+        = renderHost.synchronize(oldNode, window(), synchronization);
     if (render.result == RenderAdapter::CommitResult::Failed) {
         QSGNode* fallbackNode = render.node;
-        QVector<ViewportRenderRolePayload> rolePayloads;
-        rolePayloads.reserve(render.rolePayloads.size());
-        for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
-            rolePayloads.append({ payload.role, payload.preparedPayload });
-        }
-        auto transition = viewport.controller.acknowledgeRenderFailure({ render.preparedPayload,
-            rolePayloads, render.failedRole, render.failureCause, synchronization.attempt });
-        viewport.applyControllerTransition(std::move(transition));
-        if (fallbackNode && viewport.displayStatus() != ImageViewportDisplayStatus::Empty) {
+        const auto reduced
+            = engine.acknowledgeRenderFailure({ render.acknowledgement });
+        ViewportEngineTransition transition;
+        transition.changes = reduced.changes;
+        transition.playbackSchedule = reduced.playbackSchedule;
+        applyEngineTransition(std::move(transition));
+        if (fallbackNode && displayStatus() != ImageViewportDisplayStatus::Empty) {
             return fallbackNode;
         }
         delete fallbackNode;
         return nullptr;
     }
-
     if (render.result == RenderAdapter::CommitResult::Committed) {
-        QVector<ViewportRenderRolePayload> rolePayloads;
-        rolePayloads.reserve(render.rolePayloads.size());
-        for (const RenderAdapter::RolePayload& payload : render.rolePayloads) {
-            rolePayloads.append({ payload.role, payload.preparedPayload });
-        }
-        auto transition = viewport.controller.acknowledgeRenderCommit(
-            { render.preparedPayload, rolePayloads, ImageViewportPageRole::Primary,
-                RenderFailureCause::None, synchronization.attempt },
-            imagePresent, synchronization);
-        viewport.applyControllerTransition(std::move(transition));
+        const auto reduced = engine.acknowledgeRenderCommit({ render.acknowledgement,
+            render.imagePresent, synchronization.attempt, synchronization.pendingTargetCommit,
+            synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
+            synchronization.oldDisplayStatus, synchronization.oldContentRect,
+            synchronization.oldVisibleImageRect, synchronization.geometryState });
+        ViewportEngineTransition transition;
+        transition.changes = reduced.changes;
+        transition.playbackSchedule = reduced.playbackSchedule;
+        applyEngineTransition(std::move(transition));
     }
     return render.node;
 }
 
-void ImageViewportRenderHost::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
+void ImageViewportPrivate::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
     const QRectF& oldContentRect, const QRectF& oldVisibleImageRect)
 {
     if (newGeometry.width() == oldGeometry.width()
         && newGeometry.height() == oldGeometry.height()) {
         return;
     }
-
-    const auto result
-        = viewport.controller.handleGeometryChanged(oldContentRect, oldVisibleImageRect);
-    viewport.applyControllerTransition(result);
+    const auto reduced = engine.handleGeometryChanged(
+        { { itemBounds(), 1.0 }, oldContentRect, oldVisibleImageRect });
+    ViewportEngineTransition transition;
+    transition.changes = reduced.changes;
+    appendProviderTransport(transition.providerAfterPublication, reduced.providerEffects[0],
+        PageRole::Primary);
+    appendProviderTransport(transition.providerAfterPublication, reduced.providerEffects[1],
+        PageRole::Secondary);
+    applyEngineTransition(std::move(transition));
 }

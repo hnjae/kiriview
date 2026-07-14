@@ -151,6 +151,12 @@ ImageViewportInternal::ViewportChangeSet ViewportEngine::publish(PendingPublicat
     return changes;
 }
 
+ImageViewportInternal::ViewportChangeSet ViewportEngine::publishChanges(
+    ImageViewportInternal::ViewportChangeSet changes)
+{
+    return publish(preparePublication(std::move(changes)));
+}
+
 PresentationGeometry::State ViewportEngine::geometryState(const GeometryInput& input) const
 {
     return projectViewportGeometryState(input, m_state->presentationState.presentation);

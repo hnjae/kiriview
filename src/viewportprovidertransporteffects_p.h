@@ -1,6 +1,6 @@
 #pragma once
 
-#include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidercontract_p.h"
 
 inline ImageSequenceProviderRequest providerRequestForTransport(
     ImageViewportPageRole role, const ViewportProviderFrameCommand& command)
@@ -36,11 +36,11 @@ inline void appendProviderTransport(ViewportProviderTransportBatch& batch,
     if (effect.cancelToken.isValid()) {
         batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
             ImageSequenceProviderRequest::cancel({ effect.cancelToken }), {},
-            ViewportProviderDeferredControllerEvent::None, false });
+            ViewportProviderDeferredEngineEvent::None, false });
     }
-    if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
+    if (effect.deferredEngineEvent != ViewportProviderDeferredEngineEvent::None) {
         batch.append({ ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, role, {}, {},
-            effect.deferredControllerEvent });
+            effect.deferredEngineEvent });
     }
     if (effect.closeSession) {
         batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},

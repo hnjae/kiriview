@@ -1,5 +1,4 @@
 #include "viewportengine_p.h"
-#include "viewportcontrollertransition_p.h"
 #include "viewportenginecapabilities_p.h"
 #include "viewportengineplaybackoperations_p.h"
 #include "viewportenginepresentationoperations_p.h"
@@ -436,7 +435,6 @@ static_assert(std::is_same_v<decltype(&ViewportEngine::handleProviderHostEvent),
         const ViewportEngineProviderHostEventRequest&)>);
 static_assert(std::is_same_v<decltype(&ViewportEngine::handleDevicePixelRatioChanged),
     ViewportEngineTransition (ViewportEngine::*)(ViewportEngineViewportInput)>);
-static_assert(std::is_same_v<ViewportControllerTransition, ViewportEngineTransition>);
 static_assert(std::is_same_v<decltype(std::declval<ViewportEnginePresentationTargetAssignmentRequest>()
                                           .viewport),
     ViewportEngineViewportInput>);

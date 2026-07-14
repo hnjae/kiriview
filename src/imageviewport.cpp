@@ -1,7 +1,9 @@
 #include "imagesequencesource_p.h"
 #include "imageviewport_p.h"
 #include "presentationgeometry_p.h"
-#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcommandoutcome_p.h"
+#include "viewportitemtransaction_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -257,7 +259,8 @@ int ImageViewportPrivate::secondaryRequestedPosition() const
 
 QSizeF ImageViewportPrivate::displayedSpreadSize() const
 {
-    const QSizeF spreadSize = PresentationGeometry::spreadSize(controller.geometryState());
+    const QSizeF spreadSize
+        = PresentationGeometry::spreadSize(engine.geometryState({ itemBounds(), 1.0 }));
     return isPositiveSize(spreadSize) ? spreadSize : QSizeF(0.0, 0.0);
 }
 
@@ -277,16 +280,21 @@ ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentationTarget
     ImageSequenceSource primarySource = factorySequenceSource(presentationTarget.primary());
     ImageSequenceSource secondarySourceHandle
         = factorySequenceSource(presentationTarget.secondary());
-    ViewportSequenceAssignment assignment;
-    assignment.presentationTarget = std::move(presentationTarget);
-    assignment.source = std::move(primarySource);
-    assignment.secondarySourceHandle = std::move(secondarySourceHandle);
-    assignment.transitionPolicy = policy;
-    ViewportCommandResult result = controller.assignSequence(std::move(assignment));
-    if (result.outcome != CommandOutcome::Accepted) {
-        applyControllerTransition(result.transition);
-        return result.outcome;
+    const auto reduced = engine.assignPresentationTarget({ presentationTarget, policy,
+        std::move(primarySource), std::move(secondarySourceHandle), { itemBounds(), 1.0 } });
+    ViewportCommandResult result
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
+    mergeChanges(result.transition.changes, reduced.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        reduced.providerEffects[1], PageRole::Secondary);
+    for (const auto& effect : reduced.providerSessionOpenEffects) {
+        if (effect.openSession) {
+            result.transition.providerAfterPublication.append(effect.command);
+        }
     }
-    applyControllerTransition(result.transition);
+    result.transition.playbackSchedule = reduced.schedule;
+    applyEngineTransition(result.transition);
     return result.outcome;
 }

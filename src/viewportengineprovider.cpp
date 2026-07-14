@@ -7,7 +7,7 @@
 #include "viewportengineproviderrequestoperations_p.h"
 #include "viewportengineprovidersessionoperations_p.h"
 
-#include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidercontract_p.h"
 #include "viewportprovidertransporteffects_p.h"
 
 #include <memory>

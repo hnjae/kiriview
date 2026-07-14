@@ -1,11 +1,18 @@
 #include "imageviewport_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
     : q(viewport)
-    , controller([this] { return itemBounds(); })
-    , playbackScheduler(*this)
-    , providerHost(*this)
-    , renderHost(*this)
+    , playbackScheduler(*viewport, [this](int elapsedMilliseconds) {
+        advancePlayback(elapsedMilliseconds);
+    })
+    , providerHost(*viewport,
+          [this](ViewportProviderHostEvent event) {
+              enqueueProviderHostEvent(std::move(event));
+          },
+          [this](ImageViewportInternal::ProviderTransportDiagnostic diagnostic) {
+              internalDiagnostics.recordProviderCleanupFailure(diagnostic);
+          })
 {
     lastStateSnapshot = state();
 }
@@ -13,7 +20,14 @@ ImageViewportPrivate::ImageViewportPrivate(ImageViewport* viewport)
 ImageViewportPrivate::~ImageViewportPrivate()
 {
     playbackScheduler.stop();
-    providerHost.closeActiveSessions();
+    ViewportProviderTransportBatch effects;
+    auto primary = engine.closeProviderSession(PageRole::Primary);
+    primary.closeSession = true;
+    appendProviderTransport(effects, primary, PageRole::Primary);
+    auto secondary = engine.closeProviderSession(PageRole::Secondary);
+    secondary.closeSession = true;
+    appendProviderTransport(effects, secondary, PageRole::Secondary);
+    providerHost.applyTransportEffects(effects);
 }
 
 double ImageViewportPrivate::width() const { return q->width(); }

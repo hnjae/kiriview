@@ -1,27 +1,17 @@
 #include "imageviewportproviderhost_p.h"
 
-#include "imageviewport_p.h"
-
 #include <QtCore/QMetaObject>
+#include <QtCore/QObject>
 
 using namespace ImageViewportInternal;
 
-ImageViewportProviderHost::ImageViewportProviderHost(ImageViewportPrivate& viewport)
-    : viewport(viewport)
+ImageViewportProviderHost::ImageViewportProviderHost(
+    QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink)
+    : dispatchContext(dispatchContext)
+    , eventSink(std::move(eventSink))
+    , diagnosticSink(std::move(diagnosticSink))
     , secondaryProviderBridge(PageRole::Secondary)
 {
-}
-
-void ImageViewportProviderHost::closeActiveSessions()
-{
-    ViewportProviderFrameTransportEffect primary
-        = viewport.controller.closeProviderSession(PageRole::Primary);
-    primary.closeSession = true;
-    applyFrameTransportEffect(primary);
-    ViewportProviderFrameTransportEffect secondary
-        = viewport.controller.closeProviderSession(PageRole::Secondary);
-    secondary.closeSession = true;
-    applyFrameTransportEffect(secondary, PageRole::Secondary);
 }
 
 void ImageViewportProviderHost::applyFrameTransportEffect(
@@ -31,11 +21,11 @@ void ImageViewportProviderHost::applyFrameTransportEffect(
     if (effect.cancelToken.isValid()) {
         batch.append({ ViewportProviderTransportCommand::Kind::SendRequest, role,
             ImageSequenceProviderRequest::cancel({ effect.cancelToken }), {},
-            ViewportProviderDeferredControllerEvent::None, false });
+            ViewportProviderDeferredEngineEvent::None, false });
     }
-    if (effect.deferredControllerEvent != ViewportProviderDeferredControllerEvent::None) {
+    if (effect.deferredEngineEvent != ViewportProviderDeferredEngineEvent::None) {
         batch.append({ ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent, role, {}, {},
-            effect.deferredControllerEvent });
+            effect.deferredEngineEvent });
     }
     if (effect.closeSession) {
         batch.append({ ViewportProviderTransportCommand::Kind::CloseSession, role, {},
@@ -66,7 +56,8 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
         switch (effect.kind) {
         case ViewportProviderTransportCommand::Kind::OpenSession: {
             const auto openResult = bridge.openSession({ effect.sessionFactory,
-                effect.threadingContract, effect.generation, effect.sessionSerial, viewport.q,
+                effect.threadingContract, effect.generation, effect.sessionSerial,
+                &dispatchContext,
                 [this](const ViewportProviderEvent& event) { handleProviderEvent(event); } });
             if (!openResult.opened) {
                 applyHostEvent(
@@ -95,7 +86,7 @@ void ImageViewportProviderHost::applyTransportEffects(const ViewportProviderTran
                 effect.sessionClose.metadataToken, effect.sessionClose.frameToken));
             break;
         case ViewportProviderTransportCommand::Kind::ScheduleDeferredEvent:
-            if (!scheduleDeferredControllerEvent(effect.deferredEvent, effect.role)) {
+            if (!scheduleDeferredEngineEvent(effect.deferredEvent, effect.role)) {
                 return;
             }
             break;
@@ -114,7 +105,9 @@ void ImageViewportProviderHost::handleProviderEvent(const ViewportProviderEvent&
 
 void ImageViewportProviderHost::applyHostEvent(const ViewportProviderHostEvent& event)
 {
-    viewport.applyControllerTransition(viewport.controller.handleProviderHostEvent(event));
+    if (eventSink) {
+        eventSink(event);
+    }
 }
 
 ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)
@@ -124,16 +117,18 @@ ViewportProviderBridge& ImageViewportProviderHost::bridgeForRole(PageRole role)
 
 void ImageViewportProviderHost::recordTransportResult(const ViewportProviderTransportResult& result)
 {
-    viewport.internalDiagnostics.recordProviderCleanupFailure(result.diagnostic);
+    if (diagnosticSink && result.diagnostic.valid) {
+        diagnosticSink(result.diagnostic);
+    }
 }
 
-bool ImageViewportProviderHost::scheduleDeferredControllerEvent(
-    ViewportProviderDeferredControllerEvent event, PageRole role)
+bool ImageViewportProviderHost::scheduleDeferredEngineEvent(
+    ViewportProviderDeferredEngineEvent event, PageRole role)
 {
     switch (event) {
-    case ViewportProviderDeferredControllerEvent::None:
+    case ViewportProviderDeferredEngineEvent::None:
         return true;
-    case ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest:
+    case ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest:
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
         bool& failNextScheduling = role == PageRole::Secondary
             ? failNextSecondaryQueueFlushScheduling
@@ -149,7 +144,7 @@ bool ImageViewportProviderHost::scheduleDeferredControllerEvent(
         }
 #endif
         if (!QMetaObject::invokeMethod(
-                viewport.q, [this, role]() { flushQueuedFrameRequest(role); },
+                &dispatchContext, [this, role]() { flushQueuedFrameRequest(role); },
                 Qt::QueuedConnection)) {
             handleQueueFlushSchedulingFailure(role);
             return false;

@@ -22,7 +22,7 @@ qt_add_qml_module(
     imageviewportdiagnostics.cpp
     imageviewportdiagnostics_p.h
     imageviewport_p.cpp
-    imageviewportcontroller.cpp
+    imageviewporttransactions.cpp
     imageviewportfacade.cpp
     imageviewportplaybackscheduler.cpp
     imageviewportplaybackscheduler_p.h
@@ -86,25 +86,12 @@ qt_add_qml_module(
     viewportenginestate_p.h
     viewportenginetestaccess_p.h
     viewportenginetransition_p.h
-    viewportcontroller.cpp
-    viewportcontrollerassignmentcontract_p.h
-    viewportcontrollercommandcontract_p.h
-    viewportcontrollergeometry.cpp
-    viewportcontrollergeometryhelpers_p.h
-    viewportcontrollerhelpers_p.h
     viewportplaybackcontract_p.h
-    viewportcontrollerprovidercontract_p.h
-    viewportcontrollertransition_p.h
-    viewportcontrollerrendercontract_p.h
+    viewportprovidercontract_p.h
     viewportrendercontract_p.h
+    viewportitemtransaction_p.h
     viewportcommandoutcome.cpp
     viewportcommandoutcome_p.h
-    viewportcontrollerplayback.cpp
-    viewportcontrollerpresentation.cpp
-    viewportcontrollerprovider.cpp
-    viewportcontrollerrender.cpp
-    viewportcontrollerrenderhelpers_p.h
-    viewportcontroller_p.h
     viewportproviderbridge.cpp
     viewportproviderbridge_p.h)
 

@@ -12,7 +12,7 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
 
 ImageViewportStateSnapshot ImageViewportPrivate::state() const
 {
-    return controller.stateSnapshot(effectiveDevicePixelRatio(*this));
+    return engine.snapshot({ itemBounds(), effectiveDevicePixelRatio(*this) });
 }
 
 ImageViewportCommandResult ImageViewportPrivate::commandResult(CommandOutcome outcome) const

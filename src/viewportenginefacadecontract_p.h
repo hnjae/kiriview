@@ -2,7 +2,7 @@
 
 #include "imagesequencesource_p.h"
 #include "imageviewporttoken_p.h"
-#include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidercontract_p.h"
 #include "viewportenginecontracts_p.h"
 #include "viewportenginetransition_p.h"
 #include "viewportplaybackcontract_p.h"

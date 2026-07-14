@@ -1,19 +1,25 @@
 #pragma once
 
-#include "viewportcontrollerprovidercontract_p.h"
+#include "viewportprovidercontract_p.h"
 #include "viewportproviderbridge_p.h"
 #include <ImageViewport/ImageViewport>
 
-class ImageViewportPrivate;
+#include <functional>
+
+class QObject;
 
 class ImageViewportProviderHost
 {
 public:
     using PageRole = ImageViewportPageRole;
 
-    explicit ImageViewportProviderHost(ImageViewportPrivate& viewport);
+    using EventSink = std::function<void(ViewportProviderHostEvent)>;
+    using DiagnosticSink
+        = std::function<void(ImageViewportInternal::ProviderTransportDiagnostic)>;
 
-    void closeActiveSessions();
+    ImageViewportProviderHost(
+        QObject& dispatchContext, EventSink eventSink, DiagnosticSink diagnosticSink);
+
     void applyTransportEffects(const ViewportProviderTransportBatch& effects);
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -32,14 +38,16 @@ private:
 
     ViewportProviderBridge& bridgeForRole(PageRole role);
     void recordTransportResult(const ViewportProviderTransportResult& result);
-    bool scheduleDeferredControllerEvent(
-        ViewportProviderDeferredControllerEvent event, PageRole role);
+    bool scheduleDeferredEngineEvent(
+        ViewportProviderDeferredEngineEvent event, PageRole role);
     void handleQueueFlushSchedulingFailure(PageRole role);
     void handleDispatchFailure(
         PageRole role, ImageSequenceProviderRequestToken token, const QString& diagnostic);
     void flushQueuedFrameRequest(PageRole role = PageRole::Primary);
 
-    ImageViewportPrivate& viewport;
+    QObject& dispatchContext;
+    EventSink eventSink;
+    DiagnosticSink diagnosticSink;
     ViewportProviderBridge providerBridge;
     ViewportProviderBridge secondaryProviderBridge;
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES

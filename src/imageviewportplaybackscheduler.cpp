@@ -1,16 +1,16 @@
 #include "imageviewportplaybackscheduler_p.h"
 
-#include "imageviewport_p.h"
 #include "viewportplaybackcontract_p.h"
 
 #include <QtCore/QObject>
 
-ImageViewportPlaybackScheduler::ImageViewportPlaybackScheduler(ImageViewportPrivate& viewport)
-    : viewport(viewport)
+ImageViewportPlaybackScheduler::ImageViewportPlaybackScheduler(
+    QObject& dispatchContext, ElapsedSink elapsedSink)
+    : elapsedSink(std::move(elapsedSink))
 {
     timebase.start();
     timer.setSingleShot(true);
-    QObject::connect(&timer, &QTimer::timeout, viewport.q, [this]() { handleTimeout(); });
+    QObject::connect(&timer, &QTimer::timeout, &dispatchContext, [this]() { handleTimeout(); });
 }
 
 void ImageViewportPlaybackScheduler::apply(ViewportPlaybackScheduleEffect effect)
@@ -40,7 +40,9 @@ void ImageViewportPlaybackScheduler::flushElapsed()
         return;
     }
 
-    viewport.advancePlayback(takeElapsed());
+    if (elapsedSink) {
+        elapsedSink(takeElapsed());
+    }
 }
 
 int ImageViewportPlaybackScheduler::takeElapsed()
@@ -50,4 +52,9 @@ int ImageViewportPlaybackScheduler::takeElapsed()
     return elapsedMilliseconds;
 }
 
-void ImageViewportPlaybackScheduler::handleTimeout() { viewport.advancePlayback(takeElapsed()); }
+void ImageViewportPlaybackScheduler::handleTimeout()
+{
+    if (elapsedSink) {
+        elapsedSink(takeElapsed());
+    }
+}

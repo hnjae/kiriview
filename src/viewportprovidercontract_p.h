@@ -30,7 +30,7 @@ struct ViewportProviderMetadataTransportEffect
     ImageSequenceProviderRequestToken token;
 };
 
-enum class ViewportProviderDeferredControllerEvent {
+enum class ViewportProviderDeferredEngineEvent {
     None,
     FlushQueuedFrameRequest,
 };
@@ -57,8 +57,8 @@ struct ViewportProviderFrameRequestStartResult
 struct ViewportProviderFrameTransportEffect
 {
     ImageSequenceProviderRequestToken cancelToken;
-    ViewportProviderDeferredControllerEvent deferredControllerEvent
-        = ViewportProviderDeferredControllerEvent::None;
+    ViewportProviderDeferredEngineEvent deferredEngineEvent
+        = ViewportProviderDeferredEngineEvent::None;
     bool closeSession = false;
     ViewportProviderSessionClose sessionClose;
     bool sendCommand = false;
@@ -78,8 +78,8 @@ struct ViewportProviderTransportCommand
     ImageViewportPageRole role = ImageViewportPageRole::Primary;
     ImageSequenceProviderRequest request;
     ViewportProviderSessionClose sessionClose;
-    ViewportProviderDeferredControllerEvent deferredEvent
-        = ViewportProviderDeferredControllerEvent::None;
+    ViewportProviderDeferredEngineEvent deferredEvent
+        = ViewportProviderDeferredEngineEvent::None;
     bool reportDispatchFailure = true;
     std::shared_ptr<ImageSequenceProviderSessionFactory> sessionFactory;
     ImageSequenceProviderThreadingContract threadingContract

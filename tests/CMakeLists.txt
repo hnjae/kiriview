@@ -69,15 +69,13 @@ add_imageviewport_qt_test(imagesequence_factory tst_imagesequence_factory.cpp)
 add_imageviewport_core_qt_test(playback_clock tst_playback_clock.cpp)
 add_imageviewport_core_qt_test(playback_timeline tst_playback_timeline.cpp)
 add_imageviewport_core_qt_test(viewportengine tst_viewportengine.cpp)
+add_imageviewport_core_qt_test(imageviewport_host_boundary
+                               tst_imageviewport_host_boundary.cpp)
 add_executable(viewportengine_capability_contract tst_viewportengine_capability_contract.cpp)
 target_link_libraries(viewportengine_capability_contract PRIVATE ImageViewport)
 target_compile_definitions(viewportengine_capability_contract
                            PRIVATE IMAGEVIEWPORT_PRIVATE_TEST_PROBES=1)
 add_test(NAME viewportengine_capability_contract COMMAND viewportengine_capability_contract)
-add_imageviewport_core_qt_test(viewportcontroller_playback tst_viewportcontroller_playback.cpp)
-add_imageviewport_core_qt_test(viewportcontroller_presentation
-                               tst_viewportcontroller_presentation.cpp)
-add_imageviewport_core_qt_test(viewportcontroller_provider tst_viewportcontroller_provider.cpp)
 add_imageviewport_qt_test(imageviewport_still tst_imageviewport_still.cpp)
 add_imageviewport_qt_test(imageviewport_timed tst_imageviewport_timed.cpp)
 add_imageviewport_qt_test(imageviewport_provider_contract tst_imageviewport_provider_contract.cpp)

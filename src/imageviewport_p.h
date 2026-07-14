@@ -6,7 +6,8 @@
 #include "imageviewportproviderhost_p.h"
 #include "imageviewportrenderhost_p.h"
 #include "imageviewportstate_p.h"
-#include "viewportcontroller_p.h"
+#include "viewportengine_p.h"
+#include "viewportitemtransaction_p.h"
 #include <ImageViewport/ImageViewport>
 
 class ImageViewportPrivate
@@ -129,7 +130,9 @@ public:
     BackgroundMode backgroundMode() const;
     QColor backgroundColor() const;
     bool looping() const;
-    void applyControllerTransition(ViewportControllerTransition transition);
+    void applyEngineTransition(ViewportEngineTransition transition);
+    void enqueueProviderHostEvent(ViewportProviderHostEvent event);
+    void drainProviderHostEvents();
     void devicePixelRatioChanged();
     void refreshStateSnapshot();
     QRectF currentContentRect() const;
@@ -148,9 +151,12 @@ public:
     double height() const;
     QQuickWindow* window() const;
     void update();
+    QSGNode* updatePaintNode(QSGNode* oldNode);
+    void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
+        const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
 
     ImageViewport* q = nullptr;
-    ViewportController controller;
+    ViewportEngine engine;
     ImageViewportPlaybackScheduler playbackScheduler;
     ImageViewportProviderHost providerHost;
     ImageViewportRenderHost renderHost;
@@ -158,4 +164,6 @@ public:
     ImageViewportStateSnapshot lastStateSnapshot;
     int transitionApplicationDepth = 0;
     ViewportPlaybackScheduleEffect pendingPlaybackSchedule;
+    QVector<ViewportProviderHostEvent> pendingProviderHostEvents;
+    bool drainingProviderHostEvents = false;
 };

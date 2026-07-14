@@ -1,11 +1,15 @@
 #include "imageviewport_p.h"
+#include "imageviewportlimits_p.h"
 #include "imageviewportvalidation_p.h"
 #include "presentationgeometry_p.h"
-#include "viewportcontrollercommandcontract_p.h"
+#include "viewportcommandoutcome_p.h"
+#include "viewportitemtransaction_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <QtQuick/QQuickWindow>
 
 #include <optional>
+#include <limits>
 
 using namespace ImageViewportInternal;
 
@@ -24,14 +28,14 @@ double effectiveDevicePixelRatio(const ImageViewportPrivate& viewport)
 
 PresentationGeometry::State geometryState(const ImageViewportPrivate& viewport)
 {
-    return viewport.controller.geometryState(effectiveDevicePixelRatio(viewport));
+    return viewport.engine.geometryState(
+        { viewport.itemBounds(), effectiveDevicePixelRatio(viewport) });
 }
 
 PresentationGeometry::State geometryStateForItemBounds(
     const ImageViewportPrivate& viewport, const QRectF& bounds)
 {
-    return viewport.controller.geometryStateForItemBounds(
-        bounds, effectiveDevicePixelRatio(viewport));
+    return viewport.engine.geometryState({ bounds, effectiveDevicePixelRatio(viewport) });
 }
 
 QPointF itemCenter(const ImageViewportPrivate& viewport)
@@ -143,17 +147,18 @@ double ImageViewportPrivate::zoomPercent() const
 
 double ImageViewportPrivate::minimumManualZoomPercent() const
 {
-    return controller.minimumManualZoomPercent();
+    const double denormalMinimum = std::numeric_limits<double>::denorm_min();
+    return denormalMinimum > 0.0 ? denormalMinimum : std::numeric_limits<double>::min();
 }
 
 double ImageViewportPrivate::maximumManualZoomPercent() const
 {
-    return controller.maximumManualZoomPercent(effectiveDevicePixelRatio(*this));
+    return ImageViewportDisplayLimits::maximumManualZoomPercent();
 }
 
 double ImageViewportPrivate::manualZoomStepFactor() const
 {
-    return controller.manualZoomStepFactor();
+    return 1.25;
 }
 
 int ImageViewportPrivate::rotationDegrees() const
@@ -193,9 +198,16 @@ bool ImageViewportPrivate::looping() const { return lastStateSnapshot.presentati
 ImageViewportPrivate::CommandOutcome ImageViewportPrivate::setPresentation(
     ImageViewportPresentationCommand command)
 {
-    const ViewportCommandResult result = controller.setPresentation(
-        { command, itemCenter(*this), effectiveDevicePixelRatio(*this) });
-    applyControllerTransition(result.transition);
+    const auto reduced = engine.applyPresentationCommand(
+        { command, { itemBounds(), effectiveDevicePixelRatio(*this) }, itemCenter(*this) });
+    ViewportCommandResult result
+        = ImageViewportInternal::CommandOutcome::fromEngineCommand(reduced.command);
+    mergeChanges(result.transition.changes, reduced.changes);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        reduced.providerEffects[0], PageRole::Primary);
+    appendProviderTransport(result.transition.providerAfterPublication,
+        reduced.providerEffects[1], PageRole::Secondary);
+    applyEngineTransition(result.transition);
     return result.outcome;
 }
 

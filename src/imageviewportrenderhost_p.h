@@ -1,23 +1,29 @@
 #pragma once
 
 #include "renderadapter_p.h"
-#include "viewportcontrollerrendercontract_p.h"
+#include "viewportrendercontract_p.h"
 
 #include <QtCore/QRectF>
 
-class ImageViewportPrivate;
+class QQuickWindow;
 class QSGNode;
+
+struct ImageViewportRenderHostResult
+{
+    QSGNode* node = nullptr;
+    RenderAdapter::CommitResult result = RenderAdapter::CommitResult::Empty;
+    ViewportRenderAcknowledgement acknowledgement;
+    bool imagePresent = false;
+};
 
 class ImageViewportRenderHost
 {
 public:
-    explicit ImageViewportRenderHost(ImageViewportPrivate& viewport);
+    ImageViewportRenderHost() = default;
 
-    QSGNode* updatePaintNode(QSGNode* oldNode);
-    void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry,
-        const QRectF& oldContentRect, const QRectF& oldVisibleImageRect);
+    ImageViewportRenderHostResult synchronize(QSGNode* oldNode, QQuickWindow* window,
+        const ViewportRenderSynchronization& synchronization);
 
 private:
-    ImageViewportPrivate& viewport;
     RenderAdapter renderAdapter;
 };

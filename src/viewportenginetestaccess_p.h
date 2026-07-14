@@ -78,6 +78,10 @@ public:
     {
         return engine.m_state->commandState.publishedRevision;
     }
+    static void setNextRevisionValue(ViewportEngine& engine, quint64 value)
+    {
+        engine.setNextRevisionValueForTest(value);
+    }
     static ImageViewportInternal::ProviderSessionState& providerSession(
         ViewportEngine& engine, ImageViewportPageRole role)
     {

@@ -63,7 +63,7 @@ bool ImageViewport::containsPoint(
 
 QSGNode* ImageViewport::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
-    return d->renderHost.updatePaintNode(oldNode);
+    return d->updatePaintNode(oldNode);
 }
 
 void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
@@ -74,7 +74,7 @@ void ImageViewport::geometryChange(const QRectF& newGeometry, const QRectF& oldG
     const QRectF oldContentRect = d->contentRectForItemBounds(oldItemBounds);
     const QRectF oldVisibleImageRect = d->visibleImageRectForItemBounds(oldItemBounds);
     QQuickItem::geometryChange(newGeometry, oldGeometry);
-    d->renderHost.geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
+    d->geometryChanged(newGeometry, oldGeometry, oldContentRect, oldVisibleImageRect);
 }
 
 void ImageViewport::itemChange(ItemChange change, const ItemChangeData& data)

@@ -6,12 +6,16 @@
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
 
-class ImageViewportPrivate;
+#include <functional>
+
+class QObject;
 
 class ImageViewportPlaybackScheduler
 {
 public:
-    explicit ImageViewportPlaybackScheduler(ImageViewportPrivate& viewport);
+    using ElapsedSink = std::function<void(int)>;
+
+    ImageViewportPlaybackScheduler(QObject& dispatchContext, ElapsedSink elapsedSink);
 
     void apply(ViewportPlaybackScheduleEffect effect);
     void stop();
@@ -21,7 +25,7 @@ private:
     int takeElapsed();
     void handleTimeout();
 
-    ImageViewportPrivate& viewport;
+    ElapsedSink elapsedSink;
     QTimer timer;
     QElapsedTimer timebase;
     ImageViewportInternal::PlaybackClock clock;

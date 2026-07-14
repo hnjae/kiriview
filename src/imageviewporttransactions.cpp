@@ -2,7 +2,9 @@
 #include "imageviewport_p.h"
 #include "imageviewportproviderfacts_p.h"
 #include "imageviewportvalidation_p.h"
-#include "viewportcontrollercommandcontract_p.h"
+#include "viewportenginetestaccess_p.h"
+#include "viewportitemtransaction_p.h"
+#include "viewportprovidertransporteffects_p.h"
 
 #include <QtQuick/QQuickWindow>
 
@@ -10,7 +12,15 @@ using namespace ImageViewportInternal;
 
 void ImageViewportPrivate::advancePlayback(int elapsedMilliseconds)
 {
-    applyControllerTransition(controller.advancePlayback(elapsedMilliseconds));
+    const auto reduced = engine.advancePlayback({ elapsedMilliseconds, { itemBounds(), 1.0 } });
+    ViewportEngineTransition transition;
+    transition.changes = reduced.changes;
+    appendProviderTransport(transition.providerBeforePublication,
+        reduced.effects.providerFrameTransport[0], PageRole::Primary);
+    appendProviderTransport(transition.providerBeforePublication,
+        reduced.effects.providerFrameTransport[1], PageRole::Secondary);
+    transition.playbackSchedule = reduced.schedule;
+    applyEngineTransition(std::move(transition));
 }
 
 bool ImageViewportPrivate::hasActiveRequest() const
@@ -33,7 +43,7 @@ QString ImageViewportPrivate::boundedDiagnostic(const QString& diagnostic, const
     return FramePreparation::boundedDiagnostic(diagnostic, fallback);
 }
 
-void ImageViewportPrivate::applyControllerTransition(ViewportControllerTransition transition)
+void ImageViewportPrivate::applyEngineTransition(ViewportEngineTransition transition)
 {
     using ScheduleAction = ViewportPlaybackScheduleEffect::Action;
     if (transition.playbackSchedule.action != ScheduleAction::NoChange) {
@@ -42,7 +52,7 @@ void ImageViewportPrivate::applyControllerTransition(ViewportControllerTransitio
     ++transitionApplicationDepth;
 
     providerHost.applyTransportEffects(transition.providerBeforePublication);
-    transition.changes = controller.publishChanges(transition.changes);
+    transition.changes = engine.publishChanges(std::move(transition.changes));
     internalDiagnostics.recordRenderFailure(transition.changes.renderFailureDiagnostic);
 
     if (transition.changes.scheduleUpdate) {
@@ -61,21 +71,45 @@ void ImageViewportPrivate::applyControllerTransition(ViewportControllerTransitio
         pendingPlaybackSchedule = {};
         playbackScheduler.apply(schedule);
     }
+    if (transitionApplicationDepth == 0) {
+        drainProviderHostEvents();
+    }
+}
+
+void ImageViewportPrivate::enqueueProviderHostEvent(ViewportProviderHostEvent event)
+{
+    pendingProviderHostEvents.append(std::move(event));
+    if (transitionApplicationDepth == 0) {
+        drainProviderHostEvents();
+    }
+}
+
+void ImageViewportPrivate::drainProviderHostEvents()
+{
+    if (drainingProviderHostEvents || transitionApplicationDepth != 0) {
+        return;
+    }
+    drainingProviderHostEvents = true;
+    while (!pendingProviderHostEvents.isEmpty()) {
+        ViewportProviderHostEvent event = pendingProviderHostEvents.takeFirst();
+        applyEngineTransition(
+            engine.handleProviderHostEvent({ event, { itemBounds(), 1.0 } }));
+    }
+    drainingProviderHostEvents = false;
 }
 
 void ImageViewportPrivate::devicePixelRatioChanged()
 {
     const QQuickWindow* currentWindow = window();
-    applyControllerTransition(controller.handleDevicePixelRatioChanged(
-        currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0));
+    applyEngineTransition(engine.handleDevicePixelRatioChanged(
+        { itemBounds(), currentWindow ? currentWindow->effectiveDevicePixelRatio() : 1.0 }));
 }
 
 ImageViewportCommandOutcome ImageViewportPrivate::clear()
 {
     playbackScheduler.flushElapsed();
-    const ViewportCommandResult result = controller.clear();
-    applyControllerTransition(result.transition);
-    return result.outcome;
+    return setPresentationTarget(
+        ImageViewportPresentationTarget::clear(), PresentationTargetTransitionPolicy {});
 }
 
 ImageViewportCommandOutcome ImageViewportPrivate::play(PageRole role)
@@ -110,16 +144,22 @@ ImageViewportCommandOutcome ImageViewportPrivate::executePlaybackCommand(
     if (ImageViewportInternal::isValidPageRole(command.role)) {
         playbackScheduler.flushElapsed();
     }
-    const ViewportCommandResult result = controller.applyPlaybackCommand(command);
-    applyControllerTransition(result.transition);
+    const auto reduced = engine.applyPlaybackCommand({ command, { itemBounds(), 1.0 } });
+    ViewportCommandResult result;
+    result.outcome = reduced.command.outcome;
+    result.transition.changes = reduced.changes;
+    appendProviderTransport(result.transition.providerBeforePublication,
+        reduced.effects.providerFrameTransport[0], PageRole::Primary);
+    appendProviderTransport(result.transition.providerBeforePublication,
+        reduced.effects.providerFrameTransport[1], PageRole::Secondary);
+    result.transition.playbackSchedule = reduced.schedule;
+    applyEngineTransition(result.transition);
     return result.outcome;
 }
 
 ImageViewportCommandOutcome ImageViewportPrivate::resetView()
 {
-    const ViewportCommandResult result = controller.resetView();
-    applyControllerTransition(result.transition);
-    return result.outcome;
+    return setPresentation(ImageViewportPresentationCommand::resetViewCommand());
 }
 
 #ifdef IMAGEVIEWPORT_PRIVATE_TEST_PROBES
@@ -130,17 +170,20 @@ void ImageViewportPrivate::advancePlaybackForTest(int elapsedMilliseconds)
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(quint64 token)
 {
-    controller.setNextProviderRequestTokenForTest(token);
+    ViewportEngineTestAccess::providerRequests(engine, PageRole::Primary).nextRequestToken = token;
 }
 
 void ImageViewportPrivate::setNextProviderRequestTokenForTest(PageRole role, quint64 token)
 {
-    controller.setNextProviderRequestTokenForTest(role, token);
+    ViewportEngineTestAccess::providerRequests(engine, role).nextRequestToken = token;
 }
 
 void ImageViewportPrivate::setNextRevisionTokenForTest(quint64 token)
 {
-    controller.setNextRevisionTokenForTest(token);
+    ViewportEngineTestAccess::setNextRevisionValue(engine, token);
+    ViewportEngineTestAccess::display(engine).revision = 0;
+    ViewportEngineTestAccess::request(engine).requestRevision = 0;
+    ViewportEngineTestAccess::publishedCommandRevision(engine) = 0;
 }
 
 void ImageViewportPrivate::failNextProviderCommandDeliveryForTest(PageRole role)
@@ -170,32 +213,32 @@ void ImageViewportPrivate::useSynchronousProviderQueueFlushSchedulerForTest()
 
 bool ImageViewportPrivate::hasPendingRenderCommitForTest() const
 {
-    return controller.hasPendingRenderCommitForTest();
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.commitPending;
 }
 
 quint64 ImageViewportPrivate::activeRequestIdForTest() const
 {
-    return controller.activeRequestIdForTest();
+    return ViewportEngineTestAccess::request(engine).roles[0].activeRequest.identity.id;
 }
 
 quint64 ImageViewportPrivate::displayedRequestIdForTest() const
 {
-    return controller.displayedRequestIdForTest();
+    return ViewportEngineTestAccess::display(engine).roles[0].displayedRequest.request.identity.id;
 }
 
 quint64 ImageViewportPrivate::pendingRenderGenerationForTest() const
 {
-    return controller.pendingRenderGenerationForTest();
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.generation;
 }
 
 quint64 ImageViewportPrivate::pendingRenderPayloadIdForTest() const
 {
-    return controller.pendingRenderPayloadIdForTest();
+    return ViewportEngineTestAccess::display(engine).roles[0].pendingRenderPayload.payloadId;
 }
 
 quint64 ImageViewportPrivate::secondaryPendingRenderPayloadIdForTest() const
 {
-    return controller.secondaryPendingRenderPayloadIdForTest();
+    return ViewportEngineTestAccess::display(engine).roles[1].pendingRenderPayload.payloadId;
 }
 
 ImageViewportInternal::RenderFailureDiagnostic
@@ -219,16 +262,25 @@ ImageViewportPrivate::lastProviderSchedulerDiagnosticForTest() const
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(
     quint64 generation, quint64 requestId, quint64 preparedPayloadId)
 {
-    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
-    auto transition = controller.acknowledgeRenderCommit(
-        { { generation, requestId, preparedPayloadId } }, true, synchronization);
-    applyControllerTransition(std::move(transition));
+    const ViewportRenderSynchronization synchronization
+        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
+    const auto reduced = engine.acknowledgeRenderCommit(
+        { { { generation, requestId, preparedPayloadId } }, true, synchronization.attempt,
+            synchronization.pendingTargetCommit, synchronization.pendingSecondaryProviderCommit,
+            synchronization.preparedPayload, synchronization.oldDisplayStatus,
+            synchronization.oldContentRect, synchronization.oldVisibleImageRect,
+            synchronization.geometryState });
+    ViewportEngineTransition transition;
+    transition.changes = reduced.changes;
+    transition.playbackSchedule = reduced.playbackSchedule;
+    applyEngineTransition(std::move(transition));
 }
 
 void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, quint64 requestId,
     quint64 primaryPreparedPayloadId, quint64 secondaryPreparedPayloadId)
 {
-    const ViewportRenderSynchronization synchronization = controller.beginRenderSynchronization();
+    const ViewportRenderSynchronization synchronization
+        = engine.beginRenderSynchronization({ { itemBounds(), 1.0 } });
     const ImageViewportInternal::PreparedPayloadIdentity primaryPayload {
         generation,
         requestId,
@@ -239,16 +291,20 @@ void ImageViewportPrivate::acknowledgeRenderCommitForTest(quint64 generation, qu
         requestId,
         secondaryPreparedPayloadId,
     };
-    auto transition = controller.acknowledgeRenderCommit(
-        {
+    const auto reduced = engine.acknowledgeRenderCommit({ {
             primaryPayload,
             {
                 { ImageViewportPageRole::Primary, primaryPayload },
                 { ImageViewportPageRole::Secondary, secondaryPayload },
             },
-        },
-        true, synchronization);
-    applyControllerTransition(std::move(transition));
+        }, true, synchronization.attempt, synchronization.pendingTargetCommit,
+        synchronization.pendingSecondaryProviderCommit, synchronization.preparedPayload,
+        synchronization.oldDisplayStatus, synchronization.oldContentRect,
+        synchronization.oldVisibleImageRect, synchronization.geometryState });
+    ViewportEngineTransition transition;
+    transition.changes = reduced.changes;
+    transition.playbackSchedule = reduced.playbackSchedule;
+    applyEngineTransition(std::move(transition));
 }
 
 void ImageViewportPrivate::acknowledgeRenderFailureForTest(
@@ -273,8 +329,11 @@ void ImageViewportPrivate::acknowledgeRenderFailureForTest(PageRole failedRole, 
         requestId,
         preparedPayloadId,
     };
-    auto transition = controller.acknowledgeRenderFailure(
-        { failedPayload, { { failedRole, failedPayload } }, failedRole, cause });
-    applyControllerTransition(std::move(transition));
+    const auto reduced = engine.acknowledgeRenderFailure(
+        { { failedPayload, { { failedRole, failedPayload } }, failedRole, cause } });
+    ViewportEngineTransition transition;
+    transition.changes = reduced.changes;
+    transition.playbackSchedule = reduced.playbackSchedule;
+    applyEngineTransition(std::move(transition));
 }
 #endif

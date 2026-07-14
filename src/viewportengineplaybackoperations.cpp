@@ -569,8 +569,8 @@ ViewportEnginePlaybackSeekReduction reduceViewportEnginePlaybackSeek(
             provider.requests.queuedResolvedFrame = active.resolvedFrame;
             provider.requests.queuedFrameFromPlayback = false;
             provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredControllerEvent
-                = ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest;
+            effect.deferredEngineEvent
+                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
             return;
         }
         auto allocation = access.allocateProviderRequestToken(input.role);
@@ -741,8 +741,8 @@ ViewportEnginePlaybackPlayReduction reduceViewportEnginePlaybackPlay(
             provider.requests.queuedResolvedFrame = active.resolvedFrame;
             provider.requests.queuedFrameFromPlayback = true;
             provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredControllerEvent
-                = ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest;
+            effect.deferredEngineEvent
+                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
             return;
         }
         auto allocation = access.allocateProviderRequestToken(input.role);
@@ -967,8 +967,8 @@ ViewportEnginePlaybackTickReduction reduceViewportEnginePlaybackTick(
             provider.requests.queuedResolvedFrame = active.resolvedFrame;
             provider.requests.queuedFrameFromPlayback = true;
             provider.requests.queuedFrameTargetKind = active.target.providerTargetKind;
-            effect.deferredControllerEvent
-                = ViewportProviderDeferredControllerEvent::FlushQueuedFrameRequest;
+            effect.deferredEngineEvent
+                = ViewportProviderDeferredEngineEvent::FlushQueuedFrameRequest;
         } else {
             auto allocation = access.allocateProviderRequestToken(role);
             effect.closeSession = allocation.closeSession;
